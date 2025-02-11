@@ -19,7 +19,6 @@ use tokio::{
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
-use hyperlane_application::ApplicationOperationVerifier;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
@@ -33,6 +32,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
     QueueOperation, ValidatorAnnounce, H512, U256,
 };
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,

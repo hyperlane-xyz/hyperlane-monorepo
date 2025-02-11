@@ -4556,9 +4556,9 @@ dependencies = [
 name = "hyperlane-application"
 version = "0.1.0"
 dependencies = [
- "async-trait",
- "hyperlane-core",
- "thiserror",
+ "serde",
+ "serde_json",
+ "strum 0.26.3",
 ]
 
 [[package]]
@@ -4583,11 +4583,11 @@ dependencies = [
  "fuels",
  "futures",
  "futures-util",
- "hyperlane-application",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-fuel",
+ "hyperlane-operation-verifier",
  "hyperlane-sealevel",
  "hyperlane-test",
  "itertools 0.12.1",
@@ -4643,6 +4643,7 @@ dependencies = [
  "futures",
  "getrandom 0.2.15",
  "hex 0.4.3",
+ "hyperlane-application",
  "itertools 0.12.1",
  "num 0.4.3",
  "num-derive 0.4.2",
@@ -4679,9 +4680,9 @@ dependencies = [
  "http 1.2.0",
  "hyper 0.14.30",
  "hyper-tls",
- "hyperlane-application",
  "hyperlane-core",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "ibc-proto",
  "injective-protobuf",
@@ -4742,8 +4743,8 @@ dependencies = [
  "eyre",
  "futures-util",
  "hex 0.4.3",
- "hyperlane-application",
  "hyperlane-core",
+ "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "itertools 0.12.1",
  "num 0.4.3",
@@ -4776,6 +4777,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-operation-verifier"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "hyperlane-application",
+ "hyperlane-core",
+ "thiserror",
+]
+
+[[package]]
 name = "hyperlane-sealevel"
 version = "0.1.0"
 dependencies = [
@@ -4786,8 +4797,8 @@ dependencies = [
  "bincode",
  "borsh 0.9.3",
  "derive-new",
- "hyperlane-application",
  "hyperlane-core",
+ "hyperlane-operation-verifier",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
@@ -7209,10 +7220,10 @@ dependencies = [
  "eyre",
  "futures",
  "futures-util",
- "hyperlane-application",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
+ "hyperlane-operation-verifier",
  "hyperlane-test",
  "itertools 0.12.1",
  "mockall",

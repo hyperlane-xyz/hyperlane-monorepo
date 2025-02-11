@@ -13,7 +13,6 @@ use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
-use hyperlane_application::ApplicationOperationVerifier;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
@@ -24,6 +23,7 @@ use hyperlane_core::{
     PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
     TxOutcome, H256, U256,
 };
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -686,7 +686,7 @@ impl PendingMessage {
     }
 
     async fn clarify_reason(&self, reason: ReprepareReason) -> ReprepareReason {
-        use ReprepareReason::ApplicationOperationVerificationFailed;
+        use ReprepareReason::ApplicationReport;
 
         match self
             .ctx
@@ -694,7 +694,7 @@ impl PendingMessage {
             .verify(&self.app_context, &self.message)
             .await
         {
-            Some(_) => ApplicationOperationVerificationFailed,
+            Some(r) => ApplicationReport(r.into()),
             None => reason,
         }
     }

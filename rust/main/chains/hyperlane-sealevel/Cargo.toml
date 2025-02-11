@@ -28,11 +28,11 @@ tracing.workspace = true
 url.workspace = true
 
 account-utils = { path = "../../../sealevel/libraries/account-utils" }
-hyperlane-application = { path = "../../applications/hyperlane-application" }
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "solana",
     "async",
 ] }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../sealevel/libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../../../sealevel/programs/mailbox", features = [
     "no-entrypoint",

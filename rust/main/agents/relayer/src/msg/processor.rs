@@ -395,7 +395,6 @@ mod test {
     };
     use tokio_metrics::TaskMonitor;
 
-    use hyperlane_application::{ApplicationOperationVerifier, ApplicationOperationVerifierReport};
     use hyperlane_base::{
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
@@ -406,6 +405,9 @@ mod test {
     use hyperlane_core::{
         test_utils::dummy_domain, GasPaymentKey, InterchainGasPayment, InterchainGasPaymentMeta,
         MerkleTreeInsertion, PendingOperationStatus, H256,
+    };
+    use hyperlane_operation_verifier::{
+        ApplicationOperationVerifier, ApplicationOperationVerifierReport,
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
 

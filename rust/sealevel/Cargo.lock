@@ -2394,6 +2394,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-application"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "strum 0.26.3",
+]
+
+[[package]]
 name = "hyperlane-core"
 version = "0.1.0"
 dependencies = [
@@ -2411,6 +2420,7 @@ dependencies = [
  "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "getrandom 0.2.15",
  "hex",
+ "hyperlane-application",
  "itertools 0.13.0",
  "num 0.4.3",
  "num-derive 0.4.2",

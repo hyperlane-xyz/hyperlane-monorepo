@@ -4,8 +4,10 @@ use async_trait::async_trait;
 use derive_new::new;
 use tracing::debug;
 
-use hyperlane_application::{ApplicationOperationVerifier, ApplicationOperationVerifierReport};
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
+use hyperlane_operation_verifier::{
+    ApplicationOperationVerifier, ApplicationOperationVerifierReport,
+};
 use hyperlane_warp_route::TokenMessage;
 
 const WARP_ROUTE_MARKER: &str = "/";

@@ -1,17 +1,8 @@
 use async_trait::async_trait;
 
-use hyperlane_core::{HyperlaneMessage, U256};
+use hyperlane_core::HyperlaneMessage;
 
-/// Application operation verifier report
-#[derive(Debug)]
-pub enum ApplicationOperationVerifierReport {
-    /// Amount below minimum (minimum, actual)
-    AmountBelowMinimum(U256, U256),
-    /// Message is malformed
-    MalformedMessage(HyperlaneMessage),
-    /// Zero amount
-    ZeroAmount,
-}
+use crate::ApplicationOperationVerifierReport;
 
 /// Trait to verify if operation is permitted for application
 #[async_trait]

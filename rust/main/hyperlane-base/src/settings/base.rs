@@ -3,12 +3,12 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 use eyre::{eyre, Context, Result};
 use futures_util::future::join_all;
 
-use hyperlane_application::ApplicationOperationVerifier;
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     cursors::{CursorType, Indexable},

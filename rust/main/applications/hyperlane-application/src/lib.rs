@@ -1,4 +1,3 @@
-pub use operation_verifier::ApplicationOperationVerifier;
-pub use operation_verifier::ApplicationOperationVerifierReport;
+pub use application_report::ApplicationReport;
 
-mod operation_verifier;
+mod application_report;

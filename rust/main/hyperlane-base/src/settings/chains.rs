@@ -5,7 +5,7 @@ use ethers::prelude::Selector;
 use eyre::{eyre, Context, Report, Result};
 
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
-use hyperlane_application::ApplicationOperationVerifier;
+
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
@@ -13,6 +13,8 @@ use hyperlane_core::{
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
     SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
+
 use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,

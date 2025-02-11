@@ -1,7 +1,7 @@
 cargo-features = ["workspace-inheritance"]
 
 [package]
-name = "hyperlane-application"
+name = "hyperlane-operation-verifier"
 documentation = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
@@ -10,6 +10,8 @@ publish = { workspace = true }
 version = { workspace = true }
 
 [dependencies]
-serde.workspace = true
-serde_json.workspace = true
-strum.workspace = true
+hyperlane-application = { path = "../hyperlane-application" }
+hyperlane-core = { path = "../../hyperlane-core" }
+
+async-trait.workspace = true
+thiserror.workspace = true
