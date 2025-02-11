@@ -147,20 +147,23 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
-    const unnormalizedCurrentConfig = await this.read();
-    const currentConfig = normalizeConfig(unnormalizedCurrentConfig);
-
     // Update the config
     this.args.config = targetConfig;
 
+    // We need to normalize the current and target configs to compare.
+    const normalizedCurrentConfig = normalizeConfig(await this.read());
+    const normalizedTargetConfig = normalizeConfig(targetConfig);
+
     // If configs match, no updates needed
-    if (deepEquals(currentConfig, targetConfig)) {
+    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
       return [];
     }
 
-    if (this.shouldDeployNewHook(currentConfig, targetConfig)) {
+    if (
+      this.shouldDeployNewHook(normalizedCurrentConfig, normalizedTargetConfig)
+    ) {
       const contract = await this.deploy({
-        config: targetConfig,
+        config: normalizedTargetConfig,
       });
 
       this.args.addresses.deployedHook = contract.address;
@@ -174,24 +177,24 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.INTERCHAIN_GAS_PAYMASTER:
         updateTxs.push(
           ...(await this.updateIgpHook({
-            currentConfig,
-            targetConfig,
+            currentConfig: normalizedCurrentConfig,
+            targetConfig: normalizedTargetConfig,
           })),
         );
         break;
       case HookType.PROTOCOL_FEE:
         updateTxs.push(
           ...(await this.updateProtocolFeeHook({
-            currentConfig,
-            targetConfig,
+            currentConfig: normalizedCurrentConfig,
+            targetConfig: normalizedTargetConfig,
           })),
         );
         break;
       case HookType.PAUSABLE:
         updateTxs.push(
           ...(await this.updatePausableHook({
-            currentConfig,
-            targetConfig,
+            currentConfig: normalizedCurrentConfig,
+            targetConfig: normalizedTargetConfig,
           })),
         );
         break;
@@ -199,14 +202,16 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.FALLBACK_ROUTING:
         updateTxs.push(
           ...(await this.updateRoutingHook({
-            currentConfig,
-            targetConfig,
+            currentConfig: normalizedCurrentConfig,
+            targetConfig: normalizedTargetConfig,
           })),
         );
         break;
       default:
         // MERKLE_TREE, AGGREGATION and OP_STACK hooks should already be handled before the switch
-        throw new Error(`Unsupported hook type: ${targetConfig.type}`);
+        throw new Error(
+          `Unsupported hook type: ${normalizedTargetConfig.type}`,
+        );
     }
 
     // Lastly, check if the resolved owner is different from the current owner
@@ -216,14 +221,14 @@ export class EvmHookModule extends HyperlaneModule<
     ).owner();
 
     // Return an ownership transfer transaction if required
-    if (!eqAddress(targetConfig.owner, owner)) {
+    if (!eqAddress(normalizedTargetConfig.owner, owner)) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: Ownable__factory.createInterface().encodeFunctionData(
           'transferOwnership(address)',
-          [targetConfig.owner],
+          [normalizedTargetConfig.owner],
         ),
       });
     }
