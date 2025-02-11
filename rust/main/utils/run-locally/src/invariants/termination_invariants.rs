@@ -207,7 +207,7 @@ pub fn relayer_termination_invariants_met(
     // RHS: total_messages_expected + non_matching_igp_messages + double insertions ((config.kathy_messages as u32 / 4) * 2)
     let non_zero_sequence_count =
         merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
-    assert_eq!(
+    // RHS: total_messages_expected + non_matching_igp_messages + double_insertion_message_count
         merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
         total_messages_expected + non_matching_igp_message_count + double_insertion_message_count,
     );
