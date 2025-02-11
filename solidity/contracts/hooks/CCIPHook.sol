@@ -74,11 +74,10 @@ contract CCIPHook is AbstractMessageIdAuthHook {
 
     function _sendMessageId(
         bytes calldata /*metadata*/,
-        bytes calldata message,
-        uint256 quote
+        bytes calldata message
     ) internal override {
         Client.EVM2AnyMessage memory ccipMessage = _buildCCIPMessage(message);
 
-        ccipRouter.ccipSend{value: quote}(ccipDestination, ccipMessage);
+        ccipRouter.ccipSend{value: msg.value}(ccipDestination, ccipMessage);
     }
 }
