@@ -529,14 +529,15 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
-  await extendWarpRoute(params, apiKeys, warpCoreConfigByChain);
+  const { updatedWarpDeployConfig, updatedWarpCoreConfigByChain } =
+    await extendWarpRoute(params, apiKeys, warpCoreConfigByChain);
 
   // Then create and submit update transactions
   const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
     params,
     apiKeys,
-    warpDeployConfig,
-    warpCoreConfigByChain,
+    updatedWarpDeployConfig,
+    updatedWarpCoreConfigByChain,
   );
 
   if (transactions.length == 0)
@@ -544,18 +545,17 @@ export async function runWarpRouteApply(
   await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
 }
 
-export async function extendWarpRoute(
-  params: WarpApplyParams,
-  apiKeys: ChainMap<string>,
-  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-) {
-  const { context, warpDeployConfig } = params;
-  const warpCoreChains = Object.keys(warpCoreConfigByChain);
-
-  // Split between the existing and additional config
-  const [existingConfigs, initialExtendedConfigs] = Object.entries(
-    warpDeployConfig,
-  ).reduce<[WarpRouteDeployConfig, WarpRouteDeployConfig]>(
+/**
+ * Splits warp deploy config into existing and extended configurations based on warp core chains
+ * for the warp apply process.
+ */
+function splitWarpApplyConfig(
+  warpDeployConfig: WarpRouteDeployConfig,
+  warpCoreChains: string[],
+): [WarpRouteDeployConfig, WarpRouteDeployConfig] {
+  return Object.entries(warpDeployConfig).reduce<
+    [WarpRouteDeployConfig, WarpRouteDeployConfig]
+  >(
     ([existing, extended], [chain, config]) => {
       if (warpCoreChains.includes(chain)) {
         existing[chain] = config;
@@ -566,9 +566,32 @@ export async function extendWarpRoute(
     },
     [{}, {}],
   );
+}
+
+export async function extendWarpRoute(
+  params: WarpApplyParams,
+  apiKeys: ChainMap<string>,
+  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
+): Promise<{
+  updatedWarpDeployConfig: WarpRouteDeployConfig;
+  updatedWarpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>;
+}> {
+  const { context, warpDeployConfig } = params;
+  const warpCoreChains = Object.keys(warpCoreConfigByChain);
+
+  // Split between the existing and additional config
+  const [existingConfigs, initialExtendedConfigs] = splitWarpApplyConfig(
+    warpDeployConfig,
+    warpCoreChains,
+  );
 
   const extendedChains = Object.keys(initialExtendedConfigs);
-  if (extendedChains.length === 0) return;
+  if (extendedChains.length === 0) {
+    return {
+      updatedWarpDeployConfig: { ...warpDeployConfig },
+      updatedWarpCoreConfigByChain: { ...warpCoreConfigByChain },
+    };
+  }
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
@@ -600,23 +623,32 @@ export async function extendWarpRoute(
     await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
-  // Update warpDeployConfig with newly deployed contract addresses
-  for (const chain of Object.keys(newDeployedContracts)) {
-    const config = warpDeployConfig[chain];
-    const contracts = newDeployedContracts[
-      chain
-    ] as HyperlaneContracts<HypERC20Factories>;
-    const router = getRouter(contracts);
+  // Create new warpDeployConfig with updated addresses
+  const updatedWarpDeployConfig = {
+    ...warpDeployConfig,
+    ...Object.fromEntries(
+      Object.entries(newDeployedContracts).map(([chain, contracts]) => {
+        const config = { ...warpDeployConfig[chain] };
+        if (!isCollateralTokenConfig(config)) {
+          return [chain, config];
+        }
 
-    if (isCollateralTokenConfig(config)) {
-      config.token = router.address;
-    }
-  }
+        const router = getRouter(
+          contracts as HyperlaneContracts<HypERC20Factories>,
+        );
 
-  // Update warpCoreConfigByChain with new addresses
-  for (const token of updatedWarpCoreConfig.tokens) {
-    warpCoreConfigByChain[token.chainName] = token;
-  }
+        return [chain, { ...config, token: router.address }];
+      }),
+    ),
+  };
+
+  // Create new warpCoreConfigByChain with updated tokens
+  const updatedWarpCoreConfigByChain = {
+    ...warpCoreConfigByChain,
+    ...Object.fromEntries(
+      updatedWarpCoreConfig.tokens.map((token) => [token.chainName, token]),
+    ),
+  };
 
   // Write the updated artifacts
   await writeDeploymentArtifacts(
@@ -624,6 +656,11 @@ export async function extendWarpRoute(
     context,
     addWarpRouteOptions,
   );
+
+  return {
+    updatedWarpDeployConfig,
+    updatedWarpCoreConfigByChain,
+  };
 }
 
 /**
