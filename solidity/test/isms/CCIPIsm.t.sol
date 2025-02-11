@@ -261,7 +261,8 @@ contract CCIPIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        vm.startPrank(MAINNET_ROUTER_ADDRESS);
+        address unauthorized = address(~bytes20(OP_ROUTER_ADDRESS));
+        vm.startPrank(unauthorized);
 
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
