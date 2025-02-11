@@ -4,7 +4,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import {
   BalanceThresholdType,
   THRESHOLD_CONFIG_PATH,
-  ThresholdConfigs,
+  ThresholdsData,
   balanceThresholdConfigMapping,
 } from '../../src/config/funding/balances.js';
 import {
@@ -24,8 +24,8 @@ async function main() {
   const saToken = await fetchGrafanaServiceAccountToken();
 
   const balanceThresholdTypes = Object.values(BalanceThresholdType);
-  const balanceThresholdConfigs: ThresholdConfigs =
-    balanceThresholdTypes.reduce((acc, balanceThresholdType) => {
+  const balanceThresholdConfigs: ThresholdsData = balanceThresholdTypes.reduce(
+    (acc, balanceThresholdType) => {
       const thresholds = readJSONAtPath(
         `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[balanceThresholdType].configFileName}`,
       ) as ChainMap<string>;
@@ -36,7 +36,9 @@ async function main() {
           thresholds,
         },
       };
-    }, {} as ThresholdConfigs);
+    },
+    {} as ThresholdsData,
+  );
 
   validateThresholds(balanceThresholdConfigs);
 
