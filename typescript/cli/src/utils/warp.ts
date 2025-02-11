@@ -67,24 +67,6 @@ export async function getWarpConfigs({
   warpDeployConfig: WarpRouteDeployConfig | null;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (symbol) {
-    const warpCoreConfig = await selectRegistryWarpRoute(
-      context.registry,
-      symbol,
-    );
-
-    const routeIds = await getWarpRouteIds(context);
-    const matchingId = routeIds.find((id) =>
-      id.toUpperCase().includes(symbol.toUpperCase()),
-    );
-    if (!matchingId) {
-      throw new Error(`No matching warp route ID found for symbol ${symbol}`);
-    }
-
-    const warpDeployConfig = await getWarpDeployConfig(matchingId, context);
-    return { warpDeployConfig, warpCoreConfig };
-  }
-
   if (config || warp) {
     if (!config || !warp) {
       throw new Error(
@@ -98,6 +80,24 @@ export async function getWarpConfigs({
 
   if (warpRouteId) {
     return getWarpConfigFromRegistry(warpRouteId, context);
+  }
+
+  if (symbol) {
+    const warpCoreConfig = await selectRegistryWarpRoute(
+      context.registry,
+      symbol,
+    );
+
+    const routeIds = await getWarpRouteIds(context);
+    const routeId = routeIds.find((id) =>
+      id.toUpperCase().includes(symbol.toUpperCase()),
+    );
+    if (!routeId) {
+      throw new Error(`No matching warp route ID found for symbol ${symbol}`);
+    }
+
+    const warpDeployConfig = await getWarpDeployConfig(routeId, context);
+    return { warpDeployConfig, warpCoreConfig };
   }
 
   // No inputs provided, prompt user to select from all routes
