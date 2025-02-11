@@ -1,10 +1,3 @@
-import {
-  Account,
-  CairoOption,
-  CairoOptionVariant,
-  Contract,
-  uint256,
-} from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -15,6 +8,7 @@ import {
   MultiProtocolProvider,
   ProviderType,
   StarknetCore,
+  StarknetHypSyntheticAdapter,
   Token,
   TokenAmount,
   WarpCore,
@@ -208,47 +202,65 @@ async function executeDelivery({
 
     if (tx.type === ProviderType.Starknet) {
       const mpProvider = new MultiProtocolProvider(chainMetadata);
-      const starknetProvider = mpProvider.getStarknetProvider(origin);
-      console.log('JALEN starknetProvider', starknetProvider);
-      const account = new Account(starknetProvider, 'ADDRESS', 'PRIVATE_KEY');
-      const TOKEN_API = [
+      const adapter = new StarknetHypSyntheticAdapter(
+        origin,
+        mpProvider,
         {
-          type: 'function',
-          name: 'transfer_remote',
-          inputs: [
-            { name: 'destination', type: 'core::integer::u32' },
-            { name: 'recipient', type: 'core::integer::u256' },
-            { name: 'amount_or_id', type: 'core::integer::u256' },
-            { name: 'value', type: 'core::integer::u256' },
-            {
-              name: 'hook_metadata',
-              type: 'core::option::Option::<alexandria_bytes::bytes::Bytes>',
-            },
-            {
-              name: 'hook',
-              type: 'core::option::Option::<core::starknet::contract_address::ContractAddress>',
-            },
-          ],
+          token:
+            '0x00000000000000000000000059CeC7D4f6B56e35819F887Bb9D8cC0981eDa1E4',
         },
-      ];
-      const tokenContract = new Contract(
-        TOKEN_API,
-        '0x004d71a6e85cca6bca219a64baae790ea9958fc4124e0b4787965f7da7536cd8',
-        account,
+        '10',
       );
-      const recipientUint256 = uint256.bnToUint256(recipient);
-      const none = new CairoOption(CairoOptionVariant.None);
-      console.log('JALEN recipientUint256', recipientUint256);
-      await tokenContract.invoke('transfer_remote', [
-        11155111,
-        recipientUint256,
-        uint256.bnToUint256(amount),
-        uint256.bnToUint256(0),
-        [CairoOptionVariant.None],
-        none,
-      ]);
+      const txResponse = await adapter.populateTransferRemoteTx({
+        weiAmountOrId: 1,
+        destination: mpProvider.getDomainId(destination),
+        recipient,
+      });
+      console.log('JALEN txResponse', txResponse);
     }
   }
+
+  //   const starknetProvider = mpProvider.getStarknetProvider(origin);
+  //   console.log('JALEN starknetProvider', starknetProvider);
+  //   const account = new Account(starknetProvider, 'ADDRESS', 'PRIVATE_KEY');
+  //   const TOKEN_API = [
+  //     {
+  //       type: 'function',
+  //       name: 'transfer_remote',
+  //       inputs: [
+  //         { name: 'destination', type: 'core::integer::u32' },
+  //         { name: 'recipient', type: 'core::integer::u256' },
+  //         { name: 'amount_or_id', type: 'core::integer::u256' },
+  //         { name: 'value', type: 'core::integer::u256' },
+  //         {
+  //           name: 'hook_metadata',
+  //           type: 'core::option::Option::<alexandria_bytes::bytes::Bytes>',
+  //         },
+  //         {
+  //           name: 'hook',
+  //           type: 'core::option::Option::<core::starknet::contract_address::ContractAddress>',
+  //         },
+  //       ],
+  //     },
+  //   ];
+  //   const tokenContract = new Contract(
+  //     TOKEN_API,
+  //     '0x004d71a6e85cca6bca219a64baae790ea9958fc4124e0b4787965f7da7536cd8',
+  //     account,
+  //   );
+  //   const recipientUint256 = uint256.bnToUint256(recipient);
+  //   const none = new CairoOption(CairoOptionVariant.None);
+  //   console.log('JALEN recipientUint256', recipientUint256);
+  //   await tokenContract.invoke('transfer_remote', [
+  //     11155111,
+  //     recipientUint256,
+  //     uint256.bnToUint256(amount),
+  //     uint256.bnToUint256(0),
+  //     [CairoOptionVariant.None],
+  //     none,
+  //   ]);
+  // }
+  // }
   console.log('JALEN txReceipts', txReceipts);
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;

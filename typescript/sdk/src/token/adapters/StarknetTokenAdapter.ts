@@ -1,12 +1,11 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
-import { Contract } from 'starknet';
+import { CairoOption, CairoOptionVariant, Contract } from 'starknet';
 
 import {
   Address,
   Domain,
-  Numberish,
-  bytes32ToAddress,
-  strip0x,
+  Numberish, // bytes32ToAddress,
+  // strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
@@ -139,16 +138,17 @@ export class StarknetHypSyntheticAdapter extends StarknetTokenAdapter {
   async getRouterAddress(_domain: Domain): Promise<Buffer> {
     const routerAddressesAsBytes32 =
       '0x00000000000000000000000059CeC7D4f6B56e35819F887Bb9D8cC0981eDa1E4';
+    return Buffer.from(routerAddressesAsBytes32, 'hex');
     // Evm addresses will be padded with 12 bytes
-    if (routerAddressesAsBytes32.startsWith('0x000000000000000000000000')) {
-      return Buffer.from(
-        strip0x(bytes32ToAddress(routerAddressesAsBytes32)),
-        'hex',
-      );
-      // Otherwise leave the address unchanged
-    } else {
-      return Buffer.from(strip0x(routerAddressesAsBytes32), 'hex');
-    }
+    // if (routerAddressesAsBytes32.startsWith('0x000000000000000000000000')) {
+    //   return Buffer.from(
+    //     strip0x(bytes32ToAddress(routerAddressesAsBytes32)),
+    //     'hex',
+    //   );
+    //   // Otherwise leave the address unchanged
+    // } else {
+    //   return Buffer.from(strip0x(routerAddressesAsBytes32), 'hex');
+    // }
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
@@ -173,20 +173,26 @@ export class StarknetHypSyntheticAdapter extends StarknetTokenAdapter {
     return { amount: BigInt(gasPayment.toString()) };
   }
 
-  // async populateTransferRemoteTx({
-  //   weiAmountOrId,
-  //   destination,
-  //   recipient,
-  //   interchainGas,
-  // }: TransferRemoteParams): Promise<PopulatedTransaction> {
-  //   if (!interchainGas)
-  //     interchainGas = await this.quoteTransferRemoteGas(destination);
-
-  //   const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-  //   return this.contract.populateTransaction[
-  //     'transferRemote(uint32,bytes32,uint256)'
-  //   ](destination, recipBytes32, weiAmountOrId, {
-  //     value: interchainGas.amount.toString(),
-  //   });
-  // }
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    const { abi } = await this.getProvider().getClassAt(this.addresses.token);
+    const tokenContract = new Contract(
+      abi,
+      '0x00000000000000000000000059CeC7D4f6B56e35819F887Bb9D8cC0981eDa1E4',
+      this.getProvider(),
+    );
+    const nonOption = new CairoOption(CairoOptionVariant.None);
+    return tokenContract.populateTransaction.transfer_remote(
+      destination,
+      recipient,
+      BigInt(weiAmountOrId),
+      BigInt(0),
+      nonOption,
+      nonOption,
+    );
+  }
 }

@@ -512,6 +512,7 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
+export { StarknetHypSyntheticAdapter } from './token/adapters/StarknetTokenAdapter.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
