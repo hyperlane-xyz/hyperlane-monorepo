@@ -58,7 +58,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient {
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual override returns (uint256) {
+    ) internal virtual override {
         // ensure hook only dispatches messages that are dispatched by the mailbox
         bytes32 id = message.id();
         require(_isLatestDispatched(id), "message not dispatched by mailbox");
@@ -75,8 +75,6 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient {
             address(0), // _zroPaymentAddress is hardcoded to addr(0) because zro tokens should not be directly accepted
             layerZeroMetadata.adapterParam
         );
-
-        return msg.value;
     }
 
     /// @inheritdoc AbstractPostDispatchHook

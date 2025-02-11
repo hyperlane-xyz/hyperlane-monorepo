@@ -57,7 +57,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     function _sendMessageId(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override returns (uint256) {
+    ) internal override {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
             (message.id(), metadata.msgValue(0))
@@ -79,9 +79,8 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             false // payInLzToken
         );
 
-        lZEndpoint.send{value: msg.value}(msgParams, refundAddress);
-
-        return msg.value;
+        uint256 quote = _quoteDispatch(metadata, message);
+        lZEndpoint.send{value: quote}(msgParams, refundAddress);
     }
 
     /// @dev payInZRO is hardcoded to false because zro tokens should not be directly accepted

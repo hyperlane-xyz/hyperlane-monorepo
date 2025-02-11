@@ -144,9 +144,6 @@ abstract contract HypTokenTest is Test, IERC721Receiver {
         assertEq(remoteToken.balanceOf(BOB), 1);
     }
 
-    // for refunds
-    receive() external payable {}
-
     function testBenchmark_overheadGasUsage() public {
         vm.prank(address(localMailbox));
 

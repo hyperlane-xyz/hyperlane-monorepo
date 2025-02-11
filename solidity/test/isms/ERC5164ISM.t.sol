@@ -120,6 +120,13 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         assertFalse(ism.verify(new bytes(0), encodedMessage));
     }
 
+    function test_postDispatch_revertWhen_msgValueNotAllowed() public payable {
+        originMailbox.updateLatestDispatchedId(messageId);
+
+        vm.expectRevert("ERC5164Hook: no value allowed");
+        hook.postDispatch{value: 1}(bytes(""), encodedMessage);
+    }
+
     // override to omit direct external bridge call
     function test_verify_revertsWhen_notAuthorizedHook() public override {
         vm.prank(alice);

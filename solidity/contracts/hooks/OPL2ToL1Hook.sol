@@ -77,21 +77,19 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
     function _sendMessageId(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override returns (uint256) {
-        uint256 quote = childHook.quoteDispatch(metadata, message);
-        childHook.postDispatch{value: quote}(metadata, message);
-
-        uint256 msgValue = metadata.msgValue(0);
+    ) internal override {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
-            (message.id(), msgValue)
+            (message.id(), metadata.msgValue(0))
         );
-        l2Messenger.sendMessage{value: msgValue}(
+
+        childHook.postDispatch{
+            value: childHook.quoteDispatch(metadata, message)
+        }(metadata, message);
+        l2Messenger.sendMessage{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload,
             MIN_GAS_LIMIT
         );
-
-        return quote + msgValue;
     }
 }

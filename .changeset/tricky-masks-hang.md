@@ -2,4 +2,4 @@
 '@hyperlane-xyz/core': patch
 ---
 
-Add refunds to all hooks
+Add internal refund logic to hooks
