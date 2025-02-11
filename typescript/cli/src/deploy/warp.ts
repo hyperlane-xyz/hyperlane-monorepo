@@ -771,6 +771,7 @@ function getDefaultRemoteRouterAndDestinationGasConfig(
   return [remoteRouters, destinationGas];
 }
 
+// Updates Warp routes with new configurations.
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
@@ -799,10 +800,7 @@ async function updateExistingWarpRoute(
     objMap(warpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
-        if (!deployedTokenRoute)
-          return logGray(
-            `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
-          );
+        assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
 
         const {
           domainRoutingIsmFactory,
