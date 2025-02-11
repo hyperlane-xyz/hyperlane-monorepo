@@ -204,10 +204,10 @@ pub fn relayer_termination_invariants_met(
     )?;
     // check for each origin that the highest tree index seen by the syncer == # of messages sent + # of double insertions
     // LHS: sum(merkle_tree_max_sequence) + len(merkle_tree_max_sequence) (each is index so we add 1 to each)
-    // RHS: total_messages_expected + non_matching_igp_messages + double insertions ((config.kathy_messages as u32 / 4) * 2)
+    // RHS: total_messages_expected + non_matching_igp_messages + double_insertion_message_count
     let non_zero_sequence_count =
         merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
-    // RHS: total_messages_expected + non_matching_igp_messages + double_insertion_message_count
+    assert_eq!(
         merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
         total_messages_expected + non_matching_igp_message_count + double_insertion_message_count,
     );
