@@ -568,6 +568,95 @@ function splitWarpApplyConfig(
   );
 }
 
+/**
+ * Handles the deployment and configuration of new contracts for extending a Warp route.
+ * This function performs several key steps:
+ * 1. Derives metadata from existing contracts and applies it to new configurations
+ * 2. Deploys new contracts using the derived configurations
+ * 3. Merges existing and new router configurations
+ * 4. Generates an updated Warp core configuration
+ */
+async function deployWarpExtensionContracts(
+  params: WarpApplyParams,
+  apiKeys: ChainMap<string>,
+  existingConfigs: WarpRouteDeployConfig,
+  initialExtendedConfigs: WarpRouteDeployConfig,
+  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
+) {
+  // Deploy new contracts with derived metadata
+  const extendedConfigs = await deriveMetadataFromExisting(
+    params.context.multiProvider,
+    existingConfigs,
+    initialExtendedConfigs,
+  );
+
+  const newDeployedContracts = await executeDeploy(
+    {
+      context: params.context,
+      warpDeployConfig: extendedConfigs,
+    },
+    apiKeys,
+  );
+
+  // Merge existing and new routers
+  const mergedRouters = mergeAllRouters(
+    params.context.multiProvider,
+    existingConfigs,
+    newDeployedContracts,
+    warpCoreConfigByChain,
+  );
+
+  // Get the updated core config
+  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
+    await getWarpCoreConfig(params, mergedRouters);
+  WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
+
+  return {
+    newDeployedContracts,
+    updatedWarpCoreConfig,
+    addWarpRouteOptions,
+  };
+}
+
+/**
+ * Updates the Warp route configuration by incorporating newly deployed contract addresses.
+ * Preserves existing configuration while updating token addresses for collateral tokens.
+ */
+function updateWarpRouteConfigWithNewAddresses(
+  warpDeployConfig: WarpRouteDeployConfig,
+  newDeployedContracts: HyperlaneContractsMap<
+    HypERC20Factories | HypERC721Factories
+  >,
+): WarpRouteDeployConfig {
+  return {
+    ...warpDeployConfig,
+    ...Object.fromEntries(
+      Object.entries(newDeployedContracts).map(([chain, contracts]) => {
+        const config = { ...warpDeployConfig[chain] };
+        if (!isCollateralTokenConfig(config)) {
+          return [chain, config];
+        }
+
+        const router = getRouter(
+          contracts as HyperlaneContracts<HypERC20Factories>,
+        );
+
+        return [chain, { ...config, token: router.address }];
+      }),
+    ),
+  };
+}
+
+/**
+ * Extends an existing Warp route to include new chains.
+ * This is a core function that orchestrates the entire extension process:
+ * 1. Splits the configuration between existing and new chains
+ * 2. If no new chains are being added, returns the current configuration
+ * 3. Deploys and configures new contracts on the extended chains
+ * 4. Updates the Warp deployment configuration with new contract addresses
+ * 5. Updates the Warp core configuration with new token information
+ * 6. Writes the updated artifacts to the registry
+ */
 export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
@@ -595,52 +684,21 @@ export async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
-  const extendedConfigs = await deriveMetadataFromExisting(
-    context.multiProvider,
-    existingConfigs,
-    initialExtendedConfigs,
-  );
-
-  // Deploy new contracts
-  const newDeployedContracts = await executeDeploy(
-    {
-      context,
-      warpDeployConfig: extendedConfigs,
-    },
-    apiKeys,
-  );
-
-  // Merge existing and new routers
-  const mergedRouters = mergeAllRouters(
-    context.multiProvider,
-    existingConfigs,
-    newDeployedContracts,
-    warpCoreConfigByChain,
-  );
-
-  // Get the updated core config that includes both existing and new contracts
-  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
-    await getWarpCoreConfig(params, mergedRouters);
-  WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
+  // Deploy new contracts with derived metadata and merge with existing config
+  const { newDeployedContracts, updatedWarpCoreConfig, addWarpRouteOptions } =
+    await deployWarpExtensionContracts(
+      params,
+      apiKeys,
+      existingConfigs,
+      initialExtendedConfigs,
+      warpCoreConfigByChain,
+    );
 
   // Create new warpDeployConfig with updated addresses
-  const updatedWarpDeployConfig = {
-    ...warpDeployConfig,
-    ...Object.fromEntries(
-      Object.entries(newDeployedContracts).map(([chain, contracts]) => {
-        const config = { ...warpDeployConfig[chain] };
-        if (!isCollateralTokenConfig(config)) {
-          return [chain, config];
-        }
-
-        const router = getRouter(
-          contracts as HyperlaneContracts<HypERC20Factories>,
-        );
-
-        return [chain, { ...config, token: router.address }];
-      }),
-    ),
-  };
+  const updatedWarpDeployConfig = updateWarpRouteConfigWithNewAddresses(
+    warpDeployConfig,
+    newDeployedContracts,
+  );
 
   // Create new warpCoreConfigByChain with updated tokens
   const updatedWarpCoreConfigByChain = {
