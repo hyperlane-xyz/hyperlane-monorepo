@@ -216,6 +216,9 @@ async function handleUserReviews(
     case UserReview.AcceptAllProposed:
       return proposedThresholds;
     case UserReview.KeepAllCurrent:
+      rootLogger.warn(
+        `Consider add ${chain} to the desiredRelayerBalanceOverrides.json file, so that you are not prompted to review the thresholds in the future.`,
+      );
       return currentThresholds;
     case UserReview.Manual:
       return interactiveThresholdUpdate(currentThresholds, proposedThresholds);
