@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
@@ -12,7 +10,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -30,16 +28,10 @@ pub struct SealevelMultisigIsm {
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(
-        rpc_client: Arc<SealevelRpcClient>,
-        conf: &ConnectionConf,
+        provider: SealevelProvider,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
-        let provider = SealevelProvider::new(
-            rpc_client,
-            locator.domain.clone(),
-            conf.native_token.clone(),
-        );
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         Self {

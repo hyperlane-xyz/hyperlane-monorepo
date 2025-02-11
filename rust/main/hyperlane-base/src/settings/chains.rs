@@ -599,8 +599,13 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
+                let provider = SealevelProvider::new(
+                    rpc_client,
+                    locator.domain.clone(),
+                    conf.native_token.clone(),
+                );
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
-                    rpc_client, conf, locator,
+                    provider, &locator,
                 ));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -680,9 +685,13 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
+                let provider = SealevelProvider::new(
                     rpc_client,
-                    conf,
+                    locator.domain.clone(),
+                    conf.native_token.clone(),
+                );
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
+                    provider,
                     locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
