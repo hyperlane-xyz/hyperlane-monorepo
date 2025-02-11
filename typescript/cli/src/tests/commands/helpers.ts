@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
 import {
@@ -12,12 +12,14 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   HypTokenRouterConfig,
+  TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { Address, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
+import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
@@ -238,6 +240,89 @@ export async function extendWarpConfig(params: {
   await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
 
   return warpDeployPath;
+}
+
+/**
+ * Sets up an incomplete warp route extension for testing purposes.
+ *
+ * This function creates a new warp route configuration for the second chain.
+ */
+export async function setupIncompleteWarpRouteExtension(
+  chain2Addresses: ChainAddresses,
+) {
+  const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+  const chain2DomainId = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+  const chain3DomainId = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+
+  const configToExtend: HypTokenRouterConfig = {
+    decimals: 18,
+    mailbox: chain2Addresses!.mailbox,
+    name: 'Ether',
+    owner: new Wallet(ANVIL_KEY).address,
+    symbol: 'ETH',
+    totalSupply: 0,
+    type: TokenType.native,
+  };
+
+  const context = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key: ANVIL_KEY,
+  });
+
+  const warpCoreConfig = readYamlOrJson(
+    WARP_CORE_CONFIG_PATH_2,
+  ) as WarpCoreConfig;
+  const warpDeployConfig = await readWarpConfig(
+    CHAIN_NAME_2,
+    WARP_CORE_CONFIG_PATH_2,
+    warpConfigPath,
+  );
+
+  warpDeployConfig[CHAIN_NAME_3] = configToExtend;
+
+  const signer2 = new Wallet(
+    ANVIL_KEY,
+    context.multiProvider.getProvider(CHAIN_NAME_2),
+  );
+  const signer3 = new Wallet(
+    ANVIL_KEY,
+    context.multiProvider.getProvider(CHAIN_NAME_3),
+  );
+  context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
+  context.multiProvider.setSigner(CHAIN_NAME_3, signer3);
+
+  await extendWarpRouteWithoutApplyTransactions(
+    {
+      context: {
+        ...context,
+        signer: signer3,
+        key: ANVIL_KEY,
+      },
+      warpCoreConfig,
+      warpDeployConfig,
+      receiptsDir: TEMP_PATH,
+    },
+    {},
+    Object.fromEntries(
+      warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+    ),
+  );
+
+  const combinedWarpCorePath = getCombinedWarpRoutePath('ETH', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
+
+  return {
+    chain2DomainId,
+    chain3DomainId,
+    warpConfigPath,
+    configToExtend,
+    context,
+    combinedWarpCorePath,
+  };
 }
 
 /**
