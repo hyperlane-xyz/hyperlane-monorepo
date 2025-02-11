@@ -259,8 +259,8 @@ export async function moduleMatchesConfig(
       );
 
       const [lowerIsmAddress, upperIsmAddress, threshold] = await Promise.all([
-        amountRoutingIsm.lowerISM(),
-        amountRoutingIsm.upperISM(),
+        amountRoutingIsm.lower(),
+        amountRoutingIsm.upper(),
         amountRoutingIsm.threshold(),
       ]);
 
