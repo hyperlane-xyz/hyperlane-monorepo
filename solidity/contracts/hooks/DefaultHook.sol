@@ -32,6 +32,6 @@ contract DefaultHook is AbstractPostDispatchHook, MailboxClient {
         bytes calldata metadata,
         bytes calldata message
     ) internal virtual override {
-        _hook().postDispatch(metadata, message);
+        _hook().postDispatch{value: msg.value}(metadata, message);
     }
 }

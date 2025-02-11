@@ -25,7 +25,7 @@ contract DefaultHookTest is Test {
         metadata = StandardHookMetadata.formatMetadata(
             0,
             0,
-            address(0),
+            address(this),
             bytes("")
         );
     }
@@ -37,11 +37,13 @@ contract DefaultHookTest is Test {
         assertEq(quote, fee);
     }
 
-    function test_postDispatch(bytes calldata message) public {
+    function test_postDispatch(bytes calldata message, uint256 value) public {
+        vm.deal(address(this), value);
         vm.expectCall(
             address(noopHook),
+            value,
             abi.encodeCall(noopHook.postDispatch, (metadata, message))
         );
-        hook.postDispatch(metadata, message);
+        hook.postDispatch{value: value}(metadata, message);
     }
 }
