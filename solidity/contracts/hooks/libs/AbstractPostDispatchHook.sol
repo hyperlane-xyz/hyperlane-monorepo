@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
+import {Message} from "../../libs/Message.sol";
 
 /**
  * @title AbstractPostDispatch
@@ -27,6 +28,7 @@ abstract contract AbstractPostDispatchHook is
     PackageVersioned
 {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ External functions ============
 
@@ -40,6 +42,9 @@ abstract contract AbstractPostDispatchHook is
     }
 
     /// @inheritdoc IPostDispatchHook
+    /*
+     * @dev Any excess value sent to the hook is refunded to the sender.
+     **/
     function postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -48,7 +53,17 @@ abstract contract AbstractPostDispatchHook is
             supportsMetadata(metadata),
             "AbstractPostDispatchHook: invalid metadata variant"
         );
-        _postDispatch(metadata, message);
+        uint256 spent = _postDispatch(metadata, message);
+        if (msg.value > spent) {
+            address refundAddress = metadata.refundAddress(
+                message.senderAddress()
+            );
+            require(
+                refundAddress != address(0),
+                "AbstractPostDispatchHook: no refund address"
+            );
+            payable(refundAddress).transfer(msg.value - spent);
+        }
     }
 
     /// @inheritdoc IPostDispatchHook
@@ -69,11 +84,12 @@ abstract contract AbstractPostDispatchHook is
      * @notice Post dispatch hook implementation.
      * @param metadata The metadata of the message being dispatched.
      * @param message The message being dispatched.
+     * @return spent The amount of `msg.value` spent by the hook.
      */
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual;
+    ) internal virtual returns (uint256 spent);
 
     /**
      * @notice Quote dispatch hook implementation.

@@ -71,11 +71,12 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual override {
+    ) internal virtual override returns (uint256) {
         _getConfiguredHook(message).postDispatch{value: msg.value}(
             metadata,
             message
         );
+        return msg.value;
     }
 
     /// @inheritdoc AbstractPostDispatchHook

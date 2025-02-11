@@ -31,7 +31,7 @@ contract DestinationRecipientRoutingHook is DomainRoutingHook {
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override {
+    ) internal override returns (uint256) {
         address customHookPreset = customHooks[message.destination()][
             message.recipient()
         ];
@@ -40,8 +40,9 @@ contract DestinationRecipientRoutingHook is DomainRoutingHook {
                 metadata,
                 message
             );
+            return msg.value;
         } else {
-            super._postDispatch(metadata, message);
+            return super._postDispatch(metadata, message);
         }
     }
 

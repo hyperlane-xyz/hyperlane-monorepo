@@ -61,9 +61,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
     function _sendMessageId(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override {
-        require(msg.value == 0, "ERC5164Hook: no value allowed");
-
+    ) internal override returns (uint256) {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
             (message.id(), metadata.msgValue(0))
@@ -73,5 +71,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
             TypeCasts.bytes32ToAddress(ism),
             payload
         );
+
+        return 0;
     }
 }

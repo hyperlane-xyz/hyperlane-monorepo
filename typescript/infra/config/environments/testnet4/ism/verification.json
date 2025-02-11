@@ -2878,5 +2878,55 @@
       "constructorArguments": "",
       "isProxy": true
     }
+  ],
+  "subtensortestnet": [
+    {
+      "name": "StaticMerkleRootMultisigIsm",
+      "address": "0x209e7F9d40954E230008B9bb076a0901d32695e5",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdMultisigIsm",
+      "address": "0x99B304925A08aba9305bC0A8FccBf71B4290c5EF",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticAggregationIsm",
+      "address": "0x33999AB153F68D481AAB1B238368Ffd1Fe81F360",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0x3e6F45B03314bD21BcE4201666d483291575E391",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "DomaingRoutingIsm",
+      "address": "0x87935eB971eaA9826060261b07a919451dfd0409",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0xE5cA56294dA5Bd490D5Bc489B177B002ad16AF83",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsmFactory",
+      "address": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x4863236F3a05A1A1F0850fF8cd09afeBAE82d953",
+      "constructorArguments": "",
+      "isProxy": true
+    }
   ]
 }
