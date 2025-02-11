@@ -24,6 +24,9 @@ export const LOW_URGENCY_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"soon"}[1d]) - 0.0144 or
     # Any ATA payer on SOON
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"soon"}[1d]) - 0.006 or
+
+    # Add Sonicsvm 
+    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"sonicsvm"}[1d]) - 0.186 or
     
     # Neutron context
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="mantapacific", hyperlane_context="neutron"}[1d]) - 0.3 or
@@ -56,6 +59,9 @@ export const LOW_URGENCY_ENG_KEY_FUNDER_FOOTER = `    # Mainnets that don't use 
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"soon"}[1d]) - 0.0072 or
     # Any ATA payer on SOON
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"soon"}[1d]) - 0.003 or
+
+    # Add Sonicsvm 
+    last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"sonicsvm"}[1d]) - 0.093 or
     
     # Neutron context
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="mantapacific", hyperlane_context="neutron"}[1d]) - 0.15 or
