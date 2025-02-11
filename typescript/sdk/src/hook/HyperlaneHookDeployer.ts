@@ -79,7 +79,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     let hook: DeployedHook;
     if (
       config.type === HookType.MERKLE_TREE ||
-      config.type === HookType.MAILBOX_DEFAULT_HOOK
+      config.type === HookType.MAILBOX_DEFAULT
     ) {
       const mailbox = coreAddresses.mailbox;
       if (!mailbox) {

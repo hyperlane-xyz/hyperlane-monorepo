@@ -169,7 +169,7 @@ describe('EvmHookReader', () => {
 
     const expectedConfig: WithAddress<MailboxDefaultHookConfig> = {
       address: mockAddress,
-      type: HookType.MAILBOX_DEFAULT_HOOK,
+      type: HookType.MAILBOX_DEFAULT,
     };
 
     // top-level method infers hook type

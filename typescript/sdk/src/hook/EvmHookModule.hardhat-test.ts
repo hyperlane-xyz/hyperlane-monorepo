@@ -73,7 +73,7 @@ function randomHookConfig(
 
   switch (hookType) {
     case HookType.MERKLE_TREE:
-    case HookType.MAILBOX_DEFAULT_HOOK:
+    case HookType.MAILBOX_DEFAULT:
       return { type: hookType };
 
     case HookType.AGGREGATION:

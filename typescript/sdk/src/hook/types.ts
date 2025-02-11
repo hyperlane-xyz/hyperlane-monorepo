@@ -38,7 +38,7 @@ export enum HookType {
   FALLBACK_ROUTING = 'fallbackRoutingHook',
   PAUSABLE = 'pausableHook',
   ARB_L2_TO_L1 = 'arbL2ToL1Hook',
-  MAILBOX_DEFAULT_HOOK = 'defaultHook',
+  MAILBOX_DEFAULT = 'defaultHook',
 }
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -92,7 +92,7 @@ export const PausableHookSchema = PausableSchema.extend({
 });
 
 export const MailboxDefaultHookSchema = z.object({
-  type: z.literal(HookType.MAILBOX_DEFAULT_HOOK),
+  type: z.literal(HookType.MAILBOX_DEFAULT),
 });
 
 export const OpStackHookSchema = OwnableSchema.extend({

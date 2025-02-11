@@ -203,7 +203,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const config: WithAddress<MailboxDefaultHookConfig> = {
       address,
-      type: HookType.MAILBOX_DEFAULT_HOOK,
+      type: HookType.MAILBOX_DEFAULT,
     };
 
     this._cache.set(address, config);
