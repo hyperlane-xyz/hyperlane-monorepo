@@ -458,7 +458,7 @@ const sealevelPriorityFeeOracleConfigGetter = (
   if (chain === 'solanamainnet') {
     return {
       type: AgentSealevelPriorityFeeOracleType.Helius,
-      feeLevel: AgentSealevelHeliusFeeLevel.Recommended,
+      feeLevel: AgentSealevelHeliusFeeLevel.High,
       // URL is auto populated by the external secrets in the helm chart
       url: '',
     };
