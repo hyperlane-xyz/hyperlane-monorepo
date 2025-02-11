@@ -740,9 +740,12 @@ const getGasConfig = (
   gasOverhead(warpDeployConfig[chain].type).toString();
 
 /**
- * Returns cross-chain router and gas configurations for remote chains
+ * Returns default router addresses and gas values for cross-chain communication.
+ * For each remote chain:
+ * - Sets up router addresses for message routing
+ * - Configures gas values for message processing
  */
-function getCrossChainConfigurations(
+function getDefaultRemoteRouterAndDestinationGasConfig(
   multiProvider: MultiProvider,
   chain: string,
   deployedRoutersAddresses: ChainMap<Address>,
@@ -830,17 +833,22 @@ async function updateExistingWarpRoute(
           contractVerifier,
         );
 
-        const [remoteRouters, destinationGas] = getCrossChainConfigurations(
-          multiProvider,
-          chain,
-          deployedRoutersAddresses,
-          warpDeployConfig,
-        );
+        const [remoteRouters, destinationGas] =
+          getDefaultRemoteRouterAndDestinationGasConfig(
+            multiProvider,
+            chain,
+            deployedRoutersAddresses,
+            warpDeployConfig,
+          );
 
         transactions.push(
           ...(await evmERC20WarpModule.update({
+            // Default behavior: Use fully connected routers with chain-specific gas values
+            // if no explicit mappings are provided in the config
             remoteRouters,
             destinationGas,
+
+            // Override defaults with any router or gas configurations specified in the warp apply config
             ...config,
           })),
         );
