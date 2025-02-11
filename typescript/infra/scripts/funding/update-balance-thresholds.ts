@@ -125,7 +125,6 @@ function buildProposedThresholds(
     // SPECIAL CASE: If the override is 0, this is either
     // 1) a new chain, we need to set the desired relayer balance and we set it to 0, but we don't want to set any alerts yet
     // 2) a special case where the relayer will have not use (osmosis), we don't want to set any alerts
-    // we are intentionally setting undefined here, so we can skip the alerting for this chain
     if (
       thresholdOverride === 0 &&
       thresholdType !== BalanceThresholdType.DesiredRelayerBalance
