@@ -7,7 +7,6 @@ import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAgg
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 
 contract AggregationHookTest is Test {
     StaticAggregationHookFactory internal factory;
@@ -35,28 +34,23 @@ contract AggregationHookTest is Test {
         return hooks;
     }
 
-    receive() external payable {}
-
     function testPostDispatch(uint8 _hooks) public {
         uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
         uint256 _msgValue = hooksDeployed.length * fee;
 
         bytes memory message = abi.encodePacked("hello world");
-        bytes memory metadata = StandardHookMetadata.overrideRefundAddress(
-            address(this)
-        );
         for (uint256 i = 0; i < hooksDeployed.length; i++) {
             vm.expectCall(
                 hooksDeployed[i],
                 PER_HOOK_GAS_AMOUNT,
                 abi.encodeCall(
                     TestPostDispatchHook(hooksDeployed[i]).postDispatch,
-                    (metadata, "hello world")
+                    ("", "hello world")
                 )
             );
         }
-        hook.postDispatch{value: _msgValue}(metadata, message);
+        hook.postDispatch{value: _msgValue}("", message);
     }
 
     function testPostDispatch_reverts_outOfFund(uint8 _hooks, uint8 k) public {

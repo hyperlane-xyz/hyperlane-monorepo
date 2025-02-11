@@ -123,6 +123,7 @@ contract ProtocolFeeTest is Test {
         fees.setProtocolFee(feeRequired);
         uint256 aliceBalanceBefore = alice.balance;
 
+        vm.prank(alice);
         fees.postDispatch{value: feeSent}("", testMessage);
 
         assertEq(alice.balance, aliceBalanceBefore - feeRequired);
