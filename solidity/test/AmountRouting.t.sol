@@ -100,6 +100,8 @@ contract AmountRoutingTest is Test {
         // token router quotes for max amount
         assertEq(fee, upperFee);
 
+        uint256 balanceBefore = address(this).balance;
+
         if (amount >= threshold) {
             vm.expectCall(address(upperHook), upperFee, bytes(""));
         } else {
@@ -114,6 +116,8 @@ contract AmountRoutingTest is Test {
         if (amount >= threshold) {
             vm.expectCall(address(upperIsm), bytes(""));
         } else {
+            // assert refund
+            assertEq(balanceBefore - address(this).balance, lowerFee);
             vm.expectCall(address(lowerIsm), bytes(""));
         }
         localMailbox.processNextInboundMessage();
