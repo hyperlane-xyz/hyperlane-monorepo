@@ -42,6 +42,9 @@ abstract contract AbstractPostDispatchHook is
     }
 
     /// @inheritdoc IPostDispatchHook
+    /*
+     * @dev Any excess value sent to the hook is refunded to the sender.
+     **/
     function postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -77,11 +80,12 @@ abstract contract AbstractPostDispatchHook is
      * @notice Post dispatch hook implementation.
      * @param metadata The metadata of the message being dispatched.
      * @param message The message being dispatched.
+     * @return spent The amount of `msg.value` spent by the hook.
      */
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual returns (uint256);
+    ) internal virtual returns (uint256 spent);
 
     /**
      * @notice Quote dispatch hook implementation.
