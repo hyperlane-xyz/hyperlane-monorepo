@@ -101,7 +101,6 @@ export async function getWarpConfigs({
   }
 
   // No inputs provided, prompt user to select from all routes
-
   const routeIds = await getWarpRouteIds(context);
   if (routeIds.length === 0) {
     throw new Error('No valid warp routes found in registry');

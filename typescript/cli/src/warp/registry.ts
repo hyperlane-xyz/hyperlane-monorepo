@@ -22,7 +22,12 @@ export async function getWarpDeployConfig(
   context: CommandContext,
 ): Promise<WarpRouteDeployConfig | null> {
   const { registry } = context;
-  return registry.getWarpDeployConfig(routeId);
+  const warpDeployConfig = await registry.getWarpDeployConfig(routeId);
+  assert(
+    warpDeployConfig,
+    `Missing warp deploy config for warp route ${routeId}.`,
+  );
+  return warpDeployConfig;
 }
 
 /**
@@ -35,7 +40,7 @@ export async function getWarpCoreConfig(
   const { registry } = context;
   const routes = await registry.getWarpRoutes();
   const warpCoreConfig = routes[routeId];
-  assert(warpCoreConfig, `No warp config found for warp route ${routeId}.`);
+  assert(warpCoreConfig, `Missing warp config for warp route ${routeId}.`);
   return warpCoreConfig;
 }
 
