@@ -95,20 +95,14 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
 
     /// @inheritdoc AbstractPostDispatchHook
     function _postDispatch(
-        bytes calldata metadata,
-        bytes calldata message
-    ) internal override {
+        bytes calldata /*metadata*/,
+        bytes calldata /*message*/
+    ) internal override returns (uint256) {
         require(
             msg.value >= protocolFee,
             "ProtocolFee: insufficient protocol fee"
         );
-
-        uint256 refund = msg.value - protocolFee;
-        if (refund > 0) {
-            payable(metadata.refundAddress(message.senderAddress())).sendValue(
-                refund
-            );
-        }
+        return protocolFee;
     }
 
     /// @inheritdoc AbstractPostDispatchHook

@@ -64,9 +64,7 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         bytes calldata,
         /*metadata*/
         bytes calldata message
-    ) internal override {
-        require(msg.value == 0, "MerkleTreeHook: no value expected");
-
+    ) internal override returns (uint256) {
         // ensure messages which were not dispatched are not inserted into the tree
         bytes32 id = message.id();
         require(_isLatestDispatched(id), "message not dispatching");
@@ -74,6 +72,8 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
         uint32 index = count();
         _tree.insert(id);
         emit InsertedIntoTree(id, index);
+
+        return 0;
     }
 
     /// @inheritdoc AbstractPostDispatchHook

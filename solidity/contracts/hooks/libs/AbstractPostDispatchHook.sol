@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
+import {Message} from "../../libs/Message.sol";
 
 /**
  * @title AbstractPostDispatch
@@ -27,6 +28,7 @@ abstract contract AbstractPostDispatchHook is
     PackageVersioned
 {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ External functions ============
 
@@ -48,7 +50,13 @@ abstract contract AbstractPostDispatchHook is
             supportsMetadata(metadata),
             "AbstractPostDispatchHook: invalid metadata variant"
         );
-        _postDispatch(metadata, message);
+        uint256 spent = _postDispatch(metadata, message);
+        if (msg.value > spent) {
+            address refundAddress = metadata.refundAddress(
+                message.senderAddress()
+            );
+            payable(refundAddress).transfer(msg.value - spent);
+        }
     }
 
     /// @inheritdoc IPostDispatchHook
@@ -73,7 +81,7 @@ abstract contract AbstractPostDispatchHook is
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual;
+    ) internal virtual returns (uint256);
 
     /**
      * @notice Quote dispatch hook implementation.

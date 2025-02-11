@@ -263,7 +263,7 @@ contract InterchainGasPaymaster is
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override {
+    ) internal override returns (uint256) {
         payForGas(
             message.id(),
             message.destination(),
@@ -273,6 +273,9 @@ contract InterchainGasPaymaster is
             ),
             metadata.refundAddress(message.senderAddress())
         );
+
+        // this hook spends all msg.value (and refunds)
+        return msg.value;
     }
 
     /// @inheritdoc AbstractPostDispatchHook

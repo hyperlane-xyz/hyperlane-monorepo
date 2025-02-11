@@ -73,7 +73,7 @@ abstract contract AbstractMessageIdAuthHook is
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual override {
+    ) internal virtual override returns (uint256) {
         bytes32 id = message.id();
         require(
             _isLatestDispatched(id),
@@ -88,21 +88,7 @@ abstract contract AbstractMessageIdAuthHook is
             "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
         );
 
-        uint256 quote = _quoteDispatch(metadata, message);
-
-        _sendMessageId(metadata, message, quote);
-
-        uint256 _overpayment = msg.value - quote;
-        if (_overpayment > 0) {
-            address _refundAddress = metadata.refundAddress(
-                message.sender().bytes32ToAddress()
-            );
-            require(
-                _refundAddress != address(0),
-                "AbstractPostDispatchHook: no refund address"
-            );
-            payable(_refundAddress).sendValue(_overpayment);
-        }
+        return _sendMessageId(metadata, message);
     }
 
     /**
@@ -112,7 +98,6 @@ abstract contract AbstractMessageIdAuthHook is
      */
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message,
-        uint256 quote
-    ) internal virtual;
+        bytes calldata message
+    ) internal virtual returns (uint256);
 }
