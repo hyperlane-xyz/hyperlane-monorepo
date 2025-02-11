@@ -95,27 +95,30 @@ where
         let params = serde_json::to_value(params).expect("valid");
 
         let mut errors = vec![];
-        // make sure we do at least 4 total retries.
-        while errors.len() <= 3 {
-            if !errors.is_empty() {
-                sleep(Duration::from_millis(100)).await;
-            }
-            let priorities_snapshot = self.take_priorities_snapshot().await;
-            for (idx, priority) in priorities_snapshot.iter().enumerate() {
-                let provider = &self.inner.providers[priority.index];
-                let fut = match params {
-                    Value::Null => provider.request(method, ()),
-                    _ => provider.request(method, &params),
-                };
-                let resp = fut.await;
-                self.handle_stalled_provider(priority, provider).await;
-                let _span =
-                    warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
-
-                match categorize_client_response(method, resp) {
-                    IsOk(v) => return Ok(serde_json::from_value(v)?),
-                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
-                    NonRetryableErr(e) => return Err(e.into()),
+        if method == "sendRawTransaction" {
+            // multicast
+        } else {
+            // make sure we do at least 4 total retries.
+            while errors.len() <= 3 {
+                if !errors.is_empty() {
+                    sleep(Duration::from_millis(100)).await;
+                }
+                let priorities_snapshot = self.take_priorities_snapshot().await;
+                for (idx, priority) in priorities_snapshot.iter().enumerate() {
+                    let provider = &self.inner.providers[priority.index];
+                    let fut = match params {
+                        Value::Null => provider.request(method, ()),
+                        _ => provider.request(method, &params),
+                    };
+                    let resp = fut.await;
+                    self.handle_stalled_provider(priority, provider).await;
+                    let _span =
+                        warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                    match categorize_client_response(method, resp) {
+                        IsOk(v) => return Ok(serde_json::from_value(v)?),
+                        RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
+                        NonRetryableErr(e) => return Err(e.into()),
+                    }
                 }
             }
         }
