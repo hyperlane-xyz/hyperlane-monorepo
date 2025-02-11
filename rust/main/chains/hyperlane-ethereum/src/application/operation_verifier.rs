@@ -24,13 +24,22 @@ impl ApplicationOperationVerifier for EthereumApplicationOperationVerifier {
         app_context: &Option<String>,
         message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
-        use ApplicationOperationVerifierReport::MalformedMessage;
-
         debug!(
             ?app_context,
             ?message,
             "Ethereum application operation verifier",
         );
+
+        Self::verify_message(app_context, message)
+    }
+}
+
+impl EthereumApplicationOperationVerifier {
+    fn verify_message(
+        app_context: &Option<String>,
+        message: &HyperlaneMessage,
+    ) -> Option<ApplicationOperationVerifierReport> {
+        use ApplicationOperationVerifierReport::MalformedMessage;
 
         let context = match app_context {
             Some(c) => c,
@@ -56,12 +65,13 @@ impl ApplicationOperationVerifier for EthereumApplicationOperationVerifier {
 
         None
     }
-}
 
-impl EthereumApplicationOperationVerifier {
     fn has_enough_leading_zeroes(address: &H256) -> bool {
         let zeros = &address.as_bytes()[0..ETHEREUM_ADDRESS_LEADING_ZEROS_COUNT];
         let count = zeros.iter().filter(|b| **b == 0).count();
         count == ETHEREUM_ADDRESS_LEADING_ZEROS_COUNT
     }
 }
+
+#[cfg(test)]
+mod tests;

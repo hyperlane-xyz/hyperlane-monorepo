@@ -23,13 +23,22 @@ impl ApplicationOperationVerifier for CosmosApplicationOperationVerifier {
         app_context: &Option<String>,
         message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
-        use ApplicationOperationVerifierReport::{MalformedMessage, ZeroAmount};
-
         debug!(
             ?app_context,
             ?message,
             "Cosmos application operation verifier",
         );
+
+        Self::verify_message(app_context, message)
+    }
+}
+
+impl CosmosApplicationOperationVerifier {
+    fn verify_message(
+        app_context: &Option<String>,
+        message: &HyperlaneMessage,
+    ) -> Option<ApplicationOperationVerifierReport> {
+        use ApplicationOperationVerifierReport::{MalformedMessage, ZeroAmount};
 
         let context = match app_context {
             Some(c) => c,
@@ -55,3 +64,6 @@ impl ApplicationOperationVerifier for CosmosApplicationOperationVerifier {
         None
     }
 }
+
+#[cfg(test)]
+mod tests;
