@@ -1,3 +1,8 @@
+import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
+
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { ChainName } from '../types.js';
+
 import { CCIP_NETWORKS } from './consts.js';
 
 /**
@@ -40,4 +45,64 @@ export function getCCIPRouterAddress(chainName: string): string | undefined {
  */
 export function getCCIPChains(): string[] {
   return Object.keys(CCIP_NETWORKS);
+}
+
+export const CCIP_HOOK_KEY_PREFIX = 'ccipHook';
+export const CCIP_ISM_KEY_PREFIX = 'ccipIsm';
+
+export class CCIPContractCache {
+  private cachedAddresses: HyperlaneAddressesMap<any> = {};
+
+  constructor(addressesMap?: HyperlaneAddressesMap<any>) {
+    if (addressesMap) {
+      this.cacheAddressesMap(addressesMap);
+    }
+  }
+
+  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+    this.cachedAddresses = addressesMap;
+  }
+
+  getAddressesMap(): HyperlaneAddressesMap<any> {
+    return this.cachedAddresses;
+  }
+
+  writeBack(cachedAddresses: HyperlaneAddressesMap<any>): void {
+    for (const [origin, destinations] of Object.entries(this.cachedAddresses)) {
+      if (!cachedAddresses[origin]) {
+        cachedAddresses[origin] = {};
+      }
+      for (const [key, address] of Object.entries(destinations)) {
+        cachedAddresses[origin][key] = address;
+      }
+    }
+  }
+
+  setHook(origin: ChainName, destination: ChainName, ccipHook: CCIPHook): void {
+    if (!this.cachedAddresses[origin]) {
+      this.cachedAddresses[origin] = {};
+    }
+    this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}-${destination}`] =
+      ccipHook.address;
+  }
+
+  setIsm(origin: ChainName, destination: ChainName, ccipIsm: CCIPIsm): void {
+    if (!this.cachedAddresses[destination]) {
+      this.cachedAddresses[destination] = {};
+    }
+    this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}-${origin}`] =
+      ccipIsm.address;
+  }
+
+  getHook(origin: ChainName, destination: ChainName): string | undefined {
+    return this.cachedAddresses[origin]?.[
+      `${CCIP_HOOK_KEY_PREFIX}-${destination}`
+    ];
+  }
+
+  getIsm(origin: ChainName, destination: ChainName): string | undefined {
+    return this.cachedAddresses[destination]?.[
+      `${CCIP_ISM_KEY_PREFIX}-${origin}`
+    ];
+  }
 }
