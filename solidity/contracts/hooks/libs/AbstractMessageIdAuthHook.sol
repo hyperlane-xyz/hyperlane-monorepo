@@ -95,9 +95,10 @@ abstract contract AbstractMessageIdAuthHook is
      * @notice Send a message to the ISM.
      * @param metadata The metadata for the hook caller
      * @param message The message to send to the ISM
+     * @return spent The amount of `msg.value` spent by the hook.
      */
     function _sendMessageId(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual returns (uint256);
+    ) internal virtual returns (uint256 spent);
 }
