@@ -1,3 +1,4 @@
+import { input, select } from '@inquirer/prompts';
 import postgres from 'postgres';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
@@ -13,10 +14,13 @@ import {
   RELAYER_MIN_DOLLAR_BALANCE_PER_DAY,
   THRESHOLD_CONFIG_PATH,
 } from '../../src/config/funding/balances.js';
-import { formatBalanceThreshold } from '../../src/funding/balances.js';
 import {
-  PrometheusResult,
-  fetchPrometheusData,
+  formatBalanceThreshold,
+  sortThresholds,
+} from '../../src/funding/balances.js';
+import {
+  PrometheusInstantResult,
+  fetchPrometheusInstantExpression,
   portForwardPrometheusServer,
 } from '../../src/infrastructure/monitoring/prometheus.js';
 import { fetchLatestGCPSecret } from '../../src/utils/gcloud.js';
@@ -24,19 +28,22 @@ import { writeJsonAtPath } from '../../src/utils/utils.js';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 const currentDailyRelayerBurn: ChainMap<number> = rawDailyRelayerBurn;
-const desiredRelayerBalances: ChainMap<string> = rawDesiredRelayerBalances;
+const desiredRelayerBalances: ChainMap<number> = rawDesiredRelayerBalances;
 
 const DAILY_BURN_PATH = `${THRESHOLD_CONFIG_PATH}/dailyRelayerBurn.json`;
-const SCRAPER_READ_ONLY_DB = 'hyperlane-mainnet3-scraper3-db-read-only';
+const SCRAPER_READ_ONLY_DB_SECRET_NAME =
+  'hyperlane-mainnet3-scraper3-db-read-only';
 
 const LOOK_BACK_DAYS = 10; // the number of days to look back for average destination tx costs
 const MIN_NUMBER_OF_TXS = 100; // the minimum number of txs to consider for daily burn
-const PROMETHEUS_LOCAL_PORT = 9092;
+const PROMETHEUS_LOCAL_PORT = 9090;
+const MIN_BURN_INCREASE_FACTOR = 0.1; // burn should be at least 10% higher than current to be updated
+const LOW_PROPOSED_BURN_FACTOR = 0.5; // proposed burn should be at least 50% lower than current to initiate user review
 
 async function main() {
   validateTokenPrices();
 
-  const sealevelDomainIds: ChainMap<string> = await getSealeveDomainIds();
+  const sealevelDomainIds: ChainMap<string> = await getSealevelDomainIds();
 
   let burnData: ChainMap<number>;
   try {
@@ -45,6 +52,8 @@ async function main() {
     rootLogger.error('Error fetching daily burn data:', err);
     process.exit(1);
   }
+
+  burnData = sortThresholds(burnData);
 
   writeBurnDataToFile(burnData);
 }
@@ -65,11 +74,17 @@ function validateTokenPrices() {
 }
 
 async function getReadOnlyScraperDb() {
-  const credentialsUrl = await fetchLatestGCPSecret(SCRAPER_READ_ONLY_DB);
+  const credentialsUrl = await fetchLatestGCPSecret(
+    SCRAPER_READ_ONLY_DB_SECRET_NAME,
+  );
   return postgres(credentialsUrl);
 }
 
-async function getDailyRelayerBurnScraperDB(sealevelDomainIds: string[]) {
+async function getDailyRelayerBurnScraperDB(
+  sealevelDomainIds: ChainMap<string>,
+) {
+  const sealevelDomainIdsArr = Object.values(sealevelDomainIds);
+
   const sql = await getReadOnlyScraperDb();
 
   const results = await sql`
@@ -90,7 +105,7 @@ async function getDailyRelayerBurnScraperDB(sealevelDomainIds: string[]) {
         WHERE
           mv.send_occurred_at >= CURRENT_TIMESTAMP - (INTERVAL '1 day' * ${LOOK_BACK_DAYS})
           AND dest_domain.is_test_net IS FALSE
-          AND mv.destination_domain_id != ALL(${sealevelDomainIds})
+          AND mv.destination_domain_id != ALL(${sealevelDomainIdsArr})
           AND mv.is_delivered IS TRUE
         GROUP BY
           dest_domain.name
@@ -120,8 +135,7 @@ async function getDailyRelayerBurnScraperDB(sealevelDomainIds: string[]) {
 }
 
 async function getSealevelBurnProm(
-  chainNames: string[],
-  lookBackDays: number = 10,
+  sealevelDomainIds: ChainMap<string>,
 ): Promise<ChainMap<number>> {
   const portForwardProcess = await portForwardPrometheusServer(
     PROMETHEUS_LOCAL_PORT,
@@ -131,12 +145,14 @@ async function getSealevelBurnProm(
 
   const burn: ChainMap<number> = {};
 
-  const rangeHours = lookBackDays * 24;
+  const rangeHours = LOOK_BACK_DAYS * 24;
 
-  // This PromQL does:
-  // - sum_over_time(... [${rangeHours}h:]): accumulate the "only decrease" deltas over the last lookBackDays
+  const sealevelChainNames = Object.keys(sealevelDomainIds);
+
+  // This PromQL query does:
+  // - sum_over_time(... [${rangeHours}h:]): accumulate the "only decrease" deltas over the last LOOK_BACK_DAYS
   // - sum by (chain)(...): get a separate series for each chain
-  // - / lookBackDays: divide the total by lookBackDays, yielding an average "per day" value.
+  // - / LOOK_BACK_DAYS: divide the total by LOOK_BACK_DAYS, yielding an average "per day" value.
   const promQlQuery = `
     sum by (chain) (
       sum_over_time(
@@ -145,7 +161,7 @@ async function getSealevelBurnProm(
             hyperlane_wallet_balance{
               hyperlane_deployment="mainnet3",
               hyperlane_context=~"rc|hyperlane",
-              chain=~"(${chainNames.join('|')})",
+              chain=~"(${sealevelChainNames.join('|')})",
               wallet_name="relayer"
             } offset 1m
           )
@@ -153,126 +169,133 @@ async function getSealevelBurnProm(
           hyperlane_wallet_balance{
             hyperlane_deployment="mainnet3",
             hyperlane_context=~"rc|hyperlane",
-            chain=~"(${chainNames.join('|')})",
+            chain=~"(${sealevelChainNames.join('|')})",
             wallet_name="relayer"
           },
           0
         )[${rangeHours}h:]
       )
-    ) / ${lookBackDays}
+    ) / ${LOOK_BACK_DAYS}
   `.trim();
 
-  let results: PrometheusResult[];
+  let results: PrometheusInstantResult[];
 
   try {
-    results = await fetchPrometheusData(promUrl, promQlQuery);
+    results = await fetchPrometheusInstantExpression(promUrl, promQlQuery);
   } finally {
     portForwardProcess.kill();
     rootLogger.info('Prometheus server port-forward process killed');
   }
 
   for (const series of results) {
-    const chainLabel = series.metric.chain;
+    const chain = series.metric.chain;
 
-    // value is [ <timestamp>, <stringValue> ].
-    if (series.value && series.value.length === 2) {
-      const numericStr = series.value[1];
-      burn[chainLabel] = formatBalanceThreshold(parseFloat(numericStr));
-    } else {
-      burn[chainLabel] = 0;
+    if (series.value) {
+      burn[chain] = formatBalanceThreshold(parseFloat(series.value[1]));
+    } else if (series.histogram) {
+      rootLogger.warn(
+        `Unexpected histogram data found for "${chain} in Prometheus, skipping.`,
+      );
     }
   }
 
   return burn;
 }
 
-async function calculateDailyRelayerBurn(sealevelDomainIds: ChainMap<string>) {
-  const dbBurnData = await getDailyRelayerBurnScraperDB(
-    Object.values(sealevelDomainIds),
-  );
+async function calculateDailyRelayerBurn(
+  sealevelDomainIds: ChainMap<string>,
+): Promise<ChainMap<number>> {
+  const dbBurnData = await getDailyRelayerBurnScraperDB(sealevelDomainIds);
+  const sealevelBurnData = await getSealevelBurnProm(sealevelDomainIds);
 
-  const sealevelBurnData: ChainMap<number> = await getSealevelBurnProm(
-    Object.keys(sealevelDomainIds),
-    LOOK_BACK_DAYS,
-  );
+  const combinedBurnData: ChainMap<number> = {
+    ...dbBurnData,
+    ...sealevelBurnData,
+  };
 
-  const burnData: ChainMap<number> = { ...dbBurnData, ...sealevelBurnData };
+  let updatedBurnData: ChainMap<number> = {};
+
   const lowProposedDailyBurn: Array<{
     chain: string;
-    proposedDailyBurn: number;
-    currentDailyBurn: number;
+    proposedBurn: number;
+    currentBurn: number;
   }> = [];
+
   const burnInfoTable: Array<{
     chain: string;
-    proposedDailyBurn: number;
-    currentDailyBurn: number;
-    proposedRelayerBallanceDollars: number;
-    currentRelayerBallanceDollars: number;
+    proposedBurn: number;
+    currentBurn: number;
+    proposedRelayerBalanceDollars: number;
+    currentRelayerBalanceDollars: number;
   }> = [];
 
   for (const chain of Object.keys(tokenPrices)) {
-    const dailyBurn = burnData[chain] ?? 0;
+    const currentBurn = currentDailyRelayerBurn[chain] ?? 0; // currentDailyRelayerBurn[chain] maybe undefined if this is a new chain
+    const burnFromData = combinedBurnData[chain] ?? 0; // combinedBurnData[chain] maybe undefined if there is no data for this chain, i.e no messages or no metrics scraped to prometheus in the look back window
 
-    // minimum native balance required to maintain our desired minimum dollar balance in the relayer
-    const minNativeBalance =
-      RELAYER_MIN_DOLLAR_BALANCE_PER_DAY / parseFloat(tokenPrices[chain]);
+    const proposedBurn = computeProposedDailyBurn(
+      burnFromData,
+      parseFloat(tokenPrices[chain]),
+    );
 
-    // some chains may have had no messages in the look back window so we set daily burn based on the minimum dollar balance
-    const proposedDailyRelayerBurn = Math.max(dailyBurn, minNativeBalance);
+    const newBurn = decideNewDailyBurn(proposedBurn, currentBurn);
 
-    // only update the daily burn if the proposed daily burn is greater than the current daily burn
-    // add the chain to the daily burn if it doesn't exist
-    const newDailyRelayerBurn =
-      chain in currentDailyRelayerBurn
-        ? Math.max(proposedDailyRelayerBurn, currentDailyRelayerBurn[chain])
-        : proposedDailyRelayerBurn;
-
-    // log if proposedDailyRelayerBurn is 50% less than currentDailyRelayerBurn
-    if (
-      chain in currentDailyRelayerBurn &&
-      proposedDailyRelayerBurn < currentDailyRelayerBurn[chain] * 0.5
-    ) {
+    // If the proposed is > 50% lower than current, we store it for confirmation
+    if (proposedBurn < currentBurn * LOW_PROPOSED_BURN_FACTOR) {
       lowProposedDailyBurn.push({
         chain,
-        proposedDailyBurn: proposedDailyRelayerBurn,
-        currentDailyBurn: currentDailyRelayerBurn[chain],
+        proposedBurn,
+        currentBurn,
       });
     }
 
-    // push to burnInfoTable
     burnInfoTable.push({
       chain,
-      proposedDailyBurn: formatBalanceThreshold(proposedDailyRelayerBurn),
-      currentDailyBurn: formatBalanceThreshold(
-        currentDailyRelayerBurn[chain] ?? 0,
-      ),
-      proposedRelayerBallanceDollars: formatBalanceThreshold(
-        proposedDailyRelayerBurn *
+      proposedBurn: formatBalanceThreshold(proposedBurn),
+      currentBurn: formatBalanceThreshold(currentBurn),
+      proposedRelayerBalanceDollars: formatBalanceThreshold(
+        proposedBurn *
           parseFloat(tokenPrices[chain]) *
           RELAYER_BALANCE_TARGET_DAYS,
       ),
-      currentRelayerBallanceDollars: formatBalanceThreshold(
-        parseFloat(desiredRelayerBalances[chain]) *
-          parseFloat(tokenPrices[chain]),
+      currentRelayerBalanceDollars: formatBalanceThreshold(
+        desiredRelayerBalances[chain] * parseFloat(tokenPrices[chain]),
       ),
     });
 
-    burnData[chain] = formatBalanceThreshold(newDailyRelayerBurn);
+    updatedBurnData[chain] = formatBalanceThreshold(newBurn);
   }
 
   console.table(burnInfoTable);
 
   if (lowProposedDailyBurn.length > 0) {
-    rootLogger.warn(
-      `Proposed daily burn for the following chains are 50% less than current daily burn. Consider manually reviewing updating the daily burn.`,
-    );
     console.table(lowProposedDailyBurn);
+    const userAdjustments = await handleLowProposedDailyBurn(
+      lowProposedDailyBurn,
+    );
+    updatedBurnData = { ...updatedBurnData, ...userAdjustments };
   }
 
-  return burnData;
+  return updatedBurnData;
 }
 
-async function getSealeveDomainIds(): Promise<ChainMap<string>> {
+function computeProposedDailyBurn(
+  measuredDailyBurn: number,
+  tokenPrice: number,
+): number {
+  const minNativeBalance = RELAYER_MIN_DOLLAR_BALANCE_PER_DAY / tokenPrice;
+  return formatBalanceThreshold(Math.max(measuredDailyBurn, minNativeBalance));
+}
+
+function decideNewDailyBurn(proposedBurn: number, currentBurn: number): number {
+  // If the proposed burn is at least 10% above the current, update it.
+  if (proposedBurn > currentBurn * (1 + MIN_BURN_INCREASE_FACTOR)) {
+    return proposedBurn;
+  }
+  return currentBurn;
+}
+
+async function getSealevelDomainIds(): Promise<ChainMap<string>> {
   const registry = await getRegistry();
   const allMetadata = await registry.getMetadata();
   const sealevelDomainIds: ChainMap<string> = Object.values(allMetadata)
@@ -295,6 +318,56 @@ function writeBurnDataToFile(burnData: ChainMap<number>) {
   } catch (err) {
     rootLogger.error('Error writing daily burn data to file:', err);
   }
+}
+
+async function handleLowProposedDailyBurn(
+  lowProposedDailyBurn: Array<{
+    chain: string;
+    proposedBurn: number;
+    currentBurn: number;
+  }>,
+): Promise<ChainMap<number>> {
+  const updatedDailyBurn: ChainMap<number> = {};
+  const manualOption = 'manual';
+
+  for (const item of lowProposedDailyBurn) {
+    const { chain, proposedBurn, currentBurn } = item;
+
+    const selectedOption = await select<number | string>({
+      message: `Proposed daily burn for ${chain} is 50% less than current daily burn. Update daily burn for ${chain}?`,
+      choices: [
+        {
+          description: `Use the proposed daily burn (${proposedBurn})`,
+          value: proposedBurn,
+        },
+        {
+          description: `Keep the current daily burn (${currentBurn})`,
+          value: currentBurn,
+        },
+        {
+          description: 'Manually enter a new daily burn',
+          value: manualOption,
+        },
+      ],
+    });
+
+    if (selectedOption === manualOption) {
+      const newDailyBurn = await input({
+        message: `Enter new daily burn for ${chain}`,
+        validate: (value) => {
+          if (isNaN(parseFloat(value))) {
+            return 'Please enter a valid number.';
+          }
+          return true;
+        },
+      });
+      updatedDailyBurn[chain] = parseFloat(newDailyBurn);
+    } else {
+      updatedDailyBurn[chain] = selectedOption as number;
+    }
+  }
+
+  return updatedDailyBurn;
 }
 
 main().catch((err) => {
