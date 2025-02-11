@@ -207,61 +207,63 @@ contract CCIPIsmTest is Test {
         assertTrue(ccipISMOptimism.verifiedMessages(messageId).isBitSet(255));
     }
 
-    function testFork_verifyMessageId_RevertWhen_SenderNotAllowed() public {
+    function testFork_verifyMessageId_RevertWhen_SenderNotAllowed(
+        address unauthorized
+    ) public {
+        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
+        vm.assume(unauthorized != abi.decode(message.sender, (address)));
+        message.sender = abi.encode(unauthorized);
+
         deployAll();
 
         vm.selectFork(optimismFork);
-
-        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
-        message.sender[0] = ~message.sender[0];
 
         vm.prank(OP_ROUTER_ADDRESS);
         vm.expectRevert("Unauthorized hook");
         ccipISMOptimism.ccipReceive(message);
     }
 
-    function testFork_verifyMessageId_RevertWhen_SourceChainNotAllowed()
-        public
-    {
+    function testFork_verifyMessageId_RevertWhen_SourceChainNotAllowed(
+        uint64 unallowed
+    ) public {
+        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
+        vm.assume(unallowed != message.sourceChainSelector);
+        message.sourceChainSelector = unallowed;
+
         deployAll();
 
         vm.selectFork(optimismFork);
-
-        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
-        message.sourceChainSelector = ~message.sourceChainSelector;
-
         vm.prank(OP_ROUTER_ADDRESS);
         vm.expectRevert("Unauthorized origin");
         ccipISMOptimism.ccipReceive(message);
     }
 
-    function testFork_verifyMessageId_RevertWhen_InvalidRouter() public {
+    function testFork_verifyMessageId_RevertWhen_InvalidRouter(
+        address unauthorized
+    ) public {
+        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
+        vm.assume(unauthorized != OP_ROUTER_ADDRESS);
+
         deployAll();
 
         vm.selectFork(optimismFork);
-
-        vm.startPrank(MAINNET_ROUTER_ADDRESS);
-
-        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
+        vm.startPrank(unauthorized);
 
         bytes4 selector = bytes4(keccak256("InvalidRouter(address)"));
-        vm.expectRevert(
-            abi.encodeWithSelector(selector, MAINNET_ROUTER_ADDRESS)
-        );
+        vm.expectRevert(abi.encodeWithSelector(selector, unauthorized));
 
         ccipISMOptimism.ccipReceive(message);
-
         vm.stopPrank();
     }
 
-    function testFork_preVerifyMessageId_RevertWhen_UnauthorizedRouter()
-        public
-    {
+    function testFork_preVerifyMessageId_RevertWhen_UnauthorizedRouter(
+        address unauthorized
+    ) public {
+        vm.assume(unauthorized != OP_ROUTER_ADDRESS);
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        address unauthorized = address(~bytes20(OP_ROUTER_ADDRESS));
         vm.startPrank(unauthorized);
 
         vm.expectRevert(
