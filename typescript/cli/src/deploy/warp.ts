@@ -1018,9 +1018,9 @@ async function submitWarpApplyTransactions(
 
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
-      await retryAsync(
-        async () => {
-          try {
+      try {
+        await retryAsync(
+          async () => {
             const chain = chainIdToName[chainId];
             const submitter: TxSubmitterBuilder<ProtocolType> =
               await getWarpApplySubmitter({
@@ -1038,14 +1038,14 @@ async function submitWarpApplyTransactions(
                 `Transactions receipts successfully written to ${receiptPath}`,
               );
             }
-          } catch (e) {
-            console.log(`Error in submitWarpApplyTransactions`, e);
-            console.log(JSON.stringify(transactions));
-          }
-        },
-        5, // attempts
-        100, // baseRetryMs
-      );
+          },
+          5, // attempts
+          100, // baseRetryMs
+        );
+      } catch (e) {
+        logBlue(`Error in submitWarpApplyTransactions`, e);
+        console.dir(transactions);
+      }
     }),
   );
 }

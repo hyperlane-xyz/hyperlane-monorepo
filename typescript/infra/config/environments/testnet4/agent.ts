@@ -61,6 +61,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: true,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -73,10 +74,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicblaze: true,
     sonicsvmtestnet: true,
     suavetoliman: true,
-    // subtensortestnet: true,
+    subtensortestnet: true,
     superpositiontestnet: true,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
   [Role.Relayer]: {
     abstracttestnet: true,
@@ -99,6 +101,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: false,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -111,10 +114,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicblaze: true,
     sonicsvmtestnet: true,
     suavetoliman: true,
-    // subtensortestnet: true,
+    subtensortestnet: true,
     superpositiontestnet: true,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
   [Role.Scraper]: {
     abstracttestnet: true,
@@ -137,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: false,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -149,10 +154,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicblaze: true,
     sonicsvmtestnet: false,
     suavetoliman: true,
-    // subtensortestnet: true,
+    subtensortestnet: true,
     superpositiontestnet: false,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
 };
 
@@ -231,7 +237,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8781543-20250204-143039',
+      tag: '319a395-20250208-204916',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -253,7 +259,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8781543-20250204-143039',
+      tag: '319a395-20250208-204916',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -262,7 +268,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8781543-20250204-143039',
+      tag: '319a395-20250208-204916',
     },
     resources: scraperResources,
   },

@@ -77,10 +77,13 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
+        // Be extra sure to panic checkpoint syncer fails, which indicates
+        // a fatal startup error.
         let checkpoint_syncer = settings
             .checkpoint_syncer
             .build_and_validate(None)
-            .await?
+            .await
+            .expect("Failed to build checkpoint syncer")
             .into();
 
         let mailbox = settings
