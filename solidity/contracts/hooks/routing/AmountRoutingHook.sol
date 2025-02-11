@@ -32,7 +32,6 @@ contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
         bytes calldata _metadata,
         bytes calldata _message
     ) internal override {
-        // TODO: leverage refunds of inner hook once pervasive
         uint256 quote = _quoteDispatch(_metadata, _message);
         IPostDispatchHook(_partition(_message)).postDispatch{value: quote}(
             _metadata,
