@@ -191,7 +191,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
   }
 
   /**
-   * Constructs a TransactionInstruction for the Claim instruction.
+   * Constructs a Transaction for .
    * @param {PublicKey} beneficiary - The IGP’s configured beneficiary.
    * @returns {Promise<TransactionInstruction>} The claim instruction.
    */
