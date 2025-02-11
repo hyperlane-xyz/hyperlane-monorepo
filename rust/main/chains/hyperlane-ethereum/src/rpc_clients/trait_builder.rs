@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Write};
+use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,17 +15,18 @@ use ethers::prelude::{
 use ethers::types::Address;
 use ethers_signers::Signer;
 use hyperlane_core::rpc_clients::FallbackProvider;
+use hyperlane_metric::utils::url_to_host_info;
 use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Client, Url};
 use thiserror::Error;
 
-use ethers_prometheus::json_rpc_client::{
-    JsonRpcBlockGetter, JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo,
-    PrometheusJsonRpcClient, PrometheusJsonRpcClientConfig,
-};
+use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClient};
 use ethers_prometheus::middleware::{MiddlewareMetrics, PrometheusMiddlewareConf};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
+};
+use hyperlane_metric::prometheus_metric::{
+    JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClientConfig,
 };
 use tracing::instrument;
 
@@ -156,18 +157,7 @@ pub trait BuildableWithProvider {
                 .unwrap_or_else(|| JsonRpcClientMetricsBuilder::default().build().unwrap()),
             PrometheusJsonRpcClientConfig {
                 node: Some(NodeInfo {
-                    host: {
-                        let mut s = String::new();
-                        if let Some(host) = url.host_str() {
-                            s.push_str(host);
-                            if let Some(port) = url.port() {
-                                write!(&mut s, ":{port}").unwrap();
-                            }
-                            Some(s)
-                        } else {
-                            None
-                        }
-                    },
+                    host: url_to_host_info(&url),
                 }),
                 // steal the chain info from the middleware conf
                 chain: middleware_metrics

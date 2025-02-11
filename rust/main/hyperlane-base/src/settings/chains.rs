@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
 
-use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
+use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
@@ -19,6 +19,7 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
+use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel as h_sealevel;
 
 use crate::{

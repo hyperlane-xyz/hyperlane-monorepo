@@ -12,7 +12,8 @@ use serde_json::Value;
 use tokio::time::sleep;
 use tracing::{instrument, warn_span};
 
-use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClientConfigExt};
+use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
+use hyperlane_metric::prometheus_metric::PrometheusJsonRpcClientConfigExt;
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 

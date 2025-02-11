@@ -3153,6 +3153,7 @@ dependencies = [
  "ethers-core",
  "futures",
  "hyperlane-core",
+ "hyperlane-metric",
  "log",
  "maplit",
  "parking_lot 0.12.3",
@@ -4578,6 +4579,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-fuel",
+ "hyperlane-metric",
  "hyperlane-sealevel",
  "hyperlane-test",
  "itertools 0.12.1",
@@ -4731,6 +4733,7 @@ dependencies = [
  "futures-util",
  "hex 0.4.3",
  "hyperlane-core",
+ "hyperlane-metric",
  "itertools 0.12.1",
  "num 0.4.3",
  "num-traits",
@@ -4758,6 +4761,28 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-futures",
+ "url",
+]
+
+[[package]]
+name = "hyperlane-metric"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "derive-new",
+ "derive_builder",
+ "ethers",
+ "ethers-core",
+ "futures",
+ "hyperlane-core",
+ "log",
+ "maplit",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "static_assertions 1.1.0",
+ "tokio",
  "url",
 ]
 

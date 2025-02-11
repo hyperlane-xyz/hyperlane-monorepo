@@ -1,5 +1,8 @@
-use ethers_prometheus::json_rpc_client::*;
 use eyre::Result;
+use hyperlane_metric::prometheus_metric::{
+    JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, REQUEST_COUNT_HELP, REQUEST_COUNT_LABELS,
+    REQUEST_DURATION_SECONDS_HELP, REQUEST_DURATION_SECONDS_LABELS,
+};
 
 use crate::CoreMetrics;
 
