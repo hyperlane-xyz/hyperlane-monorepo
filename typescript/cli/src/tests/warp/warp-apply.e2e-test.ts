@@ -587,8 +587,8 @@ describe('hyperlane warp apply e2e tests', async function () {
       chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: configToExtend,
-      warpCorePath: warpConfigPath,
-      warpDeployPath: warpConfigPath,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: combinedWarpCorePath,
     });
 
     // Verify both chains are now properly configured
