@@ -235,15 +235,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
         // Send receives no protocol fee, so the amount should be the same on chain 3
         const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
 
-        expect(tokenBalanceOnChain2After).to.equal(expectedAmountOnChain2);
-        expect(tokenBalanceOnChain3After).to.equal(expectedAmountOnChain3);
+        expect(tokenBalanceOnChain2After.eq(expectedAmountOnChain2)).to.be.true;
+        expect(tokenBalanceOnChain3After.eq(expectedAmountOnChain3)).to.be.true;
       } else {
-        // If the amount is greater than the threshold, the protocol fee should not be applied
+        // If the amount is greater than the threshold, no protocol fee
         const expectedAmountOnChain2 = tokenBalanceOnChain2Before.sub(amount);
         const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
 
-        expect(tokenBalanceOnChain2After).to.equal(expectedAmountOnChain2);
-        expect(tokenBalanceOnChain3After).to.equal(expectedAmountOnChain3);
+        expect(tokenBalanceOnChain2After.eq(expectedAmountOnChain2)).to.be.true;
+        expect(tokenBalanceOnChain3After.eq(expectedAmountOnChain3)).to.be.true;
       }
     }
   });
