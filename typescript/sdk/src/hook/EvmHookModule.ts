@@ -4,6 +4,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
+  CCIPHook,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -29,6 +30,7 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   deepEquals,
   eqAddress,
@@ -59,6 +61,7 @@ import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   ArbL2ToL1HookConfig,
+  CCIPHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -655,6 +658,9 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.PAUSABLE: {
         return this.deployPausableHook({ config });
       }
+      case HookType.CCIP: {
+        return this.deployCCIPHook({ _config: config });
+      }
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -794,9 +800,7 @@ export class EvmHookModule extends HyperlaneModule<
         opstackIsm.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,
@@ -915,6 +919,14 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     return hook;
+  }
+
+  protected async deployCCIPHook({
+    _config,
+  }: {
+    _config: CCIPHookConfig;
+  }): Promise<CCIPHook> {
+    throw new Error('CCIP Hook deployment not yet implemented');
   }
 
   protected async deployRoutingHook({

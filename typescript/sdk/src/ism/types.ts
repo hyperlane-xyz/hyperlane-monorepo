@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   ArbL2ToL1Ism,
+  CCIPIsm,
   IAggregationIsm,
   IInterchainSecurityModule,
   IMultisigIsm,
@@ -59,6 +60,7 @@ export enum IsmType {
   ARB_L2_TO_L1 = 'arbL2ToL1Ism',
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
+  CCIP = 'ccipIsm',
 }
 
 // ISM types that can be updated in-place
@@ -90,6 +92,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.PAUSABLE:
     case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
+    case IsmType.CCIP:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -120,13 +123,15 @@ export type OpStackIsmConfig = z.infer<typeof OpStackIsmConfigSchema>;
 export type TrustedRelayerIsmConfig = z.infer<
   typeof TrustedRelayerIsmConfigSchema
 >;
+export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
   | PausableIsmConfig
   | OpStackIsmConfig
-  | TrustedRelayerIsmConfig;
+  | TrustedRelayerIsmConfig
+  | CCIPIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends
@@ -181,6 +186,7 @@ export type DeployedIsmType = {
   [IsmType.TEST_ISM]: TestIsm;
   [IsmType.PAUSABLE]: PausableIsm;
   [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsm;
+  [IsmType.CCIP]: CCIPIsm;
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
@@ -218,6 +224,11 @@ export const WeightedMultisigConfigSchema = z.object({
 export const TrustedRelayerIsmConfigSchema = z.object({
   type: z.literal(IsmType.TRUSTED_RELAYER),
   relayer: z.string(),
+});
+
+export const CCIPIsmConfigSchema = z.object({
+  type: z.literal(IsmType.CCIP),
+  originChain: z.string(),
 });
 
 export const OpStackIsmConfigSchema = z.object({
@@ -298,6 +309,7 @@ export const IsmConfigSchema = z.union([
   OpStackIsmConfigSchema,
   PausableIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
+  CCIPIsmConfigSchema,
   MultisigIsmConfigSchema,
   WeightedMultisigIsmConfigSchema,
   RoutingIsmConfigSchema,

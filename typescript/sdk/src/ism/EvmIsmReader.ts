@@ -4,6 +4,7 @@ import {
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
@@ -22,6 +23,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
@@ -332,6 +334,26 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
+        address,
+      );
+    }
+
+    // if it has ccipOrigin property --> CCIP
+    const ccipIsm = CCIPIsm__factory.connect(address, this.provider);
+    try {
+      const ccipOrigin = await ccipIsm.ccipOrigin();
+      const originChain = getChainNameFromCCIPSelector(ccipOrigin.toString());
+      if (!originChain) {
+        throw new Error('Unknown CCIP origin chain');
+      }
+      return {
+        address,
+        type: IsmType.CCIP,
+        originChain,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "ccipOrigin" property, implying this is not a CCIP ISM.',
         address,
       );
     }
