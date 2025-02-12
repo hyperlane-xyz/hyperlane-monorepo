@@ -160,17 +160,9 @@ export const WarpRouteDeployConfigSchema = z
 
     // Check hooks have corresponding ISMs
     const hookConfigHasMissingIsms = Object.entries(ccipHookMap).some(
-      ([originChain, validDestinationChains]) => {
-        if (!ccipIsmMap[originChain]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `No CCIP ISM found in config for origin chain ${originChain}`,
-          });
-          return true;
-        }
-
-        return Array.from(validDestinationChains).some((chain) => {
-          if (!ccipIsmMap[originChain].has(chain)) {
+      ([originChain, destinationChains]) =>
+        Array.from(destinationChains).some((chain) => {
+          if (!ccipIsmMap[originChain]?.has(chain)) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: [chain, 'interchainSecurityModule', '...'],
@@ -179,8 +171,7 @@ export const WarpRouteDeployConfigSchema = z
             return true;
           }
           return false;
-        });
-      },
+        }),
     );
 
     // Check ISMs have corresponding hooks
@@ -276,11 +267,7 @@ function extractCCIPHookMap(
         extractCCIPHookMap(currentChain, hook, existsCCIPHookMap);
       });
       break;
-    case HookType.INTERCHAIN_GAS_PAYMASTER:
-    case HookType.MERKLE_TREE:
-    case HookType.OP_STACK:
-    case HookType.PAUSABLE:
-    case HookType.PROTOCOL_FEE:
+    default:
       break;
   }
 }
@@ -313,18 +300,7 @@ function extractCCIPIsmMap(
         extractCCIPIsmMap(currentChain, hook, existsCCIPIsmMap);
       });
       break;
-    case IsmType.ARB_L2_TO_L1:
-    case IsmType.ICA_ROUTING:
-    case IsmType.MERKLE_ROOT_MULTISIG:
-    case IsmType.MESSAGE_ID_MULTISIG:
-    case IsmType.PAUSABLE:
-    case IsmType.OP_STACK:
-    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
-    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
-    case IsmType.TEST_ISM:
-    case IsmType.TRUSTED_RELAYER:
-    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
-    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+    default:
       break;
   }
 }

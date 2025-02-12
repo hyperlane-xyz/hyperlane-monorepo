@@ -15,7 +15,7 @@ arbitrum:
   hook:
     type: aggregationHook
     hooks:
-      - '0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22'
+      - type: defaultHook
       - type: domainRoutingHook
         owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
         domains:
@@ -42,7 +42,7 @@ polygon:
   hook:
     type: aggregationHook
     hooks:
-      - '0x0071740Bf129b05C4684abfbBeD248D80971cce2'
+      - type: defaultHook
       - type: domainRoutingHook
         owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
         domains:
@@ -69,7 +69,7 @@ base:
   hook:
     type: aggregationHook
     hooks:
-      - '0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94'
+      - type: defaultHook
       - type: domainRoutingHook
         owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
         domains:
