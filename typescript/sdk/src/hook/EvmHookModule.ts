@@ -6,6 +6,7 @@ import {
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
   CCIPHook,
+  CCIPHook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -38,6 +39,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { CCIPContractCache } from '../ccip/utils.js';
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
@@ -115,6 +117,7 @@ export class EvmHookModule extends HyperlaneModule<
       HookConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
     >,
+    ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = HookConfigSchema.parse(params.config);
@@ -124,6 +127,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.hookFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [this.args.chain]: params.addresses },
       multiProvider,
+      ccipContractCache,
     );
     this.deployer = new HookDeployer(multiProvider, hookFactories);
 
@@ -243,6 +247,7 @@ export class EvmHookModule extends HyperlaneModule<
     proxyFactoryFactories,
     coreAddresses,
     multiProvider,
+    ccipContractCache,
     contractVerifier,
   }: {
     chain: ChainNameOrId;
@@ -250,6 +255,7 @@ export class EvmHookModule extends HyperlaneModule<
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'>;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmHookModule> {
     const module = new EvmHookModule(
@@ -263,6 +269,7 @@ export class EvmHookModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 
@@ -924,11 +931,26 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   protected async deployCCIPHook({
-    _config,
+    config,
   }: {
-    _config: CCIPHookConfig;
+    config: CCIPHookConfig;
   }): Promise<CCIPHook> {
-    throw new Error('CCIP Hook deployment not yet implemented');
+    const hook = this.hookFactory.ccipContractCache.getHook(
+      this.chain,
+      config.destinationChain,
+    );
+    if (!hook) {
+      this.logger.error(
+        `CCIP Hook not found for ${this.chain} -> ${config.destinationChain}`,
+      );
+      throw new Error(
+        `CCIP Hook not found for ${this.chain} -> ${config.destinationChain}`,
+      );
+    }
+    return CCIPHook__factory.connect(
+      hook,
+      this.multiProvider.getSigner(this.chain),
+    );
   }
 
   protected async deployRoutingHook({

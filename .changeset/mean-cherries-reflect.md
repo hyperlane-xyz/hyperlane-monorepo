@@ -2,4 +2,4 @@
 '@hyperlane-xyz/core': minor
 ---
 
-Implement CCIP hook and ISM
+Implement CCIP hook and ISM with unordered execution
