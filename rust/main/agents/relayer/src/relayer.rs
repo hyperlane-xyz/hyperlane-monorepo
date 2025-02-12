@@ -10,7 +10,7 @@ use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
-    db::{HyperlaneRocksDB, DB},
+    db::{HyperlaneRocksDB,DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::{ChainConf, IndexSettings},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
@@ -407,7 +407,7 @@ impl BaseAgent for Relayer {
                 origin,
                 send_channels.clone(),
                 task_monitor.clone(),
-            ));
+            ).await);
             tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
 
@@ -539,7 +539,7 @@ impl Relayer {
         .instrument(info_span!("MerkleTreeHookSync"))
     }
 
-    fn run_message_processor(
+    async fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
@@ -574,7 +574,7 @@ impl Relayer {
             send_channels,
             destination_ctxs,
             self.metric_app_contexts.clone(),
-        );
+        ).await;
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
