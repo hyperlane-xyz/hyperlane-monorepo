@@ -154,49 +154,56 @@ export const WarpRouteDeployConfigSchema = z
   })
   // Verify that CCIP hooks are paired with CCIP ISMs
   .transform((warpRouteDeployConfig, ctx) => {
-    // Get all the CCIP hooks and ISMs by origin->destination chain
     const { ccipHookMap, ccipIsmMap } = getCCIPConfigMaps(
       warpRouteDeployConfig,
     );
 
-    // Check that each CCIP hook has a corresponding ISM
-    for (const [originChain, hooks] of Object.entries(ccipHookMap)) {
-      if (!ccipIsmMap[originChain]) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `No CCIP ISM found in config for origin chain ${originChain}`,
+    // Check hooks have corresponding ISMs
+    const hookConfigHasMissingIsms = Object.entries(ccipHookMap).some(
+      ([originChain, validDestinationChains]) => {
+        if (!ccipIsmMap[originChain]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `No CCIP ISM found in config for origin chain ${originChain}`,
+          });
+          return true;
+        }
+
+        return Array.from(validDestinationChains).some((chain) => {
+          if (!ccipIsmMap[originChain].has(chain)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [chain, 'interchainSecurityModule', '...'],
+              message: `Required CCIP ISM not found in config for CCIP Hook with origin chain ${originChain} and destination chain ${chain}`,
+            });
+            return true;
+          }
+          return false;
         });
-        return z.NEVER;
-      }
+      },
+    );
 
-      for (const [destinationChain] of Object.entries(hooks)) {
-        if (!ccipIsmMap[originChain][destinationChain]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [destinationChain, 'interchainSecurityModule', '...'],
-            message: `Required CCIP ISM not found in config for CCIP Hook with origin chain ${originChain} and destination chain ${destinationChain}`,
-          });
-          return z.NEVER;
-        }
-      }
-    }
+    // Check ISMs have corresponding hooks
+    const ismConfigHasMissingHooks = Object.entries(ccipIsmMap).some(
+      ([originChain, destinationChains]) =>
+        Array.from(destinationChains).some((chain) => {
+          if (!ccipHookMap[originChain]?.has(chain)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [originChain, 'hook', '...'],
+              message: `Required CCIP Hook not found in config for CCIP ISM with origin chain ${originChain} and destination chain ${chain}`,
+            });
+            return true;
+          }
+          return false;
+        }),
+    );
 
-    // Check that each CCIP ISM has a corresponding hook
-    for (const [originChain, isms] of Object.entries(ccipIsmMap)) {
-      for (const [destinationChain] of Object.entries(isms)) {
-        if (!ccipHookMap[originChain]?.[destinationChain]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [originChain, 'hook', '...'],
-            message: `Required CCIP Hook not found in config for CCIP ISM with origin chain ${originChain} and destination chain ${destinationChain}`,
-          });
-          return z.NEVER;
-        }
-      }
-    }
-
-    return warpRouteDeployConfig;
+    return hookConfigHasMissingIsms || ismConfigHasMissingHooks
+      ? z.NEVER
+      : warpRouteDeployConfig;
   });
+
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
 function isCollateralRebasePairedCorrectly(
@@ -216,7 +223,11 @@ function isCollateralRebasePairedCorrectly(
   return allOthersSynthetic;
 }
 
-type CCIPContractExistsMap = ChainMap<ChainMap<boolean>>;
+/**
+ * Map tracking which chains can be CCIP destinations for each origin chain.
+ * { [origin chain]: Set<valid destination chain> }
+ */
+type CCIPContractExistsMap = ChainMap<Set<ChainName>>;
 
 function getCCIPConfigMaps(
   warpRouteDeployConfig: Record<string, HypTokenRouterConfig>,
@@ -227,15 +238,15 @@ function getCCIPConfigMaps(
   const ccipHookMap: CCIPContractExistsMap = {};
   const ccipIsmMap: CCIPContractExistsMap = {};
 
-  for (const [chainName, config] of Object.entries(warpRouteDeployConfig)) {
-    traverseHookConfig(chainName, config.hook, ccipHookMap);
-    traverseIsmConfig(chainName, config.interchainSecurityModule, ccipIsmMap);
-  }
+  Object.entries(warpRouteDeployConfig).forEach(([chainName, config]) => {
+    extractCCIPHookMap(chainName, config.hook, ccipHookMap);
+    extractCCIPIsmMap(chainName, config.interchainSecurityModule, ccipIsmMap);
+  });
 
   return { ccipHookMap, ccipIsmMap };
 }
 
-function traverseHookConfig(
+function extractCCIPHookMap(
   currentChain: ChainName,
   hookConfig: HookConfig | undefined,
   existsCCIPHookMap: CCIPContractExistsMap,
@@ -247,26 +258,22 @@ function traverseHookConfig(
   switch (hookConfig.type) {
     case HookType.AGGREGATION:
       hookConfig.hooks.forEach((hook) =>
-        traverseHookConfig(currentChain, hook, existsCCIPHookMap),
+        extractCCIPHookMap(currentChain, hook, existsCCIPHookMap),
       );
       break;
     case HookType.ARB_L2_TO_L1:
-      if (hookConfig.childHook) {
-        traverseHookConfig(
-          currentChain,
-          hookConfig.childHook,
-          existsCCIPHookMap,
-        );
-      }
+      extractCCIPHookMap(currentChain, hookConfig.childHook, existsCCIPHookMap);
       break;
     case HookType.CCIP:
-      existsCCIPHookMap[currentChain] = existsCCIPHookMap[currentChain] || {};
-      existsCCIPHookMap[currentChain][hookConfig.destinationChain] = true;
+      if (!existsCCIPHookMap[currentChain]) {
+        existsCCIPHookMap[currentChain] = new Set();
+      }
+      existsCCIPHookMap[currentChain].add(hookConfig.destinationChain);
       break;
     case HookType.FALLBACK_ROUTING:
     case HookType.ROUTING:
       Object.entries(hookConfig.domains).forEach(([_, hook]) => {
-        traverseHookConfig(currentChain, hook, existsCCIPHookMap);
+        extractCCIPHookMap(currentChain, hook, existsCCIPHookMap);
       });
       break;
     case HookType.INTERCHAIN_GAS_PAYMASTER:
@@ -278,7 +285,7 @@ function traverseHookConfig(
   }
 }
 
-function traverseIsmConfig(
+function extractCCIPIsmMap(
   currentChain: ChainName,
   ismConfig: IsmConfig | undefined,
   existsCCIPIsmMap: CCIPContractExistsMap,
@@ -291,18 +298,19 @@ function traverseIsmConfig(
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
       ismConfig.modules.forEach((hook) =>
-        traverseIsmConfig(currentChain, hook, existsCCIPIsmMap),
+        extractCCIPIsmMap(currentChain, hook, existsCCIPIsmMap),
       );
       break;
     case IsmType.CCIP:
-      existsCCIPIsmMap[ismConfig.originChain] =
-        existsCCIPIsmMap[ismConfig.originChain] || {};
-      existsCCIPIsmMap[ismConfig.originChain][currentChain] = true;
+      if (!existsCCIPIsmMap[ismConfig.originChain]) {
+        existsCCIPIsmMap[ismConfig.originChain] = new Set();
+      }
+      existsCCIPIsmMap[ismConfig.originChain].add(currentChain);
       break;
     case IsmType.FALLBACK_ROUTING:
     case IsmType.ROUTING:
       Object.entries(ismConfig.domains).forEach(([_, hook]) => {
-        traverseIsmConfig(currentChain, hook, existsCCIPIsmMap);
+        extractCCIPIsmMap(currentChain, hook, existsCCIPIsmMap);
       });
       break;
     case IsmType.ARB_L2_TO_L1:
