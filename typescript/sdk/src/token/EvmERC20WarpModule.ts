@@ -112,7 +112,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
      */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
+      // ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,

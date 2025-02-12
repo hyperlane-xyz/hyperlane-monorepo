@@ -38,7 +38,7 @@ export const chainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
-const tokenPrices: ChainMap<string> = {
+export const tokenPrices: ChainMap<string> = {
   arbitrum: '3157.26',
   optimism: '3157.26',
   base: '3157.26',
@@ -325,7 +325,7 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
 
 export function getRenzoEZETHWarpConfigGenerator(
   ezEthSafes: Record<string, string>,
-  xERC20: Record<(typeof chainsToDeploy)[number], string>,
+  ezEth: Record<(typeof chainsToDeploy)[number], string>,
   lockbox: string,
   existingProxyAdmins?: ChainMap<{ address: string; owner: string }>,
 ) {
@@ -344,7 +344,7 @@ export function getRenzoEZETHWarpConfigGenerator(
     );
     const xERC20Diff = symmetricDifference(
       new Set(chainsToDeploy),
-      new Set(Object.keys(xERC20)),
+      new Set(Object.keys(ezEth)),
     );
     const tokenPriceDiff = symmetricDifference(
       new Set(chainsToDeploy),
@@ -401,7 +401,7 @@ export function getRenzoEZETHWarpConfigGenerator(
                   chain === lockboxChain
                     ? TokenType.XERC20Lockbox
                     : TokenType.XERC20,
-                token: chain === lockboxChain ? lockbox : xERC20[chain],
+                token: chain === lockboxChain ? lockbox : ezEth[chain],
                 owner: ezEthSafes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox,
