@@ -14,6 +14,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address, randomInt } from '@hyperlane-xyz/utils';
 
@@ -131,6 +132,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
       CHAIN_NAME_3,
     ]);
 
+    const protocolFeeBeneficiary = randomAddress();
+    const protocolFee = '100';
+    const maxProtocolFee = '10000';
+
     const amountThreshold = randomInt(1, 1e4);
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
@@ -142,7 +147,19 @@ describe('hyperlane warp deploy e2e tests', async function () {
           type: HookType.AMOUNT_ROUTING,
           threshold: amountThreshold,
           lowerHook: {
-            type: HookType.MERKLE_TREE,
+            type: HookType.AGGREGATION,
+            hooks: [
+              {
+                type: HookType.MERKLE_TREE,
+              },
+              {
+                type: HookType.PROTOCOL_FEE,
+                owner: protocolFeeBeneficiary,
+                protocolFee,
+                beneficiary: protocolFeeBeneficiary,
+                maxProtocolFee,
+              },
+            ],
           },
           upperHook: {
             type: HookType.MERKLE_TREE,
@@ -209,12 +226,25 @@ describe('hyperlane warp deploy e2e tests', async function () {
           synthetic.callStatic.balanceOf(walletChain3.address),
         ]);
 
-      expect(tokenBalanceOnChain2After).to.equal(
-        tokenBalanceOnChain2Before.sub(amount),
-      );
-      expect(tokenBalanceOnChain3After).to.equal(
-        tokenBalanceOnChain3Before.add(amount),
-      );
+      if (amount < amountThreshold) {
+        // If the amount is less than the threshold, the protocol fee should be applied
+        const protocolFeeAmount = parseEther(protocolFee);
+        const expectedAmountOnChain2 = tokenBalanceOnChain2Before
+          .sub(amount)
+          .sub(protocolFeeAmount);
+        // Send receives no protocol fee, so the amount should be the same on chain 3
+        const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
+
+        expect(tokenBalanceOnChain2After).to.equal(expectedAmountOnChain2);
+        expect(tokenBalanceOnChain3After).to.equal(expectedAmountOnChain3);
+      } else {
+        // If the amount is greater than the threshold, the protocol fee should not be applied
+        const expectedAmountOnChain2 = tokenBalanceOnChain2Before.sub(amount);
+        const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
+
+        expect(tokenBalanceOnChain2After).to.equal(expectedAmountOnChain2);
+        expect(tokenBalanceOnChain3After).to.equal(expectedAmountOnChain3);
+      }
     }
   });
 
