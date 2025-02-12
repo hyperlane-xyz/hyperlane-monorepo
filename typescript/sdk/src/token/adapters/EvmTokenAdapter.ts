@@ -471,26 +471,6 @@ export class EvmXERC20VSAdapter
     );
   }
 
-  async getMintLimit(bridge: Address): Promise<bigint> {
-    const limit = await this.xERC20VS.mintingCurrentLimitOf(bridge);
-    return limit.toBigInt();
-  }
-
-  async getBurnLimit(bridge: Address): Promise<bigint> {
-    const limit = await this.xERC20VS.burningCurrentLimitOf(bridge);
-    return limit.toBigInt();
-  }
-
-  async getMintMaxLimit(bridge: Address): Promise<bigint> {
-    const limit = await this.xERC20VS.mintingMaxLimitOf(bridge);
-    return limit.toBigInt();
-  }
-
-  async getBurnMaxLimit(bridge: Address): Promise<bigint> {
-    const limit = await this.xERC20VS.burningMaxLimitOf(bridge);
-    return limit.toBigInt();
-  }
-
   async populateSetBufferCapTx({
     bridge,
     newBufferCap,

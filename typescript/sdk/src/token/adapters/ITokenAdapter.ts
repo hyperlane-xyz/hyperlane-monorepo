@@ -73,12 +73,6 @@ export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
 }
 
 export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
-  getMintLimit(bridge: Address): Promise<bigint>;
-  getMintMaxLimit(bridge: Address): Promise<bigint>;
-
-  getBurnLimit(bridge: Address): Promise<bigint>;
-  getBurnMaxLimit(bridge: Address): Promise<bigint>;
-
   populateSetBufferCapTx(params: SetBufferCapParams): Promise<Tx>;
   populateSetRateLimitPerSecond(
     params: SetRateLimitPerSecondParams,
