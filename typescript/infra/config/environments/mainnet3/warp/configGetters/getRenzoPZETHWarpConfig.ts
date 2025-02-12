@@ -13,9 +13,9 @@ import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 import {
   ezEthSafes,
+  tokenPrices as ezEthTokenPrices,
   ezEthValidators,
   getRenzoHook,
-  tokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
 const pzEthProductionLockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
@@ -43,9 +43,9 @@ const pzEthSafes: Record<string, string> = {
 };
 
 export const pzEthTokenPrices: ChainMap<string> = {
-  ethereum: tokenPrices.ethereum,
-  zircuit: tokenPrices.zircuit,
-  swell: tokenPrices.swell,
+  ethereum: ezEthTokenPrices.ethereum,
+  zircuit: ezEthTokenPrices.zircuit,
+  swell: ezEthTokenPrices.swell,
 };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
