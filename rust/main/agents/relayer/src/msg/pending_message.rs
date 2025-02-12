@@ -25,6 +25,9 @@ use super::{
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
+/// 70 is picked under the assumption that the first 48 retries take about 1 day (see `calculate_msg_backoff``).
+/// The remaining 22 retries will take at least 21 * 22 / 2 hours (see `calculate_msg_backoff`), which is about 11 days.
+/// In total that is almost 2 weeks, which @nambrot confirmed is how long we should retry for.
 pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 70;
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
