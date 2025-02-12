@@ -2,7 +2,13 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, assert, deepEquals, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  assert,
+  deepEquals,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -745,6 +751,33 @@ describe('EvmHookModule', async () => {
 
       // expect 0 updates
       await expectTxsAndUpdate(hook, config, 0);
+    });
+
+    it('should not update a hook if given address matches actual config', async () => {
+      // create a new agg hook with the owner hardcoded
+      const hookConfig: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            ...(randomHookConfig(
+              0,
+              2,
+              HookType.FALLBACK_ROUTING,
+            ) as FallbackRoutingHookConfig),
+            owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+          },
+        ],
+      };
+      const { hook } = await createHook(hookConfig);
+      const deployedHookBefore =
+        (await hook.read()) as WithAddress<AggregationHookConfig>;
+
+      // expect 0 updates, but actually deploys a new hook
+      await expectTxsAndUpdate(hook, hookConfig, 0);
+      const deployedHookAfter =
+        (await hook.read()) as WithAddress<AggregationHookConfig>;
+
+      expect(deployedHookBefore.address).to.equal(deployedHookAfter.address);
     });
 
     // generate a random config for each ownable hook type

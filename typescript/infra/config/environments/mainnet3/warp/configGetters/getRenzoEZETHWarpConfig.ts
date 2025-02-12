@@ -33,6 +33,8 @@ export const chainsToDeploy = [
   'taiko',
   'sei',
   'swell',
+  'unichain',
+  'berachain',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
@@ -50,6 +52,8 @@ const tokenPrices: ChainMap<string> = {
   taiko: '3157.26',
   sei: '0.354988',
   swell: '3157.26',
+  unichain: '2602.66',
+  berachain: '10',
 };
 export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
@@ -93,6 +97,8 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
   swell: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  unichain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  berachain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -226,6 +232,26 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0xb6b9b4bd4eb6eb3aef5e9826e7f8b8455947f67c', alias: 'Renzo' },
     ],
   },
+  unichain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
+        alias: 'Luganodes',
+      },
+      { address: '0xfe318024ca6197f2157905209149067a11e6982c', alias: 'Renzo' },
+    ],
+  },
+  berachain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+        alias: 'Luganodes',
+      },
+      { address: '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
@@ -242,6 +268,8 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
   swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
+  unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
+  berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
 };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
