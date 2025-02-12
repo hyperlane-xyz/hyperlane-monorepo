@@ -4,7 +4,7 @@ import {
   getRenzoGnosisSafeBuilderStrategyConfigGenerator,
 } from './getRenzoEZETHWarpConfig.js';
 
-const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
+const ezEthStage: Record<(typeof chainsToDeploy)[number], string> = {
   arbitrum: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   optimism: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   base: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
@@ -40,11 +40,11 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   berachain: '0xf013c8Be28421b050cca5bD95cc57Af49568e8be',
 };
 
-const xERC20StagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
+const ezethStagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
 export const getRenzoEZETHSTAGEWarpConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
-  xERC20,
-  xERC20StagingLockbox,
+  ezEthStage,
+  ezethStagingLockbox,
 );
 
 export const getRenzoGnosisSafeBuilderStagingStrategyConfig =

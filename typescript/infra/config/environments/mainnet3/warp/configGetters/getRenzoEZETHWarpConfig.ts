@@ -82,8 +82,8 @@ export function getRenzoHook(
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
 const warpRouteOverheadGas = 200_000;
-const xERC20ProductionLockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
-const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
+const ezEthProductionLockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
+const ezEth: Record<(typeof chainsToDeploy)[number], string> = {
   arbitrum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   optimism: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   base: '0x2416092f143378750bb29b79eD961ab195CcEea5',
@@ -442,8 +442,8 @@ export function getRenzoEZETHWarpConfigGenerator(
 
 export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
-  xERC20,
-  xERC20ProductionLockbox,
+  ezEth,
+  ezEthProductionLockbox,
   existingProxyAdmins,
 );
 
