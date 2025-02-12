@@ -642,3 +642,9 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export {
+  getChainNameFromCCIPSelector,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+  getCCIPChains,
+} from './ccip/utils.js';
