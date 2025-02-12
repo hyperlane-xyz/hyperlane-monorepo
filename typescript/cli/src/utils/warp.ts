@@ -8,12 +8,12 @@ import {
 } from '../config/warp.js';
 import { CommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
+
 import {
   getWarpConfigFromRegistry,
   getWarpDeployConfig,
   getWarpRouteIds,
-} from '../warp/registry.js';
-
+} from './registry.js';
 import { selectRegistryWarpRoute } from './tokens.js';
 
 /**
