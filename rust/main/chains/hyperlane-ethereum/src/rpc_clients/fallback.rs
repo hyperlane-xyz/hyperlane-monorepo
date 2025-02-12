@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn_span};
+use tracing::{info, instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClientConfigExt};
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
@@ -92,6 +92,9 @@ where
         R: DeserializeOwned,
     {
         use CategorizedResponse::*;
+
+        info!(method, "EthereumFallBackProvider method");
+
         let params = serde_json::to_value(params).expect("valid");
 
         let mut errors = vec![];
