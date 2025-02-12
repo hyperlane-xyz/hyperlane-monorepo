@@ -202,7 +202,10 @@ contract CCIPIsmTest is Test {
         Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
 
         vm.prank(OP_ROUTER_ADDRESS);
+        uint256 beforeCall = gasleft();
         ccipISMOptimism.ccipReceive(message);
+        uint256 afterCall = gasleft();
+        console.log("Gas used: ", beforeCall - afterCall);
 
         assertTrue(ccipISMOptimism.verifiedMessages(messageId).isBitSet(255));
     }

@@ -61,7 +61,7 @@ contract CCIPIsm is AbstractMessageIdAuthorizedIsm, CCIPReceiver {
         require(sender == authorizedHook, "Unauthorized hook");
 
         bytes32 messageId = abi.decode(any2EvmMessage.data, (bytes32));
-        preVerifyMessage(messageId, msg.value);
+        preVerifyMessage(messageId, 0);
     }
 
     function _isAuthorized() internal view override returns (bool) {
