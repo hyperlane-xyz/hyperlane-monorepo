@@ -24,7 +24,7 @@ import {
   HypERC20Factories,
   HypERC721Deployer,
   HypERC721Factories,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigWithoutMailbox,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
@@ -287,7 +287,7 @@ async function createWarpIsm({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfig;
+  warpConfig: HypTokenRouterConfigWithoutMailbox;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<IsmConfig | undefined> {
   const { interchainSecurityModule } = warpConfig;
@@ -354,7 +354,7 @@ async function createWarpHook({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfig;
+  warpConfig: HypTokenRouterConfigWithoutMailbox;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<HookConfig | undefined> {
   const { hook } = warpConfig;
@@ -646,12 +646,14 @@ async function updateExistingWarpRoute(
           staticAggregationHookFactory,
           staticMerkleRootWeightedMultisigIsmFactory,
           staticMessageIdWeightedMultisigIsmFactory,
+          mailbox,
         } = registryAddresses[chain];
+        const configWithMailbox = { ...config, mailbox };
 
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
-            config,
+            config: configWithMailbox,
             chain,
             addresses: {
               deployedTokenRoute,
@@ -666,7 +668,9 @@ async function updateExistingWarpRoute(
           },
           contractVerifier,
         );
-        transactions.push(...(await evmERC20WarpModule.update(config)));
+        transactions.push(
+          ...(await evmERC20WarpModule.update(configWithMailbox)),
+        );
       });
     }),
   );

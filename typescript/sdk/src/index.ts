@@ -570,6 +570,8 @@ export {
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  HypTokenRouterConfigWithoutMailbox,
+  HypTokenRouterConfigWithoutMailboxSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
@@ -587,8 +589,6 @@ export {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  WarpRouteDeployConfigWithoutMailbox,
-  WarpRouteDeployConfigSchemaWithoutMailbox,
 } from './token/types.js';
 export {
   ChainMap,

@@ -12,8 +12,6 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
-  WarpRouteDeployConfigSchemaWithoutMailbox,
-  WarpRouteDeployConfigWithoutMailbox,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -104,7 +102,7 @@ export async function readWarpRouteDeployConfig(
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
-  return WarpRouteDeployConfigSchemaWithoutMailbox.safeParse(config).success;
+  return WarpRouteDeployConfigSchema.safeParse(config).success;
 }
 
 export async function createWarpRouteDeployConfig({
@@ -127,7 +125,7 @@ export async function createWarpRouteDeployConfig({
     requiresConfirmation: !context.skipConfirmation,
   });
 
-  const result: WarpRouteDeployConfigWithoutMailbox = {};
+  const result: WarpRouteDeployConfig = {};
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
@@ -246,8 +244,7 @@ export async function createWarpRouteDeployConfig({
   }
 
   try {
-    const warpRouteDeployConfig =
-      WarpRouteDeployConfigSchemaWithoutMailbox.parse(result);
+    const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
     log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
     writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');

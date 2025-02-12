@@ -194,6 +194,8 @@ abstract class TokenDeployer<
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       ...tokenMetadata,
       gas: gasOverhead(config.type),
+      //hardcoded to empty string for now
+      mailbox: '',
       ...config,
     }));
     return super.deploy(resolvedConfigMap);

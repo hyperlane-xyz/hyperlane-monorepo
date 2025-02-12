@@ -4,7 +4,7 @@ import { Wallet } from 'ethers';
 import {
   ChainName,
   TokenType,
-  WarpRouteDeployConfigWithoutMailbox,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -38,7 +38,7 @@ describe('hyperlane warp init e2e tests', async function () {
 
   describe('hyperlane warp init --yes', () => {
     function assertWarpConfig(
-      warpConfig: WarpRouteDeployConfigWithoutMailbox,
+      warpConfig: WarpRouteDeployConfig,
       chainName: ChainName,
     ) {
       expect(warpConfig[chainName]).not.to.be.undefined;
@@ -70,7 +70,7 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfigWithoutMailbox =
+      const warpConfig: WarpRouteDeployConfig =
         readYamlOrJson(WARP_CONFIG_PATH_2);
 
       assertWarpConfig(warpConfig, CHAIN_NAME_2);
@@ -98,7 +98,7 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfigWithoutMailbox =
+      const warpConfig: WarpRouteDeployConfig =
         readYamlOrJson(WARP_CONFIG_PATH_2);
 
       [CHAIN_NAME_2, CHAIN_NAME_3].map((chainName) =>
@@ -138,7 +138,7 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfigWithoutMailbox =
+      const warpConfig: WarpRouteDeployConfig =
         readYamlOrJson(WARP_CONFIG_PATH_2);
 
       expect(warpConfig[CHAIN_NAME_2]).not.to.be.undefined;
