@@ -1,7 +1,6 @@
-import { ethers } from 'ethers';
-
 import {
   AmountRoutingHook,
+  CCIPHook,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -12,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   deepEquals,
   rootLogger,
@@ -32,6 +32,7 @@ import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
+  CCIPHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -114,6 +115,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       });
     } else if (config.type === HookType.AMOUNT_ROUTING) {
       hook = await this.deployAmountRoutingHook(chain, config);
+    } else if (config.type === HookType.CCIP) {
+      hook = await this.deployCCIPHook(chain, config);
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -121,6 +124,13 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     const deployedContracts = { [config.type]: hook } as any; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
+  }
+
+  async deployCCIPHook(
+    _chain: ChainName,
+    _config: CCIPHookConfig,
+  ): Promise<CCIPHook> {
+    throw new Error('CCIP Hook deployment not yet implemented');
   }
 
   async deployProtocolFee(
@@ -249,9 +259,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         opstackIsm.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,

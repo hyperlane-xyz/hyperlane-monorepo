@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   AmountRoutingIsm__factory,
+  CCIPIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
@@ -23,6 +24,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -392,6 +394,19 @@ export async function moduleMatchesConfig(
       matches &&= type === ModuleType.NULL;
       const relayer = await trustedRelayerIsm.trustedRelayer();
       matches &&= eqAddress(relayer, config.relayer);
+      break;
+    }
+    case IsmType.CCIP: {
+      const ccipIsm = CCIPIsm__factory.connect(moduleAddress, provider);
+      const type = await ccipIsm.moduleType();
+      matches &&= type === ModuleType.NULL;
+
+      // Check that the origin chain selector matches the config
+      const originCcipChainSelector = await ccipIsm.ccipOrigin();
+      const chainName = getChainNameFromCCIPSelector(
+        originCcipChainSelector.toString(),
+      );
+      matches &&= chainName === config.originChain;
       break;
     }
     case IsmType.PAUSABLE: {

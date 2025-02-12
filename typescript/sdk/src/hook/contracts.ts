@@ -1,6 +1,7 @@
 import {
   AmountRoutingHook__factory,
   ArbL2ToL1Hook__factory,
+  CCIPHook__factory,
   DefaultHook__factory,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook__factory,
@@ -27,6 +28,7 @@ export const hookFactories = {
   [HookType.ARB_L2_TO_L1]: new ArbL2ToL1Hook__factory(),
   [HookType.AMOUNT_ROUTING]: new AmountRoutingHook__factory(),
   [HookType.MAILBOX_DEFAULT]: new DefaultHook__factory(),
+  [HookType.CCIP]: new CCIPHook__factory(),
 };
 
 export type HookFactories = typeof hookFactories;

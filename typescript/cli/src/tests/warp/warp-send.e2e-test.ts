@@ -210,10 +210,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
           synthetic.callStatic.balanceOf(walletChain3.address),
         ]);
 
-      expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be
-        .true;
-      expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be
-        .true;
+      expect(tokenBalanceOnChain2After).to.equal(
+        tokenBalanceOnChain2Before.sub(amount),
+      );
+      expect(tokenBalanceOnChain3After).to.equal(
+        tokenBalanceOnChain3Before.add(amount),
+      );
     }
   });
 

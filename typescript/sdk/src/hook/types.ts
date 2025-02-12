@@ -26,6 +26,7 @@ export enum OnchainHookType {
   OP_L2_TO_L1,
   AMOUNT_ROUTING,
   MAILBOX_DEFAULT_HOOK,
+  AMOUNT_ROUTING,
 }
 
 export enum HookType {
@@ -41,6 +42,7 @@ export enum HookType {
   PAUSABLE = 'pausableHook',
   ARB_L2_TO_L1 = 'arbL2ToL1Hook',
   MAILBOX_DEFAULT = 'defaultHook',
+  CCIP = 'ccipHook',
 }
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -51,6 +53,7 @@ export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
 export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
 export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
 
+export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 // explicitly typed to avoid zod circular dependency
 export type AggregationHookConfig = {
   type: HookType.AGGREGATION;
@@ -169,6 +172,11 @@ export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
     }),
   );
 
+export const CCIPHookSchema = z.object({
+  type: z.literal(HookType.CCIP),
+  destinationChain: z.string(),
+});
+
 export const HookConfigSchema = z.union([
   ZHash,
   ProtocolFeeSchema,
@@ -182,6 +190,7 @@ export const HookConfigSchema = z.union([
   AggregationHookConfigSchema,
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
+  CCIPHookSchema,
 ]);
 
 // TODO: deprecate in favor of CoreConfigSchema

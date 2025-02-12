@@ -4,6 +4,8 @@ import { Logger } from 'pino';
 import {
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  CCIPIsm,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -54,6 +56,7 @@ import { ChainMap, ChainName } from '../types.js';
 import {
   AggregationIsmConfig,
   AmountRoutingIsmConfig,
+  CCIPIsmConfig,
   DeployedIsm,
   DeployedIsmType,
   DomainRoutingIsmConfig,
@@ -72,6 +75,7 @@ const ismFactories = {
   [IsmType.TEST_ISM]: new TestIsm__factory(),
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
+  [IsmType.CCIP]: new CCIPIsm__factory(),
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -211,6 +215,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.bridge],
         );
         break;
+      case IsmType.CCIP:
+        contract = await this.deployCCIPIsm(destination, config);
+        break;
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
@@ -231,6 +238,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     return contract;
+  }
+
+  protected async deployCCIPIsm(
+    _destination: ChainName,
+    _config: CCIPIsmConfig,
+  ): Promise<CCIPIsm> {
+    throw new Error('CCIP ISM deployment not yet implemented');
   }
 
   protected async deployMultisigIsm(
