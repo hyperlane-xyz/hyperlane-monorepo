@@ -648,3 +648,4 @@ export {
   getCCIPRouterAddress,
   getCCIPChains,
 } from './ccip/utils.js';
+export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';

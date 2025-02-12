@@ -9,6 +9,7 @@ import {
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
+  HyperlaneCCIPDeployer,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -24,6 +25,7 @@ import {
 import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
+import { getCCIPDeployConfig } from '../config/environments/mainnet3/ccip.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
@@ -77,6 +79,13 @@ async function main() {
     Role.Deployer,
     true,
     chains,
+  );
+
+  const targetNetworks =
+    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
+
+  const filteredTargetNetworks = targetNetworks.filter(
+    (chain) => !chainsToSkip.includes(chain),
   );
 
   if (fork) {
@@ -241,6 +250,16 @@ async function main() {
     config = {
       ethereum: coreConfig.ethereum.defaultHook,
     };
+  } else if (module === Modules.CCIP) {
+    if (environment !== 'mainnet3') {
+      throw new Error('CCIP is only supported on mainnet3');
+    }
+    config = getCCIPDeployConfig(filteredTargetNetworks);
+    deployer = new HyperlaneCCIPDeployer(
+      multiProvider,
+      getEnvAddresses(environment),
+      contractVerifier,
+    );
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
@@ -284,12 +303,6 @@ async function main() {
     }
   }
 
-  const targetNetworks =
-    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
-
-  const filteredTargetNetworks = targetNetworks.filter(
-    (chain) => !chainsToSkip.includes(chain),
-  );
   chainsToSkip.forEach((chain) => delete config[chain]);
 
   await deployWithArtifacts({
