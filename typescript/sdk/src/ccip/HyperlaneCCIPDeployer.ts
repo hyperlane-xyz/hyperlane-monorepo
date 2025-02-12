@@ -1,6 +1,5 @@
 import { CCIPHook__factory, CCIPIsm__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
@@ -53,7 +52,8 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     origin: ChainName,
     config: Set<ChainName>,
   ): Promise<HyperlaneContracts<{}>> {
-    // Deploy ISMs from chain to each destination chain concurrently
+    // Deploy ISMs from chain to each destination chain concurrently.
+    // This is done in parallel since the ISM is deployed on discrete destination chains.
     await Promise.all(
       Array.from(config).map(async (destination) => {
         // Deploy CCIP ISM for this origin->destination pair
@@ -61,40 +61,17 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       }),
     );
 
-    //On the origin chain, deploy hooks for each destination chain in series
+    // On the origin chain, deploy hooks for each destination chain in series.
+    // This is done in series to avoid nonce contention on the origin chain.
     for (const destination of config) {
-      // Grab the ISM from the cache
-      const ccipIsmAddress = this.ccipContractCache.getIsm(origin, destination);
-      assert(
-        ccipIsmAddress,
-        `CCIP ISM not found for ${origin} -> ${destination}`,
-      );
-
-      await this.deployCCIPHook(origin, destination, ccipIsmAddress);
+      await this.deployCCIPHook(origin, destination);
     }
 
-    // Authorize hooks for each destination chain concurrently
+    // Authorize hooks for each destination chain concurrently.
+    // This is done in parallel since the ISM is deployed on discrete destination chains.
     await Promise.all(
       Array.from(config).map(async (destination) => {
-        const ccipIsmAddress = this.ccipContractCache.getIsm(
-          origin,
-          destination,
-        );
-        assert(
-          ccipIsmAddress,
-          `CCIP ISM not found for ${origin} -> ${destination}`,
-        );
-
-        const ccipHookAddress = this.ccipContractCache.getHook(
-          origin,
-          destination,
-        );
-        assert(
-          ccipHookAddress,
-          `CCIP Hook not found for ${origin} -> ${destination}`,
-        );
-
-        await this.authorizeHook(destination, ccipIsmAddress, ccipHookAddress);
+        await this.authorizeHook(origin, destination);
       }),
     );
 
@@ -102,11 +79,19 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     return {};
   }
 
-  private async authorizeHook(
-    destination: ChainName,
-    ccipIsmAddress: Address,
-    ccipHookAddress: Address,
-  ) {
+  private async authorizeHook(origin: ChainName, destination: ChainName) {
+    const ccipIsmAddress = this.ccipContractCache.getIsm(origin, destination);
+    assert(
+      ccipIsmAddress,
+      `CCIP ISM not found for ${origin} -> ${destination}`,
+    );
+
+    const ccipHookAddress = this.ccipContractCache.getHook(origin, destination);
+    assert(
+      ccipHookAddress,
+      `CCIP Hook not found for ${origin} -> ${destination}`,
+    );
+
     const bytes32HookAddress = addressToBytes32(ccipHookAddress);
     const ccipIsm = CCIPIsm__factory.connect(
       ccipIsmAddress,
@@ -197,8 +182,14 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
   protected async deployCCIPHook(
     origin: ChainName,
     destination: ChainName,
-    ccipIsmAddress: Address,
   ): Promise<void> {
+    // Grab the ISM from the cache
+    const ccipIsmAddress = this.ccipContractCache.getIsm(origin, destination);
+    assert(
+      ccipIsmAddress,
+      `CCIP ISM not found for ${origin} -> ${destination}`,
+    );
+
     const cachedHook = this.ccipContractCache.getHook(origin, destination);
     if (cachedHook) {
       this.logger.debug(
