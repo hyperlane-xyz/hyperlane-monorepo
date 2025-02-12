@@ -167,6 +167,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           break;
         case OnchainHookType.AMOUNT_ROUTING:
           derivedHookConfig = await this.deriveAmountRoutingHookConfig(address);
+          break;
         case OnchainHookType.MAILBOX_DEFAULT_HOOK:
           derivedHookConfig = await this.deriveMailboxDefaultHookConfig(
             address,
