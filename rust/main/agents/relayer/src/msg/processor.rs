@@ -53,7 +53,6 @@ struct ForwardBackwardIterator {
 impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
     async fn new(db: Arc<dyn HyperlaneDb>) -> Self {
-
         let high_nonce = loop {
             match db.retrieve_highest_seen_message_nonce().ok() {
                 Some(nonce) => break nonce,
@@ -68,7 +67,6 @@ impl ForwardBackwardIterator {
         };
         tracing::warn!("Highest seen message nonce: {:?}", high_nonce);
 
-        
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
@@ -343,7 +341,8 @@ impl MessageProcessor {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>).await,
+            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>)
+                .await,
         }
     }
 
