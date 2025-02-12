@@ -73,7 +73,7 @@ export function getRenzoPZETHWarpConfigGenerator(
       new Set(chainsToDeploy),
       new Set(Object.keys(pzEthValidators)),
     );
-    const safeDiff = symmetricDifference(
+    const pzEthSafeDiff = symmetricDifference(
       new Set(chainsToDeploy),
       new Set(Object.keys(pzEthSafes)),
     );
@@ -93,11 +93,11 @@ export function getRenzoPZETHWarpConfigGenerator(
         ).join(', ')}`,
       );
     }
-    if (safeDiff.size > 0) {
+    if (pzEthSafeDiff.size > 0) {
       throw new Error(
-        `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(
-          ', ',
-        )}`,
+        `chainsToDeploy !== pzEthSafeDiff, diff is ${Array.from(
+          pzEthSafeDiff,
+        ).join(', ')}`,
       );
     }
     if (pzEthDiff.size > 0) {
