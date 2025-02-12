@@ -38,6 +38,7 @@ export const chainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
+// Used to stabilize the protocolFee of ProtocolHook such that we don't get diffs every time tokenPrices.json is updated
 export const tokenPrices: ChainMap<string> = {
   arbitrum: '3157.26',
   optimism: '3157.26',
