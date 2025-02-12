@@ -28,6 +28,7 @@ use super::{
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
+pub const MAX_MESSAGE_RETRIES: u32 = 70;
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
@@ -521,7 +522,23 @@ impl PendingMessage {
         message: HyperlaneMessage,
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
-    ) -> Self {
+        max_retries: Option<u32>,
+    ) -> Option<Self> {
+        let num_retries = match ctx
+            .origin_db
+            .retrieve_pending_message_retry_count_by_message_id(&message.id())
+        {
+            Ok(Some(num_retries)) => num_retries,
+            r => {
+                trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
+                0
+            }
+        };
+        if let Some(max_retries) = max_retries {
+            if num_retries >= max_retries {
+                return None;
+            }
+        }
         // Attempt to fetch status about message from database
         let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
             Ok(Some(status)) => {
@@ -552,25 +569,14 @@ impl PendingMessage {
             }
         };
 
-        let num_retries = match ctx
-            .origin_db
-            .retrieve_pending_message_retry_count_by_message_id(&message.id())
-        {
-            Ok(Some(num_retries)) => num_retries,
-            r => {
-                trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
-                0
-            }
-        };
-
-        let mut pm = Self::new(message, ctx, message_status, app_context);
+        let mut pending_message = Self::new(message, ctx, message_status, app_context);
         if num_retries > 0 {
             let next_attempt_after =
                 PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
-            pm.num_retries = num_retries;
-            pm.next_attempt_after = next_attempt_after;
+            pending_message.num_retries = num_retries;
+            pending_message.next_attempt_after = next_attempt_after;
         }
-        pm
+        Some(pending_message)
     }
 
     fn on_reprepare<E: Debug>(
@@ -663,7 +669,7 @@ impl PendingMessage {
             i if (36..48).contains(&i) => 60 * 60,
             // linearly increase the backoff time after 48 attempts,
             // adding 1h for each additional attempt
-            _ => {
+            i if (48..MAX_MESSAGE_RETRIES).contains(&i) => {
                 let hour: u64 = 60 * 60;
                 // To be extra safe, `max` to make sure it's at least 1 hour.
                 let target = hour.max((num_retries - 47) as u64 * hour);
@@ -672,6 +678,9 @@ impl PendingMessage {
                 // at the exact same time and starve new messages.
                 target + (rand::random::<u64>() % (6 * hour))
             }
+            // after MAX_MESSAGE_RETRIES, the message is considered undeliverable
+            // and the backoff is set as far into the future as possible
+            _ => u64::MAX - 1,
         }))
     }
 }

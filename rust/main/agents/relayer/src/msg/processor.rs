@@ -299,8 +299,11 @@ impl ProcessorExt for MessageProcessor {
                 msg,
                 self.destination_ctxs[&destination].clone(),
                 app_context,
+                Some(MAX_MESSAGE_RETRIES),
             );
-            self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
+            if let Some(pending_msg) = pending_msg {
+                self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
+            }
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
