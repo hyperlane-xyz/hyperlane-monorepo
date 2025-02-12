@@ -226,11 +226,12 @@ async function executeDelivery({
 
     txReceipts.push(txReceipt);
   }
-  return;
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
-  const message: DispatchedMessage =
-    HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
+  // ONLY FOR EVM CHAINS
+  const message: DispatchedMessage = HyperlaneCore.getDispatchedMessages(
+    transferTxReceipt as any,
+  )[messageIndex];
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
