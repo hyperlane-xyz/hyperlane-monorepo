@@ -502,6 +502,7 @@ export {
   EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
+  EvmXERC20VSAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,

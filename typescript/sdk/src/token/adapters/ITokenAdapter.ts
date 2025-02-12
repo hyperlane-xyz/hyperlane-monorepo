@@ -21,6 +21,22 @@ export interface InterchainGasQuote {
   amount: bigint;
 }
 
+export interface SetBufferCapParams {
+  bridge: Address;
+  newBufferCap: bigint;
+}
+
+export interface AddBridgedParams {
+  bufferCap: bigint;
+  rateLimitPerSecond: bigint;
+  bridge: Address;
+}
+
+export interface SetRateLimitPerSecondParams {
+  bridge: Address;
+  newRateLimitPerSecond: bigint;
+}
+
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
   getTotalSupply(): Promise<bigint | undefined>;
@@ -54,4 +70,19 @@ export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
 
   getBurnLimit(): Promise<bigint>;
   getBurnMaxLimit(): Promise<bigint>;
+}
+
+export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
+  getMintLimit(bridge: Address): Promise<bigint>;
+  getMintMaxLimit(bridge: Address): Promise<bigint>;
+
+  getBurnLimit(bridge: Address): Promise<bigint>;
+  getBurnMaxLimit(bridge: Address): Promise<bigint>;
+
+  populateSetBufferCapTx(params: SetBufferCapParams): Promise<Tx>;
+  populateSetRateLimitPerSecond(
+    params: SetRateLimitPerSecondParams,
+  ): Promise<Tx>;
+
+  populateAddBridgeTx(params: AddBridgedParams): Promise<Tx>;
 }

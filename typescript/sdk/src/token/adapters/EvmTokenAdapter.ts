@@ -12,6 +12,8 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IXERC20,
+  IXERC20VS,
+  IXERC20VS__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -30,10 +32,14 @@ import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  AddBridgedParams,
   IHypTokenAdapter,
   IHypXERC20Adapter,
   ITokenAdapter,
+  IXERC20VSAdapter,
   InterchainGasQuote,
+  SetBufferCapParams,
+  SetRateLimitPerSecondParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -443,6 +449,78 @@ export class EvmHypXERC20Adapter
     const xERC20 = await this.hypXERC20.wrappedToken();
 
     return IXERC20__factory.connect(xERC20, this.getProvider());
+  }
+}
+
+export class EvmXERC20VSAdapter
+  extends EvmTokenAdapter
+  implements IXERC20VSAdapter<PopulatedTransaction>
+{
+  xERC20VS: IXERC20VS;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.xERC20VS = IXERC20VS__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getMintLimit(bridge: Address): Promise<bigint> {
+    const limit = await this.xERC20VS.mintingCurrentLimitOf(bridge);
+    return limit.toBigInt();
+  }
+
+  async getBurnLimit(bridge: Address): Promise<bigint> {
+    const limit = await this.xERC20VS.burningCurrentLimitOf(bridge);
+    return limit.toBigInt();
+  }
+
+  async getMintMaxLimit(bridge: Address): Promise<bigint> {
+    const limit = await this.xERC20VS.mintingMaxLimitOf(bridge);
+    return limit.toBigInt();
+  }
+
+  async getBurnMaxLimit(bridge: Address): Promise<bigint> {
+    const limit = await this.xERC20VS.burningMaxLimitOf(bridge);
+    return limit.toBigInt();
+  }
+
+  async populateSetBufferCapTx({
+    bridge,
+    newBufferCap,
+  }: SetBufferCapParams): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.setBufferCap(
+      bridge,
+      newBufferCap.toString(),
+    );
+  }
+
+  async populateSetRateLimitPerSecond({
+    bridge,
+    newRateLimitPerSecond,
+  }: SetRateLimitPerSecondParams): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.setRateLimitPerSecond(
+      bridge,
+      newRateLimitPerSecond.toString(),
+    );
+  }
+
+  async populateAddBridgeTx({
+    bufferCap,
+    rateLimitPerSecond,
+    bridge,
+  }: AddBridgedParams): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.addBridge({
+      bufferCap: bufferCap.toString(),
+      rateLimitPerSecond: rateLimitPerSecond.toString(),
+      bridge,
+    });
   }
 }
 
