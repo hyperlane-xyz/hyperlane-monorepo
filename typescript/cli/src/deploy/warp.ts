@@ -24,7 +24,7 @@ import {
   HypERC20Factories,
   HypERC721Deployer,
   HypERC721Factories,
-  HypTokenRouterConfigWithoutMailbox,
+  HypTokenRouterConfigWithOptionalMailbox,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
@@ -287,7 +287,7 @@ async function createWarpIsm({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfigWithoutMailbox;
+  warpConfig: HypTokenRouterConfigWithOptionalMailbox;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<IsmConfig | undefined> {
   const { interchainSecurityModule } = warpConfig;
@@ -354,7 +354,7 @@ async function createWarpHook({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfigWithoutMailbox;
+  warpConfig: HypTokenRouterConfigWithOptionalMailbox;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<HookConfig | undefined> {
   const { hook } = warpConfig;
