@@ -39,6 +39,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { CCIPContractCache } from '../ccip/utils.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
   HyperlaneAddressesMap,
@@ -94,6 +95,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
     public readonly multiProvider: MultiProvider,
+    public readonly ccipContractCache: CCIPContractCache = new CCIPContractCache(),
   ) {
     super(
       contractsMap,
@@ -106,13 +108,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
+    ccipContractCache?: CCIPContractCache,
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
+    return new HyperlaneIsmFactory(
+      helper.contractsMap,
+      multiProvider,
+      ccipContractCache,
+    );
   }
 
   async deploy<C extends IsmConfig>(params: {
@@ -238,10 +245,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }
 
   protected async deployCCIPIsm(
-    _destination: ChainName,
-    _config: CCIPIsmConfig,
+    destination: ChainName,
+    config: CCIPIsmConfig,
   ): Promise<CCIPIsm> {
-    throw new Error('CCIP ISM deployment not yet implemented');
+    const ism = this.ccipContractCache.getIsm(config.originChain, destination);
+    if (!ism) {
+      this.logger.error(
+        `CCIP ISM not found for ${config.originChain} -> ${destination}`,
+      );
+      throw new Error(
+        `CCIP ISM not found for ${config.originChain} -> ${destination}`,
+      );
+    }
+    return CCIPIsm__factory.connect(
+      ism,
+      this.multiProvider.getSigner(destination),
+    );
   }
 
   protected async deployMultisigIsm(

@@ -1,5 +1,6 @@
 import {
   CCIPHook,
+  CCIPHook__factory,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -123,10 +124,22 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
   }
 
   async deployCCIPHook(
-    _chain: ChainName,
-    _config: CCIPHookConfig,
+    chain: ChainName,
+    config: CCIPHookConfig,
   ): Promise<CCIPHook> {
-    throw new Error('CCIP Hook deployment not yet implemented');
+    const hook = this.ismFactory.ccipContractCache.getHook(
+      chain,
+      config.destinationChain,
+    );
+    if (!hook) {
+      this.logger.error(
+        `CCIP Hook not found for ${chain} -> ${config.destinationChain}`,
+      );
+      throw new Error(
+        `CCIP Hook not found for ${chain} -> ${config.destinationChain}`,
+      );
+    }
+    return CCIPHook__factory.connect(hook, this.multiProvider.getSigner(chain));
   }
 
   async deployProtocolFee(
