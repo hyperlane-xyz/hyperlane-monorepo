@@ -295,7 +295,7 @@ impl ProcessorExt for MessageProcessor {
 
             let app_context = app_context_classifier.get_app_context(&msg).await?;
             // Finally, build the submit arg and dispatch it to the submitter.
-            let pending_msg = PendingMessage::from_persisted_retries(
+            let pending_msg = PendingMessage::maybe_from_persisted_retries(
                 msg,
                 self.destination_ctxs[&destination].clone(),
                 app_context,
@@ -495,7 +495,7 @@ mod test {
         let base_metadata_builder = dummy_metadata_builder(origin_domain, destination_domain, db);
         let message_context = Arc::new(MessageContext {
             destination_mailbox: Arc::new(MockMailboxContract::default()),
-            origin_db: db.clone(),
+            origin_db: Arc::new(db.clone()),
             metadata_builder: Arc::new(base_metadata_builder),
             origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
             transaction_gas_limit: Default::default(),
