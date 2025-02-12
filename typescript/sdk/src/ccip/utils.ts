@@ -82,7 +82,7 @@ export class CCIPContractCache {
     if (!this.cachedAddresses[origin]) {
       this.cachedAddresses[origin] = {};
     }
-    this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}-${destination}`] =
+    this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}_${destination}`] =
       ccipHook.address;
   }
 
@@ -90,7 +90,7 @@ export class CCIPContractCache {
     if (!this.cachedAddresses[destination]) {
       this.cachedAddresses[destination] = {};
     }
-    this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}-${origin}`] =
+    this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}_${origin}`] =
       ccipIsm.address;
   }
 

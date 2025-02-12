@@ -53,7 +53,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     origin: ChainName,
     config: Set<ChainName>,
   ): Promise<HyperlaneContracts<{}>> {
-    // Deploy ISMs from chain to eachdestination chain concurrently
+    // Deploy ISMs from chain to each destination chain concurrently
     await Promise.all(
       Array.from(config).map(async (destination) => {
         // Deploy CCIP ISM for this origin->destination pair
