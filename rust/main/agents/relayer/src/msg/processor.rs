@@ -299,7 +299,7 @@ impl ProcessorExt for MessageProcessor {
                 msg,
                 self.destination_ctxs[&destination].clone(),
                 app_context,
-                Some(MAX_MESSAGE_RETRIES),
+                Some(DEFAULT_MAX_MESSAGE_RETRIES),
             );
             if let Some(pending_msg) = pending_msg {
                 self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;

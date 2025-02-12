@@ -25,7 +25,7 @@ use super::{
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
-pub const MAX_MESSAGE_RETRIES: u32 = 70;
+pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 70;
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
@@ -672,6 +672,10 @@ impl PendingMessage {
     /// given the number of retries.
     /// `pub(crate)` for testing purposes
     pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
+        let max_retries = std::env::var("MAX_MESSAGE_RETRIES")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(DEFAULT_MAX_MESSAGE_RETRIES);
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             // wait 10s for the first few attempts; this prevents thrashing
@@ -684,7 +688,7 @@ impl PendingMessage {
             i if (36..48).contains(&i) => 60 * 60,
             // linearly increase the backoff time after 48 attempts,
             // adding 1h for each additional attempt
-            i if (48..MAX_MESSAGE_RETRIES).contains(&i) => {
+            i if (48..max_retries).contains(&i) => {
                 let hour: u64 = 60 * 60;
                 // To be extra safe, `max` to make sure it's at least 1 hour.
                 let target = hour.max((num_retries - 47) as u64 * hour);
@@ -738,7 +742,7 @@ impl MessageSubmissionMetrics {
 
 #[cfg(test)]
 mod test {
-    use crate::msg::pending_message::MAX_MESSAGE_RETRIES;
+    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
     use hyperlane_base::db::*;
     use hyperlane_core::*;
     use std::{fmt::Debug, sync::Arc};
@@ -872,9 +876,11 @@ mod test {
 
         // the backoff should be at least 10 weeks into the future
         // this is really an overflow check more than anything
-        assert!(PendingMessage::calculate_msg_backoff(MAX_MESSAGE_RETRIES)
-            .unwrap()
-            .gt(&Duration::from_secs(SECS_PER_WEEK)));
+        assert!(
+            PendingMessage::calculate_msg_backoff(DEFAULT_MAX_MESSAGE_RETRIES)
+                .unwrap()
+                .gt(&Duration::from_secs(SECS_PER_WEEK))
+        );
     }
 
     fn dummy_db_with_retries(retries: u32) -> MockDb {
