@@ -58,7 +58,12 @@ contract CCIPHook is AbstractMessageIdAuthHook {
                 receiver: abi.encode(ism),
                 data: abi.encode(message.id()),
                 tokenAmounts: new Client.EVMTokenAmount[](0),
-                extraArgs: "",
+                extraArgs: Client._argsToBytes(
+                    Client.EVMExtraArgsV2({
+                        gasLimit: 60_000,
+                        allowOutOfOrderExecution: true
+                    })
+                ),
                 feeToken: address(0)
             });
     }

@@ -647,5 +647,6 @@ export {
   getCCIPChainSelector,
   getCCIPRouterAddress,
   getCCIPChains,
+  CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
