@@ -1,31 +1,25 @@
 //! A wrapper around a JsonRpcClient to give insight at the request level. This
 //! was designed specifically for use with the quorum provider.
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Instant};
 
 use derive_builder::Builder;
+use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::Deserialize;
 use url::Url;
 
 use crate::utils::url_to_host_info;
 
-/// Some basic information about a chain.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub struct ChainInfo {
-    /// A human-friendly name for the chain. This should be a short string like
-    /// "kovan".
-    pub name: Option<String>,
-}
+/// Expected label names for the metric.
+pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
+/// Help string for the metric.
+pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
-/// Some basic information about a node.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub struct NodeInfo {
-    /// The host of the node, e.g. `alchemy.com`, `quicknode.pro`, or
-    /// `localhost:8545`.
-    pub host: Option<String>,
-}
+/// Expected label names for the metric.
+pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
+    &["provider_node", "chain", "method", "status"];
+/// Help string for the metric.
+pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder)]
@@ -53,16 +47,49 @@ pub struct JsonRpcClientMetrics {
     pub request_duration_seconds: Option<CounterVec>,
 }
 
-/// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
-/// Help string for the metric.
-pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
+impl JsonRpcClientMetrics {
+    /// Update prometheus metrics
+    pub fn increment_metrics(
+        &self,
+        config: &PrometheusConfig,
+        method: &str,
+        start: Instant,
+        success: bool,
+    ) {
+        let labels = hashmap! {
+            "provider_node" => config.node_host(),
+            "chain" => config.chain_name(),
+            "method" => method,
+            "status" => if success { "success" } else { "failure" },
+        };
+        if let Some(counter) = &self.request_count {
+            counter.with(&labels).inc()
+        }
+        if let Some(counter) = &self.request_duration_seconds {
+            counter
+                .with(&labels)
+                .inc_by((Instant::now() - start).as_secs_f64())
+        };
+    }
+}
 
-/// Expected label names for the metric.
-pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
-    &["provider_node", "chain", "method", "status"];
-/// Help string for the metric.
-pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
+/// Some basic information about a chain.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub struct ChainInfo {
+    /// A human-friendly name for the chain. This should be a short string like
+    /// "kovan".
+    pub name: Option<String>,
+}
+
+/// Some basic information about a node.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub struct NodeInfo {
+    /// The host of the node, e.g. `alchemy.com`, `quicknode.pro`, or
+    /// `localhost:8545`.
+    pub host: Option<String>,
+}
 
 /// Configuration for the prometheus JsonRpcClioent. This can be loaded via
 /// serde.

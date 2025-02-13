@@ -3,7 +3,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use maplit::hashmap;
 use reqwest::{
     header::{CONTENT_TYPE, RETRY_AFTER},
     StatusCode,
@@ -16,7 +15,7 @@ use solana_client::{
 use tokio::time::sleep;
 use url::Url;
 
-use crate::prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig, PrometheusConfigExt};
+use crate::prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig};
 use crate::sealevel::http_sender::{rpc_error_object_to_response, HttpSender, RpcErrorObject};
 
 /// Sealevel RPC with prometheus metrics
@@ -55,20 +54,8 @@ impl RpcSender for PrometheusSealevelRpcSender {
             send_sealevel_rpc_request(&self.inner.client, self.url(), request_id, request, params)
                 .await;
 
-        let labels = hashmap! {
-            "provider_node" => self.config.node_host(),
-            "chain" => self.config.chain_name(),
-            "method" => &method,
-            "status" => if res.is_ok() { "success" } else { "failure" }
-        };
-        if let Some(counter) = &self.metrics.request_count {
-            counter.with(&labels).inc()
-        }
-        if let Some(counter) = &self.metrics.request_duration_seconds {
-            counter
-                .with(&labels)
-                .inc_by((Instant::now() - start).as_secs_f64())
-        };
+        self.metrics
+            .increment_metrics(&self.config, &method, start, res.is_ok());
         res
     }
     fn url(&self) -> String {

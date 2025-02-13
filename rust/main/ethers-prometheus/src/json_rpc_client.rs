@@ -13,7 +13,6 @@ use hyperlane_core::ChainCommunicationError;
 use hyperlane_metric::prometheus_metric::{
     JsonRpcClientMetrics, PrometheusConfig, PrometheusConfigExt,
 };
-use maplit::hashmap;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// An ethers-rs JsonRpcClient wrapper that instruments requests with prometheus
@@ -81,20 +80,8 @@ where
     {
         let start = Instant::now();
         let res = self.inner.request(method, params).await;
-        let labels = hashmap! {
-            "provider_node" => self.config.node_host(),
-            "chain" => self.config.chain_name(),
-            "method" => method,
-            "status" => if res.is_ok() { "success" } else { "failure" }
-        };
-        if let Some(counter) = &self.metrics.request_count {
-            counter.with(&labels).inc()
-        }
-        if let Some(counter) = &self.metrics.request_duration_seconds {
-            counter
-                .with(&labels)
-                .inc_by((Instant::now() - start).as_secs_f64())
-        };
+        self.metrics
+            .increment_metrics(&self.config, method, start, res.is_ok());
         res
     }
 }
