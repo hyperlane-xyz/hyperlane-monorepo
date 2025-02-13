@@ -187,7 +187,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // Nexus adjustment
     neutron: 0.5,
     // For Solana, special min cost
-    solanamainnet: 1,
+    solanamainnet: 1.2,
   };
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {

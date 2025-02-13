@@ -5,7 +5,7 @@
   "dependencies": {
     "@aws-sdk/client-kms": "^3.577.0",
     "@aws-sdk/client-s3": "^3.577.0",
-    "@hyperlane-xyz/registry": "9.4.0",
+    "@hyperlane-xyz/registry": "9.5.0",
     "@hyperlane-xyz/sdk": "8.6.1",
     "@hyperlane-xyz/utils": "8.6.1",
     "@inquirer/core": "9.0.10",
