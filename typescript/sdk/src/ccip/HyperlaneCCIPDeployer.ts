@@ -93,27 +93,21 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
   private async checkCCIPLanesSupport(
     origin: ChainName,
     config: Set<ChainName>,
-  ) {
+  ): Promise<ChainName[]> {
     this.logger.info(
       `Checking CCIP lanes exist from ${origin} to ${Array.from(config).join(
         ', ',
       )}`,
     );
 
-    const unsupportedLanes: string[] = [];
-    await Promise.all(
-      Array.from(config).map(async (destination) => {
-        const isSupported = await isSupportedCCIPLane({
-          origin,
-          destination,
-          multiProvider: this.multiProvider,
-        });
-        if (!isSupported) {
-          unsupportedLanes.push(destination);
-        }
-      }),
-    );
-    return unsupportedLanes;
+    return Array.from(config).filter(async (destination) => {
+      const isSupported = await isSupportedCCIPLane({
+        origin,
+        destination,
+        multiProvider: this.multiProvider,
+      });
+      return !isSupported;
+    });
   }
 
   private async authorizeHook(origin: ChainName, destination: ChainName) {
