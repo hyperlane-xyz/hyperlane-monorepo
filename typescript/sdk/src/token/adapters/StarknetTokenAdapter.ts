@@ -16,8 +16,9 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
+// TODO: make this the actual gas token address
 const ETH_ADDRESS =
-  '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
+  '0x03e5d3a27163f8f0b6219bc2a82d01506df6a8fff44cd475f85ee061a01332ce';
 
 export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
   async getBalance(address: Address): Promise<bigint> {
