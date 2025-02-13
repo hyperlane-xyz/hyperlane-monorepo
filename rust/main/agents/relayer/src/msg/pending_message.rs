@@ -743,6 +743,7 @@ mod test {
         }
     }
 
+    #[allow(dead_code)]
     fn duration_fmt(duration: &Duration) -> String {
         let duration_total_secs = duration.as_secs();
         let seconds = duration_total_secs % 60;
