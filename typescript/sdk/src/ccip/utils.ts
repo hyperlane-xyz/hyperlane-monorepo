@@ -1,14 +1,12 @@
-import {
-  CCIPHook,
-  CCIPIsm,
-  ICCIPRouterClient__factory,
-} from '@hyperlane-xyz/core';
+import { ethers } from 'ethers';
+
+import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
 
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-import { CCIP_NETWORKS } from './consts.js';
+import { CCIP_NETWORKS, CCIP_ROUTER_CLIENT_ABI } from './consts.js';
 
 /**
  * Gets the chain name from a CCIP chain selector value
@@ -127,10 +125,11 @@ export async function isSupportedCCIPLane({
   if (!originRouter || !destinationSelector) {
     return false;
   }
-
-  const ccipRouter = ICCIPRouterClient__factory.connect(
+  const signer = multiProvider.getSigner(origin);
+  const ccipRouter = new ethers.Contract(
     originRouter,
-    multiProvider.getSigner(origin),
+    CCIP_ROUTER_CLIENT_ABI,
+    signer,
   );
 
   return ccipRouter.isChainSupported(destinationSelector);
