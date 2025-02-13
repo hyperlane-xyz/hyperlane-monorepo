@@ -38,7 +38,8 @@ function randomHookType(): HookType {
     (type) =>
       type !== HookType.OP_STACK &&
       type !== HookType.ARB_L2_TO_L1 &&
-      type !== HookType.CUSTOM,
+      type !== HookType.CUSTOM &&
+      type !== HookType.CCIP,
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
@@ -159,6 +160,14 @@ function randomHookConfig(
         owner: randomAddress(),
         type: hookType,
         paused: false,
+      };
+
+    case HookType.AMOUNT_ROUTING:
+      return {
+        type: hookType,
+        threshold: Math.floor(Math.random() * 100),
+        lowerHook: randomHookConfig(depth + 1, maxDepth),
+        upperHook: randomHookConfig(depth + 1, maxDepth),
       };
 
     default:

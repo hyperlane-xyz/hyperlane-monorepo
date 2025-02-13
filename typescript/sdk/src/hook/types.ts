@@ -37,6 +37,7 @@ export enum HookType {
   OP_STACK = 'opStackHook',
   ROUTING = 'domainRoutingHook',
   FALLBACK_ROUTING = 'fallbackRoutingHook',
+  AMOUNT_ROUTING = 'amountRoutingHook',
   PAUSABLE = 'pausableHook',
   ARB_L2_TO_L1 = 'arbL2ToL1Hook',
   MAILBOX_DEFAULT = 'defaultHook',
@@ -66,6 +67,12 @@ export type DomainRoutingHookConfig = RoutingHookConfig & {
 export type FallbackRoutingHookConfig = RoutingHookConfig & {
   type: HookType.FALLBACK_ROUTING;
   fallback: HookConfig;
+};
+export type AmountRoutingHookConfig = {
+  type: HookType.AMOUNT_ROUTING;
+  threshold: number;
+  lowerHook: HookConfig;
+  upperHook: HookConfig;
 };
 
 export type HookConfig = z.infer<typeof HookConfigSchema>;
@@ -146,6 +153,16 @@ export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookCon
     }),
   );
 
+export const AmountRoutingHookConfigSchema: z.ZodSchema<AmountRoutingHookConfig> =
+  z.lazy(() =>
+    z.object({
+      type: z.literal(HookType.AMOUNT_ROUTING),
+      threshold: z.number(),
+      lowerHook: HookConfigSchema,
+      upperHook: HookConfigSchema,
+    }),
+  );
+
 export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
   z.lazy(() =>
     z.object({
@@ -168,8 +185,18 @@ export const HookConfigSchema = z.union([
   IgpSchema,
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfigSchema,
+  AmountRoutingHookConfigSchema,
   AggregationHookConfigSchema,
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
 ]);
+
+// TODO: deprecate in favor of CoreConfigSchema
+export const HooksConfigSchema = z.object({
+  default: HookConfigSchema,
+  required: HookConfigSchema,
+});
+export type HooksConfig = z.infer<typeof HooksConfigSchema>;
+export const HooksConfigMapSchema = z.record(HooksConfigSchema);
+export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
