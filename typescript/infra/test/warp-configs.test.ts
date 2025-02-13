@@ -18,7 +18,7 @@ chai.should();
 const DEFAULT_TIMEOUT = 60000;
 
 const warpIdsToSkip = [
-  'ETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
+  'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
 ];
 
 describe('Warp Configs', async function () {
