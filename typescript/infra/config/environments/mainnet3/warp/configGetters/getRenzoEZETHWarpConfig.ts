@@ -466,8 +466,8 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   safes: ezEthSafes,
   xERC20ChainAddresses: ezEthChainAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
-  existingProxyAdmins: existingProxyAdmins,
   tokenPrices: renzoTokenPrices,
+  existingProxyAdmins: existingProxyAdmins,
 });
 
 // Create a GnosisSafeBuilder Strategy for each safe address
