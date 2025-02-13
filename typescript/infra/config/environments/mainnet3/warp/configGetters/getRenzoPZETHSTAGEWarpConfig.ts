@@ -1,7 +1,7 @@
 import { pick } from '@hyperlane-xyz/utils';
 
+import { ezEthStagingSafes } from './getRenzoEZETHSTAGEWarpConfig.js';
 import {
-  ezEthSafes,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
@@ -16,7 +16,7 @@ const pzEthStagingAddresses = {
 };
 
 const pzEthStagingValidators = pick(ezEthValidators, pzEthChainsToDeploy);
-const pzEthStagingSafes = pick(ezEthSafes, pzEthChainsToDeploy);
+const pzEthStagingSafes = pick(ezEthStagingSafes, pzEthChainsToDeploy);
 export const pzEthStagingTokenPrices = pick(
   renzoTokenPrices,
   pzEthChainsToDeploy,
