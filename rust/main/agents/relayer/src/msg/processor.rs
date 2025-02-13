@@ -60,14 +60,13 @@ impl ForwardBackwardIterator {
                 db.retrieve_highest_seen_message_nonce().ok()
             );
             match db.retrieve_highest_seen_message_nonce().ok() {
-                Some(Some(nonce)) => break nonce, // Only break if we get Some(nonce)
+                Some(Some(nonce)) => break nonce,
                 _ => {
-                    break 0;
-                    // tracing::warn!(
-                    //     "JALEN Highest seen message nonce not yet available for domain '{}'; retrying in 1s... (this is expected behavior at startup)",
-                    //     db.domain().name()
-                    // );
-                    // tokio::time::sleep(Duration::from_secs(1)).await;
+                    tracing::warn!(
+                        "JALEN Highest seen message nonce not yet available for domain '{}'; retrying in 1s... (this is expected behavior at startup)",
+                        db.domain().name()
+                    );
+                    tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             }
         };

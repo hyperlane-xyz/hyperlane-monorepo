@@ -119,6 +119,10 @@ impl HyperlaneRocksDB {
         let current_max = self
             .retrieve_highest_seen_message_nonce()?
             .unwrap_or_default();
+        println!(
+            "JALEN store_highest_seen_message_nonce_number possibly called: {} {}",
+            current_max, nonce
+        );
         if nonce >= current_max {
             self.store_highest_seen_message_nonce_number(&nonce)?;
         }
