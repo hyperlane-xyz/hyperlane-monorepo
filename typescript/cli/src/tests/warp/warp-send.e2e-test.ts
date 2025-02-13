@@ -123,8 +123,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
   });
 
-  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING} and ${
-     .AMOUNT_ROUTING}`, async function () {
+  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING} and ${IsmType.AMOUNT_ROUTING}`, async function () {
     const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     const tokenSymbol = await token.symbol();
 
@@ -227,25 +226,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
           synthetic.callStatic.balanceOf(walletChain3.address),
         ]);
 
-      if (amount < amountThreshold) {
-        // If the amount is less than the threshold, the protocol fee should be applied
-        const protocolFeeAmount = parseEther(protocolFee);
-        const expectedAmountOnChain2 = tokenBalanceOnChain2Before
-          .sub(amount)
-          .sub(protocolFeeAmount);
-        // Send receives no protocol fee, so the amount should be the same on chain 3
-        const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
+      const protocolFeeAmount =
+        amount < amountThreshold ? parseEther(protocolFee) : 0;
+      const expectedAmountOnChain2 = tokenBalanceOnChain2Before
+        .sub(amount)
+        .sub(protocolFeeAmount);
+      const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
 
-        expect(tokenBalanceOnChain2After.eq(expectedAmountOnChain2)).to.be.true;
-        expect(tokenBalanceOnChain3After.eq(expectedAmountOnChain3)).to.be.true;
-      } else {
-        // If the amount is greater than the threshold, no protocol fee
-        const expectedAmountOnChain2 = tokenBalanceOnChain2Before.sub(amount);
-        const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
-
-        expect(tokenBalanceOnChain2After.eq(expectedAmountOnChain2)).to.be.true;
-        expect(tokenBalanceOnChain3After.eq(expectedAmountOnChain3)).to.be.true;
-      }
+      expect(tokenBalanceOnChain2After.eq(expectedAmountOnChain2)).to.be.true;
+      expect(tokenBalanceOnChain3After.eq(expectedAmountOnChain3)).to.be.true;
     }
   });
 
