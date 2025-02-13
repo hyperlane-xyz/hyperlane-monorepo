@@ -1,6 +1,6 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils.js';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
@@ -123,87 +123,93 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
   });
 
-  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING}`, async function () {
-    const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
-    const tokenSymbol = await token.symbol();
+  const amountThreshold = randomInt(1, 1e4);
+  const testAmounts = [
+    // Should use the upperIsm
+    randomInt(1e6, amountThreshold + 1),
+    // Should use the lowerIsm
+    randomInt(1e6, amountThreshold),
+  ];
 
-    const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+  testAmounts.forEach((testAmount) => {
+    it.only(`should be able to bridge between ${TokenType.collateral} and ${
+      TokenType.synthetic
+    } when using ${
+      testAmount > amountThreshold ? 'upper' : 'lower'
+    } threshold on ${IsmType.AMOUNT_ROUTING} ISM`, async function () {
+      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const tokenSymbol = await token.symbol();
 
-    const protocolFeeBeneficiary = randomAddress();
-    const protocolFee = '1';
-    const maxProtocolFee = '10000';
+      const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+      ]);
 
-    const amountThreshold = randomInt(1, 1e4);
-    const warpConfig: WarpRouteDeployConfig = {
-      [CHAIN_NAME_2]: {
-        type: TokenType.collateral,
-        token: token.address,
-        mailbox: chain2Addresses.mailbox,
-        owner: ownerAddress,
-        hook: {
-          type: HookType.AMOUNT_ROUTING,
-          threshold: amountThreshold,
-          lowerHook: {
-            type: HookType.AGGREGATION,
-            hooks: [
-              {
-                type: HookType.MERKLE_TREE,
-              },
-              {
-                type: HookType.PROTOCOL_FEE,
-                owner: protocolFeeBeneficiary,
-                protocolFee,
-                beneficiary: protocolFeeBeneficiary,
-                maxProtocolFee,
-              },
-            ],
-          },
-          upperHook: {
-            type: HookType.MERKLE_TREE,
+      const protocolFeeBeneficiary = randomAddress();
+      // 2 gwei of native token
+      const maxProtocolFee = ethers.utils.parseUnits('2', 'gwei').toString();
+      // 1 gwei of native token
+      const protocolFee = ethers.utils.parseUnits('1', 'gwei').toString();
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          hook: {
+            type: HookType.AMOUNT_ROUTING,
+            threshold: amountThreshold,
+            lowerHook: {
+              type: HookType.AGGREGATION,
+              hooks: [
+                {
+                  type: HookType.MERKLE_TREE,
+                },
+                {
+                  type: HookType.PROTOCOL_FEE,
+                  owner: protocolFeeBeneficiary,
+                  protocolFee,
+                  beneficiary: protocolFeeBeneficiary,
+                  maxProtocolFee,
+                },
+              ],
+            },
+            upperHook: {
+              type: HookType.MERKLE_TREE,
+            },
           },
         },
-      },
-      [CHAIN_NAME_3]: {
-        type: TokenType.synthetic,
-        mailbox: chain3Addresses.mailbox,
-        interchainSecurityModule: {
-          type: IsmType.AMOUNT_ROUTING,
-          threshold: amountThreshold,
-          lowerIsm: {
-            type: IsmType.TRUSTED_RELAYER,
-            relayer: ownerAddress,
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          interchainSecurityModule: {
+            type: IsmType.AMOUNT_ROUTING,
+            threshold: amountThreshold,
+            lowerIsm: {
+              type: IsmType.TRUSTED_RELAYER,
+              relayer: ownerAddress,
+            },
+            upperIsm: {
+              type: IsmType.TRUSTED_RELAYER,
+              relayer: ownerAddress,
+            },
           },
-          upperIsm: {
-            type: IsmType.TRUSTED_RELAYER,
-            relayer: ownerAddress,
-          },
+          owner: ownerAddress,
         },
-        owner: ownerAddress,
-      },
-    };
+      };
 
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
-    const config: ChainMap<Token> = (
-      readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
-    ).tokens.reduce((acc, curr) => ({ ...acc, [curr.chainName]: curr }), {});
-    const synthetic = ERC20__factory.connect(
-      config[CHAIN_NAME_3].addressOrDenom,
-      walletChain3,
-    );
+      const config: ChainMap<Token> = (
+        readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
+      ).tokens.reduce((acc, curr) => ({ ...acc, [curr.chainName]: curr }), {});
+      const synthetic = ERC20__factory.connect(
+        config[CHAIN_NAME_3].addressOrDenom,
+        walletChain3,
+      );
 
-    const testAmounts = [
-      // Should use the upperIsm
-      randomInt(1e6, amountThreshold + 1),
-      // Should use the lowerIsm
-      randomInt(amountThreshold),
-    ];
-
-    for (const amount of testAmounts) {
       const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
         await Promise.all([
           token.callStatic.balanceOf(walletChain2.address),
@@ -215,7 +221,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         CHAIN_NAME_3,
         WARP_CORE_CONFIG_PATH_2_3,
         true,
-        amount,
+        testAmount,
       );
       expect(exitCode).to.equal(0);
       expect(stdout).to.include(WarpSendLogs.SUCCESS);
@@ -227,15 +233,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
         ]);
 
       const protocolFeeAmount =
-        amount < amountThreshold ? parseEther(protocolFee) : 0;
+        testAmount < amountThreshold ? parseEther(protocolFee) : 0;
       const expectedAmountOnChain2 = tokenBalanceOnChain2Before
-        .sub(amount)
+        .sub(testAmount)
         .sub(protocolFeeAmount);
-      const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(amount);
+      const expectedAmountOnChain3 = tokenBalanceOnChain3Before.add(testAmount);
 
       expect(tokenBalanceOnChain2After.eq(expectedAmountOnChain2)).to.be.true;
       expect(tokenBalanceOnChain3After.eq(expectedAmountOnChain3)).to.be.true;
-    }
+    });
   });
 
   it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.collateral}`, async function () {
