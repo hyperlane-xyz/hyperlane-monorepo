@@ -67,7 +67,6 @@ impl TonAgentConfig {
         validator_announce: &str,
         merkle_tree_hook: &str,
     ) -> Self {
-        log!("TonAgentConfig::new() mailbox:{:?} igp:{:?}, validator_announce:{:?} merkle_tree_hook:{:?}", mailbox, igp, validator_announce, merkle_tree_hook);
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
             .map(|s| s.to_string())
@@ -99,8 +98,8 @@ impl TonAgentConfig {
             },
             contract_address_bytes: 32,
             index: AgentConfigIndex {
-                from: 1,
-                chunk: 26942839,
+                from: 27861115,
+                chunk: 1000,
             },
         }
     }
@@ -161,11 +160,55 @@ pub fn generate_ton_config(
     Ok(ton_chains)
 }
 
+pub fn generate_evm_to_ton_config(
+    output_name: &str,
+    mnemonic: &str,
+    wallet_version: &str,
+    private_key: &str,
+    api_key: &str,
+    domains: (&str, &str),
+) -> Result<Vec<TonAgentConfig>, Error> {
+    let output_path = format!("../../config/{output_name}.json");
+
+    let deployed_contracts_1 = read_deployed_contracts(domains.0);
+    let deployed_contracts_2 = read_deployed_contracts(domains.1);
+
+    let ton_chains = vec![
+        create_chain_config(
+            "arbitrumsepolia",
+            domains.0,
+            &mnemonic,
+            wallet_version,
+            api_key,
+            &deployed_contracts_1,
+        ),
+        create_chain_config(
+            "tontest1",
+            domains.1,
+            &mnemonic,
+            wallet_version,
+            api_key,
+            &deployed_contracts_2,
+        ),
+    ];
+    let mut chains_map = BTreeMap::new();
+    for chain in &ton_chains {
+        chains_map.insert(chain.name.clone(), chain.clone());
+    }
+    let ton_config = TonAgentConfigOut { chains: chains_map };
+    let json_output = serde_json::to_string_pretty(&ton_config).unwrap();
+
+    fs::write(&output_path, json_output).unwrap();
+    log!("TON configuration written to {}", output_path);
+
+    Ok(ton_chains)
+}
+
 fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
     use serde_json::Value;
     use std::path::Path;
 
-    let path = format!(
+    let path: String = format!(
         "../../../../altvm_contracts/ton/deployedContracts_{}.json",
         domain
     );
@@ -183,7 +226,11 @@ fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
         }
     }
 
-    log!("No deployed contracts found for domain {}", domain);
+    log!(
+        "No deployed contracts found for domain {} path:{}",
+        domain,
+        path
+    );
     BTreeMap::new()
 }
 fn create_chain_config(

@@ -1,0 +1,139 @@
+{
+    "chains": {
+        "arbitrumsepolia": {
+            "aggregationHook": "0xc7141D3e9651343449cf8D420bc5978e20ab8B0F",
+            "blockExplorers": [
+                {
+                    "apiUrl": "https://api-sepolia.arbiscan.io/api",
+                    "family": "etherscan",
+                    "name": "Arbiscan",
+                    "url": "https://sepolia.arbiscan.io"
+                }
+            ],
+            "blocks": {
+                "confirmations": 1,
+                "estimateBlockTime": 3,
+                "reorgPeriod": 0
+            },
+            "chainId": 421614,
+            "deployer": {
+                "name": "Abacus Works",
+                "url": "https://www.hyperlane.xyz"
+            },
+            "apiKey": "",
+            "signer": {
+                "type": "hexKey",
+                "key": ""
+            },
+            "displayName": "Arbitrum Sepolia",
+            "domainId": 421614,
+            "domainRoutingIsm": "0xaCA2f65aFDa2cbC8BF28DdE096eCF83aCd121c0b",
+            "domainRoutingIsmFactory": "0x96832911c1e919f1cf3c2e3D8C2d00C7E16620e9",
+            "fallbackRoutingHook": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
+            "index": {
+                "from": 1
+            },
+            "interchainGasPaymaster": "0x94Ed3a8fA3E4601DC21Ab1b003271C5e58b7Fed2",
+            "interchainSecurityModule": "0xFD1EaBF1cBf13906116E6Dc2dcc883c00eDe3205",
+            "isTestnet": true,
+            "mailbox": "0x8647d41cA8ACf4dd268A64A70636e14889b7E4b4",
+            "merkleTreeHook": "0xF1C3A7cD4e3c18A2135564246a4a7DfF1dBF82fD",
+            "name": "arbitrumsepolia",
+            "nativeToken": {
+                "decimals": 18,
+                "name": "Ether",
+                "symbol": "ETH"
+            },
+            "pausableHook": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
+            "pausableIsm": "0x54ba950390670f27892AFFC670Ba6ed598E5B8Df",
+            "protocol": "ethereum",
+            "protocolFee": "0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff",
+            "proxyAdmin": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8",
+            "rpcUrls": [
+                {
+                    "http": "https://arb-sepolia.g.alchemy.com/v2/"
+                },
+                {
+                    "http": "https://arb-sepolia.g.alchemy.com/v2/1"
+                }
+            ],
+            "staticAggregationHookFactory": "0xc7141D3e9651343449cf8D420bc5978e20ab8B0F",
+            "staticAggregationIsm": "0x29cEAFEE1F76B9CE271750f86B2bD12C23F9dDb6",
+            "staticAggregationIsmFactory": "0xB3b13ab1158c7AA8C4E01eFdfbb185cEe07a94b5",
+            "staticMerkleRootMultisigIsmFactory": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
+            "staticMessageIdMultisigIsmFactory": "0xF7F0DaB0BECE4498dAc7eb616e288809D4499371",
+            "storageGasOracle": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
+            "technicalStack": "arbitrumnitro",
+            "testRecipient": "0xC4C8353c9961b785a0d59a8B1255bAdDb8c24d48",
+            "validatorAnnounce": "0x0C9547551aD2C7aceF6b0b371A683eeB9B93BC35",
+            "staticMerkleRootWeightedMultisigIsmFactory": "0xBb1557630207ad76c339A8A4E1C5E878da7338C8",
+            "staticMessageIdWeightedMultisigIsmFactory": "0x51d8fCbde5c4916B76a2A4107ac022e6b2337945",
+            "gasCurrencyCoinGeckoId": "ethereum",
+            "interchainAccountIsm": "0xFD1EaBF1cBf13906116E6Dc2dcc883c00eDe3205",
+            "interchainAccountRouter": "0xfc94568478B58B2Bf48CDcFA082A62CBD801aDA6",
+            "timelockController": "0x0000000000000000000000000000000000000000"
+        },
+        "tontest1": {
+            "name": "tontest1",
+            "domainId": 777002,
+            "metricsPort": 9093,
+            "mailbox": "0xb2031e96945cf7e382201827fd5ed2dac2cbc49e21d7705aa50b185619cd14b4",
+            "interchainGasPaymaster": "0xfe9613b4d1dfa96436113fab730efbaa48851c094ba464549c3fdcce43568d1c",
+            "validatorAnnounce": "0x7afbac21e8942567fbc6fc4a7a045d74adc665a23cd0da0dfc2dc8bb3029d576",
+            "merkleTreeHook": "0x03127e8644764bae8f26ede89a62471222f5f101f6fcf81feb7744bdc1c74c4d",
+            "protocol": "ton",
+            "chainId": "777002",
+            "rpcUrls": [
+                {
+                    "http": "https://testnet.toncenter.com/api/"
+                }
+            ],
+            "apiKey": "",
+            "signer": {
+                "type": "TonMnemonic",
+                "mnemonic_phrase": "",
+                "wallet_version": "V4R2"
+            },
+            "gasPrice": {
+                "denom": "ton",
+                "amount": "0.01"
+            },
+            "contractAddressBytes": 32,
+            "index": {
+                "from": 1,
+                "chunk": 26942839
+            }
+        },
+        "tontest2": {
+            "name": "tontest2",
+            "domainId": 777002,
+            "metricsPort": 9093,
+            "mailbox": "0xb2031e96945cf7e382201827fd5ed2dac2cbc49e21d7705aa50b185619cd14b4",
+            "interchainGasPaymaster": "0xfe9613b4d1dfa96436113fab730efbaa48851c094ba464549c3fdcce43568d1c",
+            "validatorAnnounce": "0x7afbac21e8942567fbc6fc4a7a045d74adc665a23cd0da0dfc2dc8bb3029d576",
+            "merkleTreeHook": "0x03127e8644764bae8f26ede89a62471222f5f101f6fcf81feb7744bdc1c74c4d",
+            "protocol": "ton",
+            "chainId": "777002",
+            "rpcUrls": [
+                {
+                    "http": "https://testnet.toncenter.com/api/"
+                }
+            ],
+            "apiKey": "",
+            "signer": {
+                "type": "TonMnemonic",
+                "mnemonic_phrase": "",
+                "wallet_version": "V4R2"
+            },
+            "gasPrice": {
+                "denom": "ton",
+                "amount": "0.01"
+            },
+            "contractAddressBytes": 32,
+            "index": {
+                "from": 1,
+                "chunk": 26942839
+            }
+        }
+    }
+}

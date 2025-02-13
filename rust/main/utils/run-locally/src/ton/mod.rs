@@ -1,24 +1,22 @@
 use log::info;
 use macro_rules_attribute::apply;
-use serde_json::Value;
-use std::process::Command;
-use std::str::from_utf8;
-use std::{
-    env, fs,
-    path::{Path, PathBuf},
-    thread::sleep,
-    time::Duration,
-};
+use std::{env, fs, path::PathBuf, thread::sleep, time::Duration};
 use tempfile::tempdir;
 
 use crate::{
     logging::log,
     program::Program,
+    ton::evm::{launch_evm_to_ton_relayer, launch_evm_ton_scraper, launch_evm_validator},
+    ton::setup::{deploy_and_setup_domain, deploy_and_setup_domains, send_dispatch},
     ton::types::{generate_ton_config, TonAgentConfig},
+    ton::utils::{build_rust_bins, resolve_abs_path},
     utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
 };
-mod types;
 
+mod evm;
+mod setup;
+mod types;
+mod utils;
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
@@ -38,7 +36,7 @@ impl Drop for TonHyperlaneStack {
 }
 
 #[allow(dead_code)]
-fn run_locally() {
+fn run_ton_to_ton() {
     info!("Start run_locally() for Ton");
     let domains: Vec<u32> = env::var("DOMAINS")
         .expect("DOMAINS env variable is missing")
@@ -49,15 +47,8 @@ fn run_locally() {
 
     info!("domains:{:?}", domains);
 
-    for &domain in &domains {
-        deploy_all_contracts(domain);
-        sleep(Duration::from_secs(30));
+    deploy_and_setup_domains(&domains, &validator_key);
 
-        send_set_validators_and_threshold(domain, validator_key).expect(&format!(
-            "Failed to set validators and threshold for domain {}",
-            domain
-        ));
-    }
     for &dispatch_domain in &domains {
         for &target_domain in &domains {
             if dispatch_domain != target_domain {
@@ -75,17 +66,7 @@ fn run_locally() {
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir("../../")
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    build_rust_bins(&["relayer", "validator", "scraper", "init-db"]);
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
@@ -168,15 +149,120 @@ fn run_locally() {
     };
 }
 
-fn resolve_abs_path<P: AsRef<Path>>(rel_path: P) -> String {
-    let mut configs_path = env::current_dir().unwrap();
-    configs_path.push(rel_path);
-    configs_path
-        .canonicalize()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_owned()
+#[allow(dead_code)]
+fn run_ton_to_evm() {
+    info!("Start run_locally() for Ton");
+    let domains: Vec<u32> = env::var("DOMAINS")
+        .expect("DOMAINS env variable is missing")
+        .split(',')
+        .map(|d| d.parse::<u32>().expect("Invalid domain format"))
+        .collect();
+
+    info!("domains:{:?}", domains);
+
+    let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
+    let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
+    let api_key = env::var("API_KEY").expect("API_KEY env is missing");
+
+    // needed add key for evm
+    let private_key = env::var("evm_private_key")
+        .expect("evm_private_key env variable is missing")
+        .to_string();
+
+    let domain_ton = 777001;
+    let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
+
+    info!("current_dir: {}", env::current_dir().unwrap().display());
+    let file_name = "ton_config";
+
+    deploy_and_setup_domain(domain_ton, &validator_key);
+
+    let agent_config = generate_ton_config(
+        file_name,
+        &mnemonic,
+        &wallet_version,
+        &api_key,
+        ("777001", "777002"),
+    )
+    .unwrap();
+
+    let agent_config_path = format!("../../config/{file_name}.json");
+
+    info!("Agent config path:{}", agent_config_path);
+
+    sleep(Duration::from_secs(300));
+
+    log!("Building rust...");
+    build_rust_bins(&["relayer", "validator", "scraper", "init-db"]);
+
+    info!("current_dir: {}", env::current_dir().unwrap().display());
+    let file_name = "evm_to_ton_config";
+
+    let agent_config_path = format!("../../config/{file_name}.json");
+
+    info!("Agent config path:{}", agent_config_path);
+    let relay_chains = vec!["arbitrumsepolia".to_string(), "tontest1".to_string()];
+    let metrics_port = 9090;
+    let debug = false;
+
+    let scraper_metrics_port = metrics_port + 10;
+    info!("Running postgres db...");
+    let postgres = Program::new("docker")
+        .cmd("run")
+        .flag("rm")
+        .arg("name", "ton-evm-scraper-postgres")
+        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+        .arg("publish", "5432:5432")
+        .cmd("postgres:14")
+        .spawn("SQL", None);
+
+    sleep(Duration::from_secs(10));
+
+    let relayer = launch_evm_to_ton_relayer(
+        agent_config_path.clone(),
+        relay_chains.clone(),
+        metrics_port,
+        debug,
+    );
+
+    let persistent_path = "./persistent_data";
+    let db_path = format!("{}/db", persistent_path);
+    fs::create_dir_all(&db_path).expect("Failed to create persistent database path");
+
+    let validator1: Box<dyn TaskHandle<Output = AgentHandles>> = Box::new(launch_evm_validator(
+        agent_config_path.clone(),
+        private_key,
+        metrics_port + 1,
+        debug,
+        Some(format!("{}1", persistent_path)),
+    ));
+
+    let validator2: Box<dyn TaskHandle<Output = AgentHandles>> = Box::new(launch_ton_validator(
+        agent_config_path.clone(),
+        agent_config[0].clone(),
+        metrics_port + 2,
+        debug,
+        Some(format!("{}2", persistent_path)),
+    ));
+
+    let validators = vec![validator1, validator2];
+
+    let scraper = launch_evm_ton_scraper(
+        agent_config_path.clone(),
+        relay_chains.clone(),
+        scraper_metrics_port,
+        debug,
+    );
+
+    info!("Waiting for agents to run for 3 minutes...");
+    sleep(Duration::from_secs(300));
+
+    let _ = TonHyperlaneStack {
+        validators: validators.into_iter().map(|v| v.join_box()).collect(),
+        relayer: relayer.join(),
+        scraper: scraper.join(),
+        postgres,
+    };
 }
 
 #[apply(as_task)]
@@ -198,6 +284,7 @@ pub fn launch_ton_relayer(
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env("arbitrumsepolia", "421614")
         .hyp_env("tontest1", "1")
         .hyp_env("tontest2", "1")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
@@ -297,154 +384,16 @@ fn launch_ton_scraper(
     scraper
 }
 
-pub fn send_dispatch(dispatch_domain: u32, target_domain: u32) -> Result<(), String> {
-    log!("Launching sendDispatch script...");
-
-    let working_dir = "../../../../altvm_contracts/ton";
-
-    let output = Command::new("yarn")
-        .arg("run")
-        .arg("send:dispatch")
-        .env("RUST_LOG", "debug")
-        .env("DOMAIN", &dispatch_domain.to_string())
-        .env("WALLET_VERSION", "v4")
-        .env("DISPATCH_DOMAIN", &dispatch_domain.to_string())
-        .env("TARGET_DOMAIN", &target_domain.to_string())
-        .current_dir(working_dir)
-        .output()
-        .expect("Failed to execute send:dispatch");
-
-    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
-    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
-
-    if !output.status.success() {
-        log!("sendDispatch failed with status: {}", output.status);
-        log!("stderr:\n{}", stderr);
-        return Err(format!(
-            "sendDispatch failed with status: {}\nstderr:\n{}",
-            output.status, stderr
-        ));
-    }
-
-    log!("sendDispatch script executed successfully!\n");
-
-    if !stderr.trim().is_empty() {
-        log!("stderr:\n{}", stderr);
-        return Err(format!("stderr:\n{}", stderr));
-    }
-
-    log!("stdout:\n{}", stdout);
-
-    log!("sendDispatch script completed!");
-    Ok(())
-}
-
-pub fn send_set_validators_and_threshold(domain: u32, validator_key: &str) -> Result<(), String> {
-    log!("Launching sendSetValidatorsAndThreshold script...");
-
-    let working_dir = "../../../../altvm_contracts/ton";
-
-    let output = Command::new("yarn")
-        .arg("run")
-        .arg("send:setv")
-        .arg("--mnemonic")
-        .arg("--testnet")
-        .env("SET_VALIDATORS_DOMAIN", &domain.to_string())
-        .env("WALLET_VERSION", "v4")
-        .env("VALIDATOR_KEY", validator_key)
-        .env("RUST_LOG", "debug")
-        .current_dir(working_dir)
-        .output()
-        .expect("Failed to execute sendSetValidatorsAndThreshold");
-
-    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
-    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
-
-    if !output.status.success() {
-        log!(
-            "sendSetValidatorsAndThreshold failed with status: {}",
-            output.status
-        );
-        log!("stderr:\n{}", stderr);
-        return Err(format!(
-            "sendSetValidatorsAndThreshold failed with status: {}\nstderr:\n{}",
-            output.status, stderr
-        ));
-    }
-    if !stderr.trim().is_empty() {
-        log!("stderr:\n{}", stderr);
-        return Err(format!("stderr:\n{}", stderr));
-    }
-
-    log!("sendSetValidatorsAndThreshold script executed successfully!");
-    log!("stdout:\n{}", stdout);
-
-    Ok(())
-}
-
-pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
-    log!("Launching deploy:all script with DOMAIN={}...", domain);
-
-    let working_dir = "../../../../altvm_contracts/ton";
-
-    let output = Command::new("yarn")
-        .arg("run")
-        .arg("deploy:all")
-        .env("RUST_LOG", "debug")
-        .env("DOMAIN", domain.to_string())
-        .env("WALLET_VERSION", "v4")
-        .current_dir(working_dir)
-        .output()
-        .expect("Failed to execute deploy:all");
-
-    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
-    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
-
-    if !output.status.success() {
-        log!("deploy:all failed with status: {}", output.status);
-        log!("stderr:\n{}", stderr);
-        return None;
-    }
-
-    log!("deploy:all script executed successfully!");
-
-    log!("stdout:\n{}", stdout);
-
-    let deployed_contracts_path = format!("{}/deployedContracts.json", working_dir);
-    let output_file = format!("{}/deployedContracts_{}.json", working_dir, domain);
-
-    match fs::read_to_string(&deployed_contracts_path) {
-        Ok(content) => match serde_json::from_str::<Value>(&content) {
-            Ok(mut json) => {
-                log!("Successfully read deployed contracts:");
-                log!("{}", json);
-
-                fs::write(&output_file, content)
-                    .expect("Failed to save deployed contract addresses");
-
-                log!("Saved deployed contracts to {}", output_file);
-                json["saved_file"] = serde_json::Value::String(output_file);
-                Some(json)
-            }
-            Err(err) => {
-                log!("Failed to parse deployedContracts.json: {}", err);
-                None
-            }
-        },
-        Err(err) => {
-            log!("Failed to read deployedContracts.json: {}", err);
-            None
-        }
-    }
-}
-
 #[cfg(feature = "ton")]
 mod test {
     #[test]
     fn test_run() {
-        use crate::ton::run_locally;
+        use crate::ton::run_ton_to_ton;
         env_logger::init();
 
-        run_locally()
+        use crate::ton::run_ton_to_evm;
+
+        run_ton_to_evm()
+        // run_ton_to_ton()
     }
 }
