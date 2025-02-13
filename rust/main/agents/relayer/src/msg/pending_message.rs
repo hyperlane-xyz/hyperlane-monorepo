@@ -653,20 +653,20 @@ impl PendingMessage {
     pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
-            // wait 10s for the first few attempts; this prevents thrashing
-            i if (1..12).contains(&i) => 10,
-            // wait 90s to 19.5min with a linear increase
-            i if (12..24).contains(&i) => (i as u64 - 11) * 90,
-            // wait 30min for the next 12 attempts
-            i if (24..36).contains(&i) => 60 * 30,
-            // wait 60min for the next 12 attempts
-            i if (36..48).contains(&i) => 60 * 60,
-            // linearly increase the backoff time after 48 attempts,
-            // adding 1h for each additional attempt
+            i if (1..10).contains(&i) => 10,
+            i if (10..15).contains(&i) => 90,
+            i if (15..25).contains(&i) => 60 * 2,
+            // linearly increase from 2min to ~30min, adding 1.5min for each additional attempt
+            i if (25..42).contains(&i) => (i as u64 - 23) * 90,
+            // wait 30min for the next 10 attempts
+            i if (42..52).contains(&i) => 60 * 30,
+            // wait 60min for the next 10 attempts
+            i if (52..62).contains(&i) => 60 * 60,
+            // linearly increase the backoff time, adding 1h for each additional attempt
             _ => {
                 let hour: u64 = 60 * 60;
                 // To be extra safe, `max` to make sure it's at least 1 hour.
-                let target = hour.max((num_retries - 47) as u64 * hour);
+                let target = hour.max((num_retries - 61) as u64 * hour);
                 // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
@@ -709,5 +709,42 @@ impl MessageSubmissionMetrics {
         // with a ST runtime
         self.last_known_nonce
             .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
+
+    use crate::msg::pending_message::PendingMessage;
+
+    #[test]
+    fn test_calculate_msg_backoff_non_decreasing() {
+        let mut cumulative = Duration::from_secs(0);
+        let mut last_backoff = Duration::from_secs(0);
+
+        for i in 0..100 {
+            let backoff_duration =
+                PendingMessage::calculate_msg_backoff(i).unwrap_or(Duration::from_secs(0));
+            // Useful for visualizing the impact of changes to the backoff duration
+            println!(
+                "Retry #{}: cumulative duration from beginning is {}, since last attempt is {}",
+                i,
+                duration_fmt(&cumulative),
+                duration_fmt(&backoff_duration)
+            );
+            cumulative += backoff_duration;
+
+            assert!(backoff_duration >= last_backoff);
+            last_backoff = backoff_duration;
+        }
+    }
+
+    fn duration_fmt(duration: &Duration) -> String {
+        let duration_total_secs = duration.as_secs();
+        let seconds = duration_total_secs % 60;
+        let minutes = (duration_total_secs / 60) % 60;
+        let hours = (duration_total_secs / 60) / 60;
+        format!("{}:{}:{}", hours, minutes, seconds)
     }
 }
