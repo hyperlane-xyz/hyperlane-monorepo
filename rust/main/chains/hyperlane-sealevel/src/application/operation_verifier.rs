@@ -18,8 +18,9 @@ use hyperlane_warp_route::TokenMessage;
 
 use crate::SealevelProvider;
 
-const WARP_ROUTE_PREFIX: &str = "SOL/";
+const NATIVE_WARP_ROUTE_PREFIX: &str = "SOL/";
 // Native SOL warp routers
+// from https://github.com/hyperlane-xyz/hyperlane-registry/tree/359bd01a99cf3c9f2f938c4bc200c5261e2f5bc1/deployments/warp_routes/SOL
 lazy_static! {
     static ref NATIVE_WARP_ROUTES: HashSet<H256> = {
         HashSet::from([
@@ -56,7 +57,7 @@ impl ApplicationOperationVerifier for SealevelApplicationOperationVerifier {
                 return None;
             };
 
-            self.minimum().await
+            self.minimum_balance().await
         };
 
         Self::verify_message(
@@ -107,14 +108,14 @@ impl SealevelApplicationOperationVerifier {
             None => return None,
         };
 
-        if !context.starts_with(WARP_ROUTE_PREFIX) {
+        if !context.starts_with(NATIVE_WARP_ROUTE_PREFIX) {
             return None;
         }
 
         Some(())
     }
 
-    async fn minimum(&self) -> Option<U256> {
+    async fn minimum_balance(&self) -> Option<U256> {
         self.provider
             .rpc()
             // We assume that account will contain no data
