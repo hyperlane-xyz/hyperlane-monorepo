@@ -720,23 +720,27 @@ mod test {
     use crate::msg::pending_message::PendingMessage;
 
     #[test]
-    fn test_calculate_msg_backoff_cumulative() {
+    fn test_calculate_msg_backoff_non_decreasing() {
         let mut cumulative = Duration::from_secs(0);
+        let mut last_backoff = Duration::from_secs(0);
 
-        for i in 0..100 {
+        // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
+        for i in 0..=50 {
             let backoff_duration =
                 PendingMessage::calculate_msg_backoff(i).unwrap_or(Duration::from_secs(0));
-            // Useful for showing the impact of changes to the backoff duration
-            println!(
-                "Retry #{}: cumulative duration from beginning is {}, since last attempt is {}",
-                i,
-                duration_fmt(&cumulative),
-                duration_fmt(&backoff_duration)
-            );
+            // Uncomment to show the impact of changes to the backoff duration:
+
+            // println!(
+            //     "Retry #{}: cumulative duration from beginning is {}, since last attempt is {}",
+            //     i,
+            //     duration_fmt(&cumulative),
+            //     duration_fmt(&backoff_duration)
+            // );
             cumulative += backoff_duration;
+
+            assert!(backoff_duration >= last_backoff);
+            last_backoff = backoff_duration;
         }
-        // Uncomment this to force a test failure and see the cumulative duration
-        // assert!(false);
     }
 
     fn duration_fmt(duration: &Duration) -> String {
