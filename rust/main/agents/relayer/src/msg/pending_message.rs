@@ -726,7 +726,7 @@ mod test {
         for i in 0..100 {
             let backoff_duration =
                 PendingMessage::calculate_msg_backoff(i).unwrap_or(Duration::from_secs(0));
-            // Useful for visualizing the impact of changes to the backoff duration
+            // Useful for showing the impact of changes to the backoff duration
             println!(
                 "Retry #{}: cumulative duration from beginning is {}, since last attempt is {}",
                 i,
