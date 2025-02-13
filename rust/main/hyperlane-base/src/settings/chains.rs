@@ -19,10 +19,7 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::{
-    prometheus_metric::{ChainInfo, NodeInfo, PrometheusJsonRpcClientConfig},
-    utils::url_to_host_info,
-};
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusConfig};
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
     SealevelRpcClient, TransactionSubmitter,
@@ -921,12 +918,8 @@ fn build_sealevel_rpc_client(
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
     let rpc_metrics = metrics.json_rpc_client_metrics();
-    let rpc_metrics_config = PrometheusJsonRpcClientConfig {
-        node: Some(NodeInfo {
-            host: url_to_host_info(&rpc_client_url),
-        }),
-        chain: middleware_metrics.chain.clone(),
-    };
+    let rpc_metrics_config =
+        PrometheusConfig::from_url(&rpc_client_url, middleware_metrics.chain.clone());
     SealevelRpcClientBuilder::new(rpc_client_url)
         .with_prometheus_metrics(rpc_metrics.clone(), rpc_metrics_config)
         .build()

@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use tracing::{instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
-use hyperlane_metric::prometheus_metric::PrometheusJsonRpcClientConfigExt;
+use hyperlane_metric::prometheus_metric::PrometheusConfigExt;
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
@@ -31,7 +31,7 @@ impl<C, B> Deref for EthereumFallbackProvider<C, B> {
 
 impl<C, B> Debug for EthereumFallbackProvider<C, B>
 where
-    C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
+    C: JsonRpcClient + PrometheusConfigExt,
 {
     #[allow(clippy::get_first)] // TODO: `rustc` 1.80.1 clippy issue
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -79,7 +79,7 @@ impl<C> JsonRpcClient for EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
 where
     C: JsonRpcClient<Error = HttpClientError>
         + Into<JsonRpcBlockGetter<C>>
-        + PrometheusJsonRpcClientConfigExt
+        + PrometheusConfigExt
         + Clone,
     JsonRpcBlockGetter<C>: BlockNumberGetter,
 {
@@ -182,7 +182,7 @@ mod tests {
         }
     }
 
-    impl PrometheusJsonRpcClientConfigExt for EthereumProviderMock {
+    impl PrometheusConfigExt for EthereumProviderMock {
         fn node_host(&self) -> &str {
             todo!()
         }
@@ -195,7 +195,7 @@ mod tests {
     impl<C> EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
     where
         C: JsonRpcClient<Error = HttpClientError>
-            + PrometheusJsonRpcClientConfigExt
+            + PrometheusConfigExt
             + Into<JsonRpcBlockGetter<C>>
             + Clone,
         JsonRpcBlockGetter<C>: BlockNumberGetter,

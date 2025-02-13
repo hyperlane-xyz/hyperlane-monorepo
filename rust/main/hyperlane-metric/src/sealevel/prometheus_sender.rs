@@ -16,24 +16,18 @@ use solana_client::{
 use tokio::time::sleep;
 use url::Url;
 
-use crate::prometheus_metric::{
-    JsonRpcClientMetrics, PrometheusJsonRpcClientConfig, PrometheusJsonRpcClientConfigExt,
-};
+use crate::prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig, PrometheusConfigExt};
 use crate::sealevel::http_sender::{rpc_error_object_to_response, HttpSender, RpcErrorObject};
 
 /// Sealevel RPC with prometheus metrics
 pub struct PrometheusSealevelRpcSender {
     pub inner: HttpSender,
     pub metrics: JsonRpcClientMetrics,
-    pub config: PrometheusJsonRpcClientConfig,
+    pub config: PrometheusConfig,
 }
 
 impl PrometheusSealevelRpcSender {
-    pub fn new(
-        url: Url,
-        metrics: JsonRpcClientMetrics,
-        config: PrometheusJsonRpcClientConfig,
-    ) -> Self {
+    pub fn new(url: Url, metrics: JsonRpcClientMetrics, config: PrometheusConfig) -> Self {
         Self {
             inner: HttpSender::new(url),
             metrics,

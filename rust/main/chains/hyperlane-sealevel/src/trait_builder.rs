@@ -1,8 +1,5 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
-use hyperlane_metric::{
-    prometheus_metric::{ChainInfo, JsonRpcClientMetrics, NodeInfo, PrometheusJsonRpcClientConfig},
-    utils::url_to_host_info,
-};
+use hyperlane_metric::prometheus_metric::{ChainInfo, JsonRpcClientMetrics, PrometheusConfig};
 use serde::Serialize;
 use url::Url;
 
@@ -133,12 +130,7 @@ impl TransactionSubmitterConfig {
                 // now that we know what the RPC URL is, we
                 // can create a metrics config that has the correct
                 // node info
-                let metrics_config = PrometheusJsonRpcClientConfig {
-                    node: Some(NodeInfo {
-                        host: url_to_host_info(&rpc_url),
-                    }),
-                    chain,
-                };
+                let metrics_config = PrometheusConfig::from_url(&rpc_url, chain);
                 let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
                     .with_prometheus_metrics(metrics, metrics_config)
                     .build();
@@ -154,12 +146,7 @@ impl TransactionSubmitterConfig {
                 // now that we know what the RPC URL is, we
                 // can create a metrics config that has the correct
                 // node info
-                let metrics_config = PrometheusJsonRpcClientConfig {
-                    node: Some(NodeInfo {
-                        host: url_to_host_info(&rpc_url),
-                    }),
-                    chain,
-                };
+                let metrics_config = PrometheusConfig::from_url(&rpc_url, chain);
                 let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
                     .with_prometheus_metrics(metrics, metrics_config)
                     .build();
