@@ -669,7 +669,7 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.AMOUNT_ROUTING:
         return this.deployAmountRoutingHook({ config });
       case HookType.CCIP:
-        return this.deployCCIPHook({ _config: config });
+        return this.deployCCIPHook({ config });
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
