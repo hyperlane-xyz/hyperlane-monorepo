@@ -10,6 +10,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 interface BridgeConfig {
   xERC20Address: Address;
   bridgeAddress: Address;
+  decimal: number;
   bufferCap: number;
   rateLimitPerSecond: number;
 }
@@ -30,8 +31,13 @@ async function main() {
   const envMultiProvider = await envConfig.getMultiProvider();
   for (const chain of Object.keys(bridgesConfig)) {
     try {
-      const { xERC20Address, bridgeAddress, bufferCap, rateLimitPerSecond } =
-        bridgesConfig[chain];
+      const {
+        xERC20Address,
+        bridgeAddress,
+        bufferCap,
+        rateLimitPerSecond,
+        decimal,
+      } = bridgesConfig[chain];
 
       const xERC20Adapter = new EvmXERC20VSAdapter(
         chain,
@@ -41,9 +47,10 @@ async function main() {
         },
       );
 
-      // Scale the numeric config by 1e18,
-      const bufferCapScaled = BigInt(bufferCap) * 10n ** 18n;
-      const rateLimitScaled = BigInt(rateLimitPerSecond) * 10n ** 18n;
+      // scale the numeric by the decimal
+      const bufferCapScaled = BigInt(bufferCap) * 10n ** BigInt(decimal);
+      const rateLimitScaled =
+        BigInt(rateLimitPerSecond) * 10n ** BigInt(decimal);
 
       const tx = await xERC20Adapter.populateAddBridgeTx({
         bufferCap: bufferCapScaled,
