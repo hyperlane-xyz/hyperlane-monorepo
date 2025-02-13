@@ -54,29 +54,40 @@ impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
     async fn new(db: Arc<dyn HyperlaneDb>) -> Self {
         let high_nonce = loop {
+            tracing::warn!(
+                "JALEN for chain {:?} trying to get high nonce {:?}",
+                db.domain().name(),
+                db.retrieve_highest_seen_message_nonce().ok()
+            );
             match db.retrieve_highest_seen_message_nonce().ok() {
-                Some(nonce) => break nonce,
-                None => {
-                    tracing::warn!(
-                        "Highest seen message nonce not yet available for domain '{}'; retrying in 1s... (this is expected behavior at startup)",
-                        db.domain().name()
-                    );
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                Some(Some(nonce)) => break nonce, // Only break if we get Some(nonce)
+                _ => {
+                    break 0;
+                    // tracing::warn!(
+                    //     "JALEN Highest seen message nonce not yet available for domain '{}'; retrying in 1s... (this is expected behavior at startup)",
+                    //     db.domain().name()
+                    // );
+                    // tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             }
         };
-        tracing::warn!("Highest seen message nonce: {:?}", high_nonce);
+
+        tracing::warn!("JALEN high nonce: {:?}", high_nonce);
 
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
-            high_nonce.unwrap_or_default().into(),
+            high_nonce.into(),
             NonceDirection::High,
             db.clone(),
             domain.clone(),
         );
-        let mut low_nonce_iter =
-            DirectionalNonceIterator::new(high_nonce, NonceDirection::Low, db, domain.clone());
+        let mut low_nonce_iter = DirectionalNonceIterator::new(
+            Some(high_nonce),
+            NonceDirection::Low,
+            db,
+            domain.clone(),
+        );
         // Decrement the low nonce to avoid processing the same message twice, which causes double counts in metrics
         low_nonce_iter.iterate();
         debug!(
@@ -96,6 +107,24 @@ impl ForwardBackwardIterator {
         &mut self,
         metrics: &MessageProcessorMetrics,
     ) -> Result<Option<HyperlaneMessage>> {
+        // if self.high_nonce_iter.nonce.unwrap_or(0) == 0 {
+        //     loop {
+        //         tracing::warn!("JALEN trying to get next message, high: {:?}, low: {:?}", self.high_nonce_iter.nonce, self.low_nonce_iter.nonce);
+
+        //         match self.high_nonce_iter.db.retrieve_highest_seen_message_nonce().ok() {
+        //             Some(Some(nonce)) => {
+        //                 self.high_nonce_iter.nonce = Some(nonce);
+        //                 tracing::warn!("JALEN got high nonce: {:?}", nonce);
+        //                 break;
+        //             }
+        //             _ => {
+        //                 tracing::warn!("JALEN high nonce not yet available, retrying in 1s...");
+        //                 tokio::time::sleep(Duration::from_secs(1)).await;
+        //             }
+        //         }
+        //     }
+        // }
+
         loop {
             let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
             let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
