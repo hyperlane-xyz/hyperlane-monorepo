@@ -11,20 +11,12 @@ version.workspace = true
 async-trait.workspace = true
 derive-new.workspace = true
 derive_builder.workspace = true
-ethers.workspace = true
-ethers-core.workspace = true
-futures.workspace = true
-log.workspace = true
 maplit.workspace = true
-parking_lot.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 solana-client.workspace = true
-static_assertions.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
 url.workspace = true
-
-hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
