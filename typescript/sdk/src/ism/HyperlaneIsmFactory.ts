@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
   CCIPIsm,
   CCIPIsm__factory,
@@ -55,6 +56,7 @@ import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
+  AmountRoutingIsmConfig,
   CCIPIsmConfig,
   DeployedIsm,
   DeployedIsmType,
@@ -166,6 +168,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
       case IsmType.ICA_ROUTING:
+      case IsmType.AMOUNT_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
           config,
@@ -360,6 +363,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       return this.deployIcaIsm(params);
     }
 
+    if (config.type === IsmType.AMOUNT_ROUTING) {
+      return this.deployAmountRoutingIsm({
+        config: config,
+        destination: params.destination,
+        origin: params.origin,
+        mailbox: params.mailbox,
+      });
+    }
+
     return this.deployOwnableRoutingIsm({
       ...params,
       // Can't pass params directly because ts will complain that the types do not match
@@ -380,6 +392,34 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       params.destination,
       new InterchainAccountIsm__factory(),
       [params.mailbox],
+    );
+  }
+
+  private async deployAmountRoutingIsm(params: {
+    destination: ChainName;
+    config: AmountRoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+  }): Promise<IRoutingIsm> {
+    const { threshold, lowerIsm, upperIsm } = params.config;
+
+    const addresses: Address[] = [];
+    for (const module of [lowerIsm, upperIsm]) {
+      const submodule = await this.deploy({
+        destination: params.destination,
+        config: module,
+        origin: params.origin,
+        mailbox: params.mailbox,
+      });
+      addresses.push(submodule.address);
+    }
+
+    const [lowerIsmAddress, upperIsmAddress] = addresses;
+
+    return this.multiProvider.handleDeploy(
+      params.destination,
+      new AmountRoutingIsm__factory(),
+      [lowerIsmAddress, upperIsmAddress, threshold],
     );
   }
 
