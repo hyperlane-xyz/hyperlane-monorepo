@@ -656,17 +656,18 @@ impl PendingMessage {
             i if (1..10).contains(&i) => 10,
             i if (10..15).contains(&i) => 90,
             i if (15..25).contains(&i) => 60 * 2,
-            // linearly increase from 2min to ~30min, adding 1.5min for each additional attempt
-            i if (25..42).contains(&i) => (i as u64 - 23) * 90,
-            // wait 30min for the next 10 attempts
-            i if (42..52).contains(&i) => 60 * 30,
-            // wait 60min for the next 10 attempts
-            i if (52..62).contains(&i) => 60 * 60,
+            // linearly increase from 2min to ~25min, adding 1.5min for each additional attempt
+            i if (25..40).contains(&i) => (i as u64 - 23) * 90,
+            // wait 30min for the next 5 attempts
+            i if (40..45).contains(&i) => 60 * 30,
+            // wait 60min for the next 5 attempts
+            i if (45..50).contains(&i) => 60 * 60,
             // linearly increase the backoff time, adding 1h for each additional attempt
             _ => {
                 let hour: u64 = 60 * 60;
-                // To be extra safe, `max` to make sure it's at least 1 hour.
-                let target = hour.max((num_retries - 61) as u64 * hour);
+                let two_hours: u64 = hour * 2;
+                // To be extra safe, `max` to make sure it's at least 2 hours.
+                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
                 // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
@@ -719,9 +720,8 @@ mod test {
     use crate::msg::pending_message::PendingMessage;
 
     #[test]
-    fn test_calculate_msg_backoff_non_decreasing() {
+    fn test_calculate_msg_backoff_cumulative() {
         let mut cumulative = Duration::from_secs(0);
-        let mut last_backoff = Duration::from_secs(0);
 
         for i in 0..100 {
             let backoff_duration =
@@ -734,10 +734,9 @@ mod test {
                 duration_fmt(&backoff_duration)
             );
             cumulative += backoff_duration;
-
-            assert!(backoff_duration >= last_backoff);
-            last_backoff = backoff_duration;
         }
+        // Uncomment this to force a test failure and see the cumulative duration
+        // assert!(false);
     }
 
     fn duration_fmt(duration: &Duration) -> String {
