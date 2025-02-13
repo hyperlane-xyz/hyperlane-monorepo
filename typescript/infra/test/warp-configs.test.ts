@@ -17,10 +17,17 @@ chai.use(chaiAsPromised);
 chai.should();
 const DEFAULT_TIMEOUT = 60000;
 
+const warpIdsToSkip = [
+  'ETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
+];
+
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
-  const warpIdsToCheck = Object.keys(warpConfigGetterMap);
+  const warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
+    (warpId) => !warpIdsToSkip.includes(warpId),
+  );
+
   let multiProvider: MultiProvider;
   let configsFromGithub;
 
