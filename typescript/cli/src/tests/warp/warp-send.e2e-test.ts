@@ -123,7 +123,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
   });
 
-  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING} and ${HookType.AMOUNT_ROUTING}`, async function () {
+  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING} and ${
+     .AMOUNT_ROUTING}`, async function () {
     const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     const tokenSymbol = await token.symbol();
 

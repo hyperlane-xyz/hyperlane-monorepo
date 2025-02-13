@@ -96,13 +96,13 @@ export class CCIPContractCache {
 
   getHook(origin: ChainName, destination: ChainName): string | undefined {
     return this.cachedAddresses[origin]?.[
-      `${CCIP_HOOK_KEY_PREFIX}-${destination}`
+      `${CCIP_HOOK_KEY_PREFIX}_${destination}`
     ];
   }
 
   getIsm(origin: ChainName, destination: ChainName): string | undefined {
     return this.cachedAddresses[destination]?.[
-      `${CCIP_ISM_KEY_PREFIX}-${origin}`
+      `${CCIP_ISM_KEY_PREFIX}_${origin}`
     ];
   }
 }
