@@ -2,6 +2,10 @@ import { PublicKey } from '@solana/web3.js';
 import { Contract } from 'starknet';
 
 import {
+  ContractType,
+  getCompiledContract,
+} from '@hyperlane-xyz/starknet-core';
+import {
   Address,
   ProtocolType,
   objMap,
@@ -104,11 +108,13 @@ export class BaseStarknetAdapter extends BaseAppAdapter {
     return this.multiProvider.getStarknetProvider(this.chainName);
   }
 
-  public async getERC20Contract(address: Address): Promise<Contract> {
+  private async getContractAbi(address: Address): Promise<any> {
     const { abi } = await this.getProvider().getClassAt(address);
-    if (!abi) {
-      throw new Error('Contract ABI not found');
-    }
+    return abi ?? getCompiledContract('Ether', ContractType.TOKEN).abi;
+  }
+
+  public async getERC20Contract(address: Address): Promise<Contract> {
+    const abi = await this.getContractAbi(address);
     return new Contract(abi, address, this.getProvider());
   }
 }

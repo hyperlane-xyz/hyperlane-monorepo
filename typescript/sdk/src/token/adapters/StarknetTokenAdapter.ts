@@ -46,8 +46,7 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     // Native tokens are ERC20s thus need to be approved
-    const { abi } = await this.getProvider().getClassAt(ETH_ADDRESS);
-    const ethToken = new Contract(abi, ETH_ADDRESS);
+    const ethToken = await this.getERC20Contract(ETH_ADDRESS);
 
     const allowance = await ethToken.allowance(owner, spender);
 
@@ -61,8 +60,7 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
     recipient,
   }: TransferParams): Promise<Call> {
     // Native tokens are ERC20s thus need to be approved
-    const { abi } = await this.getProvider().getClassAt(ETH_ADDRESS);
-    const ethToken = new Contract(abi, ETH_ADDRESS);
+    const ethToken = await this.getERC20Contract(ETH_ADDRESS);
 
     return ethToken.populateTransaction.approve(recipient, weiAmountOrId);
   }
