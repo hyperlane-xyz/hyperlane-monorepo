@@ -103,16 +103,10 @@ impl SealevelApplicationOperationVerifier {
     }
 
     fn verify_context(app_context: &Option<String>) -> Option<()> {
-        let context = match app_context {
-            Some(c) => c,
-            None => return None,
-        };
-
-        if !context.starts_with(NATIVE_WARP_ROUTE_PREFIX) {
-            return None;
-        }
-
-        Some(())
+        app_context
+            .as_ref()
+            .map(|context| context.starts_with(NATIVE_WARP_ROUTE_PREFIX))?
+            .then_some(())
     }
 
     async fn minimum_balance(&self) -> Option<U256> {
