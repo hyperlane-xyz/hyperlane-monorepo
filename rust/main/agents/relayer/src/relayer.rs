@@ -251,13 +251,8 @@ impl BaseAgent for Relayer {
                 } else {
                     transaction_gas_limit
                 };
-            let application_operation_verifier =
-                match application_operation_verifiers.get(destination) {
-                    Some(v) => v,
-                    // if mailbox was successfully built, but application operation verifier was not,
-                    // we continue. Metrics should contain a critical error at this point.
-                    None => continue,
-                };
+
+            let application_operation_verifier = application_operation_verifiers.get(destination);
 
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
@@ -288,7 +283,7 @@ impl BaseAgent for Relayer {
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
-                        application_operation_verifier: application_operation_verifier.clone(),
+                        application_operation_verifier: application_operation_verifier.cloned(),
                     }),
                 );
             }

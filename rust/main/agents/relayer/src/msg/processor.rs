@@ -515,7 +515,7 @@ mod test {
             origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
-            application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
         });
 
         let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
