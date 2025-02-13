@@ -13,6 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
 // ============ Internal Imports ============
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
@@ -29,6 +31,7 @@ abstract contract AbstractPostDispatchHook is
 {
     using StandardHookMetadata for bytes;
     using Message for bytes;
+    using Address for address payable;
 
     // ============ External functions ============
 
@@ -55,7 +58,7 @@ abstract contract AbstractPostDispatchHook is
             refundAddress != address(0),
             "AbstractPostDispatchHook: no refund address"
         );
-        payable(refundAddress).transfer(amount);
+        payable(refundAddress).sendValue(amount);
     }
 
     /// @inheritdoc IPostDispatchHook
