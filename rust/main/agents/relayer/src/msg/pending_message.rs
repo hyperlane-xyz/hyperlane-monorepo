@@ -307,7 +307,8 @@ impl PendingOperation for PendingMessage {
             Err(err) => {
                 let reason = self
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                    .await;
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
                 return self.on_reprepare(Some(err), reason);
             }
         };
@@ -380,7 +381,8 @@ impl PendingOperation for PendingMessage {
             {
                 let reason = self
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                    .await;
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
                 return self.on_reprepare::<String>(None, reason);
             }
         }
@@ -685,7 +687,7 @@ impl PendingMessage {
         }))
     }
 
-    async fn clarify_reason(&self, reason: ReprepareReason) -> ReprepareReason {
+    async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
         use ReprepareReason::ApplicationReport;
 
         match self
@@ -696,9 +698,9 @@ impl PendingMessage {
         {
             Some(r) => {
                 info!(original = ?reason, report = ?r, app = ?self.app_context, message = ?self.message, "Clarifying reprepare reason with application report");
-                ApplicationReport(r.into())
+                Some(ApplicationReport(r.into()))
             }
-            None => reason,
+            None => None,
         }
     }
 }
