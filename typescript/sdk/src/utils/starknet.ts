@@ -5,6 +5,7 @@ import {
   Contract,
   ParsedEvent,
   ParsedEvents,
+  Provider,
 } from 'starknet';
 
 import {
@@ -16,7 +17,7 @@ import { DispatchedMessage } from '../core/types.js';
 
 export function getStarknetMailboxContract(
   address: string,
-  signer: Account,
+  signer: Account | Provider,
 ): Contract {
   const { abi } = getCompiledContract('mailbox');
   return new Contract(abi, address, signer);

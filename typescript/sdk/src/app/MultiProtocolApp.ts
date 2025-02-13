@@ -108,13 +108,14 @@ export class BaseStarknetAdapter extends BaseAppAdapter {
     return this.multiProvider.getStarknetProvider(this.chainName);
   }
 
-  private async getContractAbi(address: Address): Promise<any> {
-    const { abi } = await this.getProvider().getClassAt(address);
-    return abi ?? getCompiledContract('Ether', ContractType.TOKEN).abi;
-  }
+  // private async getContractAbi(address: Address): Promise<any> {
+  //   const { abi } = await this.getProvider().getClassAt(address);
+  //   assert(abi, 'Contract ABI not found');
+  //   return abi;
+  // }
 
   public async getERC20Contract(address: Address): Promise<Contract> {
-    const abi = await this.getContractAbi(address);
+    const abi = getCompiledContract('Ether', ContractType.TOKEN).abi;
     return new Contract(abi, address, this.getProvider());
   }
 }
