@@ -25,10 +25,10 @@ use super::{
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
-/// 70 is picked under the assumption that the first 48 retries take about 1 day (see `calculate_msg_backoff``).
-/// The remaining 22 retries will take at least 21 * 22 / 2 hours (see `calculate_msg_backoff`), which is about 11 days.
-/// In total that is almost 2 weeks, which @nambrot confirmed is how long we should retry for.
-pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 70;
+/// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
+/// See this PR for why 66 retries means 2 weeks:
+/// https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/5468
+pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 66;
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
@@ -66,6 +66,8 @@ pub struct PendingMessage {
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
     app_context: Option<String>,
+    #[serde(skip_serializing)]
+    max_message_retries: u32,
     #[new(default)]
     submitted: bool,
     #[new(default)]
@@ -517,57 +519,63 @@ impl PendingOperation for PendingMessage {
 
 impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
-    /// If the message has been retried more than `max_retries`, it will return `None`.
+    /// If the message has been retried more than `retries_before_skipping`, it will return `None`.
     /// In case of failure, behaves like `Self::new(...)`.
     pub fn maybe_from_persisted_retries(
         message: HyperlaneMessage,
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
-        retries_before_skipping: Option<u32>,
+        max_message_retries: u32,
     ) -> Option<Self> {
-        let num_retries = Self::maybe_get_num_retries(
-            ctx.origin_db.clone(),
-            message.clone(),
-            retries_before_skipping,
-        )?;
-
-        let message_status = Self::get_message_status(ctx.origin_db.clone(), message.clone());
-        let mut pending_message = Self::new(message, ctx, message_status, app_context);
+        let num_retries =
+            Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_message_retries)?;
+        let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        let mut pending_message = Self::new(
+            message,
+            ctx,
+            message_status,
+            app_context,
+            max_message_retries,
+        );
         if num_retries > 0 {
             let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
+                PendingMessage::calculate_msg_backoff(num_retries, max_message_retries, None)
+                    .map(|dur| Instant::now() + dur);
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
         Some(pending_message)
     }
 
-    fn maybe_get_num_retries(
+    fn get_retries_or_skip(
         origin_db: Arc<dyn HyperlaneDb>,
-        message: HyperlaneMessage,
-        retries_before_skipping: Option<u32>,
+        message: &HyperlaneMessage,
+        max_message_retries: u32,
     ) -> Option<u32> {
-        let num_retries = match origin_db
-            .retrieve_pending_message_retry_count_by_message_id(&message.id())
-        {
+        let num_retries = Self::get_num_retries(origin_db.clone(), message);
+        if Self::should_skip(num_retries, max_message_retries) {
+            return None;
+        }
+        Some(num_retries)
+    }
+
+    pub fn should_skip(retry_count: u32, retries_before_skipping: u32) -> bool {
+        retry_count >= retries_before_skipping
+    }
+
+    fn get_num_retries(origin_db: Arc<dyn HyperlaneDb>, message: &HyperlaneMessage) -> u32 {
+        match origin_db.retrieve_pending_message_retry_count_by_message_id(&message.id()) {
             Ok(Some(num_retries)) => num_retries,
             r => {
                 trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
                 0
             }
-        };
-        // Skip this message if it has been retried too many times
-        if let Some(max_retries) = retries_before_skipping {
-            if num_retries >= max_retries {
-                return None;
-            }
         }
-        Some(num_retries)
     }
 
     fn get_message_status(
         origin_db: Arc<dyn HyperlaneDb>,
-        message: HyperlaneMessage,
+        message: &HyperlaneMessage,
     ) -> PendingOperationStatus {
         // Attempt to fetch status about message from database
         if let Ok(Some(status)) = origin_db.retrieve_status_by_message_id(&message.id()) {
@@ -652,8 +660,12 @@ impl PendingMessage {
     fn inc_attempts(&mut self) {
         self.set_retries(self.num_retries + 1);
         self.last_attempted_at = Instant::now();
-        self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
-            .map(|dur| self.last_attempted_at + dur);
+        self.next_attempt_after = PendingMessage::calculate_msg_backoff(
+            self.num_retries,
+            self.max_message_retries,
+            Some(self.message.id()),
+        )
+        .map(|dur| self.last_attempted_at + dur);
     }
 
     fn set_retries(&mut self, retries: u32) {
@@ -674,11 +686,11 @@ impl PendingMessage {
     /// Get duration we should wait before re-attempting to deliver a message
     /// given the number of retries.
     /// `pub(crate)` for testing purposes
-    pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
-        let max_retries = std::env::var("MAX_MESSAGE_RETRIES")
-            .ok()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(DEFAULT_MAX_MESSAGE_RETRIES);
+    pub(crate) fn calculate_msg_backoff(
+        num_retries: u32,
+        max_message_retries: u32,
+        message_id: Option<H256>,
+    ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             // wait 10s for the first few attempts; this prevents thrashing
@@ -691,7 +703,7 @@ impl PendingMessage {
             i if (36..48).contains(&i) => 60 * 60,
             // linearly increase the backoff time after 48 attempts,
             // adding 1h for each additional attempt
-            i if (48..max_retries).contains(&i) => {
+            i if (48..max_message_retries).contains(&i) => {
                 let hour: u64 = 60 * 60;
                 // To be extra safe, `max` to make sure it's at least 1 hour.
                 let target = hour.max((num_retries - 47) as u64 * hour);
@@ -702,7 +714,16 @@ impl PendingMessage {
             }
             // after MAX_MESSAGE_RETRIES, the message is considered undeliverable
             // and the backoff is set as far into the future as possible
-            _ => u64::MAX,
+            _ => {
+                if let Some(message_id) = message_id {
+                    warn!(
+                        message_id = ?message_id,
+                        ?max_message_retries,
+                        "Message has been retried too many times, skipping",
+                    );
+                }
+                u64::MAX
+            }
         }))
     }
 }
@@ -745,10 +766,12 @@ impl MessageSubmissionMetrics {
 
 #[cfg(test)]
 mod test {
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use std::{fmt::Debug, sync::Arc};
+
     use hyperlane_base::db::*;
     use hyperlane_core::*;
-    use std::{fmt::Debug, sync::Arc};
+
+    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
 
     use super::PendingMessage;
 
@@ -871,19 +894,52 @@ mod test {
     fn test_calculate_msg_backoff_does_not_overflow() {
         use super::PendingMessage;
         use std::time::Duration;
-        const SECS_PER_MINUTE: u64 = 60;
-        const MINS_PER_HOUR: u64 = 60;
-        const HOURS_PER_DAY: u64 = 24;
-        const DAYS_PER_WEEK: u64 = 7;
-        const SECS_PER_WEEK: u64 = SECS_PER_MINUTE * MINS_PER_HOUR * HOURS_PER_DAY * DAYS_PER_WEEK;
+        let ten_weeks = Duration::from_secs(
+            chrono::Duration::weeks(10)
+                .num_seconds()
+                .try_into()
+                .unwrap(),
+        );
 
         // the backoff should be at least 10 weeks into the future
         // this is really an overflow check more than anything
-        assert!(
-            PendingMessage::calculate_msg_backoff(DEFAULT_MAX_MESSAGE_RETRIES)
-                .unwrap()
-                .gt(&Duration::from_secs(SECS_PER_WEEK))
-        );
+        assert!(PendingMessage::calculate_msg_backoff(
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            None
+        )
+        .unwrap()
+        .gt(&ten_weeks));
+    }
+
+    #[test]
+    fn db_num_retries_are_some_when_not_skipping() {
+        let mock_retries = 10;
+        let expected_retries = Some(mock_retries);
+        let retries_before_skipping = DEFAULT_MAX_MESSAGE_RETRIES;
+
+        // retry count is the same, because `retries_before_skipping` is `None`
+        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
+    }
+
+    #[test]
+    fn db_high_num_retries_are_not_loaded() {
+        let mock_retries = u32::MAX;
+        let expected_retries = None;
+        let retries_before_skipping = u32::MAX;
+
+        // retry count is >= than the skipping threshold so it's not loaded
+        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
+    }
+
+    #[test]
+    fn db_low_num_retries_are_loaded() {
+        let mock_retries = 1;
+        let expected_retries = Some(1);
+        let retries_before_skipping = u32::MAX;
+
+        // retry count is the same, because `retries_before_skipping` is `None`
+        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
     }
 
     fn dummy_db_with_retries(retries: u32) -> MockDb {
@@ -896,46 +952,15 @@ mod test {
     fn assert_get_num_retries(
         mock_retries: u32,
         expected_retries: Option<u32>,
-        retries_before_skipping: Option<u32>,
+        retries_before_skipping: u32,
     ) {
         let db = dummy_db_with_retries(mock_retries);
-        let num_retries = PendingMessage::maybe_get_num_retries(
+        let num_retries = PendingMessage::get_retries_or_skip(
             Arc::new(db),
-            HyperlaneMessage::default(),
+            &HyperlaneMessage::default(),
             retries_before_skipping,
         );
 
-        // retry count is the same, because `retries_before_skipping` is `None`
         assert_eq!(num_retries, expected_retries);
-    }
-
-    #[test]
-    fn db_num_retries_are_some_when_not_skipping() {
-        let mock_retries = u32::MAX;
-        let expected_retries = Some(mock_retries);
-        let retries_before_skipping = None;
-
-        // retry count is the same, because `retries_before_skipping` is `None`
-        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
-    }
-
-    #[test]
-    fn db_high_num_retries_are_not_loaded() {
-        let mock_retries = u32::MAX;
-        let expected_retries = None;
-        let retries_before_skipping = Some(u32::MAX);
-
-        // retry count is >= than the skipping threshold so it's not loaded
-        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
-    }
-
-    #[test]
-    fn db_low_num_retries_are_loaded() {
-        let mock_retries = 1;
-        let expected_retries = Some(1);
-        let retries_before_skipping = Some(u32::MAX);
-
-        // retry count is the same, because `retries_before_skipping` is `None`
-        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
     }
 }

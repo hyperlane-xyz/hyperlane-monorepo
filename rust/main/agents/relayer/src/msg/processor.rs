@@ -40,6 +40,7 @@ pub struct MessageProcessor {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Vec<(MatchingList, String)>,
     nonce_iterator: ForwardBackwardIterator,
+    max_message_retries: u32,
 }
 
 #[derive(Debug)]
@@ -299,7 +300,7 @@ impl ProcessorExt for MessageProcessor {
                 msg,
                 self.destination_ctxs[&destination].clone(),
                 app_context,
-                Some(DEFAULT_MAX_MESSAGE_RETRIES),
+                self.max_message_retries,
             );
             if let Some(pending_msg) = pending_msg {
                 self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
@@ -322,6 +323,7 @@ impl MessageProcessor {
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Vec<(MatchingList, String)>,
+        max_message_retries: u32,
     ) -> Self {
         Self {
             message_whitelist,
@@ -332,6 +334,7 @@ impl MessageProcessor {
             destination_ctxs,
             metric_app_contexts,
             nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
+            max_message_retries,
         }
     }
 
@@ -513,6 +516,7 @@ mod test {
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
                 vec![],
+                1,
             ),
             receive_channel,
         )
@@ -786,8 +790,12 @@ mod test {
                 .zip(msg_retries_to_set.iter())
                 .for_each(|(pm, expected_retries)| {
                     // Round up the actual backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
-                    let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
-                        .map(|b| b.as_secs_f32().round());
+                    let expected_backoff = PendingMessage::calculate_msg_backoff(
+                        *expected_retries,
+                        DEFAULT_MAX_MESSAGE_RETRIES,
+                        None,
+                    )
+                    .map(|b| b.as_secs_f32().round());
                     let actual_backoff = pm.next_attempt_after().map(|instant| {
                         instant.duration_since(Instant::now()).as_secs_f32().round()
                     });

@@ -83,6 +83,7 @@ pub struct Relayer {
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Vec<(MatchingList, String)>,
+    max_message_retries: u32,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -297,6 +298,7 @@ impl BaseAgent for Relayer {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
+            max_message_retries: settings.max_message_retries,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -574,6 +576,7 @@ impl Relayer {
             send_channels,
             destination_ctxs,
             self.metric_app_contexts.clone(),
+            self.max_message_retries,
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
@@ -792,6 +795,7 @@ mod test {
             skip_transaction_gas_limit_for: HashSet::new(),
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
+            max_message_retries: 1,
         }
     }
 
