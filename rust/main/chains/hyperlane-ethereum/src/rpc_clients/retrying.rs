@@ -4,7 +4,7 @@ use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
-use hyperlane_metric::prometheus_metric::PrometheusJsonRpcClientConfigExt;
+use hyperlane_metric::prometheus_metric::PrometheusConfigExt;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;

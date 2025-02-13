@@ -11,7 +11,7 @@ use ethers_core::types::U64;
 use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_core::ChainCommunicationError;
 use hyperlane_metric::prometheus_metric::{
-    JsonRpcClientMetrics, PrometheusJsonRpcClientConfig, PrometheusJsonRpcClientConfigExt,
+    JsonRpcClientMetrics, PrometheusConfig, PrometheusConfigExt,
 };
 use maplit::hashmap;
 use serde::{de::DeserializeOwned, Serialize};
@@ -24,7 +24,7 @@ use serde::{de::DeserializeOwned, Serialize};
 pub struct PrometheusJsonRpcClient<C> {
     inner: C,
     metrics: JsonRpcClientMetrics,
-    config: PrometheusJsonRpcClientConfig,
+    config: PrometheusConfig,
 }
 
 impl<C: Clone> Clone for PrometheusJsonRpcClient<C> {
@@ -53,7 +53,7 @@ impl<C> PrometheusJsonRpcClient<C> {
     }
 }
 
-impl<C> PrometheusJsonRpcClientConfigExt for PrometheusJsonRpcClient<C> {
+impl<C> PrometheusConfigExt for PrometheusJsonRpcClient<C> {
     /// The "host" part of the URL this node is connecting to. E.g.
     /// `avalanche.api.onfinality.io`.
     fn node_host(&self) -> &str {

@@ -65,7 +65,7 @@ pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent m
 /// serde.
 #[derive(Default, Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub struct PrometheusJsonRpcClientConfig {
+pub struct PrometheusConfig {
     /// Information about what node this client is connecting to.
     pub node: Option<NodeInfo>,
 
@@ -74,7 +74,7 @@ pub struct PrometheusJsonRpcClientConfig {
 }
 
 /// Helper functions for displaying node and chain information
-pub trait PrometheusJsonRpcClientConfigExt {
+pub trait PrometheusConfigExt {
     /// The "host" part of the URL this node is connecting to. E.g.
     /// `avalanche.api.onfinality.io`.
     fn node_host(&self) -> &str;
@@ -82,7 +82,7 @@ pub trait PrometheusJsonRpcClientConfigExt {
     fn chain_name(&self) -> &str;
 }
 
-impl PrometheusJsonRpcClientConfigExt for PrometheusJsonRpcClientConfig {
+impl PrometheusConfigExt for PrometheusConfig {
     fn node_host(&self) -> &str {
         self.node
             .as_ref()

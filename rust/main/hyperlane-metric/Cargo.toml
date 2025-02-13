@@ -14,5 +14,4 @@ derive_builder.workspace = true
 prometheus.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
 url.workspace = true
