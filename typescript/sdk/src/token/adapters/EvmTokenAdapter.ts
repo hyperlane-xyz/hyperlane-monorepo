@@ -38,6 +38,7 @@ import {
   ITokenAdapter,
   IXERC20VSAdapter,
   InterchainGasQuote,
+  RateLimitMidPoint,
   SetBufferCapParams,
   SetRateLimitPerSecondParams,
   TransferParams,
@@ -471,6 +472,20 @@ export class EvmXERC20VSAdapter
     );
   }
 
+  async getRateLimits(bridge: Address): Promise<RateLimitMidPoint> {
+    const result = await this.xERC20VS.rateLimits(bridge);
+
+    const rateLimits: RateLimitMidPoint = {
+      rateLimitPerSecond: BigInt(result.rateLimitPerSecond.toString()),
+      bufferCap: BigInt(result.bufferCap.toString()),
+      lastBufferUsedTime: Number(result.lastBufferUsedTime),
+      bufferStored: BigInt(result.bufferStored.toString()),
+      midPoint: BigInt(result.midPoint.toString()),
+    };
+
+    return rateLimits;
+  }
+
   async populateSetBufferCapTx({
     bridge,
     newBufferCap,
@@ -481,7 +496,7 @@ export class EvmXERC20VSAdapter
     );
   }
 
-  async populateSetRateLimitPerSecond({
+  async populateSetRateLimitPerSecondTx({
     bridge,
     newRateLimitPerSecond,
   }: SetRateLimitPerSecondParams): Promise<PopulatedTransaction> {

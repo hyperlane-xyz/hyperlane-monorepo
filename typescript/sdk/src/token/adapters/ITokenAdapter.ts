@@ -32,6 +32,14 @@ export interface AddBridgedParams {
   bridge: Address;
 }
 
+export interface RateLimitMidPoint {
+  rateLimitPerSecond: bigint;
+  bufferCap: bigint;
+  lastBufferUsedTime: number;
+  bufferStored: bigint;
+  midPoint: bigint;
+}
+
 export interface SetRateLimitPerSecondParams {
   bridge: Address;
   newRateLimitPerSecond: bigint;
@@ -73,8 +81,10 @@ export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
 }
 
 export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
+  getRateLimits(bridge: Address): Promise<RateLimitMidPoint>;
+
   populateSetBufferCapTx(params: SetBufferCapParams): Promise<Tx>;
-  populateSetRateLimitPerSecond(
+  populateSetRateLimitPerSecondTx(
     params: SetRateLimitPerSecondParams,
   ): Promise<Tx>;
 
