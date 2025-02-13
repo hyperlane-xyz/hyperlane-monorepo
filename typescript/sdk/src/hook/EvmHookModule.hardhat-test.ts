@@ -38,7 +38,8 @@ function randomHookType(): HookType {
     (type) =>
       type !== HookType.OP_STACK &&
       type !== HookType.ARB_L2_TO_L1 &&
-      type !== HookType.CUSTOM,
+      type !== HookType.CUSTOM &&
+      type !== HookType.CCIP,
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
