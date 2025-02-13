@@ -19,6 +19,7 @@ const DEFAULT_TIMEOUT = 60000;
 
 const warpIdsToSkip = [
   'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
+  'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
 ];
 
 describe('Warp Configs', async function () {
