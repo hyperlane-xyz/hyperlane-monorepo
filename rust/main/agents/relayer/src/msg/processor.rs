@@ -516,7 +516,7 @@ mod test {
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
                 vec![],
-                1,
+                DEFAULT_MAX_MESSAGE_RETRIES,
             ),
             receive_channel,
         )
