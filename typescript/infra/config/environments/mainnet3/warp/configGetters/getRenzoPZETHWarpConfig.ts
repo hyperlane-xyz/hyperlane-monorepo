@@ -15,7 +15,7 @@ const pzEthAddresses = {
   swell: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
 };
 
-const pzEthChainsToDeploy = ['ethereum', 'swell', 'zircuit'];
+export const pzEthChainsToDeploy = ['ethereum', 'swell', 'zircuit'];
 
 const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
 const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
