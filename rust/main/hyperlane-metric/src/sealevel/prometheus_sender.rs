@@ -21,10 +21,7 @@ use crate::prometheus_metric::{
 };
 use crate::sealevel::http_sender::{rpc_error_object_to_response, HttpSender, RpcErrorObject};
 
-pub struct SealevelRpcSender {
-    pub inner: HttpSender,
-}
-
+/// Sealevel RPC with prometheus metrics
 pub struct PrometheusSealevelRpcSender {
     pub inner: HttpSender,
     pub metrics: JsonRpcClientMetrics,
@@ -45,6 +42,7 @@ impl PrometheusSealevelRpcSender {
     }
 }
 
+/// Implement this trait so it can be used with Solana RPC Client
 #[async_trait::async_trait]
 impl RpcSender for PrometheusSealevelRpcSender {
     fn get_transport_stats(&self) -> RpcTransportStats {
@@ -84,6 +82,9 @@ impl RpcSender for PrometheusSealevelRpcSender {
     }
 }
 
+/// Most of this code is taken from solana-client HttpSender
+/// code base, because HttpSender is private.
+/// https://github.com/anza-xyz/agave/blob/master/rpc-client/src/http_sender.rs#L137
 async fn send_sealevel_rpc_request(
     client: &Arc<reqwest::Client>,
     url: String,

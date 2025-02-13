@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use num_traits::cast::FromPrimitive;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
@@ -12,7 +10,7 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
@@ -25,16 +23,10 @@ pub struct SealevelInterchainSecurityModule {
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(
-        rpc_client: Arc<SealevelRpcClient>,
-        conf: &ConnectionConf,
+        provider: SealevelProvider,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
-        let provider = SealevelProvider::new(
-            rpc_client,
-            locator.domain.clone(),
-            conf.native_token.clone(),
-        );
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             payer,

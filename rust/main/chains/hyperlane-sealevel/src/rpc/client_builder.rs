@@ -36,31 +36,24 @@ impl SealevelRpcClientBuilder {
 
     /// build SealevelRpcClient
     pub fn build(self) -> SealevelRpcClient {
-        match self.prometheus_config {
-            Some((metrics, config)) => {
-                let sender = PrometheusSealevelRpcSender::new(self.rpc_url, metrics, config);
-                let rpc_client = RpcClient::new_sender(
-                    sender,
-                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                );
-                SealevelRpcClient(rpc_client)
-            }
-            None => {
-                let metrics = JsonRpcClientMetrics {
+        let (metrics, metrics_config) = self.prometheus_config.unwrap_or_else(|| {
+            (
+                JsonRpcClientMetrics {
                     request_count: None,
                     request_duration_seconds: None,
-                };
-                let config = PrometheusJsonRpcClientConfig {
+                },
+                PrometheusJsonRpcClientConfig {
                     node: None,
                     chain: None,
-                };
-                let sender = PrometheusSealevelRpcSender::new(self.rpc_url, metrics, config);
-                let rpc_client = RpcClient::new_sender(
-                    sender,
-                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                );
-                SealevelRpcClient(rpc_client)
-            }
-        }
+                },
+            )
+        });
+
+        let sender = PrometheusSealevelRpcSender::new(self.rpc_url, metrics, metrics_config);
+        let rpc_client = RpcClient::new_sender(
+            sender,
+            RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+        );
+        SealevelRpcClient(rpc_client)
     }
 }

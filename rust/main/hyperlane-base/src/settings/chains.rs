@@ -254,11 +254,7 @@ impl ChainConf {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
 
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
 
                 h_sealevel::SealevelMailbox::new(
@@ -299,11 +295,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
 
                 h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)
@@ -345,11 +337,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
 
                 let mailbox =
@@ -400,11 +388,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
 
                 let mailbox =
@@ -548,11 +532,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
 
                 let mailbox =
@@ -599,11 +579,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
                     provider, &locator,
                 ));
@@ -647,9 +623,9 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
-                    rpc_client,
-                    conf,
+                    provider,
                     locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
@@ -685,11 +661,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
                     provider,
                     locator,
@@ -958,6 +930,18 @@ fn build_sealevel_rpc_client(
     SealevelRpcClientBuilder::new(rpc_client_url)
         .with_prometheus_metrics(rpc_metrics.clone(), rpc_metrics_config)
         .build()
+}
+
+fn build_sealevel_provider(
+    rpc_client: Arc<SealevelRpcClient>,
+    locator: &ContractLocator,
+    connection_conf: &h_sealevel::ConnectionConf,
+) -> SealevelProvider {
+    SealevelProvider::new(
+        rpc_client,
+        locator.domain.clone(),
+        connection_conf.native_token.clone(),
+    )
 }
 
 /// Helper to build a sealevel tx submitter with metrics
