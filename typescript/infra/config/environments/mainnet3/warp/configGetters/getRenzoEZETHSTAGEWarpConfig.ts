@@ -6,7 +6,7 @@ import {
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
-const ezEthStagingChainAddresses: Record<
+const ezEthStagingAddresses: Record<
   (typeof ezEthChainsToDeploy)[number],
   string
 > = {
@@ -53,7 +53,7 @@ export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: ezEthChainsToDeploy,
   validators: ezEthValidators,
   safes: ezEthStagingSafes,
-  xERC20ChainAddresses: ezEthStagingChainAddresses,
+  xERC20Addresses: ezEthStagingAddresses,
   xERC20Lockbox: ezEthStagingLockbox,
   tokenPrices: renzoTokenPrices,
 });

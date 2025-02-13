@@ -84,10 +84,7 @@ const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
 const warpRouteOverheadGas = 200_000;
 const ezEthProductionLockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
-const ezEthChainAddresses: Record<
-  (typeof ezEthChainsToDeploy)[number],
-  string
-> = {
+const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   arbitrum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   optimism: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   base: '0x2416092f143378750bb29b79eD961ab195CcEea5',
@@ -332,7 +329,7 @@ export function getRenzoWarpConfigGenerator(params: {
   chainsToDeploy: string[];
   validators: ChainMap<MultisigConfig>;
   safes: Record<string, string>;
-  xERC20ChainAddresses: Record<string, string>;
+  xERC20Addresses: Record<string, string>;
   xERC20Lockbox: string;
   tokenPrices: ChainMap<string>;
   existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
@@ -341,7 +338,7 @@ export function getRenzoWarpConfigGenerator(params: {
     chainsToDeploy,
     validators,
     safes,
-    xERC20ChainAddresses,
+    xERC20Addresses,
     xERC20Lockbox,
     tokenPrices,
     existingProxyAdmins,
@@ -361,7 +358,7 @@ export function getRenzoWarpConfigGenerator(params: {
     );
     const xERC20Diff = symmetricDifference(
       new Set(chainsToDeploy),
-      new Set(Object.keys(xERC20ChainAddresses)),
+      new Set(Object.keys(xERC20Addresses)),
     );
     const tokenPriceDiff = symmetricDifference(
       new Set(chainsToDeploy),
@@ -421,7 +418,7 @@ export function getRenzoWarpConfigGenerator(params: {
                 token:
                   chain === lockboxChain
                     ? xERC20Lockbox
-                    : xERC20ChainAddresses[chain],
+                    : xERC20Addresses[chain],
                 owner: safes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox,
@@ -464,7 +461,7 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: ezEthChainsToDeploy,
   validators: ezEthValidators,
   safes: ezEthSafes,
-  xERC20ChainAddresses: ezEthChainAddresses,
+  xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
   existingProxyAdmins: existingProxyAdmins,
