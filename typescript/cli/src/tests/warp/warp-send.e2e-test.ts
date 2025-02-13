@@ -132,7 +132,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
   ];
 
   testAmounts.forEach((testAmount) => {
-    it.only(`should be able to bridge between ${TokenType.collateral} and ${
+    it(`should be able to bridge between ${TokenType.collateral} and ${
       TokenType.synthetic
     } when using ${
       testAmount > amountThreshold ? 'upper' : 'lower'
