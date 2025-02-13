@@ -576,6 +576,15 @@ impl Relayer {
         )
         .await;
 
+        // match message_processor.try_set_highest_seen_nonce().await {
+        //     Ok(_) => {
+        //         tracing::info!("try_set_highest_seen_nonce completed successfully");
+        //     }
+        //     Err(err) => {
+        //         tracing::error!("Error setting highest seen nonce: {:?}", err);
+        //     }
+        // }
+
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
 

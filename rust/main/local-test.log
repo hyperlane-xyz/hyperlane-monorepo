@@ -1,0 +1,599 @@
+warning: virtual workspace defaulting to `resolver = "1"` despite one or more workspace members being on edition 2021 which implies `resolver = "2"`
+note: to keep the current resolver, specify `workspace.resolver = "1"` in the workspace root's manifest
+note: to use the edition 2021 resolver, specify `workspace.resolver = "2"` in the workspace root's manifest
+note: for more details see https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/ism/multisig-ism-message-id/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/account-utils/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/multisig-ism/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/message-recipient-interface/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/validator-announce/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/mailbox/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/hyperlane-sealevel-igp/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/interchain-security-module-interface/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/serializable-account-meta/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: lint `where_clauses_object_safety` has been removed: converted into hard error, see PR #125380 <https://github.com/rust-lang/rust/pull/125380> for more information
+ --> hyperlane-core/src/lib.rs:7:11
+  |
+7 | #![forbid(where_clauses_object_safety)]
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(renamed_and_removed_lints)]` on by default
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:52:5
+   |
+52 | /     construct_fixed_hash! {
+53 | |         /// 128-bit hash type.
+54 | |         #[derive(BorshSerialize, BorshDeserialize)]
+55 | |         pub struct H128(16);
+56 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: `#[warn(unexpected_cfgs)]` on by default
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:58:5
+   |
+58 | /     construct_fixed_hash! {
+59 | |         /// 160-bit hash type.
+60 | |         #[derive(BorshSerialize, BorshDeserialize)]
+61 | |         pub struct H160(20);
+62 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:64:5
+   |
+64 | /     construct_fixed_hash! {
+65 | |         /// 256-bit hash type.
+66 | |         #[derive(BorshSerialize, BorshDeserialize)]
+67 | |         pub struct H256(32);
+68 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:70:5
+   |
+70 | /     construct_fixed_hash! {
+71 | |         /// 512-bit hash type.
+72 | |         #[derive(BorshSerialize, BorshDeserialize)]
+73 | |         pub struct H512(64);
+74 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `hyperlane-core` (lib) generated 5 warnings
+warning: creating a shared reference to mutable static is discouraged
+   --> utils/abigen/src/lib.rs:149:34
+    |
+149 |     if let Some(path) = unsafe { PATH.as_ref() } {
+    |                                  ^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html>
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+    = note: `#[warn(static_mut_refs)]` on by default
+
+warning: creating a shared reference to mutable static is discouraged
+   --> utils/abigen/src/lib.rs:156:13
+    |
+156 |             PATH.as_ref().unwrap()
+    |             ^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html>
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+
+warning: creating a shared reference to mutable static is discouraged
+   --> utils/abigen/src/lib.rs:162:13
+    |
+162 |             PATH.as_ref().unwrap()
+    |             ^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html>
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+
+warning: `abigen` (lib) generated 3 warnings
+warning: `hyperlane-core` (lib) generated 5 warnings (5 duplicates)
+   Compiling cfg_aliases v0.2.1
+warning: lint `where_clauses_object_safety` has been removed: converted into hard error, see PR #125380 <https://github.com/rust-lang/rust/pull/125380> for more information
+ --> hyperlane-test/src/lib.rs:6:11
+  |
+6 | #![forbid(where_clauses_object_safety)]
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(renamed_and_removed_lints)]` on by default
+
+warning: `hyperlane-test` (lib) generated 1 warning
+   Compiling run-locally v0.1.0 (/Users/kunalarora/dev/hype/monorepo/rust/main/utils/run-locally)
+   Compiling cosmwasm-schema-derive v2.2.0
+   Compiling macro_rules_attribute-proc_macro v0.2.0
+   Compiling winnow v0.5.40
+   Compiling which v4.4.2
+   Compiling ureq v2.10.1
+   Compiling nix v0.26.4
+   Compiling relayer v0.1.0 (/Users/kunalarora/dev/hype/monorepo/rust/main/agents/relayer)
+   Compiling nix v0.29.0
+   Compiling macro_rules_attribute v0.2.0
+   Compiling cosmwasm-schema v2.2.0
+   Compiling toml_edit v0.19.15
+   Compiling ctrlc v3.4.5
+    Finished `release` profile [optimized] target(s) in 49.56s
+     Running `target/release/run-locally --nocapture`
+<E2E> Running with config: Config { is_ci_env: false, ci_mode: false, ci_mode_timeout: 600, kathy_messages: 16 }
+<E2E> Signed checkpoints in /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmpEnz8nM, /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmpmnharf, /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmp0EzsD2
+<E2E> Relayer DB in /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmpCV7yIY/relayer
+<E2E> Validator 1 DB in /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmpCV7yIY/validator0
+<E2E> Validator 2 DB in /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmpCV7yIY/validator1
+<E2E> Validator 3 DB in /var/folders/3f/3y_f50h11zn6msy8jypg98pm0000gn/T/.tmpCV7yIY/validator2
+<E2E> Building rust...
+<E2E> Running postgres db...
+<E2E> Installing typescript dependencies...
+<E2E> Spawning docker...
+<E2E> Pushing SQL agent handles
+<E2E> (./)$ /Users/kunalarora/.cargo/bin/cargo build --features test-utils memory-profiling --bin relayer --bin validator --bin scraper --bin init-db
+<E2E> (/Users/kunalarora/dev/hype/monorepo/rust/main)$ /Users/kunalarora/.nvm/versions/node/v18.16.1/bin/yarn install
+<cargo> warning: virtual workspace defaulting to `resolver = "1"` despite one or more workspace members being on edition 2021 which implies `resolver = "2"`
+<cargo> note: to keep the current resolver, specify `workspace.resolver = "1"` in the workspace root's manifest
+<cargo> note: to use the edition 2021 resolver, specify `workspace.resolver = "2"` in the workspace root's manifest
+<cargo> note: for more details see https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
+<yarn> ➤ YN0000: · Yarn 4.5.1
+<yarn> ➤ YN0000: ┌ Resolution step
+<yarn> ➤ YN0000: └ Completed in 0s 646ms
+<yarn> ➤ YN0000: ┌ Post-resolution validation
+<yarn> ➤ YN0060: │ @typescript-eslint/eslint-plugin is listed by your project with version 8.16.0 (pfbfaf), which doesn't satisfy what eslint-plugin-jest requests (^6.0.0 || ^7.0.0).
+<yarn> ➤ YN0060: │ eslint is listed by your project with version 9.15.0 (p6683d), which doesn't satisfy what @typescript-eslint/utils (via eslint-plugin-jest) and other dependencies request (^8.57.0).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (p53420), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (p72514), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (p7c331), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (p8065d), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (p8a0e6), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (pee74e), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ ethers is listed by your project with version 5.7.2 (pf837b), which doesn't satisfy what @typechain/ethers-v6 and other dependencies request (but they have non-overlapping ranges!).
+<yarn> ➤ YN0060: │ typescript is listed by your project with version 5.3.3 (p0b8d5), which doesn't satisfy what ox (via viem) and other dependencies request (>=5.4.0).
+<yarn> ➤ YN0060: │ typescript is listed by your project with version 5.3.3 (p64e51), which doesn't satisfy what ox (via viem) and other dependencies request (>=5.4.0).
+<yarn> ➤ YN0060: │ typescript is listed by your project with version 5.3.3 (pbee0f), which doesn't satisfy what ox (via viem) and other dependencies request (>=5.4.0).
+<yarn> ➤ YN0060: │ typescript is listed by your project with version 5.3.3 (pc128b), which doesn't satisfy what ox (via viem) and other dependencies request (>=5.4.0).
+<yarn> ➤ YN0060: │ typescript is listed by your project with version 5.3.3 (pe5aee), which doesn't satisfy what ox (via viem) and other dependencies request (>=5.4.0).
+<yarn> ➤ YN0060: │ vite is listed by your project with version 5.3.5 (pcea0e), which doesn't satisfy what @vitejs/plugin-react (via @storybook/react-vite) and other dependencies request (^4.1.0-beta.0).
+<yarn> ➤ YN0002: │ @hyperlane-xyz/core@workspace:solidity doesn't provide @ethersproject/abi (pf54dc), requested by @typechain/ethers-v5.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/core@workspace:solidity doesn't provide @ethersproject/providers (p85485), requested by @typechain/ethers-v5.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/core@workspace:solidity doesn't provide @types/sinon-chai (pe1d5d), requested by @nomiclabs/hardhat-waffle.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/github-proxy@workspace:typescript/github-proxy doesn't provide @vitest/runner (pd673b), requested by @cloudflare/vitest-pool-workers.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/github-proxy@workspace:typescript/github-proxy doesn't provide @vitest/snapshot (p619b6), requested by @cloudflare/vitest-pool-workers.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/helloworld@workspace:typescript/helloworld doesn't provide @ethersproject/abi (pb976b), requested by @hyperlane-xyz/core and other dependencies.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/helloworld@workspace:typescript/helloworld doesn't provide @ethersproject/providers (pd0c38), requested by @hyperlane-xyz/core and other dependencies.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/helloworld@workspace:typescript/helloworld doesn't provide @types/node (p0ea9b), requested by ts-node.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/helloworld@workspace:typescript/helloworld doesn't provide @types/sinon-chai (p2002b), requested by @hyperlane-xyz/core and other dependencies.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/infra@workspace:typescript/infra doesn't provide @ethersproject/abi (p7fe33), requested by @hyperlane-xyz/helloworld and other dependencies.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/monorepo@workspace:. doesn't provide typescript (p453e7), requested by @typescript-eslint/eslint-plugin and other dependencies.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/sdk@workspace:typescript/sdk doesn't provide @ethersproject/abi (p644b4), requested by @hyperlane-xyz/core.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/sdk@workspace:typescript/sdk doesn't provide @ethersproject/providers (pf3a0a), requested by @hyperlane-xyz/core.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/widgets@workspace:typescript/widgets doesn't provide @babel/core (p1e597), requested by babel-loader.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/widgets@workspace:typescript/widgets doesn't provide @ethersproject/abi (p1687e), requested by @hyperlane-xyz/sdk.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/widgets@workspace:typescript/widgets doesn't provide @ethersproject/providers (p2cda5), requested by @hyperlane-xyz/sdk.
+<yarn> ➤ YN0002: │ @hyperlane-xyz/widgets@workspace:typescript/widgets doesn't provide webpack (p1d564), requested by babel-loader.
+<yarn> ➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+<yarn> ➤ YN0086: │ Some peer dependencies are incorrectly met by dependencies; run yarn explain peer-requirements for details.
+<yarn> ➤ YN0000: └ Completed
+<yarn> ➤ YN0000: ┌ Fetch step
+<SQL> The files belonging to this database system will be owned by user "postgres".
+<SQL> This user must also own the server process.
+<SQL> 
+<SQL> The database cluster will be initialized with locale "en_US.utf8".
+<SQL> The default database encoding has accordingly been set to "UTF8".
+<SQL> The default text search configuration will be set to "english".
+<SQL> 
+<SQL> Data page checksums are disabled.
+<SQL> 
+<SQL> fixing permissions on existing directory /var/lib/postgresql/data ... ok
+<SQL> creating subdirectories ... ok
+<SQL> selecting dynamic shared memory implementation ... posix
+<SQL> selecting default max_connections ... 100
+<SQL> selecting default shared_buffers ... 128MB
+<SQL> selecting default time zone ... Etc/UTC
+<SQL> creating configuration files ... ok
+<SQL> running bootstrap script ... ok
+<yarn> ➤ YN0013: │ 9 packages were added to the project, and 50 were removed (- 5.05 MiB).
+<yarn> ➤ YN0000: └ Completed in 1s 20ms
+<yarn> ➤ YN0000: ┌ Link step
+<cargo>    Compiling unicode-ident v1.0.12
+<cargo>    Compiling cfg-if v1.0.0
+<cargo>    Compiling once_cell v1.19.0
+<cargo>    Compiling byteorder v1.5.0
+<cargo>    Compiling memchr v2.7.4
+<cargo>    Compiling subtle v2.6.1
+<SQL> performing post-bootstrap initialization ... ok
+<cargo>    Compiling libc v0.2.169
+<cargo>    Compiling typenum v1.17.0
+<cargo>    Compiling itoa v1.0.11
+<cargo>    Compiling const-oid v0.9.6
+<SQL> syncing data to disk ... ok
+<SQL> 
+<SQL> 
+<SQL> Success. You can now start the database server using:
+<SQL> 
+<SQL>     pg_ctl -D /var/lib/postgresql/data -l logfile start
+<SQL> 
+<SQL> initdb: warning: enabling "trust" authentication for local connections
+<SQL> You can change this by editing pg_hba.conf or using the option -A, or
+<SQL> --auth-local and --auth-host, the next time you run initdb.
+<SQL> waiting for server to start....2025-02-13 18:29:59.033 UTC [48] LOG:  starting PostgreSQL 14.15 (Debian 14.15-1.pgdg120+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+<SQL> 2025-02-13 18:29:59.035 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+<SQL> 2025-02-13 18:29:59.043 UTC [49] LOG:  database system was shut down at 2025-02-13 18:29:58 UTC
+<SQL> 2025-02-13 18:29:59.050 UTC [48] LOG:  database system is ready to accept connections
+<SQL>  done
+<SQL> server started
+<SQL> 
+<SQL> /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+<SQL> 
+<SQL> waiting for server to shut down....2025-02-13 18:29:59.209 UTC [48] LOG:  received fast shutdown request
+<SQL> 2025-02-13 18:29:59.211 UTC [48] LOG:  aborting any active transactions
+<SQL> 2025-02-13 18:29:59.215 UTC [48] LOG:  background worker "logical replication launcher" (PID 55) exited with exit code 1
+<SQL> 2025-02-13 18:29:59.216 UTC [50] LOG:  shutting down
+<SQL> 2025-02-13 18:29:59.237 UTC [48] LOG:  database system is shut down
+<SQL>  done
+<SQL> server stopped
+<SQL> 
+<SQL> PostgreSQL init process complete; ready for start up.
+<SQL> 
+<cargo>    Compiling log v0.4.22
+<SQL> 2025-02-13 18:29:59.334 UTC [1] LOG:  starting PostgreSQL 14.15 (Debian 14.15-1.pgdg120+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+<SQL> 2025-02-13 18:29:59.334 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+<SQL> 2025-02-13 18:29:59.334 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+<SQL> 2025-02-13 18:29:59.337 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+<SQL> 2025-02-13 18:29:59.344 UTC [61] LOG:  database system was shut down at 2025-02-13 18:29:59 UTC
+<SQL> 2025-02-13 18:29:59.355 UTC [1] LOG:  database system is ready to accept connections
+<cargo>    Compiling proc-macro2 v1.0.86
+<cargo>    Compiling ryu v1.0.18
+<cargo>    Compiling num-traits v0.2.19
+<cargo>    Compiling pin-project-lite v0.2.14
+<cargo>    Compiling scopeguard v1.2.0
+<cargo>    Compiling fnv v1.0.7
+<cargo>    Compiling either v1.13.0
+<cargo>    Compiling lock_api v0.4.12
+<cargo>    Compiling smallvec v1.13.2
+<cargo>    Compiling tracing-core v0.1.32
+<cargo>    Compiling allocator-api2 v0.2.18
+<cargo>    Compiling lazy_static v1.5.0
+<cargo>    Compiling futures-core v0.3.30
+<cargo>    Compiling futures-sink v0.3.30
+<cargo>    Compiling slab v0.4.9
+<cargo>    Compiling futures-task v0.3.30
+<cargo>    Compiling pin-utils v0.1.0
+<cargo>    Compiling futures-channel v0.3.30
+<cargo>    Compiling futures-io v0.3.30
+<cargo>    Compiling quote v1.0.37
+<cargo>    Compiling core-foundation-sys v0.8.7
+<cargo>    Compiling equivalent v1.0.1
+<cargo>    Compiling percent-encoding v2.3.1
+<cargo>    Compiling tinyvec_macros v0.1.1
+<cargo>    Compiling hex v0.4.3
+<cargo>    Compiling syn v2.0.77
+<cargo>    Compiling getrandom v0.2.15
+<cargo>    Compiling syn v1.0.109
+<cargo>    Compiling cpufeatures v0.2.13
+<cargo>    Compiling jobserver v0.1.26
+<cargo>    Compiling parking_lot_core v0.9.10
+<cargo>    Compiling socket2 v0.5.7
+<cargo>    Compiling signal-hook-registry v1.4.2
+<cargo>    Compiling mio v1.0.2
+<cargo>    Compiling tinyvec v1.8.0
+<cargo>    Compiling rand_core v0.6.4
+<cargo>    Compiling arrayvec v0.7.6
+<cargo>    Compiling cc v1.0.94
+<cargo>    Compiling parking_lot v0.12.3
+<cargo>    Compiling aho-corasick v1.1.3
+<cargo>    Compiling regex-syntax v0.8.4
+<cargo>    Compiling bitflags v1.3.2
+<cargo>    Compiling crunchy v0.2.2
+<cargo>    Compiling anyhow v1.0.86
+<cargo>    Compiling keccak v0.1.5
+<cargo>    Compiling base64 v0.21.7
+<cargo>    Compiling ahash v0.7.8
+<cargo>    Compiling unicode-normalization v0.1.23
+<cargo>    Compiling block-padding v0.2.1
+<cargo>    Compiling opaque-debug v0.3.1
+<cargo>    Compiling hashbrown v0.12.3
+<cargo>    Compiling base64 v0.13.1
+<cargo>    Compiling security-framework-sys v2.14.0
+<cargo>    Compiling num-conv v0.1.0
+<cargo>    Compiling powerfmt v0.2.0
+<cargo>    Compiling time-core v0.1.2
+<cargo>    Compiling time-macros v0.2.18
+<cargo>    Compiling httparse v1.9.4
+<cargo>    Compiling num_threads v0.1.7
+<cargo>    Compiling tower-service v0.3.3
+<cargo>    Compiling itertools v0.10.5
+<cargo>    Compiling form_urlencoded v1.2.1
+<cargo>    Compiling iana-time-zone v0.1.60
+<cargo>    Compiling core-foundation v0.9.4
+<cargo>    Compiling spin v0.9.8
+<cargo>    Compiling httpdate v1.0.3
+<cargo>    Compiling ring v0.17.8
+<cargo>    Compiling try-lock v0.2.5
+<cargo>    Compiling unicode-bidi v0.3.15
+<cargo>    Compiling regex-automata v0.4.7
+<cargo>    Compiling want v0.3.1
+<cargo>    Compiling untrusted v0.9.0
+<cargo>    Compiling unicode-segmentation v1.11.0
+<cargo>    Compiling crossbeam-utils v0.8.20
+<cargo>    Compiling errno v0.3.9
+<cargo>    Compiling idna v0.5.0
+<cargo>    Compiling fastrand v2.1.1
+<cargo>    Compiling base64ct v1.6.0
+<cargo>    Compiling getrandom v0.1.16
+<cargo>    Compiling heck v0.4.1
+<cargo>    Compiling mime v0.3.17
+<cargo>    Compiling rand_core v0.5.1
+<cargo>    Compiling static_assertions v1.1.0
+<cargo>    Compiling url v2.5.2
+<cargo>    Compiling crossbeam-epoch v0.9.18
+<cargo>    Compiling winnow v0.6.18
+<cargo>    Compiling crc32fast v1.4.2
+<cargo>    Compiling rustls-pemfile v1.0.4
+<cargo>    Compiling crossbeam-deque v0.8.5
+<cargo>    Compiling rustc-hex v2.1.0
+<cargo>    Compiling base64 v0.12.3
+<cargo>    Compiling rayon-core v1.12.1
+<cargo>    Compiling bs58 v0.4.0
+<cargo>    Compiling adler2 v2.0.0
+<cargo>    Compiling miniz_oxide v0.8.0
+<cargo>    Compiling alloc-no-stdlib v2.0.4
+<cargo>    Compiling sync_wrapper v0.1.2
+<cargo>    Compiling webpki-roots v0.25.4
+<cargo>    Compiling alloc-stdlib v0.2.2
+<cargo>    Compiling rustc-hash v1.1.0
+<cargo>    Compiling brotli-decompressor v4.0.1
+<cargo>    Compiling password-hash v0.4.2
+<cargo>    Compiling rayon v1.10.0
+<cargo>    Compiling regex v1.10.6
+<cargo>    Compiling flate2 v1.0.33
+<cargo>    Compiling idna v0.3.0
+<cargo>    Compiling encoding_rs v0.8.34
+<cargo>    Compiling psl-types v2.0.11
+<cargo>    Compiling brotli v6.0.0
+<cargo>    Compiling publicsuffix v2.2.3
+<cargo>    Compiling system-configuration-sys v0.5.0
+<cargo>    Compiling num-integer v0.1.46
+<cargo>    Compiling system-configuration v0.5.1
+<cargo>    Compiling ff v0.13.0
+<cargo>    Compiling itertools v0.12.1
+<cargo>    Compiling byte-slice-cast v1.2.2
+<cargo>    Compiling ipnet v2.9.0
+<cargo>    Compiling base16ct v0.2.0
+<cargo>    Compiling wasm-bindgen-backend v0.2.93
+<cargo>    Compiling serde_derive v1.0.209
+<cargo>    Compiling zeroize_derive v1.4.2
+<cargo>    Compiling zerocopy-derive v0.7.35
+<cargo>    Compiling thiserror-impl v1.0.63
+<cargo>    Compiling tracing-attributes v0.1.27
+<cargo>    Compiling futures-macro v0.3.30
+<cargo>    Compiling zeroize v1.8.1
+<cargo>    Compiling tokio-macros v2.5.0
+<cargo>    Compiling zerocopy v0.7.35
+<cargo>    Compiling async-trait v0.1.82
+<cargo>    Compiling futures-util v0.3.30
+<yarn> ➤ YN0008: │ @hyperlane-xyz/monorepo@workspace:. must be rebuilt because its dependency tree changed
+<cargo>    Compiling rustls v0.21.12
+<cargo>    Compiling thiserror v1.0.63
+<cargo>    Compiling der v0.7.9
+<cargo>    Compiling impl-trait-for-tuples v0.2.2
+<cargo>    Compiling tracing v0.1.40
+<cargo>    Compiling ppv-lite86 v0.2.20
+<yarn> ➤ YN0000: └ Completed in 17s 662ms
+<cargo>    Compiling ahash v0.8.11
+<cargo>    Compiling rand_chacha v0.3.1
+<cargo>    Compiling sct v0.7.1
+<cargo>    Compiling rustls-webpki v0.101.7
+<cargo>    Compiling rand_chacha v0.2.2
+<cargo>    Compiling rand v0.8.5
+<cargo>    Compiling rand v0.7.3
+<cargo>    Compiling spki v0.7.3
+<cargo>    Compiling derive_more v0.99.18
+<yarn> ➤ YN0000: · Done with warnings in 20s 266ms
+<cargo>    Compiling serde v1.0.209
+<cargo>    Compiling pkcs8 v0.10.2
+<E2E> (/Users/kunalarora/dev/hype/monorepo/rust/main)$ /Users/kunalarora/.nvm/versions/node/v18.16.1/bin/yarn clean
+<cargo>    Compiling group v0.13.0
+<cargo>    Compiling blake3 v1.4.0
+<cargo>    Compiling bitmaps v2.1.0
+<cargo>    Compiling arrayref v0.3.8
+<cargo>    Compiling wasm-bindgen-macro-support v0.2.93
+<cargo>    Compiling borsh-schema-derive-internal v0.9.3
+<cargo>    Compiling borsh-derive-internal v0.9.3
+<cargo>    Compiling rand_xoshiro v0.6.0
+<cargo>    Compiling constant_time_eq v0.2.6
+<cargo>    Compiling memoffset v0.6.5
+<cargo>    Compiling bytemuck_derive v1.7.1
+<cargo>    Compiling hashbrown v0.11.2
+<cargo>    Compiling sized-chunks v0.6.5
+<cargo>    Compiling memmap2 v0.5.10
+<cargo>    Compiling solana-sdk-macro v1.14.13 (https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a)
+<cargo>    Compiling num-derive v0.3.3
+<cargo>    Compiling futures-executor v0.3.30
+<cargo>    Compiling fixed-hash v0.8.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+<cargo>    Compiling futures v0.3.30
+<cargo>    Compiling wasm-bindgen-macro v0.2.93
+<cargo>    Compiling pin-project-internal v1.1.5
+<cargo>    Compiling Inflector v0.11.4
+<cargo>    Compiling uint v0.9.5
+<cargo>    Compiling strum_macros v0.24.3
+<cargo>    Compiling wasm-bindgen v0.2.93
+<cargo>    Compiling atty v0.2.14
+<cargo>    Compiling bytemuck v1.17.1
+<cargo>    Compiling termcolor v1.4.1
+<cargo>    Compiling unicode-xid v0.2.5
+<cargo>    Compiling minimal-lexical v0.2.1
+<cargo>    Compiling humantime v2.1.0
+<cargo>    Compiling nom v7.1.3
+<cargo>    Compiling derivative v2.2.0
+<cargo>    Compiling der v0.6.1
+<cargo>    Compiling proc-macro-error-attr v1.0.4
+<cargo>    Compiling env_logger v0.9.3
+<cargo>    Compiling pin-project v1.1.5
+<cargo>    Compiling ring v0.16.20
+<cargo>    Compiling derivation-path v0.2.0
+<cargo>    Compiling strum v0.24.1
+<cargo>    Compiling generic-array v0.14.7
+<cargo>    Compiling bytes v1.7.1
+<cargo>    Compiling serde_json v1.0.127
+<cargo>    Compiling semver v1.0.23
+<cargo>    Compiling hashbrown v0.14.5
+<cargo>    Compiling bitflags v2.6.0
+<cargo>    Compiling rustc_version v0.4.1
+<cargo>    Compiling deranged v0.3.11
+<cargo>    Compiling chrono v0.4.38
+<cargo>    Compiling tokio v1.43.0
+<cargo>    Compiling http v0.2.12
+<cargo>    Compiling crypto-common v0.1.6
+<cargo>    Compiling block-buffer v0.10.4
+<cargo>    Compiling digest v0.9.0
+<cargo>    Compiling indexmap v2.5.0
+<cargo>    Compiling block-buffer v0.9.0
+<cargo>    Compiling digest v0.10.7
+<cargo>    Compiling security-framework v2.11.1
+<cargo>    Compiling sha2 v0.9.9
+<cargo>    Compiling time v0.3.36
+<cargo>    Compiling sha2 v0.10.8
+<cargo>    Compiling hmac v0.12.1
+<cargo>    Compiling sha3 v0.10.8
+<cargo>    Compiling rustix v0.38.35
+<cargo>    Compiling http-body v0.4.6
+<cargo>    Compiling toml v0.5.11
+<cargo>    Compiling toml_datetime v0.6.8
+<cargo>    Compiling serde_spanned v0.6.8
+<cargo>    Compiling curve25519-dalek v3.2.2 (https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek?branch=v3.2.2-relax-zeroize#5154e5d0)
+<cargo>    Compiling signature v1.6.4
+<cargo>    Compiling toml_edit v0.22.20
+<cargo>    Compiling serde_urlencoded v0.7.1
+<cargo>    Compiling bincode v1.3.3
+<cargo>    Compiling rustls-native-certs v0.6.3
+<cargo>    Compiling serde_bytes v0.11.15
+<cargo>    Compiling pbkdf2 v0.11.0
+<cargo>    Compiling libsecp256k1-core v0.2.2
+<cargo>    Compiling crypto-mac v0.8.0
+<cargo>    Compiling signature v2.2.0
+<cargo>    Compiling hmac v0.8.1
+<cargo>    Compiling crypto-bigint v0.5.5
+<cargo>    Compiling sec1 v0.7.3
+<cargo>    Compiling solana-frozen-abi-macro v1.14.13 (https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a)
+<cargo>    Compiling tempfile v3.12.0
+<cargo>    Compiling proc-macro-crate v0.1.5
+<cargo>    Compiling native-tls v0.2.12
+<cargo>    Compiling libsecp256k1-gen-ecmult v0.2.1
+<cargo>    Compiling libsecp256k1-gen-genmult v0.2.1
+<cargo>    Compiling solana-frozen-abi v1.14.13 (https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a)
+<cargo>    Compiling rlp v0.5.2 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+<cargo>    Compiling libsecp256k1 v0.6.0
+<cargo>    Compiling cookie v0.17.0
+<cargo>    Compiling hmac-drbg v0.3.0
+<cargo>    Compiling borsh-derive v0.9.3
+<cargo>    Compiling pbkdf2 v0.4.0
+<cargo>    Compiling rfc6979 v0.4.0
+<cargo>    Compiling solana-program v1.14.13 (https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a)
+<cargo>    Compiling cookie_store v0.20.0
+<cargo>    Compiling im v15.1.0
+<cargo>    Compiling bv v0.11.1
+<cargo>    Compiling elliptic-curve v0.13.8
+<cargo>    Compiling proc-macro-crate v3.2.0
+<cargo>    Compiling ecdsa v0.16.9
+<yarn> Done in 11s 612ms
+<cargo>    Compiling borsh v0.9.3
+<cargo>    Compiling tiny-bip39 v0.8.2
+<cargo>    Compiling impl-rlp v0.3.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+<cargo>    Compiling impl-serde v0.4.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+<cargo>    Compiling num-bigint v0.4.6
+<E2E> (/Users/kunalarora/dev/hype/monorepo/rust/main)$ /Users/kunalarora/.nvm/versions/node/v18.16.1/bin/yarn build
+<cargo>    Compiling k256 v0.13.4
+<cargo>    Compiling ed25519 v1.5.3
+<cargo>    Compiling ed25519-dalek v1.0.1
+<cargo>    Compiling ripemd v0.1.3
+<cargo>    Compiling solana-sdk v1.14.13 (https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a)
+<cargo>    Compiling spki v0.6.0
+<cargo>    Compiling ed25519-dalek-bip32 v0.2.0
+<cargo>    Compiling pkcs8 v0.9.0
+<cargo>    Compiling bs58 v0.5.1
+<cargo>    Compiling crypto-bigint v0.4.9
+<cargo>    Compiling solana-logger v1.14.13 (https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a)
+<cargo>    Compiling proc-macro-error v1.0.4
+<cargo>    Compiling ff v0.12.1
+<cargo>    Compiling qstring v0.7.2
+<cargo>    Compiling uriparse v0.6.4
+<cargo>    Compiling parity-scale-codec-derive v3.6.12
+<cargo>    Compiling scale-info-derive v2.11.3
+<cargo>    Compiling base16ct v0.1.1
+<cargo>    Compiling assert_matches v1.5.0
+<cargo>    Compiling sec1 v0.3.0
+<cargo>    Compiling group v0.12.1
+<cargo>    Compiling untrusted v0.7.1
+<cargo>    Compiling bech32 v0.9.1
+<cargo>    Compiling indenter v0.3.3
+<cargo>    Compiling strsim v0.10.0
+<cargo>    Compiling eyre v0.6.8
+<cargo>    Compiling elliptic-curve v0.12.3
+<cargo>    Compiling tiny-keccak v2.0.2
+<cargo>    Compiling tokio-util v0.7.11
+<cargo>    Compiling tokio-native-tls v0.3.1
+<cargo>    Compiling tokio-rustls v0.24.1
+<cargo>    Compiling async-compression v0.4.12
+<cargo>    Compiling rfc6979 v0.3.1
+<cargo>    Compiling impl-rlp v0.3.0
+<cargo>    Compiling impl-serde v0.4.0
+<cargo>    Compiling fixed-hash v0.8.0
+<cargo>    Compiling h2 v0.3.26
+<cargo>    Compiling webpki v0.22.4
+<cargo>    Compiling ecdsa v0.14.8
+<cargo>    Compiling ed25519 v2.2.3
+<cargo>    Compiling libm v0.2.8
+<cargo>    Compiling parity-scale-codec v3.6.12
+<cargo>    Compiling camino v1.1.9
+<cargo>    Compiling tokio-stream v0.1.17
+<cargo>    Compiling open-fastrlp-derive v0.1.1
+<cargo>    Compiling k256 v0.11.6
+<cargo>    Compiling curve25519-dalek v4.1.3
+<cargo>    Compiling cargo-platform v0.1.8
+<cargo>    Compiling auto_impl v1.2.0
+<cargo>    Compiling inout v0.1.3
+<cargo>    Compiling cargo_metadata v0.15.4
+<cargo>    Compiling hashbrown v0.13.2
+<cargo>    Compiling rlp-derive v0.1.0
+<cargo>    Compiling scale-info v2.11.3
+<cargo>    Compiling impl-codec v0.6.0 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
+<cargo>    Compiling impl-codec v0.6.0
+<cargo>    Compiling convert_case v0.6.0
+<cargo>    Compiling fxhash v0.2.1
+<cargo>    Compiling utf-8 v0.7.6
+<cargo>    Compiling cipher v0.4.4
+<cargo>    Compiling rustls v0.20.9
+<cargo>    Compiling primeorder v0.13.6
+<cargo>    Compiling same-file v1.0.6
+<cargo>    Compiling indexmap v1.9.3
+<cargo>    Compiling primitive-types v0.12.1 (https://github.com/hyperlane-xyz/parity-common.git?branch=hyperlane#3c2a8908)
