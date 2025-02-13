@@ -693,26 +693,27 @@ impl PendingMessage {
     ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
-            // wait 10s for the first few attempts; this prevents thrashing
-            i if (1..12).contains(&i) => 10,
-            // wait 90s to 19.5min with a linear increase
-            i if (12..24).contains(&i) => (i as u64 - 11) * 90,
-            // wait 30min for the next 12 attempts
-            i if (24..36).contains(&i) => 60 * 30,
-            // wait 60min for the next 12 attempts
-            i if (36..48).contains(&i) => 60 * 60,
-            // linearly increase the backoff time after 48 attempts,
-            // adding 1h for each additional attempt
-            i if (48..max_message_retries).contains(&i) => {
+            i if (1..10).contains(&i) => 10,
+            i if (10..15).contains(&i) => 90,
+            i if (15..25).contains(&i) => 60 * 2,
+            // linearly increase from 2min to ~25min, adding 1.5min for each additional attempt
+            i if (25..40).contains(&i) => (i as u64 - 23) * 90,
+            // wait 30min for the next 5 attempts
+            i if (40..45).contains(&i) => 60 * 30,
+            // wait 60min for the next 5 attempts
+            i if (45..50).contains(&i) => 60 * 60,
+            // linearly increase the backoff time, adding 1h for each additional attempt
+            i if (50..max_message_retries).contains(&i) => {
                 let hour: u64 = 60 * 60;
-                // To be extra safe, `max` to make sure it's at least 1 hour.
-                let target = hour.max((num_retries - 47) as u64 * hour);
+                let two_hours: u64 = hour * 2;
+                // To be extra safe, `max` to make sure it's at least 2 hours.
+                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
                 // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
                 target + (rand::random::<u64>() % (6 * hour))
             }
-            // after MAX_MESSAGE_RETRIES, the message is considered undeliverable
+            // after `max_message_retries`, the message is considered undeliverable
             // and the backoff is set as far into the future as possible
             _ => {
                 if let Some(message_id) = message_id {
@@ -766,7 +767,7 @@ impl MessageSubmissionMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::{fmt::Debug, sync::Arc};
+    use std::{fmt::Debug, sync::Arc, time::Duration};
 
     use hyperlane_base::db::*;
     use hyperlane_core::*;
@@ -940,6 +941,39 @@ mod test {
 
         // retry count is the same, because `retries_before_skipping` is `None`
         assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
+    }
+
+    #[test]
+    fn test_calculate_msg_backoff_non_decreasing() {
+        let mut cumulative = Duration::from_secs(0);
+        let mut last_backoff = Duration::from_secs(0);
+
+        // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
+        for i in 0..=50 {
+            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None)
+                .unwrap_or(Duration::from_secs(0));
+            // Uncomment to show the impact of changes to the backoff duration:
+
+            // println!(
+            //     "Retry #{}: cumulative duration from beginning is {}, since last attempt is {}",
+            //     i,
+            //     duration_fmt(&cumulative),
+            //     duration_fmt(&backoff_duration)
+            // );
+            cumulative += backoff_duration;
+
+            assert!(backoff_duration >= last_backoff);
+            last_backoff = backoff_duration;
+        }
+    }
+
+    #[allow(dead_code)]
+    fn duration_fmt(duration: &Duration) -> String {
+        let duration_total_secs = duration.as_secs();
+        let seconds = duration_total_secs % 60;
+        let minutes = (duration_total_secs / 60) % 60;
+        let hours = (duration_total_secs / 60) / 60;
+        format!("{}:{}:{}", hours, minutes, seconds)
     }
 
     fn dummy_db_with_retries(retries: u32) -> MockDb {

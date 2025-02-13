@@ -36,7 +36,7 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   taiko: '0x31FF35F84ADB120DbE089D190F03Ac74731Ae83F',
   sei: '0xa30FF77d30Eb2d785f574344B4D11CAAe1949807',
   swell: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115',
-  unichain: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  unichain: '0x9D5FCF39FF17a67eB9CB4505f83920519EfEB01B',
   berachain: '0xf013c8Be28421b050cca5bD95cc57Af49568e8be',
 };
 

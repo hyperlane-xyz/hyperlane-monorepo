@@ -119,14 +119,6 @@
         "tokenDecimals": 9
       },
       "overhead": 600000
-    },
-    "treasure": {
-      "oracleConfig": {
-        "tokenExchangeRate": "21123257666268419",
-        "gasPrice": "1601935300783",
-        "tokenDecimals": 18
-      },
-      "overhead": 333774
     }
   },
   "eclipsemainnet": {
@@ -141,7 +133,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "115958288827584",
-        "gasPrice": "50977",
+        "gasPrice": "61172",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -159,7 +151,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "115958288827584",
-        "gasPrice": "50977",
+        "gasPrice": "61172",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -169,7 +161,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
-        "gasPrice": "50977",
+        "gasPrice": "61172",
         "tokenDecimals": 9
       },
       "overhead": 600000
