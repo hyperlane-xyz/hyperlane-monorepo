@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use std::future::Future;
 use std::ops::Deref;
 use std::time::Duration;
 
@@ -10,12 +11,14 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{info, instrument, warn_span};
+use tracing::{instrument, warn_span};
 
 use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClientConfigExt};
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
+
+const METHOD_SEND_RAW_TRANSACTION: &str = "eth_sendRawTransaction";
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 #[derive(new)]
@@ -92,82 +95,10 @@ where
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
-        use CategorizedResponse::*;
-
-        info!(method, "EthereumFallBackProvider method");
-
-        let params = serde_json::to_value(params).expect("valid");
-
-        if method == "eth_sendRawTransaction" {
-            let mut i = 0; // retry if all providers returned a retryable error
-            let mut provider_errors;
-            loop {
-                let mut unordered = FuturesUnordered::new();
-                self.inner
-                    .providers
-                    .iter()
-                    .for_each(|p| unordered.push(Self::provider_request(p, method, &params)));
-
-                let mut errors = vec![];
-
-                loop {
-                    let Some(resp) = unordered.next().await else {
-                        break;
-                    };
-                    match categorize_client_response(method, resp) {
-                        IsOk(v) => return Ok(serde_json::from_value(v)?),
-                        e => {
-                            errors.push(e);
-                            continue;
-                        }
-                    }
-                }
-
-                provider_errors = errors.iter().map(|e| e.into()).collect();
-
-                let all_retryable = errors.iter().all(|e| match e {
-                    IsOk(_) | NonRetryableErr(_) => false,
-                    RetryableErr(_) | RateLimitErr(_) => true,
-                });
-
-                if !all_retryable {
-                    break;
-                }
-
-                i += 1;
-                if i == 3 {
-                    break;
-                }
-
-                sleep(Duration::from_millis(100)).await;
-            }
-
-            Err(FallbackError::AllProvidersFailed(provider_errors).into())
+        if method == METHOD_SEND_RAW_TRANSACTION {
+            self.multicast(method, params).await
         } else {
-            let mut errors = vec![];
-            // make sure we do at least 4 total retries.
-            while errors.len() <= 3 {
-                if !errors.is_empty() {
-                    sleep(Duration::from_millis(100)).await;
-                }
-                let priorities_snapshot = self.take_priorities_snapshot().await;
-                for (idx, priority) in priorities_snapshot.iter().enumerate() {
-                    let provider = &self.inner.providers[priority.index];
-                    let fut = Self::provider_request(&provider, method, &params);
-                    let resp = fut.await;
-                    self.handle_stalled_provider(priority, provider).await;
-                    let _span =
-                        warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
-
-                    match categorize_client_response(method, resp) {
-                        IsOk(v) => return Ok(serde_json::from_value(v)?),
-                        RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
-                        NonRetryableErr(e) => return Err(e.into()),
-                    }
-                }
-            }
-
-            Err(FallbackError::AllProvidersFailed(errors).into())
+            self.fallback(method, params).await
         }
     }
 }
@@ -180,6 +111,76 @@ where
         + Clone,
     JsonRpcBlockGetter<C>: BlockNumberGetter,
 {
+    async fn multicast<T, R>(&self, method: &str, params: T) -> Result<R, ProviderError>
+    where
+        T: Serialize,
+        R: DeserializeOwned,
+    {
+        use CategorizedResponse::*;
+
+        let params = serde_json::to_value(params).expect("valid");
+
+        // errors reported by providers
+        let mut errors = vec![];
+
+        // retry 4 times if all providers returned a retryable error
+        for i in 0..=3 {
+            if i > 0 {
+                // sleep starting from the second attempt
+                sleep(Duration::from_millis(100)).await;
+            }
+
+            // future which visits all providers as they fulfill their requests
+            let mut unordered = self.populate_unordered_future(method, &params);
+
+            while let Some(resp) = unordered.next().await {
+                match categorize_client_response(method, resp) {
+                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    NonRetryableErr(e) | RetryableErr(e) | RateLimitErr(e) => {
+                        errors.push(e.into());
+                    }
+                }
+            }
+        }
+
+        Err(FallbackError::AllProvidersFailed(errors).into())
+    }
+
+    async fn fallback<T, R>(&self, method: &str, params: T) -> Result<R, ProviderError>
+    where
+        T: Serialize,
+        R: DeserializeOwned,
+    {
+        use CategorizedResponse::*;
+
+        let params = serde_json::to_value(params).expect("valid");
+
+        let mut errors = vec![];
+        // make sure we do at least 4 total retries.
+        while errors.len() <= 3 {
+            if !errors.is_empty() {
+                sleep(Duration::from_millis(100)).await;
+            }
+            let priorities_snapshot = self.take_priorities_snapshot().await;
+            for (idx, priority) in priorities_snapshot.iter().enumerate() {
+                let provider = &self.inner.providers[priority.index];
+                let fut = Self::provider_request(provider, method, &params);
+                let resp = fut.await;
+                self.handle_stalled_provider(priority, provider).await;
+                let _span =
+                    warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+
+                match categorize_client_response(method, resp) {
+                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
+                    NonRetryableErr(e) => return Err(e.into()),
+                }
+            }
+        }
+
+        Err(FallbackError::AllProvidersFailed(errors).into())
+    }
+
     async fn provider_request<'a>(
         provider: &'a C,
         method: &'a str,
@@ -187,8 +188,21 @@ where
     ) -> Result<Value, HttpClientError> {
         match params {
             Value::Null => provider.request(method, ()).await,
-            _ => provider.request(method, &params).await,
+            _ => provider.request(method, params).await,
         }
+    }
+
+    fn populate_unordered_future<'a>(
+        &'a self,
+        method: &'a str,
+        params: &'a Value,
+    ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + '_> {
+        let unordered = FuturesUnordered::new();
+        self.inner
+            .providers
+            .iter()
+            .for_each(|p| unordered.push(Self::provider_request(p, method, params)));
+        unordered
     }
 }
 
