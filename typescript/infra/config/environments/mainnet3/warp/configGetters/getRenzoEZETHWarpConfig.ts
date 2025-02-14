@@ -488,5 +488,5 @@ export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
   };
 }
 
-export const getRenzoGnosisSafeBuilderStrategyConfig =
+export const getEZETHGnosisSafeBuilderStrategyConfig =
   getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
