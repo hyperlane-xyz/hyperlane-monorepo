@@ -63,7 +63,8 @@ pub struct RelayerSettings {
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
     pub metric_app_contexts: Vec<(MatchingList, String)>,
-    pub max_message_retries: u32,
+    /// Maximum number of retries per operation
+    pub max_retries: u32,
 }
 
 /// Config for gas payment enforcement
@@ -329,7 +330,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
             metric_app_contexts,
-            max_message_retries,
+            max_retries: max_message_retries,
         })
     }
 }

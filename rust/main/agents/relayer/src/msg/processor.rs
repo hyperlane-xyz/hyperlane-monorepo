@@ -40,7 +40,7 @@ pub struct MessageProcessor {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Vec<(MatchingList, String)>,
     nonce_iterator: ForwardBackwardIterator,
-    max_message_retries: u32,
+    max_retries: u32,
 }
 
 #[derive(Debug)]
@@ -300,7 +300,7 @@ impl ProcessorExt for MessageProcessor {
                 msg,
                 self.destination_ctxs[&destination].clone(),
                 app_context,
-                self.max_message_retries,
+                self.max_retries,
             );
             if let Some(pending_msg) = pending_msg {
                 self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
@@ -323,7 +323,7 @@ impl MessageProcessor {
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Vec<(MatchingList, String)>,
-        max_message_retries: u32,
+        max_retries: u32,
     ) -> Self {
         Self {
             message_whitelist,
@@ -334,7 +334,7 @@ impl MessageProcessor {
             destination_ctxs,
             metric_app_contexts,
             nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
-            max_message_retries,
+            max_retries,
         }
     }
 

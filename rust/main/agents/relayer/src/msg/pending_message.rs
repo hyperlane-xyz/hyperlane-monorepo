@@ -67,7 +67,7 @@ pub struct PendingMessage {
     status: PendingOperationStatus,
     app_context: Option<String>,
     #[serde(skip_serializing)]
-    max_message_retries: u32,
+    max_retries: u32,
     #[new(default)]
     submitted: bool,
     #[new(default)]
@@ -525,21 +525,14 @@ impl PendingMessage {
         message: HyperlaneMessage,
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
-        max_message_retries: u32,
+        max_retries: u32,
     ) -> Option<Self> {
-        let num_retries =
-            Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_message_retries)?;
+        let num_retries = Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_retries)?;
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
-        let mut pending_message = Self::new(
-            message,
-            ctx,
-            message_status,
-            app_context,
-            max_message_retries,
-        );
+        let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
             let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries, max_message_retries, None)
+                PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
                     .map(|dur| Instant::now() + dur);
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
@@ -550,10 +543,10 @@ impl PendingMessage {
     fn get_retries_or_skip(
         origin_db: Arc<dyn HyperlaneDb>,
         message: &HyperlaneMessage,
-        max_message_retries: u32,
+        max_retries: u32,
     ) -> Option<u32> {
         let num_retries = Self::get_num_retries(origin_db.clone(), message);
-        if Self::should_skip(num_retries, max_message_retries) {
+        if Self::should_skip(num_retries, max_retries) {
             return None;
         }
         Some(num_retries)
@@ -662,7 +655,7 @@ impl PendingMessage {
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
-            self.max_message_retries,
+            self.max_retries,
             Some(self.message.id()),
         )
         .map(|dur| self.last_attempted_at + dur);
@@ -688,7 +681,7 @@ impl PendingMessage {
     /// `pub(crate)` for testing purposes
     pub(crate) fn calculate_msg_backoff(
         num_retries: u32,
-        max_message_retries: u32,
+        max_retries: u32,
         message_id: Option<H256>,
     ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
@@ -703,7 +696,7 @@ impl PendingMessage {
             // wait 60min for the next 5 attempts
             i if (45..50).contains(&i) => 60 * 60,
             // linearly increase the backoff time, adding 1h for each additional attempt
-            i if (50..max_message_retries).contains(&i) => {
+            i if (50..max_retries).contains(&i) => {
                 let hour: u64 = 60 * 60;
                 let two_hours: u64 = hour * 2;
                 // To be extra safe, `max` to make sure it's at least 2 hours.
@@ -719,7 +712,7 @@ impl PendingMessage {
                 if let Some(message_id) = message_id {
                     warn!(
                         message_id = ?message_id,
-                        ?max_message_retries,
+                        ?max_retries,
                         "Message has been retried too many times, skipping",
                     );
                 }
