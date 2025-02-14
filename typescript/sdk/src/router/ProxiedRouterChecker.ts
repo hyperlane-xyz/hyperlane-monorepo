@@ -1,4 +1,4 @@
-import { AddressesMap, HyperlaneContracts } from '../contracts/types.js';
+import { AddressesMap } from '../contracts/types.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneRouterChecker } from './HyperlaneRouterChecker.js';
@@ -30,18 +30,11 @@ export abstract class ProxiedRouterChecker<
     );
   }
 
-  async proxiedContracts(
-    chain: ChainName,
-  ): Promise<HyperlaneContracts<Factories>> {
-    return this.app.getContracts(chain);
-  }
-
   async checkProxiedContracts(chain: ChainName): Promise<void> {
     return super.checkProxiedContracts(
       chain,
       this.configMap[chain].owner,
       this.getOwnableOverrides(chain),
-      this.proxiedContracts(chain),
     );
   }
 
