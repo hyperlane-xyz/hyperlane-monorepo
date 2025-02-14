@@ -458,6 +458,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             .unwrap_or(false)
                         {
                             // Skip validation for testnet chain
+                            println!(
+                                "Skipping metadata URI validation for testnet chain: {}",
+                                chain
+                            );
                             continue;
                         }
                         panic!("URI not provided for token: {}", chain);
