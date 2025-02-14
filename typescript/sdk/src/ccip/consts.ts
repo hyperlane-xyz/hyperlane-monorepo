@@ -21,13 +21,6 @@ export type CCIPAddresses = {
   };
 };
 
-// ABI for CCIP's IRouterClient interface
-// https://github.com/smartcontractkit/chainlink/blob/2724ef8937488de77b320e4e9692ed0dcb3a165a/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol#L6-L39
-export const CCIP_ROUTER_CLIENT_ABI = [
-  'function isChainSupported(uint64 chainSelector) external view returns (bool)',
-  'function getSupportedTokens(uint64 chainSelector) external view returns (address[] memory tokens)',
-];
-
 // Copied from chainlink docs repo
 // https://github.com/smartcontractkit/documentation/blob/0ffd661733de2b946011dd3279011a79a25a31e0/src/config/data/ccip/v1_2_0/mainnet/chains.json
 export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
