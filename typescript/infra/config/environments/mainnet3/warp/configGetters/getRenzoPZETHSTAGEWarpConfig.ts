@@ -3,6 +3,7 @@ import { pick } from '@hyperlane-xyz/utils';
 import { ezEthStagingSafes } from './getRenzoEZETHSTAGEWarpConfig.js';
 import {
   ezEthValidators,
+  getRenzoGnosisSafeBuilderStrategyConfigGenerator,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
@@ -32,3 +33,6 @@ export const getRenzoPZETHStagingWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Lockbox: pzEthStagingLockbox,
   tokenPrices: pzEthStagingTokenPrices,
 });
+
+export const getPZETHSTAGEGnosisSafeBuilderStrategyConfig =
+  getRenzoGnosisSafeBuilderStrategyConfigGenerator(pzEthStagingSafes);
