@@ -9,10 +9,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_base::{
-    db::{HyperlaneDb, HyperlaneRocksDB},
-    CoreMetrics,
-};
+use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
@@ -28,6 +25,10 @@ use super::{
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
+/// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
+/// See this PR for why 66 retries means 2 weeks:
+/// https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/5468
+pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 66;
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
@@ -44,7 +45,7 @@ pub struct MessageContext {
     /// Mailbox on the destination chain.
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
-    pub origin_db: HyperlaneRocksDB,
+    pub origin_db: Arc<dyn HyperlaneDb>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<BaseMetadataBuilder>,
@@ -65,6 +66,8 @@ pub struct PendingMessage {
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
     app_context: Option<String>,
+    #[serde(skip_serializing)]
+    max_retries: u32,
     #[new(default)]
     submitted: bool,
     #[new(default)]
@@ -516,61 +519,83 @@ impl PendingOperation for PendingMessage {
 
 impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
+    /// If the message has been retried more than `max_retries`, it will return `None`.
     /// In case of failure, behaves like `Self::new(...)`.
-    pub fn from_persisted_retries(
+    pub fn maybe_from_persisted_retries(
         message: HyperlaneMessage,
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
-    ) -> Self {
-        // Attempt to fetch status about message from database
-        let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
-            Ok(Some(status)) => {
-                // This event is used for E2E tests to ensure message statuses
-                // are being properly loaded from the db
-                tracing::event!(
-                    if cfg!(feature = "test-utils") {
-                        Level::DEBUG
-                    } else {
-                        Level::TRACE
-                    },
-                    ?status,
-                    id=?message.id(),
-                    RETRIEVED_MESSAGE_LOG,
-                );
-                status
-            }
-            _ => {
-                tracing::event!(
-                    if cfg!(feature = "test-utils") {
-                        Level::DEBUG
-                    } else {
-                        Level::TRACE
-                    },
-                    "Message status not found in db"
-                );
-                PendingOperationStatus::FirstPrepareAttempt
-            }
-        };
+        max_retries: u32,
+    ) -> Option<Self> {
+        let num_retries = Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_retries)?;
+        let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
+        if num_retries > 0 {
+            let next_attempt_after =
+                PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+                    .map(|dur| Instant::now() + dur);
+            pending_message.num_retries = num_retries;
+            pending_message.next_attempt_after = next_attempt_after;
+        }
+        Some(pending_message)
+    }
 
-        let num_retries = match ctx
-            .origin_db
-            .retrieve_pending_message_retry_count_by_message_id(&message.id())
-        {
+    fn get_retries_or_skip(
+        origin_db: Arc<dyn HyperlaneDb>,
+        message: &HyperlaneMessage,
+        max_retries: u32,
+    ) -> Option<u32> {
+        let num_retries = Self::get_num_retries(origin_db.clone(), message);
+        if Self::should_skip(num_retries, max_retries) {
+            return None;
+        }
+        Some(num_retries)
+    }
+
+    pub fn should_skip(retry_count: u32, max_retries: u32) -> bool {
+        retry_count >= max_retries
+    }
+
+    fn get_num_retries(origin_db: Arc<dyn HyperlaneDb>, message: &HyperlaneMessage) -> u32 {
+        match origin_db.retrieve_pending_message_retry_count_by_message_id(&message.id()) {
             Ok(Some(num_retries)) => num_retries,
             r => {
                 trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
                 0
             }
-        };
-
-        let mut pm = Self::new(message, ctx, message_status, app_context);
-        if num_retries > 0 {
-            let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
-            pm.num_retries = num_retries;
-            pm.next_attempt_after = next_attempt_after;
         }
-        pm
+    }
+
+    fn get_message_status(
+        origin_db: Arc<dyn HyperlaneDb>,
+        message: &HyperlaneMessage,
+    ) -> PendingOperationStatus {
+        // Attempt to fetch status about message from database
+        if let Ok(Some(status)) = origin_db.retrieve_status_by_message_id(&message.id()) {
+            // This event is used for E2E tests to ensure message statuses
+            // are being properly loaded from the db
+            tracing::event!(
+                if cfg!(feature = "test-utils") {
+                    Level::DEBUG
+                } else {
+                    Level::TRACE
+                },
+                ?status,
+                id=?message.id(),
+                RETRIEVED_MESSAGE_LOG,
+            );
+            return status;
+        }
+
+        tracing::event!(
+            if cfg!(feature = "test-utils") {
+                Level::DEBUG
+            } else {
+                Level::TRACE
+            },
+            "Message status not found in db"
+        );
+        PendingOperationStatus::FirstPrepareAttempt
     }
 
     fn on_reprepare<E: Debug>(
@@ -628,8 +653,12 @@ impl PendingMessage {
     fn inc_attempts(&mut self) {
         self.set_retries(self.num_retries + 1);
         self.last_attempted_at = Instant::now();
-        self.next_attempt_after = PendingMessage::calculate_msg_backoff(self.num_retries)
-            .map(|dur| self.last_attempted_at + dur);
+        self.next_attempt_after = PendingMessage::calculate_msg_backoff(
+            self.num_retries,
+            self.max_retries,
+            Some(self.message.id()),
+        )
+        .map(|dur| self.last_attempted_at + dur);
     }
 
     fn set_retries(&mut self, retries: u32) {
@@ -650,7 +679,11 @@ impl PendingMessage {
     /// Get duration we should wait before re-attempting to deliver a message
     /// given the number of retries.
     /// `pub(crate)` for testing purposes
-    pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
+    pub(crate) fn calculate_msg_backoff(
+        num_retries: u32,
+        max_retries: u32,
+        message_id: Option<H256>,
+    ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
             i if (1..10).contains(&i) => 10,
@@ -663,7 +696,7 @@ impl PendingMessage {
             // wait 60min for the next 5 attempts
             i if (45..50).contains(&i) => 60 * 60,
             // linearly increase the backoff time, adding 1h for each additional attempt
-            _ => {
+            i if (50..max_retries).contains(&i) => {
                 let hour: u64 = 60 * 60;
                 let two_hours: u64 = hour * 2;
                 // To be extra safe, `max` to make sure it's at least 2 hours.
@@ -672,6 +705,18 @@ impl PendingMessage {
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
                 target + (rand::random::<u64>() % (6 * hour))
+            }
+            // after `max_message_retries`, the message is considered undeliverable
+            // and the backoff is set as far into the future as possible
+            _ => {
+                if let Some(message_id) = message_id {
+                    warn!(
+                        message_id = ?message_id,
+                        ?max_retries,
+                        "Message has been retried too many times, skipping",
+                    );
+                }
+                u64::MAX
             }
         }))
     }
@@ -715,9 +760,181 @@ impl MessageSubmissionMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::time::Duration;
+    use std::{fmt::Debug, sync::Arc, time::Duration};
 
-    use crate::msg::pending_message::PendingMessage;
+    use hyperlane_base::db::*;
+    use hyperlane_core::*;
+
+    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+
+    use super::PendingMessage;
+
+    mockall::mock! {
+        pub Db {
+            fn provider(&self) -> Box<dyn HyperlaneProvider>;
+        }
+
+        impl Debug for Db {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        impl HyperlaneDb for Db {
+            fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
+            fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+            fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+            fn domain(&self) -> &HyperlaneDomain;
+            fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()>;
+            fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>>;
+            fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()>;
+            fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>>;
+            fn store_dispatched_block_number_by_nonce(
+                &self,
+                nonce: &u32,
+                block_number: &u64,
+            ) -> DbResult<()>;
+            fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
+            fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
+            fn store_processed_by_gas_payment_meta(
+                &self,
+                meta: &InterchainGasPaymentMeta,
+                processed: &bool,
+            ) -> DbResult<()>;
+            fn retrieve_processed_by_gas_payment_meta(
+                &self,
+                meta: &InterchainGasPaymentMeta,
+            ) -> DbResult<Option<bool>>;
+            fn store_interchain_gas_expenditure_data_by_message_id(
+                &self,
+                message_id: &H256,
+                data: &InterchainGasExpenditureData,
+            ) -> DbResult<()>;
+            fn retrieve_interchain_gas_expenditure_data_by_message_id(
+                &self,
+                message_id: &H256,
+            ) -> DbResult<Option<InterchainGasExpenditureData>>;
+            fn store_status_by_message_id(
+                &self,
+                message_id: &H256,
+                status: &PendingOperationStatus,
+            ) -> DbResult<()>;
+            fn retrieve_status_by_message_id(
+                &self,
+                message_id: &H256,
+            ) -> DbResult<Option<PendingOperationStatus>>;
+            fn store_interchain_gas_payment_data_by_gas_payment_key(
+                &self,
+                key: &GasPaymentKey,
+                data: &InterchainGasPaymentData,
+            ) -> DbResult<()>;
+            fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
+                &self,
+                key: &GasPaymentKey,
+            ) -> DbResult<Option<InterchainGasPaymentData>>;
+            fn store_gas_payment_by_sequence(
+                &self,
+                sequence: &u32,
+                payment: &InterchainGasPayment,
+            ) -> DbResult<()>;
+            fn retrieve_gas_payment_by_sequence(
+                &self,
+                sequence: &u32,
+            ) -> DbResult<Option<InterchainGasPayment>>;
+            fn store_gas_payment_block_by_sequence(
+                &self,
+                sequence: &u32,
+                block_number: &u64,
+            ) -> DbResult<()>;
+            fn retrieve_gas_payment_block_by_sequence(&self, sequence: &u32) -> DbResult<Option<u64>>;
+            fn store_pending_message_retry_count_by_message_id(
+                &self,
+                message_id: &H256,
+                count: &u32,
+            ) -> DbResult<()>;
+            fn retrieve_pending_message_retry_count_by_message_id(
+                &self,
+                message_id: &H256,
+            ) -> DbResult<Option<u32>>;
+            fn store_merkle_tree_insertion_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+                insertion: &MerkleTreeInsertion,
+            ) -> DbResult<()>;
+            fn retrieve_merkle_tree_insertion_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+            ) -> DbResult<Option<MerkleTreeInsertion>>;
+            fn store_merkle_leaf_index_by_message_id(
+                &self,
+                message_id: &H256,
+                leaf_index: &u32,
+            ) -> DbResult<()>;
+            fn retrieve_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<Option<u32>>;
+            fn store_merkle_tree_insertion_block_number_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+                block_number: &u64,
+            ) -> DbResult<()>;
+            fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+            ) -> DbResult<Option<u64>>;
+            fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
+            fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
+
+        }
+    }
+
+    #[test]
+    fn test_calculate_msg_backoff_does_not_overflow() {
+        use super::PendingMessage;
+        use std::time::Duration;
+        let ten_weeks = Duration::from_secs(
+            chrono::Duration::weeks(10)
+                .num_seconds()
+                .try_into()
+                .unwrap(),
+        );
+
+        // the backoff should be at least 10 weeks into the future
+        // this is really an overflow check more than anything
+        assert!(PendingMessage::calculate_msg_backoff(
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            None
+        )
+        .unwrap()
+        .gt(&ten_weeks));
+    }
+
+    #[test]
+    fn db_num_retries_are_some_when_not_skipping() {
+        let mock_retries = 10;
+        let expected_retries = Some(mock_retries);
+        let max_retries = DEFAULT_MAX_MESSAGE_RETRIES;
+
+        // retry count is the same, because `max_retries` is `None`
+        assert_get_num_retries(mock_retries, expected_retries, max_retries);
+    }
+
+    #[test]
+    fn db_high_num_retries_are_not_loaded() {
+        let mock_retries = u32::MAX;
+        let expected_retries = None;
+        let max_retries = u32::MAX;
+
+        // retry count is >= than the skipping threshold so it's not loaded
+        assert_get_num_retries(mock_retries, expected_retries, max_retries);
+    }
+
+    #[test]
+    fn db_low_num_retries_are_loaded() {
+        let mock_retries = 1;
+        let expected_retries = Some(1);
+        let max_retries = u32::MAX;
+
+        // retry count is the same, because `max_retries` is `None`
+        assert_get_num_retries(mock_retries, expected_retries, max_retries);
+    }
 
     #[test]
     fn test_calculate_msg_backoff_non_decreasing() {
@@ -726,8 +943,8 @@ mod test {
 
         // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
         for i in 0..=50 {
-            let backoff_duration =
-                PendingMessage::calculate_msg_backoff(i).unwrap_or(Duration::from_secs(0));
+            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None)
+                .unwrap_or(Duration::from_secs(0));
             // Uncomment to show the impact of changes to the backoff duration:
 
             // println!(
@@ -750,5 +967,23 @@ mod test {
         let minutes = (duration_total_secs / 60) % 60;
         let hours = (duration_total_secs / 60) / 60;
         format!("{}:{}:{}", hours, minutes, seconds)
+    }
+
+    fn dummy_db_with_retries(retries: u32) -> MockDb {
+        let mut db = MockDb::new();
+        db.expect_retrieve_pending_message_retry_count_by_message_id()
+            .returning(move |_| Ok(Some(retries)));
+        db
+    }
+
+    fn assert_get_num_retries(mock_retries: u32, expected_retries: Option<u32>, max_retries: u32) {
+        let db = dummy_db_with_retries(mock_retries);
+        let num_retries = PendingMessage::get_retries_or_skip(
+            Arc::new(db),
+            &HyperlaneMessage::default(),
+            max_retries,
+        );
+
+        assert_eq!(num_retries, expected_retries);
     }
 }
