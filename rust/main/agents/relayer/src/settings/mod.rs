@@ -22,7 +22,9 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::settings::matching_list::MatchingList;
+use crate::{
+    msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES, settings::matching_list::MatchingList,
+};
 
 pub mod matching_list;
 
@@ -61,6 +63,8 @@ pub struct RelayerSettings {
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
     pub metric_app_contexts: Vec<(MatchingList, String)>,
+    /// Maximum number of retries per operation
+    pub max_retries: u32,
 }
 
 /// Config for gas payment enforcement
@@ -307,6 +311,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_default();
 
+        let max_message_retries = p
+            .chain(&mut err)
+            .get_opt_key("maxMessageRetries")
+            .parse_u32()
+            .unwrap_or(DEFAULT_MAX_MESSAGE_RETRIES);
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -320,6 +330,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
             metric_app_contexts,
+            max_retries: max_message_retries,
         })
     }
 }
