@@ -519,7 +519,7 @@ impl PendingOperation for PendingMessage {
 
 impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
-    /// If the message has been retried more than `retries_before_skipping`, it will return `None`.
+    /// If the message has been retried more than `max_retries`, it will return `None`.
     /// In case of failure, behaves like `Self::new(...)`.
     pub fn maybe_from_persisted_retries(
         message: HyperlaneMessage,
@@ -552,8 +552,8 @@ impl PendingMessage {
         Some(num_retries)
     }
 
-    pub fn should_skip(retry_count: u32, retries_before_skipping: u32) -> bool {
-        retry_count >= retries_before_skipping
+    pub fn should_skip(retry_count: u32, max_retries: u32) -> bool {
+        retry_count >= max_retries
     }
 
     fn get_num_retries(origin_db: Arc<dyn HyperlaneDb>, message: &HyperlaneMessage) -> u32 {
@@ -910,30 +910,30 @@ mod test {
     fn db_num_retries_are_some_when_not_skipping() {
         let mock_retries = 10;
         let expected_retries = Some(mock_retries);
-        let retries_before_skipping = DEFAULT_MAX_MESSAGE_RETRIES;
+        let max_retries = DEFAULT_MAX_MESSAGE_RETRIES;
 
-        // retry count is the same, because `retries_before_skipping` is `None`
-        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
+        // retry count is the same, because `max_retries` is `None`
+        assert_get_num_retries(mock_retries, expected_retries, max_retries);
     }
 
     #[test]
     fn db_high_num_retries_are_not_loaded() {
         let mock_retries = u32::MAX;
         let expected_retries = None;
-        let retries_before_skipping = u32::MAX;
+        let max_retries = u32::MAX;
 
         // retry count is >= than the skipping threshold so it's not loaded
-        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
+        assert_get_num_retries(mock_retries, expected_retries, max_retries);
     }
 
     #[test]
     fn db_low_num_retries_are_loaded() {
         let mock_retries = 1;
         let expected_retries = Some(1);
-        let retries_before_skipping = u32::MAX;
+        let max_retries = u32::MAX;
 
-        // retry count is the same, because `retries_before_skipping` is `None`
-        assert_get_num_retries(mock_retries, expected_retries, retries_before_skipping);
+        // retry count is the same, because `max_retries` is `None`
+        assert_get_num_retries(mock_retries, expected_retries, max_retries);
     }
 
     #[test]
@@ -976,16 +976,12 @@ mod test {
         db
     }
 
-    fn assert_get_num_retries(
-        mock_retries: u32,
-        expected_retries: Option<u32>,
-        retries_before_skipping: u32,
-    ) {
+    fn assert_get_num_retries(mock_retries: u32, expected_retries: Option<u32>, max_retries: u32) {
         let db = dummy_db_with_retries(mock_retries);
         let num_retries = PendingMessage::get_retries_or_skip(
             Arc::new(db),
             &HyperlaneMessage::default(),
-            retries_before_skipping,
+            max_retries,
         );
 
         assert_eq!(num_retries, expected_retries);
