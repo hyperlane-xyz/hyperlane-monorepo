@@ -118,6 +118,7 @@ pub struct ChainMetadata {
     name: String,
     /// Collection of RPC endpoints
     rpc_urls: Vec<RpcUrlConfig>,
+    pub is_testnet: Option<bool>,
 }
 
 impl ChainMetadata {

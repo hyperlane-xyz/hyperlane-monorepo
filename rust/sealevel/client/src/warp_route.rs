@@ -442,13 +442,27 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         _ctx: &mut Context,
         _app_configs: &HashMap<String, TokenConfig>,
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
-        _chain_configs: &HashMap<String, ChainMetadata>,
+        chain_configs: &HashMap<String, ChainMetadata>,
     ) {
         // We only have validations for SVM tokens at the moment.
-        for (_, config) in app_configs_to_deploy.iter() {
+        for (chain, config) in app_configs_to_deploy.iter() {
             if let TokenType::Synthetic(synthetic) = &config.token_type {
                 // Verify that the metadata URI provided points to a valid JSON file.
-                let metadata_uri = synthetic.uri.as_ref().expect("URI not provided");
+                let metadata_uri = match synthetic.uri.as_ref() {
+                    Some(uri) => uri,
+                    None => {
+                        if chain_configs
+                            .get(*chain)
+                            .unwrap()
+                            .is_testnet
+                            .unwrap_or(false)
+                        {
+                            // Skip validation for testnet chain
+                            continue;
+                        }
+                        panic!("URI not provided for token: {}", chain);
+                    }
+                };
                 println!("Validating metadata URI: {}", metadata_uri);
                 let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
                 let metadata_contents: SplTokenOffchainMetadata = metadata_response
