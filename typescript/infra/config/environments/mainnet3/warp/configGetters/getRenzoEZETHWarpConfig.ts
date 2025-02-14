@@ -388,7 +388,7 @@ export function getRenzoWarpConfigGenerator(params: {
 
     if (tokenPriceDiff.size > 0) {
       throw new Error(
-        `chainsToDeploy !== xERC20Diff, diff is ${Array.from(
+        `chainsToDeploy !== tokenPriceDiff, diff is ${Array.from(
           tokenPriceDiff,
         ).join(', ')}`,
       );
