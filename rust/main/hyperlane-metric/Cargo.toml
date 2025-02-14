@@ -13,10 +13,6 @@ derive-new.workspace = true
 derive_builder.workspace = true
 maplit.workspace = true
 prometheus.workspace = true
-reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-solana-client.workspace = true
-tracing.workspace = true
-tokio = { workspace = true, features = ["time"] }
 url.workspace = true

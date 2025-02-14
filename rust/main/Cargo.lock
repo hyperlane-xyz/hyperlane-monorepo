@@ -4773,12 +4773,8 @@ dependencies = [
  "derive_builder",
  "maplit",
  "prometheus",
- "reqwest",
  "serde",
  "serde_json",
- "solana-client",
- "tokio",
- "tracing",
  "url",
 ]
 
