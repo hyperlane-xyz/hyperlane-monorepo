@@ -13,10 +13,7 @@ use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
-use hyperlane_base::{
-    db::{HyperlaneDb, HyperlaneRocksDB},
-    CoreMetrics,
-};
+use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
