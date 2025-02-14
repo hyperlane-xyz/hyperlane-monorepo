@@ -154,7 +154,13 @@ async fn test_below_minimum() {
     .await;
 
     // then
-    assert_eq!(report.unwrap(), AmountBelowMinimum(minimum, amount));
+    assert_eq!(
+        report.unwrap(),
+        AmountBelowMinimum {
+            minimum,
+            actual: amount,
+        }
+    );
 }
 
 #[tokio::test]

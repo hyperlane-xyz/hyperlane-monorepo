@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use async_trait::async_trait;
 use derive_new::new;
-use tracing::debug;
+use tracing::trace;
 
 use hyperlane_core::{Decode, HyperlaneMessage, HyperlaneProvider, U256};
 use hyperlane_operation_verifier::{
@@ -23,7 +23,7 @@ impl ApplicationOperationVerifier for CosmosApplicationOperationVerifier {
         app_context: &Option<String>,
         message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
-        debug!(
+        trace!(
             ?app_context,
             ?message,
             "Cosmos application operation verifier",

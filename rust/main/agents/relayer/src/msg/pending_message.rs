@@ -698,7 +698,7 @@ impl PendingMessage {
             .await
         {
             Some(r) => {
-                info!(original = ?reason, report = ?r, app = ?self.app_context, message = ?self.message, "Clarifying reprepare reason with application report");
+                debug!(original = ?reason, report = ?r, app = ?self.app_context, message = ?self.message, "Clarifying reprepare reason with application report");
                 Some(ApplicationReport(r.into()))
             }
             None => None,

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use lazy_static::lazy_static;
 use solana_sdk::pubkey::Pubkey;
-use tracing::debug;
+use tracing::trace;
 
 use hyperlane_core::{
     utils::hex_or_base58_to_h256, ChainResult, Decode, HyperlaneMessage, H256, U256,
@@ -45,7 +45,7 @@ impl ApplicationOperationVerifier for SealevelApplicationOperationVerifier {
         app_context: &Option<String>,
         message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
-        debug!(
+        trace!(
             ?app_context,
             ?message,
             "Sealevel application operation verifier",
@@ -73,7 +73,7 @@ impl SealevelApplicationOperationVerifier {
     async fn verify_message<F, Fut>(
         app_context: &Option<String>,
         message: &HyperlaneMessage,
-        check_account_exists_and_get_minimum: F,
+        check_account_does_not_exist_and_get_minimum: F,
     ) -> Option<ApplicationOperationVerifierReport>
     where
         F: FnOnce(H256) -> Fut,
@@ -83,7 +83,7 @@ impl SealevelApplicationOperationVerifier {
 
         Self::verify_context(app_context)?;
 
-        // Starting from this point we assume that we are in a warp route context
+        // Starting from this point we assume that we are in a native warp route context
 
         NATIVE_WARP_ROUTES.get(&message.recipient)?;
 
@@ -93,10 +93,14 @@ impl SealevelApplicationOperationVerifier {
             Err(_) => return Some(MalformedMessage(message.clone())),
         };
 
-        let minimum = check_account_exists_and_get_minimum(token_message.recipient()).await?;
+        let minimum =
+            check_account_does_not_exist_and_get_minimum(token_message.recipient()).await?;
 
         if token_message.amount() < minimum {
-            return Some(AmountBelowMinimum(minimum, token_message.amount()));
+            return Some(AmountBelowMinimum {
+                minimum,
+                actual: token_message.amount(),
+            });
         }
 
         None
