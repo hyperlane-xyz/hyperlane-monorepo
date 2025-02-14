@@ -254,9 +254,9 @@ async function main() {
       throw new Error('CCIP is only supported on mainnet3');
     }
     config = Object.fromEntries(
-      targetNetworks.map((origin) => [
+      filteredTargetNetworks.map((origin) => [
         origin,
-        new Set(targetNetworks.filter((chain) => chain !== origin)),
+        new Set(filteredTargetNetworks.filter((chain) => chain !== origin)),
       ]),
     );
     deployer = new HyperlaneCCIPDeployer(

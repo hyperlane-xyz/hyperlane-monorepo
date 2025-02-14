@@ -121,6 +121,7 @@ export async function isSupportedCCIPLane({
 }): Promise<boolean> {
   const originRouter = getCCIPRouterAddress(origin);
   const destinationSelector = getCCIPChainSelector(destination);
+
   if (!originRouter || !destinationSelector) {
     return false;
   }
@@ -130,5 +131,6 @@ export async function isSupportedCCIPLane({
     CCIP_ROUTER_CLIENT_ABI,
     signer,
   );
+
   return ccipRouter.isChainSupported(destinationSelector);
 }
