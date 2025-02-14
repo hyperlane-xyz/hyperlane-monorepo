@@ -100,14 +100,22 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       )}`,
     );
 
-    return Array.from(config).filter(async (destination) => {
-      const isSupported = await isSupportedCCIPLane({
-        origin,
-        destination,
-        multiProvider: this.multiProvider,
-      });
-      return !isSupported;
-    });
+    // Check if the CCIP lane is supported for each destination chain
+    const isSupportedLane = await Promise.all(
+      Array.from(config).map(async (destination) => {
+        const isSupported = await isSupportedCCIPLane({
+          origin,
+          destination,
+          multiProvider: this.multiProvider,
+        });
+        return { destination, isSupported };
+      }),
+    );
+
+    // Return the destination chains that are not supported
+    return isSupportedLane
+      .filter((result) => !result.isSupported)
+      .map((result) => result.destination);
   }
 
   private async authorizeHook(origin: ChainName, destination: ChainName) {
