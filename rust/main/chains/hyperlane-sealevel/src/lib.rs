@@ -25,6 +25,7 @@ mod keypair;
 mod log_meta_composer;
 mod mailbox;
 mod merkle_tree_hook;
+mod metric;
 mod multisig_ism;
 mod priority_fee;
 mod provider;

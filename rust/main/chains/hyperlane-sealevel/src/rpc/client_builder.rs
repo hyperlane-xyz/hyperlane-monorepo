@@ -1,10 +1,9 @@
-use hyperlane_metric::{
-    prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig},
-    sealevel::prometheus_sender::PrometheusSealevelRpcSender,
-};
+use hyperlane_metric::prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig};
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_client::RpcClientConfig};
 use solana_sdk::commitment_config::CommitmentConfig;
 use url::Url;
+
+use crate::metric::prometheus_sender::PrometheusSealevelRpcSender;
 
 use super::SealevelRpcClient;
 
