@@ -1,6 +1,7 @@
 import {
   chainsToDeploy,
   getRenzoEZETHWarpConfigGenerator,
+  getRenzoGnosisSafeBuilderStrategyConfigGenerator,
 } from './getRenzoEZETHWarpConfig.js';
 
 const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
@@ -17,6 +18,8 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   taiko: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   sei: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   swell: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  unichain: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  berachain: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
 };
 
 export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
@@ -33,6 +36,8 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   taiko: '0x31FF35F84ADB120DbE089D190F03Ac74731Ae83F',
   sei: '0xa30FF77d30Eb2d785f574344B4D11CAAe1949807',
   swell: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115',
+  unichain: '0x9D5FCF39FF17a67eB9CB4505f83920519EfEB01B',
+  berachain: '0xf013c8Be28421b050cca5bD95cc57Af49568e8be',
 };
 
 const xERC20StagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
@@ -41,3 +46,6 @@ export const getRenzoEZETHSTAGEWarpConfig = getRenzoEZETHWarpConfigGenerator(
   xERC20,
   xERC20StagingLockbox,
 );
+
+export const getRenzoGnosisSafeBuilderStagingStrategyConfig =
+  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
