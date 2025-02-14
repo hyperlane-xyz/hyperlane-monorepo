@@ -59,6 +59,9 @@
       "0xb144bb2f599a5af095bc30367856f27ea8a8adc7"
     ]
   },
+  "berachain": {
+    "validators": ["0x0190915c55d9c7555e6d2cb838f04d18b5e2260e"]
+  },
   "bitlayer": {
     "validators": ["0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f"]
   },

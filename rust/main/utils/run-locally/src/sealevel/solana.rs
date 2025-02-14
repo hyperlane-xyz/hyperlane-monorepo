@@ -10,8 +10,11 @@ use tempfile::{tempdir, NamedTempFile};
 
 use crate::logging::log;
 use crate::program::Program;
-use crate::utils::{as_task, concat_path, AgentHandles, ArbitraryData, TaskHandle};
-use crate::SOLANA_AGNET_BIN_PATH;
+use crate::utils::{
+    as_task, concat_path, get_sealevel_path, get_workspace_path, AgentHandles, TaskHandle,
+};
+
+pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 
 /// Solana CLI version for compiling programs
 pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
@@ -54,13 +57,12 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-igp",
 ];
 
-const SOLANA_KEYPAIR: &str = "../main/config/test-sealevel-keys/test_deployer-keypair.json";
-const SOLANA_DEPLOYER_ACCOUNT: &str =
-    "../main/config/test-sealevel-keys/test_deployer-account.json";
+const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
+const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
-    "../sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
-const SOLANA_CHAIN_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/chain-config.json";
-const SOLANA_ENVS_DIR: &str = "../sealevel/environments";
+    "environments/local-e2e/warp-routes/testwarproute/token-config.json";
+const SOLANA_CHAIN_CONFIG_FILE: &str = "environments/local-e2e/chain-config.json";
+const SOLANA_ENVS_DIR: &str = "environments";
 
 const SOLANA_ENV_NAME: &str = "local-e2e";
 
@@ -76,17 +78,16 @@ const SEALEVELTEST2_IGP_PROGRAM_ID: &str = "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
     "/tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
-const SOLANA_GAS_ORACLE_CONFIG_FILE: &str =
-    "../sealevel/environments/local-e2e/gas-oracle-configs.json";
+const SOLANA_GAS_ORACLE_CONFIG_FILE: &str = "environments/local-e2e/gas-oracle-configs.json";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
 pub fn install_solana_cli_tools(
     release_url: String,
     release_version: String,
-) -> (PathBuf, impl ArbitraryData) {
+    tools_dir: PathBuf,
+) -> PathBuf {
     let solana_download_dir = tempdir().unwrap();
-    let solana_tools_dir = tempdir().unwrap();
     log!(
         "Downloading solana cli release v{} from {}",
         release_version,
@@ -132,19 +133,20 @@ pub fn install_solana_cli_tools(
 
     fs::rename(
         concat_path(&solana_download_dir, "solana-release"),
-        &solana_tools_dir,
+        &tools_dir,
     )
     .expect("Failed to move solana-release dir");
-    (concat_path(&solana_tools_dir, "bin"), solana_tools_dir)
+    concat_path(&tools_dir, "bin")
 }
 
 #[apply(as_task)]
 pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
-    let out_path = Path::new(SBF_OUT_PATH);
+    let workspace_path = get_workspace_path();
+    let out_path = concat_path(&workspace_path, SBF_OUT_PATH);
     if out_path.exists() {
-        fs::remove_dir_all(out_path).expect("Failed to remove solana program deploy dir");
+        fs::remove_dir_all(&out_path).expect("Failed to remove solana program deploy dir");
     }
-    fs::create_dir_all(out_path).expect("Failed to create solana program deploy dir");
+    fs::create_dir_all(&out_path).expect("Failed to create solana program deploy dir");
     let out_path = out_path.canonicalize().unwrap();
 
     Program::new("curl")
@@ -167,19 +169,18 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
         .expect("Failed to remove solana program archive");
 
-    let build_sbf = Program::new(
-        concat_path(&solana_cli_tools_path, "cargo-build-sbf")
-            .to_str()
-            .unwrap(),
-    )
-    .env("PATH", updated_path(&solana_cli_tools_path))
-    .env("SBF_OUT_PATH", out_path.to_str().unwrap());
+    let bin_path = concat_path(&solana_cli_tools_path, "cargo-build-sbf");
+    let build_sbf = Program::new(bin_path).env("SBF_OUT_PATH", out_path.to_str().unwrap());
+
+    let workspace_path = get_workspace_path();
+    let sealevel_path = get_sealevel_path(&workspace_path);
+    let sealevel_programs = concat_path(sealevel_path, "programs");
 
     // build our programs
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()
-            .working_dir(concat_path("../sealevel/programs", path))
+            .working_dir(concat_path(&sealevel_programs, path))
             .run()
             .join();
     }
@@ -193,11 +194,34 @@ pub fn start_solana_test_validator(
     solana_programs_path: PathBuf,
     ledger_dir: PathBuf,
 ) -> (PathBuf, AgentHandles) {
+    let workspace_path = get_workspace_path();
+    let sealevel_path = get_sealevel_path(&workspace_path);
+
+    let solana_deployer_account = concat_path(&workspace_path, SOLANA_DEPLOYER_ACCOUNT);
+    let solana_deployer_account_str = solana_deployer_account.to_string_lossy();
+
+    let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
+    let solana_env_dir_str = solana_env_dir.to_string_lossy();
+
+    let solana_chain_config_file = concat_path(&sealevel_path, SOLANA_CHAIN_CONFIG_FILE);
+    let solana_chain_config_file_str = solana_chain_config_file.to_string_lossy();
+
+    let solana_warproute_token_config_file =
+        concat_path(&sealevel_path, SOLANA_WARPROUTE_TOKEN_CONFIG_FILE);
+    let solana_warproute_token_config_file_str =
+        solana_warproute_token_config_file.to_string_lossy();
+
+    let solana_gas_oracle_config_file = concat_path(&sealevel_path, SOLANA_GAS_ORACLE_CONFIG_FILE);
+    let solana_gas_oracle_config_file_str = solana_gas_oracle_config_file.to_string_lossy();
+
+    let build_so_dir = concat_path(&workspace_path, SBF_OUT_PATH);
+    let build_so_dir_str = build_so_dir.to_string_lossy();
     // init solana config
     let solana_config = NamedTempFile::new().unwrap().into_temp_path();
     let solana_config_path = solana_config.to_path_buf();
+
     Program::new(concat_path(&solana_cli_tools_path, "solana"))
-        .arg("config", solana_config.to_str().unwrap())
+        .arg("config", solana_config_path.to_string_lossy())
         .cmd("config")
         .cmd("set")
         .arg("url", "localhost")
@@ -212,7 +236,7 @@ pub fn start_solana_test_validator(
         .arg3(
             "account",
             "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
-            SOLANA_DEPLOYER_ACCOUNT,
+            solana_deployer_account_str.clone(),
         )
         .remember(solana_config);
     for &(address, lib) in SOLANA_PROGRAMS {
@@ -226,16 +250,16 @@ pub fn start_solana_test_validator(
     sleep(Duration::from_secs(5));
 
     log!("Deploying the hyperlane programs to solana");
-    let sealevel_client = sealevel_client(&solana_cli_tools_path, &solana_config_path);
 
+    let sealevel_client = sealevel_client(&solana_cli_tools_path, &solana_config_path);
     let sealevel_client_deploy_core = sealevel_client
         .clone()
         .arg("compute-budget", "200000")
         .cmd("core")
         .cmd("deploy")
         .arg("environment", SOLANA_ENV_NAME)
-        .arg("environments-dir", SOLANA_ENVS_DIR)
-        .arg("built-so-dir", SBF_OUT_PATH);
+        .arg("environments-dir", solana_env_dir_str.clone())
+        .arg("built-so-dir", build_so_dir_str.clone());
 
     // Deploy sealeveltest1 core
     sealevel_client_deploy_core
@@ -256,8 +280,11 @@ pub fn start_solana_test_validator(
         .clone()
         .cmd("igp")
         .cmd("configure")
-        .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
-        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE);
+        .arg(
+            "gas-oracle-config-file",
+            solana_gas_oracle_config_file_str.clone(),
+        )
+        .arg("chain-config-file", solana_chain_config_file_str.clone());
 
     // Configure sealeveltest1 IGP
     igp_configure_command
@@ -280,10 +307,13 @@ pub fn start_solana_test_validator(
         .cmd("warp-route")
         .cmd("deploy")
         .arg("environment", SOLANA_ENV_NAME)
-        .arg("environments-dir", SOLANA_ENVS_DIR)
-        .arg("built-so-dir", SBF_OUT_PATH)
+        .arg("environments-dir", solana_env_dir_str.clone())
+        .arg("built-so-dir", build_so_dir_str.clone())
         .arg("warp-route-name", "testwarproute")
-        .arg("token-config-file", SOLANA_WARPROUTE_TOKEN_CONFIG_FILE)
+        .arg(
+            "token-config-file",
+            solana_warproute_token_config_file_str.clone(),
+        )
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
@@ -325,7 +355,7 @@ pub fn start_solana_test_validator(
         .cmd("init-igp-account")
         .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("environment", SOLANA_ENV_NAME)
-        .arg("environments-dir", SOLANA_ENVS_DIR)
+        .arg("environments-dir", solana_env_dir_str)
         .arg("chain", "sealeveltest1")
         .arg("account-salt", ALTERNATIVE_SALT)
         .run()
@@ -348,7 +378,7 @@ pub fn start_solana_test_validator(
         .cmd("igp")
         .cmd("configure")
         .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
-        .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
+        .arg("gas-oracle-config-file", solana_gas_oracle_config_file_str)
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
         .arg("chain", "sealeveltest1")
         .arg("account-salt", ALTERNATIVE_SALT)
@@ -366,9 +396,13 @@ pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) -> String {
+    let workspace_path = get_workspace_path();
+    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let solana_keypair_str = solana_keypair.to_string_lossy();
+
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
-        .arg("keypair", SOLANA_KEYPAIR)
+        .arg("keypair", solana_keypair_str.clone())
         .cmd("address")
         .run_with_output()
         .join()
@@ -380,7 +414,7 @@ pub fn initiate_solana_hyperlane_transfer(
     let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
         .cmd("transfer-remote")
-        .cmd(SOLANA_KEYPAIR)
+        .cmd(solana_keypair_str.clone())
         .cmd("10000000000")
         .cmd(SOLANA_REMOTE_CHAIN_ID)
         .cmd(sender) // send to self
@@ -411,9 +445,13 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) -> String {
+    let workspace_path = get_workspace_path();
+    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let solana_keypair_str = solana_keypair.to_string_lossy();
+
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
-        .arg("keypair", SOLANA_KEYPAIR)
+        .arg("keypair", solana_keypair_str.clone())
         .cmd("address")
         .run_with_output()
         .join()
@@ -425,7 +463,7 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
     let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
         .cmd("transfer-remote")
-        .cmd(SOLANA_KEYPAIR)
+        .cmd(solana_keypair_str)
         .cmd("10000000000")
         .cmd(SOLANA_REMOTE_CHAIN_ID)
         .cmd(sender) // send to self
@@ -491,17 +529,21 @@ pub fn solana_termination_invariants_met(
         .contains("Message delivered")
 }
 fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
+    let workspace_path = get_workspace_path();
+    let sealevel_path = get_sealevel_path(&workspace_path);
+
+    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let solana_keypair_str = solana_keypair.to_string_lossy();
+
     Program::new(concat_path(
-        SOLANA_AGNET_BIN_PATH,
-        "hyperlane-sealevel-client",
+        &sealevel_path,
+        format!("{}/hyperlane-sealevel-client", SOLANA_AGENT_BIN_PATH),
     ))
+    .working_dir(sealevel_path.clone())
     .env("PATH", updated_path(solana_cli_tools_path))
     .env("RUST_BACKTRACE", "1")
     .arg("config", solana_config_path.to_str().unwrap())
-    .arg(
-        "keypair",
-        "config/test-sealevel-keys/test_deployer-keypair.json",
-    )
+    .arg("keypair", solana_keypair_str)
 }
 
 fn updated_path(solana_cli_tools_path: &Path) -> String {

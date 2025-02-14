@@ -25,7 +25,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
@@ -273,10 +273,20 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
             }
         };
-        self.metadata = metadata.clone();
 
-        let Some(metadata) = metadata else {
-            return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
+        let metadata_bytes = match metadata {
+            Metadata::Found(metadata_bytes) => {
+                self.metadata = Some(metadata_bytes.clone());
+                metadata_bytes
+            }
+            Metadata::CouldNotFetch => {
+                return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
+            }
+            // If the metadata building is refused, we still allow it to be retried later.
+            Metadata::Refused(reason) => {
+                warn!(?reason, "Metadata building refused");
+                return self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
+            }
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -286,7 +296,7 @@ impl PendingOperation for PendingMessage {
         let tx_cost_estimate = match self
             .ctx
             .destination_mailbox
-            .process_estimate_costs(&self.message, &metadata)
+            .process_estimate_costs(&self.message, &metadata_bytes)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
@@ -334,7 +344,7 @@ impl PendingOperation for PendingMessage {
         }
 
         self.submission_data = Some(Box::new(MessageSubmissionData {
-            metadata,
+            metadata: metadata_bytes,
             gas_limit,
         }));
         PendingOperationResult::Success
@@ -643,24 +653,25 @@ impl PendingMessage {
     pub(crate) fn calculate_msg_backoff(num_retries: u32) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
-            // wait 10s for the first few attempts; this prevents thrashing
-            i if (1..12).contains(&i) => 10,
-            // wait 90s to 19.5min with a linear increase
-            i if (12..24).contains(&i) => (i as u64 - 11) * 90,
-            // wait 30min for the next 12 attempts
-            i if (24..36).contains(&i) => 60 * 30,
-            // wait 60min for the next 12 attempts
-            i if (36..48).contains(&i) => 60 * 60,
-            // linearly increase the backoff time after 48 attempts,
-            // adding 1h for each additional attempt
+            i if (1..10).contains(&i) => 10,
+            i if (10..15).contains(&i) => 90,
+            i if (15..25).contains(&i) => 60 * 2,
+            // linearly increase from 2min to ~25min, adding 1.5min for each additional attempt
+            i if (25..40).contains(&i) => (i as u64 - 23) * 90,
+            // wait 30min for the next 5 attempts
+            i if (40..45).contains(&i) => 60 * 30,
+            // wait 60min for the next 5 attempts
+            i if (45..50).contains(&i) => 60 * 60,
+            // linearly increase the backoff time, adding 1h for each additional attempt
             _ => {
                 let hour: u64 = 60 * 60;
-                // To be extra safe, `max` to make sure it's at least 1 hour.
-                let target = hour.max((num_retries - 47) as u64 * hour);
-                // Schedule it at some random point in the next hour to
+                let two_hours: u64 = hour * 2;
+                // To be extra safe, `max` to make sure it's at least 2 hours.
+                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
+                // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
-                // at the exact same time.
-                target + (rand::random::<u64>() % hour)
+                // at the exact same time and starve new messages.
+                target + (rand::random::<u64>() % (6 * hour))
             }
         }))
     }
@@ -699,5 +710,45 @@ impl MessageSubmissionMetrics {
         // with a ST runtime
         self.last_known_nonce
             .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
+
+    use crate::msg::pending_message::PendingMessage;
+
+    #[test]
+    fn test_calculate_msg_backoff_non_decreasing() {
+        let mut cumulative = Duration::from_secs(0);
+        let mut last_backoff = Duration::from_secs(0);
+
+        // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
+        for i in 0..=50 {
+            let backoff_duration =
+                PendingMessage::calculate_msg_backoff(i).unwrap_or(Duration::from_secs(0));
+            // Uncomment to show the impact of changes to the backoff duration:
+
+            // println!(
+            //     "Retry #{}: cumulative duration from beginning is {}, since last attempt is {}",
+            //     i,
+            //     duration_fmt(&cumulative),
+            //     duration_fmt(&backoff_duration)
+            // );
+            cumulative += backoff_duration;
+
+            assert!(backoff_duration >= last_backoff);
+            last_backoff = backoff_duration;
+        }
+    }
+
+    #[allow(dead_code)]
+    fn duration_fmt(duration: &Duration) -> String {
+        let duration_total_secs = duration.as_secs();
+        let seconds = duration_total_secs % 60;
+        let minutes = (duration_total_secs / 60) % 60;
+        let hours = (duration_total_secs / 60) / 60;
+        format!("{}:{}:{}", hours, minutes, seconds)
     }
 }
