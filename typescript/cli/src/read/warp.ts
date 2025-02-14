@@ -10,6 +10,7 @@ import {
   ChainName,
   EvmERC20WarpRouteReader,
   TokenStandard,
+  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -37,18 +38,14 @@ export async function runWarpRouteRead({
   let warpCoreConfig = context.warpCoreConfig;
 
   if (warpCoreConfig) {
-    addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-    );
+    addresses = getAddressesFromWarpCoreConfig(warpCoreConfig);
   } else if (symbol || warp) {
     warpCoreConfig = await getWarpCoreConfigOrExit({
       context,
       warp,
       symbol,
     });
-    addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-    );
+    addresses = getAddressesFromWarpCoreConfig(warpCoreConfig);
   } else if (chain && address) {
     addresses = { [chain]: address };
   } else {
@@ -57,19 +54,7 @@ export async function runWarpRouteRead({
   }
 
   // Validate all chains are EVM compatible
-  const nonEvmChains = Object.entries(addresses)
-    .filter(([_, address]) => !isAddressEvm(address))
-    .map(([chain]) => chain);
-
-  if (nonEvmChains.length > 0) {
-    const chainList = nonEvmChains.join(', ');
-    logRed(
-      `${chainList} ${
-        nonEvmChains.length > 1 ? 'are' : 'is'
-      } non-EVM and not compatible with the cli`,
-    );
-    process.exit(1);
-  }
+  validateEvmCompatibility(addresses);
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
@@ -121,4 +106,30 @@ export async function runWarpRouteRead({
       ),
     ),
   );
+}
+
+// Extract addresses from WarpCoreConfig and return them as a ChainMap
+export function getAddressesFromWarpCoreConfig(
+  warpCoreConfig: WarpCoreConfig,
+): ChainMap<string> {
+  return Object.fromEntries(
+    warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+  );
+}
+
+// Check if any of the chains are non-EVM
+export function validateEvmCompatibility(addresses: ChainMap<string>): void {
+  const nonEvmChains = Object.entries(addresses)
+    .filter(([_, address]) => !isAddressEvm(address))
+    .map(([chain]) => chain);
+
+  if (nonEvmChains.length > 0) {
+    const chainList = nonEvmChains.join(', ');
+    logRed(
+      `${chainList} ${
+        nonEvmChains.length > 1 ? 'are' : 'is'
+      } non-EVM and not compatible with the cli`,
+    );
+    process.exit(1);
+  }
 }
