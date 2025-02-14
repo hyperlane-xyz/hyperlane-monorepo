@@ -55,6 +55,7 @@ hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["macros"] }
+chrono.workspace = true
 once_cell.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
