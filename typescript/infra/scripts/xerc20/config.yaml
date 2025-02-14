@@ -1,18 +1,66 @@
 base:
-  xERC20Address: '0xF93548BE3a864A6bC0CBa5051479B3dB8793e4E1'
-  bridgeAddress: '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419'
-  decimal: 18
-  bufferCap: 21000
-  rateLimitPerSecond: 100
-arbitrum:
-  xERC20Address: '0xF93548BE3a864A6bC0CBa5051479B3dB8793e4E1'
-  bridgeAddress: '0x3CDbaBE5Bf4E6cfE10A2A326E0ad31b2d16398D4'
-  decimal: 18
-  bufferCap: 30000
-  rateLimitPerSecond: 100
+  bridgeAddress: "0x78E25e7f84416e69b9339B0A6336EB6EFfF6b451"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+celo:
+  bridgeAddress: "0x7F39b38D2F0c7468cB823B16a3DF5B6BFEe5835f"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+fraxtal:
+  bridgeAddress: "0x867dda7C8636B33E151d12215ea2034fC5Fd05C6"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+ink:
+  bridgeAddress: "0xC3d9e724c6Bf3c4456EB8572Be05AA52f8acC9Ae"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+lisk:
+  bridgeAddress: "0x6c3b61e60Ff510E35Ba51D25bb2E0F90B0307E7D"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+mode:
+  bridgeAddress: "0xDBC39e44D4f21379ed4685c0204eD7C07d369b8c"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
 optimism:
-  xERC20Address: '0xF93548BE3a864A6bC0CBa5051479B3dB8793e4E1'
-  bridgeAddress: '0x0Ea3C23A4dC198c289D5443ac302335aBc86E6b1'
-  decimal: 18
+  bridgeAddress: "0xA7f05d23868CF9b69D16e877813951E0d868FF03"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+soneium:
+  bridgeAddress: "0x2783D98CC073dbcDa90241C804d16982D3d75821"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+superseed:
+  bridgeAddress: "0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+unichain:
+  bridgeAddress: "0x23D26a5Fe6671B0c13E0970c15f595CF1e9a7785"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
+  bufferCap: 25000
+  rateLimitPerSecond: 120
+worldchain:
+  bridgeAddress: "0x9bDE63104EE030d9De419EEd6bA7D14b86D6fE3f"
+  xERC20Address: "0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a"
+  decimal: 6
   bufferCap: 25000
   rateLimitPerSecond: 120
