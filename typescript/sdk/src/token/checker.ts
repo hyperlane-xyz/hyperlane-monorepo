@@ -5,10 +5,12 @@ import {
   ERC20__factory,
   HypERC20Collateral,
   IXERC20Lockbox__factory,
+  Ownable,
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
+import { HyperlaneContracts } from '../contracts/types.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
@@ -33,6 +35,32 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
     await this.checkToken(chain);
+  }
+
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    const ownables = await super.ownables(chain);
+
+    if (isCollateralTokenConfig(this.configMap[chain])) {
+      ownables['collateralToken'] = (await this.getCollateralToken(
+        chain,
+      )) as any;
+    }
+
+    return ownables;
+  }
+
+  async proxiedContracts(
+    chain: ChainName,
+  ): Promise<HyperlaneContracts<HypERC20Factories & ProxiedFactories>> {
+    const contracts = this.app.getContracts(chain);
+
+    if (isCollateralTokenConfig(this.configMap[chain])) {
+      contracts['collateralToken'] = (await this.getCollateralToken(
+        chain,
+      )) as any;
+    }
+
+    return contracts;
   }
 
   async checkToken(chain: ChainName): Promise<void> {
