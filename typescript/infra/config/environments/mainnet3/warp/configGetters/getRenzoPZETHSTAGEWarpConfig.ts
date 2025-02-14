@@ -13,6 +13,8 @@ const pzEthStagingAddresses = {
   ethereum: '0xDe9e4211087A43112b0e0e9d840459Acf1d9E6C8',
   zircuit: '0xDe9e4211087A43112b0e0e9d840459Acf1d9E6C8',
   swell: '0xDe9e4211087A43112b0e0e9d840459Acf1d9E6C8',
+  unichain: '0xDe9e4211087A43112b0e0e9d840459Acf1d9E6C8',
+  berachain: '0xDe9e4211087A43112b0e0e9d840459Acf1d9E6C8',
 };
 
 const pzEthStagingValidators = pick(ezEthValidators, pzEthChainsToDeploy);
