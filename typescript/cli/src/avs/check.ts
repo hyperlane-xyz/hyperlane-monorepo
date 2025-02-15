@@ -116,7 +116,7 @@ const getAvsOperators = async (
 
   if (operatorKey) {
     // If operator key is provided, only fetch the operator's validator info
-    const signingKey = await ecdsaStakeRegistry.getLastestOperatorSigningKey(
+    const signingKey = await ecdsaStakeRegistry.getLatestOperatorSigningKey(
       operatorKey,
     );
     avsOperators[signingKey] = {
