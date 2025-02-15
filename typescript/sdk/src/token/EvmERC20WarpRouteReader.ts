@@ -139,13 +139,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
           try {
             await hypXERC20Lockbox.lockbox();
             return TokenType.XERC20Lockbox;
-          } catch (error) {}
+            // eslint-disable-next-line no-empty
+          } catch {}
           const wrappedToken = await warpRoute.wrappedToken();
           const xerc20 = IXERC20__factory.connect(wrappedToken, this.provider);
           try {
             await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
             return TokenType.XERC20;
-          } catch (error) {}
+            // eslint-disable-next-line no-empty
+          } catch {}
         }
         return tokenType as TokenType;
       } catch {
