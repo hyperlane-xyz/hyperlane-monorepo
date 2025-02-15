@@ -103,6 +103,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         factory: HypERC4626OwnerCollateral__factory,
         method: 'vault',
       },
+      [TokenType.XERC20Lockbox]: {
+        factory: HypXERC20Lockbox__factory,
+        method: 'lockbox',
+      },
       [TokenType.collateral]: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
@@ -128,19 +132,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
-
-        // If its a collateral, it could be an xerc20 token
         if (tokenType === TokenType.collateral) {
-          // Try if its HypXERC20Lockbox
-          const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
-            warpRouteAddress,
-            this.provider,
-          );
-          try {
-            await hypXERC20Lockbox.lockbox();
-            return TokenType.XERC20Lockbox;
-            // eslint-disable-next-line no-empty
-          } catch {}
           const wrappedToken = await warpRoute.wrappedToken();
           const xerc20 = IXERC20__factory.connect(wrappedToken, this.provider);
           try {
