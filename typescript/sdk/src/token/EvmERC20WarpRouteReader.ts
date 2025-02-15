@@ -6,6 +6,8 @@ import {
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
+  HypXERC20Lockbox__factory,
+  IXERC20__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -126,6 +128,25 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
+
+        // If its a collateral, it could be an xerc20 token
+        if (tokenType === TokenType.collateral) {
+          // Try if its HypXERC20Lockbox
+          const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          );
+          try {
+            await hypXERC20Lockbox.lockbox();
+            return TokenType.XERC20Lockbox;
+          } catch (error) {}
+          const wrappedToken = await warpRoute.wrappedToken();
+          const xerc20 = IXERC20__factory.connect(wrappedToken, this.provider);
+          try {
+            await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
+            return TokenType.XERC20;
+          } catch (error) {}
+        }
         return tokenType as TokenType;
       } catch {
         continue;
@@ -199,7 +220,9 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     if (
       type === TokenType.collateral ||
       type === TokenType.collateralVault ||
-      type === TokenType.collateralVaultRebase
+      type === TokenType.collateralVaultRebase ||
+      type === TokenType.XERC20 ||
+      type === TokenType.XERC20Lockbox
     ) {
       const erc20 = HypERC20Collateral__factory.connect(
         tokenAddress,
