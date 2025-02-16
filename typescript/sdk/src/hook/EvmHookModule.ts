@@ -149,14 +149,14 @@ export class EvmHookModule extends HyperlaneModule<
     targetConfig: HookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     // Nothing to do if its the default hook
-    if (this.args.config === zeroAddress) {
+    if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
 
     // Do not support updating to a custom Hook address
-    if (typeof targetConfig === 'string' && targetConfig !== zeroAddress) {
+    if (typeof targetConfig === 'string') {
       throw new Error(
         'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
       );
