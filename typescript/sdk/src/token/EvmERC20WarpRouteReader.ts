@@ -6,6 +6,7 @@ import {
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
+  HypXERC20Lockbox__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -223,7 +224,9 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     if (
       type === TokenType.collateral ||
       type === TokenType.collateralVault ||
-      type === TokenType.collateralVaultRebase
+      type === TokenType.collateralVaultRebase ||
+      type === TokenType.XERC20 ||
+      type === TokenType.XERC20Lockbox
     ) {
       let xerc20Token: Address | undefined;
       let lockbox: Address | undefined;
