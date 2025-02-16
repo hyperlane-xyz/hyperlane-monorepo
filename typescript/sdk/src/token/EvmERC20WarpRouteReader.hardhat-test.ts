@@ -9,6 +9,8 @@ import {
   ERC4626Test__factory,
   Mailbox,
   Mailbox__factory,
+  XERC20LockboxTest__factory,
+  XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import {
   HyperlaneContractsMap,
@@ -164,6 +166,108 @@ describe('ERC20WarpRouterReader', async () => {
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
     }
   });
+
+  it('should derive xerc20 config correctly', async () => {
+    // Create token
+    const xerc20Token = await new XERC20Test__factory(signer).deploy(
+      TOKEN_NAME,
+      TOKEN_NAME,
+      TOKEN_SUPPLY,
+      TOKEN_DECIMALS,
+    );
+    // Create config
+    const config: WarpRouteDeployConfig = {
+      [chain]: {
+        type: TokenType.XERC20,
+        token: xerc20Token.address,
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].xERC20.address,
+    );
+    for (const [key, value] of Object.entries(derivedConfig)) {
+      const deployedValue = (config[chain] as any)[key];
+      if (deployedValue && typeof value === 'string')
+        expect(deployedValue).to.equal(value);
+    }
+
+    // Check hook because they're potentially objects
+    expect(derivedConfig.hook).to.deep.equal(
+      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+        config[chain].hook as string,
+      ),
+    );
+    // Check ism
+    expect(
+      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
+    ).to.be.equal(await mailbox.defaultIsm());
+
+    // Check if token values matches
+    if (derivedConfig.type === TokenType.XERC20) {
+      expect(derivedConfig.name).to.equal(TOKEN_NAME);
+      expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+      expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+      expect(derivedConfig.token).to.equal(xerc20Token.address);
+    }
+  });
+
+  it('should derive xerc20lockbox config correctly', async () => {
+    // Create token
+    const xerc20Lockbox = await new XERC20LockboxTest__factory(signer).deploy(
+      TOKEN_NAME,
+      TOKEN_NAME,
+      TOKEN_SUPPLY,
+      TOKEN_DECIMALS,
+    );
+    // Create config
+    const config: WarpRouteDeployConfig = {
+      [chain]: {
+        type: TokenType.XERC20Lockbox,
+        token: xerc20Lockbox.address,
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].xERC20Lockbox.address,
+    );
+    for (const [key, value] of Object.entries(derivedConfig)) {
+      const deployedValue = (config[chain] as any)[key];
+      if (deployedValue && typeof value === 'string')
+        expect(deployedValue).to.equal(value);
+    }
+
+    // Check hook because they're potentially objects
+    expect(derivedConfig.hook).to.deep.equal(
+      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+        config[chain].hook as string,
+      ),
+    );
+    // Check ism
+    expect(
+      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
+    ).to.be.equal(await mailbox.defaultIsm());
+
+    // Check if token values matches
+    if (derivedConfig.type === TokenType.XERC20) {
+      expect(derivedConfig.name).to.equal(TOKEN_NAME);
+      expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+      expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+      expect(derivedConfig.token).to.equal(xerc20Lockbox.address);
+    }
+  });
+
   it('should derive synthetic rebase config correctly', async () => {
     // Create config
     const config: WarpRouteDeployConfig = {
