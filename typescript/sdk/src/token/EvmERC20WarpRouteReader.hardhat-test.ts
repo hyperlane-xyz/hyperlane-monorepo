@@ -414,7 +414,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.token).to.equal(token.address);
   });
 
-  it('should return 0x0 if ism is not set onchain', async () => {
+  it('should return undefined if ism is not set onchain', async () => {
     // Create config
     const config: WarpRouteDeployConfig = {
       [chain]: {
@@ -432,7 +432,7 @@ describe('ERC20WarpRouterReader', async () => {
       warpRoute[chain].collateral.address,
     );
 
-    expect(derivedConfig.interchainSecurityModule).to.be.equal(zeroAddress);
+    expect(derivedConfig.interchainSecurityModule).to.be.undefined;
   });
 
   it('should return the remote routers', async () => {
