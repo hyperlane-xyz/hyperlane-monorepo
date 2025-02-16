@@ -31,15 +31,8 @@ export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
 
-const sharedCollateralTokenConfig = {
-  // For xerc20lockbox and collateral vault, we use the token as the lockbox/vault respectively
-  token: z
-    .string()
-    .describe('Existing token address to extend with Warp Route functionality'),
-};
-
-export const CollateralTokenConfigSchema = TokenMetadataSchema.partial()
-  .extend({
+export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
+  {
     type: z.enum([
       TokenType.collateral,
       TokenType.collateralVault,
@@ -48,8 +41,13 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial()
       TokenType.fastCollateral,
       TokenType.collateralUri,
     ]),
-  })
-  .extend(sharedCollateralTokenConfig);
+    token: z
+      .string()
+      .describe(
+        'Existing token address to extend with Warp Route functionality',
+      ),
+  },
+);
 
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
@@ -69,12 +67,12 @@ const xERC20TokenMetadataSchema = z.object({
 });
 export type XERC20TokenMetadata = z.infer<typeof xERC20TokenMetadataSchema>;
 
-export const XERC20TokenConfigSchema = TokenMetadataSchema.partial()
-  .extend({
+export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
+  z.object({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
-  })
-  .merge(xERC20TokenMetadataSchema)
-  .extend(sharedCollateralTokenConfig);
+  }),
+).merge(xERC20TokenMetadataSchema);
+
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
