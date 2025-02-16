@@ -1,3 +1,4 @@
+import { zeroAddress } from 'viem';
 import { z } from 'zod';
 
 import {
@@ -73,8 +74,8 @@ export type DestinationGas = z.infer<typeof DestinationGasSchema>;
 
 export const MailboxClientConfigSchema = OwnableSchema.extend({
   mailbox: ZHash,
-  hook: HookConfigSchema.optional(),
-  interchainSecurityModule: IsmConfigSchema.optional(),
+  hook: HookConfigSchema.optional().default(zeroAddress),
+  interchainSecurityModule: IsmConfigSchema.optional().default(zeroAddress),
 });
 
 export const ForeignDeploymentConfigSchema = z.object({
