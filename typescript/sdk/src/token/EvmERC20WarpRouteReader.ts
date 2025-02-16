@@ -38,7 +38,7 @@ import {
   HypTokenConfig,
   HypTokenRouterConfig,
   TokenMetadata,
-  XERC20LimitConfig,
+  XERC20TokenMetadata,
 } from './types.js';
 
 export class EvmERC20WarpRouteReader extends HyperlaneReader {
@@ -205,7 +205,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     type: TokenType.XERC20 | TokenType.XERC20Lockbox,
     xERC20Address: Address,
     warpRouteAddress: Address,
-  ): Promise<XERC20LimitConfig | {}> {
+  ): Promise<XERC20TokenMetadata | {}> {
     // fetch the limits if possible
     const rateLimitsABI = [
       'function rateLimitPerSecond(address) external view returns (uint128)',
@@ -214,10 +214,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
     try {
       return {
-        rateLimitPerSecond: (
-          await xERC20.rateLimitPerSecond(warpRouteAddress)
-        ).toString(),
-        bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
+        xERC20: {
+          limits: {
+            rateLimitPerSecond: (
+              await xERC20.rateLimitPerSecond(warpRouteAddress)
+            ).toString(),
+            bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
+          },
+        },
       };
     } catch (_error) {
       return {};
@@ -245,7 +249,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       let xerc20Token: Address | undefined;
       let lockbox: Address | undefined;
       let token: Address;
-      let limits: XERC20LimitConfig | {} = {};
+      let xERC20Metadata: XERC20TokenMetadata | {} = {};
 
       if (type === TokenType.XERC20Lockbox) {
         // XERC20Lockbox is a special case of collateral, we will fetch it from the xerc20 contract
@@ -268,11 +272,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await this.fetchERC20Metadata(token);
 
       if (type === TokenType.XERC20 || type === TokenType.XERC20Lockbox) {
-        limits = await this.fetchXERC20Config(type, token, warpRouteAddress);
+        xERC20Metadata = await this.fetchXERC20Config(
+          type,
+          token,
+          warpRouteAddress,
+        );
       }
 
       return {
-        ...limits,
+        ...xERC20Metadata,
         type,
         name,
         symbol,

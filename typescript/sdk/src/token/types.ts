@@ -60,11 +60,20 @@ const xERC20LimitConfigSchema = z.object({
 });
 export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
 
+const xERC20TokenMetadataSchema = z.object({
+  xERC20: z
+    .object({
+      limits: xERC20LimitConfigSchema,
+    })
+    .optional(),
+});
+export type XERC20TokenMetadata = z.infer<typeof xERC20TokenMetadataSchema>;
+
 export const XERC20TokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
   })
-  .merge(xERC20LimitConfigSchema)
+  .merge(xERC20TokenMetadataSchema)
   .extend(sharedCollateralTokenConfig);
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
