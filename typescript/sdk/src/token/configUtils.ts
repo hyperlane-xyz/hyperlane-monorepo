@@ -10,14 +10,6 @@ import { HypERC20Deployer } from './deploy.js';
 import { WarpRouteDeployConfig } from './types.js';
 
 /**
- * Gets router address for a chain
- */
-const getRemoteRouterAddress = (
-  deployedRoutersAddresses: ChainMap<Address>,
-  chain: string,
-): Address => deployedRoutersAddresses[chain];
-
-/**
  * Gets gas configuration for a chain
  */
 const getGasConfig = (
@@ -44,7 +36,7 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
     const domainId = multiProvider.getDomainId(otherChain);
 
     remoteRouters[domainId] = {
-      address: getRemoteRouterAddress(deployedRoutersAddresses, otherChain),
+      address: deployedRoutersAddresses[otherChain],
     };
 
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
@@ -73,23 +65,21 @@ export async function expandWarpDeployConfig(
     multiProvider,
     warpDeployConfig,
   );
-  return promiseObjAll(
-    objMap(warpDeployConfig, async (chain, config) => {
-      const [remoteRouters, destinationGas] =
-        getDefaultRemoteRouterAndDestinationGasConfig(
-          multiProvider,
-          chain,
-          deployedRoutersAddresses,
-          warpDeployConfig,
-        );
+  return objMap(warpDeployConfig, (chain, config) => {
+    const [remoteRouters, destinationGas] =
+      getDefaultRemoteRouterAndDestinationGasConfig(
+        multiProvider,
+        chain,
+        deployedRoutersAddresses,
+        warpDeployConfig,
+      );
 
-      return {
-        ...derivedTokenMetadata,
-        remoteRouters,
-        destinationGas,
-        proxyAdmin: { owner: config.owner },
-        ...config,
-      };
-    }),
-  );
+    return {
+      ...derivedTokenMetadata,
+      remoteRouters,
+      destinationGas,
+      proxyAdmin: { owner: config.owner },
+      ...config,
+    };
+  });
 }
