@@ -143,7 +143,7 @@ describe('hyperlane warp check e2e tests', async function () {
     });
   });
 
-  describe.only('hyperlane warp check --symbol ... --config ... --key ...', () => {
+  describe('hyperlane warp check --symbol ... --config ... --key ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
