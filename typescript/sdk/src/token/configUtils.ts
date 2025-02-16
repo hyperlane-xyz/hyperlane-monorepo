@@ -1,3 +1,5 @@
+import { zeroAddress } from 'viem';
+
 import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -87,6 +89,8 @@ export async function expandWarpDeployConfig(
         ...derivedTokenMetadata,
         remoteRouters,
         destinationGas,
+        hook: zeroAddress,
+        interchainSecurityModule: zeroAddress,
         proxyAdmin: { owner: config.owner },
         ...config,
       };
