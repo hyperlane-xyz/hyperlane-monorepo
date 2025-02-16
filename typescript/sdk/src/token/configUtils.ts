@@ -75,10 +75,13 @@ export async function expandWarpDeployConfig(
       );
 
     return {
+      // Default Expansion
       ...derivedTokenMetadata,
       remoteRouters,
       destinationGas,
       proxyAdmin: { owner: config.owner },
+
+      // User-specified config takes precedence
       ...config,
     };
   });
