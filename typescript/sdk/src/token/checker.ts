@@ -89,7 +89,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       }
     } else if (isSyntheticTokenConfig(expectedConfig)) {
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
-    } else if (isCollateralTokenConfig(expectedConfig)) {
+    } else if (
+      isCollateralTokenConfig(expectedConfig) ||
+      isXERC20TokenConfig(expectedConfig)
+    ) {
       const collateralToken = await this.getCollateralToken(chain);
       const actualToken = await (
         hypToken as unknown as HypERC20Collateral
@@ -161,7 +164,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         this.multiProvider.getChainMetadata(chain).nativeToken?.decimals;
     } else if (isSyntheticTokenConfig(expectedConfig)) {
       decimals = await (hypToken as unknown as ERC20).decimals();
-    } else if (isCollateralTokenConfig(expectedConfig)) {
+    } else if (
+      isCollateralTokenConfig(expectedConfig) ||
+      isXERC20TokenConfig(expectedConfig)
+    ) {
       const collateralToken = await this.getCollateralToken(chain);
       decimals = await collateralToken.decimals();
     }
