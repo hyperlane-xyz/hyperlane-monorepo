@@ -1,4 +1,5 @@
 import { BigNumberish } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
@@ -296,7 +297,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    if (!expectedConfig.interchainSecurityModule) {
+    if (
+      !expectedConfig.interchainSecurityModule ||
+      expectedConfig.interchainSecurityModule === zeroAddress
+    ) {
       return [];
     }
 
@@ -339,7 +343,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    if (!expectedConfig.hook) {
+    if (!expectedConfig.hook || expectedConfig.hook === zeroAddress) {
       return [];
     }
 
@@ -448,8 +452,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
     assert(expectedConfig.hook, 'No hook config');
-
-    if (!actualConfig.hook) {
+    if (!actualConfig.hook || actualConfig.hook === zeroAddress) {
       return this.deployNewHook(expectedConfig);
     }
 

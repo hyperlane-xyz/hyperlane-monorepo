@@ -29,17 +29,19 @@ import {
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
+const hookTypesToFilter = [
+  HookType.OP_STACK,
+  HookType.ARB_L2_TO_L1,
+  HookType.CUSTOM,
+  HookType.CCIP,
+];
 const DEFAULT_TOKEN_DECIMALS = 18;
 
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
   // ARB_L2_TO_L1 filtered out until we have a way to deploy the required contracts (arbL2ToL1.hardhat-test.ts has the same test for checking deployment)
   const filteredHookTypes = hookTypes.filter(
-    (type) =>
-      type !== HookType.OP_STACK &&
-      type !== HookType.ARB_L2_TO_L1 &&
-      type !== HookType.CUSTOM &&
-      type !== HookType.CCIP,
+    (type) => !hookTypesToFilter.includes(type),
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
@@ -302,12 +304,7 @@ describe('EvmHookModule', async () => {
       randomAddress(),
       ...hookTypes
         // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
-        .filter(
-          (hookType) =>
-            hookType !== HookType.OP_STACK &&
-            hookType !== HookType.ARB_L2_TO_L1 &&
-            hookType !== HookType.CUSTOM,
-        )
+        .filter((hookType) => !hookTypesToFilter.includes(hookType))
         // generate a random config for each hook type
         .map((hookType) => {
           return randomHookConfig(0, 1, hookType);
