@@ -169,7 +169,6 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive xerc20 config correctly', async () => {
     // Create token
-    // @ts-ignore
     const xerc20Token = await new XERC20Test__factory(signer).deploy(
       TOKEN_NAME,
       TOKEN_NAME,
