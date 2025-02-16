@@ -31,27 +31,43 @@ export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
 
-export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
-  {
+const sharedCollateralTokenConfig = {
+  // For xerc20lockbox and collateral vault, we use the token as the lockbox/vault respectively
+  token: z
+    .string()
+    .describe('Existing token address to extend with Warp Route functionality'),
+};
+
+export const CollateralTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
     type: z.enum([
       TokenType.collateral,
       TokenType.collateralVault,
       TokenType.collateralVaultRebase,
-      TokenType.XERC20,
-      TokenType.XERC20Lockbox,
       TokenType.collateralFiat,
       TokenType.fastCollateral,
       TokenType.collateralUri,
     ]),
-    token: z
-      .string()
-      .describe(
-        'Existing token address to extend with Warp Route functionality',
-      ),
-  },
-);
+  })
+  .extend(sharedCollateralTokenConfig);
+
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
+
+const xERC20LimitConfigSchema = z.object({
+  bufferCap: z.string().optional(),
+  rateLimitPerSecond: z.string().optional(),
+});
+export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
+
+export const XERC20TokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
+    type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
+  })
+  .merge(xERC20LimitConfigSchema)
+  .extend(sharedCollateralTokenConfig);
+export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
+export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
 export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema.omit({
   totalSupply: true,
@@ -94,6 +110,7 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
 export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   CollateralTokenConfigSchema,
+  XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
 ]);
@@ -113,6 +130,7 @@ export const WarpRouteDeployConfigSchema = z
         ([_, config]) =>
           isCollateralTokenConfig(config) ||
           isCollateralRebaseTokenConfig(config) ||
+          isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
