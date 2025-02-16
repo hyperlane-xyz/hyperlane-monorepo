@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import { zeroAddress } from 'viem';
 
 import {
   ERC20Test,
@@ -308,7 +309,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.token).to.equal(token.address);
   });
 
-  it('should return undefined if ism is not set onchain', async () => {
+  it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
     const config: WarpRouteDeployConfig = {
       [chain]: {
@@ -326,7 +327,7 @@ describe('ERC20WarpRouterReader', async () => {
       warpRoute[chain].collateral.address,
     );
 
-    expect(derivedConfig.interchainSecurityModule).to.be.undefined;
+    expect(derivedConfig.interchainSecurityModule).to.be.equal(zeroAddress);
   });
 
   it('should return the remote routers', async () => {
