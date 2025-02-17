@@ -49,6 +49,15 @@ export async function addBridgeToChain({
   const { xERC20Address, bridgeAddress, bufferCap, rateLimitPerSecond, owner } =
     bridgeConfig;
 
+  if (bufferCap === 0 && rateLimitPerSecond === 0) {
+    rootLogger.warn(
+      chalk.yellow(
+        `[${chain}] Skipping addBridge as buffer cap and rate limit are both 0.`,
+      ),
+    );
+    return;
+  }
+
   try {
     const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
       token: xERC20Address,
