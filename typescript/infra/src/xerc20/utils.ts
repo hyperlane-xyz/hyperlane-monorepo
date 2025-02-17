@@ -41,14 +41,22 @@ export async function addBridgeToChain({
   bridgeConfig,
   multiProtocolProvider,
   envMultiProvider,
+  dryRun,
 }: {
   chain: string;
   bridgeConfig: BridgeConfig;
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
+  dryRun: boolean;
 }) {
-  const { xERC20Address, bridgeAddress, bufferCap, rateLimitPerSecond, owner } =
-    bridgeConfig;
+  const {
+    xERC20Address,
+    bridgeAddress,
+    bufferCap,
+    rateLimitPerSecond,
+    owner,
+    decimals,
+  } = bridgeConfig;
 
   if (bufferCap === 0 && rateLimitPerSecond === 0) {
     rootLogger.warn(
@@ -85,10 +93,33 @@ export async function addBridgeToChain({
 
     rootLogger.info(
       chalk.gray(
-        `[${chain}] Sending addBridge transaction to ${xERC20Address}...`,
+        `[${chain}] Preparing to add ${bridgeAddress} as bridge to ${xERC20Address}`,
       ),
     );
-    await sendTransactions(envMultiProvider, chain, owner, [tx]);
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}] Buffer cap: ${humanReadableLimit(
+          BigInt(bufferCap),
+          decimals,
+        )}, Rate limit: ${humanReadableLimit(
+          BigInt(rateLimitPerSecond),
+          decimals,
+        )}`,
+      ),
+    );
+
+    if (!dryRun) {
+      rootLogger.info(
+        chalk.gray(
+          `[${chain}] Sending addBridge transaction to ${xERC20Address}...`,
+        ),
+      );
+      await sendTransactions(envMultiProvider, chain, owner, [tx]);
+    } else {
+      rootLogger.info(
+        chalk.gray(`[${chain}] Dry run, no transactions sent, exiting...`),
+      );
+    }
   } catch (error) {
     rootLogger.error(chalk.red(`[${chain}] Error adding bridge:`, error));
     throw { chain, error };
@@ -100,11 +131,13 @@ export async function updateChainLimits({
   bridgeConfig,
   multiProtocolProvider,
   envMultiProvider,
+  dryRun,
 }: {
   chain: string;
   bridgeConfig: BridgeConfig;
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
+  dryRun: boolean;
 }) {
   const {
     xERC20Address,
@@ -149,7 +182,13 @@ export async function updateChainLimits({
     return;
   }
 
-  await sendTransactions(envMultiProvider, chain, owner, txsToSend);
+  if (!dryRun) {
+    await sendTransactions(envMultiProvider, chain, owner, txsToSend);
+  } else {
+    rootLogger.info(
+      chalk.gray(`[${chain}] Dry run, no transactions sent, exiting...`),
+    );
+  }
 }
 
 async function prepareBufferCapTx(

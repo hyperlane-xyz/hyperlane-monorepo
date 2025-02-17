@@ -12,13 +12,18 @@ import {
   deriveBridgesConfig,
   getWarpConfigsAndArtifacts,
 } from '../../src/xerc20/utils.js';
-import { getArgs, withWarpRouteIdRequired } from '../agent-utils.js';
+import {
+  getArgs,
+  withDryRun,
+  withWarpRouteIdRequired,
+} from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteIdRequired(getArgs())
-    .argv;
+  const { environment, warpRouteId, dryRun } = await withWarpRouteIdRequired(
+    withDryRun(getArgs()),
+  ).argv;
 
   const { warpDeployConfig, warpCoreConfig, warpAddresses } =
     getWarpConfigsAndArtifacts(warpRouteId);
@@ -41,6 +46,7 @@ async function main() {
         bridgeConfig,
         multiProtocolProvider,
         envMultiProvider,
+        dryRun,
       });
     }),
   );
