@@ -1,4 +1,4 @@
-use hyperlane_metric::prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_client::RpcClientConfig};
 use solana_sdk::commitment_config::CommitmentConfig;
 use url::Url;
@@ -11,7 +11,7 @@ use super::SealevelRpcClient;
 /// SealevelRpcClient builder
 pub struct SealevelRpcClientBuilder {
     rpc_url: Url,
-    prometheus_config: Option<(JsonRpcClientMetrics, PrometheusConfig)>,
+    prometheus_config: Option<(PrometheusClientMetrics, PrometheusConfig)>,
 }
 
 impl SealevelRpcClientBuilder {
@@ -26,7 +26,7 @@ impl SealevelRpcClientBuilder {
     /// add prometheus metrics to builder
     pub fn with_prometheus_metrics(
         mut self,
-        metrics: JsonRpcClientMetrics,
+        metrics: PrometheusClientMetrics,
         config: PrometheusConfig,
     ) -> Self {
         self.prometheus_config = Some((metrics, config));
@@ -37,7 +37,7 @@ impl SealevelRpcClientBuilder {
     pub fn build(self) -> SealevelRpcClient {
         let (metrics, metrics_config) = self.prometheus_config.unwrap_or_else(|| {
             (
-                JsonRpcClientMetrics {
+                PrometheusClientMetrics {
                     request_count: None,
                     request_duration_seconds: None,
                 },

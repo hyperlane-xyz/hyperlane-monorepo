@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use hyperlane_metric::prometheus_metric::{JsonRpcClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 use solana_client::{
     client_error::ClientError,
     http_sender::HttpSender,
@@ -14,12 +14,12 @@ use url::Url;
 /// https://github.com/anza-xyz/agave/blob/master/rpc-client/src/http_sender.rs#L137
 pub struct PrometheusSealevelRpcSender {
     pub inner: HttpSender,
-    pub metrics: JsonRpcClientMetrics,
+    pub metrics: PrometheusClientMetrics,
     pub config: PrometheusConfig,
 }
 
 impl PrometheusSealevelRpcSender {
-    pub fn new(url: Url, metrics: JsonRpcClientMetrics, config: PrometheusConfig) -> Self {
+    pub fn new(url: Url, metrics: PrometheusClientMetrics, config: PrometheusConfig) -> Self {
         Self {
             inner: HttpSender::new(url),
             metrics,

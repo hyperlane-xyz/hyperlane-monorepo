@@ -1,5 +1,5 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
-use hyperlane_metric::prometheus_metric::{ChainInfo, JsonRpcClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
 use serde::Serialize;
 use url::Url;
 
@@ -120,7 +120,7 @@ impl TransactionSubmitterConfig {
     pub fn create_submitter(
         &self,
         default_rpc_url: String,
-        metrics: JsonRpcClientMetrics,
+        metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
     ) -> Box<dyn TransactionSubmitter> {
         match self {

@@ -199,7 +199,7 @@ impl ChainConf {
     /// Try to convert the chain settings into an ApplicationOperationVerifier.
     pub async fn build_application_operation_verifier(
         &self,
-        _metrics: &CoreMetrics,
+        metrics: &CoreMetrics,
     ) -> Result<Box<dyn ApplicationOperationVerifier>> {
         let ctx = "Building application operation verifier";
         let locator = self.locator(H256::zero());
@@ -210,7 +210,13 @@ impl ChainConf {
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = h_sealevel::SealevelProvider::new(locator.domain.clone(), conf);
+                let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
+
+                let provider = h_sealevel::SealevelProvider::new(
+                    rpc_client,
+                    locator.domain.clone(),
+                    conf.native_token.clone(),
+                );
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
@@ -946,7 +952,7 @@ fn build_sealevel_rpc_client(
 ) -> SealevelRpcClient {
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
-    let rpc_metrics = metrics.json_rpc_client_metrics();
+    let rpc_metrics = metrics.client_metrics();
     let rpc_metrics_config =
         PrometheusConfig::from_url(&rpc_client_url, middleware_metrics.chain.clone());
     SealevelRpcClientBuilder::new(rpc_client_url)
@@ -974,7 +980,7 @@ fn build_tx_submitter(
 ) -> Box<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
-    let rpc_metrics = metrics.json_rpc_client_metrics();
+    let rpc_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(
         rpc_client_url.to_string(),
         rpc_metrics,
