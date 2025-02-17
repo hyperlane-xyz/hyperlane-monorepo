@@ -187,22 +187,22 @@ impl ChainSpecificMetricsUpdater {
         let chain = self.conf.domain.name();
 
         match self.provider.get_balance(wallet_addr.clone()).await {
-                Ok(balance) => {
-                    let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
-                    trace!("Wallet {agent_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
-                    wallet_balance_metric
-                    .with(&hashmap! {
-                        "chain" => chain,
-                        "wallet_address" => wallet_addr.as_str(),
-                        "wallet_name" => agent_name.as_str(),
-                        "token_address" => "none",
-                        // Note: Whatever this `chain`'s native currency is
-                        "token_symbol" => "Native",
-                        "token_name" => "Native"
-                    }).set(balance)
-                },
-                Err(e) => warn!("Metric update failed for wallet {agent_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
-            }
+            Ok(balance) => {
+                let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
+                trace!("Wallet {agent_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
+                wallet_balance_metric
+                .with(&hashmap! {
+                    "chain" => chain,
+                    "wallet_address" => wallet_addr.as_str(),
+                    "wallet_name" => agent_name.as_str(),
+                    "token_address" => "none",
+                    // Note: Whatever this `chain`'s native currency is
+                    "token_symbol" => "Native",
+                    "token_name" => "Native"
+                }).set(balance)
+            },
+            Err(e) => warn!("Metric update failed for wallet {agent_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
+        }
     }
 
     async fn update_block_details(&self) {
