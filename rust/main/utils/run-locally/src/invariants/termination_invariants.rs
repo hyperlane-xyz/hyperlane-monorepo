@@ -20,6 +20,7 @@ pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
+    return Ok(false);
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
 
     // this is total messages expected to be delivered
