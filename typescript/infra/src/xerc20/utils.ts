@@ -7,7 +7,10 @@ import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
-  EvmXERC20VSAdapter,
+  ChainName,
+  EvmHypVSXERC20Adapter,
+  EvmHypVSXERC20LockboxAdapter,
+  IHypVSXERC20Adapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
@@ -28,6 +31,7 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
 );
 
 export interface BridgeConfig {
+  type: TokenType.XERC20Lockbox | TokenType.XERC20;
   xERC20Address: Address;
   bridgeAddress: Address;
   decimals: number;
@@ -68,14 +72,17 @@ export async function addBridgeToChain({
   }
 
   try {
-    const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
-      token: xERC20Address,
-    });
+    const hypXERC20Adapter = getHypVSXERC20Adapter(
+      chain,
+      multiProtocolProvider,
+      { token: bridgeAddress },
+      bridgeConfig.type === TokenType.XERC20Lockbox,
+    );
 
     const bufferCapBigInt = BigInt(bufferCap);
     const rateLimitBigInt = BigInt(rateLimitPerSecond);
 
-    const rateLimits = await xERC20Adapter.getRateLimits(bridgeAddress);
+    const rateLimits = await hypXERC20Adapter.getRateLimits();
     if (rateLimits.rateLimitPerSecond) {
       rootLogger.warn(
         chalk.yellow(
@@ -85,11 +92,10 @@ export async function addBridgeToChain({
       return;
     }
 
-    const tx = await xERC20Adapter.populateAddBridgeTx({
-      bufferCap: bufferCapBigInt,
-      rateLimitPerSecond: rateLimitBigInt,
-      bridge: bridgeAddress,
-    });
+    const tx = await hypXERC20Adapter.populateAddBridgeTx(
+      bufferCapBigInt,
+      rateLimitBigInt,
+    );
 
     rootLogger.info(
       chalk.gray(
@@ -139,39 +145,34 @@ export async function updateChainLimits({
   envMultiProvider: MultiProvider;
   dryRun: boolean;
 }) {
-  const {
-    xERC20Address,
-    bridgeAddress,
-    owner,
-    bufferCap,
-    rateLimitPerSecond,
-    decimals,
-  } = bridgeConfig;
-  const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
-    token: xERC20Address,
-  });
+  const { bridgeAddress, owner, bufferCap, rateLimitPerSecond, decimals } =
+    bridgeConfig;
+  const hypXERC20Adapter = getHypVSXERC20Adapter(
+    chain,
+    multiProtocolProvider,
+    { token: bridgeAddress },
+    bridgeConfig.type === TokenType.XERC20Lockbox,
+  );
 
   const {
     rateLimitPerSecond: currentRateLimitPerSecond,
     bufferCap: currentBufferCap,
-  } = await xERC20Adapter.getRateLimits(bridgeAddress);
+  } = await hypXERC20Adapter.getRateLimits();
 
   const bufferCapTx = await prepareBufferCapTx(
     chain,
-    xERC20Adapter,
+    hypXERC20Adapter,
     bufferCap,
     currentBufferCap,
     decimals,
-    bridgeAddress,
   );
 
   const rateLimitTx = await prepareRateLimitTx(
     chain,
-    xERC20Adapter,
+    hypXERC20Adapter,
     rateLimitPerSecond,
     currentRateLimitPerSecond,
     decimals,
-    bridgeAddress,
   );
 
   const txsToSend = [bufferCapTx, rateLimitTx].filter(
@@ -193,11 +194,10 @@ export async function updateChainLimits({
 
 async function prepareBufferCapTx(
   chain: string,
-  adapter: EvmXERC20VSAdapter,
+  adapter: IHypVSXERC20Adapter<PopulatedTransaction>,
   newBufferCap: number,
   currentBufferCap: bigint,
   decimals: number,
-  bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
   const newBufferCapBigInt = BigInt(newBufferCap);
 
@@ -216,19 +216,15 @@ async function prepareBufferCapTx(
       )} → ${humanReadableLimit(newBufferCapBigInt, decimals)}`,
     ),
   );
-  return adapter.populateSetBufferCapTx({
-    newBufferCap: newBufferCapBigInt,
-    bridge: bridgeAddress,
-  });
+  return adapter.populateSetBufferCapTx(newBufferCapBigInt);
 }
 
 async function prepareRateLimitTx(
   chain: string,
-  adapter: EvmXERC20VSAdapter,
+  adapter: IHypVSXERC20Adapter<PopulatedTransaction>,
   newRateLimitPerSecond: number,
   currentRateLimitPerSecond: bigint,
   decimals: number,
-  bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
   const newRateLimitBigInt = BigInt(newRateLimitPerSecond);
 
@@ -249,10 +245,7 @@ async function prepareRateLimitTx(
       )} → ${humanReadableLimit(newRateLimitBigInt, decimals)}`,
     ),
   );
-  return adapter.populateSetRateLimitPerSecondTx({
-    newRateLimitPerSecond: newRateLimitBigInt,
-    bridge: bridgeAddress,
-  });
+  return adapter.populateSetRateLimitPerSecondTx(newRateLimitBigInt);
 }
 
 async function checkSafeOwner(
@@ -412,6 +405,7 @@ export async function deriveBridgesConfig(
     }
 
     bridgesConfig[chainName] = {
+      type,
       xERC20Address,
       bridgeAddress,
       owner,
@@ -449,4 +443,25 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
   return new BigNumber(limit.toString())
     .dividedBy(new BigNumber(10).pow(decimals))
     .toString();
+}
+
+function getHypVSXERC20Adapter(
+  chainName: ChainName,
+  multiProtocolProvider: MultiProtocolProvider,
+  addresses: { token: Address },
+  isLockbox: boolean,
+): IHypVSXERC20Adapter<PopulatedTransaction> {
+  if (isLockbox) {
+    return new EvmHypVSXERC20LockboxAdapter(
+      chainName,
+      multiProtocolProvider,
+      addresses,
+    );
+  } else {
+    return new EvmHypVSXERC20Adapter(
+      chainName,
+      multiProtocolProvider,
+      addresses,
+    );
+  }
 }

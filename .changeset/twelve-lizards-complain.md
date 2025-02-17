@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Add EvmXERC20VSAdapter class
+Add EvmHypVSXERC20LockboxAdapter and EvmHypVSXERC20Adapter adapters

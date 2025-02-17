@@ -500,13 +500,15 @@ export {
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmHypVSXERC20LockboxAdapter,
+  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
-  EvmXERC20VSAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
   IHypXERC20Adapter,
+  IHypVSXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
