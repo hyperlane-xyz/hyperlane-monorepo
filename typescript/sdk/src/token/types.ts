@@ -37,8 +37,6 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateral,
       TokenType.collateralVault,
       TokenType.collateralVaultRebase,
-      TokenType.XERC20,
-      TokenType.XERC20Lockbox,
       TokenType.collateralFiat,
       TokenType.fastCollateral,
       TokenType.collateralUri,
@@ -50,8 +48,33 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       ),
   },
 );
+
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
+
+const xERC20LimitConfigSchema = z.object({
+  bufferCap: z.string().optional(),
+  rateLimitPerSecond: z.string().optional(),
+});
+export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
+
+const xERC20TokenMetadataSchema = z.object({
+  xERC20: z
+    .object({
+      limits: xERC20LimitConfigSchema,
+    })
+    .optional(),
+});
+export type XERC20TokenMetadata = z.infer<typeof xERC20TokenMetadataSchema>;
+
+export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
+  z.object({
+    type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
+  }),
+).merge(xERC20TokenMetadataSchema);
+
+export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
+export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
 export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema.omit({
   totalSupply: true,
@@ -94,6 +117,7 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
 export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   CollateralTokenConfigSchema,
+  XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
 ]);
@@ -113,6 +137,7 @@ export const WarpRouteDeployConfigSchema = z
         ([_, config]) =>
           isCollateralTokenConfig(config) ||
           isCollateralRebaseTokenConfig(config) ||
+          isXERC20TokenConfig(config) ||
           isNativeTokenConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );

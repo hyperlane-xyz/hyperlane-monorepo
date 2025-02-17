@@ -1,5 +1,6 @@
 import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   AmountRoutingHook,
@@ -147,6 +148,11 @@ export class EvmHookModule extends HyperlaneModule<
   public async update(
     targetConfig: HookConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
+    // Nothing to do if its the default hook
+    if (targetConfig === zeroAddress) {
+      return Promise.resolve([]);
+    }
+
     targetConfig = HookConfigSchema.parse(targetConfig);
 
     // Do not support updating to a custom Hook address

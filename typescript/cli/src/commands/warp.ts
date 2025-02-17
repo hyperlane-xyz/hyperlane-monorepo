@@ -1,7 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  ChainSubmissionStrategySchema,
+  expandWarpDeployConfig,
+  getRouterAddressesFromWarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
@@ -367,9 +372,21 @@ export const check: CommandModuleWithContext<{
       symbol,
     });
 
+    const warpCoreConfig = context.warpCoreConfig;
+
+    if (!warpCoreConfig) {
+      throw new Error('No warp core config found');
+    }
+
+    const expandedWarpDeployConfig = await expandWarpDeployConfig(
+      context.multiProvider,
+      warpRouteConfig,
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+    );
+
     await runWarpRouteCheck({
       onChainWarpConfig,
-      warpRouteConfig,
+      warpRouteConfig: expandedWarpDeployConfig,
     });
 
     process.exit(0);

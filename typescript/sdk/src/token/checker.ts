@@ -28,6 +28,7 @@ import {
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
+  isXERC20TokenConfig,
 } from './types.js';
 
 export class HypERC20Checker extends ProxiedRouterChecker<
@@ -213,7 +214,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const expectedConfig = this.configMap[chain];
     let collateralToken: ERC20 | undefined = undefined;
 
-    if (isCollateralTokenConfig(expectedConfig)) {
+    if (
+      isCollateralTokenConfig(expectedConfig) ||
+      isXERC20TokenConfig(expectedConfig)
+    ) {
       const provider = this.multiProvider.getProvider(chain);
 
       if (expectedConfig.type === TokenType.XERC20Lockbox) {

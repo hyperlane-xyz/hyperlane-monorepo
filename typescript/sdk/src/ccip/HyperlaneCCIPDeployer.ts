@@ -20,6 +20,7 @@ import {
   CCIPContractCache,
   getCCIPChainSelector,
   getCCIPRouterAddress,
+  isSupportedCCIPLane,
 } from './utils.js';
 
 export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
@@ -52,6 +53,16 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     origin: ChainName,
     config: Set<ChainName>,
   ): Promise<HyperlaneContracts<{}>> {
+    const unsupportedLanes = await this.checkCCIPLanesSupport(origin, config);
+    if (unsupportedLanes.length > 0) {
+      this.logger.warn(
+        `CCIP lanes not configured from ${origin} to ${unsupportedLanes.join(
+          ', ',
+        )}. Skipping these chains.`,
+      );
+      unsupportedLanes.forEach((lane) => config.delete(lane));
+    }
+
     // Deploy ISMs from chain to each destination chain concurrently.
     // This is done in parallel since the ISM is deployed on discrete destination chains.
     await Promise.all(
@@ -77,6 +88,34 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
 
     this.ccipContractCache.writeBack(this.cachedAddresses);
     return {};
+  }
+
+  private async checkCCIPLanesSupport(
+    origin: ChainName,
+    config: Set<ChainName>,
+  ): Promise<ChainName[]> {
+    this.logger.info(
+      `Checking CCIP lanes exist from ${origin} to ${Array.from(config).join(
+        ', ',
+      )}`,
+    );
+
+    // Check if the CCIP lane is supported for each destination chain
+    const isSupportedLane = await Promise.all(
+      Array.from(config).map(async (destination) => {
+        const isSupported = await isSupportedCCIPLane({
+          origin,
+          destination,
+          multiProvider: this.multiProvider,
+        });
+        return { destination, isSupported };
+      }),
+    );
+
+    // Return the destination chains that are not supported
+    return isSupportedLane
+      .filter((result) => !result.isSupported)
+      .map((result) => result.destination);
   }
 
   private async authorizeHook(origin: ChainName, destination: ChainName) {

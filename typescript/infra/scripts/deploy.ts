@@ -25,7 +25,6 @@ import {
 import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
-import { getCCIPDeployConfig } from '../config/environments/mainnet3/ccip.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
@@ -254,7 +253,12 @@ async function main() {
     if (environment !== 'mainnet3') {
       throw new Error('CCIP is only supported on mainnet3');
     }
-    config = getCCIPDeployConfig(filteredTargetNetworks);
+    config = Object.fromEntries(
+      filteredTargetNetworks.map((origin) => [
+        origin,
+        new Set(filteredTargetNetworks.filter((chain) => chain !== origin)),
+      ]),
+    );
     deployer = new HyperlaneCCIPDeployer(
       multiProvider,
       getEnvAddresses(environment),
