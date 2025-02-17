@@ -7,7 +7,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
-const FormSafes = {
+const formSafes = {
   ethereum: '0xec5ad23e29203301B2C1a765718Cc1de7A8d3FbF',
   form: '0x41B624412B529409A437f08Ef80bCabE81053650',
 };
@@ -19,7 +19,7 @@ export const getEthereumFormFORMWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    owner: FormSafes.ethereum,
+    owner: formSafes.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.FORM,
     interchainSecurityModule: ISM_CONFIG,
@@ -27,7 +27,7 @@ export const getEthereumFormFORMWarpConfig = async (
 
   const form: HypTokenRouterConfig = {
     ...routerConfig.form,
-    owner: FormSafes.form,
+    owner: formSafes.form,
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
