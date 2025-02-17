@@ -45,7 +45,7 @@ export async function addBridgeToChain({
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
 }) {
-  const { xERC20Address, bridgeAddress, bufferCap, rateLimitPerSecond } =
+  const { xERC20Address, bridgeAddress, bufferCap, rateLimitPerSecond, owner } =
     bridgeConfig;
 
   try {
@@ -78,13 +78,19 @@ export async function addBridgeToChain({
       ),
     );
     const signer = envMultiProvider.getSigner(chain);
-    const txResponse = await signer.sendTransaction(tx);
-    const txReceipt = await envMultiProvider.handleTx(chain, txResponse);
-    rootLogger.info(
-      chalk.green(
-        `[${chain}] Transaction confirmed: ${txReceipt.transactionHash}`,
-      ),
+    const proposerAddress = await signer.getAddress();
+    const isSafeOwner = await checkSafeOwner(
+      proposerAddress,
+      chain,
+      envMultiProvider,
+      owner,
     );
+
+    if (isSafeOwner) {
+      await sendAsSafeMultiSend(chain, owner, envMultiProvider, [tx]);
+    } else {
+      await sendAsEOATransactions(chain, envMultiProvider, [tx]);
+    }
   } catch (error) {
     rootLogger.error(chalk.red(`[${chain}] Error adding bridge:`, error));
     throw { chain, error };
