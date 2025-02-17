@@ -267,6 +267,9 @@ async fn test_fallback_one_stalled_provider() {
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
     assert_eq!(provider_id, 1);
+    // The stalled provider is moved from 0th place to 2nd place in `provider_call_count
+    // The value 2 is explained by how `handle_stalled_provider` is implemented:
+    // we used the same kind of request there as in implementation of mock providers.
     assert_eq!(provider_call_count, vec![0, 0, 2]);
 }
 
