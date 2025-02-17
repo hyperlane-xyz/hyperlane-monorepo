@@ -4724,6 +4724,9 @@
       "validatorAnnounce": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
       "index": {
         "from": 94151
+      },
+      "transactionOverrides": {
+        "gasPrice": 1000000
       }
     },
     "orderly": {

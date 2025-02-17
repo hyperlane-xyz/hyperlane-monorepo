@@ -142,6 +142,13 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
+    pub async fn get_minimum_balance_for_rent_exemption(&self, len: usize) -> ChainResult<u64> {
+        self.0
+            .get_minimum_balance_for_rent_exemption(len)
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,
         pubkeys: &[Pubkey],
