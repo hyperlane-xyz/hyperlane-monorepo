@@ -11,7 +11,7 @@ use ethers_core::types::U64;
 use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_core::ChainCommunicationError;
 use hyperlane_metric::prometheus_metric::{
-    JsonRpcClientMetrics, PrometheusConfig, PrometheusConfigExt,
+    PrometheusClientMetrics, PrometheusConfig, PrometheusConfigExt,
 };
 use maplit::hashmap;
 use serde::{de::DeserializeOwned, Serialize};
@@ -23,7 +23,7 @@ use serde::{de::DeserializeOwned, Serialize};
 #[derive(new)]
 pub struct PrometheusJsonRpcClient<C> {
     inner: C,
-    metrics: JsonRpcClientMetrics,
+    metrics: PrometheusClientMetrics,
     config: PrometheusConfig,
 }
 

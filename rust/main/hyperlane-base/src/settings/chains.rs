@@ -878,7 +878,7 @@ impl ChainConf {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();
-        let rpc_metrics = Some(metrics.json_rpc_client_metrics());
+        let rpc_metrics = Some(metrics.client_metrics());
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
         let res = builder
             .build_with_connection_conf(conf, locator, signer, rpc_metrics, middleware_metrics)

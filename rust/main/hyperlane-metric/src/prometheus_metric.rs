@@ -26,7 +26,7 @@ pub struct NodeInfo {
 
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder)]
-pub struct JsonRpcClientMetrics {
+pub struct PrometheusClientMetrics {
     /// Total number of requests made to this client.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
     ///   `quicknode.pro`, or `localhost:8545`.
