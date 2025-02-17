@@ -47,7 +47,7 @@ pub struct PrometheusClientMetrics {
     pub request_duration_seconds: Option<CounterVec>,
 }
 
-impl JsonRpcClientMetrics {
+impl PrometheusClientMetrics {
     /// Update prometheus metrics
     pub fn increment_metrics(
         &self,
