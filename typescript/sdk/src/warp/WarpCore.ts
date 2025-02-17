@@ -491,15 +491,28 @@ export class WarpCore {
     const adapter = destinationToken.getAdapter(this.multiProvider);
     if (
       destinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
     ) {
       const adapter = destinationToken.getAdapter(
         this.multiProvider,
       ) as IHypXERC20Adapter<unknown>;
-      const mintLimit = await adapter.getMintLimit();
-      const mintMaxLimit = await adapter.getMintMaxLimit();
-      const max = mintMaxLimit / 2n;
-      destinationBalance = mintLimit < max ? mintLimit : max;
+      destinationBalance = await adapter.getMintLimit();
+
+      if (
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+      ) {
+        const bufferCap = await adapter.getMintMaxLimit();
+        const max = bufferCap / 2n;
+        if (destinationBalance > max) {
+          this.logger.debug(
+            `Mint limit ${destinationBalance} exceeds max ${max}, using max`,
+          );
+          destinationBalance = max;
+        }
+      }
     } else {
       destinationBalance = await adapter.getBalance(
         destinationToken.addressOrDenom,
