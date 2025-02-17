@@ -32,6 +32,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "solana",
     "async",
 ] }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../sealevel/libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../../../sealevel/programs/mailbox", features = [
     "no-entrypoint",
@@ -46,5 +47,6 @@ hyperlane-sealevel-multisig-ism-message-id = { path = "../../../sealevel/program
 hyperlane-sealevel-validator-announce = { path = "../../../sealevel/programs/validator-announce", features = [
     "no-entrypoint",
 ] }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }
