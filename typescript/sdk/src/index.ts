@@ -584,6 +584,7 @@ export {
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
+  isXERC20TokenConfig,
   isTokenMetadata,
   NativeTokenConfig,
   NativeTokenConfigSchema,

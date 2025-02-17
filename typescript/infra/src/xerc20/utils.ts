@@ -2,11 +2,18 @@ import chalk from 'chalk';
 import { PopulatedTransaction } from 'ethers';
 import { join } from 'path';
 
+import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
   EvmXERC20VSAdapter,
   MultiProtocolProvider,
   MultiProvider,
+  TokenType,
+  WarpCoreConfig,
+  WarpRouteDeployConfig,
   canProposeSafeTransactions,
+  isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -21,7 +28,7 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
 export interface BridgeConfig {
   xERC20Address: Address;
   bridgeAddress: Address;
-  decimal: number;
+  decimals: number;
   owner: Address;
   bufferCap: number;
   rateLimitPerSecond: number;
@@ -38,21 +45,16 @@ export async function addBridgeToChain({
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
 }) {
-  const {
-    xERC20Address,
-    bridgeAddress,
-    bufferCap,
-    rateLimitPerSecond,
-    decimal,
-  } = bridgeConfig;
+  const { xERC20Address, bridgeAddress, bufferCap, rateLimitPerSecond } =
+    bridgeConfig;
 
   try {
     const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
       token: xERC20Address,
     });
 
-    const bufferCapScaled = BigInt(bufferCap) * 10n ** BigInt(decimal);
-    const rateLimitScaled = BigInt(rateLimitPerSecond) * 10n ** BigInt(decimal);
+    const bufferCapBigInt = BigInt(bufferCap);
+    const rateLimitBigInt = BigInt(rateLimitPerSecond);
 
     const rateLimits = await xERC20Adapter.getRateLimits(bridgeAddress);
     if (rateLimits.rateLimitPerSecond) {
@@ -65,8 +67,8 @@ export async function addBridgeToChain({
     }
 
     const tx = await xERC20Adapter.populateAddBridgeTx({
-      bufferCap: bufferCapScaled,
-      rateLimitPerSecond: rateLimitScaled,
+      bufferCap: bufferCapBigInt,
+      rateLimitPerSecond: rateLimitBigInt,
       bridge: bridgeAddress,
     });
 
@@ -106,7 +108,7 @@ export async function updateChainLimits({
     owner,
     bufferCap,
     rateLimitPerSecond,
-    decimal,
+    decimals,
   } = bridgeConfig;
   const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
     token: xERC20Address,
@@ -122,7 +124,7 @@ export async function updateChainLimits({
     xERC20Adapter,
     bufferCap,
     currentBufferCap,
-    decimal,
+    decimals,
     bridgeAddress,
   );
 
@@ -131,7 +133,7 @@ export async function updateChainLimits({
     xERC20Adapter,
     rateLimitPerSecond,
     currentRateLimitPerSecond,
-    decimal,
+    decimals,
     bridgeAddress,
   );
 
@@ -164,11 +166,11 @@ async function prepareBufferCapTx(
   adapter: EvmXERC20VSAdapter,
   newBufferCap: number,
   currentBufferCap: bigint,
-  decimal: number,
+  decimals: number,
   bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
-  const bufferCapScaled = BigInt(newBufferCap) * 10n ** BigInt(decimal);
-  if (bufferCapScaled === currentBufferCap) {
+  const newBufferCapBigInt = BigInt(newBufferCap);
+  if (newBufferCapBigInt === currentBufferCap) {
     rootLogger.info(
       chalk.green(`[${chain}] Buffer cap is already set to the desired value`),
     );
@@ -177,11 +179,14 @@ async function prepareBufferCapTx(
 
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Preparing buffer cap update: ${currentBufferCap} → ${bufferCapScaled}`,
+      `[${chain}] Preparing buffer cap update: ${humanReadableLimit(
+        currentBufferCap,
+        decimals,
+      )} → ${humanReadableLimit(newBufferCapBigInt, decimals)}`,
     ),
   );
   return adapter.populateSetBufferCapTx({
-    newBufferCap: bufferCapScaled,
+    newBufferCap: newBufferCapBigInt,
     bridge: bridgeAddress,
   });
 }
@@ -191,12 +196,12 @@ async function prepareRateLimitTx(
   adapter: EvmXERC20VSAdapter,
   newRateLimitPerSecond: number,
   currentRateLimitPerSecond: bigint,
-  decimal: number,
+  decimals: number,
   bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
-  const rateLimitScaled =
-    BigInt(newRateLimitPerSecond) * 10n ** BigInt(decimal);
-  if (rateLimitScaled === currentRateLimitPerSecond) {
+  const newRateLimitBigInt = BigInt(newRateLimitPerSecond);
+
+  if (BigInt(newRateLimitBigInt) === currentRateLimitPerSecond) {
     rootLogger.info(
       chalk.green(
         `[${chain}] Rate limit per second is already set to the desired value`,
@@ -207,11 +212,14 @@ async function prepareRateLimitTx(
 
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Preparing rate limit update: ${currentRateLimitPerSecond} → ${rateLimitScaled}`,
+      `[${chain}] Preparing rate limit update: ${humanReadableLimit(
+        currentRateLimitPerSecond,
+        decimals,
+      )} → ${humanReadableLimit(newRateLimitBigInt, decimals)}`,
     ),
   );
   return adapter.populateSetRateLimitPerSecondTx({
-    newRateLimitPerSecond: rateLimitScaled,
+    newRateLimitPerSecond: newRateLimitBigInt,
     bridge: bridgeAddress,
   });
 }
@@ -246,20 +254,27 @@ async function sendAsSafeMultiSend(
     ),
   );
 
-  const safeMultiSend = new SafeMultiSend(multiProvider, chain, safeAddress);
-  const multiSendTxs = transactions.map((tx) => {
-    if (!tx.to || !tx.data) {
-      throw new Error(
-        `[${chain}] Populated transaction missing 'to' or 'data'`,
-      );
-    }
-    return { to: tx.to, data: tx.data };
-  });
+  try {
+    const safeMultiSend = new SafeMultiSend(multiProvider, chain, safeAddress);
+    const multiSendTxs = transactions.map((tx) => {
+      if (!tx.to || !tx.data) {
+        throw new Error(
+          `[${chain}] Populated transaction missing 'to' or 'data'`,
+        );
+      }
+      return { to: tx.to, data: tx.data };
+    });
 
-  await safeMultiSend.sendTransactions(multiSendTxs);
-  rootLogger.info(
-    chalk.green(`[${chain}] Safe multi-send transaction(s) submitted.`),
-  );
+    await safeMultiSend.sendTransactions(multiSendTxs);
+    rootLogger.info(
+      chalk.green(`[${chain}] Safe multi-send transaction(s) submitted.`),
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`[${chain}] Error sending safe transactions:`, error),
+    );
+    throw { chain, error };
+  }
 }
 
 async function sendAsEOATransactions(
@@ -275,16 +290,93 @@ async function sendAsEOATransactions(
 
   const signer = multiProvider.getSigner(chain);
   for (const tx of transactions) {
-    rootLogger.info(
-      chalk.gray(`[${chain}] Sending EOA transaction to ${tx.to}...`),
-    );
-    const txResponse = await signer.sendTransaction(tx);
-    const txReceipt = await multiProvider.handleTx(chain, txResponse);
+    try {
+      rootLogger.info(
+        chalk.gray(`[${chain}] Sending EOA transaction to ${tx.to}...`),
+      );
+      const txResponse = await signer.sendTransaction(tx);
+      const txReceipt = await multiProvider.handleTx(chain, txResponse);
 
-    rootLogger.info(
-      chalk.green(
-        `[${chain}] Transaction confirmed: ${txReceipt.transactionHash}`,
-      ),
-    );
+      rootLogger.info(
+        chalk.green(
+          `[${chain}] Transaction confirmed: ${txReceipt.transactionHash}`,
+        ),
+      );
+    } catch (error) {
+      rootLogger.error(
+        chalk.red(`[${chain}] Error sending EOA transaction:`, error),
+      );
+      throw { chain, error };
+    }
   }
+}
+
+export async function deriveBridgesConfig(
+  warpDeployConfig: WarpRouteDeployConfig,
+  warpCoreConfig: WarpCoreConfig,
+  routerAddresses: ChainMap<ChainAddresses>,
+  multiProvider: MultiProvider,
+): Promise<ChainMap<BridgeConfig>> {
+  const bridgesConfig: ChainMap<BridgeConfig> = {};
+
+  for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
+    if (!isXERC20TokenConfig(chainConfig)) {
+      throw new Error(
+        `Chain "${chainName}" is not an xERC20 compliant deployment`,
+      );
+    }
+
+    const { token, type, owner, xERC20 } = chainConfig;
+
+    const decimals = warpCoreConfig.tokens.find(
+      (t) => t.chainName === chainName,
+    )?.decimals;
+    if (!decimals) {
+      throw new Error(`Missing "decimals" for chain: ${chainName}`);
+    }
+
+    if (
+      !xERC20 ||
+      !xERC20.limits.bufferCap ||
+      !xERC20.limits.rateLimitPerSecond
+    ) {
+      throw new Error(`Missing "limits" for chain: ${chainName}`);
+    }
+
+    let xERC20Address = token;
+    const bridgeAddress = routerAddresses[chainName][type];
+
+    const {
+      bufferCap: bufferCapStr,
+      rateLimitPerSecond: rateLimitPerSecondStr,
+    } = xERC20.limits;
+    const bufferCap = Number(bufferCapStr);
+    const rateLimitPerSecond = Number(rateLimitPerSecondStr);
+
+    if (type === TokenType.XERC20Lockbox) {
+      const provider = multiProvider.getProvider(chainName);
+      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+        bridgeAddress,
+        provider,
+      );
+
+      xERC20Address = await hypXERC20Lockbox.xERC20();
+    }
+
+    bridgesConfig[chainName] = {
+      xERC20Address,
+      bridgeAddress,
+      owner,
+      decimals,
+      bufferCap,
+      rateLimitPerSecond,
+    };
+  }
+
+  return bridgesConfig;
+}
+
+function humanReadableLimit(limit: bigint, decimals: number): string {
+  const scaledLimit = limit / 10n ** BigInt(decimals);
+  return scaledLimit.toString();
 }
