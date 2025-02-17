@@ -34,7 +34,7 @@ export const keyFunderConfig: KeyFunderConfig<
     appchain: '0.05',
     arbitrum: '0.5',
     arbitrumnova: '0.05',
-    arcadia: '0.05',
+    // arcadia: '0.05',
     artela: '2',
     arthera: '0.1',
     astar: '100',
