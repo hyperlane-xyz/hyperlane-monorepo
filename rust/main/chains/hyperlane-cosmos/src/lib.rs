@@ -7,6 +7,8 @@
 #![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 
 mod aggregation_ism;
+/// Hyperlane Application specific functionality
+pub mod application;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;

@@ -8,6 +8,17 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
+use tokio::{
+    sync::{
+        broadcast::Sender as BroadcastSender,
+        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
+        RwLock,
+    },
+    task::JoinHandle,
+};
+use tokio_metrics::TaskMonitor;
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
@@ -21,16 +32,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
     QueueOperation, ValidatorAnnounce, H512, U256,
 };
-use tokio::{
-    sync::{
-        broadcast::Sender as BroadcastSender,
-        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
-        RwLock,
-    },
-    task::JoinHandle,
-};
-use tokio_metrics::TaskMonitor;
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -83,6 +85,7 @@ pub struct Relayer {
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Vec<(MatchingList, String)>,
+    max_retries: u32,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -134,6 +137,10 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|origin| (origin.clone(), HyperlaneRocksDB::new(origin, db.clone())))
             .collect::<HashMap<_, _>>();
+
+        let application_operation_verifiers =
+            Self::build_application_operation_verifiers(&settings, &core_metrics, &chain_metrics)
+                .await;
 
         let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
 
@@ -246,6 +253,8 @@ impl BaseAgent for Relayer {
                     transaction_gas_limit
                 };
 
+            let application_operation_verifier = application_operation_verifiers.get(destination);
+
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
@@ -270,11 +279,12 @@ impl BaseAgent for Relayer {
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
-                        origin_db: dbs.get(origin).unwrap().clone(),
+                        origin_db: Arc::new(dbs.get(origin).unwrap().clone()),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
+                        application_operation_verifier: application_operation_verifier.cloned(),
                     }),
                 );
             }
@@ -297,6 +307,7 @@ impl BaseAgent for Relayer {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
+            max_retries: settings.max_retries,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -574,6 +585,7 @@ impl Relayer {
             send_channels,
             destination_ctxs,
             self.metric_app_contexts.clone(),
+            self.max_retries,
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
@@ -662,6 +674,30 @@ impl Relayer {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
                     error!(?err, origin=?origin, "Critical error when building validator announce");
+                    chain_metrics.set_critical_error(origin.name(), true);
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Helper function to build and return a hashmap of application operation verifiers.
+    /// Any chains that fail to build application operation verifier will not be included
+    /// in the hashmap. Errors will be logged and chain metrics
+    /// will be updated for chains that fail to build application operation verifier.
+    pub async fn build_application_operation_verifiers(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ApplicationOperationVerifier>> {
+        settings
+            .build_application_operation_verifiers(settings.origin_chains.iter(), core_metrics)
+            .await
+            .into_iter()
+            .filter_map(|(origin, app_context_verifier_res)| match app_context_verifier_res {
+                Ok(app_context_verifier) => Some((origin, app_context_verifier)),
+                Err(err) => {
+                    error!(?err, origin=?origin, "Critical error when building application operation verifier");
                     chain_metrics.set_critical_error(origin.name(), true);
                     None
                 }
@@ -792,6 +828,7 @@ mod test {
             skip_transaction_gas_limit_for: HashSet::new(),
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
+            max_retries: 1,
         }
     }
 

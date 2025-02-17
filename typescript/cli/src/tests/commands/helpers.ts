@@ -248,8 +248,7 @@ export async function deployOrUseExistingCore(
   registryPath?: string,
 ) {
   const { registry } = await getContext({
-    registryUri: registryPath ?? REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key,
   });
   const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
@@ -275,11 +274,9 @@ export async function deployOrUseExistingCore(
 export async function getDomainId(
   chainName: string,
   key: string,
-  registryPath?: string,
 ): Promise<string> {
   const { registry } = await getContext({
-    registryUri: registryPath ?? REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key,
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
@@ -293,8 +290,7 @@ export async function deployToken(
   symbol = 'TOKEN',
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key: privateKey,
   });
 
@@ -320,8 +316,7 @@ export async function deploy4626Vault(
   tokenAddress: string,
 ) {
   const { multiProvider } = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key: privateKey,
   });
 
