@@ -216,6 +216,26 @@ async fn test_multicast_first_provider_succeeds_slow_third_succeeds_immediately(
 }
 
 #[tokio::test]
+async fn test_multicast_first_provider_succeeds_slow_second_succeeds_quicker() {
+    let fallback_provider_builder = FallbackProviderBuilder::default();
+    let providers = vec![
+        EthereumProviderMock::new(Some(Duration::from_millis(10)), Some(1)),
+        EthereumProviderMock::new(Some(Duration::from_millis(5)), Some(2)),
+        EthereumProviderMock::new(None, None),
+    ];
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
+    let provider_id = ethereum_fallback_provider
+        .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
+        .await
+        .unwrap();
+    let provider_call_count: Vec<_> =
+        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 2);
+    assert_eq!(provider_call_count, vec![1, 1, 1]);
+}
+
+#[tokio::test]
 async fn test_multicast_none_provider_succeeds() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
