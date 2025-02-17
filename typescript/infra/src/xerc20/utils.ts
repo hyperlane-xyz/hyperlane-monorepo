@@ -1,3 +1,4 @@
+import { BigNumber } from 'bignumber.js';
 import chalk from 'chalk';
 import { PopulatedTransaction } from 'ethers';
 import { join } from 'path';
@@ -15,9 +16,9 @@ import {
   canProposeSafeTransactions,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
 
-import { SafeMultiSend } from '../govern/multisend.js';
+import { SafeMultiSend, SignerMultiSend } from '../govern/multisend.js';
 import { getInfraPath } from '../utils/utils.js';
 
 export const XERC20_BRIDGES_CONFIG_PATH = join(
@@ -89,7 +90,7 @@ export async function addBridgeToChain({
     if (isSafeOwner) {
       await sendAsSafeMultiSend(chain, owner, envMultiProvider, [tx]);
     } else {
-      await sendAsEOATransactions(chain, envMultiProvider, [tx]);
+      await sendAsSignerMultiSend(chain, envMultiProvider, [tx]);
     }
   } catch (error) {
     rootLogger.error(chalk.red(`[${chain}] Error adding bridge:`, error));
@@ -163,7 +164,7 @@ export async function updateChainLimits({
   if (isSafeOwner) {
     await sendAsSafeMultiSend(chain, owner, envMultiProvider, txsToSend);
   } else {
-    await sendAsEOATransactions(chain, envMultiProvider, txsToSend);
+    await sendAsSignerMultiSend(chain, envMultiProvider, txsToSend);
   }
 }
 
@@ -176,6 +177,7 @@ async function prepareBufferCapTx(
   bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
   const newBufferCapBigInt = BigInt(newBufferCap);
+
   if (newBufferCapBigInt === currentBufferCap) {
     rootLogger.info(
       chalk.green(`[${chain}] Buffer cap is already set to the desired value`),
@@ -260,16 +262,10 @@ async function sendAsSafeMultiSend(
     ),
   );
 
+  const multiSendTxs = getTxCallData(transactions);
+
   try {
     const safeMultiSend = new SafeMultiSend(multiProvider, chain, safeAddress);
-    const multiSendTxs = transactions.map((tx) => {
-      if (!tx.to || !tx.data) {
-        throw new Error(
-          `[${chain}] Populated transaction missing 'to' or 'data'`,
-        );
-      }
-      return { to: tx.to, data: tx.data };
-    });
 
     await safeMultiSend.sendTransactions(multiSendTxs);
     rootLogger.info(
@@ -283,38 +279,39 @@ async function sendAsSafeMultiSend(
   }
 }
 
-async function sendAsEOATransactions(
+async function sendAsSignerMultiSend(
   chain: string,
   multiProvider: MultiProvider,
   transactions: PopulatedTransaction[],
 ) {
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Sending ${transactions.length} transaction(s) via EOA...`,
+      `[${chain}] Using SignerMultiSend for ${transactions.length} transaction(s)...`,
     ),
   );
 
-  const signer = multiProvider.getSigner(chain);
-  for (const tx of transactions) {
-    try {
-      rootLogger.info(
-        chalk.gray(`[${chain}] Sending EOA transaction to ${tx.to}...`),
-      );
-      const txResponse = await signer.sendTransaction(tx);
-      const txReceipt = await multiProvider.handleTx(chain, txResponse);
-
-      rootLogger.info(
-        chalk.green(
-          `[${chain}] Transaction confirmed: ${txReceipt.transactionHash}`,
-        ),
-      );
-    } catch (error) {
-      rootLogger.error(
-        chalk.red(`[${chain}] Error sending EOA transaction:`, error),
-      );
-      throw { chain, error };
-    }
+  const multiSendTxs = getTxCallData(transactions);
+  try {
+    const signerMultiSend = new SignerMultiSend(multiProvider, chain);
+    await signerMultiSend.sendTransactions(multiSendTxs);
+    rootLogger.info(
+      chalk.green(`[${chain}] Signer multi-send transaction(s) submitted.`),
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`[${chain}] Error sending signer transactions:`, error),
+    );
+    throw { chain, error };
   }
+}
+
+function getTxCallData(transactions: PopulatedTransaction[]): CallData[] {
+  return transactions.map((tx) => {
+    if (!tx.to || !tx.data) {
+      throw new Error('Populated transaction missing "to" or "data"');
+    }
+    return { to: tx.to, data: tx.data };
+  });
 }
 
 export async function deriveBridgesConfig(
@@ -383,6 +380,7 @@ export async function deriveBridgesConfig(
 }
 
 function humanReadableLimit(limit: bigint, decimals: number): string {
-  const scaledLimit = limit / 10n ** BigInt(decimals);
-  return scaledLimit.toString();
+  return new BigNumber(limit.toString())
+    .dividedBy(new BigNumber(10).pow(decimals))
+    .toString();
 }
