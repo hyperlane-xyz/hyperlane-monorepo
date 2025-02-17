@@ -2,10 +2,6 @@ import { PublicKey } from '@solana/web3.js';
 import { Contract } from 'starknet';
 
 import {
-  ContractType,
-  getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
-import {
   Address,
   ProtocolType,
   objMap,
@@ -26,6 +22,7 @@ import {
 } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 import { MultiGeneric } from '../utils/MultiGeneric.js';
+import { getStarknetHypERC20Contract } from '../utils/starknet.js';
 
 /**
  * A minimal interface for an adapter that can be used with MultiProtocolApp
@@ -108,15 +105,8 @@ export class BaseStarknetAdapter extends BaseAppAdapter {
     return this.multiProvider.getStarknetProvider(this.chainName);
   }
 
-  // private async getContractAbi(address: Address): Promise<any> {
-  //   const { abi } = await this.getProvider().getClassAt(address);
-  //   assert(abi, 'Contract ABI not found');
-  //   return abi;
-  // }
-
-  public async getERC20Contract(address: Address): Promise<Contract> {
-    const abi = getCompiledContract('Ether', ContractType.TOKEN).abi;
-    return new Contract(abi, address, this.getProvider());
+  public getHypERC20Contract(address: Address): Contract {
+    return getStarknetHypERC20Contract(address, this.getProvider());
   }
 }
 

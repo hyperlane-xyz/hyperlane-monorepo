@@ -1,12 +1,11 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call } from 'starknet';
+import { CairoOption, CairoOptionVariant, Call, Contract } from 'starknet';
 
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { getStarknetHypERC20Contract } from '../../utils/starknet.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -16,28 +15,33 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-const ETH_ADDRESS =
-  '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
+export class StarknetHypSyntheticAdapter
+  extends BaseStarknetAdapter
+  implements IHypTokenAdapter<Call>
+{
+  public readonly contract: Contract;
 
-export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { warpRouter: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.contract = this.getHypERC20Contract(this.addresses.warpRouter);
+  }
+
   async getBalance(address: Address): Promise<bigint> {
-    // On starknet, native tokens are ERC20s
-    const tokenContract = await this.getERC20Contract(ETH_ADDRESS);
-    const res = await tokenContract.balanceOf(address);
-    return res;
+    return this.contract.balanceOf(address);
   }
 
-  async getMetadata(): Promise<TokenMetadata> {
-    return {
-      symbol: 'ETH',
-      name: 'Ethereum',
-      totalSupply: 0,
-      decimals: 18,
-    };
-  }
-
-  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
-    return 0n;
+  async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
+    const [decimals, symbol, name, totalSupply] = await Promise.all([
+      this.contract.decimals(),
+      this.contract.symbol(),
+      this.contract.name(),
+      this.contract.totalSupply() ?? '0',
+    ]);
+    return { decimals, symbol, name, totalSupply };
   }
 
   async isApproveRequired(
@@ -46,9 +50,7 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     // Native tokens are ERC20s thus need to be approved
-    const ethToken = await this.getERC20Contract(ETH_ADDRESS);
-
-    const allowance = await ethToken.allowance(owner, spender);
+    const allowance = await this.contract.allowance(owner, spender);
 
     return BigNumber.from(allowance.toString()).lt(
       BigNumber.from(weiAmountOrId),
@@ -60,108 +62,18 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
     recipient,
   }: TransferParams): Promise<Call> {
     // Native tokens are ERC20s thus need to be approved
-    const ethToken = await this.getERC20Contract(ETH_ADDRESS);
-
-    return ethToken.populateTransaction.approve(recipient, weiAmountOrId);
+    return this.contract.populateTransaction.approve(recipient, weiAmountOrId);
   }
 
   async populateTransferTx({
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<Call> {
-    const tokenContract = await this.getERC20Contract(ETH_ADDRESS);
-    return tokenContract.populateTransaction.transfer(recipient, weiAmountOrId);
+    return this.contract.populateTransaction.transfer(recipient, weiAmountOrId);
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
     return undefined;
-  }
-}
-
-export class StarknetHypNativeAdapter
-  extends StarknetNativeTokenAdapter
-  implements IHypTokenAdapter<Call>
-{
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { warpRouter: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-  }
-
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
-    return { amount: BigInt(0) };
-  }
-
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-  }: TransferRemoteParams): Promise<Call> {
-    const warpRouter = getStarknetHypERC20Contract(
-      this.addresses.warpRouter,
-      this.getProvider(),
-    );
-
-    const nonOption = new CairoOption(CairoOptionVariant.None);
-
-    const transferTx = warpRouter.populateTransaction.transfer_remote(
-      destination,
-      recipient,
-      BigInt('1'),
-      BigInt('1'),
-      nonOption,
-      nonOption,
-    );
-
-    // TODO: add gas payment when we support it
-
-    return transferTx;
-  }
-
-  async getDomains(): Promise<Domain[]> {
-    return [];
-  }
-
-  async getRouterAddress(domain: Domain): Promise<Buffer> {
-    return Buffer.from(ETH_ADDRESS);
-  }
-
-  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    return [];
-  }
-
-  async getBridgedSupply(): Promise<bigint | undefined> {
-    return undefined;
-  }
-}
-
-export class StarknetHypSyntheticAdapter
-  extends StarknetNativeTokenAdapter
-  implements IHypTokenAdapter<Call>
-{
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-  }
-
-  override async getBalance(address: Address): Promise<bigint> {
-    const tokenContract = await this.getERC20Contract(this.addresses.token);
-    return tokenContract.balanceOf(address);
-  }
-
-  override async populateTransferTx({
-    weiAmountOrId,
-    recipient,
-  }: TransferParams): Promise<Call> {
-    const tokenContract = await this.getERC20Contract(this.addresses.token);
-    return tokenContract.populateTransaction.transfer(recipient, weiAmountOrId);
   }
 
   async quoteTransferRemoteGas(
@@ -176,10 +88,9 @@ export class StarknetHypSyntheticAdapter
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
-    const hypToken = getStarknetHypERC20Contract(this.addresses.token);
     const nonOption = new CairoOption(CairoOptionVariant.None);
 
-    const transferTx = hypToken.populateTransaction.transfer_remote(
+    const transferTx = this.contract.populateTransaction.transfer_remote(
       destination,
       recipient,
       BigInt(weiAmountOrId.toString()),
@@ -189,7 +100,6 @@ export class StarknetHypSyntheticAdapter
     );
 
     // TODO: add gas payment when we support it
-
     return {
       ...transferTx,
       value: interchainGas?.amount
@@ -198,12 +108,16 @@ export class StarknetHypSyntheticAdapter
     };
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async getDomains(): Promise<Domain[]> {
     return [];
   }
 
-  async getRouterAddress(domain: Domain): Promise<Buffer> {
-    return Buffer.from(this.addresses.token);
+  async getRouterAddress(_domain: Domain): Promise<Buffer> {
+    return Buffer.from(this.addresses.warpRouter);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {

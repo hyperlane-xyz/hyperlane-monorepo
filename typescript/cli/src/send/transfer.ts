@@ -195,7 +195,6 @@ async function executeDelivery({
     switch (tx.type) {
       case ProviderType.EthersV5: {
         const signer = multiProvider.getSigner(origin);
-
         const provider = multiProvider.getProvider(origin);
         const connectedSigner = signer.connect(provider);
         const txResponse = await connectedSigner.sendTransaction(
