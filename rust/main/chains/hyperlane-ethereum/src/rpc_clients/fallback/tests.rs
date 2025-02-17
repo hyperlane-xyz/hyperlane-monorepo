@@ -10,15 +10,6 @@ struct EthereumProviderMock {
     success: bool,
 }
 
-impl Default for EthereumProviderMock {
-    fn default() -> Self {
-        Self {
-            provider: ProviderMock::default(),
-            success: true,
-        }
-    }
-}
-
 impl Deref for EthereumProviderMock {
     type Target = ProviderMock;
 
@@ -106,9 +97,9 @@ where
 async fn test_multicast_first_provider_succeeds() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::default(),
-        EthereumProviderMock::default(),
-        EthereumProviderMock::default(),
+        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, true),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
@@ -126,8 +117,8 @@ async fn test_multicast_second_provider_succeeds() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
         EthereumProviderMock::new(None, false),
-        EthereumProviderMock::default(),
-        EthereumProviderMock::default(),
+        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, true),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
@@ -146,7 +137,7 @@ async fn test_multicast_first_provider_slow() {
     let providers = vec![
         EthereumProviderMock::new(Some(Duration::from_millis(10)), true),
         EthereumProviderMock::new(None, false),
-        EthereumProviderMock::default(),
+        EthereumProviderMock::new(None, true),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
@@ -181,9 +172,9 @@ async fn test_multicast_none_provider_succeeds() {
 async fn test_fallback_first_provider_is_attempted() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::default(),
-        EthereumProviderMock::default(),
-        EthereumProviderMock::default(),
+        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, true),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
@@ -198,8 +189,8 @@ async fn test_fallback_one_stalled_provider() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
         EthereumProviderMock::new(Some(Duration::from_millis(10)), true),
-        EthereumProviderMock::default(),
-        EthereumProviderMock::default(),
+        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, true),
     ];
     let fallback_provider = fallback_provider_builder
         .add_providers(providers)
