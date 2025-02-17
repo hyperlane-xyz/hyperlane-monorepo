@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
@@ -7,15 +6,19 @@ use std::{
     time::{Duration, Instant},
 };
 
+use async_trait::async_trait;
+use num::CheckedDiv;
+use prometheus::IntGauge;
+use serde::{Deserialize, Serialize};
+use strum::Display;
+use tracing::warn;
+
+use hyperlane_application::ApplicationReport;
+
 use crate::{
     ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
-use async_trait::async_trait;
-use num::CheckedDiv;
-use prometheus::IntGauge;
-use strum::Display;
-use tracing::warn;
 
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
@@ -250,13 +253,16 @@ pub enum ReprepareReason {
     #[strum(to_string = "Delivery transaction reverted or reorged")]
     /// Delivery transaction reverted or reorged
     RevertedOrReorged,
-    /// The metadata building was refused for the message.
     #[strum(to_string = "Message metadata refused")]
+    /// The metadata building was refused for the message
     MessageMetadataRefused,
+    #[strum(to_string = "ApplicationReport({0})")]
+    /// Application report
+    ApplicationReport(ApplicationReport),
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// Reasons for repreparing an operation
+/// Reasons for confirming an operation
 /// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
 /// Adding new variants is fine.
 pub enum ConfirmReason {

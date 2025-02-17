@@ -45,6 +45,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
+  morph: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 6, // 0.001 gwei
+    },
+  },
   rootstockmainnet: {
     transactionOverrides: {
       gasPrice: 7 * 10 ** 7, // 0.07 gwei

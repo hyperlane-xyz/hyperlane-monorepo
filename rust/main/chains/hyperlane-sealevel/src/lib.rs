@@ -17,6 +17,8 @@ pub use trait_builder::*;
 pub use validator_announce::*;
 
 mod account;
+/// Hyperlane Application specific functionality
+pub mod application;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;

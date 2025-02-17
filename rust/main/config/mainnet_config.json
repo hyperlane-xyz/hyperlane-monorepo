@@ -933,6 +933,9 @@
         },
         {
           "http": "https://cloudflare-eth.com"
+        },
+        {
+          "http": "https://eth.drpc.org"
         }
       ],
       "staticAggregationHookFactory": "0x6D2555A8ba483CcF4409C39013F5e9a3285D3C9E",
@@ -3052,10 +3055,10 @@
       "aggregationHook": "0x8007d1e60991fB9BE1be26f70A7cE284fdE7da97",
       "blockExplorers": [
         {
-          "apiUrl": "https://worldchain-mainnet-explorer.alchemy.com/api",
-          "family": "blockscout",
-          "name": "World Chain explorer",
-          "url": "https://worldchain-mainnet-explorer.alchemy.com"
+          "apiUrl": "https://api.worldscan.org/api",
+          "family": "etherscan",
+          "name": "Worldscan",
+          "url": "https://worldscan.org"
         }
       ],
       "blocks": {
@@ -4721,6 +4724,9 @@
       "validatorAnnounce": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
       "index": {
         "from": 94151
+      },
+      "transactionOverrides": {
+        "gasPrice": 1000000
       }
     },
     "orderly": {
@@ -5946,10 +5952,10 @@
     "unichain": {
       "blockExplorers": [
         {
-          "apiUrl": "https://unichain.blockscout.com/api",
-          "family": "blockscout",
+          "apiUrl": "https://api.uniscan.xyz/api",
+          "family": "etherscan",
           "name": "Unichain Explorer",
-          "url": "https://unichain.blockscout.com"
+          "url": "https://uniscan.xyz"
         }
       ],
       "blocks": {
