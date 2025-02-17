@@ -40,6 +40,7 @@ pub struct MessageProcessor {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Vec<(MatchingList, String)>,
     nonce_iterator: ForwardBackwardIterator,
+    max_retries: u32,
 }
 
 #[derive(Debug)]
@@ -307,12 +308,15 @@ impl ProcessorExt for MessageProcessor {
 
             let app_context = app_context_classifier.get_app_context(&msg).await?;
             // Finally, build the submit arg and dispatch it to the submitter.
-            let pending_msg = PendingMessage::from_persisted_retries(
+            let pending_msg = PendingMessage::maybe_from_persisted_retries(
                 msg,
                 self.destination_ctxs[&destination].clone(),
                 app_context,
+                self.max_retries,
             );
-            self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
+            if let Some(pending_msg) = pending_msg {
+                self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
+            }
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -331,6 +335,7 @@ impl MessageProcessor {
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Vec<(MatchingList, String)>,
+        max_retries: u32,
     ) -> Self {
         Self {
             message_whitelist,
@@ -342,6 +347,7 @@ impl MessageProcessor {
             metric_app_contexts,
             nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>)
                 .await,
+            max_retries,
         }
     }
 
@@ -505,7 +511,7 @@ mod test {
         let base_metadata_builder = dummy_metadata_builder(origin_domain, destination_domain, db);
         let message_context = Arc::new(MessageContext {
             destination_mailbox: Arc::new(MockMailboxContract::default()),
-            origin_db: db.clone(),
+            origin_db: Arc::new(db.clone()),
             metadata_builder: Arc::new(base_metadata_builder),
             origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
             transaction_gas_limit: Default::default(),
@@ -523,6 +529,7 @@ mod test {
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
                 vec![],
+                DEFAULT_MAX_MESSAGE_RETRIES,
             )
             .await,
             receive_channel,
@@ -797,8 +804,12 @@ mod test {
                 .zip(msg_retries_to_set.iter())
                 .for_each(|(pm, expected_retries)| {
                     // Round up the actual backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
-                    let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
-                        .map(|b| b.as_secs_f32().round());
+                    let expected_backoff = PendingMessage::calculate_msg_backoff(
+                        *expected_retries,
+                        DEFAULT_MAX_MESSAGE_RETRIES,
+                        None,
+                    )
+                    .map(|b| b.as_secs_f32().round());
                     let actual_backoff = pm.next_attempt_after().map(|instant| {
                         instant.duration_since(Instant::now()).as_secs_f32().round()
                     });
