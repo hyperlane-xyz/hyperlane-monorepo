@@ -28,3 +28,4 @@ yarn-error.log
 **/*.ignore
 
 tsconfig.editor.json
+.vscode/launch.json
