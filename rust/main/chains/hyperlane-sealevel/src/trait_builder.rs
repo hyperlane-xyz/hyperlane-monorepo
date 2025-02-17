@@ -1,5 +1,5 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use serde::Serialize;
 use url::Url;
 
@@ -130,9 +130,8 @@ impl TransactionSubmitterConfig {
                 // now that we know what the RPC URL is, we
                 // can create a metrics config that has the correct
                 // node info
-                let metrics_config = PrometheusConfig::from_url(&rpc_url, chain);
                 let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
-                    .with_prometheus_metrics(metrics, metrics_config)
+                    .with_prometheus_metrics(metrics, chain)
                     .build();
                 Box::new(RpcTransactionSubmitter::new(rpc_client))
             }
@@ -146,9 +145,8 @@ impl TransactionSubmitterConfig {
                 // now that we know what the RPC URL is, we
                 // can create a metrics config that has the correct
                 // node info
-                let metrics_config = PrometheusConfig::from_url(&rpc_url, chain);
                 let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
-                    .with_prometheus_metrics(metrics, metrics_config)
+                    .with_prometheus_metrics(metrics, chain)
                     .build();
                 Box::new(JitoTransactionSubmitter::new(rpc_client))
             }

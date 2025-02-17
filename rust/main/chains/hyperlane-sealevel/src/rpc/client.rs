@@ -46,11 +46,24 @@ pub struct SealevelTxCostEstimate {
 }
 
 /// Wrapper struct around Solana's RpcClient
-pub struct SealevelRpcClient(pub RpcClient);
+pub struct SealevelRpcClient(RpcClient);
 
 impl SealevelRpcClient {
     /// The max amount of compute units for a transaction.
     const MAX_COMPUTE_UNITS: u32 = 1_400_000;
+
+    /// constructor
+    pub fn new(rpc_endpoint: String) -> Self {
+        Self(RpcClient::new_with_commitment(
+            rpc_endpoint,
+            CommitmentConfig::processed(),
+        ))
+    }
+
+    /// constructor with an rpc client
+    pub fn from_rpc_client(rpc_client: RpcClient) -> Self {
+        Self(rpc_client)
+    }
 
     /// confirm transaction with given commitment
     pub async fn confirm_transaction_with_commitment(

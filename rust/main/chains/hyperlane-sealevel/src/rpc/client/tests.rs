@@ -6,7 +6,7 @@ use crate::SealevelRpcClient;
 async fn _test_get_block() {
     let rpc_client = RpcClient::new("<solana-rpc>".to_string());
     // given
-    let client = SealevelRpcClient(rpc_client);
+    let client = SealevelRpcClient::from_rpc_client(rpc_client);
 
     // when
     let slot = 301337842; // block which requires latest version of solana-client

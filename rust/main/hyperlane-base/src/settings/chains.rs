@@ -20,7 +20,7 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
     SealevelRpcClient, TransactionSubmitter,
@@ -212,11 +212,8 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
 
-                let provider = h_sealevel::SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                );
+                let provider =
+                    h_sealevel::SealevelProvider::new(rpc_client, locator.domain.clone(), conf);
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
@@ -245,12 +242,8 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-
-                Ok(Box::new(h_sealevel::SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    conf.native_token.clone(),
-                )) as Box<dyn HyperlaneProvider>)
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let provider = h_cosmos::CosmosProvider::new(
@@ -952,27 +945,21 @@ fn build_sealevel_rpc_client(
 ) -> SealevelRpcClient {
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
-    let rpc_metrics = metrics.client_metrics();
-    let rpc_metrics_config =
-        PrometheusConfig::from_url(&rpc_client_url, middleware_metrics.chain.clone());
+    let client_metrics = metrics.client_metrics();
     SealevelRpcClientBuilder::new(rpc_client_url)
-        .with_prometheus_metrics(rpc_metrics.clone(), rpc_metrics_config)
+        .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
         .build()
 }
 
+/// Helper to build a sealevel provider
 fn build_sealevel_provider(
     rpc_client: Arc<SealevelRpcClient>,
     locator: &ContractLocator,
-    connection_conf: &h_sealevel::ConnectionConf,
+    conf: &h_sealevel::ConnectionConf,
 ) -> SealevelProvider {
-    SealevelProvider::new(
-        rpc_client,
-        locator.domain.clone(),
-        connection_conf.native_token.clone(),
-    )
+    SealevelProvider::new(rpc_client, locator.domain.clone(), conf)
 }
 
-/// Helper to build a sealevel tx submitter with metrics
 fn build_tx_submitter(
     chain_conf: &ChainConf,
     connection_conf: &h_sealevel::ConnectionConf,
@@ -980,10 +967,10 @@ fn build_tx_submitter(
 ) -> Box<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
-    let rpc_metrics = metrics.client_metrics();
+    let client_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(
         rpc_client_url.to_string(),
-        rpc_metrics,
+        client_metrics,
         middleware_metrics.chain.clone(),
     )
 }

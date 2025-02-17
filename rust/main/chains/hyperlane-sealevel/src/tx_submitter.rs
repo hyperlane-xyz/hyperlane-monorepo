@@ -35,7 +35,7 @@ pub trait TransactionSubmitter: Send + Sync {
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
 #[derive(Debug, new)]
 pub struct RpcTransactionSubmitter {
-    pub rpc_client: SealevelRpcClient,
+    rpc_client: SealevelRpcClient,
 }
 
 #[async_trait]

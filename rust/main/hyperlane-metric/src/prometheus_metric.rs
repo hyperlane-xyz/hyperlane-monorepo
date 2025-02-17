@@ -22,7 +22,7 @@ pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
 /// Container for all the relevant rpc client metrics.
-#[derive(Clone, Builder)]
+#[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
     /// Total number of requests made to this client.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,

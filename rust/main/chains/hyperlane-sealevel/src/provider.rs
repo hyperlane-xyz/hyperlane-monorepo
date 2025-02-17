@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use derive_new::new;
 use lazy_static::lazy_static;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{
@@ -20,7 +19,7 @@ use hyperlane_core::{
 
 use crate::error::HyperlaneSealevelError;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
-use crate::SealevelRpcClient;
+use crate::{ConnectionConf, SealevelRpcClient};
 
 lazy_static! {
     static ref NATIVE_PROGRAMS: HashSet<String> = HashSet::from([
@@ -36,7 +35,7 @@ lazy_static! {
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
-#[derive(Debug, new)]
+#[derive(Debug)]
 pub struct SealevelProvider {
     rpc_client: Arc<SealevelRpcClient>,
     domain: HyperlaneDomain,
@@ -44,6 +43,20 @@ pub struct SealevelProvider {
 }
 
 impl SealevelProvider {
+    /// constructor
+    pub fn new(
+        rpc_client: Arc<SealevelRpcClient>,
+        domain: HyperlaneDomain,
+        conf: &ConnectionConf,
+    ) -> Self {
+        let native_token = conf.native_token.clone();
+        Self {
+            rpc_client,
+            domain,
+            native_token,
+        }
+    }
+
     /// Get an rpc client
     pub fn rpc(&self) -> &SealevelRpcClient {
         &self.rpc_client
