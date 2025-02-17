@@ -7,7 +7,7 @@ use super::*;
 #[derive(Debug, Clone)]
 struct EthereumProviderMock {
     provider: ProviderMock,
-    success: bool,
+    block_number: Option<u64>,
 }
 
 impl Deref for EthereumProviderMock {
@@ -19,10 +19,10 @@ impl Deref for EthereumProviderMock {
 }
 
 impl EthereumProviderMock {
-    fn new(request_sleep: Option<Duration>, success: bool) -> Self {
+    fn new(request_sleep: Option<Duration>, block_number: Option<u64>) -> Self {
         Self {
             provider: ProviderMock::new(request_sleep),
-            success,
+            block_number,
         }
     }
 }
@@ -33,8 +33,10 @@ impl From<EthereumProviderMock> for JsonRpcBlockGetter<EthereumProviderMock> {
     }
 }
 
-fn dummy_success_return_value<R: DeserializeOwned>() -> Result<R, HttpClientError> {
-    serde_json::from_str("0").map_err(|e| HttpClientError::SerdeJson {
+fn dummy_success_return_value<R: DeserializeOwned>(
+    block_number: u64,
+) -> Result<R, HttpClientError> {
+    serde_json::from_str(&block_number.to_string()).map_err(|e| HttpClientError::SerdeJson {
         err: e,
         text: "".to_owned(),
     })
@@ -62,10 +64,10 @@ impl JsonRpcClient for EthereumProviderMock {
         if let Some(sleep_duration) = self.provider.request_sleep() {
             sleep(sleep_duration).await;
         }
-        if self.success {
-            dummy_success_return_value()
-        } else {
+        if self.block_number.is_none() {
             dummy_error_return_value()
+        } else {
+            dummy_success_return_value(self.block_number.unwrap())
         }
     }
 }
@@ -88,8 +90,8 @@ where
         + Clone,
     JsonRpcBlockGetter<C>: BlockNumberGetter,
 {
-    async fn fallback_test_call(&self) {
-        self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap();
+    async fn fallback_test_call(&self) -> u64 {
+        self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap()
     }
 }
 
@@ -97,18 +99,19 @@ where
 async fn test_multicast_first_provider_succeeds_immediately() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(None, true),
-        EthereumProviderMock::new(None, true),
-        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, Some(1)),
+        EthereumProviderMock::new(None, Some(2)),
+        EthereumProviderMock::new(None, Some(3)),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider
+    let provider_id = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 1);
     assert_eq!(provider_call_count, vec![1, 0, 0]);
 }
 
@@ -116,18 +119,19 @@ async fn test_multicast_first_provider_succeeds_immediately() {
 async fn test_multicast_second_provider_succeeds_immediately() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, true),
-        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, Some(2)),
+        EthereumProviderMock::new(None, Some(3)),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider
+    let provider_id = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 2);
     assert_eq!(provider_call_count, vec![1, 1, 0]);
 }
 
@@ -135,18 +139,19 @@ async fn test_multicast_second_provider_succeeds_immediately() {
 async fn test_multicast_third_provider_succeeds_immediately() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, Some(3)),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider
+    let provider_id = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 3);
     assert_eq!(provider_call_count, vec![1, 1, 1]);
 }
 
@@ -154,18 +159,19 @@ async fn test_multicast_third_provider_succeeds_immediately() {
 async fn test_multicast_first_provider_succeeds_slow() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(Some(Duration::from_millis(10)), true),
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, false),
+        EthereumProviderMock::new(Some(Duration::from_millis(10)), Some(1)),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, None),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider
+    let provider_id = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 1);
     assert_eq!(provider_call_count, vec![1, 1, 1]);
 }
 
@@ -173,18 +179,19 @@ async fn test_multicast_first_provider_succeeds_slow() {
 async fn test_multicast_second_provider_succeeds_slow() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(Some(Duration::from_millis(10)), true),
-        EthereumProviderMock::new(None, false),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(Some(Duration::from_millis(10)), Some(2)),
+        EthereumProviderMock::new(None, None),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider
+    let provider_id = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 2);
     assert_eq!(provider_call_count, vec![1, 1, 1]);
 }
 
@@ -192,18 +199,19 @@ async fn test_multicast_second_provider_succeeds_slow() {
 async fn test_multicast_first_provider_succeeds_slow_third_succeeds_immediately() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(Some(Duration::from_millis(10)), true),
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(Some(Duration::from_millis(10)), Some(1)),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, Some(3)),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider
+    let provider_id = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 3);
     assert_eq!(provider_call_count, vec![1, 1, 1]);
 }
 
@@ -211,9 +219,9 @@ async fn test_multicast_first_provider_succeeds_slow_third_succeeds_immediately(
 async fn test_multicast_none_provider_succeeds() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, false),
-        EthereumProviderMock::new(None, false),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, None),
+        EthereumProviderMock::new(None, None),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
@@ -229,15 +237,16 @@ async fn test_multicast_none_provider_succeeds() {
 async fn test_fallback_first_provider_is_attempted() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(None, true),
-        EthereumProviderMock::new(None, true),
-        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(None, Some(1)),
+        EthereumProviderMock::new(None, Some(2)),
+        EthereumProviderMock::new(None, Some(3)),
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider.fallback_test_call().await;
+    let provider_id = ethereum_fallback_provider.fallback_test_call().await;
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 1);
     assert_eq!(provider_call_count, vec![1, 0, 0]);
 }
 
@@ -245,18 +254,19 @@ async fn test_fallback_first_provider_is_attempted() {
 async fn test_fallback_one_stalled_provider() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(Some(Duration::from_millis(10)), true),
-        EthereumProviderMock::new(None, true),
-        EthereumProviderMock::new(None, true),
+        EthereumProviderMock::new(Some(Duration::from_millis(10)), Some(1)),
+        EthereumProviderMock::new(None, Some(2)),
+        EthereumProviderMock::new(None, Some(3)),
     ];
     let fallback_provider = fallback_provider_builder
         .add_providers(providers)
         .with_max_block_time(Duration::from_secs(0))
         .build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    ethereum_fallback_provider.fallback_test_call().await;
+    let provider_id = ethereum_fallback_provider.fallback_test_call().await;
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    assert_eq!(provider_id, 1);
     assert_eq!(provider_call_count, vec![0, 0, 2]);
 }
 
