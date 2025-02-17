@@ -9,9 +9,7 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::CoreMetrics;
 
-/// Expected label names for the `gas_price` metric.
-/// Help string for the metric.
-pub const RUNTIME_DROPPED_TASKS_HELP: &str = "The number of tasks dropped";
+const RUNTIME_DROPPED_TASKS_HELP: &str = "The number of tasks dropped";
 
 /// Metrics for the runtime
 pub struct RuntimeMetrics {
