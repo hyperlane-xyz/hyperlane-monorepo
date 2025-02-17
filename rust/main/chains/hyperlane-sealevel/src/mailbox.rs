@@ -40,7 +40,6 @@ use hyperlane_core::{
     ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
-use crate::tx_submitter::TransactionSubmitter;
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
     priority_fee::PriorityFeeOracle,
@@ -51,6 +50,7 @@ use crate::{
     },
     SealevelKeypair,
 };
+use crate::{tx_submitter::TransactionSubmitter, utils::force_non_signers};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -205,7 +205,7 @@ impl SealevelMailbox {
     ) -> ChainResult<Vec<AccountMeta>> {
         let instruction =
             hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
-        self.get_account_metas_with_instruction_bytes(
+        self.get_non_signer_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
@@ -226,7 +226,7 @@ impl SealevelMailbox {
                 metadata,
                 message,
             });
-        self.get_account_metas_with_instruction_bytes(
+        self.get_non_signer_account_metas_with_instruction_bytes(
             ism,
             &instruction
                 .encode()
@@ -249,7 +249,7 @@ impl SealevelMailbox {
         });
 
         let mut account_metas = self
-            .get_account_metas_with_instruction_bytes(
+            .get_non_signer_account_metas_with_instruction_bytes(
                 recipient_program_id,
                 &instruction
                     .encode()
@@ -270,7 +270,7 @@ impl SealevelMailbox {
         Ok(account_metas)
     }
 
-    async fn get_account_metas_with_instruction_bytes(
+    async fn get_non_signer_account_metas_with_instruction_bytes(
         &self,
         program_id: Pubkey,
         instruction_data: &[u8],
@@ -284,7 +284,11 @@ impl SealevelMailbox {
             vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
-        self.get_account_metas(instruction).await
+        let account_metas = self.get_account_metas(instruction).await?;
+
+        // Force all dynamically provided account metas to be non-signers to protect against
+        // potential theft from the payer.
+        Ok(force_non_signers(account_metas))
     }
 
     async fn get_process_instruction(
