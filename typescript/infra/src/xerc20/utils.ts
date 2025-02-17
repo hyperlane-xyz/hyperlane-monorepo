@@ -18,6 +18,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
 
+import { getRegistry, getWarpAddresses } from '../../config/registry.js';
 import { SafeMultiSend, SignerMultiSend } from '../govern/multisend.js';
 import { getInfraPath } from '../utils/utils.js';
 
@@ -87,20 +88,7 @@ export async function addBridgeToChain({
         `[${chain}] Sending addBridge transaction to ${xERC20Address}...`,
       ),
     );
-    const signer = envMultiProvider.getSigner(chain);
-    const proposerAddress = await signer.getAddress();
-    const isSafeOwner = await checkSafeOwner(
-      proposerAddress,
-      chain,
-      envMultiProvider,
-      owner,
-    );
-
-    if (isSafeOwner) {
-      await sendAsSafeMultiSend(chain, owner, envMultiProvider, [tx]);
-    } else {
-      await sendAsSignerMultiSend(chain, envMultiProvider, [tx]);
-    }
+    await sendTransactions(envMultiProvider, chain, owner, [tx]);
   } catch (error) {
     rootLogger.error(chalk.red(`[${chain}] Error adding bridge:`, error));
     throw { chain, error };
@@ -161,20 +149,7 @@ export async function updateChainLimits({
     return;
   }
 
-  const signer = envMultiProvider.getSigner(chain);
-  const proposerAddress = await signer.getAddress();
-  const isSafeOwner = await checkSafeOwner(
-    proposerAddress,
-    chain,
-    envMultiProvider,
-    owner,
-  );
-
-  if (isSafeOwner) {
-    await sendAsSafeMultiSend(chain, owner, envMultiProvider, txsToSend);
-  } else {
-    await sendAsSignerMultiSend(chain, envMultiProvider, txsToSend);
-  }
+  await sendTransactions(envMultiProvider, chain, owner, txsToSend);
 }
 
 async function prepareBufferCapTx(
@@ -323,6 +298,28 @@ function getTxCallData(transactions: PopulatedTransaction[]): CallData[] {
   });
 }
 
+async function sendTransactions(
+  multiProvider: MultiProvider,
+  chain: string,
+  owner: Address,
+  transactions: PopulatedTransaction[],
+): Promise<void> {
+  const signer = multiProvider.getSigner(chain);
+  const proposerAddress = await signer.getAddress();
+  const isSafeOwner = await checkSafeOwner(
+    proposerAddress,
+    chain,
+    multiProvider,
+    owner,
+  );
+
+  if (isSafeOwner) {
+    await sendAsSafeMultiSend(chain, owner, multiProvider, transactions);
+  } else {
+    await sendAsSignerMultiSend(chain, multiProvider, transactions);
+  }
+}
+
 export async function deriveBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
@@ -386,6 +383,27 @@ export async function deriveBridgesConfig(
   }
 
   return bridgesConfig;
+}
+
+export function getWarpConfigsAndArtifacts(warpRouteId: string): {
+  warpDeployConfig: WarpRouteDeployConfig;
+  warpCoreConfig: WarpCoreConfig;
+  warpAddresses: ChainMap<ChainAddresses>;
+} {
+  const registry = getRegistry();
+  const warpDeployConfig = registry.getWarpDeployConfig(warpRouteId);
+  const warpCoreConfig = registry.getWarpRoute(warpRouteId);
+
+  if (!warpDeployConfig) {
+    throw new Error(`Warp deploy config for route ID ${warpRouteId} not found`);
+  }
+  if (!warpCoreConfig) {
+    throw new Error(`Warp core config for route ID ${warpRouteId} not found`);
+  }
+
+  const warpAddresses = getWarpAddresses(warpRouteId);
+
+  return { warpDeployConfig, warpCoreConfig, warpAddresses };
 }
 
 function humanReadableLimit(limit: bigint, decimals: number): string {

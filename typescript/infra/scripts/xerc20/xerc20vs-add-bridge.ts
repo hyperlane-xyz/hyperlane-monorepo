@@ -7,10 +7,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getRegistry, getWarpAddresses } from '../../config/registry.js';
 import {
   addBridgeToChain,
   deriveBridgesConfig,
+  getWarpConfigsAndArtifacts,
 } from '../../src/xerc20/utils.js';
 import { getArgs, withWarpRouteIdRequired } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -20,16 +20,8 @@ async function main() {
   const { environment, warpRouteId } = await withWarpRouteIdRequired(getArgs())
     .argv;
 
-  const registry = getRegistry();
-  const warpDeployConfig = registry.getWarpDeployConfig(warpRouteId);
-  const warpCoreConfig = registry.getWarpRoute(warpRouteId);
-  if (!warpDeployConfig) {
-    throw new Error(`Warp deploy config for route ID ${warpRouteId} not found`);
-  }
-  if (!warpCoreConfig) {
-    throw new Error(`Warp core config for route ID ${warpRouteId} not found`);
-  }
-  const warpAddresses = getWarpAddresses(warpRouteId);
+  const { warpDeployConfig, warpCoreConfig, warpAddresses } =
+    getWarpConfigsAndArtifacts(warpRouteId);
 
   const envConfig = getEnvironmentConfig(environment);
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
