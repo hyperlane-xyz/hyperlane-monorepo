@@ -305,6 +305,17 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           RUST_BACKTRACE: 'full'
 
+  e2e:
+    runs-on: ubuntu-latest
+    needs: e2e-matrix
+    if: always()
+    steps:
+      - name: Check e2e matrix status
+        if: ${{ needs.e2e-matrix.result != 'success' }}
+        run: |
+          echo "E2E tests failed"
+          exit 1
+
   env-test:
     runs-on: ubuntu-latest
     env:

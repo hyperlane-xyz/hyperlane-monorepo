@@ -2394,6 +2394,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-application"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "strum 0.26.3",
+]
+
+[[package]]
 name = "hyperlane-core"
 version = "0.1.0"
 dependencies = [
@@ -2411,6 +2420,7 @@ dependencies = [
  "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "getrandom 0.2.15",
  "hex",
+ "hyperlane-application",
  "itertools 0.13.0",
  "num 0.4.3",
  "num-derive 0.4.2",
@@ -2668,6 +2678,7 @@ dependencies = [
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
+ "hyperlane-warp-route",
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
@@ -2695,6 +2706,7 @@ dependencies = [
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
+ "hyperlane-warp-route",
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
@@ -2720,6 +2732,7 @@ dependencies = [
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-warp-route",
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
@@ -2745,6 +2758,7 @@ dependencies = [
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
+ "hyperlane-warp-route",
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
@@ -2801,6 +2815,13 @@ dependencies = [
  "solana-sdk",
  "spl-noop",
  "spl-token-2022",
+]
+
+[[package]]
+name = "hyperlane-warp-route"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-core",
 ]
 
 [[package]]
