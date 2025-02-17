@@ -34,9 +34,12 @@ pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
 
 /// Force all provided account metas to be non-signers
 pub fn force_non_signers(mut account_metas: Vec<AccountMeta>) -> Vec<AccountMeta> {
-    account_metas
-        .iter_mut()
-        .for_each(|meta| meta.is_signer = false);
+    account_metas.iter_mut().for_each(|meta| {
+        if meta.is_signer {
+            tracing::warn!(meta = ?meta, "Forcing account meta to be non-signer");
+            meta.is_signer = false
+        }
+    });
 
     account_metas
 }
