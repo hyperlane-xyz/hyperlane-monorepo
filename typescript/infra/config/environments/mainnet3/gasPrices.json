@@ -1,4 +1,8 @@
 {
+  "abstract": {
+    "amount": "0.04525",
+    "decimals": 9
+  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
@@ -52,11 +56,15 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000265",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "base": {
     "amount": "0.060189299",
+    "decimals": 9
+  },
+  "berachain": {
+    "amount": "0.040000007",
     "decimals": 9
   },
   "bitlayer": {
@@ -72,7 +80,7 @@
     "decimals": 9
   },
   "boba": {
-    "amount": "0.001000071",
+    "amount": "0.001000076",
     "decimals": 9
   },
   "bsc": {
@@ -132,11 +140,11 @@
     "decimals": 1
   },
   "endurance": {
-    "amount": "1.500000007",
+    "amount": "1.562",
     "decimals": 9
   },
   "ethereum": {
-    "amount": "20.047740244",
+    "amount": "5",
     "decimals": 9
   },
   "everclear": {
@@ -169,6 +177,10 @@
   },
   "fusemainnet": {
     "amount": "20.0",
+    "decimals": 9
+  },
+  "glue": {
+    "amount": "125.0",
     "decimals": 9
   },
   "gnosis": {
@@ -236,11 +248,15 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.003000503",
+    "amount": "0.003000295",
     "decimals": 9
   },
   "mantle": {
     "amount": "0.02",
+    "decimals": 9
+  },
+  "matchain": {
+    "amount": "0.001000008",
     "decimals": 9
   },
   "merlin": {
@@ -252,11 +268,11 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "1.30558024",
+    "amount": "2.080220605",
     "decimals": 9
   },
   "mint": {
-    "amount": "0.001000258",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "mode": {
@@ -288,7 +304,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001159749",
+    "amount": "0.001030292",
     "decimals": 9
   },
   "orderly": {
@@ -368,8 +384,12 @@
     "decimals": 9
   },
   "sonic": {
-    "amount": "5.5",
+    "amount": "55.0",
     "decimals": 9
+  },
+  "sonicsvm": {
+    "amount": "0.1",
+    "decimals": 1
   },
   "soon": {
     "amount": "0.0000001",
@@ -384,7 +404,7 @@
     "decimals": 9
   },
   "superpositionmainnet": {
-    "amount": "0.01",
+    "amount": "0.05",
     "decimals": 9
   },
   "swell": {
@@ -411,8 +431,16 @@
     "amount": "1601.935300783",
     "decimals": 9
   },
+  "trumpchain": {
+    "amount": "0.1",
+    "decimals": 9
+  },
   "unichain": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "unitzero": {
+    "amount": "500.0",
     "decimals": 9
   },
   "vana": {
@@ -424,7 +452,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.00100025",
+    "amount": "0.001000251",
     "decimals": 9
   },
   "xai": {

@@ -1,5 +1,91 @@
 # @hyperlane-xyz/sdk
 
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
+## 8.6.0
+
+### Minor Changes
+
+- 407d82004: Enroll new validators for glue, matchain, unitzero, abstract, sonicsvm, injective, swell.
+- 276d7ce4e: Deploy to berachain.
+- 1e6ee0b9c: Add new validators for unichain and berachain.
+- 77946bb13: Deploy to chronicleyellowstone testnet.
+
+### Patch Changes
+
+- ac984a17b: Fix contract address filtering to remove undefined factory addresses from the addresses map
+- ba50e62fc: Added ESLint configuration and dependency to enforce Node.js module restrictions
+- Updated dependencies [ba50e62fc]
+  - @hyperlane-xyz/core@5.11.2
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Minor Changes
+
+- 55b8ccdff: Improve usability of Token.FromChainMetadataNativeToken
+
+### Patch Changes
+
+- Updated dependencies [044665692]
+  - @hyperlane-xyz/core@5.11.1
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Minor Changes
+
+- f6b682cdb: Deploy to abstract, glue, matchain, unitzero.
+
+### Patch Changes
+
+- Updated dependencies [47ae33c6a]
+  - @hyperlane-xyz/core@5.11.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 7546c0181: Deploy to trumpchain.
+- 49856fbb9: Deploy to flametestnet, sonicblaze. Remove support for sonictestnet.
+
+### Patch Changes
+
+- Updated dependencies [db8c09011]
+- Updated dependencies [11cf66c5e]
+  - @hyperlane-xyz/core@5.10.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 69a684869: Don't try to build signers for non-EVM chains in MultiProtocolSignerManager
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+- @hyperlane-xyz/core@5.9.2
+
+## 8.1.0
+
+### Minor Changes
+
+- 9ab961a79: Deploy to new chains: artela, guru, hemi, nero, xpla.
+
+### Patch Changes
+
+- 79c61c891: Fix the return type of multisig and aggregation ISMs for zksync-stack chains.
+- 9518dbc84: Enroll new validators for artela, guru, hemi, nero, soneium, torus, xpla.
+  - @hyperlane-xyz/utils@8.1.0
+  - @hyperlane-xyz/core@5.9.1
+
 ## 8.0.0
 
 ### Major Changes

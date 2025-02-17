@@ -13,14 +13,13 @@ use serde_json::json;
 use tracing::{info, instrument};
 
 use hyperlane_core::{
-    unwrap_or_none_result, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, RawHyperlaneMessage,
-    H256,
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, RawHyperlaneMessage, H256,
 };
 use hyperlane_ethereum::OffchainLookup;
 
 use cache_types::SerializedOffchainLookup;
 
-use super::{base::MessageMetadataBuilder, MetadataBuilder};
+use super::{base::MessageMetadataBuilder, Metadata, MetadataBuilder};
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -93,16 +92,14 @@ impl CcipReadIsmMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     #[instrument(err, skip(self, message))]
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
 
-        let info: OffchainLookup =
-            unwrap_or_none_result!(self.call_get_offchain_verify_info(&ism, message).await?);
+        let info = match self.call_get_offchain_verify_info(&ism, message).await? {
+            Some(info) => info,
+            None => return Ok(Metadata::CouldNotFetch),
+        };
 
         for url in info.urls.iter() {
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
@@ -134,7 +131,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 Ok(result) => {
                     // remove leading 0x which hex_decode doesn't like
                     let metadata = hex_decode(&result.data[2..])?;
-                    return Ok(Some(metadata));
+                    return Ok(Metadata::Found(metadata));
                 }
                 Err(_err) => {
                     // try the next URL
@@ -143,6 +140,6 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         }
 
         // No metadata endpoints or endpoints down
-        Ok(None)
+        Ok(Metadata::CouldNotFetch)
     }
 }

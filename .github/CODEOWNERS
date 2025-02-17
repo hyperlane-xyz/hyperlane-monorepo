@@ -1,7 +1,7 @@
 # File extension owners
 
 *.sol @yorhodes @aroralanuk @ltyu
-*.ts @yorhodes @jmrossy
+*.ts @yorhodes @ltyu
 *.rs @tkporter @daniel-savu @ameten
 
 # Package owners
@@ -13,10 +13,12 @@ solidity/ @yorhodes @tkporter @aroralanuk @ltyu
 rust/ @tkporter @daniel-savu
 
 ## SDK
-typescript/sdk @yorhodes @jmrossy @ltyu @paulbalaji
+typescript/utils @yorhodes @ltyu @paulbalaji
+typescript/sdk @yorhodes @ltyu @paulbalaji
+typescript/widgets @xaroz @cmcewen
 
 ## CLI
-typescript/cli @jmrossy @yorhodes @ltyu
+typescript/cli @yorhodes @ltyu
 
 ## Infra
 typescript/infra @tkporter @paulbalaji @Mo-Hussain

@@ -1,0 +1,10 @@
+{
+  "sonicsvmtestnet": {
+    "hex": "0xc71ae64693cca2472d95769cd8541c320f915259c0c36e3f410f6ebc1f7f709e",
+    "base58": "EQDvULvwhZwK349y6Qt2ouAyDhBbHZoaUG8guWcqYdxZ"
+  },
+  "solanatestnet": {
+    "hex": "0xfd0509b8d03119deb0bc82989384fadcd3a6cb1b4d29c0ccbf8548777614732c",
+    "base58": "J2gbyytzDqQozPh1xgm38NchdDPNnvGKrSff47rnVsFh"
+  }
+}

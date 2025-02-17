@@ -77,10 +77,13 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
+        // Be extra sure to panic checkpoint syncer fails, which indicates
+        // a fatal startup error.
         let checkpoint_syncer = settings
             .checkpoint_syncer
             .build_and_validate(None)
-            .await?
+            .await
+            .expect("Failed to build checkpoint syncer")
             .into();
 
         let mailbox = settings
@@ -228,11 +231,11 @@ impl Validator {
                     self.origin_chain
                 )
             });
+        let origin = self.origin_chain.name().to_string();
         tokio::spawn(async move {
-            contract_sync
-                .clone()
-                .sync("merkle_tree_hook", cursor.into())
-                .await;
+            let label = "merkle_tree_hook";
+            contract_sync.clone().sync(label, cursor.into()).await;
+            info!(chain = origin, label, "contract sync task exit");
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }

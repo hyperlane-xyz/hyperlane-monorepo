@@ -80,6 +80,9 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     // the variable defaults to "VERGEN_IDEMPOTENT_OUTPUT".
     let git_sha = env!("VERGEN_GIT_SHA").to_owned();
 
+    // Logging is not initialised at this point, so, using `println!`
+    println!("Agent {} starting up with version {git_sha}", A::AGENT_NAME);
+
     let agent_metadata = AgentMetadata::new(git_sha);
 
     let settings = A::Settings::load()?;

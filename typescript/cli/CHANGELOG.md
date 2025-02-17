@@ -1,5 +1,88 @@
 # @hyperlane-xyz/cli
 
+## 8.6.1
+
+### Patch Changes
+
+- 236f27b5f: Fix cli package dependencies.
+  - @hyperlane-xyz/sdk@8.6.1
+  - @hyperlane-xyz/utils@8.6.1
+
+## 8.6.0
+
+### Minor Changes
+
+- d2bc2cfec: Update CLI package.json to be able to export functions
+
+### Patch Changes
+
+- 1e6ee0b9c: Fix default multichain strategy resolving.
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/sdk@8.5.0
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6b682cdb]
+  - @hyperlane-xyz/sdk@8.4.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 228f7c3d1: Fix issue where warp deploy artifacts did not include correct symbols.
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 9eb19cac7: Add explorer link to warp send and send message commands
+- aad2c2d1e: Fixing the chain resolver checks and handling for argv.chain
+
+### Patch Changes
+
+- 1536ea570: Print displayName instead of chain name in signer validity logs.
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 2d018fa7a: Fix hyperlane warp send where --origin and --destination are out of order
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
 ## 8.0.0
 
 ### Minor Changes

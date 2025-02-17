@@ -43,7 +43,7 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
 
       const violation: RouterViolation = {
         chain,
-        type: RouterViolationType.EnrolledRouter,
+        type: RouterViolationType.MisconfiguredEnrolledRouter,
         contract: router,
         actual: currentRouters,
         expected: expectedRouters,
