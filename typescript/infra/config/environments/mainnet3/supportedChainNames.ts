@@ -9,7 +9,7 @@ export const mainnet3SupportedChainNames = [
   'appchain',
   'arbitrum',
   'arbitrumnova',
-  // 'arcadia',
+  'arcadia',
   'artela',
   'arthera',
   'astar',
