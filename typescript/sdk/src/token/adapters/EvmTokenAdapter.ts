@@ -34,6 +34,7 @@ import { TokenMetadata } from '../types.js';
 import {
   AddBridgedParams,
   IHypTokenAdapter,
+  IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   ITokenAdapter,
   IXERC20VSAdapter,
@@ -328,6 +329,62 @@ export class EvmHypCollateralFiatAdapter
   }
 }
 
+export abstract class BaseEvmHypXERC20Adapter<
+  X extends IXERC20 | IXERC20VS,
+> extends EvmHypCollateralAdapter {
+  public readonly hypXERC20: HypXERC20;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.hypXERC20 = HypXERC20__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  protected abstract connectXERC20(xerc20Addr: Address): X;
+
+  protected async getXERC20(): Promise<X> {
+    const xerc20Addr = await this.hypXERC20.wrappedToken();
+    return this.connectXERC20(xerc20Addr);
+  }
+
+  override async getBridgedSupply(): Promise<bigint> {
+    const xerc20 = await this.getXERC20();
+    // Both IXERC20 and IXERC20VS have totalSupply, name, etc. if they extend ERC20
+    const totalSupply = await xerc20.totalSupply();
+    return totalSupply.toBigInt();
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    const xerc20 = await this.getXERC20();
+    const limit = await xerc20.mintingCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getMintMaxLimit(): Promise<bigint> {
+    const xerc20 = await this.getXERC20();
+    const limit = await xerc20.mintingMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getBurnLimit(): Promise<bigint> {
+    const xerc20 = await this.getXERC20();
+    const limit = await xerc20.burningCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getBurnMaxLimit(): Promise<bigint> {
+    const xerc20 = await this.getXERC20();
+    const limit = await xerc20.burningMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+}
+
 // Interacts with HypXERC20Lockbox contracts
 export class EvmHypXERC20LockboxAdapter
   extends EvmHypCollateralAdapter
@@ -390,66 +447,63 @@ export class EvmHypXERC20LockboxAdapter
 }
 
 // Interacts with HypXERC20 contracts
-export class EvmHypXERC20Adapter
-  extends EvmHypCollateralAdapter
-  implements IHypXERC20Adapter<PopulatedTransaction>
+export class EvmHypXERC20Adapter extends BaseEvmHypXERC20Adapter<IXERC20> {
+  protected connectXERC20(xerc20Addr: string): IXERC20 {
+    return IXERC20__factory.connect(xerc20Addr, this.getProvider());
+  }
+}
+
+export class EvmHypVSXERC20Adapter
+  extends BaseEvmHypXERC20Adapter<IXERC20VS>
+  implements IHypVSXERC20Adapter<PopulatedTransaction>
 {
-  hypXERC20: HypXERC20;
+  protected connectXERC20(xerc20Addr: string): IXERC20VS {
+    return IXERC20VS__factory.connect(xerc20Addr, this.getProvider());
+  }
 
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
+  async getRateLimits(): Promise<RateLimitMidPoint> {
+    const xERC20 = await this.getXERC20();
+    const rateLimits = await xERC20.rateLimits(this.contract.address);
 
-    this.hypXERC20 = HypXERC20__factory.connect(
-      addresses.token,
-      this.getProvider(),
+    return {
+      rateLimitPerSecond: BigInt(rateLimits.rateLimitPerSecond.toString()),
+      bufferCap: BigInt(rateLimits.bufferCap.toString()),
+      lastBufferUsedTime: Number(rateLimits.lastBufferUsedTime),
+      bufferStored: BigInt(rateLimits.bufferStored.toString()),
+      midPoint: BigInt(rateLimits.midPoint.toString()),
+    };
+  }
+
+  async populateSetBufferCapTx(
+    newBufferCap: bigint,
+  ): Promise<PopulatedTransaction> {
+    const xERC20 = await this.getXERC20();
+    return xERC20.populateTransaction.setBufferCap(
+      this.addresses.token,
+      newBufferCap,
     );
   }
 
-  /**
-   * Note this may be inaccurate, as this returns the total supply
-   * of the xERC20 contract, which may be used by other bridges.
-   * However this is the best we can do with a simple view call.
-   */
-  override async getBridgedSupply(): Promise<bigint> {
-    const xerc20TokenAddress = await this.hypXERC20.wrappedToken();
-    const xerc20 = new EvmTokenAdapter(this.chainName, this.multiProvider, {
-      token: xerc20TokenAddress,
+  async populateSetRateLimitPerSecondTx(
+    newRateLimitPerSecond: bigint,
+  ): Promise<PopulatedTransaction> {
+    const xERC20 = await this.getXERC20();
+    return xERC20.populateTransaction.setRateLimitPerSecond(
+      this.addresses.token,
+      newRateLimitPerSecond,
+    );
+  }
+
+  async populateAddBridgeTx(
+    bufferCap: bigint,
+    rateLimitPerSecond: bigint,
+  ): Promise<PopulatedTransaction> {
+    const xERC20 = await this.getXERC20();
+    return xERC20.populateTransaction.addBridge({
+      bufferCap,
+      rateLimitPerSecond,
+      bridge: this.addresses.token,
     });
-    return xerc20.getTotalSupply();
-  }
-
-  async getMintLimit(): Promise<bigint> {
-    const xERC20 = await this.getXErc20();
-    const limit = await xERC20.mintingCurrentLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getMintMaxLimit(): Promise<bigint> {
-    const xERC20 = await this.getXErc20();
-    const limit = await xERC20.mintingMaxLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getBurnLimit(): Promise<bigint> {
-    const xERC20 = await this.getXErc20();
-    const limit = await xERC20.burningCurrentLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getBurnMaxLimit(): Promise<bigint> {
-    const xERC20 = await this.getXErc20();
-    const limit = await xERC20.burningMaxLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getXErc20(): Promise<IXERC20> {
-    const xERC20 = await this.hypXERC20.wrappedToken();
-
-    return IXERC20__factory.connect(xERC20, this.getProvider());
   }
 }
 

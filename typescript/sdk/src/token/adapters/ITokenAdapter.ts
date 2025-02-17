@@ -90,3 +90,15 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
 
   populateAddBridgeTx(params: AddBridgedParams): Promise<Tx>;
 }
+
+export interface IHypVSXERC20Adapter<Tx> {
+  getRateLimits(): Promise<RateLimitMidPoint>;
+
+  populateSetBufferCapTx(newBufferCap: bigint): Promise<Tx>;
+  populateSetRateLimitPerSecondTx(newRateLimitPerSecond: bigint): Promise<Tx>;
+
+  populateAddBridgeTx(
+    bufferCap: bigint,
+    rateLimitPerSecond: bigint,
+  ): Promise<Tx>;
+}

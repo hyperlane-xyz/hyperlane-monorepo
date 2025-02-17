@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import {RateLimitMidPoint} from "../../libs/RateLimitMidpointCommonLibrary.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface IXERC20VS {
+interface IXERC20VS is IERC20 {
     /// @notice Emits when a limit is set
     /// @param _bridge The address of the bridge we are setting the limit to
     /// @param _bufferCap The updated buffer cap for the bridge
