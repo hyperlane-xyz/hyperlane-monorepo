@@ -531,13 +531,16 @@ impl PendingMessage {
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
-            let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-                    .map(|dur| Instant::now() + dur);
+            let next_attempt_after = Self::next_attempt_after(num_retries, max_retries);
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
         Some(pending_message)
+    }
+
+    fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+            .map(|dur| Instant::now() + dur)
     }
 
     fn get_retries_or_skip(
@@ -716,7 +719,7 @@ impl PendingMessage {
                         "Message has been retried too many times, skipping",
                     );
                 }
-                u64::MAX
+                chrono::Duration::weeks(10).num_seconds() as u64
             }
         }))
     }
@@ -760,7 +763,11 @@ impl MessageSubmissionMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::{fmt::Debug, sync::Arc, time::Duration};
+    use std::{
+        fmt::Debug,
+        sync::Arc,
+        time::{Duration, Instant},
+    };
 
     use hyperlane_base::db::*;
     use hyperlane_core::*;
@@ -888,22 +895,23 @@ mod test {
     fn test_calculate_msg_backoff_does_not_overflow() {
         use super::PendingMessage;
         use std::time::Duration;
-        let ten_weeks = Duration::from_secs(
-            chrono::Duration::weeks(10)
-                .num_seconds()
-                .try_into()
-                .unwrap(),
-        );
+        let ten_weeks_from_now = Instant::now()
+            + Duration::from_secs(
+                chrono::Duration::weeks(10)
+                    .num_seconds()
+                    .try_into()
+                    .unwrap(),
+            );
+
+        // this is really an overflow check
+        let next_prepare_attempt = PendingMessage::next_attempt_after(
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .unwrap();
 
         // the backoff should be at least 10 weeks into the future
-        // this is really an overflow check more than anything
-        assert!(PendingMessage::calculate_msg_backoff(
-            DEFAULT_MAX_MESSAGE_RETRIES,
-            DEFAULT_MAX_MESSAGE_RETRIES,
-            None
-        )
-        .unwrap()
-        .gt(&ten_weeks));
+        assert!(next_prepare_attempt.gt(&ten_weeks_from_now));
     }
 
     #[test]
