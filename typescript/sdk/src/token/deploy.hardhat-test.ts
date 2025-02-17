@@ -4,6 +4,8 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
+  ERC20Test,
+  ERC20Test__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
@@ -37,6 +39,7 @@ describe('TokenDeployer', async () => {
   let config: WarpRouteDeployConfig;
   let token: Address;
   let xerc20: XERC20Test;
+  let erc20: ERC20Test;
   let admin: ProxyAdmin;
 
   before(async () => {
@@ -78,6 +81,12 @@ describe('TokenDeployer', async () => {
     );
     token = proxy.address;
     xerc20 = XERC20Test__factory.connect(token, signer);
+    erc20 = await new ERC20Test__factory(signer).deploy(
+      name!,
+      symbol!,
+      totalSupply!,
+      decimals!,
+    );
 
     deployer = new HypERC20Deployer(multiProvider);
   });
@@ -91,6 +100,17 @@ describe('TokenDeployer', async () => {
     TokenType.synthetic,
     TokenType.XERC20,
   ]) {
+    const token = () => {
+      switch (type) {
+        case TokenType.XERC20:
+          return xerc20.address;
+        case TokenType.collateral:
+          return erc20.address;
+        default:
+          return undefined;
+      }
+    };
+
     describe('HypERC20Checker', async () => {
       let checker: HypERC20Checker;
 
@@ -99,11 +119,9 @@ describe('TokenDeployer', async () => {
           ...config[chain],
           type,
           // @ts-ignore
-          token:
-            type === TokenType.XERC20 || type === TokenType.collateral
-              ? token
-              : undefined,
+          token: token(),
         };
+
         const contractsMap = await deployer.deploy(config);
         const app = new HypERC20App(contractsMap, multiProvider);
         checker = new HypERC20Checker(multiProvider, app, config);
@@ -111,7 +129,6 @@ describe('TokenDeployer', async () => {
 
       it(`should have no violations on clean deploy of ${type}`, async () => {
         await checker.check();
-        console.log(checker.violations);
         checker.expectEmpty();
       });
 
@@ -156,21 +173,13 @@ describe('TokenDeployer', async () => {
           ...config[chain],
           type,
           // @ts-ignore
-          token:
-            type === TokenType.XERC20 || type === TokenType.collateral
-              ? token
-              : undefined,
+          token: token(),
         };
         const warpRoute = await deployer.deploy(config);
         routerAddress = warpRoute[chain][type].address;
       });
 
       it(`should derive HypTokenRouterConfig correctly`, async () => {
-        // reader does not support XERC20
-        if (type === TokenType.XERC20) {
-          return;
-        }
-
         const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
         expect(derivedConfig.type).to.equal(config[chain].type);
       });

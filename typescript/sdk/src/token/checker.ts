@@ -44,7 +44,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
     const contracts = this.app.getContracts(chain);
 
-    if (isCollateralTokenConfig(this.configMap[chain])) {
+    if (
+      isCollateralTokenConfig(this.configMap[chain]) ||
+      isXERC20TokenConfig(this.configMap[chain])
+    ) {
       const collateralToken = await this.getCollateralToken(chain);
 
       const provider = this.multiProvider.getProvider(chain);
@@ -198,7 +201,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         this.multiProvider.getChainMetadata(chain).nativeToken?.decimals;
     } else if (isSyntheticTokenConfig(expectedConfig)) {
       decimals = await (hypToken as unknown as ERC20).decimals();
-    } else if (isCollateralTokenConfig(expectedConfig)) {
+    } else if (
+      isCollateralTokenConfig(expectedConfig) ||
+      isXERC20TokenConfig(expectedConfig)
+    ) {
       const collateralToken = await this.getCollateralToken(chain);
       decimals = await collateralToken.decimals();
     }
