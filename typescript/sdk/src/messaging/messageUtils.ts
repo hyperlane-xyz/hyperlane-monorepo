@@ -131,7 +131,9 @@ export function convertU128ArrayToBytes(input: bigint[]): Uint8Array {
   const output = new Uint8Array(input.length * 16); // Each u128 takes 16 bytes
   input.forEach((value, index) => {
     const hex = num.toHex(value);
-    const bytes = num.hexToBytes(hex.padStart(34, '0')); // Ensure 16 bytes (34 chars including '0x')
+    // Remove '0x' prefix, pad to 32 chars, then add '0x' back
+    const paddedHex = '0x' + hex.replace('0x', '').padStart(32, '0');
+    const bytes = num.hexToBytes(paddedHex);
     output.set(bytes, index * 16);
   });
   return output;

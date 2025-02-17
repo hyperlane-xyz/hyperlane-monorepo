@@ -216,8 +216,6 @@ async function executeDelivery({
           txResponse.transaction_hash,
         );
 
-        console.log({ txReceipt });
-
         break;
       }
       default:
@@ -226,20 +224,28 @@ async function executeDelivery({
 
     txReceipts.push(txReceipt);
   }
+
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
-  // ONLY FOR EVM CHAINS
-  const message: DispatchedMessage = HyperlaneCore.getDispatchedMessages(
-    transferTxReceipt as any,
-  )[messageIndex];
-  const parsed = parseWarpRouteMessage(message.parsed.body);
+  let message: DispatchedMessage;
+  let parsed: any;
+  if ('transaction_hash' in transferTxReceipt) {
+    message = (
+      protocolCores.starknet! as StarknetCore
+    ).parseDispatchedMessagesFromReceipt(transferTxReceipt, origin);
+  } else {
+    message = HyperlaneCore.getDispatchedMessages(transferTxReceipt as any)[
+      messageIndex
+    ];
+    parsed = parseWarpRouteMessage(message.parsed.body);
+    log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
+  }
 
   logBlue(
     `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
-  log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   logBlue(`Message dispatched with ID: ${message.id}`);
 

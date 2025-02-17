@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call, Contract } from 'starknet';
+import { CairoOption, CairoOptionVariant, Call } from 'starknet';
 
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
@@ -101,10 +101,10 @@ export class StarknetHypNativeAdapter
     destination,
     recipient,
   }: TransferRemoteParams): Promise<Call> {
-    const { abi } = await this.getProvider().getClassAt(
+    const warpRouter = getStarknetHypERC20Contract(
       this.addresses.warpRouter,
+      this.getProvider(),
     );
-    const warpRouter = new Contract(abi, this.addresses.warpRouter);
 
     const nonOption = new CairoOption(CairoOptionVariant.None);
 

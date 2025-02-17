@@ -44,6 +44,23 @@ export class StarknetCore {
     return this.addressesMap[chain];
   }
 
+  parseDispatchedMessagesFromReceipt(
+    receipt: any,
+    origin: ChainName,
+  ): DispatchedMessage {
+    const mailboxAddress = this.addressesMap[origin].mailbox;
+    const mailboxContract = getStarknetMailboxContract(
+      mailboxAddress,
+      this.multiProtocolSigner.getStarknetSigner(origin),
+    );
+
+    const parsedEvents = mailboxContract.parseEvents(receipt);
+    return parseStarknetDispatchedMessages(
+      parsedEvents,
+      (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
+    )[0];
+  }
+
   async sendMessage(
     origin: ChainName,
     destination: ChainName,

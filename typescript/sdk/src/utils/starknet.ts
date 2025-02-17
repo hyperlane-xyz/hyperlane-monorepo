@@ -25,7 +25,7 @@ export function getStarknetMailboxContract(
 
 export function getStarknetHypERC20Contract(
   address: string,
-  signer?: Account,
+  signer?: Account | Provider,
 ): Contract {
   const { abi } = getCompiledContract('HypErc20', ContractType.TOKEN);
   return new Contract(abi, address, signer);
