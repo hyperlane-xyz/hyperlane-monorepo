@@ -933,6 +933,9 @@
         },
         {
           "http": "https://cloudflare-eth.com"
+        },
+        {
+          "http": "https://eth.drpc.org"
         }
       ],
       "staticAggregationHookFactory": "0x6D2555A8ba483CcF4409C39013F5e9a3285D3C9E",
