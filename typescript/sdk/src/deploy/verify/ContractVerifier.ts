@@ -366,7 +366,7 @@ export class ContractVerifier {
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       /* TYPO IS ENFORCED BY API */
-      constructorArguments: strip0x(input.constructorArguments ?? ''),
+      constructorArguements: strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
   }
