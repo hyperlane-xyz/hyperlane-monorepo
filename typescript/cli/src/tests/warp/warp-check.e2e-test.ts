@@ -7,12 +7,15 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HookConfig,
   HookType,
+  IsmConfig,
   IsmType,
   MUTABLE_HOOK_TYPE,
+  MUTABLE_ISM_TYPE,
   TokenType,
   WarpRouteDeployConfig,
   randomAddress,
   randomHookConfig,
+  randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, deepCopy } from '@hyperlane-xyz/utils';
 
@@ -256,10 +259,44 @@ describe('hyperlane warp check e2e tests', async function () {
       const hookConfig: Extract<
         HookConfig,
         { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
+      > = mutatedWarpConfig[CHAIN_NAME_3].hook;
       const actualOwner = hookConfig.owner;
       const wrongOwner = randomAddress();
       hookConfig.owner = wrongOwner;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
+
+      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
+      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
+
+      const output = await hyperlaneWarpCheck(
+        WARP_DEPLOY_OUTPUT_PATH,
+        tokenSymbol,
+      ).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text().includes(expectedDiffText)).to.be.true;
+      expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+  }
+
+  for (const ismType of MUTABLE_ISM_TYPE) {
+    it(`should find owner differences between the local config and the on chain config for ${ismType}`, async function () {
+      warpConfig[CHAIN_NAME_3].interchainSecurityModule = randomIsmConfig(
+        0,
+        2,
+        ismType,
+      );
+      await deployAndExportWarpRoute();
+
+      const mutatedWarpConfig = deepCopy(warpConfig);
+
+      const ismConfig: Extract<
+        IsmConfig,
+        { type: (typeof MUTABLE_ISM_TYPE)[number]; owner: string }
+      > = mutatedWarpConfig[CHAIN_NAME_3].interchainSecurityModule;
+      const actualOwner = ismConfig.owner;
+      const wrongOwner = randomAddress();
+      ismConfig.owner = wrongOwner;
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
 
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
