@@ -37,10 +37,6 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
     address: '0x8b789B4A56675240c9f0985B467752b870c75711',
     owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   },
-  swell: {
-    address: '0x8b789B4A56675240c9f0985B467752b870c75711',
-    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-  },
 };
 
 export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
