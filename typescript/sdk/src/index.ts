@@ -1,3 +1,5 @@
+export { MUTABLE_ISM_TYPE } from './ism/types.js';
+
 export { MUTABLE_HOOK_TYPE } from './hook/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
