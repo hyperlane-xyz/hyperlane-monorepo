@@ -38,7 +38,8 @@ export enum WarpRouteIds {
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   EthereumSwellZircuitPZETH = 'PZETH/ethereum-swell-zircuit',
-  EthereumSwellZircuitPZETHSTAGE = 'PZETHSTAGE/ethereum-swell-zircuit',
+  // TODO: can be uncommented after merging this warp route into the registry
+  // EthereumSwellZircuitPZETHSTAGE = 'PZETHSTAGE/ethereum-swell-zircuit',
   EthereumBscLumiaprismLUMIA = 'LUMIA/bsc-ethereum-lumiaprism',
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
@@ -65,5 +66,11 @@ export enum WarpRouteIds {
   SolanaSoonBonk = 'Bonk/solanamainnet-soon',
   SolanaSoonSOL = 'SOL/solanamainnet-soon',
   SolanaSonicsvmSOL = 'SOL/solanamainnet-sonicsvm',
+  SolanaSonicsvmSONIC = 'SONIC/solanamainnet-sonicsvm',
+  SolanaSonicsvmUSDC = 'USDC/solanamainnet-sonicsvm',
+  SolanaSonicsvmUSDT = 'USDT/solanamainnet-sonicsvm',
+  SolanaSonicsvmUSDStar = 'USDStar/solanamainnet-sonicsvm',
+  SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',
   ArbitrumEthereumSolanaTreasureSMOL = 'SMOL/arbitrum-ethereum-solanamainnet-treasure',
+  BaseSolanaCDX = 'CDX/base-solanamainnet',
 }
