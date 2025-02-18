@@ -38,7 +38,8 @@ export enum WarpRouteIds {
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   EthereumSwellZircuitPZETH = 'PZETH/ethereum-swell-zircuit',
-  EthereumSwellZircuitPZETHSTAGE = 'PZETHSTAGE/ethereum-swell-zircuit',
+  // TODO: can be uncommented after merging this warp route into the registry
+  // EthereumSwellZircuitPZETHSTAGE = 'PZETHSTAGE/ethereum-swell-zircuit',
   EthereumBscLumiaprismLUMIA = 'LUMIA/bsc-ethereum-lumiaprism',
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
