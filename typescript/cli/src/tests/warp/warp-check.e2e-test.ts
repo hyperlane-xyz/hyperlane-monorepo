@@ -281,11 +281,15 @@ describe('hyperlane warp check e2e tests', async function () {
 
   for (const ismType of MUTABLE_ISM_TYPE) {
     it(`should find owner differences between the local config and the on chain config for ${ismType}`, async function () {
-      warpConfig[CHAIN_NAME_3].interchainSecurityModule = randomIsmConfig(
-        0,
-        2,
-        ismType,
-      );
+      // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
+      warpConfig[CHAIN_NAME_3].interchainSecurityModule =
+        ismType === IsmType.PAUSABLE
+          ? {
+              type: IsmType.PAUSABLE,
+              owner: randomAddress(),
+              paused: true,
+            }
+          : randomIsmConfig(0, 2, ismType);
       await deployAndExportWarpRoute();
 
       const mutatedWarpConfig = deepCopy(warpConfig);
