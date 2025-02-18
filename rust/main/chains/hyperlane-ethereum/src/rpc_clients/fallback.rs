@@ -134,17 +134,25 @@ where
             let mut unordered = self.populate_unordered_future(method, &params);
 
             while let Some(resp) = unordered.next().await {
-                match categorize_client_response(method, resp) {
-                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                let value = match categorize_client_response(method, resp) {
+                    IsOk(v) => serde_json::from_value(v)?,
                     NonRetryableErr(e) | RetryableErr(e) | RateLimitErr(e) => {
                         errors.push(e.into());
+                        continue;
                     }
-                }
-            }
+                };
 
-            let _span = warn_span!("multicast_request", errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers);
+                // if we are here, it means one of the providers returned a successful result
+                if !errors.is_empty() {
+                    // we log a warning span if we got errors from some providers
+                    let _span = warn_span!("multicast_request", errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers).entered();
+                }
+
+                return Ok(value);
+            }
         }
 
+        // we don't add a warn span with all errors since an error will be logged later on
         Err(FallbackError::AllProvidersFailed(errors).into())
     }
 
@@ -170,7 +178,7 @@ where
                 let resp = fut.await;
                 self.handle_stalled_provider(priority, provider).await;
                 let _span =
-                    warn_span!("request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                    warn_span!("fallback_request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
