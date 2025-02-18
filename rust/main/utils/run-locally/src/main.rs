@@ -47,11 +47,13 @@ use crate::{
 mod config;
 mod cosmos;
 mod ethereum;
+mod fuel;
 mod invariants;
 mod logging;
 mod metrics;
 mod program;
 mod solana;
+mod types;
 mod utils;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {

@@ -6,6 +6,9 @@ use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use fuels::types::bech32::Bech32ContractId;
+use fuels::types::ContractId;
+use hyperlane_cosmwasm_interface::types::bech32_decode;
 use nix::libc::pid_t;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
@@ -133,4 +136,12 @@ pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<Strin
         });
     }
     matches
+}
+
+pub fn fuel_to_hex_addr(addr: &Bech32ContractId) -> String {
+    format!("0x{}", ContractId::from(addr).to_string())
+}
+
+pub fn cw_to_hex_addr(addr: &str) -> String {
+    format!("0x{}", hex::encode(bech32_decode(addr).unwrap()))
 }
