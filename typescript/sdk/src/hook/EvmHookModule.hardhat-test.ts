@@ -15,9 +15,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   DEFAULT_TOKEN_DECIMALS,
   hookTypesToFilter,
+  randomAddress,
   randomHookConfig,
-} from '../test/hookTestUtils.js';
-import { randomAddress, randomInt } from '../test/testUtils.js';
+  randomInt,
+} from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
