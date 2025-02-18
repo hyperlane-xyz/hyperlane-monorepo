@@ -24,6 +24,9 @@
   "arbitrumnova": {
     "validators": ["0xd2a5e9123308d187383c87053811a2c21bd8af1f"]
   },
+  "arcadia": {
+    "validators": ["0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38"]
+  },
   "artela": {
     "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
   },
@@ -38,9 +41,6 @@
   },
   "aurora": {
     "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
-  },
-  "flame": {
-    "validators": ["0x1fa928ce884fa16357d4b8866e096392d4d81f43"]
   },
   "avalanche": {
     "validators": [
@@ -73,6 +73,9 @@
   },
   "boba": {
     "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
+  },
+  "bouncebit": {
+    "validators": ["0xaf38612d1e79ec67320d21c5f7e92419427cd154"]
   },
   "bsc": {
     "validators": [
@@ -142,6 +145,9 @@
   },
   "fantom": {
     "validators": ["0xa779572028e634e16f26af5dfd4fa685f619457d"]
+  },
+  "flame": {
+    "validators": ["0x1fa928ce884fa16357d4b8866e096392d4d81f43"]
   },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
@@ -319,6 +325,9 @@
   "rivalz": {
     "validators": ["0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1"]
   },
+  "ronin": {
+    "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
+  },
   "rootstockmainnet": {
     "validators": ["0x8675eb603d62ab64e3efe90df914e555966e04ac"]
   },
@@ -355,6 +364,15 @@
   },
   "soon": {
     "validators": ["0x0e6723b3c1ed3db0c24347aa2cf16d28bc2a1f76"]
+  },
+  "sophon": {
+    "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
+  },
+  "story": {
+    "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
+  },
+  "subtensor": {
+    "validators": ["0xd5f8196d7060b85bea491f0b52a671e05f3d10a2"]
   },
   "superseed": {
     "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
