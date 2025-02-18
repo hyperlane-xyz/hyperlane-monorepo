@@ -7,9 +7,11 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HookType,
   IsmType,
+  MUTABLE_HOOK_TYPE,
   TokenType,
   WarpRouteDeployConfig,
   randomAddress,
+  randomHookConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -242,4 +244,31 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.text().includes(expectedActualText)).to.be.true;
     });
   });
+
+  for (const hookType of MUTABLE_HOOK_TYPE) {
+    it(`should find owner differences between the local config and the on chain config for ${hookType}`, async function () {
+      warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
+      await deployAndExportWarpRoute();
+
+      const mutatedWarpConfig = { ...warpConfig };
+
+      const hookConfig: any = mutatedWarpConfig[CHAIN_NAME_3].hook!;
+      const actualOwner = hookConfig.owner;
+      const wrongOwner = randomAddress();
+      hookConfig.owner = wrongOwner;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
+
+      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
+      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
+
+      const output = await hyperlaneWarpCheck(
+        WARP_DEPLOY_OUTPUT_PATH,
+        tokenSymbol,
+      ).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text().includes(expectedDiffText)).to.be.true;
+      expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+  }
 });
