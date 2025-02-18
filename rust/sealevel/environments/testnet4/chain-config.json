@@ -77,10 +77,10 @@
   "alfajores": {
     "blockExplorers": [
       {
-        "apiUrl": "https://explorer.celo.org/alfajores/api",
+        "apiUrl": "https://celo-alfajores.blockscout.com/",
         "family": "blockscout",
         "name": "Blockscout",
-        "url": "https://explorer.celo.org/alfajores"
+        "url": "https://celo-alfajores.blockscout.com/"
       }
     ],
     "blocks": {
