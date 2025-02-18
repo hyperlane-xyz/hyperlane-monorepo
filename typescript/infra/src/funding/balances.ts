@@ -115,9 +115,9 @@ export function readAllThresholds(): ThresholdsData {
 }
 
 export function sortThresholdTypes(
-  thesholdTypes: BalanceThresholdType[],
+  thresholdTypes: BalanceThresholdType[],
 ): BalanceThresholdType[] {
-  return thesholdTypes.sort((a, b) => {
+  return thresholdTypes.sort((a, b) => {
     return (
       balanceThresholdConfigMapping[a].dailyRelayerBurnMultiplier -
       balanceThresholdConfigMapping[b].dailyRelayerBurnMultiplier

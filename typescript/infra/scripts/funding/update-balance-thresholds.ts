@@ -76,17 +76,17 @@ async function processChainThresholds(
   chain: string,
   chainDailyBurn: number,
   currentThresholds: Record<BalanceThresholdType, number>,
-  thresholdOverride?: number,
+  desiredRelayerBalanceOverride?: number,
 ): Promise<Record<BalanceThresholdType, number>> {
   const proposedThresholds = buildProposedThresholds(
     chainDailyBurn,
-    thresholdOverride,
+    desiredRelayerBalanceOverride,
   );
 
   const reviewNeeded = checkIfReviewNeeded(
     proposedThresholds,
     currentThresholds,
-    !!thresholdOverride,
+    !!desiredRelayerBalanceOverride,
   );
 
   let finalThresholds: Record<BalanceThresholdType, number>;
@@ -100,7 +100,7 @@ async function processChainThresholds(
     finalThresholds = buildFinalThresholds(
       proposedThresholds,
       currentThresholds,
-      !!thresholdOverride,
+      !!desiredRelayerBalanceOverride,
     );
   }
 
@@ -112,21 +112,21 @@ async function processChainThresholds(
 // threshold building functions
 function buildProposedThresholds(
   chainDailyBurn: number,
-  thresholdOverride?: number,
+  desiredRelayerBalanceOverride?: number,
 ): Record<BalanceThresholdType, number> {
   const proposed = {} as Record<BalanceThresholdType, number>;
   let burn = chainDailyBurn;
   // use the override to reset the burn value
-  if (thresholdOverride) {
-    burn = thresholdOverride / RELAYER_BALANCE_TARGET_DAYS;
+  if (desiredRelayerBalanceOverride) {
+    burn = desiredRelayerBalanceOverride / RELAYER_BALANCE_TARGET_DAYS;
   }
 
   for (const thresholdType of Object.values(BalanceThresholdType)) {
     // SPECIAL CASE: If the override is 0, this is either
     // 1) a new chain, we need to set the desired relayer balance and we set it to 0, but we don't want to set any alerts yet
-    // 2) a special case where the relayer will have not use (osmosis), we don't want to set any alerts
+    // 2) a special case where the relayer will have no use (osmosis), we don't want to set any alerts
     if (
-      thresholdOverride === 0 &&
+      desiredRelayerBalanceOverride === 0 &&
       thresholdType !== BalanceThresholdType.DesiredRelayerBalance
     ) {
       // skip alerting for this chain
@@ -217,7 +217,7 @@ async function handleUserReviews(
       return proposedThresholds;
     case UserReview.KeepAllCurrent:
       rootLogger.warn(
-        `Consider add ${chain} to the desiredRelayerBalanceOverrides.json file, so that you are not prompted to review the thresholds in the future.`,
+        `Consider adding ${chain} to the desiredRelayerBalanceOverrides.json file, so that you are not prompted to review the thresholds in the future.`,
       );
       return currentThresholds;
     case UserReview.Manual:
