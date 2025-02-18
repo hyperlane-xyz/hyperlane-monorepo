@@ -994,6 +994,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  hyperevm: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   hyperliquidevmtestnet: {
     threshold: 1,
     validators: [

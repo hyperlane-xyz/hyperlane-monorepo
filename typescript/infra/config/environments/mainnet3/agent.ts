@@ -114,6 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     guru: true,
     harmony: true,
     hemi: true,
+    hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
     injective: true,
@@ -247,6 +248,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     guru: true,
     harmony: true,
     hemi: true,
+    hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
     injective: true,
@@ -381,6 +383,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     guru: true,
     harmony: true,
     hemi: true,
+    hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
     ink: true,
@@ -704,7 +707,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9461a96-20250217-221824',
+      tag: '328011a-20250218-173927',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -714,7 +717,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9461a96-20250217-221824',
+      tag: '328011a-20250218-173927',
     },
     resources: scraperResources,
   },
@@ -729,7 +732,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9461a96-20250217-221824',
+      tag: '328011a-20250218-173927',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
