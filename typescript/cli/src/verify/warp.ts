@@ -32,6 +32,29 @@ export async function runVerifyWarpRoute({
   context: CommandContext;
   warpCoreConfig: WarpCoreConfig;
 }) {
+  return verifyProxyAndImplementation({
+    context,
+    warpCoreConfig,
+    getContractFactoryAndName: getWarpRouteFactoryAndName,
+  });
+}
+
+export async function verifyProxyAndImplementation({
+  context,
+  warpCoreConfig,
+  getContractFactoryAndName,
+}: {
+  context: CommandContext;
+  warpCoreConfig: WarpCoreConfig;
+  getContractFactoryAndName: (
+    multiProvider: MultiProvider,
+    chainName: string,
+    warpRouteAddress: Address,
+  ) => Promise<{
+    factory: ContractFactory;
+    contractName: string;
+  }>;
+}) {
   const { multiProvider, chainMetadata, registry, skipConfirmation } = context;
 
   const verificationInputs: ChainMap<VerificationInput> = {};
@@ -64,12 +87,12 @@ export async function runVerifyWarpRoute({
       ? await proxyImplementation(provider, token.addressOrDenom)
       : token.addressOrDenom;
 
-    const { factory, tokenType } = await getWarpRouteFactory(
+    const { factory, contractName } = await getContractFactoryAndName(
       multiProvider,
       chainName,
       deployedContractAddress,
     );
-    const contractName = hypERC20contracts[tokenType];
+
     const implementationInput = await verificationUtils.getImplementationInput({
       chainName,
       contractName,
@@ -92,7 +115,6 @@ export async function runVerifyWarpRoute({
       verificationInputs[chainName].push(transparentUpgradeableProxyInput);
     }
   }
-
   logBlue(`All explorer constructor args successfully retrieved. Verifying...`);
   const verifier = new PostDeploymentContractVerifier(
     verificationInputs,
@@ -107,16 +129,13 @@ export async function runVerifyWarpRoute({
   return logGreen('Finished contract verification');
 }
 
-async function getWarpRouteFactory(
+async function getWarpRouteFactoryAndName(
   multiProvider: MultiProvider,
   chainName: string,
   warpRouteAddress: Address,
 ): Promise<{
   factory: ContractFactory;
-  tokenType: Exclude<
-    TokenType,
-    TokenType.syntheticUri | TokenType.collateralUri
-  >;
+  contractName: string;
 }> {
   const warpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chainName);
   const tokenType = (await warpRouteReader.deriveTokenType(
@@ -128,5 +147,6 @@ async function getWarpRouteFactory(
     (t, _contract): _contract is any => t === tokenType,
   )[tokenType];
 
-  return { factory, tokenType };
+  const contractName = hypERC20contracts[tokenType];
+  return { factory, contractName };
 }
