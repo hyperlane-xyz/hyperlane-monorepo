@@ -27,6 +27,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "arcadia": {
+    "amount": "0.000000008",
+    "decimals": 9
+  },
   "artela": {
     "amount": "27.5",
     "decimals": 9
@@ -45,6 +49,10 @@
   },
   "aurora": {
     "amount": "0.07",
+    "decimals": 9
+  },
+  "bouncebit": {
+    "amount": "11.25",
     "decimals": 9
   },
   "flame": {
@@ -351,6 +359,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "ronin": {
+    "amount": "20.0",
+    "decimals": 9
+  },
   "rootstockmainnet": {
     "amount": "0.07",
     "decimals": 9
@@ -395,9 +407,21 @@
     "amount": "0.0000001",
     "decimals": 1
   },
+  "sophon": {
+    "amount": "3255.367279549",
+    "decimals": 9
+  },
+  "story": {
+    "amount": "0.001100024",
+    "decimals": 9
+  },
   "stride": {
     "amount": "0.005",
     "decimals": 1
+  },
+  "subtensor": {
+    "amount": "10.0",
+    "decimals": 9
   },
   "superseed": {
     "amount": "0.001000252",
