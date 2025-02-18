@@ -44,13 +44,14 @@ impl CcipReadIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> eyre::Result<Option<OffchainLookup>> {
         let contract_address = Some(ism.address());
-        let fn_name = "get_offchain_verify_info";
+        let ism_domain = ism.domain().id();
+        let fn_key = format!("get_offchain_verify_info_{}", ism_domain);
         let parsed_message = RawHyperlaneMessage::from(message).to_vec();
 
         let info_from_cache = self
             .get_cached_call_result::<SerializedOffchainLookup>(
                 contract_address,
-                fn_name,
+                &fn_key,
                 &parsed_message,
             )
             .await;
@@ -79,7 +80,7 @@ impl CcipReadIsmMetadataBuilder {
 
         self.cache_call_result(
             contract_address,
-            fn_name,
+            &fn_key,
             &parsed_message,
             &SerializedOffchainLookup::from(info.clone()),
         )

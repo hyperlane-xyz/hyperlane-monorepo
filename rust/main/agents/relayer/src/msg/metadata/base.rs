@@ -248,10 +248,11 @@ impl MessageMetadataBuilder {
     /// the name of the method `module_type`.
     async fn call_module_type(&self, ism: &dyn InterchainSecurityModule) -> Result<ModuleType> {
         let contract_address = Some(ism.address());
-        let fn_name = "module_type";
+        let ism_domain = ism.domain().id();
+        let fn_key = format!("module_type_{}", ism_domain);
 
         match self
-            .get_cached_call_result::<ModuleType>(contract_address, fn_name, &NoParams)
+            .get_cached_call_result::<ModuleType>(contract_address, &fn_key, &NoParams)
             .await
         {
             Some(module_type) => Ok(module_type),
@@ -261,7 +262,7 @@ impl MessageMetadataBuilder {
                     .await
                     .context("When fetching module type")?;
 
-                self.cache_call_result(contract_address, fn_name, &NoParams, &module_type)
+                self.cache_call_result(contract_address, &fn_key, &NoParams, &module_type)
                     .await;
                 Ok(module_type)
             }

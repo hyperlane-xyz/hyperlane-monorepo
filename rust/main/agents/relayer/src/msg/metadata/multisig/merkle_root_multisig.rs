@@ -24,10 +24,11 @@ impl MerkleRootMultisigMetadataBuilder {
     /// Implicit contract in this method: function name `highest_known_leaf_index` matches
     /// the name of the method `highest_known_leaf_index`.
     async fn call_highest_known_leaf_index(&self) -> Result<Option<u32>> {
-        let fn_name = "highest_known_leaf_index";
+        let domain = self.origin_domain().id();
+        let fn_key = format!("highest_known_leaf_index_{}", domain);
 
         match self
-            .get_cached_call_result::<u32>(None, fn_name, &NoParams)
+            .get_cached_call_result::<u32>(None, &fn_key, &NoParams)
             .await
         {
             Some(index) => Ok(Some(index)),
@@ -37,7 +38,7 @@ impl MerkleRootMultisigMetadataBuilder {
                     debug!("Couldn't get highest known leaf index")
                 );
 
-                self.cache_call_result(None, fn_name, &NoParams, &index)
+                self.cache_call_result(None, &fn_key, &NoParams, &index)
                     .await;
                 Ok(Some(index))
             }
@@ -54,11 +55,12 @@ impl MerkleRootMultisigMetadataBuilder {
         &self,
         message: &HyperlaneMessage,
     ) -> Result<Option<u32>> {
-        let fn_name = "get_merkle_leaf_id_by_message_id";
+        let domain = self.origin_domain().id();
+        let fn_key = format!("get_merkle_leaf_id_by_message_id_{}", domain);
         let message_id = message.id();
 
         match self
-            .get_cached_call_result::<u32>(None, fn_name, &message_id)
+            .get_cached_call_result::<u32>(None, &fn_key, &message_id)
             .await
         {
             Some(index) => Ok(Some(index)),
@@ -73,7 +75,7 @@ impl MerkleRootMultisigMetadataBuilder {
                     )
                 );
 
-                self.cache_call_result(None, fn_name, &message_id, &index)
+                self.cache_call_result(None, &fn_key, &message_id, &index)
                     .await;
                 Ok(Some(index))
             }

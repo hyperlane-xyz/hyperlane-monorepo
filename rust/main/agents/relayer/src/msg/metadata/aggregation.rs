@@ -128,10 +128,11 @@ impl AggregationIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> eyre::Result<(Vec<H256>, u8)> {
         let contract_address = Some(ism.address());
-        let fn_name = "modules_and_threshold";
+        let ism_domain = ism.domain().id();
+        let fn_key = format!("modules_and_threshold_{}", ism_domain);
 
         match self
-            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, fn_name, message)
+            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, &fn_key, message)
             .await
         {
             Some(result) => Ok(result),
@@ -141,7 +142,7 @@ impl AggregationIsmMetadataBuilder {
                     .await
                     .context("When fetching AggregationIsm metadata")?;
 
-                self.cache_call_result(contract_address, fn_name, message, &result)
+                self.cache_call_result(contract_address, &fn_key, message, &result)
                     .await;
                 Ok(result)
             }

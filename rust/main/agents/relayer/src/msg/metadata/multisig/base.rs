@@ -104,11 +104,12 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         context: &'static str,
     ) -> Result<(Vec<H256>, u8)> {
         let contract_address = Some(multisig_ism.address());
-        let fn_name = "validators_and_threshold";
+        let ism_domain = multisig_ism.domain().id();
+        let fn_key = format!("validators_and_threshold_{}", ism_domain);
 
         match self
             .as_ref()
-            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, fn_name, message)
+            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, &fn_key, message)
             .await
         {
             Some(result) => Ok(result),
@@ -119,7 +120,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
                     .context(context)?;
 
                 self.as_ref()
-                    .cache_call_result(contract_address, fn_name, message, &result)
+                    .cache_call_result(contract_address, &fn_key, message, &result)
                     .await;
                 Ok(result)
             }

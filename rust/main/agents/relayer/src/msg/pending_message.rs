@@ -607,12 +607,13 @@ impl PendingMessage {
     /// the name of the method `delivered`.
     async fn is_message_delivered(&mut self) -> Result<bool, PendingOperationResult> {
         let contract_address = Some(self.ctx.destination_mailbox.address());
-        let fn_name = "delivered";
+        let dest_domain = self.ctx.destination_mailbox.domain().id();
+        let fn_key = format!("delivered_{}", dest_domain);
         let message_id = self.message.id();
 
         // Check cache for message delivery status
         if let Some(is_delivered) = self
-            .get_from_cache::<bool>(contract_address, fn_name, &message_id)
+            .get_from_cache::<bool>(contract_address, &fn_key, &message_id)
             .await
         {
             return Ok(is_delivered);
@@ -629,7 +630,7 @@ impl PendingMessage {
             })?;
 
         // Cache the message delivery status
-        self.store_to_cache(contract_address, fn_name, &message_id, &is_delivered)
+        self.store_to_cache(contract_address, &fn_key, &message_id, &is_delivered)
             .await;
 
         Ok(is_delivered)
@@ -643,13 +644,14 @@ impl PendingMessage {
     /// the name of the method `is_contract`.
     async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
         let contract_address = None;
-        let method = "is_contract";
+        let dest_domain = self.ctx.destination_mailbox.domain().id();
+        let fn_key = format!("is_contract_{}", dest_domain);
         let fn_params = self.message.recipient;
         let provider = self.ctx.destination_mailbox.provider();
 
         // Check cache for recipient contract status
         if let Some(is_contract) = self
-            .get_from_cache::<bool>(contract_address, method, &fn_params)
+            .get_from_cache::<bool>(contract_address, &fn_key, &fn_params)
             .await
         {
             return Ok(is_contract);
@@ -664,7 +666,7 @@ impl PendingMessage {
         })?;
 
         // Cache the recipient contract status
-        self.store_to_cache(contract_address, method, &fn_params, &is_contract)
+        self.store_to_cache(contract_address, &fn_key, &fn_params, &is_contract)
             .await;
 
         Ok(is_contract)
@@ -678,12 +680,13 @@ impl PendingMessage {
     /// the name of the method `recipient_ism`.
     async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
         let contract_address = None;
-        let method = "recipient_ism";
+        let domain = self.ctx.destination_mailbox.domain().id();
+        let fn_key = format!("recipient_ism_{}", domain);
         let fn_params = self.message.recipient;
 
         // Check cache for recipient ISM address
         if let Some(ism_address) = self
-            .get_from_cache::<H256>(contract_address, method, &fn_params)
+            .get_from_cache::<H256>(contract_address, &fn_key, &fn_params)
             .await
         {
             return Ok(ism_address);
@@ -700,7 +703,7 @@ impl PendingMessage {
             })?;
 
         // Cache the recipient ISM address
-        self.store_to_cache(contract_address, method, &fn_params, &ism_address)
+        self.store_to_cache(contract_address, &fn_key, &fn_params, &ism_address)
             .await;
 
         Ok(ism_address)

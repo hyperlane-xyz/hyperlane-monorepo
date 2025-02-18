@@ -27,11 +27,12 @@ impl MessageIdMultisigMetadataBuilder {
         &self,
         message: &HyperlaneMessage,
     ) -> Result<Option<u32>> {
-        let fn_name = "get_merkle_leaf_id_by_message_id";
+        let domain = self.origin_domain().id();
+        let fn_key = format!("get_merkle_leaf_id_by_message_id_{}", domain);
         let message_id = message.id();
 
         match self
-            .get_cached_call_result::<u32>(None, fn_name, &message_id)
+            .get_cached_call_result::<u32>(None, &fn_key, &message_id)
             .await
         {
             Some(index) => Ok(Some(index)),
@@ -46,7 +47,7 @@ impl MessageIdMultisigMetadataBuilder {
                     )
                 );
 
-                self.cache_call_result(None, fn_name, &message_id, &index)
+                self.cache_call_result(None, &fn_key, &message_id, &index)
                     .await;
                 Ok(Some(index))
             }
