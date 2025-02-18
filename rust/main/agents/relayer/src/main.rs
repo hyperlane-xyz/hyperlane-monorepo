@@ -16,7 +16,9 @@ use relayer::Relayer;
 #[cfg(feature = "memory-profiling")]
 mod memory_profiler;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
+/// Number of worker threads matches the number of CPU requested for relayer
+/// https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/4ddbd60e1f2e150e58dfeab72171c4fa88203db4/typescript/infra/config/environments/mainnet3/agent.ts#L595
+#[tokio::main(flavor = "multi_thread", worker_threads = 14)]
 async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`
     println!("Relayer starting up...");
