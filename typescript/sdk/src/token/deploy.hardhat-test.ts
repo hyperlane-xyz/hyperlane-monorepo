@@ -15,7 +15,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { HypTokenRouterConfig, WarpRouteDeployConfig } from './types.js';
+import {
+  HypTokenRouterConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
 
 const chain = TestChainName.test1;
 
@@ -24,7 +27,7 @@ describe('TokenDeployer', async () => {
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: WarpRouteDeployConfig;
+  let config: WarpRouteDeployConfigMailboxRequired;
   let token: Address;
 
   before(async () => {

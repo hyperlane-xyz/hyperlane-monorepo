@@ -31,6 +31,7 @@ import {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -179,7 +180,7 @@ abstract class TokenDeployer<
     return undefined;
   }
 
-  async deploy(configMap: WarpRouteDeployConfig) {
+  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
       tokenMetadata = await TokenDeployer.deriveTokenMetadata(
@@ -194,8 +195,6 @@ abstract class TokenDeployer<
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       ...tokenMetadata,
       gas: gasOverhead(config.type),
-      //hardcoded to empty string for now
-      mailbox: '',
       ...config,
     }));
     return super.deploy(resolvedConfigMap);

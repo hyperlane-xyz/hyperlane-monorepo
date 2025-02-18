@@ -24,7 +24,7 @@ import {
   HypERC20Factories,
   HypERC721Deployer,
   HypERC721Factories,
-  HypTokenRouterConfigWithOptionalMailbox,
+  HypTokenRouterConfig,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
@@ -45,6 +45,7 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   attachContractsMap,
   connectContractsMap,
@@ -86,7 +87,7 @@ import {
 
 interface DeployParams {
   context: WriteCommandContext;
-  warpDeployConfig: WarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }
 
 interface WarpApplyParams extends DeployParams {
@@ -191,7 +192,7 @@ async function executeDeploy(
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
-  const config: WarpRouteDeployConfig =
+  const config: WarpRouteDeployConfigMailboxRequired =
     isDryRun && dryRunChain
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
       : warpDeployConfig;
@@ -236,11 +237,11 @@ async function writeDeploymentArtifacts(
 }
 
 async function resolveWarpIsmAndHook(
-  warpConfig: WarpRouteDeployConfig,
+  warpConfig: WarpRouteDeployConfigMailboxRequired,
   context: WriteCommandContext,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier?: ContractVerifier,
-): Promise<WarpRouteDeployConfig> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
       const chainAddresses = await context.registry.getChainAddresses(chain);
@@ -287,7 +288,7 @@ async function createWarpIsm({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfigWithOptionalMailbox;
+  warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<IsmConfig | undefined> {
   const { interchainSecurityModule } = warpConfig;
@@ -354,7 +355,7 @@ async function createWarpHook({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: HypTokenRouterConfigWithOptionalMailbox;
+  warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<HookConfig | undefined> {
   const { hook } = warpConfig;
@@ -560,12 +561,12 @@ async function extendWarpRoute(
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
   // Split between the existing and additional config
-  const existingConfigs: WarpRouteDeployConfig = objFilter(
+  const existingConfigs: WarpRouteDeployConfigMailboxRequired = objFilter(
     warpDeployConfig,
     (chain, _config): _config is any => warpCoreChains.includes(chain),
   );
 
-  let extendedConfigs: WarpRouteDeployConfig = objFilter(
+  let extendedConfigs: WarpRouteDeployConfigMailboxRequired = objFilter(
     warpDeployConfig,
     (chain, _config): _config is any => !warpCoreChains.includes(chain),
   );
@@ -697,9 +698,9 @@ export function readChainSubmissionStrategy(
  */
 async function deriveMetadataFromExisting(
   multiProvider: MultiProvider,
-  existingConfigs: WarpRouteDeployConfig,
-  extendedConfigs: WarpRouteDeployConfig,
-): Promise<WarpRouteDeployConfig> {
+  existingConfigs: WarpRouteDeployConfigMailboxRequired,
+  extendedConfigs: WarpRouteDeployConfigMailboxRequired,
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const existingTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     existingConfigs,

@@ -101,19 +101,14 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
 );
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
-export const HypTokenRouterConfigWithOptionalMailboxSchema =
-  HypTokenConfigSchema.and(
-    GasRouterConfigSchema.extend({
-      mailbox: z.string().optional(),
-    }),
-  );
-
-export type HypTokenRouterConfigWithOptionalMailbox = z.infer<
-  typeof HypTokenRouterConfigWithOptionalMailboxSchema
->;
+const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
+  GasRouterConfigSchema.extend({
+    mailbox: z.string().optional(),
+  }),
+);
 
 export const WarpRouteDeployConfigSchema = z
-  .record(HypTokenRouterConfigWithOptionalMailboxSchema)
+  .record(HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
@@ -161,11 +156,20 @@ export const WarpRouteDeployConfigSchema = z
   });
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
+const RequiredMailboxSchema = z.record(
+  z.object({
+    mailbox: z.string(),
+  }),
+);
+
+export type WarpRouteDeployConfigMailboxRequired = z.infer<
+  ReturnType<
+    typeof WarpRouteDeployConfigSchema.and<typeof RequiredMailboxSchema>
+  >
+>;
+
 function isCollateralRebasePairedCorrectly(
-  warpRouteDeployConfig: Record<
-    string,
-    HypTokenRouterConfigWithOptionalMailbox
-  >,
+  warpRouteDeployConfig: WarpRouteDeployConfig,
 ): boolean {
   // Filter out all the non-collateral rebase configs to check if they are only synthetic rebase tokens
   const otherConfigs = Object.entries(warpRouteDeployConfig).filter(
