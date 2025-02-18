@@ -186,6 +186,9 @@
   "hemi": {
     "validators": ["0x312dc72c17d01f3fd0abd31dd9b569bc473266dd"]
   },
+  "hyperevm": {
+    "validators": ["0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f"]
+  },
   "immutablezkevmmainnet": {
     "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
   },
@@ -442,8 +445,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "hyperevm": {
-    "validators": ["0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f"]
   }
 }
