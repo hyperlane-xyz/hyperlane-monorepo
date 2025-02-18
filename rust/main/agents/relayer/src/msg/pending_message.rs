@@ -9,6 +9,10 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use prometheus::{IntCounter, IntGauge};
+use serde::Serialize;
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
+
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -16,9 +20,7 @@ use hyperlane_core::{
     PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
     TxOutcome, H256, U256,
 };
-use prometheus::{IntCounter, IntGauge};
-use serde::Serialize;
-use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -56,6 +58,8 @@ pub struct MessageContext {
     /// destination.
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
+    /// Application operation verifier
+    pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
 }
 
 /// A message that the submitter can and should try to submit.
@@ -304,7 +308,11 @@ impl PendingOperation for PendingMessage {
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorEstimatingGas);
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                return self.on_reprepare(Some(err), reason);
             }
         };
 
@@ -374,7 +382,11 @@ impl PendingOperation for PendingMessage {
                 .await
                 .is_err()
             {
-                return self.on_reprepare::<String>(None, ReprepareReason::ErrorEstimatingGas);
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                return self.on_reprepare::<String>(None, reason);
             }
         }
 
@@ -531,13 +543,16 @@ impl PendingMessage {
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
-            let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-                    .map(|dur| Instant::now() + dur);
+            let next_attempt_after = Self::next_attempt_after(num_retries, max_retries);
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
         Some(pending_message)
+    }
+
+    fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+            .map(|dur| Instant::now() + dur)
     }
 
     fn get_retries_or_skip(
@@ -716,9 +731,27 @@ impl PendingMessage {
                         "Message has been retried too many times, skipping",
                     );
                 }
-                u64::MAX
+                chrono::Duration::weeks(10).num_seconds() as u64
             }
         }))
+    }
+
+    async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
+        use ReprepareReason::ApplicationReport;
+
+        match self
+            .ctx
+            .application_operation_verifier
+            .as_ref()?
+            .verify(&self.app_context, &self.message)
+            .await
+        {
+            Some(r) => {
+                debug!(original = ?reason, report = ?r, app = ?self.app_context, message = ?self.message, "Clarifying reprepare reason with application report");
+                Some(ApplicationReport(r.into()))
+            }
+            None => None,
+        }
     }
 }
 
@@ -760,7 +793,11 @@ impl MessageSubmissionMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::{fmt::Debug, sync::Arc, time::Duration};
+    use std::{
+        fmt::Debug,
+        sync::Arc,
+        time::{Duration, Instant},
+    };
 
     use hyperlane_base::db::*;
     use hyperlane_core::*;
@@ -888,22 +925,23 @@ mod test {
     fn test_calculate_msg_backoff_does_not_overflow() {
         use super::PendingMessage;
         use std::time::Duration;
-        let ten_weeks = Duration::from_secs(
-            chrono::Duration::weeks(10)
-                .num_seconds()
-                .try_into()
-                .unwrap(),
-        );
+        let ten_weeks_from_now = Instant::now()
+            + Duration::from_secs(
+                chrono::Duration::weeks(10)
+                    .num_seconds()
+                    .try_into()
+                    .unwrap(),
+            );
+
+        // this is really an overflow check
+        let next_prepare_attempt = PendingMessage::next_attempt_after(
+            DEFAULT_MAX_MESSAGE_RETRIES,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        )
+        .unwrap();
 
         // the backoff should be at least 10 weeks into the future
-        // this is really an overflow check more than anything
-        assert!(PendingMessage::calculate_msg_backoff(
-            DEFAULT_MAX_MESSAGE_RETRIES,
-            DEFAULT_MAX_MESSAGE_RETRIES,
-            None
-        )
-        .unwrap()
-        .gt(&ten_weeks));
+        assert!(next_prepare_attempt.gt(&ten_weeks_from_now));
     }
 
     #[test]

@@ -391,16 +391,16 @@ impl MessageProcessorMetrics {
 mod test {
     use std::time::Instant;
 
-    use crate::{
-        merkle_tree::builder::MerkleTreeBuilder,
-        msg::{
-            gas_payment::GasPaymentEnforcer,
-            metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+    use prometheus::{IntCounter, Registry};
+    use tokio::{
+        sync::{
+            mpsc::{self, UnboundedReceiver},
+            RwLock,
         },
-        processor::Processor,
+        time::sleep,
     };
+    use tokio_metrics::TaskMonitor;
 
-    use super::*;
     use hyperlane_base::{
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
@@ -412,16 +412,34 @@ mod test {
         test_utils::dummy_domain, GasPaymentKey, InterchainGasPayment, InterchainGasPaymentMeta,
         MerkleTreeInsertion, PendingOperationStatus, H256,
     };
-    use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
-    use prometheus::{IntCounter, Registry};
-    use tokio::{
-        sync::{
-            mpsc::{self, UnboundedReceiver},
-            RwLock,
-        },
-        time::sleep,
+    use hyperlane_operation_verifier::{
+        ApplicationOperationVerifier, ApplicationOperationVerifierReport,
     };
-    use tokio_metrics::TaskMonitor;
+    use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
+
+    use crate::{
+        merkle_tree::builder::MerkleTreeBuilder,
+        msg::{
+            gas_payment::GasPaymentEnforcer,
+            metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        },
+        processor::Processor,
+    };
+
+    use super::*;
+
+    struct DummyApplicationOperationVerifier {}
+
+    #[async_trait]
+    impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
+        async fn verify(
+            &self,
+            _app_context: &Option<String>,
+            _message: &HyperlaneMessage,
+        ) -> Option<ApplicationOperationVerifierReport> {
+            None
+        }
+    }
 
     fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
         MessageProcessorMetrics {
@@ -503,6 +521,7 @@ mod test {
             origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
+            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
         });
 
         let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
