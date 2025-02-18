@@ -377,8 +377,11 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
-export { randomAddress } from './test/testUtils.js';
-export { randomHookConfig } from './test/testUtils.js';
+export {
+  randomAddress,
+  randomHookConfig,
+  randomIsmConfig,
+} from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
