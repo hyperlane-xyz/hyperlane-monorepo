@@ -35,28 +35,28 @@ export async function runWarpRouteRead({
   const { multiProvider } = context;
 
   // Get addresses map either from warpCoreConfig or direct input
-  let addresses: ChainMap<string>;
   let warpCoreConfig = context.warpCoreConfig;
 
-  if (warpCoreConfig) {
-    addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-    );
-  } else if (symbol || warp) {
+  if (!warpCoreConfig && (symbol || warp)) {
     warpCoreConfig = await getWarpCoreConfigOrExit({
       context,
       warp,
       symbol,
     });
-    addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+  }
+
+  if (!warpCoreConfig && (!chain || !address)) {
+    logRed(
+      'Must provide either: (1) warpCoreConfig, (2) symbol or warp, or (3) both chain and address',
     );
-  } else if (chain && address) {
-    addresses = { [chain]: address };
-  } else {
-    logRed(`Please specify either a symbol, chain and address or warp file`);
     process.exit(1);
   }
+
+  const addresses: ChainMap<string> = warpCoreConfig
+    ? Object.fromEntries(
+        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+      )
+    : { [chain!]: address! };
 
   // Validate all chains are EVM compatible
   const nonEvmChains = Object.entries(addresses)
