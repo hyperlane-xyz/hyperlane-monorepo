@@ -1,3 +1,5 @@
+export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+
 export { HyperlaneApp } from './app/HyperlaneApp.js';
 export {
   AdapterClassType,
@@ -374,6 +376,7 @@ export {
 } from './providers/SmartProvider/types.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export { randomAddress } from './test/testUtils.js';
+export { randomHookConfig } from './test/hookTestUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
