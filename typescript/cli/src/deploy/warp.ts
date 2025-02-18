@@ -24,7 +24,6 @@ import {
   HypERC721Deployer,
   HypERC721Factories,
   HypTokenRouterConfig,
-  HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
   IsmConfig,
@@ -57,7 +56,6 @@ import {
   Address,
   ProtocolType,
   assert,
-  objKeys,
   objMap,
   promiseObjAll,
   retryAsync,
@@ -530,14 +528,17 @@ export async function runWarpRouteApply(
     );
 
   // Extend the warp route and get the updated configs
-  const { updatedWarpDeployConfig, updatedWarpCoreConfigByChain } =
-    await extendWarpRoute(params, apiKeys, warpCoreConfigByChain);
+  const updatedWarpCoreConfigByChain = await extendWarpRoute(
+    params,
+    apiKeys,
+    warpCoreConfigByChain,
+  );
 
   // Then create and submit update transactions
   const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
     params,
     apiKeys,
-    updatedWarpDeployConfig,
+    warpDeployConfig,
     updatedWarpCoreConfigByChain,
   );
 
@@ -620,52 +621,19 @@ async function deployWarpExtensionContracts(
 }
 
 /**
- * Updates the Warp route configuration by incorporating newly deployed contract addresses.
- * Preserves existing configuration while updating token addresses for collateral tokens.
- */
-function updateWarpRouteConfigWithNewAddresses(
-  warpDeployConfig: WarpRouteDeployConfig,
-  newDeployedContracts: HyperlaneContractsMap<
-    HypERC20Factories | HypERC721Factories
-  >,
-): WarpRouteDeployConfig {
-  return {
-    ...warpDeployConfig,
-    ...Object.fromEntries(
-      Object.entries(newDeployedContracts).map(([chain, contracts]) => {
-        const config = { ...warpDeployConfig[chain] };
-        if (!isCollateralTokenConfig(config)) {
-          return [chain, config];
-        }
-
-        const router = getRouter(
-          contracts as HyperlaneContracts<HypERC20Factories>,
-        );
-
-        return [chain, { ...config, token: router.address }];
-      }),
-    ),
-  };
-}
-
-/**
  * Extends an existing Warp route to include new chains.
  * This is a core function that orchestrates the entire extension process:
  * 1. Splits the configuration between existing and new chains
  * 2. If no new chains are being added, returns the current configuration
  * 3. Deploys and configures new contracts on the extended chains
- * 4. Updates the Warp deployment configuration with new contract addresses
- * 5. Updates the Warp core configuration with new token information
- * 6. Writes the updated artifacts to the registry
+ * 4. Updates the Warp core configuration with new token information
+ * 5. Writes the updated artifacts to the registry
  */
 export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-): Promise<{
-  updatedWarpDeployConfig: WarpRouteDeployConfig;
-  updatedWarpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>;
-}> {
+): Promise<ChainMap<WarpCoreConfig['tokens'][number]>> {
   const { context, warpDeployConfig } = params;
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
@@ -677,16 +645,13 @@ export async function extendWarpRoute(
 
   const extendedChains = Object.keys(initialExtendedConfigs);
   if (extendedChains.length === 0) {
-    return {
-      updatedWarpDeployConfig: { ...warpDeployConfig },
-      updatedWarpCoreConfigByChain: { ...warpCoreConfigByChain },
-    };
+    return { ...warpCoreConfigByChain };
   }
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
   // Deploy new contracts with derived metadata and merge with existing config
-  const { newDeployedContracts, updatedWarpCoreConfig, addWarpRouteOptions } =
+  const { updatedWarpCoreConfig, addWarpRouteOptions } =
     await deployWarpExtensionContracts(
       params,
       apiKeys,
@@ -694,12 +659,6 @@ export async function extendWarpRoute(
       initialExtendedConfigs,
       warpCoreConfigByChain,
     );
-
-  // Create new warpDeployConfig with updated addresses
-  const updatedWarpDeployConfig = updateWarpRouteConfigWithNewAddresses(
-    warpDeployConfig,
-    newDeployedContracts,
-  );
 
   // Create new warpCoreConfigByChain with updated tokens
   const updatedWarpCoreConfigByChain = {
@@ -716,10 +675,7 @@ export async function extendWarpRoute(
     addWarpRouteOptions,
   );
 
-  return {
-    updatedWarpDeployConfig,
-    updatedWarpCoreConfigByChain,
-  };
+  return updatedWarpCoreConfigByChain;
 }
 
 /**
@@ -916,13 +872,6 @@ function mergeAllRouters(
     ),
     ...deployedContractsMap,
   } as HyperlaneContractsMap<HypERC20Factories>;
-}
-
-function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
-  for (const key of objKeys(hypERC20factories)) {
-    if (contracts[key]) return contracts[key];
-  }
-  throw new Error('No matching contract found.');
 }
 
 function displayWarpDeployPlan(deployConfig: WarpRouteDeployConfig) {
