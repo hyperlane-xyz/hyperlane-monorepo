@@ -137,7 +137,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
           const wrappedToken = await warpRoute.wrappedToken();
           const xerc20 = IXERC20__factory.connect(wrappedToken, this.provider);
           try {
-            console.log('CHECKING XERC20');
             await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
             return TokenType.XERC20;
             // eslint-disable-next-line no-empty
