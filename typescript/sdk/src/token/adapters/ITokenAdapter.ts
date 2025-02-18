@@ -21,28 +21,12 @@ export interface InterchainGasQuote {
   amount: bigint;
 }
 
-export interface SetBufferCapParams {
-  bridge: Address;
-  newBufferCap: bigint;
-}
-
-export interface AddBridgedParams {
-  bufferCap: bigint;
-  rateLimitPerSecond: bigint;
-  bridge: Address;
-}
-
 export interface RateLimitMidPoint {
   rateLimitPerSecond: bigint;
   bufferCap: bigint;
   lastBufferUsedTime: number;
   bufferStored: bigint;
   midPoint: bigint;
-}
-
-export interface SetRateLimitPerSecondParams {
-  bridge: Address;
-  newRateLimitPerSecond: bigint;
 }
 
 export interface ITokenAdapter<Tx> {
