@@ -141,6 +141,8 @@ where
                     }
                 }
             }
+
+            let _span = warn_span!("multicast_request", errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers);
         }
 
         Err(FallbackError::AllProvidersFailed(errors).into())
