@@ -53,7 +53,6 @@ import {
   getRenzoEZETHWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import {
-  getPZETHSTAGEGnosisSafeBuilderStagingStrategyConfig,
   getPZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoPZETHStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoPZETHSTAGEWarpConfig.js';
