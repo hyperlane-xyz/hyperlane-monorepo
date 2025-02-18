@@ -5,6 +5,7 @@ import { zeroAddress } from 'viem';
 import { ERC20Test } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  HookConfig,
   HookType,
   IsmType,
   MUTABLE_HOOK_TYPE,
@@ -252,7 +253,10 @@ describe('hyperlane warp check e2e tests', async function () {
 
       const mutatedWarpConfig = deepCopy(warpConfig);
 
-      const hookConfig: any = mutatedWarpConfig[CHAIN_NAME_3].hook!;
+      const hookConfig: Extract<
+        HookConfig,
+        { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
+      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
       const actualOwner = hookConfig.owner;
       const wrongOwner = randomAddress();
       hookConfig.owner = wrongOwner;
