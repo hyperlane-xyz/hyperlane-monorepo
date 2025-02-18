@@ -580,6 +580,7 @@ export {
   HypTokenRouterConfigSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
+  isXERC20TokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
