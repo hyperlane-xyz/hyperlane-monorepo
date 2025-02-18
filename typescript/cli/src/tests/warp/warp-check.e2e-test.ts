@@ -13,7 +13,7 @@ import {
   randomAddress,
   randomHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, deepCopy } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -246,11 +246,11 @@ describe('hyperlane warp check e2e tests', async function () {
   });
 
   for (const hookType of MUTABLE_HOOK_TYPE) {
-    it(`should find owner differences between the local config and the on chain config for ${hookType}`, async function () {
+    it.only(`should find owner differences between the local config and the on chain config for ${hookType}`, async function () {
       warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
       await deployAndExportWarpRoute();
 
-      const mutatedWarpConfig = { ...warpConfig };
+      const mutatedWarpConfig = deepCopy(warpConfig);
 
       const hookConfig: any = mutatedWarpConfig[CHAIN_NAME_3].hook!;
       const actualOwner = hookConfig.owner;
