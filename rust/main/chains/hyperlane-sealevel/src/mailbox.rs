@@ -571,10 +571,14 @@ pub struct SealevelMailboxIndexer {
 impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
-        mailbox: SealevelMailbox,
+        provider: SealevelProvider,
+        tx_submitter: Box<dyn TransactionSubmitter>,
         locator: &ContractLocator,
+        conf: &ConnectionConf,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
+        let mailbox = SealevelMailbox::new(provider, tx_submitter, conf, locator, None)?;
+
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         let dispatch_message_log_meta_composer = LogMetaComposer::new(

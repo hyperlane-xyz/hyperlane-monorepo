@@ -364,12 +364,11 @@ impl ChainConf {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
                 let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
-
-                let mailbox =
-                    h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)?;
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
-                    mailbox,
+                    provider,
+                    tx_submitter,
                     &locator,
+                    conf,
                     advanced_log_meta,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
@@ -415,12 +414,11 @@ impl ChainConf {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
                 let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
-
-                let mailbox =
-                    h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)?;
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
-                    mailbox,
+                    provider,
+                    tx_submitter,
                     &locator,
+                    conf,
                     advanced_log_meta,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
@@ -560,12 +558,11 @@ impl ChainConf {
                 let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let tx_submitter = build_tx_submitter(self, conf, metrics);
 
-                let mailbox =
-                    h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)?;
-
                 let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
-                    mailbox,
+                    provider,
+                    tx_submitter,
                     &locator,
+                    conf,
                     advanced_log_meta,
                 )?);
                 let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
