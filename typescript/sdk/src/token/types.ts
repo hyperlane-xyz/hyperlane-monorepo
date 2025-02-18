@@ -156,7 +156,7 @@ export const WarpRouteDeployConfigSchema = z
   });
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
-const RequiredMailboxSchema = z.record(
+const _RequiredMailboxSchema = z.record(
   z.object({
     mailbox: z.string(),
   }),
@@ -164,7 +164,7 @@ const RequiredMailboxSchema = z.record(
 
 export type WarpRouteDeployConfigMailboxRequired = z.infer<
   ReturnType<
-    typeof WarpRouteDeployConfigSchema.and<typeof RequiredMailboxSchema>
+    typeof WarpRouteDeployConfigSchema.and<typeof _RequiredMailboxSchema>
   >
 >;
 
