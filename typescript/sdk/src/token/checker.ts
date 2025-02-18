@@ -5,10 +5,15 @@ import {
   ERC20__factory,
   HypERC20Collateral,
   IXERC20Lockbox__factory,
+  Ownable,
+  Ownable__factory,
+  ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
+import { filterOwnableContracts } from '../contracts/contracts.js';
+import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
@@ -34,6 +39,41 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
     await this.checkToken(chain);
+  }
+
+  async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
+    const contracts = this.app.getContracts(chain);
+
+    if (
+      isCollateralTokenConfig(this.configMap[chain]) ||
+      isXERC20TokenConfig(this.configMap[chain])
+    ) {
+      const collateralToken = await this.getCollateralToken(chain);
+
+      const provider = this.multiProvider.getProvider(chain);
+
+      // XERC20s are Ownable
+      const tokenType = this.configMap[chain].type;
+      if (
+        tokenType === TokenType.XERC20Lockbox ||
+        tokenType === TokenType.XERC20
+      ) {
+        contracts['collateralToken'] = Ownable__factory.connect(
+          collateralToken.address,
+          provider,
+        );
+      }
+
+      if (await isProxy(provider, collateralToken.address)) {
+        const admin = await proxyAdmin(provider, collateralToken.address);
+        contracts['collateralProxyAdmin'] = ProxyAdmin__factory.connect(
+          admin,
+          provider,
+        );
+      }
+    }
+
+    return filterOwnableContracts(contracts);
   }
 
   async checkToken(chain: ChainName): Promise<void> {

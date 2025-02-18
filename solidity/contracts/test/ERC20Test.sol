@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../token/interfaces/IXERC20Lockbox.sol";
 import "../token/interfaces/IXERC20.sol";
@@ -55,13 +56,17 @@ contract FiatTokenTest is ERC20Test, IFiatToken {
     }
 }
 
-contract XERC20Test is ERC20Test, IXERC20 {
+contract XERC20Test is ERC20Test, Ownable, IXERC20 {
     constructor(
         string memory name,
         string memory symbol,
         uint256 totalSupply,
         uint8 __decimals
-    ) ERC20Test(name, symbol, totalSupply, __decimals) {}
+    ) ERC20Test(name, symbol, totalSupply, __decimals) Ownable() {}
+
+    function initialize() external {
+        _transferOwnership(msg.sender);
+    }
 
     function mint(address account, uint256 amount) public override {
         _mint(account, amount);
@@ -75,8 +80,8 @@ contract XERC20Test is ERC20Test, IXERC20 {
         assert(false);
     }
 
-    function owner() external pure returns (address) {
-        return address(0x0);
+    function owner() public view override(Ownable, IXERC20) returns (address) {
+        return Ownable.owner();
     }
 
     function burningCurrentLimitOf(
