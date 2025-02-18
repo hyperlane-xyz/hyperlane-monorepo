@@ -211,6 +211,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "hyperevm": {
+    "amount": "0.1",
+    "decimals": 9
+  },
   "immutablezkevmmainnet": {
     "amount": "11.00000005",
     "decimals": 9
