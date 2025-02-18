@@ -802,4 +802,71 @@ describe('hyperlane warp apply e2e tests', async function () {
       ].address.toLowerCase(),
     ).to.equal(newRouterAddress.toLowerCase());
   });
+
+  it('should preserve chain deployment configs when extending warp route', async () => {
+    // Read existing config into a file
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const originalConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    // Store the complete original chain config and remove dynamic fields
+    const originalChainConfig = { ...originalConfig[CHAIN_NAME_2] };
+    delete originalChainConfig.remoteRouters;
+    delete originalChainConfig.destinationGas;
+    delete originalChainConfig.gas;
+
+    // Extend with new config for chain 3
+    const extendedConfig: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+    };
+
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: warpConfigPath,
+    });
+
+    // Read the config directly from file after extension
+    const updatedConfig = readYamlOrJson(
+      warpConfigPath,
+    ) as WarpRouteDeployConfig;
+
+    // Remove dynamic fields from updated configs before comparison
+    const updatedChainConfig2 = { ...updatedConfig[CHAIN_NAME_2] };
+    delete updatedChainConfig2.remoteRouters;
+    delete updatedChainConfig2.destinationGas;
+    delete updatedChainConfig2.gas;
+
+    const updatedChainConfig3 = { ...updatedConfig[CHAIN_NAME_3] };
+    delete updatedChainConfig3.remoteRouters;
+    delete updatedChainConfig3.destinationGas;
+    delete updatedChainConfig3.gas;
+
+    // Expected config for chain 3 without dynamic fields
+    const expectedChainConfig3 = { ...extendedConfig };
+    delete expectedChainConfig3.remoteRouters;
+    delete expectedChainConfig3.destinationGas;
+    delete expectedChainConfig3.gas;
+
+    // Verify both chains have correct configs
+    expect(normalizeConfig(updatedChainConfig2)).to.deep.equal(
+      normalizeConfig(originalChainConfig),
+      'Chain 2 deployment config should remain unchanged after extension',
+    );
+    expect(normalizeConfig(updatedChainConfig3)).to.deep.equal(
+      normalizeConfig(expectedChainConfig3),
+      'Chain 3 deployment config should match the extended config',
+    );
+  });
 });
