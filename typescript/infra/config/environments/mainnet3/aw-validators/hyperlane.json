@@ -442,5 +442,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "hyperevm": {
+    "validators": ["0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f"]
   }
 }

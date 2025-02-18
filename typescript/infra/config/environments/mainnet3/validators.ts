@@ -1627,5 +1627,16 @@ export const validatorChainConfig = (
         'subtensor',
       ),
     },
+
+    hyperevm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('hyperevm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f'],
+        },
+        'hyperevm',
+      ),
+    },
   };
 };

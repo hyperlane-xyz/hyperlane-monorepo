@@ -80,6 +80,7 @@ export const keyFunderConfig: KeyFunderConfig<
     guru: '100',
     harmony: '500',
     hemi: '0.05',
+    hyperevm: '1',
     immutablezkevmmainnet: '25',
     inevm: '3',
     ink: '0.05',

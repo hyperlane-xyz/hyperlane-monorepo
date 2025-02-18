@@ -56,6 +56,7 @@ export const mainnet3SupportedChainNames = [
   'guru',
   'harmony',
   'hemi',
+  'hyperevm',
   'immutablezkevmmainnet',
   'inevm',
   'ink',
