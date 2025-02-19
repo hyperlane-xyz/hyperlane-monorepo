@@ -13,14 +13,13 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
+use hyperlane_metric::prometheus_metric::ChainInfo;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
 
 pub use error::PrometheusMiddlewareError;
-
-pub use crate::ChainInfo;
 
 mod error;
 

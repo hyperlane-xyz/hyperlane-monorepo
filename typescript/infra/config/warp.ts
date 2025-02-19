@@ -34,6 +34,7 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import { getEthereumHyperevmETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumHyperevmETHWarpConfig.js';
 import { getEthereumHyperevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumHyperevmUSDTWarpConfig.js';
 import { getEthereumHyperevmWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumHyperevmWBTCWarpConfig.js';
+import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormFORMWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
@@ -78,6 +79,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
     getTRUMPWarpConfig,
   [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig,
+  [WarpRouteIds.EthereumFormFORM]: getEthereumFormFORMWarpConfig,
   [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
   [WarpRouteIds.EthereumHyperevmETH]: getEthereumHyperevmETHWarpConfig,
   [WarpRouteIds.EthereumHyperevmUSDT]: getEthereumHyperevmUSDTWarpConfig,

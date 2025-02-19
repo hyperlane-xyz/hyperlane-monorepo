@@ -90,11 +90,12 @@ pub struct SealevelMailbox {
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
+        provider: SealevelProvider,
+        tx_submitter: Box<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
-        locator: ContractLocator,
+        locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
         let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &program_id);
@@ -111,9 +112,7 @@ impl SealevelMailbox {
             outbox,
             payer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
-            tx_submitter: conf
-                .transaction_submitter
-                .create_submitter(provider.rpc().url()),
+            tx_submitter,
             provider,
         })
     }
@@ -576,12 +575,15 @@ pub struct SealevelMailboxIndexer {
 impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
+        provider: SealevelProvider,
+        tx_submitter: Box<dyn TransactionSubmitter>,
+        locator: &ContractLocator,
         conf: &ConnectionConf,
-        locator: ContractLocator,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
+        let mailbox = SealevelMailbox::new(provider, tx_submitter, conf, locator, None)?;
+
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        let mailbox = SealevelMailbox::new(conf, locator, None)?;
 
         let dispatch_message_log_meta_composer = LogMetaComposer::new(
             mailbox.program_id,

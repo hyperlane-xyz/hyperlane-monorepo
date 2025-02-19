@@ -30,6 +30,7 @@ export enum WarpRouteIds {
   EthereumHyperevmETH = 'ETH/ethereum-hyperevm',
   EthereumHyperevmUSDT = 'USDT/ethereum-hyperevm',
   EthereumHyperevmWBTC = 'WBTC/ethereum-hyperevm',
+  EthereumFormFORM = 'FORM/ethereum-form',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
   EthereumInkUSDC = 'USDC/ethereum-ink',
