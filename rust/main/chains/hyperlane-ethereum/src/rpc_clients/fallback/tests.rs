@@ -245,11 +245,12 @@ async fn test_multicast_none_provider_succeeds() {
     ];
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
-    let _ = ethereum_fallback_provider
+    let result = ethereum_fallback_provider
         .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
         .await;
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+    matches!(result, Err(ProviderError::JsonRpcClientError(_)));
     assert_eq!(provider_call_count, vec![4, 4, 4]);
 }
 
