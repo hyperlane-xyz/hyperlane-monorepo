@@ -78,10 +78,13 @@ impl BaseAgent for Validator {
 
         settings.check_fuel_reorg();
         let core = settings.build_hyperlane_core(metrics.clone());
+        // Be extra sure to panic checkpoint syncer fails, which indicates
+        // a fatal startup error.
         let checkpoint_syncer = settings
             .checkpoint_syncer
             .build_and_validate(None)
-            .await?
+            .await
+            .expect("Failed to build checkpoint syncer")
             .into();
 
         let mailbox = settings

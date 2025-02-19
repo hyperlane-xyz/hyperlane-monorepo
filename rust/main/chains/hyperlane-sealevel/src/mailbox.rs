@@ -29,7 +29,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::{keypair::Keypair, Signer as _},
+    signer::Signer as _,
 };
 use tracing::{debug, info, instrument, warn};
 
@@ -40,14 +40,17 @@ use hyperlane_core::{
     ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
-use crate::log_meta_composer::{
-    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
-};
-use crate::tx_submitter::TransactionSubmitter;
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
     priority_fee::PriorityFeeOracle,
 };
+use crate::{
+    log_meta_composer::{
+        is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
+    },
+    SealevelKeypair,
+};
+use crate::{tx_submitter::TransactionSubmitter, utils::force_non_signers};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -79,7 +82,7 @@ pub struct SealevelMailbox {
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: SealevelProvider,
-    payer: Option<Keypair>,
+    payer: Option<SealevelKeypair>,
     priority_fee_oracle: Box<dyn PriorityFeeOracle>,
     tx_submitter: Box<dyn TransactionSubmitter>,
 }
@@ -89,7 +92,7 @@ impl SealevelMailbox {
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
-        payer: Option<Keypair>,
+        payer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
         let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
@@ -202,7 +205,7 @@ impl SealevelMailbox {
     ) -> ChainResult<Vec<AccountMeta>> {
         let instruction =
             hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
-        self.get_account_metas_with_instruction_bytes(
+        self.get_non_signer_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
@@ -223,7 +226,7 @@ impl SealevelMailbox {
                 metadata,
                 message,
             });
-        self.get_account_metas_with_instruction_bytes(
+        self.get_non_signer_account_metas_with_instruction_bytes(
             ism,
             &instruction
                 .encode()
@@ -246,7 +249,7 @@ impl SealevelMailbox {
         });
 
         let mut account_metas = self
-            .get_account_metas_with_instruction_bytes(
+            .get_non_signer_account_metas_with_instruction_bytes(
                 recipient_program_id,
                 &instruction
                     .encode()
@@ -267,7 +270,7 @@ impl SealevelMailbox {
         Ok(account_metas)
     }
 
-    async fn get_account_metas_with_instruction_bytes(
+    async fn get_non_signer_account_metas_with_instruction_bytes(
         &self,
         program_id: Pubkey,
         instruction_data: &[u8],
@@ -281,7 +284,11 @@ impl SealevelMailbox {
             vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
-        self.get_account_metas(instruction).await
+        let account_metas = self.get_account_metas(instruction).await?;
+
+        // Force all dynamically provided account metas to be non-signers to protect against
+        // potential theft from the payer.
+        Ok(force_non_signers(account_metas))
     }
 
     async fn get_process_instruction(
@@ -379,7 +386,7 @@ impl SealevelMailbox {
         Ok(inbox)
     }
 
-    fn get_payer(&self) -> ChainResult<&Keypair> {
+    fn get_payer(&self) -> ChainResult<&SealevelKeypair> {
         self.payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
@@ -490,8 +497,10 @@ impl Mailbox for SealevelMailbox {
 
         let send_instant = std::time::Instant::now();
 
+        let rpc = self.tx_submitter.rpc_client().unwrap_or_else(|| self.rpc());
+
         // Wait for the transaction to be confirmed.
-        self.rpc().wait_for_transaction_confirmation(&tx).await?;
+        rpc.wait_for_transaction_confirmation(&tx).await?;
 
         // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
         // tx, but still use it as a proxy for tx latency to help debug.
@@ -499,8 +508,7 @@ impl Mailbox for SealevelMailbox {
 
         // TODO: not sure if this actually checks if the transaction was executed / reverted?
         // Confirm the transaction.
-        let executed = self
-            .rpc()
+        let executed = rpc
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))

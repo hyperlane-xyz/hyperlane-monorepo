@@ -1,13 +1,19 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 use hyperlane_core::NativeToken;
 use hyperlane_cosmos::RawCosmosAmount;
 
-use crate::{
-    cosmos::{CosmosNetwork, OsmosisCLI},
-    fuel::FuelNetwork,
-    utils::{cw_to_hex_addr, fuel_to_hex_addr, stop_child, AgentHandles},
+use crate::utils::{stop_child, AgentHandles};
+
+#[cfg(feature = "cosmos")]
+use {
+    crate::cosmos::{CosmosNetwork, OsmosisCLI},
+    crate::utils::cw_to_hex_addr,
+    std::path::PathBuf,
 };
+
+#[cfg(feature = "fuel")]
+use {crate::fuel::FuelNetwork, crate::utils::fuel_to_hex_addr};
 
 pub struct HyperlaneStack {
     pub validators: Vec<AgentHandles>,
@@ -74,6 +80,7 @@ pub struct AgentConfigOut {
 }
 
 impl AgentConfig {
+    #[cfg(feature = "cosmos")]
     pub fn cosmos(bin: PathBuf, validator: &str, network: &CosmosNetwork) -> Self {
         let cli = OsmosisCLI::new(bin, network.launch_resp.home_path.to_str().unwrap());
         let validator = cli.get_keypair(validator);
@@ -122,6 +129,7 @@ impl AgentConfig {
         }
     }
 
+    #[cfg(feature = "fuel")]
     pub fn fuel(network_index: u32, signer: &str, network: &FuelNetwork) -> Self {
         AgentConfig {
             name: network.name.clone(),

@@ -48,6 +48,8 @@ solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 uint.workspace = true
 
+hyperlane-application = { path = "../applications/hyperlane-application" }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "time"] }
 

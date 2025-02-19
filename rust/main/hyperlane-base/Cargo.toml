@@ -47,12 +47,15 @@ backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
+
 hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
+hyperlane-operation-verifier = { path = "../applications/hyperlane-operation-verifier" }
+hyperlane-test = { path = "../hyperlane-test" }
+
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
-hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
-hyperlane-test = { path = "../hyperlane-test" }
+hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 
 # dependency version is determined by etheres
 rusoto_core = "*"

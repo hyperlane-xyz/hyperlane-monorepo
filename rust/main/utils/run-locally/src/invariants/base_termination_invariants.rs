@@ -3,7 +3,7 @@ use maplit::hashmap;
 use crate::{fetch_metric, log, metrics::agent_balance_sum};
 
 /// Base termination invariants which should be met for the E2E tests to pass
-/// Used by both CosmWasm and Fuel E2E tests
+/// Used by CosmWasm and Fuel E2E tests
 pub fn base_termination_invariants_met(
     relayer_metrics_port: u32,
     scraper_metrics_port: u32,
@@ -43,7 +43,8 @@ pub fn base_termination_invariants_met(
         return Ok(false);
     }
 
-    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+    let ending_relayer_balance: f64 =
+        agent_balance_sum(relayer_metrics_port).expect("Failed to get relayer agent balance");
 
     // Make sure the balance was correctly updated in the metrics.
     // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:

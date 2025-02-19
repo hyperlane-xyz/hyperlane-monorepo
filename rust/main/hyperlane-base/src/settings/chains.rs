@@ -1,12 +1,11 @@
 use axum::async_trait;
 use ethers::prelude::Selector;
+use eyre::{eyre, Context, Report, Result};
 use fuels::accounts::wallet::WalletUnlocked;
-use h_cosmos::CosmosProvider;
 use std::{collections::HashMap, sync::Arc};
 
-use eyre::{eyre, Context, Result};
-
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
+
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
@@ -14,7 +13,9 @@ use hyperlane_core::{
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
     SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
-use hyperlane_cosmos::{self as h_cosmos};
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
+
+use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
@@ -192,6 +193,34 @@ impl ChainConf {
         self.index.clone()
     }
 
+    /// Try to convert the chain settings into an ApplicationOperationVerifier.
+    pub async fn build_application_operation_verifier(
+        &self,
+        _metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ApplicationOperationVerifier>> {
+        let ctx = "Building application operation verifier";
+        let locator = self.locator(H256::zero());
+        let result: Result<Box<dyn ApplicationOperationVerifier>, Report> = match &self.connection {
+            ChainConnectionConf::Ethereum(_conf) => Ok(Box::new(
+                h_eth::application::EthereumApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let provider = h_sealevel::SealevelProvider::new(locator.domain.clone(), conf);
+                let verifier =
+                    h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
+                Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
+            }
+            ChainConnectionConf::Cosmos(_conf) => Ok(Box::new(
+                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+        };
+
+        result.context(ctx)
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
@@ -212,7 +241,7 @@ impl ChainConf {
                 conf,
             )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {
-                let provider = CosmosProvider::new(
+                let provider = h_cosmos::CosmosProvider::new(
                     locator.domain.clone(),
                     conf.clone(),
                     locator.clone(),
@@ -243,9 +272,13 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                h_sealevel::SealevelMailbox::new(conf, locator, keypair)
-                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                    .map_err(Into::into)
+                h_sealevel::SealevelMailbox::new(
+                    conf,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                )
+                .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
@@ -615,7 +648,9 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
-                    conf, locator, keypair,
+                    conf,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -653,7 +688,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
+                    conf,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Cosmos(conf) => {
