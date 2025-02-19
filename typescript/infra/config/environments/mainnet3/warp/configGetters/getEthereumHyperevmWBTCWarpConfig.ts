@@ -7,7 +7,10 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import {
+  RouterConfigWithoutOwner,
+  tokens,
+} from '../../../../../src/config/warp.js';
 
 const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
@@ -19,7 +22,7 @@ export const getEthereumHyperevmWBTCWarpConfig = async (
     ...routerConfig.ethereum,
     owner: abacusWorksEnvOwnerConfig.ethereum.owner,
     type: TokenType.collateral,
-    token: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+    token: tokens.ethereum.WBTC,
     proxyAdmin: {
       owner: abacusWorksEnvOwnerConfig.ethereum.owner,
       address: '0x9CBc9Ac08EDadA05Eb533135d8a76E402a867C46',
