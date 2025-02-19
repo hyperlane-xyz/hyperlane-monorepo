@@ -150,7 +150,7 @@ impl GasPaymentEnforcer {
                 .map(|result| {
                     if let Some(gas_limit) = result {
                         GasPolicyStatus::PolicyMet(gas_limit)
-                    } else if current_payment_option.is_some() {
+                    } else if payment_found {
                         // There is a gas payment but it didn't meet the policy
                         GasPolicyStatus::PolicyNotMet
                     } else {
