@@ -31,6 +31,7 @@ import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
+import { getEthereumHyperevmETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumHyperevmETHWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
@@ -76,6 +77,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getTRUMPWarpConfig,
   [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig,
   [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
+  [WarpRouteIds.EthereumHyperevmETH]: getEthereumHyperevmETHWarpConfig,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
