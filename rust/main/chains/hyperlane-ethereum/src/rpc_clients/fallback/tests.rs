@@ -72,7 +72,7 @@ impl JsonRpcClient for EthereumProviderMock {
     }
 }
 
-impl PrometheusJsonRpcClientConfigExt for EthereumProviderMock {
+impl PrometheusConfigExt for EthereumProviderMock {
     fn node_host(&self) -> &str {
         todo!()
     }
@@ -85,7 +85,7 @@ impl PrometheusJsonRpcClientConfigExt for EthereumProviderMock {
 impl<C> EthereumFallbackProvider<C, JsonRpcBlockGetter<C>>
 where
     C: JsonRpcClient<Error = HttpClientError>
-        + PrometheusJsonRpcClientConfigExt
+        + PrometheusConfigExt
         + Into<JsonRpcBlockGetter<C>>
         + Clone,
     JsonRpcBlockGetter<C>: BlockNumberGetter,
