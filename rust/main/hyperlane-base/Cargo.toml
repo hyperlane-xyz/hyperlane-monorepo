@@ -47,8 +47,8 @@ backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
-
 hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
+hyperlane-metric = { path = "../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../applications/hyperlane-operation-verifier" }
 hyperlane-test = { path = "../hyperlane-test" }
 
