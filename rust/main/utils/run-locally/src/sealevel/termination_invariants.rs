@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use maplit::hashmap;
+
 use crate::{
     config::Config,
     invariants::{
@@ -9,6 +11,7 @@ use crate::{
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
+    {fetch_metric, RELAYER_METRICS_PORT},
 };
 
 /// Use the metrics to check if the relayer queues are empty and the expected
@@ -60,6 +63,23 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
+    if !request_metric_invariant_met(total_messages_expected)? {
+        return Ok(false);
+    }
+
     log!("Termination invariants have been meet");
+    Ok(true)
+}
+
+pub fn request_metric_invariant_met(expected_request_count: u32) -> eyre::Result<bool> {
+    let request_count = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_request_count",
+        &hashmap! {"chain" => "sealeveltest1", "status" => "success"},
+    )?
+    .iter()
+    .sum::<u32>();
+
+    assert!(request_count > expected_request_count);
     Ok(true)
 }

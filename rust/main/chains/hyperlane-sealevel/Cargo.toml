@@ -12,6 +12,7 @@ borsh.workspace = true
 derive-new.workspace = true
 jsonrpc-core.workspace = true
 lazy_static.workspace = true
+maplit.workspace = true
 num-traits.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -32,6 +33,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "solana",
     "async",
 ] }
+hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../sealevel/libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../../../sealevel/programs/mailbox", features = [
