@@ -10,6 +10,7 @@ import {
   ChainName,
   EvmHypVSXERC20Adapter,
   EvmHypVSXERC20LockboxAdapter,
+  EvmXERC20VSAdapter,
   IHypVSXERC20Adapter,
   MultiProtocolProvider,
   MultiProvider,
@@ -72,18 +73,15 @@ export async function addBridgeToChain({
     return;
   }
 
+  const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
+    token: xERC20Address,
+  });
+
+  const bufferCapBigInt = BigInt(bufferCap);
+  const rateLimitBigInt = BigInt(rateLimitPerSecond);
+
   try {
-    const hypXERC20Adapter = getHypVSXERC20Adapter(
-      chain,
-      multiProtocolProvider,
-      { token: bridgeAddress },
-      bridgeConfig.type === TokenType.XERC20Lockbox,
-    );
-
-    const bufferCapBigInt = BigInt(bufferCap);
-    const rateLimitBigInt = BigInt(rateLimitPerSecond);
-
-    const rateLimits = await hypXERC20Adapter.getRateLimits();
+    const rateLimits = await xERC20Adapter.getRateLimits(bridgeAddress);
     if (rateLimits.rateLimitPerSecond) {
       rootLogger.warn(
         chalk.yellow(
@@ -93,9 +91,10 @@ export async function addBridgeToChain({
       return;
     }
 
-    const tx = await hypXERC20Adapter.populateAddBridgeTx(
+    const tx = await xERC20Adapter.populateAddBridgeTx(
       bufferCapBigInt,
       rateLimitBigInt,
+      bridgeAddress,
     );
 
     rootLogger.info(
@@ -146,34 +145,40 @@ export async function updateChainLimits({
   envMultiProvider: MultiProvider;
   dryRun: boolean;
 }) {
-  const { bridgeAddress, owner, bufferCap, rateLimitPerSecond, decimals } =
-    bridgeConfig;
-  const hypXERC20Adapter = getHypVSXERC20Adapter(
-    chain,
-    multiProtocolProvider,
-    { token: bridgeAddress },
-    bridgeConfig.type === TokenType.XERC20Lockbox,
-  );
+  const {
+    bridgeAddress,
+    owner,
+    bufferCap,
+    rateLimitPerSecond,
+    decimals,
+    xERC20Address,
+  } = bridgeConfig;
+
+  const xERC20Adapter = new EvmXERC20VSAdapter(chain, multiProtocolProvider, {
+    token: xERC20Address,
+  });
 
   const {
     rateLimitPerSecond: currentRateLimitPerSecond,
     bufferCap: currentBufferCap,
-  } = await hypXERC20Adapter.getRateLimits();
+  } = await xERC20Adapter.getRateLimits(bridgeAddress);
 
   const bufferCapTx = await prepareBufferCapTx(
     chain,
-    hypXERC20Adapter,
+    xERC20Adapter,
     bufferCap,
     currentBufferCap,
     decimals,
+    bridgeAddress,
   );
 
   const rateLimitTx = await prepareRateLimitTx(
     chain,
-    hypXERC20Adapter,
+    xERC20Adapter,
     rateLimitPerSecond,
     currentRateLimitPerSecond,
     decimals,
+    bridgeAddress,
   );
 
   const txsToSend = [bufferCapTx, rateLimitTx].filter(
@@ -195,10 +200,11 @@ export async function updateChainLimits({
 
 async function prepareBufferCapTx(
   chain: string,
-  adapter: IHypVSXERC20Adapter<PopulatedTransaction>,
+  adapter: EvmXERC20VSAdapter,
   newBufferCap: number,
   currentBufferCap: bigint,
   decimals: number,
+  bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
   const newBufferCapBigInt = BigInt(newBufferCap);
 
@@ -217,15 +223,16 @@ async function prepareBufferCapTx(
       )} → ${humanReadableLimit(newBufferCapBigInt, decimals)}`,
     ),
   );
-  return adapter.populateSetBufferCapTx(newBufferCapBigInt);
+  return adapter.populateSetBufferCapTx(bridgeAddress, newBufferCapBigInt);
 }
 
 async function prepareRateLimitTx(
   chain: string,
-  adapter: IHypVSXERC20Adapter<PopulatedTransaction>,
+  adapter: EvmXERC20VSAdapter,
   newRateLimitPerSecond: number,
   currentRateLimitPerSecond: bigint,
   decimals: number,
+  bridgeAddress: Address,
 ): Promise<PopulatedTransaction | null> {
   const newRateLimitBigInt = BigInt(newRateLimitPerSecond);
 
@@ -246,7 +253,10 @@ async function prepareRateLimitTx(
       )} → ${humanReadableLimit(newRateLimitBigInt, decimals)}`,
     ),
   );
-  return adapter.populateSetRateLimitPerSecondTx(newRateLimitBigInt);
+  return adapter.populateSetRateLimitPerSecondTx(
+    bridgeAddress,
+    newRateLimitBigInt,
+  );
 }
 
 async function checkSafeOwner(
