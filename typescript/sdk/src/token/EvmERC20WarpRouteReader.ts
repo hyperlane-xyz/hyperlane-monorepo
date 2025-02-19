@@ -215,7 +215,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     try {
       return {
         xERC20: {
-          limits: {
+          warpRouteLimits: {
             rateLimitPerSecond: (
               await xERC20.rateLimitPerSecond(warpRouteAddress)
             ).toString(),
