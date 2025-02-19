@@ -31,6 +31,21 @@ export const hookFactories = {
   [HookType.CCIP]: new CCIPHook__factory(),
 };
 
+export const hookContracts = {
+  [HookType.MERKLE_TREE]: 'MerkleTreeHook',
+  [HookType.PROTOCOL_FEE]: 'ProtocolFee',
+  [HookType.INTERCHAIN_GAS_PAYMASTER]: 'InterchainGasPaymaster',
+  [HookType.AGGREGATION]: 'StaticAggregationHook',
+  [HookType.OP_STACK]: 'OPStackHook',
+  [HookType.ROUTING]: 'DomainRoutingHook',
+  [HookType.FALLBACK_ROUTING]: 'FallbackDomainRoutingHook',
+  [HookType.PAUSABLE]: 'PausableHook',
+  [HookType.ARB_L2_TO_L1]: 'ArbL2ToL1Hook',
+  [HookType.AMOUNT_ROUTING]: 'AmountRoutingHook',
+  [HookType.MAILBOX_DEFAULT]: 'DefaultHook',
+  [HookType.CCIP]: 'CCIPHook',
+};
+
 export type HookFactories = typeof hookFactories;
 
 export type DeployedHook = Awaited<

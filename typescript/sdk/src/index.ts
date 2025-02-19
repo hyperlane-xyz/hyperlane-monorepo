@@ -1,3 +1,5 @@
+export { hookFactories, hookContracts } from './hook/contracts.js';
+
 export { HyperlaneApp } from './app/HyperlaneApp.js';
 export {
   AdapterClassType,

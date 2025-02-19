@@ -1,8 +1,12 @@
 import { CommandModule } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
 import { readHookConfig } from '../hook/read.js';
-import { log, logGray } from '../logger.js';
+import { log, logCommandHeader, logGray } from '../logger.js';
+import { runVerifyHook } from '../verify/hook.js';
 
 import {
   addressCommandOption,
@@ -16,7 +20,8 @@ import {
 export const hookCommand: CommandModule = {
   command: 'hook',
   describe: 'Operations relating to Hooks',
-  builder: (yargs) => yargs.command(read).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(read).command(verify).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -45,5 +50,25 @@ export const read: CommandModuleWithContext<{
     logGray('------------------');
     await readHookConfig(args);
     process.exit(0);
+  },
+};
+
+export const verify: CommandModuleWithWriteContext<{
+  address: string;
+  chain: string;
+}> = {
+  command: 'verify',
+  describe: 'Verify deployed contracts on explorers',
+  builder: {
+    address: addressCommandOption('Address of the Hook to read.', true),
+    chain: {
+      type: 'string',
+      description: 'The name of the chain that the hook is deployed to',
+    },
+  },
+  handler: async ({ context, address, chain: chainName }) => {
+    logCommandHeader('Hyperlane Hook Verify');
+
+    return runVerifyHook({ context, address, chainName });
   },
 };
