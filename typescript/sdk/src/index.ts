@@ -524,7 +524,11 @@ export {
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export { TokenType, gasOverhead } from './token/config.js';
+export { TokenType } from './token/config.js';
+export {
+  expandWarpDeployConfig,
+  getRouterAddressesFromWarpCoreConfig,
+} from './token/configUtils.js';
 export {
   hypERC20contracts,
   HypERC20Factories,

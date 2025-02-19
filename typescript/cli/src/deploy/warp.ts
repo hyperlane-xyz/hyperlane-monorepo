@@ -13,7 +13,6 @@ import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
-  DestinationGas,
   EvmERC20WarpModule,
   EvmHookModule,
   EvmIsmModule,
@@ -32,7 +31,6 @@ import {
   MultisigIsmConfig,
   OpStackIsmConfig,
   PausableIsmConfig,
-  RemoteRouters,
   RoutingIsmConfig,
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
@@ -46,7 +44,8 @@ import {
   WarpRouteDeployConfigSchema,
   attachContractsMap,
   connectContractsMap,
-  gasOverhead,
+  expandWarpDeployConfig,
+  getRouterAddressesFromWarpCoreConfig,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -513,10 +512,6 @@ export async function runWarpRouteApply(
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
 
-  const warpCoreConfigByChain = Object.fromEntries(
-    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
-  );
-
   const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
@@ -528,10 +523,10 @@ export async function runWarpRouteApply(
     );
 
   // Extend the warp route and get the updated configs
-  const updatedWarpCoreConfigByChain = await extendWarpRoute(
+  const updatedWarpCoreConfig = await extendWarpRoute(
     params,
     apiKeys,
-    warpCoreConfigByChain,
+    warpCoreConfig,
   );
 
   // Then create and submit update transactions
@@ -539,7 +534,7 @@ export async function runWarpRouteApply(
     params,
     apiKeys,
     warpDeployConfig,
-    updatedWarpCoreConfigByChain,
+    updatedWarpCoreConfig,
   );
 
   if (transactions.length == 0)
@@ -622,19 +617,22 @@ async function deployWarpExtensionContracts(
 
 /**
  * Extends an existing Warp route to include new chains.
- * This is a core function that orchestrates the entire extension process:
- * 1. Splits the configuration between existing and new chains
- * 2. If no new chains are being added, returns the current configuration
- * 3. Deploys and configures new contracts on the extended chains
- * 4. Updates the Warp core configuration with new token information
- * 5. Writes the updated artifacts to the registry
+ * This function manages the entire extension workflow:
+ * 1. Divides the configuration into existing and new chain segments.
+ * 2. Returns the current configuration if no new chains are added.
+ * 3. Deploys and sets up new contracts for the additional chains.
+ * 4. Refreshes the Warp core configuration with updated token details.
+ * 5. Saves the revised artifacts to the registry.
  */
 export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
-  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-): Promise<ChainMap<WarpCoreConfig['tokens'][number]>> {
+  warpCoreConfig: WarpCoreConfig,
+): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
+  const warpCoreConfigByChain = Object.fromEntries(
+    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
   // Split between the existing and additional config
@@ -645,7 +643,7 @@ export async function extendWarpRoute(
 
   const extendedChains = Object.keys(initialExtendedConfigs);
   if (extendedChains.length === 0) {
-    return { ...warpCoreConfigByChain };
+    return { ...warpCoreConfig };
   }
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
@@ -660,14 +658,6 @@ export async function extendWarpRoute(
       warpCoreConfigByChain,
     );
 
-  // Create new warpCoreConfigByChain with updated tokens
-  const updatedWarpCoreConfigByChain = {
-    ...warpCoreConfigByChain,
-    ...Object.fromEntries(
-      updatedWarpCoreConfig.tokens.map((token) => [token.chainName, token]),
-    ),
-  };
-
   // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
@@ -675,57 +665,7 @@ export async function extendWarpRoute(
     addWarpRouteOptions,
   );
 
-  return updatedWarpCoreConfigByChain;
-}
-
-/**
- * Gets router address for a chain
- */
-const getRemoteRouterAddress = (
-  deployedRoutersAddresses: ChainMap<Address>,
-  chain: string,
-): Address => deployedRoutersAddresses[chain];
-
-/**
- * Gets gas configuration for a chain
- */
-const getGasConfig = (
-  warpDeployConfig: WarpRouteDeployConfig,
-  chain: string,
-): string =>
-  warpDeployConfig[chain].gas?.toString() ||
-  gasOverhead(warpDeployConfig[chain].type).toString();
-
-/**
- * Returns default router addresses and gas values for cross-chain communication.
- * For each remote chain:
- * - Sets up router addresses for message routing
- * - Configures gas values for message processing
- */
-function getDefaultRemoteRouterAndDestinationGasConfig(
-  multiProvider: MultiProvider,
-  chain: string,
-  deployedRoutersAddresses: ChainMap<Address>,
-  warpDeployConfig: WarpRouteDeployConfig,
-): [RemoteRouters, DestinationGas] {
-  const remoteRouters: RemoteRouters = {};
-  const destinationGas: DestinationGas = {};
-
-  const otherChains = multiProvider
-    .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
-
-  for (const otherChain of otherChains) {
-    const domainId = multiProvider.getDomainId(otherChain);
-
-    remoteRouters[domainId] = {
-      address: getRemoteRouterAddress(deployedRoutersAddresses, otherChain),
-    };
-
-    destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
-  }
-
-  return [remoteRouters, destinationGas];
+  return updatedWarpCoreConfig;
 }
 
 // Updates Warp routes with new configurations.
@@ -733,7 +673,7 @@ async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfig,
-  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
+  warpCoreConfig: WarpCoreConfig,
 ) {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
@@ -748,13 +688,17 @@ async function updateExistingWarpRoute(
   const transactions: AnnotatedEV5Transaction[] = [];
 
   // Get all deployed router addresses
-  const deployedRoutersAddresses: ChainMap<Address> = objMap(
-    warpCoreConfigByChain,
-    (_, config) => config.addressOrDenom as Address,
+  const deployedRoutersAddresses =
+    getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+
+  const expandedWarpDeployConfig = await expandWarpDeployConfig(
+    multiProvider,
+    warpDeployConfig,
+    deployedRoutersAddresses,
   );
 
   await promiseObjAll(
-    objMap(warpDeployConfig, async (chain, config) => {
+    objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
@@ -788,25 +732,7 @@ async function updateExistingWarpRoute(
           contractVerifier,
         );
 
-        const [remoteRouters, destinationGas] =
-          getDefaultRemoteRouterAndDestinationGasConfig(
-            multiProvider,
-            chain,
-            deployedRoutersAddresses,
-            warpDeployConfig,
-          );
-
-        transactions.push(
-          ...(await evmERC20WarpModule.update({
-            // Default behavior: Use fully connected routers with chain-specific gas values
-            // if no explicit mappings are provided in the config
-            remoteRouters,
-            destinationGas,
-
-            // Override defaults with any router or gas configurations specified in the warp apply config
-            ...config,
-          })),
-        );
+        transactions.push(...(await evmERC20WarpModule.update(config)));
       });
     }),
   );

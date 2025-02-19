@@ -304,9 +304,7 @@ export async function setupIncompleteWarpRouteExtension(
       receiptsDir: TEMP_PATH,
     },
     {},
-    Object.fromEntries(
-      warpCoreConfig.tokens.map((token) => [token.chainName, token]),
-    ),
+    warpCoreConfig,
   );
 
   const combinedWarpCorePath = getCombinedWarpRoutePath('ETH', [
