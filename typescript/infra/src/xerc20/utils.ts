@@ -4,9 +4,7 @@ import { PopulatedTransaction } from 'ethers';
 import { join } from 'path';
 
 import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
   ChainName,
   EvmHypVSXERC20Adapter,
   EvmHypVSXERC20LockboxAdapter,
@@ -67,7 +65,7 @@ export async function addBridgeToChain({
   if (bufferCap === 0 && rateLimitPerSecond === 0) {
     rootLogger.warn(
       chalk.yellow(
-        `[${chain}] Skipping addBridge as buffer cap and rate limit are both 0.`,
+        `[${chain}][${bridgeAddress}] Skipping addBridge as buffer cap and rate limit are both 0.`,
       ),
     );
     return;
@@ -85,7 +83,7 @@ export async function addBridgeToChain({
     if (rateLimits.rateLimitPerSecond) {
       rootLogger.warn(
         chalk.yellow(
-          `[${chain}] Skipping addBridge as rate limits already set for bridge: ${bridgeAddress}.`,
+          `[${chain}][${bridgeAddress}] Skipping addBridge as rate limits already.`,
         ),
       );
       return;
@@ -99,12 +97,12 @@ export async function addBridgeToChain({
 
     rootLogger.info(
       chalk.gray(
-        `[${chain}] Preparing to add ${bridgeAddress} as bridge to ${xERC20Address}`,
+        `[${chain}][${bridgeAddress}] Preparing to add bridge to ${xERC20Address}`,
       ),
     );
     rootLogger.info(
       chalk.gray(
-        `[${chain}] Buffer cap: ${humanReadableLimit(
+        `[${chain}][${bridgeAddress}]  Buffer cap: ${humanReadableLimit(
           BigInt(bufferCap),
           decimals,
         )}, Rate limit: ${humanReadableLimit(
@@ -117,17 +115,27 @@ export async function addBridgeToChain({
     if (!dryRun) {
       rootLogger.info(
         chalk.gray(
-          `[${chain}] Sending addBridge transaction to ${xERC20Address}...`,
+          `[${chain}][${bridgeAddress}] Sending addBridge transaction to ${xERC20Address}...`,
         ),
       );
-      await sendTransactions(envMultiProvider, chain, owner, [tx]);
+      await sendTransactions(
+        envMultiProvider,
+        chain,
+        owner,
+        [tx],
+        bridgeAddress,
+      );
     } else {
       rootLogger.info(
-        chalk.gray(`[${chain}] Dry run, no transactions sent, exiting...`),
+        chalk.gray(
+          `[${chain}][${bridgeAddress}] Dry run, no transactions sent, exiting...`,
+        ),
       );
     }
   } catch (error) {
-    rootLogger.error(chalk.red(`[${chain}] Error adding bridge:`, error));
+    rootLogger.error(
+      chalk.red(`[${chain}][${bridgeAddress}] Error adding bridge:`, error),
+    );
     throw { chain, error };
   }
 }
@@ -185,15 +193,25 @@ export async function updateChainLimits({
     Boolean,
   ) as PopulatedTransaction[];
   if (txsToSend.length === 0) {
-    rootLogger.info(chalk.yellow(`[${chain}] Nothing to update`));
+    rootLogger.info(
+      chalk.yellow(`[${chain}][${bridgeAddress}] Nothing to update`),
+    );
     return;
   }
 
   if (!dryRun) {
-    await sendTransactions(envMultiProvider, chain, owner, txsToSend);
+    await sendTransactions(
+      envMultiProvider,
+      chain,
+      owner,
+      txsToSend,
+      bridgeAddress,
+    );
   } else {
     rootLogger.info(
-      chalk.gray(`[${chain}] Dry run, no transactions sent, exiting...`),
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Dry run, no transactions sent, exiting...`,
+      ),
     );
   }
 }
@@ -210,14 +228,16 @@ async function prepareBufferCapTx(
 
   if (newBufferCapBigInt === currentBufferCap) {
     rootLogger.info(
-      chalk.green(`[${chain}] Buffer cap is already set to the desired value`),
+      chalk.green(
+        `[${chain}][${bridgeAddress}] Buffer cap is already set to the desired value`,
+      ),
     );
     return null;
   }
 
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Preparing buffer cap update: ${humanReadableLimit(
+      `[${chain}][${bridgeAddress}] Preparing buffer cap update: ${humanReadableLimit(
         currentBufferCap,
         decimals,
       )} → ${humanReadableLimit(newBufferCapBigInt, decimals)}`,
@@ -239,7 +259,7 @@ async function prepareRateLimitTx(
   if (BigInt(newRateLimitBigInt) === currentRateLimitPerSecond) {
     rootLogger.info(
       chalk.green(
-        `[${chain}] Rate limit per second is already set to the desired value`,
+        `[${chain}][${bridgeAddress}]  Rate limit per second is already set to the desired value`,
       ),
     );
     return null;
@@ -247,7 +267,7 @@ async function prepareRateLimitTx(
 
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Preparing rate limit update: ${humanReadableLimit(
+      `[${chain}][${bridgeAddress}] Preparing rate limit update: ${humanReadableLimit(
         currentRateLimitPerSecond,
         decimals,
       )} → ${humanReadableLimit(newRateLimitBigInt, decimals)}`,
@@ -282,10 +302,11 @@ async function sendAsSafeMultiSend(
   safeAddress: Address,
   multiProvider: MultiProvider,
   transactions: PopulatedTransaction[],
+  bridgeAddress: Address,
 ) {
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Using SafeMultiSend for ${transactions.length} transaction(s) to ${safeAddress}...`,
+      `[${chain}][${bridgeAddress}] Using SafeMultiSend for ${transactions.length} transaction(s) to ${safeAddress}...`,
     ),
   );
 
@@ -296,11 +317,16 @@ async function sendAsSafeMultiSend(
 
     await safeMultiSend.sendTransactions(multiSendTxs);
     rootLogger.info(
-      chalk.green(`[${chain}] Safe multi-send transaction(s) submitted.`),
+      chalk.green(
+        `[${chain}][${bridgeAddress}] Safe multi-send transaction(s) submitted.`,
+      ),
     );
   } catch (error) {
     rootLogger.error(
-      chalk.red(`[${chain}] Error sending safe transactions:`, error),
+      chalk.red(
+        `[${chain}][${bridgeAddress}] Error sending safe transactions:`,
+        error,
+      ),
     );
     throw { chain, error };
   }
@@ -310,10 +336,11 @@ async function sendAsSignerMultiSend(
   chain: string,
   multiProvider: MultiProvider,
   transactions: PopulatedTransaction[],
+  bridgeAddress: Address,
 ) {
   rootLogger.info(
     chalk.gray(
-      `[${chain}] Using SignerMultiSend for ${transactions.length} transaction(s)...`,
+      `[${chain}][${bridgeAddress}] Using SignerMultiSend for ${transactions.length} transaction(s)...`,
     ),
   );
 
@@ -322,11 +349,16 @@ async function sendAsSignerMultiSend(
     const signerMultiSend = new SignerMultiSend(multiProvider, chain);
     await signerMultiSend.sendTransactions(multiSendTxs);
     rootLogger.info(
-      chalk.green(`[${chain}] Signer multi-send transaction(s) submitted.`),
+      chalk.green(
+        `[${chain}][${bridgeAddress}] Signer multi-send transaction(s) submitted.`,
+      ),
     );
   } catch (error) {
     rootLogger.error(
-      chalk.red(`[${chain}] Error sending signer transactions:`, error),
+      chalk.red(
+        `[${chain}][${bridgeAddress}] Error sending signer transactions:`,
+        error,
+      ),
     );
     throw { chain, error };
   }
@@ -346,6 +378,7 @@ async function sendTransactions(
   chain: string,
   owner: Address,
   transactions: PopulatedTransaction[],
+  bridgeAddress: Address,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
   const proposerAddress = await signer.getAddress();
@@ -357,9 +390,20 @@ async function sendTransactions(
   );
 
   if (isSafeOwner) {
-    await sendAsSafeMultiSend(chain, owner, multiProvider, transactions);
+    await sendAsSafeMultiSend(
+      chain,
+      owner,
+      multiProvider,
+      transactions,
+      bridgeAddress,
+    );
   } else {
-    await sendAsSignerMultiSend(chain, multiProvider, transactions);
+    await sendAsSignerMultiSend(
+      chain,
+      multiProvider,
+      transactions,
+      bridgeAddress,
+    );
   }
 }
 
