@@ -21,7 +21,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
 
-import { getRegistry, getWarpAddresses } from '../../config/registry.js';
+import { getRegistry } from '../../config/registry.js';
 import { SafeMultiSend, SignerMultiSend } from '../govern/multisend.js';
 import { getInfraPath } from '../utils/utils.js';
 
@@ -355,7 +355,6 @@ async function sendTransactions(
 export async function deriveBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
-  routerAddresses: ChainMap<ChainAddresses>,
   multiProvider: MultiProvider,
 ): Promise<ChainMap<BridgeConfig>> {
   const bridgesConfig: ChainMap<BridgeConfig> = {};
@@ -385,7 +384,14 @@ export async function deriveBridgesConfig(
     }
 
     let xERC20Address = token;
-    const bridgeAddress = routerAddresses[chainName][type];
+    const bridgeAddress = warpCoreConfig.tokens.find(
+      (t) => t.chainName === chainName,
+    )?.addressOrDenom;
+    if (!bridgeAddress) {
+      throw new Error(
+        `Missing router address for chain ${chainName} and type ${type}`,
+      );
+    }
 
     const {
       bufferCap: bufferCapStr,
@@ -421,7 +427,6 @@ export async function deriveBridgesConfig(
 export function getWarpConfigsAndArtifacts(warpRouteId: string): {
   warpDeployConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
-  warpAddresses: ChainMap<ChainAddresses>;
 } {
   const registry = getRegistry();
   const warpDeployConfig = registry.getWarpDeployConfig(warpRouteId);
@@ -434,9 +439,7 @@ export function getWarpConfigsAndArtifacts(warpRouteId: string): {
     throw new Error(`Warp core config for route ID ${warpRouteId} not found`);
   }
 
-  const warpAddresses = getWarpAddresses(warpRouteId);
-
-  return { warpDeployConfig, warpCoreConfig, warpAddresses };
+  return { warpDeployConfig, warpCoreConfig };
 }
 
 function humanReadableLimit(limit: bigint, decimals: number): string {

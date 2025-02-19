@@ -25,7 +25,7 @@ async function main() {
     withDryRun(getArgs()),
   ).argv;
 
-  const { warpDeployConfig, warpCoreConfig, warpAddresses } =
+  const { warpDeployConfig, warpCoreConfig } =
     getWarpConfigsAndArtifacts(warpRouteId);
 
   const envConfig = getEnvironmentConfig(environment);
@@ -35,7 +35,6 @@ async function main() {
   const bridgesConfig = await deriveBridgesConfig(
     warpDeployConfig,
     warpCoreConfig,
-    warpAddresses,
     envMultiProvider,
   );
 
