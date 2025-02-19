@@ -37,21 +37,22 @@ lazy_static! {
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct SealevelProvider {
-    domain: HyperlaneDomain,
     rpc_client: Arc<SealevelRpcClient>,
+    domain: HyperlaneDomain,
     native_token: NativeToken,
 }
 
 impl SealevelProvider {
-    /// Create a new Sealevel provider.
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
-        // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
+    /// constructor
+    pub fn new(
+        rpc_client: Arc<SealevelRpcClient>,
+        domain: HyperlaneDomain,
+        conf: &ConnectionConf,
+    ) -> Self {
         let native_token = conf.native_token.clone();
-
         Self {
-            domain,
             rpc_client,
+            domain,
             native_token,
         }
     }

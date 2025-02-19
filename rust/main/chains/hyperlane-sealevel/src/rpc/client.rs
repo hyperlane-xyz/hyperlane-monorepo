@@ -45,12 +45,14 @@ pub struct SealevelTxCostEstimate {
     compute_unit_price_micro_lamports: u64,
 }
 
+/// Wrapper struct around Solana's RpcClient
 pub struct SealevelRpcClient(RpcClient);
 
 impl SealevelRpcClient {
     /// The max amount of compute units for a transaction.
     const MAX_COMPUTE_UNITS: u32 = 1_400_000;
 
+    /// constructor
     pub fn new(rpc_endpoint: String) -> Self {
         Self(RpcClient::new_with_commitment(
             rpc_endpoint,
@@ -58,6 +60,12 @@ impl SealevelRpcClient {
         ))
     }
 
+    /// constructor with an rpc client
+    pub fn from_rpc_client(rpc_client: RpcClient) -> Self {
+        Self(rpc_client)
+    }
+
+    /// confirm transaction with given commitment
     pub async fn confirm_transaction_with_commitment(
         &self,
         signature: &Signature,
@@ -96,6 +104,7 @@ impl SealevelRpcClient {
         Ok(account_metas)
     }
 
+    /// get account with finalized commitment
     pub async fn get_account_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
@@ -105,6 +114,7 @@ impl SealevelRpcClient {
             .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
     }
 
+    /// get account option with finalized commitment
     pub async fn get_account_option_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
@@ -118,6 +128,7 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
+    /// get balance
     pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
         let balance = self
             .0
@@ -129,6 +140,7 @@ impl SealevelRpcClient {
         Ok(balance.into())
     }
 
+    /// get block
     pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
         let config = RpcBlockConfig {
             commitment: Some(CommitmentConfig::finalized()),
@@ -142,6 +154,7 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
+    /// get minimum balance for rent exemption
     pub async fn get_minimum_balance_for_rent_exemption(&self, len: usize) -> ChainResult<u64> {
         self.0
             .get_minimum_balance_for_rent_exemption(len)
@@ -149,6 +162,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// get multiple accounts with finalized commitment
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,
         pubkeys: &[Pubkey],
@@ -163,6 +177,7 @@ impl SealevelRpcClient {
         Ok(accounts)
     }
 
+    /// get latest block hash with commitment
     pub async fn get_latest_blockhash_with_commitment(
         &self,
         commitment: CommitmentConfig,
@@ -174,6 +189,7 @@ impl SealevelRpcClient {
             .map(|(blockhash, _)| blockhash)
     }
 
+    /// get program accounts with config
     pub async fn get_program_accounts_with_config(
         &self,
         pubkey: &Pubkey,
@@ -185,6 +201,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// get statuses based on signatures
     pub async fn get_signature_statuses(
         &self,
         signatures: &[Signature],
@@ -195,6 +212,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// get slot
     pub async fn get_slot(&self) -> ChainResult<u32> {
         let slot = self
             .get_slot_raw()
@@ -205,6 +223,7 @@ impl SealevelRpcClient {
         Ok(slot)
     }
 
+    /// get slot
     pub async fn get_slot_raw(&self) -> ChainResult<Slot> {
         self.0
             .get_slot_with_commitment(CommitmentConfig::finalized())
@@ -212,6 +231,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// get transaction
     pub async fn get_transaction(
         &self,
         signature: &Signature,
@@ -228,6 +248,7 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
+    /// check if block hash is valid
     pub async fn is_blockhash_valid(&self, hash: &Hash) -> ChainResult<bool> {
         self.0
             .is_blockhash_valid(hash, CommitmentConfig::processed())
@@ -235,6 +256,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// send transaction
     pub async fn send_transaction(
         &self,
         transaction: &Transaction,
@@ -339,6 +361,7 @@ impl SealevelRpcClient {
         Ok(None)
     }
 
+    /// simulate a transaction
     pub async fn simulate_transaction(
         &self,
         transaction: &Transaction,
@@ -530,6 +553,7 @@ impl SealevelRpcClient {
         Ok(tx)
     }
 
+    /// Get Url
     pub fn url(&self) -> String {
         self.0.url()
     }

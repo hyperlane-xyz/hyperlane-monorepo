@@ -215,6 +215,7 @@ pub fn relayer_termination_invariants_met(
     if !relayer_balance_check(starting_relayer_balance)? {
         return Ok(false);
     }
+
     Ok(true)
 }
 
