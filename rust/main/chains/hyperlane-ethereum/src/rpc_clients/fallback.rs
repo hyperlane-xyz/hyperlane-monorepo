@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn_span};
+use tracing::{instrument, warn, warn_span};
 
 use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
@@ -153,15 +153,15 @@ where
 
                 // if we are here, it means one of the providers returned a successful result
                 if !errors.is_empty() {
-                    // we log a warning span if we got errors from some providers
-                    let _span = warn_span!("multicast_request", errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers).entered();
+                    // we log a warning if we got errors from some providers
+                    let _span = warn!(errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers, "multicast_request");
                 }
 
                 return Ok(value);
             }
         }
 
-        // we don't add a warn span with all errors since an error will be logged later on
+        // we don't add a warning with all errors since an error will be logged later on
         Err(FallbackError::AllProvidersFailed(errors).into())
     }
 
