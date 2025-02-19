@@ -65,6 +65,9 @@ export const safes: ChainMap<Address> = {
   // Q5, 2024 batch
   berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
+  // HyperEVM
+  hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
   // zksync chains
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
@@ -231,7 +234,6 @@ export const icas: Partial<
   ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   story: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   subtensor: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
-  // hyperevm: '0x7f0CFaBBa5dcA768EB70913c7e74dA5c72aAEBdF', // use SAFE when available
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
