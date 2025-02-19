@@ -25,7 +25,7 @@ async function main() {
     withDryRun(getArgs()),
   ).argv;
 
-  const { warpDeployConfig, warpCoreConfig, warpAddresses } =
+  const { warpDeployConfig, warpCoreConfig } =
     getWarpConfigsAndArtifacts(warpRouteId);
 
   const envConfig = getEnvironmentConfig(environment);
@@ -34,14 +34,13 @@ async function main() {
   const bridgesConfig = await deriveBridgesConfig(
     warpDeployConfig,
     warpCoreConfig,
-    warpAddresses,
     envMultiProvider,
   );
 
   const results = await Promise.allSettled(
-    Object.entries(bridgesConfig).map(async ([chain, bridgeConfig]) => {
+    Object.entries(bridgesConfig).map(async ([_, bridgeConfig]) => {
       return updateChainLimits({
-        chain,
+        chain: bridgeConfig.chain,
         bridgeConfig,
         multiProtocolProvider,
         envMultiProvider,
