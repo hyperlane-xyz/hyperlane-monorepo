@@ -205,7 +205,10 @@ impl ChainConf {
                 h_eth::application::EthereumApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Fuel(_conf) => Ok(Box::new(
+                h_fuel::application::FuelApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider = h_sealevel::SealevelProvider::new(locator.domain.clone(), conf);
                 let verifier =

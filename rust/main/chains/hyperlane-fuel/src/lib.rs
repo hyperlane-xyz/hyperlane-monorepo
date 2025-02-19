@@ -9,6 +9,8 @@ pub use self::{
 };
 
 mod aggregation_ism;
+/// Hyperlane Application specific functionality
+pub mod application;
 mod contracts;
 mod conversions;
 mod indexer;
