@@ -20,7 +20,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.017143",
+    "amount": "0.01",
     "decimals": 9
   },
   "arbitrumnova": {
@@ -68,7 +68,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.060189299",
+    "amount": "0.002851887",
     "decimals": 9
   },
   "berachain": {
@@ -80,7 +80,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.005892268",
+    "amount": "0.001278173",
     "decimals": 9
   },
   "bob": {
@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "5",
+    "amount": "1",
     "decimals": 9
   },
   "everclear": {
@@ -244,7 +244,7 @@
     "decimals": 9
   },
   "lisk": {
-    "amount": "0.068378422",
+    "amount": "0.010803134",
     "decimals": 9
   },
   "lukso": {
@@ -280,7 +280,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "2.080220605",
+    "amount": "2.206158044",
     "decimals": 9
   },
   "mint": {
@@ -332,7 +332,7 @@
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.48",
+    "amount": "0.0129",
     "decimals": 9
   },
   "polynomialfi": {
@@ -412,11 +412,11 @@
     "decimals": 1
   },
   "sophon": {
-    "amount": "3255.367279549",
+    "amount": "2261.877890384",
     "decimals": 9
   },
   "story": {
-    "amount": "0.001100024",
+    "amount": "3.580446858",
     "decimals": 9
   },
   "stride": {
@@ -432,7 +432,7 @@
     "decimals": 9
   },
   "superpositionmainnet": {
-    "amount": "0.05",
+    "amount": "0.2",
     "decimals": 9
   },
   "swell": {
@@ -456,7 +456,7 @@
     "decimals": 9
   },
   "treasure": {
-    "amount": "1601.935300783",
+    "amount": "661.083564417",
     "decimals": 9
   },
   "trumpchain": {
@@ -468,7 +468,7 @@
     "decimals": 9
   },
   "unitzero": {
-    "amount": "500.0",
+    "amount": "45.000000042",
     "decimals": 9
   },
   "vana": {
