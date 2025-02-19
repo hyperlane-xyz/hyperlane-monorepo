@@ -59,6 +59,10 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
             Ok(None)
         }
     }
+
+    fn requires_payment_found(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

@@ -28,6 +28,10 @@ impl GasPaymentPolicy for GasPaymentPolicyMinimum {
             Ok(None)
         }
     }
+
+    fn requires_payment_found(&self) -> bool {
+        true
+    }
 }
 
 #[tokio::test]
