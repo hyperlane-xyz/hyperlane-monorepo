@@ -140,7 +140,7 @@ impl WasmGrpcProvider {
         domain: HyperlaneDomain,
         conf: ConnectionConf,
         gas_price: CosmosAmount,
-        locator: ContractLocator,
+        locator: &ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         // get all the configured grpc urls and convert them to a Vec<Endpoint>

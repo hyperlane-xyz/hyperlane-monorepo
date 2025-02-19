@@ -4684,6 +4684,7 @@ dependencies = [
  "hyper-tls",
  "hyperlane-core",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "ibc-proto",
