@@ -83,8 +83,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
-  [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
-  [WarpRouteIds.EthereumSwellZircuitPZETHSTAGE]: getRenzoPZETHStagingWarpConfig,
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
+    getRenzoPZETHWarpConfig,
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETHSTAGE]:
+    getRenzoPZETHStagingWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
@@ -113,9 +115,9 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getEZETHGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
     getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.EthereumSwellZircuitPZETH]:
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
     getEZETHGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.EthereumSwellZircuitPZETHSTAGE]:
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETHSTAGE]:
     getPZETHSTAGEGnosisSafeBuilderStrategyConfig,
 };
 
