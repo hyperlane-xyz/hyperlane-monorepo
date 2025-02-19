@@ -233,8 +233,8 @@ export async function extendWarpConfig(params: {
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
   // Remove remoteRouters and destinationGas as they are written in readWarpConfig
-  warpDeployConfig[chain].remoteRouters = undefined;
-  warpDeployConfig[chain].destinationGas = undefined;
+  delete warpDeployConfig[chain].remoteRouters;
+  delete warpDeployConfig[chain].destinationGas;
 
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
   await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
