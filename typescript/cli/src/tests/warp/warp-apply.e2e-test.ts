@@ -803,7 +803,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     ).to.equal(newRouterAddress.toLowerCase());
   });
 
-  it.only('should preserve deploy config when extending warp route', async () => {
+  it('should preserve deploy config when extending warp route', async () => {
     const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
     const warpDeployConfig = await readWarpConfig(
