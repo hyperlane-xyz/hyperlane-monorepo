@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call, Contract } from 'starknet';
+import { CairoOption, CairoOptionVariant, Call, Contract, num } from 'starknet';
 
 import { Address, Domain, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -153,7 +153,9 @@ export class StarknetHypCollateralAdapter
 
   protected async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.wrapped_token();
+      this.wrappedTokenAddress = num.toHex64(
+        await this.collateralContract.get_wrapped_token(),
+      );
     }
     return this.wrappedTokenAddress!;
   }
@@ -162,6 +164,10 @@ export class StarknetHypCollateralAdapter
     return new StarknetHypSyntheticAdapter(this.chainName, this.multiProvider, {
       warpRouter: await this.getWrappedTokenAddress(),
     });
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    return this.getWrappedTokenAdapter().then((t) => t.getBalance(address));
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {

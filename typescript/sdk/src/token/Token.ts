@@ -60,6 +60,7 @@ import {
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
 import {
+  StarknetHypCollateralAdapter,
   StarknetHypNativeAdapter,
   StarknetHypSyntheticAdapter,
 } from './adapters/StarknetTokenAdapter.js';
@@ -298,6 +299,10 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.StarknetHypSynthetic) {
       return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypCollateral) {
+      return new StarknetHypCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
       });
     } else {
