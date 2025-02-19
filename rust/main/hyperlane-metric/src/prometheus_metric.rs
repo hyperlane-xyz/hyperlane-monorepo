@@ -73,6 +73,12 @@ impl PrometheusClientMetrics {
     }
 }
 
+impl std::fmt::Debug for PrometheusClientMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PrometheusClientMetrics")
+    }
+}
+
 /// Some basic information about a chain.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]

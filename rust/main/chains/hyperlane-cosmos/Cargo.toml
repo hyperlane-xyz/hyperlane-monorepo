@@ -29,6 +29,7 @@ ibc-proto = { workspace = true }
 injective-protobuf = { workspace = true }
 injective-std = { workspace = true }
 itertools = { workspace = true }
+maplit.workspace = true
 once_cell = { workspace = true }
 protobuf = { workspace = true }
 ripemd = { workspace = true }
@@ -50,3 +51,5 @@ tonic = { workspace = true, features = [
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
+
+hyperlane-metric = { path = "../../hyperlane-metric" }

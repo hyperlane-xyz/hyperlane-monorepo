@@ -7,6 +7,8 @@ use cosmrs::proto::traits::Message;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
 use cosmrs::{proto, AccountId, Any, Coin, Tx};
 use hyperlane_core::rpc_clients::FallbackProvider;
+use hyperlane_metric::prometheus_metric::{NodeInfo, PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::utils::url_to_host_info;
 use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -51,8 +53,10 @@ impl CosmosProvider {
     pub fn new(
         domain: HyperlaneDomain,
         conf: ConnectionConf,
-        locator: ContractLocator,
+        locator: &ContractLocator,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
         let grpc_provider = WasmGrpcProvider::new(
@@ -66,7 +70,10 @@ impl CosmosProvider {
         let providers = conf
             .get_rpc_urls()
             .iter()
-            .map(CosmosRpcClient::new)
+            .map(|url| {
+                let metrics_config = PrometheusConfig::from_url(url, chain.clone());
+                CosmosRpcClient::new(url, metrics.clone(), metrics_config)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let provider = CosmosFallbackProvider::new(
             FallbackProvider::builder().add_providers(providers).build(),

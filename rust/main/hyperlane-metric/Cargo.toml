@@ -9,6 +9,7 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
 derive-new.workspace = true
 derive_builder.workspace = true
 maplit.workspace = true

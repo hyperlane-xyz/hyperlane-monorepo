@@ -4684,12 +4684,14 @@ dependencies = [
  "hyper-tls",
  "hyperlane-core",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "ibc-proto",
  "injective-protobuf",
  "injective-std",
  "itertools 0.12.1",
+ "maplit",
  "once_cell",
  "protobuf",
  "ripemd",
@@ -4784,6 +4786,7 @@ name = "hyperlane-metric"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "cosmrs",
  "derive-new",
  "derive_builder",
  "maplit",

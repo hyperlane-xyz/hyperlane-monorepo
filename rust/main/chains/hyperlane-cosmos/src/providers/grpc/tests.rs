@@ -73,7 +73,7 @@ fn provider(address: &str) -> WasmGrpcProvider {
             denom: "untrn".to_owned(),
             amount: Default::default(),
         },
-        locator,
+        &locator,
         None,
     )
     .unwrap()
