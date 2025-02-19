@@ -59,7 +59,10 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
-import { StarknetHypSyntheticAdapter } from './adapters/StarknetTokenAdapter.js';
+import {
+  StarknetHypNativeAdapter,
+  StarknetHypSyntheticAdapter,
+} from './adapters/StarknetTokenAdapter.js';
 
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs
@@ -147,10 +150,6 @@ export class Token implements IToken {
         {},
         addressOrDenom,
       );
-    } else if (standard === TokenStandard.StarknetHypSynthetic) {
-      return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
-        warpRouter: addressOrDenom,
-      });
     } else if (this.isHypToken()) {
       return this.getHypAdapter(multiProvider);
     } else if (this.isIbcToken()) {
@@ -293,10 +292,11 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
-    } else if (
-      standard === TokenStandard.StarknetHypNative ||
-      standard === TokenStandard.StarknetHypSynthetic
-    ) {
+    } else if (standard === TokenStandard.StarknetHypNative) {
+      return new StarknetHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypSynthetic) {
       return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
       });

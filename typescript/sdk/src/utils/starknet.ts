@@ -31,6 +31,22 @@ export function getStarknetHypERC20Contract(
   return new Contract(abi, address, signer);
 }
 
+export function getStarknetHypERC20CollateralContract(
+  address: string,
+  signer?: Account | Provider,
+): Contract {
+  const { abi } = getCompiledContract('HypErc20Collateral', ContractType.TOKEN);
+  return new Contract(abi, address, signer);
+}
+
+export function getStarknetHypNativeContract(
+  address: string,
+  signer?: Account | Provider,
+): Contract {
+  const { abi } = getCompiledContract('HypNative', ContractType.TOKEN);
+  return new Contract(abi, address, signer);
+}
+
 export function parseStarknetDispatchedMessages(
   parsedEvents: ParsedEvents,
   chainNameResolver: (domain: number) => string | undefined,

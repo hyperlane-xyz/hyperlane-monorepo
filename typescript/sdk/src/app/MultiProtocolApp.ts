@@ -1,5 +1,4 @@
 import { PublicKey } from '@solana/web3.js';
-import { Contract } from 'starknet';
 
 import {
   Address,
@@ -22,7 +21,6 @@ import {
 } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 import { MultiGeneric } from '../utils/MultiGeneric.js';
-import { getStarknetHypERC20Contract } from '../utils/starknet.js';
 
 /**
  * A minimal interface for an adapter that can be used with MultiProtocolApp
@@ -103,10 +101,6 @@ export class BaseStarknetAdapter extends BaseAppAdapter {
 
   public getProvider(): StarknetJsProvider['provider'] {
     return this.multiProvider.getStarknetProvider(this.chainName);
-  }
-
-  public getHypERC20Contract(address: Address): Contract {
-    return getStarknetHypERC20Contract(address, this.getProvider());
   }
 }
 
