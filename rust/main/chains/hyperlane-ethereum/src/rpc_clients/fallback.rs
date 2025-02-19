@@ -154,7 +154,7 @@ where
                 // if we are here, it means one of the providers returned a successful result
                 if !errors.is_empty() {
                     // we log a warning if we got errors from some providers
-                    let _span = warn!(errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers, "multicast_request");
+                    warn!(errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers, "multicast_request");
                 }
 
                 return Ok(value);
