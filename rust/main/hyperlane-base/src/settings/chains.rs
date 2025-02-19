@@ -381,7 +381,7 @@ impl ChainConf {
                     build_cosmos_provider(self, conf, metrics, &locator, signer.clone())?;
                 let wasm_provider = build_cosmos_wasm_provider(
                     self,
-                    &conf,
+                    conf,
                     &locator,
                     metrics,
                     reorg_period,
@@ -441,7 +441,7 @@ impl ChainConf {
                 let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let wasm_provider = build_cosmos_wasm_provider(
                     self,
-                    &conf,
+                    conf,
                     &locator,
                     metrics,
                     reorg_period,
@@ -542,7 +542,7 @@ impl ChainConf {
                 let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let wasm_provider = build_cosmos_wasm_provider(
                     self,
-                    &conf,
+                    conf,
                     &locator,
                     metrics,
                     reorg_period,
@@ -604,7 +604,7 @@ impl ChainConf {
                 let provider = build_cosmos_provider(self, conf, metrics, &locator, signer)?;
                 let wasm_provider = build_cosmos_wasm_provider(
                     self,
-                    &conf,
+                    conf,
                     &locator,
                     metrics,
                     reorg_period,

@@ -119,8 +119,7 @@ impl CosmosRpcClient {
         let res = rpc_call().await;
 
         self.metrics
-            .increment_metrics(&self.metrics_config, &method, start, res.is_ok());
-
+            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
         res
     }
 }

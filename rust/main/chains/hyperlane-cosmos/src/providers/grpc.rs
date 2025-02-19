@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, future::Future, time::Instant};
 
 use async_trait::async_trait;
 use cosmrs::{
@@ -27,6 +27,7 @@ use cosmrs::{
     Any, Coin,
 };
 use derive_new::new;
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
 use protobuf::Message as _;
 use serde::Serialize;
 use tonic::{
@@ -58,6 +59,18 @@ struct CosmosChannel {
     /// The url that this channel is connected to.
     /// Not explicitly used, but useful for debugging.
     _url: Url,
+    metrics: PrometheusClientMetrics,
+    metrics_config: PrometheusConfig,
+}
+
+impl CosmosChannel {
+    pub fn client_metrics(&self) -> &PrometheusClientMetrics {
+        &self.metrics
+    }
+
+    pub fn metrics_config(&self) -> &PrometheusConfig {
+        &self.metrics_config
+    }
 }
 
 #[async_trait]
@@ -142,14 +155,19 @@ impl WasmGrpcProvider {
         gas_price: CosmosAmount,
         locator: &ContractLocator,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
     ) -> ChainResult<Self> {
         // get all the configured grpc urls and convert them to a Vec<Endpoint>
         let channels: Result<Vec<CosmosChannel>, _> = conf
             .get_grpc_urls()
             .into_iter()
             .map(|url| {
+                let metrics_config = PrometheusConfig::from_url(&url, chain.clone());
                 Endpoint::new(url.to_string())
-                    .map(|e| CosmosChannel::new(e.connect_lazy(), url))
+                    .map(|e| {
+                        CosmosChannel::new(e.connect_lazy(), url, metrics.clone(), metrics_config)
+                    })
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect();
@@ -281,15 +299,19 @@ impl WasmGrpcProvider {
         let gas_used = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
+
                 let tx_bytes_clone = tx_bytes.clone();
+                let provider_channel = provider.channel.clone();
+
                 let future = async move {
-                    let mut client = TxServiceClient::new(provider.channel.clone());
+                    let mut client = TxServiceClient::new(provider_channel);
                     #[allow(deprecated)]
                     let sim_req = tonic::Request::new(SimulateRequest {
                         tx: None,
                         tx_bytes: tx_bytes_clone,
                     });
-                    let gas_used = client
+                    let response = client
                         .simulate(sim_req)
                         .await
                         .map_err(ChainCommunicationError::from_other)?
@@ -297,10 +319,16 @@ impl WasmGrpcProvider {
                         .gas_info
                         .ok_or_else(|| {
                             ChainCommunicationError::from_other_str("gas info not present")
-                        })?
-                        .gas_used;
+                        });
 
-                    Ok(gas_used)
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "estimate_gas",
+                        start,
+                        response.is_ok(),
+                    );
+
+                    Ok(response?.gas_used)
                 };
                 Box::pin(future)
             })
@@ -316,18 +344,28 @@ impl WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
+
+                let provider_channel = provider.channel.clone();
+
                 let address = address.clone();
                 let denom = denom.clone();
                 let future = async move {
-                    let mut client = QueryBalanceClient::new(provider.channel.clone());
+                    let mut client = QueryBalanceClient::new(provider_channel);
                     let balance_request =
                         tonic::Request::new(QueryBalanceRequest { address, denom });
                     let response = client
                         .balance(balance_request)
                         .await
-                        .map_err(ChainCommunicationError::from_other)?
-                        .into_inner();
-                    Ok(response)
+                        .map_err(ChainCommunicationError::from_other);
+
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "get_balance",
+                        start,
+                        response.is_ok(),
+                    );
+                    Ok(response?.into_inner())
                 };
                 Box::pin(future)
             })
@@ -351,6 +389,8 @@ impl WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
+
                 let address = account.clone();
                 let future = async move {
                     let mut client = QueryAccountClient::new(provider.channel.clone());
@@ -358,9 +398,15 @@ impl WasmGrpcProvider {
                     let response = client
                         .account(request)
                         .await
-                        .map_err(ChainCommunicationError::from_other)?
-                        .into_inner();
-                    Ok(response)
+                        .map_err(ChainCommunicationError::from_other);
+
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "account_query",
+                        start,
+                        response.is_ok(),
+                    );
+                    Ok(response?.into_inner())
                 };
                 Box::pin(future)
             })
@@ -382,6 +428,8 @@ impl WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
+
                 let address = account.clone();
                 let future = async move {
                     let request = tonic::Request::new(
@@ -407,14 +455,24 @@ impl WasmGrpcProvider {
                     req.extensions_mut()
                         .insert(GrpcMethod::new("cosmos.auth.v1beta1.Query", "Account"));
 
-                    let response: tonic::Response<
-                        injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
+                    let response: Result<
+                        tonic::Response<
+                            injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
+                        >,
+                        HyperlaneCosmosError,
                     > = grpc_client
                         .unary(req, path, codec)
                         .await
-                        .map_err(Into::<HyperlaneCosmosError>::into)?;
+                        .map_err(Into::<HyperlaneCosmosError>::into);
 
-                    Ok(response)
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "account_query_injective",
+                        start,
+                        response.is_ok(),
+                    );
+
+                    Ok(response?)
                 };
                 Box::pin(future)
             })
@@ -455,15 +513,22 @@ impl WasmProvider for WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
                 let future = async move {
                     let mut client = ServiceClient::new(provider.channel.clone());
                     let request = tonic::Request::new(GetLatestBlockRequest {});
                     let response = client
                         .get_latest_block(request)
                         .await
-                        .map_err(ChainCommunicationError::from_other)?
-                        .into_inner();
-                    Ok(response)
+                        .map_err(ChainCommunicationError::from_other);
+
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "latest_block_height",
+                        start,
+                        response.is_ok(),
+                    );
+                    Ok(response?.into_inner())
                 };
                 Box::pin(future)
             })
@@ -488,6 +553,8 @@ impl WasmProvider for WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
+
                 let to = contract_address.address().clone();
                 let query_data = query_data.clone();
                 let future = async move {
@@ -505,9 +572,15 @@ impl WasmProvider for WasmGrpcProvider {
                     let response = client
                         .smart_contract_state(request)
                         .await
-                        .map_err(ChainCommunicationError::from_other)?
-                        .into_inner();
-                    Ok(response)
+                        .map_err(ChainCommunicationError::from_other);
+
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "wasm_query",
+                        start,
+                        response.is_ok(),
+                    );
+                    Ok(response?.into_inner())
                 };
                 Box::pin(future)
             })
@@ -521,6 +594,7 @@ impl WasmProvider for WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
+                let start = Instant::now();
                 let to = contract_address.address().clone();
                 let future = async move {
                     let mut client = WasmQueryClient::new(provider.channel.clone());
@@ -530,14 +604,18 @@ impl WasmProvider for WasmGrpcProvider {
                     let response = client
                         .contract_info(request)
                         .await
-                        .map_err(ChainCommunicationError::from_other)?
-                        .into_inner()
-                        .contract_info
-                        .ok_or(ChainCommunicationError::from_other_str(
-                            "empty contract info",
-                        ))?;
+                        .map_err(ChainCommunicationError::from_other);
 
-                    Ok(response)
+                    provider.client_metrics().increment_metrics(
+                        provider.metrics_config(),
+                        "wasm_contract_info",
+                        start,
+                        response.is_ok(),
+                    );
+
+                    response?.into_inner().contract_info.ok_or(
+                        ChainCommunicationError::from_other_str("empty contract info"),
+                    )
                 };
                 Box::pin(future)
             })
@@ -585,29 +663,39 @@ impl WasmProvider for WasmGrpcProvider {
             });
         }
 
-        let tx_res = self
-            .provider
-            .call(move |provider| {
-                let tx_bytes = tx_bytes.clone();
-                let future = async move {
-                    let mut client = TxServiceClient::new(provider.channel.clone());
-                    // We often use U256s to represent gas limits, but Cosmos expects u64s. Try to convert,
-                    // and if it fails, just fallback to None which will result in gas estimation.
-                    let tx_req = BroadcastTxRequest {
-                        tx_bytes,
-                        mode: BroadcastMode::Sync as i32,
+        let tx_res =
+            self.provider
+                .call(move |provider| {
+                    let start = Instant::now();
+
+                    let tx_bytes = tx_bytes.clone();
+                    let future = async move {
+                        let mut client = TxServiceClient::new(provider.channel.clone());
+                        // We often use U256s to represent gas limits, but Cosmos expects u64s. Try to convert,
+                        // and if it fails, just fallback to None which will result in gas estimation.
+                        let tx_req = BroadcastTxRequest {
+                            tx_bytes,
+                            mode: BroadcastMode::Sync as i32,
+                        };
+                        let response = client
+                            .broadcast_tx(tx_req)
+                            .await
+                            .map_err(Into::<HyperlaneCosmosError>::into);
+
+                        provider.client_metrics().increment_metrics(
+                            provider.metrics_config(),
+                            "wasm_send",
+                            start,
+                            response.is_ok(),
+                        );
+
+                        response?.into_inner().tx_response.ok_or_else(|| {
+                            ChainCommunicationError::from_other_str("Empty tx_response")
+                        })
                     };
-                    client
-                        .broadcast_tx(tx_req)
-                        .await
-                        .map_err(Into::<HyperlaneCosmosError>::into)?
-                        .into_inner()
-                        .tx_response
-                        .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))
-                };
-                Box::pin(future)
-            })
-            .await?;
+                    Box::pin(future)
+                })
+                .await?;
         debug!(tx_result=?tx_res, domain=?self.domain, ?payload, "Wasm transaction sent");
         Ok(tx_res)
     }

@@ -67,6 +67,8 @@ impl CosmosProvider {
             gas_price.clone(),
             locator,
             signer,
+            metrics.clone(),
+            chain.clone(),
         )?;
 
         let providers = conf
