@@ -93,6 +93,11 @@ where
     async fn fallback_test_call(&self) -> u64 {
         self.request::<_, u64>(BLOCK_NUMBER_RPC, ()).await.unwrap()
     }
+
+    async fn multicast_test_call(&self) -> Result<u64, ProviderError> {
+        self.request::<_, u64>(METHOD_SEND_RAW_TRANSACTION, ())
+            .await
+    }
 }
 
 #[tokio::test]
@@ -106,7 +111,7 @@ async fn test_multicast_first_provider_succeeds_immediately() {
     let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider);
     let provider_id = ethereum_fallback_provider
-        .multicast::<_, u64>(BLOCK_NUMBER_RPC, ())
+        .multicast_test_call()
         .await
         .unwrap();
     let provider_call_count: Vec<_> =
