@@ -138,7 +138,6 @@ impl BaseAgent for Relayer {
             .map(|origin| (origin.clone(), HyperlaneRocksDB::new(origin, db.clone())))
             .collect::<HashMap<_, _>>();
 
-        settings.check_fuel_reorg();
         let application_operation_verifiers =
             Self::build_application_operation_verifiers(&settings, &core_metrics, &chain_metrics)
                 .await;

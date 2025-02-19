@@ -53,7 +53,6 @@ impl BaseAgent for Scraper {
         Self: Sized,
     {
         let db = ScraperDb::connect(&settings.db).await?;
-        settings.check_fuel_reorg();
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));

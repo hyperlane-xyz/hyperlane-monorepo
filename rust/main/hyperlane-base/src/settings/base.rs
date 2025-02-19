@@ -84,18 +84,6 @@ impl Settings {
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
     }
 
-    /// Check and warn if reorg period is set for FuelVM domains.
-    pub fn check_fuel_reorg(&self) {
-        self.chains.values().for_each(|conf| {
-            if conf.domain.domain_protocol() == HyperlaneDomainProtocol::Fuel && !conf.reorg_period.is_none() {
-                warn!(
-                    "Reorg period is set for fuel domain {:?}. FuelVM chains are implemented with instant finality",
-                    conf.domain
-                );
-            }
-        });
-    }
-
     /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> Result<HyperlaneDomain> {
         self.chains

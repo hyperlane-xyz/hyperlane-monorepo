@@ -76,7 +76,6 @@ impl BaseAgent for Validator {
         // Intentionally using hyperlane_ethereum for the validator's signer
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
-        settings.check_fuel_reorg();
         let core = settings.build_hyperlane_core(metrics.clone());
         // Be extra sure to panic checkpoint syncer fails, which indicates
         // a fatal startup error.
