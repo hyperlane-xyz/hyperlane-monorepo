@@ -39,9 +39,9 @@ async function main() {
   );
 
   const results = await Promise.allSettled(
-    Object.entries(bridgesConfig).map(async ([chain, bridgeConfig]) => {
+    Object.entries(bridgesConfig).map(async ([_, bridgeConfig]) => {
       return addBridgeToChain({
-        chain,
+        chain: bridgeConfig.chain,
         bridgeConfig,
         multiProtocolProvider,
         envMultiProvider,

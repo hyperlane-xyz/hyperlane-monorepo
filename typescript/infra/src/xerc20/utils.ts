@@ -31,6 +31,7 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
 );
 
 export interface BridgeConfig {
+  chain: string;
   type: TokenType.XERC20Lockbox | TokenType.XERC20;
   xERC20Address: Address;
   bridgeAddress: Address;
@@ -356,8 +357,8 @@ export async function deriveBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
-): Promise<ChainMap<BridgeConfig>> {
-  const bridgesConfig: ChainMap<BridgeConfig> = {};
+): Promise<Record<string, BridgeConfig>> {
+  const bridgesConfig: Record<string, BridgeConfig> = {};
 
   for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
     if (!isXERC20TokenConfig(chainConfig)) {
@@ -377,8 +378,8 @@ export async function deriveBridgesConfig(
 
     if (
       !xERC20 ||
-      !xERC20.limits.bufferCap ||
-      !xERC20.limits.rateLimitPerSecond
+      !xERC20.warpRouteLimits.bufferCap ||
+      !xERC20.warpRouteLimits.rateLimitPerSecond
     ) {
       throw new Error(`Missing "limits" for chain: ${chainName}`);
     }
@@ -396,7 +397,7 @@ export async function deriveBridgesConfig(
     const {
       bufferCap: bufferCapStr,
       rateLimitPerSecond: rateLimitPerSecondStr,
-    } = xERC20.limits;
+    } = xERC20.warpRouteLimits;
     const bufferCap = Number(bufferCapStr);
     const rateLimitPerSecond = Number(rateLimitPerSecondStr);
 
@@ -410,7 +411,35 @@ export async function deriveBridgesConfig(
       xERC20Address = await hypXERC20Lockbox.xERC20();
     }
 
-    bridgesConfig[chainName] = {
+    if (xERC20.extraLockboxLimits) {
+      for (const extraLockboxLimit of xERC20.extraLockboxLimits) {
+        const { lockbox, limits } = extraLockboxLimit;
+        const {
+          bufferCap: extraBufferCap,
+          rateLimitPerSecond: extraRateLimit,
+        } = limits;
+
+        if (!extraBufferCap || !extraRateLimit) {
+          throw new Error(
+            `Missing "bufferCap" or "rateLimitPerSecond" limits for extra lockbox: ${lockbox} on chain: ${chainName}`,
+          );
+        }
+
+        bridgesConfig[lockbox] = {
+          chain: chainName,
+          type,
+          xERC20Address,
+          bridgeAddress: lockbox,
+          owner,
+          decimals,
+          bufferCap: Number(extraBufferCap),
+          rateLimitPerSecond: Number(extraRateLimit),
+        };
+      }
+    }
+
+    bridgesConfig[bridgeAddress] = {
+      chain: chainName as ChainName,
       type,
       xERC20Address,
       bridgeAddress,
