@@ -100,6 +100,15 @@ where
     }
 }
 
+// Explanation of the test expected result:
+// FutureUnordered builds internal queue and all futures are inserted into the queue in the order
+//  they are added. On the first pass, FutureUnordered iterates through the queue in the order in
+//  which the futures were pushed into it. Since the first future resolves into Poll::Ready, only
+//  this future is polled.
+// FutureUnordered does not guarantee that it will return the results from each future in the same
+//  order as they were pushed into it. FutureUnordered will return the result of the first future
+//  which becomes ready. It just happened in this test case that the first future is polled first
+//  and provide results first.
 #[tokio::test]
 async fn test_multicast_first_provider_succeeds_immediately() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
