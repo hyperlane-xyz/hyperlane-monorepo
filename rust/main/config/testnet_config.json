@@ -966,6 +966,44 @@
       "gasCurrencyCoinGeckoId": "solana",
       "interchainSecurityModule": "4GHxwWyKB9exhKG4fdyU2hfLgfFzhHp2WcsSKc2uNR1k"
     },
+    "starknetsepolia": {
+      "chainId": "0x534e5f5345504f4c4941",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://sepolia.voyager.online/api",
+          "family": "other",
+          "name": "Starknet Sepolia",
+          "url": "https://sepolia.voyager.online/"
+        }
+      ],
+      "displayName": "Starknet Sepolia",
+      "domainId": 23448591,
+      "isTestnet": true,
+      "name": "starknetsepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "starknet",
+      "rpcUrls": [
+        {
+          "http": "https://free-rpc.nethermind.io/sepolia-juno/"
+        }
+      ],
+      "defaultHook": "0x0154159989f07d1a0ff17ee7c004d4769a4082ebec86199e72e1f43cfa350380",
+      "defaultIsm": "0x02c7a6435eff3ea9a956d75996e0dec268804003ba08befa0791e45221982e42",
+      "mailbox": "0x07d140a3f9070f8e751b9b04b7b29f61129517f22bd6b7f534482676e3a60d19",
+      "merkleTreeHook": "0x00df7c956c80e44d9ec66f777ef85432fdb5cfc2e5fd06790538faf051d260ce",
+      "noopIsm": "0x04e4b8cf424cd94c73dad9923f462cf44d2e64ca0d6ba0866064b16b0d3bfe3c",
+      "protocolFee": "0x0114d0b9a4000ee80c44fa1cb2e76343cbbcc28d4cc10b90ead5eec925640c23",
+      "testRecipient": "0x0580d711434c1168bcc67e88befd6b985627e4dd862e77afbc519bb38182cd60",
+      "validatorAnnounce": "0x02e205ebd2f3e09105cb87b4c6888d6019747c3db37a67a2dca83177befc50d8",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 516414,
+        "chunk": 999
+      },
     "superpositiontestnet": {
       "aggregationHook": "0x331eb40963dc11F5BB271308c42d97ac6e41F124",
       "blockExplorers": [
