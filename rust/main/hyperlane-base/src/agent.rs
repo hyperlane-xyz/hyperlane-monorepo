@@ -8,7 +8,7 @@ use hyperlane_core::config::*;
 use tracing::info;
 
 use crate::{
-    metrics::{AgentMetrics, CoreMetrics},
+    metrics::{AgentMetrics, CoreMetrics, RuntimeMetrics},
     settings::Settings,
     ChainMetrics,
 };
@@ -46,6 +46,7 @@ pub trait BaseAgent: Send + Sync + Debug {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        tokio_runtime_monitor: RuntimeMetrics,
         tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
@@ -89,15 +90,18 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
+    let task_monitor = tokio_metrics::TaskMonitor::new();
     let tokio_server = core_settings.tracing.start_tracing(&metrics)?;
     let agent_metrics = AgentMetrics::new(&metrics)?;
     let chain_metrics = ChainMetrics::new(&metrics)?;
+    let runtime_metrics = RuntimeMetrics::new(&metrics, task_monitor)?;
     let agent = A::from_settings(
         agent_metadata,
         settings,
         metrics.clone(),
         agent_metrics,
         chain_metrics,
+        runtime_metrics,
         tokio_server,
     )
     .await?;
