@@ -15,6 +15,13 @@ pub struct GasPaymentPolicyMinimum {
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyMinimum {
+
+    /// Messages that have paid a minimum amount will be processed.
+    /// Minimum requires a message to exist on the IGP specified in the config,
+    /// even if the payment is zero. For example, a policy of Minimum { payment: 0 } 
+    /// will only relay messages that are processed by the IGP specified in the config.
+    /// If you want to relay all messages regardless of payment and IGP, use `None`.
+
     async fn message_meets_gas_payment_requirement(
         &self,
         _message: &HyperlaneMessage,

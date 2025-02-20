@@ -81,12 +81,17 @@ pub struct GasPaymentEnforcementConf {
 #[derive(Debug, Clone, Default)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
+    /// and regardless of whether the message was processed by the specified IGP.
     #[default]
     None,
-    /// Messages that have paid a minimum amount will be processed
+    /// Messages that have paid a minimum amount will be processed.
+    /// Minimum requires a message to exist on the IGP specified in the config,
+    /// even if the payment is zero. For example, a policy of Minimum { payment: 0 } 
+    /// will only relay messages that are processed by the IGP specified in the config.
     Minimum { payment: U256 },
     /// The required amount of gas on the foreign chain has been paid according
-    /// to on-chain fee quoting.
+    /// to on-chain fee quoting. OnChainFeeQuoting requires a message to exist 
+    /// on the IGP specified in the config.
     OnChainFeeQuoting {
         gas_fraction_numerator: u64,
         gas_fraction_denominator: u64,
