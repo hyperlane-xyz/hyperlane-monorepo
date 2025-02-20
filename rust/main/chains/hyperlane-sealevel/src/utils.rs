@@ -32,7 +32,7 @@ pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
     Pubkey::from_str(address).map_err(Into::<HyperlaneSealevelError>::into)
 }
 
-/// Santizes untrusted dynamic account metas.
+/// Sanitizes untrusted dynamic account metas.
 /// Requires that:
 /// - All provided account metas are non-signers (these are made non-signers even if they're requested)
 /// - The payer account is not present in the provided account metas (this is a failure condition)
