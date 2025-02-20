@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -21,11 +21,107 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
+  WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
+  getCombinedWarpRoutePath,
+  sendWarpRouteMessageRoundTrip,
 } from '../commands/helpers.js';
-import { generateWarpConfigs } from '../commands/warp.js';
+import { generateWarpConfigs, hyperlaneWarpDeploy } from '../commands/warp.js';
+
+export const TOTAL_PARTS = 2;
+
+export type WarpBridgeTestConfig = {
+  chain2Addresses: ChainAddresses;
+  chain3Addresses: ChainAddresses;
+  ownerAddress: Address;
+  tokenVaultChain2Symbol: string;
+  tokenChain2Symbol: string;
+  tokenVaultChain3Symbol: string;
+  tokenChain3Symbol: string;
+  walletChain2: Wallet;
+  walletChain3: Wallet;
+  tokenChain2: ERC20Test;
+  vaultChain2: ERC4626Test;
+  tokenChain3: ERC20Test;
+  vaultChain3: ERC4626Test;
+};
+
+export async function runWarpBridgeTests(
+  config: WarpBridgeTestConfig,
+  divideBy: number,
+  index: number,
+) {
+  const warpConfigTestCases = generateTestCases(
+    config.chain2Addresses,
+    config.chain3Addresses,
+    config.ownerAddress,
+    config.tokenChain2,
+    config.vaultChain2,
+    config.tokenChain3,
+    config.vaultChain3,
+    divideBy,
+    index,
+  );
+
+  for (let i = 0; i < warpConfigTestCases.length; i++) {
+    const warpConfig = warpConfigTestCases[i];
+    console.log(
+      `[${i + 1} of ${
+        warpConfigTestCases.length
+      }] Should deploy and be able to bridge in a ${
+        warpConfig[CHAIN_NAME_2].type
+      } -> ${warpConfig[CHAIN_NAME_3].type} warp route ...`,
+    );
+
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+    let startChain, targetChain: string;
+    if (!warpConfig[CHAIN_NAME_2].type.match(/.*synthetic.*/i)) {
+      startChain = CHAIN_NAME_2;
+      targetChain = CHAIN_NAME_3;
+    } else {
+      startChain = CHAIN_NAME_3;
+      targetChain = CHAIN_NAME_2;
+    }
+
+    const symbol = getTokenSymbolFromDeployment(
+      warpConfig,
+      config.tokenVaultChain2Symbol,
+      config.tokenChain2Symbol,
+      config.tokenVaultChain3Symbol,
+      config.tokenChain3Symbol,
+    );
+
+    const routeConfigPath = getCombinedWarpRoutePath(symbol, [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    await collateralizeWarpTokens(routeConfigPath, warpConfig, {
+      [CHAIN_NAME_2]: {
+        wallet: config.walletChain2,
+        collateral: config.tokenChain2,
+      },
+      [CHAIN_NAME_3]: {
+        wallet: config.walletChain3,
+        collateral: config.tokenChain3,
+      },
+    });
+
+    await sendWarpRouteMessageRoundTrip(
+      startChain,
+      targetChain,
+      routeConfigPath,
+    );
+
+    console.log(
+      `Should deploy and be able to bridge in a ${warpConfig[CHAIN_NAME_2].type} -> ${warpConfig[CHAIN_NAME_3].type} warp route ✅`,
+    );
+  }
+}
 
 export async function setupChains() {
   const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
