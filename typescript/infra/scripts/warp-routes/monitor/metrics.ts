@@ -2,6 +2,7 @@ import { Gauge, Registry } from 'prom-client';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { getWalletBalanceGauge } from '../../../src/utils/metrics.js';
 
@@ -52,7 +53,7 @@ const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
   help: 'Current minting and burning limits of xERC20 tokens',
   registers: [metricsRegister],
-  labelNames: ['chain_name', 'limit_type', 'token_name'],
+  labelNames: ['chain_name', 'limit_type', 'token_name', 'bridge_address'],
 });
 
 export function updateTokenBalanceMetrics(
@@ -114,18 +115,26 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
   });
 }
 
-export function updateXERC20LimitsMetrics(token: Token, limits: XERC20Limit) {
+export function updateXERC20LimitsMetrics(
+  token: Token,
+  limits: XERC20Limit,
+  bridgeAddress?: Address,
+) {
   for (const [limitType, limit] of Object.entries(limits)) {
     xERC20LimitsGauge
       .labels({
         chain_name: token.chainName,
         limit_type: limitType,
         token_name: token.name,
+        bridge_address: bridgeAddress,
       })
       .set(limit);
   }
-  logger.info('xERC20 limits updated for chain', {
-    chain: token.chainName,
+
+  logger.info(
+    'xERC20 limits updated for bridge at %s on chain %s with data %o',
+    bridgeAddress,
+    token.chainName,
     limits,
-  });
+  );
 }
