@@ -5353,7 +5353,8 @@
       ],
       "technicalStack": "polygoncdk",
       "index": {
-        "from": 1923136
+        "from": 1923136,
+        "chunk": 1000
       },
       "interchainGasPaymaster": "0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E",
       "mailbox": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
@@ -6211,7 +6212,8 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x803d2A87429E20d4B52266bF97Ca1c7e4f4F5Dfa",
       "index": {
-        "from": 3144538
+        "from": 3144538,
+        "chunk": 1000
       }
     },
     "swell": {
