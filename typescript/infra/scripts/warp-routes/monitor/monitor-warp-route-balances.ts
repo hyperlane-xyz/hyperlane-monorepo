@@ -164,7 +164,14 @@ async function updateTokenMetrics(
     promises.push(
       tryFn(async () => {
         const limits = await getXERC20Limits(warpCore, token);
-        updateXERC20LimitsMetrics(token, limits);
+
+        const tokenAddress =
+          token.standard === TokenStandard.EvmHypXERC20Lockbox &&
+          token.collateralAddressOrDenom
+            ? token.collateralAddressOrDenom
+            : token.addressOrDenom;
+
+        updateXERC20LimitsMetrics(token, limits, tokenAddress);
       }, 'Getting xERC20 limits'),
     );
 
@@ -336,6 +343,11 @@ async function getXERC20Limit(
   };
 }
 
+const managedLockBoxMinimalABI = [
+  'function XERC20() view returns (address)',
+  'function ERC20() view returns (address)',
+] as const;
+
 async function getExtraLockboxLimits(
   warpToken: Token,
   multiProtocolProvider: MultiProtocolProvider,
@@ -346,7 +358,7 @@ async function getExtraLockboxLimits(
   );
   const lockboxInstance = new Contract(
     lockboxAddress,
-    ['function XERC20() view returns (address)'],
+    managedLockBoxMinimalABI,
     currentChainProvider,
   );
 
@@ -386,10 +398,7 @@ async function getExtraLockboxBalance(
   );
   const lockboxInstance = new Contract(
     lockboxAddress,
-    [
-      'function XERC20() view returns (address)',
-      'function ERC20() view returns (address)',
-    ],
+    managedLockBoxMinimalABI,
     currentChainProvider,
   );
 

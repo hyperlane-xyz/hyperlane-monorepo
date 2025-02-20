@@ -119,7 +119,7 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
 export function updateXERC20LimitsMetrics(
   token: Token,
   limits: XERC20Limit,
-  bridgeAddress?: Address,
+  bridgeAddress: Address,
 ) {
   for (const [limitType, limit] of Object.entries(limits)) {
     xERC20LimitsGauge
