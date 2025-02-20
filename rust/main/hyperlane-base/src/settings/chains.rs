@@ -1035,13 +1035,13 @@ fn build_cosmos_wasm_provider(
     event_type: String,
 ) -> ChainResult<CosmosWasmRpcProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_metrics = metrics.client_metrics();
+    let client_metrics = metrics.client_metrics();
     CosmosWasmRpcProvider::new(
         connection_conf,
         locator,
         event_type,
         reorg_period,
-        rpc_metrics,
+        client_metrics,
         middleware_metrics.chain.clone(),
     )
 }
