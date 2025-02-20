@@ -1,5 +1,22 @@
 # @hyperlane-xyz/sdk
 
+## 8.7.0
+
+### Minor Changes
+
+- bd0b8861f: Deploy to hyperevm.
+- 55db270e3: Deploy to chains bouncebit, arcadia, ronin, sophon, story, subtensor.
+- b92eb1b57: Deploy to subtensortestnet.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 12e3c4da0: Enroll new validators for unichain, celo, base, mantle, worldchain, bouncebit, arcadia, ronin, sophon, story, subtensor, hyperevm.
+- d6724c4c3: Fix an issue with HookModule that causes HookModule trigger triggering a new deployment due to unnormalized config despite configs being the same
+- d93a38cab: Add MissingRouterViolation when config misses enrolled routers
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.7.0
+- @hyperlane-xyz/core@5.11.4
+
 ## 8.6.1
 
 ### Patch Changes
