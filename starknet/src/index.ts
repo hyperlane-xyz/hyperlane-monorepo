@@ -1,66 +1,15 @@
-import { existsSync, readFileSync } from 'fs';
-import { dirname, join } from 'path';
 import { CairoAssembly, CompiledContract } from 'starknet';
-import { fileURLToPath } from 'url';
 
+import { starknetContracts } from './artifacts/index.js';
 import { CONFIG } from './config.js';
 import { ContractError } from './errors.js';
 
-const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const TARGET_DEV_PATH = join(currentDirectory, CONFIG.COMPILED_CONTRACTS_DIR);
-
-/**
- * @notice Retrieves and parses the standard compiled contract data
- * @param name The name of the contract to retrieve
- * @returns {CompiledContract} The parsed contract data
- * @throws {ContractError} If the file is not found, cannot be parsed
- */
-export const getCompiledContract = (
-  name: string,
-  contractType?: ContractType,
-): CompiledContract => {
-  try {
-    return JSON.parse(
-      readFileSync(
-        findContractFile(name, 'SIERRA_JSON', contractType),
-        'utf-8',
-      ),
-    );
-  } catch (error: unknown) {
-    if (error instanceof ContractError) throw error;
-    throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.PARSE_ERROR, {
-      name,
-      error: (error as Error).message,
-    });
-  }
-};
-
-/**
- * @notice Retrieves and parses the CASM compiled contract data
- * @param name The name of the contract to retrieve
- * @returns {CairoAssembly} The parsed CASM contract data
- * @throws {ContractError} If the file is not found, cannot be parsed
- */
-export const getCompiledContractCasm = (
-  name: string,
-  contractType?: ContractType,
-): CairoAssembly => {
-  try {
-    return JSON.parse(
-      readFileSync(
-        findContractFile(name, 'ASSEMBLY_JSON', contractType),
-        'utf-8',
-      ),
-    );
-  } catch (error: unknown) {
-    if (error instanceof ContractError) throw error;
-    throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.PARSE_ERROR, {
-      name,
-      error: (error as Error).message,
-    });
-  }
-};
-
+export interface StarknetContractGroup {
+  [name: string]: {
+    contract_class: CompiledContract;
+    compiled_contract_class: CairoAssembly;
+  };
+}
 /**
  * @notice Contract file type enum
  */
@@ -71,28 +20,71 @@ export enum ContractType {
 }
 
 /**
- * @notice Finds the path to a contract file based on predefined patterns
- * @param name The base name of the contract to find
- * @param suffix The type of contract file to look for (from CONFIG.CONTRACT_FILE_SUFFIXES)
- * @param type Optional contract type prefix (defaults to CONTRACT)
- * @returns {string} The full path to the contract file
- * @throws {ContractError} If file is not found or the contract name is invalid
+ * @notice Retrieves a compiled contract
+ * @param name The name of the contract to retrieve
+ * @returns {CompiledContract} The contract data
+ * @throws {ContractError} If the contract is not found
  */
-function findContractFile(
+export function getCompiledContract(
   name: string,
-  suffix: keyof typeof CONFIG.CONTRACT_FILE_SUFFIXES,
-  type: ContractType = ContractType.CONTRACT,
-): string {
-  const suffixPath = CONFIG.CONTRACT_FILE_SUFFIXES[suffix];
-  const path = `${TARGET_DEV_PATH}/${type}${name}${suffixPath}`;
+  contractType: ContractType = ContractType.CONTRACT,
+): CompiledContract {
+  try {
+    const group = getContractGroup(contractType);
+    const contract = group[name];
 
-  if (!existsSync(path)) {
+    if (!contract?.contract_class) {
+      throw new Error('Contract not found or missing Sierra class');
+    }
+
+    return contract.contract_class;
+  } catch (error) {
     throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.FILE_NOT_FOUND, {
       name,
-      suffix,
-      path,
+      type: contractType,
     });
   }
+}
 
-  return path;
+/**
+ * @notice Retrieves a CASM compiled contract
+ * @param name The name of the contract to retrieve
+ * @returns {CairoAssembly} The CASM contract data
+ * @throws {ContractError} If the contract is not found
+ */
+export function getCompiledContractCasm(
+  name: string,
+  contractType: ContractType = ContractType.CONTRACT,
+): CairoAssembly {
+  try {
+    const group = getContractGroup(contractType);
+    const contract = group[name];
+
+    if (!contract?.compiled_contract_class) {
+      throw new Error('Contract not found or missing CASM class');
+    }
+
+    return contract.compiled_contract_class;
+  } catch (error) {
+    throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.FILE_NOT_FOUND, {
+      name,
+      type: contractType,
+    });
+  }
+}
+
+/**
+ * @notice Helper function to get the correct contract group
+ */
+function getContractGroup(type: ContractType): StarknetContractGroup {
+  switch (type) {
+    case ContractType.CONTRACT:
+      return starknetContracts.contracts;
+    case ContractType.TOKEN:
+      return starknetContracts.tokens;
+    case ContractType.MOCK:
+      return starknetContracts.mocks;
+    default:
+      throw new Error('Invalid contract type');
+  }
 }

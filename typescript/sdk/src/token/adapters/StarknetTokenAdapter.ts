@@ -32,8 +32,8 @@ export class StarknetHypSyntheticAdapter
   ) {
     super(chainName, multiProvider, addresses);
     this.contract = getStarknetHypERC20Contract(
-      this.addresses.warpRouter,
-      this.getProvider(),
+      addresses.warpRouter,
+      multiProvider.getStarknetProvider(chainName),
     );
   }
 
@@ -102,7 +102,6 @@ export class StarknetHypSyntheticAdapter
       nonOption,
     );
 
-    // TODO: add gas payment when we support it
     return {
       ...transferTx,
       value: interchainGas?.amount
@@ -132,22 +131,19 @@ export class StarknetHypSyntheticAdapter
   }
 }
 
-export class StarknetHypCollateralAdapter
-  extends StarknetHypSyntheticAdapter
-  implements IHypTokenAdapter<Call>
-{
+export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
   public readonly collateralContract: Contract;
   protected wrappedTokenAddress?: Address;
 
   constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { warpRouter: Address },
+    chainName: ChainName,
+    multiProvider: MultiProtocolProvider,
+    addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
     this.collateralContract = getStarknetHypERC20CollateralContract(
       addresses.warpRouter,
-      this.getProvider(),
+      multiProvider.getStarknetProvider(chainName),
     );
   }
 
@@ -167,7 +163,8 @@ export class StarknetHypCollateralAdapter
   }
 
   async getBalance(address: Address): Promise<bigint> {
-    return this.getWrappedTokenAdapter().then((t) => t.getBalance(address));
+    const adapter = await this.getWrappedTokenAdapter();
+    return adapter.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {
@@ -175,7 +172,8 @@ export class StarknetHypCollateralAdapter
   }
 
   override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
-    return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
+    const adapter = await this.getWrappedTokenAdapter();
+    return adapter.getMetadata(isNft);
   }
 
   override async isApproveRequired(
@@ -183,48 +181,41 @@ export class StarknetHypCollateralAdapter
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.isApproveRequired(owner, spender, weiAmountOrId),
-    );
+    const adapter = await this.getWrappedTokenAdapter();
+    return adapter.isApproveRequired(owner, spender, weiAmountOrId);
   }
 
   override async populateApproveTx(params: TransferParams): Promise<Call> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.populateApproveTx(params),
-    );
+    const adapter = await this.getWrappedTokenAdapter();
+    return adapter.populateApproveTx(params);
   }
 
   override async populateTransferTx(params: TransferParams): Promise<Call> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.populateTransferTx(params),
-    );
+    const adapter = await this.getWrappedTokenAdapter();
+    return adapter.populateTransferTx(params);
   }
 }
 
-export class StarknetHypNativeAdapter
-  extends StarknetHypSyntheticAdapter
-  implements IHypTokenAdapter<Call>
-{
+export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
   public readonly collateralContract: Contract;
   public readonly nativeContract: Contract;
 
   constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { warpRouter: Address },
+    chainName: ChainName,
+    multiProvider: MultiProtocolProvider,
+    addresses: { warpRouter: Address },
   ) {
     super(chainName, multiProvider, addresses);
-    // TODO: figure out when you need native erc20 contract or collateral contract
     this.collateralContract = getStarknetHypERC20CollateralContract(
       addresses.warpRouter,
-      this.getProvider(),
+      multiProvider.getStarknetProvider(chainName),
     );
     const nativeAddress =
       multiProvider.getChainMetadata(chainName)?.nativeToken?.denom;
     assert(nativeAddress, `Native address not found for chain ${chainName}`);
     this.nativeContract = getStarknetHypERC20Contract(
       nativeAddress,
-      this.getProvider(),
+      multiProvider.getStarknetProvider(chainName),
     );
   }
 
@@ -270,7 +261,6 @@ export class StarknetHypNativeAdapter
         nonOption,
       );
 
-    // TODO: add gas payment when we support it
     return {
       ...transferTx,
       value: interchainGas?.amount
