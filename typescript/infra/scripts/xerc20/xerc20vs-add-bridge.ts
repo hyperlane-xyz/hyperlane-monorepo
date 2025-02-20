@@ -38,23 +38,21 @@ async function main() {
     envMultiProvider,
   );
 
-  const results = await Promise.allSettled(
-    Object.entries(bridgesConfig).map(async ([_, bridgeConfig]) => {
-      return addBridgeToChain({
+  const erroredChains: string[] = [];
+
+  for (const [_, bridgeConfig] of Object.entries(bridgesConfig)) {
+    try {
+      await addBridgeToChain({
         chain: bridgeConfig.chain,
         bridgeConfig,
         multiProtocolProvider,
         envMultiProvider,
         dryRun,
       });
-    }),
-  );
-
-  const erroredChains = results
-    .filter(
-      (result): result is PromiseRejectedResult => result.status === 'rejected',
-    )
-    .map((result) => result.reason.chain);
+    } catch {
+      erroredChains.push(bridgeConfig.chain);
+    }
+  }
 
   if (erroredChains.length > 0) {
     rootLogger.error(
