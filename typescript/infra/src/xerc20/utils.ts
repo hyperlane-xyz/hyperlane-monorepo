@@ -455,30 +455,18 @@ async function sendTransactions(
   // 1. (initial deployment before ownership transfer) xERC20 is owned by an EOA (deployer), the expected owner (safe) is NOT the actual owner (deployer), the configured signer (deployer) is the owner (deployer) -> send normal transaction
   // 2. xERC20 is owned by an EOA (deployer), the expected owner (deployer) is the actual owner (deployer) and the configured signer (deployer) is the owner (deployer) -> send normal transaction
   // 3. xERC20 is owned by a Safe, the expected owner (safe) is the actual owner (safe), the configured signer (deployer) has the ability to propose safe transactions -> propose a safe transaction
-  // The function will throw in some failure modes but not all scenarios have been covered yet and the script will fallback to sending as a signer which will likely fail
 
   const signer = multiProvider.getSigner(chain);
-  const proposerAddress = await signer.getAddress();
+  const signerAddress = await signer.getAddress();
   const ownable = Ownable__factory.connect(xERC20Address, signer);
   const actualOwner = await ownable.owner();
-
-  if (expectedOwner !== actualOwner && proposerAddress !== actualOwner) {
-    rootLogger.error(
-      chalk.red(
-        `[${chain}][${bridgeAddress}] Expected xERC20 owner does not match actual owner and configured signer is not the owner so cannot successful submit a transaction. Exiting...`,
-      ),
-    );
-    throw new Error(
-      'Expected xERC20 owner does not match actual owner and configured signer is not the owner either',
-    );
-  }
 
   // only attempt to send as safe if
   // (a) the actual owner is a safe
   // (b) the signer (deployer) has the ability to propose transactions on the safe
   // otherwise fallback to a signer transaction, this fallback will allow for us to handle scenario 1 even though the expected owner is a safe
   const isOwnerSafe = await checkOwnerIsSafe(
-    proposerAddress,
+    signerAddress,
     chain,
     multiProvider,
     actualOwner,
@@ -487,7 +475,7 @@ async function sendTransactions(
 
   if (isOwnerSafe) {
     const isSafeProposer = await checkSafeProposer(
-      proposerAddress,
+      signerAddress,
       chain,
       multiProvider,
       actualOwner,
@@ -496,7 +484,7 @@ async function sendTransactions(
     if (!isSafeProposer) {
       rootLogger.error(
         chalk.red(
-          `[${chain}][${bridgeAddress}] Signer ${proposerAddress} is not a proposer on Safe (${actualOwner}), cannot submit safe transaction. Exiting...`,
+          `[${chain}][${bridgeAddress}] Signer ${signerAddress} is not a proposer on Safe (${actualOwner}), cannot submit safe transaction. Exiting...`,
         ),
       );
       throw new Error('Signer is not a safe proposer');
@@ -513,6 +501,15 @@ async function sendTransactions(
       bridgeAddress,
     );
     return;
+  }
+
+  if (signerAddress !== actualOwner) {
+    rootLogger.error(
+      chalk.red(
+        `[${chain}][${bridgeAddress}] Signer is not the owner of the xERC20 so cannot successful submit a Signer transaction. Exiting...`,
+      ),
+    );
+    throw new Error('Signer is not the owner of the xERC20');
   }
 
   rootLogger.info(
