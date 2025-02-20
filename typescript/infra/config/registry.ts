@@ -13,6 +13,7 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -99,6 +100,20 @@ export function getWarpCoreConfig(warpRouteId: string): WarpCoreConfig {
   if (!warpRouteConfig) {
     throw new Error(
       `Warp route config for ${warpRouteId} not found in registry`,
+    );
+  }
+  return warpRouteConfig;
+}
+
+export function getWarpDeployConfig(
+  warpRouteId: string,
+): WarpRouteDeployConfig {
+  const registry = getRegistry();
+  const warpRouteConfig = registry.getWarpDeployConfig(warpRouteId);
+
+  if (!warpRouteConfig) {
+    throw new Error(
+      `Warp route deploy config for ${warpRouteId} not found in registry`,
     );
   }
   return warpRouteConfig;
