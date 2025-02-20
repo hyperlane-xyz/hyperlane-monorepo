@@ -3,7 +3,10 @@ import chalk from 'chalk';
 import { PopulatedTransaction } from 'ethers';
 import { join } from 'path';
 
-import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import {
+  HypXERC20Lockbox__factory,
+  Ownable__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
   EvmHypVSXERC20Adapter,
@@ -15,7 +18,9 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
-  canProposeSafeTransactions,
+  getSafe,
+  getSafeDelegates,
+  getSafeService,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
@@ -58,7 +63,7 @@ export async function addBridgeToChain({
     bridgeAddress,
     bufferCap,
     rateLimitPerSecond,
-    owner,
+    owner: expectedOwner,
     decimals,
   } = bridgeConfig;
 
@@ -83,7 +88,7 @@ export async function addBridgeToChain({
     if (rateLimits.rateLimitPerSecond) {
       rootLogger.warn(
         chalk.yellow(
-          `[${chain}][${bridgeAddress}] Skipping addBridge as rate limits already.`,
+          `[${chain}][${bridgeAddress}] Skipping addBridge as rate limits set already.`,
         ),
       );
       return;
@@ -102,7 +107,7 @@ export async function addBridgeToChain({
     );
     rootLogger.info(
       chalk.gray(
-        `[${chain}][${bridgeAddress}]  Buffer cap: ${humanReadableLimit(
+        `[${chain}][${bridgeAddress}] Buffer cap: ${humanReadableLimit(
           BigInt(bufferCap),
           decimals,
         )}, Rate limit: ${humanReadableLimit(
@@ -121,8 +126,9 @@ export async function addBridgeToChain({
       await sendTransactions(
         envMultiProvider,
         chain,
-        owner,
+        expectedOwner,
         [tx],
+        xERC20Address,
         bridgeAddress,
       );
     } else {
@@ -205,6 +211,7 @@ export async function updateChainLimits({
       chain,
       owner,
       txsToSend,
+      xERC20Address,
       bridgeAddress,
     );
   } else {
@@ -259,7 +266,7 @@ async function prepareRateLimitTx(
   if (BigInt(newRateLimitBigInt) === currentRateLimitPerSecond) {
     rootLogger.info(
       chalk.green(
-        `[${chain}][${bridgeAddress}]  Rate limit per second is already set to the desired value`,
+        `[${chain}][${bridgeAddress}] Rate limit per second is already set to the desired value`,
       ),
     );
     return null;
@@ -279,22 +286,85 @@ async function prepareRateLimitTx(
   );
 }
 
-async function checkSafeOwner(
+async function checkOwnerIsSafe(
   proposer: Address,
   chain: string,
   multiProvider: MultiProvider,
   safeAddress: Address,
+  bridgeAddress: Address,
 ): Promise<boolean> {
+  // check if safe service is available
+  await getSafeTxService(chain, multiProvider, bridgeAddress);
+
   try {
-    return await canProposeSafeTransactions(
-      proposer,
-      chain,
-      multiProvider,
-      safeAddress,
+    await getSafe(chain, multiProvider, safeAddress);
+    rootLogger.info(
+      chalk.gray(`[${chain}][${bridgeAddress}] Safe found: ${safeAddress}`),
     );
+    return true;
   } catch {
+    rootLogger.info(
+      chalk.gray(`[${chain}][${bridgeAddress}] Safe not found: ${safeAddress}`),
+    );
     return false;
   }
+}
+
+async function checkSafeProposer(
+  proposer: Address,
+  chain: string,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+  bridgeAddress: Address,
+): Promise<boolean> {
+  const safeService = await getSafeTxService(
+    chain,
+    multiProvider,
+    bridgeAddress,
+  );
+  // TODO: assumes the safeAddress is in fact a safe
+  const safe = await getSafe(chain, multiProvider, safeAddress);
+
+  const delegates = await getSafeDelegates(safeService, safeAddress);
+  const owners = await safe.getOwners();
+
+  const isSafeProposer =
+    delegates.includes(proposer) || owners.includes(proposer);
+
+  if (isSafeProposer) {
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Safe proposer detected: ${proposer}`,
+      ),
+    );
+    return true;
+  } else {
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Safe proposer not detected: ${proposer}`,
+      ),
+    );
+    return false;
+  }
+}
+
+async function getSafeTxService(
+  chain: string,
+  multiProvider: MultiProvider,
+  bridgeAddress: Address,
+): Promise<any> {
+  let safeService;
+  try {
+    safeService = getSafeService(chain, multiProvider);
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(
+        `[${chain}][${bridgeAddress}] Safe service not available, cannot send safe transactions, please add the safe service url to registry and try again.`,
+      ),
+    );
+    throw { chain, error };
+  }
+  return safeService;
 }
 
 async function sendAsSafeMultiSend(
@@ -314,7 +384,7 @@ async function sendAsSafeMultiSend(
 
   try {
     const safeMultiSend = new SafeMultiSend(multiProvider, chain, safeAddress);
-
+    // TODO: SafeMultiSend.sendTransactions does not wait for the receipt
     await safeMultiSend.sendTransactions(multiSendTxs);
     rootLogger.info(
       chalk.green(
@@ -376,35 +446,84 @@ function getTxCallData(transactions: PopulatedTransaction[]): CallData[] {
 async function sendTransactions(
   multiProvider: MultiProvider,
   chain: string,
-  owner: Address,
+  expectedOwner: Address,
   transactions: PopulatedTransaction[],
+  xERC20Address: Address,
   bridgeAddress: Address,
 ): Promise<void> {
+  // function aims to successfully submit a transaction for the following scenarios:
+  // 1. (initial deployment before ownership transfer) xERC20 is owned by an EOA (deployer), the expected owner (safe) is NOT the actual owner (deployer), the configured signer (deployer) is the owner (deployer) -> send normal transaction
+  // 2. xERC20 is owned by an EOA (deployer), the expected owner (deployer) is the actual owner (deployer) and the configured signer (deployer) is the owner (deployer) -> send normal transaction
+  // 3. xERC20 is owned by a Safe, the expected owner (safe) is the actual owner (safe), the configured signer (deployer) has the ability to propose safe transactions -> propose a safe transaction
+  // The function will throw in some failure modes but not all scenarios have been covered yet and the script will fallback to sending as a signer which will likely fail
+
   const signer = multiProvider.getSigner(chain);
   const proposerAddress = await signer.getAddress();
-  const isSafeOwner = await checkSafeOwner(
+  const ownable = Ownable__factory.connect(xERC20Address, signer);
+  const actualOwner = await ownable.owner();
+
+  if (expectedOwner !== actualOwner && proposerAddress !== actualOwner) {
+    rootLogger.error(
+      chalk.red(
+        `[${chain}][${bridgeAddress}] Expected xERC20 owner does not match actual owner and configured signer is not the owner so cannot successful submit a transaction. Exiting...`,
+      ),
+    );
+    throw new Error(
+      'Expected xERC20 owner does not match actual owner and configured signer is not the owner either',
+    );
+  }
+
+  // only attempt to send as safe if
+  // (a) the actual owner is a safe
+  // (b) the signer (deployer) has the ability to propose transactions on the safe
+  // otherwise fallback to a signer transaction, this fallback will allow for us to handle scenario 1 even though the expected owner is a safe
+  const isOwnerSafe = await checkOwnerIsSafe(
     proposerAddress,
     chain,
     multiProvider,
-    owner,
+    actualOwner,
+    bridgeAddress,
   );
 
-  if (isSafeOwner) {
+  if (isOwnerSafe) {
+    const isSafeProposer = await checkSafeProposer(
+      proposerAddress,
+      chain,
+      multiProvider,
+      actualOwner,
+      bridgeAddress,
+    );
+    if (!isSafeProposer) {
+      rootLogger.error(
+        chalk.red(
+          `[${chain}][${bridgeAddress}] Signer ${proposerAddress} is not a proposer on Safe (${actualOwner}), cannot submit safe transaction. Exiting...`,
+        ),
+      );
+      throw new Error('Signer is not a safe proposer');
+    }
+
+    rootLogger.info(
+      chalk.gray(`[${chain}][${bridgeAddress}] Sending as Safe transaction`),
+    );
     await sendAsSafeMultiSend(
       chain,
-      owner,
+      actualOwner,
       multiProvider,
       transactions,
       bridgeAddress,
     );
-  } else {
-    await sendAsSignerMultiSend(
-      chain,
-      multiProvider,
-      transactions,
-      bridgeAddress,
-    );
+    return;
   }
+
+  rootLogger.info(
+    chalk.gray(`[${chain}][${bridgeAddress}] Sending as Signer transaction`),
+  );
+  await sendAsSignerMultiSend(
+    chain,
+    multiProvider,
+    transactions,
+    bridgeAddress,
+  );
 }
 
 export async function deriveBridgesConfig(
