@@ -1,5 +1,6 @@
-import { PopulatedTransaction } from 'ethers';
+import { Contract, PopulatedTransaction } from 'ethers';
 
+import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -12,11 +13,22 @@ import {
   SealevelHypTokenAdapter,
   Token,
   TokenStandard,
+  TokenType,
   WarpCore,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  objMap,
+  objMerge,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
-import { getWarpCoreConfig } from '../../../config/registry.js';
+import {
+  getWarpCoreConfig,
+  getWarpDeployConfig,
+} from '../../../config/registry.js';
 import { DeployEnvironment } from '../../../src/config/environment.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
@@ -67,14 +79,21 @@ async function main() {
   );
   const warpCoreConfig = getWarpCoreConfig(warpRouteId);
   const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
+  const warpDeployConfig = getWarpDeployConfig(warpRouteId);
 
-  await pollAndUpdateWarpRouteMetrics(checkFrequency, warpCore, chainMetadata);
+  await pollAndUpdateWarpRouteMetrics(
+    checkFrequency,
+    warpCore,
+    warpDeployConfig,
+    chainMetadata,
+  );
 }
 
 // Indefinitely loops, updating warp route metrics at the specified frequency.
 async function pollAndUpdateWarpRouteMetrics(
   checkFrequency: number,
   warpCore: WarpCore,
+  warpDeployConfig: WarpRouteDeployConfig,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
@@ -89,6 +108,7 @@ async function pollAndUpdateWarpRouteMetrics(
         warpCore.tokens.map((token) =>
           updateTokenMetrics(
             warpCore,
+            warpDeployConfig,
             token,
             tokenPriceGetter,
             collateralTokenSymbol,
@@ -103,6 +123,7 @@ async function pollAndUpdateWarpRouteMetrics(
 // Updates the metrics for a single token in a warp route.
 async function updateTokenMetrics(
   warpCore: WarpCore,
+  warpDeployConfig: WarpRouteDeployConfig,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
   collateralTokenSymbol: string,
@@ -146,6 +167,35 @@ async function updateTokenMetrics(
         updateXERC20LimitsMetrics(token, limits);
       }, 'Getting xERC20 limits'),
     );
+
+    // Check if the current xERC20 has also extra lockboxes
+    warpDeployConfig[token.chainName].type === TokenType.XERC20 ||
+      TokenType.XERC20Lockbox;
+  }
+
+  //If the current token is an xERC20, we need to check if there are any extra lockboxes
+  const currentTokenDeployConfig = warpDeployConfig[token.chainName];
+  if (
+    token.isXerc20() &&
+    (currentTokenDeployConfig.type === TokenType.XERC20 ||
+      currentTokenDeployConfig.type === TokenType.XERC20Lockbox)
+  ) {
+    const extraLockboxes =
+      currentTokenDeployConfig.xERC20?.extraLockboxLimits ?? [];
+
+    for (const lockbox of extraLockboxes) {
+      promises.push(
+        tryFn(async () => {
+          const limits = await getExtraLockboxLimits(
+            token,
+            warpCore.multiProvider,
+            lockbox.lockbox,
+          );
+
+          updateXERC20LimitsMetrics(token, limits, lockbox.lockbox);
+        }, 'Getting extra lockbox limits'),
+      );
+    }
   }
 
   await Promise.all(promises);
@@ -265,6 +315,42 @@ async function getXERC20Limit(
     mintMax: formatBigInt(mintMax),
     burn: formatBigInt(burnCurrent),
     burnMax: formatBigInt(burnMax),
+  };
+}
+
+async function getExtraLockboxLimits(
+  warpToken: Token,
+  multiProtocolProvider: MultiProtocolProvider,
+  lockboxAddress: Address,
+): Promise<XERC20Limit> {
+  const formatBigInt = (num: bigint) => {
+    return warpToken.amount(num).getDecimalFormattedAmount();
+  };
+
+  const lockboxInstance = new Contract(
+    lockboxAddress,
+    ['function XERC20() view returns (address)'],
+    multiProtocolProvider.getEthersV5Provider(warpToken.chainName),
+  );
+
+  const xERC20Address = await lockboxInstance.XERC20();
+  const vsXERC20Address = IXERC20VS__factory.connect(
+    xERC20Address,
+    multiProtocolProvider.getEthersV5Provider(warpToken.chainName),
+  );
+
+  const [mintMax, burnMax, mint, burn] = await Promise.all([
+    vsXERC20Address.mintingMaxLimitOf(lockboxAddress),
+    vsXERC20Address.burningMaxLimitOf(lockboxAddress),
+    vsXERC20Address.mintingCurrentLimitOf(lockboxAddress),
+    vsXERC20Address.burningCurrentLimitOf(lockboxAddress),
+  ]);
+
+  return {
+    burn: formatBigInt(burn.toBigInt()),
+    burnMax: formatBigInt(burnMax.toBigInt()),
+    mint: formatBigInt(mint.toBigInt()),
+    mintMax: formatBigInt(mintMax.toBigInt()),
   };
 }
 
