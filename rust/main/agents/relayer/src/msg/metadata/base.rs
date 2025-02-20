@@ -292,7 +292,7 @@ pub struct BaseMetadataBuilder {
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
-    #[new(value = "7")]
+    #[new(value = "13")]
     max_depth: u32,
 }
 
