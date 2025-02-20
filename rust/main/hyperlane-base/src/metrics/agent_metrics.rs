@@ -149,14 +149,14 @@ pub struct AgentMetricsConf {
 }
 
 /// Utility struct to update various metrics using a standalone tokio task
-pub struct MetricsUpdater {
+pub struct ChainSpecificMetricsUpdater {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     conf: AgentMetricsConf,
     provider: Box<dyn HyperlaneProvider>,
 }
 
-impl MetricsUpdater {
+impl ChainSpecificMetricsUpdater {
     /// Creates a new instance of the `MetricsUpdater`
     pub async fn new(
         chain_conf: &ChainConf,
@@ -180,7 +180,7 @@ impl MetricsUpdater {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;
         };
-        let wallet_name = self.conf.name.clone();
+        let agent_name = self.conf.name.clone();
         let Some(wallet_balance_metric) = self.agent_metrics.wallet_balance.clone() else {
             return;
         };
@@ -189,19 +189,19 @@ impl MetricsUpdater {
         match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
                 let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
-                trace!("Wallet {wallet_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
+                trace!("Wallet {agent_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
                 .with(&hashmap! {
                     "chain" => chain,
                     "wallet_address" => wallet_addr.as_str(),
-                    "wallet_name" => wallet_name.as_str(),
+                    "wallet_name" => agent_name.as_str(),
                     "token_address" => "none",
                     // Note: Whatever this `chain`'s native currency is
                     "token_symbol" => "Native",
                     "token_name" => "Native"
                 }).set(balance)
             },
-            Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
+            Err(e) => warn!("Metric update failed for wallet {agent_name} ({wallet_addr}) on chain {chain} balance for native currency; {e}")
         }
     }
 

@@ -212,6 +212,14 @@ pub fn relayer_termination_invariants_met(
         total_messages_expected + non_matching_igp_message_count + double_insertion_message_count,
     );
 
+    let dropped_tasks = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_tokio_dropped_tasks",
+        &hashmap! {"agent" => "relayer"},
+    )?;
+
+    assert_eq!(dropped_tasks.first().unwrap(), 0);
+
     if !relayer_balance_check(starting_relayer_balance)? {
         return Ok(false);
     }
