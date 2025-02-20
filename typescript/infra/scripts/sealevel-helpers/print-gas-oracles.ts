@@ -100,9 +100,6 @@ function getChainConnections(
     connectedChains = [
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
-      // Some branch-fu going on with the SMOL warp route,
-      // ultimately this can be removed once the SMOL PR is merged.
-      ['solanamainnet', 'treasure'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
