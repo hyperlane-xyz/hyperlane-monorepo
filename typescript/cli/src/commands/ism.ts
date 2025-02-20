@@ -1,8 +1,12 @@
 import { CommandModule } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
 import { readIsmConfig } from '../ism/read.js';
-import { log, logGray } from '../logger.js';
+import { log, logCommandHeader, logGray } from '../logger.js';
+import { runVerifyIsm } from '../verify/ism.js';
 
 import {
   addressCommandOption,
@@ -16,7 +20,8 @@ import {
 export const ismCommand: CommandModule = {
   command: 'ism',
   describe: 'Operations relating to ISMs',
-  builder: (yargs) => yargs.command(read).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(read).command(verify).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -50,5 +55,25 @@ export const read: CommandModuleWithContext<{
     logGray('------------------');
     await readIsmConfig(argv);
     process.exit(0);
+  },
+};
+
+export const verify: CommandModuleWithWriteContext<{
+  address: string;
+  chain: string;
+}> = {
+  command: 'verify',
+  describe: 'Verify deployed contracts on explorers',
+  builder: {
+    address: addressCommandOption('Address of the ism to read.', true),
+    chain: {
+      type: 'string',
+      description: 'The name of the chain that the ism is deployed to',
+    },
+  },
+  handler: async ({ context, address, chain: chainName }) => {
+    logCommandHeader('Hyperlane Ism Verify');
+
+    return runVerifyIsm({ context, address, chainName });
   },
 };
