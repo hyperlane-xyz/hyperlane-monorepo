@@ -8,7 +8,12 @@ use std::{
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::instruction::Instruction;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_sdk::{
+    account_utils::StateMut,
+    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+};
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -382,12 +387,6 @@ pub(crate) fn deploy_routers<
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-        if let Some(configured_owner) = app_config.router_config().ownable.owner {
-            if configured_owner != ctx.payer_pubkey {
-                println!("WARNING: Ownership transfer is not yet supported in this deploy tooling, ownership is granted to the payer account");
-            }
-        }
-
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
         // Deploy - this is idempotent.
@@ -423,6 +422,8 @@ pub(crate) fn deploy_routers<
             app_config.router_config(),
             chain_config,
         );
+
+        configure_upgrade_authority(ctx, &program_id, app_config.router_config(), chain_config);
     }
 
     // Now enroll all the routers.
@@ -540,6 +541,16 @@ fn configure_owner(
     let expected_owner = Some(router_config.ownable.owner(ctx.payer_pubkey));
 
     if actual_owner != expected_owner {
+        if actual_owner != Some(ctx.payer_pubkey) {
+            println!(
+                "WARNING: Ownership transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing owner is not the payer account",
+                chain_config.name,
+                chain_config.domain_id(),
+                actual_owner,
+                expected_owner,
+            );
+            return;
+        }
         ctx.new_txn()
             .add_with_description(
                 deployer.set_owner_instruction(&client, program_id, expected_owner),
@@ -548,6 +559,82 @@ fn configure_owner(
                     chain_config.name,
                     chain_config.domain_id(),
                     expected_owner,
+                ),
+            )
+            .with_client(&client)
+            .send_with_payer();
+    }
+}
+
+/// Idempotent. Attempts to set the upgrade authority to the intended owner if
+/// the payer can change the upgrade authority.
+fn configure_upgrade_authority(
+    ctx: &mut Context,
+    program_id: &Pubkey,
+    router_config: &RouterConfig,
+    chain_config: &ChainMetadata,
+) {
+    let client = chain_config.client();
+
+    let program_account = client.get_account(program_id).unwrap();
+    // If the program isn't upgradeable, exit
+    if program_account.owner == bpf_loader_upgradeable::id() {
+        return;
+    }
+
+    // The program id must actually be a program
+    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
+        programdata_address,
+    }) = program_account.state()
+    {
+        programdata_address
+    } else {
+        return;
+    };
+
+    let program_data_account = client.get_account(&programdata_address).unwrap();
+
+    // The program data account must actually a program data account
+    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
+        upgrade_authority_address,
+        slot: _,
+    }) = program_data_account.state()
+    {
+        upgrade_authority_address
+    } else {
+        return;
+    };
+
+    let expected_upgrade_authority = Some(router_config.ownable.owner(ctx.payer_pubkey));
+
+    // And the upgrade authority is not what we expect...
+    if actual_upgrade_authority.is_some() && actual_upgrade_authority != expected_upgrade_authority
+    {
+        // Flag if we can't change the upgrade authority
+        if actual_upgrade_authority != Some(ctx.payer_pubkey) {
+            println!(
+                "WARNING: Upgrade authority transfer cannot be completed for chain: {} ({}) from {:?} to {:?}, the existing upgrade authority is not the payer account",
+                chain_config.name,
+                chain_config.domain_id(),
+                actual_upgrade_authority,
+                expected_upgrade_authority,
+            );
+            return;
+        }
+
+        // Then set the upgrade authority to what we expect.
+        ctx.new_txn()
+            .add_with_description(
+                bpf_loader_upgradeable::set_upgrade_authority(
+                    program_id,
+                    actual_upgrade_authority.as_ref().unwrap(),
+                    expected_upgrade_authority.as_ref(),
+                ),
+                format!(
+                    "Setting upgrade authority for chain: {} ({}) to {:?}",
+                    chain_config.name,
+                    chain_config.domain_id(),
+                    expected_upgrade_authority,
                 ),
             )
             .with_client(&client)
