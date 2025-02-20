@@ -253,6 +253,10 @@ async function getTokenBridgedBalance(
   };
 }
 
+const formatBigInt = (warpToken: Token, num: bigint) => {
+  return warpToken.amount(num).getDecimalFormattedAmount();
+};
+
 // Gets the native balance of the ATA payer, which is used to pay for
 // rent when delivering tokens to an account that previously didn't
 // have a balance.
@@ -317,10 +321,6 @@ async function getXERC20Limit(
   token: Token,
   xerc20: IHypXERC20Adapter<PopulatedTransaction>,
 ): Promise<XERC20Limit> {
-  const formatBigInt = (num: bigint) => {
-    return token.amount(num).getDecimalFormattedAmount();
-  };
-
   const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
     xerc20.getMintLimit(),
     xerc20.getMintMaxLimit(),
@@ -329,10 +329,10 @@ async function getXERC20Limit(
   ]);
 
   return {
-    mint: formatBigInt(mintCurrent),
-    mintMax: formatBigInt(mintMax),
-    burn: formatBigInt(burnCurrent),
-    burnMax: formatBigInt(burnMax),
+    mint: formatBigInt(token, mintCurrent),
+    mintMax: formatBigInt(token, mintMax),
+    burn: formatBigInt(token, burnCurrent),
+    burnMax: formatBigInt(token, burnMax),
   };
 }
 
@@ -341,10 +341,6 @@ async function getExtraLockboxLimits(
   multiProtocolProvider: MultiProtocolProvider,
   lockboxAddress: Address,
 ): Promise<XERC20Limit> {
-  const formatBigInt = (num: bigint) => {
-    return warpToken.amount(num).getDecimalFormattedAmount();
-  };
-
   const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
     warpToken.chainName,
   );
@@ -368,10 +364,10 @@ async function getExtraLockboxLimits(
   ]);
 
   return {
-    burn: formatBigInt(burn.toBigInt()),
-    burnMax: formatBigInt(burnMax.toBigInt()),
-    mint: formatBigInt(mint.toBigInt()),
-    mintMax: formatBigInt(mintMax.toBigInt()),
+    burn: formatBigInt(warpToken, burn.toBigInt()),
+    burnMax: formatBigInt(warpToken, burnMax.toBigInt()),
+    mint: formatBigInt(warpToken, mint.toBigInt()),
+    mintMax: formatBigInt(warpToken, mintMax.toBigInt()),
   };
 }
 
