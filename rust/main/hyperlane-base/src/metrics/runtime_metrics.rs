@@ -2,7 +2,7 @@ use std::{fmt::Debug, time::Duration};
 
 use eyre::Result;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
-use prometheus::IntGauge;
+use prometheus::IntCounter;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tokio_metrics::{TaskMetrics, TaskMonitor};
 use tracing::{info_span, instrument::Instrumented, Instrument};
@@ -14,7 +14,7 @@ const RUNTIME_DROPPED_TASKS_HELP: &str = "The number of tasks dropped";
 /// Metrics for the runtime
 pub struct RuntimeMetrics {
     producer: TaskMonitor,
-    dropped_tasks: IntGauge,
+    dropped_tasks: IntCounter,
 }
 
 // Need this to be included in the agents structs
@@ -27,7 +27,7 @@ impl Debug for RuntimeMetrics {
 impl RuntimeMetrics {
     pub(crate) fn new(metrics: &CoreMetrics, task_monitor: TaskMonitor) -> Result<RuntimeMetrics> {
         let dropped_tasks = metrics
-            .new_int_gauge("tokio_dropped_tasks", RUNTIME_DROPPED_TASKS_HELP, &[])?
+            .new_int_counter("tokio_dropped_tasks", RUNTIME_DROPPED_TASKS_HELP, &[])?
             .with_label_values(&[]);
         let chain_metrics = Self {
             producer: task_monitor,
@@ -37,7 +37,7 @@ impl RuntimeMetrics {
     }
 
     fn update(&mut self, metrics: TaskMetrics) {
-        self.dropped_tasks.add(metrics.dropped_count as i64);
+        self.dropped_tasks.inc_by(metrics.dropped_count);
     }
 
     /// Periodically updates the metrics
