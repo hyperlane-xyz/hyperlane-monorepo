@@ -19,6 +19,8 @@ chai.should();
 const INDEX = 0;
 
 describe('hyperlane warp deploy and bridge e2e tests', async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+
   let config: WarpBridgeTestConfig;
   let warpConfigTestCases: ReadonlyArray<WarpRouteDeployConfig>;
 
