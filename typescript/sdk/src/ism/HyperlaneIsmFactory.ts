@@ -21,6 +21,11 @@ import {
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
+  StaticAggregationIsm__factory,
+  StaticMerkleRootMultisigIsm__factory,
+  StaticMerkleRootWeightedMultisigIsm__factory,
+  StaticMessageIdMultisigIsm__factory,
+  StaticMessageIdWeightedMultisigIsm__factory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
   StorageAggregationIsm__factory,
@@ -70,13 +75,51 @@ import {
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
 
-const ismFactories = {
+export const ismFactories = {
   [IsmType.PAUSABLE]: new PausableIsm__factory(),
   [IsmType.TRUSTED_RELAYER]: new TrustedRelayerIsm__factory(),
   [IsmType.TEST_ISM]: new TestIsm__factory(),
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
+  [IsmType.ROUTING]: new DomainRoutingIsm__factory(),
+  [IsmType.FALLBACK_ROUTING]: new DefaultFallbackRoutingIsm__factory(),
+  [IsmType.ICA_ROUTING]: new InterchainAccountIsm__factory(),
+  [IsmType.AMOUNT_ROUTING]: new AmountRoutingIsm__factory(),
+  [IsmType.AGGREGATION]: new StaticAggregationIsm__factory(),
+  [IsmType.MERKLE_ROOT_MULTISIG]: new StaticMerkleRootMultisigIsm__factory(),
+  [IsmType.MESSAGE_ID_MULTISIG]: new StaticMessageIdMultisigIsm__factory(),
+  [IsmType.STORAGE_AGGREGATION]: new StorageAggregationIsm__factory(),
+  [IsmType.STORAGE_MERKLE_ROOT_MULTISIG]:
+    new StorageMerkleRootMultisigIsm__factory(),
+  [IsmType.STORAGE_MESSAGE_ID_MULTISIG]:
+    new StorageMessageIdMultisigIsm__factory(),
+  [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]:
+    new StaticMerkleRootWeightedMultisigIsm__factory(),
+  [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]:
+    new StaticMessageIdWeightedMultisigIsm__factory(),
+};
+
+export const ismContracts = {
+  [IsmType.PAUSABLE]: 'PausableIsm',
+  [IsmType.TRUSTED_RELAYER]: 'TrustedRelayerIsm',
+  [IsmType.TEST_ISM]: 'TestIsm',
+  [IsmType.OP_STACK]: 'OPStackIsm',
+  [IsmType.ARB_L2_TO_L1]: 'ArbL2ToL1Ism',
+  [IsmType.CCIP]: 'CCIPIsm',
+  [IsmType.ROUTING]: 'DomainRoutingIsm',
+  [IsmType.FALLBACK_ROUTING]: 'DefaultFallbackRoutingIsm',
+  [IsmType.ICA_ROUTING]: 'InterchainAccountIsm',
+  [IsmType.AMOUNT_ROUTING]: 'AmountRoutingIsm',
+  [IsmType.AGGREGATION]: 'StaticAggregationIsm',
+  [IsmType.MERKLE_ROOT_MULTISIG]: 'StaticMerkleRootMultisigIsm',
+  [IsmType.MESSAGE_ID_MULTISIG]: 'StaticMessageIdMultisigIsm',
+  [IsmType.STORAGE_AGGREGATION]: 'StorageAggregationIsm',
+  [IsmType.STORAGE_MERKLE_ROOT_MULTISIG]: 'StorageMerkleRootMultisigIsm',
+  [IsmType.STORAGE_MESSAGE_ID_MULTISIG]: 'StorageMessageIdMultisigIsm',
+  [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]:
+    'StaticMerkleRootWeightedMultisigIsm',
+  [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: 'StaticMessageIdWeightedMultisigIsm',
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
