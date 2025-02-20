@@ -50,21 +50,8 @@ export type WarpBridgeTestConfig = {
 
 export async function runWarpBridgeTests(
   config: WarpBridgeTestConfig,
-  divideBy: number,
-  index: number,
+  warpConfigTestCases: ReadonlyArray<WarpRouteDeployConfig>,
 ) {
-  const warpConfigTestCases = generateTestCases(
-    config.chain2Addresses,
-    config.chain3Addresses,
-    config.ownerAddress,
-    config.tokenChain2,
-    config.vaultChain2,
-    config.tokenChain3,
-    config.vaultChain3,
-    divideBy,
-    index,
-  );
-
   for (let i = 0; i < warpConfigTestCases.length; i++) {
     const warpConfig = warpConfigTestCases[i];
     console.log(
@@ -123,7 +110,7 @@ export async function runWarpBridgeTests(
   }
 }
 
-export async function setupChains() {
+export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
   const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
@@ -182,30 +169,24 @@ export async function setupChains() {
 }
 
 export function generateTestCases(
-  chain2Addresses: ChainAddresses,
-  chain3Addresses: ChainAddresses,
-  ownerAddress: Address,
-  tokenChain2: ERC20Test,
-  vaultChain2: ERC4626Test,
-  tokenChain3: ERC20Test,
-  vaultChain3: ERC4626Test,
+  config: WarpBridgeTestConfig,
   divideBy: number,
   index: number,
 ): ReadonlyArray<WarpRouteDeployConfig> {
   const warpConfigTestCases = generateWarpConfigs(
     {
       chainName: CHAIN_NAME_2,
-      mailbox: chain2Addresses.mailbox,
-      owner: ownerAddress,
-      token: tokenChain2.address,
-      vault: vaultChain2.address,
+      mailbox: config.chain2Addresses.mailbox,
+      owner: config.ownerAddress,
+      token: config.tokenChain2.address,
+      vault: config.vaultChain2.address,
     },
     {
       chainName: CHAIN_NAME_3,
-      mailbox: chain3Addresses.mailbox,
-      owner: ownerAddress,
-      token: tokenChain3.address,
-      vault: vaultChain3.address,
+      mailbox: config.chain3Addresses.mailbox,
+      owner: config.ownerAddress,
+      token: config.tokenChain3.address,
+      vault: config.vaultChain3.address,
     },
   );
 
