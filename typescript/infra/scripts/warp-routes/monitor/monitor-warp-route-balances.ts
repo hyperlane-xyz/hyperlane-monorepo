@@ -1,6 +1,6 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
-import { IXERC20VS__factory } from '@hyperlane-xyz/core';
+import { ERC20__factory, IXERC20VS__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -194,6 +194,24 @@ async function updateTokenMetrics(
 
           updateXERC20LimitsMetrics(token, limits, lockbox.lockbox);
         }, 'Getting extra lockbox limits'),
+        tryFn(async () => {
+          const balance = await getExtraLockboxBalance(
+            token,
+            warpCore.multiProvider,
+            tokenPriceGetter,
+            lockbox.lockbox,
+          );
+
+          if (balance) {
+            updateTokenBalanceMetrics(
+              warpCore,
+              token,
+              balance,
+              collateralTokenSymbol,
+              lockbox.lockbox,
+            );
+          }
+        }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
       );
     }
   }
@@ -327,16 +345,19 @@ async function getExtraLockboxLimits(
     return warpToken.amount(num).getDecimalFormattedAmount();
   };
 
+  const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
+    warpToken.chainName,
+  );
   const lockboxInstance = new Contract(
     lockboxAddress,
     ['function XERC20() view returns (address)'],
-    multiProtocolProvider.getEthersV5Provider(warpToken.chainName),
+    currentChainProvider,
   );
 
   const xERC20Address = await lockboxInstance.XERC20();
   const vsXERC20Address = IXERC20VS__factory.connect(
     xERC20Address,
-    multiProtocolProvider.getEthersV5Provider(warpToken.chainName),
+    currentChainProvider,
   );
 
   const [mintMax, burnMax, mint, burn] = await Promise.all([
@@ -351,6 +372,48 @@ async function getExtraLockboxLimits(
     burnMax: formatBigInt(burnMax.toBigInt()),
     mint: formatBigInt(mint.toBigInt()),
     mintMax: formatBigInt(mintMax.toBigInt()),
+  };
+}
+
+async function getExtraLockboxBalance(
+  warpToken: Token,
+  multiProtocolProvider: MultiProtocolProvider,
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+  lockboxAddress: Address,
+): Promise<WarpRouteBalance | undefined> {
+  if (!warpToken.isXerc20()) {
+    return;
+  }
+
+  const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
+    warpToken.chainName,
+  );
+  const lockboxInstance = new Contract(
+    lockboxAddress,
+    [
+      'function XERC20() view returns (address)',
+      'function ERC20() view returns (address)',
+    ],
+    currentChainProvider,
+  );
+
+  const erc20TokenAddress = await lockboxInstance.ERC20();
+  const erc20TokenInstance = ERC20__factory.connect(
+    erc20TokenAddress,
+    currentChainProvider,
+  );
+
+  const [balance, tokenPrice] = await Promise.all([
+    erc20TokenInstance.balanceOf(lockboxAddress),
+    tryGetTokenPrice(warpToken, tokenPriceGetter),
+  ]);
+
+  return {
+    balance: warpToken.amount(balance.toBigInt()).getDecimalFormattedAmount(),
+    valueUSD: tokenPrice
+      ? warpToken.amount(balance.toBigInt()).getDecimalFormattedAmount() *
+        tokenPrice
+      : undefined,
   };
 }
 

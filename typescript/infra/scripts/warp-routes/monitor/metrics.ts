@@ -61,12 +61,13 @@ export function updateTokenBalanceMetrics(
   token: Token,
   balanceInfo: WarpRouteBalance,
   collateralTokenSymbol: string,
+  extraLockbox?: Address,
 ) {
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
     token_address: token.collateralAddressOrDenom || token.addressOrDenom,
     token_name: token.name,
-    wallet_address: token.addressOrDenom,
+    wallet_address: extraLockbox ?? token.addressOrDenom,
     token_standard: token.standard,
     warp_route_id: createWarpRouteConfigId(
       collateralTokenSymbol,
