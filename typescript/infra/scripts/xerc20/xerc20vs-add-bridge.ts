@@ -49,7 +49,12 @@ async function main() {
         envMultiProvider,
         dryRun,
       });
-    } catch {
+    } catch (e) {
+      rootLogger.error(
+        chalk.red(
+          `Error occurred while adding bridge to chain ${bridgeConfig.chain}: ${e}`,
+        ),
+      );
       erroredChains.push(bridgeConfig.chain);
     }
   }

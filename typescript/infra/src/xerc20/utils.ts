@@ -63,7 +63,6 @@ export async function addBridgeToChain({
     bridgeAddress,
     bufferCap,
     rateLimitPerSecond,
-    owner: expectedOwner,
     decimals,
   } = bridgeConfig;
 
@@ -126,7 +125,6 @@ export async function addBridgeToChain({
       await sendTransactions(
         envMultiProvider,
         chain,
-        expectedOwner,
         [tx],
         xERC20Address,
         bridgeAddress,
@@ -161,7 +159,6 @@ export async function updateChainLimits({
 }) {
   const {
     bridgeAddress,
-    owner,
     bufferCap,
     rateLimitPerSecond,
     decimals,
@@ -209,7 +206,6 @@ export async function updateChainLimits({
     await sendTransactions(
       envMultiProvider,
       chain,
-      owner,
       txsToSend,
       xERC20Address,
       bridgeAddress,
@@ -290,21 +286,21 @@ async function checkOwnerIsSafe(
   proposer: Address,
   chain: string,
   multiProvider: MultiProvider,
-  safeAddress: Address,
+  owner: Address,
   bridgeAddress: Address,
 ): Promise<boolean> {
   // check if safe service is available
   await getSafeTxService(chain, multiProvider, bridgeAddress);
 
   try {
-    await getSafe(chain, multiProvider, safeAddress);
-    rootLogger.info(
-      chalk.gray(`[${chain}][${bridgeAddress}] Safe found: ${safeAddress}`),
+    await getSafe(chain, multiProvider, owner);
+    rootLogger.debug(
+      chalk.gray(`[${chain}][${bridgeAddress}] Safe found: ${owner}`),
     );
     return true;
   } catch {
     rootLogger.info(
-      chalk.gray(`[${chain}][${bridgeAddress}] Safe not found: ${safeAddress}`),
+      chalk.gray(`[${chain}][${bridgeAddress}] Safe not found: ${owner}`),
     );
     return false;
   }
@@ -446,7 +442,6 @@ function getTxCallData(transactions: PopulatedTransaction[]): CallData[] {
 async function sendTransactions(
   multiProvider: MultiProvider,
   chain: string,
-  expectedOwner: Address,
   transactions: PopulatedTransaction[],
   xERC20Address: Address,
   bridgeAddress: Address,

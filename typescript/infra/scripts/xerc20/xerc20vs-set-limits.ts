@@ -48,7 +48,10 @@ async function main() {
         envMultiProvider,
         dryRun,
       });
-    } catch {
+    } catch (e) {
+      rootLogger.error(
+        `Error occurred while setting limits for chain ${bridgeConfig.chain}: ${e}`,
+      );
       erroredChains.push(bridgeConfig.chain);
     }
   }
