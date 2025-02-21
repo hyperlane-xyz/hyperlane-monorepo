@@ -47,6 +47,11 @@ import {
 import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
 import { logger, tryFn } from './utils.js';
 
+interface XERC20Info {
+  limits: XERC20Limit;
+  xERC20Address: Address;
+}
+
 async function main() {
   const {
     checkFrequency,
@@ -162,9 +167,15 @@ async function updateTokenMetrics(
   if (token.isXerc20()) {
     promises.push(
       tryFn(async () => {
-        const limits = await getXERC20Limits(warpCore, token);
+        const { limits, xERC20Address } = await getXERC20Info(warpCore, token);
         const routerAddress = token.addressOrDenom;
-        updateXERC20LimitsMetrics(token, limits, routerAddress);
+        updateXERC20LimitsMetrics(
+          token,
+          limits,
+          routerAddress,
+          token.standard,
+          xERC20Address,
+        );
       }, 'Getting xERC20 limits'),
     );
 
@@ -191,13 +202,19 @@ async function updateTokenMetrics(
     for (const lockbox of extraLockboxes) {
       promises.push(
         tryFn(async () => {
-          const limits = await getExtraLockboxLimits(
+          const { limits, xERC20Address } = await getExtraLockboxInfo(
             token,
             warpCore.multiProvider,
             lockbox.lockbox,
           );
 
-          updateXERC20LimitsMetrics(token, limits, lockbox.lockbox);
+          updateXERC20LimitsMetrics(
+            token,
+            limits,
+            lockbox.lockbox,
+            'EvmManagedLockbox',
+            xERC20Address,
+          );
         }, 'Getting extra lockbox limits'),
         tryFn(async () => {
           const balance = await getExtraLockboxBalance(
@@ -245,6 +262,7 @@ async function getTokenBridgedBalance(
   }
 
   const adapter = token.getHypAdapter(warpCore.multiProvider);
+  let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
   const bridgedSupply = await adapter.getBridgedSupply();
   if (bridgedSupply === undefined) {
     logger.warn('Bridged supply not found for token', token);
@@ -261,9 +279,15 @@ async function getTokenBridgedBalance(
     tokenPrice = await tryGetTokenPrice(token, tokenPriceGetter);
   }
 
+  if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+    tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
+      .address;
+  }
+
   return {
     balance,
     valueUSD: tokenPrice ? balance * tokenPrice : undefined,
+    tokenAddress,
   };
 }
 
@@ -337,10 +361,10 @@ async function getSealevelAtaPayerBalance(
   };
 }
 
-async function getXERC20Limits(
+async function getXERC20Info(
   warpCore: WarpCore,
   token: Token,
-): Promise<XERC20Limit> {
+): Promise<XERC20Info> {
   if (token.protocol !== ProtocolType.Ethereum) {
     throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
   }
@@ -349,12 +373,18 @@ async function getXERC20Limits(
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20Adapter;
-    return getXERC20Limit(token, adapter);
+    return {
+      limits: await getXERC20Limit(token, adapter),
+      xERC20Address: (await adapter.getXERC20()).address,
+    };
   } else if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20LockboxAdapter;
-    return getXERC20Limit(token, adapter);
+    return {
+      limits: await getXERC20Limit(token, adapter),
+      xERC20Address: (await adapter.getXERC20()).address,
+    };
   }
   throw new Error(`Unsupported XERC20 token standard ${token.standard}`);
 }
@@ -383,11 +413,11 @@ const managedLockBoxMinimalABI = [
   'function ERC20() view returns (address)',
 ] as const;
 
-async function getExtraLockboxLimits(
+async function getExtraLockboxInfo(
   warpToken: Token,
   multiProtocolProvider: MultiProtocolProvider,
   lockboxAddress: Address,
-): Promise<XERC20Limit> {
+): Promise<XERC20Info> {
   const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
     warpToken.chainName,
   );
@@ -411,10 +441,13 @@ async function getExtraLockboxLimits(
   ]);
 
   return {
-    burn: formatBigInt(warpToken, burn.toBigInt()),
-    burnMax: formatBigInt(warpToken, burnMax.toBigInt()),
-    mint: formatBigInt(warpToken, mint.toBigInt()),
-    mintMax: formatBigInt(warpToken, mintMax.toBigInt()),
+    limits: {
+      burn: formatBigInt(warpToken, burn.toBigInt()),
+      burnMax: formatBigInt(warpToken, burnMax.toBigInt()),
+      mint: formatBigInt(warpToken, mint.toBigInt()),
+      mintMax: formatBigInt(warpToken, mintMax.toBigInt()),
+    },
+    xERC20Address,
   };
 }
 
@@ -471,6 +504,7 @@ async function getExtraLockboxBalance(
   return {
     balance: balanceNumber,
     valueUSD: tokenPrice ? balanceNumber * tokenPrice : undefined,
+    tokenAddress: erc20TokenAddress,
   };
 }
 

@@ -18,7 +18,7 @@ interface WarpRouteMetrics {
   token_address: string;
   token_name: string;
   wallet_address: string;
-  token_standard: TokenStandard;
+  token_standard: TokenStandard | 'EvmManagedLockbox' | 'xERC20';
   warp_route_id: string;
   related_chain_names: string;
 }
@@ -59,6 +59,7 @@ const xERC20LimitsGauge = new Gauge({
     'token_name',
     'bridge_address',
     'token_address',
+    'bridge_label',
   ],
 });
 
@@ -67,14 +68,21 @@ export function updateTokenBalanceMetrics(
   token: Token,
   balanceInfo: WarpRouteBalance,
   collateralTokenSymbol: string,
-  extraLockbox?: Address,
 ) {
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
-    token_address: token.collateralAddressOrDenom || token.addressOrDenom,
+    token_address: balanceInfo.tokenAddress,
     token_name: token.name,
-    wallet_address: extraLockbox ?? token.addressOrDenom,
-    token_standard: token.standard,
+    wallet_address:
+      // the balance for an EvmHypERC20 token is returned as the total supply of the xERC20 token,
+      // therefore we set the wallet address to the token address,
+      // we follow the same pattern or synthetic tokens
+      token.standard !== TokenStandard.EvmHypXERC20
+        ? token.addressOrDenom
+        : balanceInfo.tokenAddress,
+    token_standard:
+      // as we are reporting the total supply for clarity we report the standard as xERC20
+      token.standard !== TokenStandard.EvmHypXERC20 ? token.standard : 'xERC20',
     warp_route_id: createWarpRouteConfigId(
       collateralTokenSymbol,
       warpCore.getTokenChains(),
@@ -122,7 +130,7 @@ export function updateManagedLockboxBalanceMetrics(
     token_address: tokenAddress,
     token_name: tokenName,
     wallet_address: lockBoxAddress,
-    token_standard: TokenStandard.EvmHypXERC20Lockbox, // TODO: we should eventually a new TokenStandard for this
+    token_standard: 'EvmManagedLockbox', // TODO: we should eventually a new TokenStandard for this
     warp_route_id: createWarpRouteConfigId(
       collateralTokenSymbol,
       warpCore.getTokenChains(),
@@ -150,7 +158,7 @@ export function updateManagedLockboxBalanceMetrics(
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
       },
-      'Wallet value updated for token',
+      'ManagedLockbox value updated for token',
     );
   }
 }
@@ -174,12 +182,15 @@ export function updateXERC20LimitsMetrics(
   token: Token,
   limits: XERC20Limit,
   bridgeAddress: Address,
+  bridgeLabel: string,
+  xERC20Address: Address,
 ) {
   const labels = {
     chain_name: token.chainName,
     token_name: token.name,
     bridge_address: bridgeAddress,
-    token_address: token.collateralAddressOrDenom,
+    token_address: xERC20Address,
+    bridge_label: bridgeLabel,
   };
 
   for (const [limitType, limit] of Object.entries(limits)) {
