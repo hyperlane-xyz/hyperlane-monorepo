@@ -46,7 +46,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        let started_at = this.started_at.get_or_insert_with(|| Instant::now());
+        let started_at = this.started_at.get_or_insert_with(Instant::now);
 
         if let Poll::Ready(v) = this.inner.poll(cx) {
             let code = v.as_ref().map_or(Code::Unknown, |resp| {
