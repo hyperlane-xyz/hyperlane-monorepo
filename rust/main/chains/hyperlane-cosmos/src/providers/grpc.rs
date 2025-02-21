@@ -28,6 +28,7 @@ use cosmrs::{
 };
 use derive_new::new;
 use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
+use ibc_proto::cosmos::{auth::v1beta1::QueryAccountResponse, bank::v1beta1::QueryBalanceResponse};
 use protobuf::Message as _;
 use serde::Serialize;
 use tonic::{
@@ -64,12 +65,201 @@ struct CosmosChannel {
 }
 
 impl CosmosChannel {
-    pub fn client_metrics(&self) -> &PrometheusClientMetrics {
-        &self.metrics
+    async fn track_metric_call<F, Fut, T>(&self, method: &str, func_call: F) -> ChainResult<T>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = ChainResult<T>>,
+    {
+        let start = Instant::now();
+        let res = func_call().await;
+
+        self.metrics
+            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
+        res
+    }
+}
+
+impl CosmosChannel {
+    async fn latest_block_height(&self) -> ChainResult<u64> {
+        self.track_metric_call("latest_block_height", || async {
+            let mut client = ServiceClient::new(self.channel.clone());
+            let request = tonic::Request::new(GetLatestBlockRequest {});
+            let response = client
+                .get_latest_block(request)
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner();
+
+            let height = response
+                .block
+                .ok_or_else(|| ChainCommunicationError::from_other_str("block not present"))?
+                .header
+                .ok_or_else(|| ChainCommunicationError::from_other_str("header not present"))?
+                .height;
+
+            Ok(height as u64)
+        })
+        .await
     }
 
-    pub fn metrics_config(&self) -> &PrometheusConfig {
-        &self.metrics_config
+    async fn estimate_gas(&self, payload: Vec<u8>) -> ChainResult<u64> {
+        self.track_metric_call("wasm_send", || async {
+            let tx_bytes = payload.to_vec();
+            let mut client = TxServiceClient::new(self.channel.clone());
+            #[allow(deprecated)]
+            let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
+            let response = client
+                .simulate(sim_req)
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner()
+                .gas_info
+                .ok_or_else(|| ChainCommunicationError::from_other_str("gas info not present"));
+            Ok(response?.gas_used)
+        })
+        .await
+    }
+
+    async fn account_query(&self, account: String) -> ChainResult<QueryAccountResponse> {
+        self.track_metric_call("account_query", || async {
+            let address = account.clone();
+            let mut client = QueryAccountClient::new(self.channel.clone());
+            let request = tonic::Request::new(QueryAccountRequest { address });
+            let response = client
+                .account(request)
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner();
+            Ok(response)
+        })
+        .await
+    }
+
+    async fn account_query_injective(
+        &self,
+        account: String,
+    ) -> ChainResult<injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse> {
+        self.track_metric_call("account_query_injective", || async {
+            let address = account.clone();
+            let request = tonic::Request::new(
+                injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest { address },
+            );
+
+            // Borrowed from the logic of `QueryAccountClient` in `cosmrs`, but using injective types.
+            let mut grpc_client = tonic::client::Grpc::new(self.channel.clone());
+            grpc_client
+                .ready()
+                .await
+                .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
+            let mut req: tonic::Request<
+                injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest,
+            > = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("cosmos.auth.v1beta1.Query", "Account"));
+
+            let response: tonic::Response<
+                injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
+            > = grpc_client
+                .unary(req, path, codec)
+                .await
+                .map_err(Into::<HyperlaneCosmosError>::into)?;
+            Ok(response.into_inner())
+        })
+        .await
+    }
+
+    async fn get_balance(
+        &self,
+        address: String,
+        denom: String,
+    ) -> ChainResult<QueryBalanceResponse> {
+        self.track_metric_call("get_balance", || async {
+            let address = address.clone();
+            let denom = denom.clone();
+
+            let mut client = QueryBalanceClient::new(self.channel.clone());
+            let balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });
+            let response = client
+                .balance(balance_request)
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner();
+            Ok(response)
+        })
+        .await
+    }
+
+    async fn wasm_query(
+        &self,
+        contract_address: String,
+        payload: Vec<u8>,
+        block_height: Option<u64>,
+    ) -> ChainResult<Vec<u8>> {
+        self.track_metric_call("wasm_query", || async {
+            let to = contract_address.clone();
+            let mut client = WasmQueryClient::new(self.channel.clone());
+            let mut request = tonic::Request::new(QuerySmartContractStateRequest {
+                address: to,
+                query_data: payload.clone(),
+            });
+            if let Some(block_height) = block_height {
+                request
+                    .metadata_mut()
+                    .insert("x-cosmos-block-height", block_height.into());
+            }
+            let response = client
+                .smart_contract_state(request)
+                .await
+                .map_err(ChainCommunicationError::from_other);
+            Ok(response?.into_inner().data)
+        })
+        .await
+    }
+
+    async fn wasm_contract_info(&self, contract_address: String) -> ChainResult<ContractInfo> {
+        self.track_metric_call("wasm_contract_info", || async {
+            let to = contract_address.clone();
+            let mut client = WasmQueryClient::new(self.channel.clone());
+
+            let request = tonic::Request::new(QueryContractInfoRequest { address: to });
+
+            let response = client
+                .contract_info(request)
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .into_inner()
+                .contract_info
+                .ok_or(ChainCommunicationError::from_other_str(
+                    "empty contract info",
+                ))?;
+            Ok(response)
+        })
+        .await
+    }
+
+    async fn wasm_send(&self, payload: Vec<u8>) -> ChainResult<TxResponse> {
+        self.track_metric_call("wasm_send", || async {
+            let tx_bytes = payload.to_vec();
+            let mut client = TxServiceClient::new(self.channel.clone());
+            // We often use U256s to represent gas limits, but Cosmos expects u64s. Try to convert,
+            // and if it fails, just fallback to None which will result in gas estimation.
+            let tx_req = BroadcastTxRequest {
+                tx_bytes,
+                mode: BroadcastMode::Sync as i32,
+            };
+            let response = client
+                .broadcast_tx(tx_req)
+                .await
+                .map_err(Into::<HyperlaneCosmosError>::into)?
+                .into_inner()
+                .tx_response
+                .ok_or_else(|| ChainCommunicationError::from_other_str("Empty tx_response"))?;
+            Ok(response)
+        })
+        .await
     }
 }
 
@@ -299,37 +489,8 @@ impl WasmGrpcProvider {
         let gas_used = self
             .provider
             .call(move |provider| {
-                let start = Instant::now();
-
-                let tx_bytes_clone = tx_bytes.clone();
-                let provider_channel = provider.channel.clone();
-
-                let future = async move {
-                    let mut client = TxServiceClient::new(provider_channel);
-                    #[allow(deprecated)]
-                    let sim_req = tonic::Request::new(SimulateRequest {
-                        tx: None,
-                        tx_bytes: tx_bytes_clone,
-                    });
-                    let response = client
-                        .simulate(sim_req)
-                        .await
-                        .map_err(ChainCommunicationError::from_other)?
-                        .into_inner()
-                        .gas_info
-                        .ok_or_else(|| {
-                            ChainCommunicationError::from_other_str("gas info not present")
-                        });
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "estimate_gas",
-                        start,
-                        response.is_ok(),
-                    );
-
-                    Ok(response?.gas_used)
-                };
+                let tx_bytes = tx_bytes.clone();
+                let future = async move { provider.estimate_gas(tx_bytes).await };
                 Box::pin(future)
             })
             .await?;
@@ -344,29 +505,9 @@ impl WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
-                let start = Instant::now();
-
-                let provider_channel = provider.channel.clone();
-
                 let address = address.clone();
                 let denom = denom.clone();
-                let future = async move {
-                    let mut client = QueryBalanceClient::new(provider_channel);
-                    let balance_request =
-                        tonic::Request::new(QueryBalanceRequest { address, denom });
-                    let response = client
-                        .balance(balance_request)
-                        .await
-                        .map_err(ChainCommunicationError::from_other);
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "get_balance",
-                        start,
-                        response.is_ok(),
-                    );
-                    Ok(response?.into_inner())
-                };
+                let future = async move { provider.get_balance(address, denom).await };
                 Box::pin(future)
             })
             .await?;
@@ -389,25 +530,8 @@ impl WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
-                let start = Instant::now();
-
                 let address = account.clone();
-                let future = async move {
-                    let mut client = QueryAccountClient::new(provider.channel.clone());
-                    let request = tonic::Request::new(QueryAccountRequest { address });
-                    let response = client
-                        .account(request)
-                        .await
-                        .map_err(ChainCommunicationError::from_other);
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "account_query",
-                        start,
-                        response.is_ok(),
-                    );
-                    Ok(response?.into_inner())
-                };
+                let future = async move { provider.account_query(address).await };
                 Box::pin(future)
             })
             .await?;
@@ -428,59 +552,14 @@ impl WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
-                let start = Instant::now();
-
                 let address = account.clone();
-                let future = async move {
-                    let request = tonic::Request::new(
-                        injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest {
-                            address,
-                        },
-                    );
-
-                    // Borrowed from the logic of `QueryAccountClient` in `cosmrs`, but using injective types.
-
-                    let mut grpc_client = tonic::client::Grpc::new(provider.channel.clone());
-                    grpc_client
-                        .ready()
-                        .await
-                        .map_err(Into::<HyperlaneCosmosError>::into)?;
-
-                    let codec = tonic::codec::ProstCodec::default();
-                    let path =
-                        http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
-                    let mut req: tonic::Request<
-                        injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest,
-                    > = request.into_request();
-                    req.extensions_mut()
-                        .insert(GrpcMethod::new("cosmos.auth.v1beta1.Query", "Account"));
-
-                    let response: Result<
-                        tonic::Response<
-                            injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse,
-                        >,
-                        HyperlaneCosmosError,
-                    > = grpc_client
-                        .unary(req, path, codec)
-                        .await
-                        .map_err(Into::<HyperlaneCosmosError>::into);
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "account_query_injective",
-                        start,
-                        response.is_ok(),
-                    );
-
-                    Ok(response?)
-                };
+                let future = async move { provider.account_query_injective(address).await };
                 Box::pin(future)
             })
             .await?;
 
         let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
             response
-                .into_inner()
                 .account
                 .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
                 .value
@@ -514,34 +593,11 @@ impl WasmProvider for WasmGrpcProvider {
             .provider
             .call(move |provider| {
                 let start = Instant::now();
-                let future = async move {
-                    let mut client = ServiceClient::new(provider.channel.clone());
-                    let request = tonic::Request::new(GetLatestBlockRequest {});
-                    let response = client
-                        .get_latest_block(request)
-                        .await
-                        .map_err(ChainCommunicationError::from_other);
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "latest_block_height",
-                        start,
-                        response.is_ok(),
-                    );
-                    Ok(response?.into_inner())
-                };
+                let future = async move { provider.latest_block_height().await };
                 Box::pin(future)
             })
             .await?;
-
-        let height = response
-            .block
-            .ok_or_else(|| ChainCommunicationError::from_other_str("block not present"))?
-            .header
-            .ok_or_else(|| ChainCommunicationError::from_other_str("header not present"))?
-            .height;
-
-        Ok(height as u64)
+        Ok(response)
     }
 
     async fn wasm_query<T>(&self, payload: T, block_height: Option<u64>) -> ChainResult<Vec<u8>>
@@ -553,40 +609,13 @@ impl WasmProvider for WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
-                let start = Instant::now();
-
                 let to = contract_address.address().clone();
                 let query_data = query_data.clone();
-                let future = async move {
-                    let mut client = WasmQueryClient::new(provider.channel.clone());
-
-                    let mut request = tonic::Request::new(QuerySmartContractStateRequest {
-                        address: to,
-                        query_data,
-                    });
-                    if let Some(block_height) = block_height {
-                        request
-                            .metadata_mut()
-                            .insert("x-cosmos-block-height", block_height.into());
-                    }
-                    let response = client
-                        .smart_contract_state(request)
-                        .await
-                        .map_err(ChainCommunicationError::from_other);
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "wasm_query",
-                        start,
-                        response.is_ok(),
-                    );
-                    Ok(response?.into_inner())
-                };
+                let future = async move { provider.wasm_query(to, query_data, block_height).await };
                 Box::pin(future)
             })
             .await?;
-
-        Ok(response.data)
+        Ok(response)
     }
 
     async fn wasm_contract_info(&self) -> ChainResult<ContractInfo> {
@@ -594,29 +623,8 @@ impl WasmProvider for WasmGrpcProvider {
         let response = self
             .provider
             .call(move |provider| {
-                let start = Instant::now();
                 let to = contract_address.address().clone();
-                let future = async move {
-                    let mut client = WasmQueryClient::new(provider.channel.clone());
-
-                    let request = tonic::Request::new(QueryContractInfoRequest { address: to });
-
-                    let response = client
-                        .contract_info(request)
-                        .await
-                        .map_err(ChainCommunicationError::from_other);
-
-                    provider.client_metrics().increment_metrics(
-                        provider.metrics_config(),
-                        "wasm_contract_info",
-                        start,
-                        response.is_ok(),
-                    );
-
-                    response?.into_inner().contract_info.ok_or(
-                        ChainCommunicationError::from_other_str("empty contract info"),
-                    )
-                };
+                let future = async move { provider.wasm_contract_info(to).await };
                 Box::pin(future)
             })
             .await?;
@@ -663,39 +671,14 @@ impl WasmProvider for WasmGrpcProvider {
             });
         }
 
-        let tx_res =
-            self.provider
-                .call(move |provider| {
-                    let start = Instant::now();
-
-                    let tx_bytes = tx_bytes.clone();
-                    let future = async move {
-                        let mut client = TxServiceClient::new(provider.channel.clone());
-                        // We often use U256s to represent gas limits, but Cosmos expects u64s. Try to convert,
-                        // and if it fails, just fallback to None which will result in gas estimation.
-                        let tx_req = BroadcastTxRequest {
-                            tx_bytes,
-                            mode: BroadcastMode::Sync as i32,
-                        };
-                        let response = client
-                            .broadcast_tx(tx_req)
-                            .await
-                            .map_err(Into::<HyperlaneCosmosError>::into);
-
-                        provider.client_metrics().increment_metrics(
-                            provider.metrics_config(),
-                            "wasm_send",
-                            start,
-                            response.is_ok(),
-                        );
-
-                        response?.into_inner().tx_response.ok_or_else(|| {
-                            ChainCommunicationError::from_other_str("Empty tx_response")
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
+        let tx_res = self
+            .provider
+            .call(move |provider| {
+                let tx_bytes = tx_bytes.clone();
+                let future = async move { provider.wasm_send(tx_bytes).await };
+                Box::pin(future)
+            })
+            .await?;
         debug!(tx_result=?tx_res, domain=?self.domain, ?payload, "Wasm transaction sent");
         Ok(tx_res)
     }
