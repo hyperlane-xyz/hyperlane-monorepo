@@ -14,6 +14,7 @@ import {
 } from '../../src/xerc20/utils.js';
 import {
   getArgs,
+  withChains,
   withDryRun,
   withWarpRouteIdRequired,
 } from '../agent-utils.js';
@@ -21,8 +22,8 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId, dryRun } = await withWarpRouteIdRequired(
-    withDryRun(getArgs()),
+  const { environment, warpRouteId, chains, dryRun } = await withChains(
+    withWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
 
   const { warpDeployConfig, warpCoreConfig } =
@@ -36,6 +37,20 @@ async function main() {
     warpCoreConfig,
     envMultiProvider,
   );
+
+  const configChains = Object.keys(bridgesConfig);
+  if (chains) {
+    const missingChains = chains.filter(
+      (chain) => !configChains.includes(chain),
+    );
+    if (missingChains.length > 0) {
+      throw new Error(
+        `The following chains are not in the provided warp config: ${missingChains.join(
+          ', ',
+        )}`,
+      );
+    }
+  }
 
   const erroredChains: string[] = [];
 
