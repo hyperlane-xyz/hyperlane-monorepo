@@ -129,6 +129,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.txOverrides = multiProvider.getTransactionOverrides(this.chain);
   }
 
+  //optimize to not fetch the config from the chain in case actual config is provided
   public async read(): Promise<HookConfig> {
     return typeof this.args.config === 'string'
       ? this.args.addresses.deployedHook
