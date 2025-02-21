@@ -54,8 +54,6 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
       // XERC20s are Ownable
       const expectedConfig = this.configMap[chain];
-      const tokenType = expectedConfig.type;
-
       if (expectedConfig.type === TokenType.XERC20Lockbox) {
         const lockbox = IXERC20Lockbox__factory.connect(
           expectedConfig.token,
@@ -71,7 +69,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         );
       }
 
-      if (tokenType === TokenType.XERC20) {
+      if (expectedConfig.type === TokenType.XERC20) {
         contracts['collateralToken'] = Ownable__factory.connect(
           collateralToken.address,
           provider,
