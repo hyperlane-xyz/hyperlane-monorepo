@@ -8,6 +8,7 @@ import {
   Ownable__factory,
 } from '@hyperlane-xyz/core';
 import {
+  ChainMap,
   ChainName,
   EvmHypVSXERC20Adapter,
   EvmHypVSXERC20LockboxAdapter,
@@ -620,6 +621,27 @@ function getHypVSXERC20Adapter(
       chainName,
       multiProtocolProvider,
       addresses,
+    );
+  }
+}
+
+export function validateConfigChains(
+  chains: string[] | undefined,
+  bridgesConfig: ChainMap<BridgeConfig>,
+) {
+  if (!chains) {
+    return;
+  }
+
+  const configChains = Object.keys(bridgesConfig);
+  const nonConfigChains = chains.filter(
+    (chain) => !configChains.includes(chain),
+  );
+  if (nonConfigChains.length > 0) {
+    throw new Error(
+      `The following chains are not in the provided warp config: ${nonConfigChains.join(
+        ', ',
+      )}`,
     );
   }
 }

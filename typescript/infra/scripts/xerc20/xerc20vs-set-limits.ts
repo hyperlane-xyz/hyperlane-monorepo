@@ -11,6 +11,7 @@ import {
   deriveBridgesConfig,
   getWarpConfigsAndArtifacts,
   updateChainLimits,
+  validateConfigChains,
 } from '../../src/xerc20/utils.js';
 import {
   getArgs,
@@ -32,25 +33,16 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
   const envMultiProvider = await envConfig.getMultiProvider();
+
   const bridgesConfig = await deriveBridgesConfig(
     warpDeployConfig,
     warpCoreConfig,
     envMultiProvider,
   );
 
-  const configChains = Object.keys(bridgesConfig);
-  if (chains) {
-    const missingChains = chains.filter(
-      (chain) => !configChains.includes(chain),
-    );
-    if (missingChains.length > 0) {
-      throw new Error(
-        `The following chains are not in the provided warp config: ${missingChains.join(
-          ', ',
-        )}`,
-      );
-    }
-  }
+  // if chains are provided, validate that they are in the warp config
+  // throw an error if they are not
+  validateConfigChains(chains, bridgesConfig);
 
   const erroredChains: string[] = [];
 
