@@ -10,8 +10,8 @@ import {
 import {
   addBridgeToChain,
   deriveBridgesConfig,
+  getAndValidateBridgesToUpdate,
   getWarpConfigsAndArtifacts,
-  validateConfigChains,
 } from '../../src/xerc20/utils.js';
 import {
   getArgs,
@@ -42,11 +42,11 @@ async function main() {
 
   // if chains are provided, validate that they are in the warp config
   // throw an error if they are not
-  validateConfigChains(chains, bridgesConfig);
+  const bridgesToUpdate = getAndValidateBridgesToUpdate(chains, bridgesConfig);
 
   const erroredChains: string[] = [];
 
-  for (const [_, bridgeConfig] of Object.entries(bridgesConfig)) {
+  for (const bridgeConfig of bridgesToUpdate) {
     try {
       await addBridgeToChain({
         chain: bridgeConfig.chain,

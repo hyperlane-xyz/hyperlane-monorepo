@@ -201,7 +201,7 @@ export async function updateChainLimits({
   ) as PopulatedTransaction[];
   if (txsToSend.length === 0) {
     rootLogger.info(
-      chalk.yellow(`[${chain}][${bridgeAddress}] Nothing to update`),
+      chalk.blue(`[${chain}][${bridgeAddress}] Nothing to update`),
     );
     return;
   }
@@ -631,14 +631,17 @@ function getHypVSXERC20Adapter(
   }
 }
 
-export function validateConfigChains(
+export function getAndValidateBridgesToUpdate(
   chains: string[] | undefined,
   bridgesConfig: Record<string, BridgeConfig>,
-) {
+): BridgeConfig[] {
+  // if no chains are provided, return all configs
   if (!chains || chains.length === 0) {
-    return;
+    return Object.values(bridgesConfig);
   }
 
+  // check that all provided chains are in the warp config
+  // throw an error if any are not
   const configChains = Object.values(bridgesConfig).map(
     (config) => config.chain,
   );
@@ -652,4 +655,9 @@ export function validateConfigChains(
       )}`,
     );
   }
+
+  // return only the configs that are in the chains array
+  return Object.values(bridgesConfig).filter((config) =>
+    chains.includes(config.chain),
+  );
 }
