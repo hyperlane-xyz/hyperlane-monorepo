@@ -189,21 +189,24 @@ export async function updateChainLimits({
       xERC20Adapter,
       bridgeAddress,
     );
-    if (!dryRun) {
-      await sendTransactions(
-        envMultiProvider,
-        chain,
-        [removeBridgeTx],
-        xERC20Address,
-        bridgeAddress,
-      );
-    } else {
+
+    if (dryRun) {
       rootLogger.info(
         chalk.gray(
           `[${chain}][${bridgeAddress}] Dry run, no transactions sent, exiting...`,
         ),
       );
+      return;
     }
+
+    await sendTransactions(
+      envMultiProvider,
+      chain,
+      [removeBridgeTx],
+      xERC20Address,
+      bridgeAddress,
+    );
+
     return;
   }
 
