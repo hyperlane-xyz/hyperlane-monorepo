@@ -9,7 +9,9 @@ function formatExplorerUrl(
   { apiUrl, apiKey }: EtherscanAPIOptions,
   params: Record<string, string | number | bigint>,
 ): string {
-  const urlObject = new URL(apiUrl);
+  // hack for blockscout API urls that in the explorer have the eth-rpc path set
+  // as it will cause requests to fail
+  const urlObject = new URL(apiUrl.replace('eth-rpc', ''));
   for (const [key, value] of Object.entries(params)) {
     urlObject.searchParams.append(key, value.toString());
   }
@@ -45,10 +47,10 @@ type GetContractDeploymentTransactionResponse = {
   txHash: HexString;
 };
 
-export async function getContractDeploymentTransaction(
+export async function tryGetContractDeploymentTransaction(
   explorerOptions: EtherscanAPIOptions,
   { contractAddress }: { contractAddress: Address },
-): Promise<GetContractDeploymentTransactionResponse> {
+): Promise<GetContractDeploymentTransactionResponse | undefined> {
   const options: GetContractDeploymentTransaction = {
     module: 'contract',
     action: 'getcontractcreation',
@@ -62,9 +64,21 @@ export async function getContractDeploymentTransaction(
     Array<GetContractDeploymentTransactionResponse>
   >(response);
 
+  return deploymentTx;
+}
+
+export async function getContractDeploymentTransaction(
+  explorerOptions: EtherscanAPIOptions,
+  requestOptions: { contractAddress: Address },
+): Promise<GetContractDeploymentTransactionResponse> {
+  const deploymentTx = await tryGetContractDeploymentTransaction(
+    explorerOptions,
+    requestOptions,
+  );
+
   if (!deploymentTx) {
     throw new Error(
-      `No deployment transaction found for contract ${contractAddress}`,
+      `No deployment transaction found for contract ${requestOptions.contractAddress}`,
     );
   }
 
@@ -81,7 +95,7 @@ type GetEventLogs = {
   topic0: string;
 };
 
-type GetEventLogsResponse = {
+export type GetEventLogsResponse = {
   address: Address;
   blockNumber: HexString;
   data: HexString;
