@@ -26,6 +26,7 @@ injective-protobuf = { workspace = true }
 injective-std = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
+pin-project.workspace = true
 protobuf = { workspace = true }
 ripemd = { workspace = true }
 serde = { workspace = true }
@@ -43,6 +44,7 @@ tonic = { workspace = true, features = [
     "tls-roots",
     "tls-native-roots",
 ] }
+tower.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
