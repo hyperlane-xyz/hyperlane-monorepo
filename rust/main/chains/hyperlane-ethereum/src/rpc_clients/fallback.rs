@@ -132,6 +132,9 @@ where
         // errors reported by providers
         let mut errors = vec![];
 
+        // non-retryable error from previous attempt
+        let mut non_retriable = None;
+
         // retry 4 times if all providers returned a retryable error
         for i in 0..=3 {
             if i > 0 {
@@ -145,8 +148,12 @@ where
             while let Some(resp) = unordered.next().await {
                 let value = match categorize_client_response(method, resp) {
                     IsOk(v) => serde_json::from_value(v)?,
-                    NonRetryableErr(e) | RetryableErr(e) | RateLimitErr(e) => {
+                    RetryableErr(e) | RateLimitErr(e) => {
                         errors.push(e.into());
+                        continue;
+                    }
+                    NonRetryableErr(e) => {
+                        non_retriable = Some(e);
                         continue;
                     }
                 };
@@ -158,6 +165,12 @@ where
                 }
 
                 return Ok(value);
+            }
+
+            // if we are here, it means that all providers failed
+            // if one of the errors was non-retryable, we stop doing retrying attempts
+            if let Some(e) = non_retriable {
+                return Err(e.into());
             }
         }
 
