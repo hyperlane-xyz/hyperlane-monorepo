@@ -1,6 +1,6 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
-import { ERC20__factory, IXERC20VS__factory } from '@hyperlane-xyz/core';
+import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -8,6 +8,7 @@ import {
   CoinGeckoTokenPriceGetter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmTokenAdapter,
   IHypXERC20Adapter,
   MultiProtocolProvider,
   SealevelHypTokenAdapter,
@@ -25,10 +26,7 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import {
-  getWarpCoreConfig,
-  getWarpDeployConfig,
-} from '../../../config/registry.js';
+import { getWarpCoreConfig } from '../../../config/registry.js';
 import { DeployEnvironment } from '../../../src/config/environment.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
@@ -41,6 +39,7 @@ import { getEnvironmentConfig } from '../../core-utils.js';
 
 import {
   metricsRegister,
+  updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
@@ -79,7 +78,7 @@ async function main() {
   );
   const warpCoreConfig = getWarpCoreConfig(warpRouteId);
   const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
-  const warpDeployConfig = getWarpDeployConfig(warpRouteId);
+  const warpDeployConfig = await registry.getWarpDeployConfig(warpRouteId);
 
   await pollAndUpdateWarpRouteMetrics(
     checkFrequency,
@@ -93,7 +92,7 @@ async function main() {
 async function pollAndUpdateWarpRouteMetrics(
   checkFrequency: number,
   warpCore: WarpCore,
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfig | null,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
@@ -123,7 +122,7 @@ async function pollAndUpdateWarpRouteMetrics(
 // Updates the metrics for a single token in a warp route.
 async function updateTokenMetrics(
   warpCore: WarpCore,
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfig | null,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
   collateralTokenSymbol: string,
@@ -164,29 +163,28 @@ async function updateTokenMetrics(
     promises.push(
       tryFn(async () => {
         const limits = await getXERC20Limits(warpCore, token);
-
-        const tokenAddress =
-          token.standard === TokenStandard.EvmHypXERC20Lockbox &&
-          token.collateralAddressOrDenom
-            ? token.collateralAddressOrDenom
-            : token.addressOrDenom;
-
-        updateXERC20LimitsMetrics(token, limits, tokenAddress);
+        const routerAddress = token.addressOrDenom;
+        updateXERC20LimitsMetrics(token, limits, routerAddress);
       }, 'Getting xERC20 limits'),
     );
 
-    // Check if the current xERC20 has also extra lockboxes
-    warpDeployConfig[token.chainName].type === TokenType.XERC20 ||
-      TokenType.XERC20Lockbox;
-  }
+    if (!warpDeployConfig) {
+      logger.warn(
+        `Cant read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
+      );
+      return;
+    }
 
-  //If the current token is an xERC20, we need to check if there are any extra lockboxes
-  const currentTokenDeployConfig = warpDeployConfig[token.chainName];
-  if (
-    token.isXerc20() &&
-    (currentTokenDeployConfig.type === TokenType.XERC20 ||
-      currentTokenDeployConfig.type === TokenType.XERC20Lockbox)
-  ) {
+    // If the current token is an xERC20, we need to check if there are any extra lockboxes
+    const currentTokenDeployConfig = warpDeployConfig[token.chainName];
+    if (
+      currentTokenDeployConfig.type !== TokenType.XERC20 &&
+      currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
+    ) {
+      logger.error('Token is xERC20 but token deploy config is not');
+      return;
+    }
+
     const extraLockboxes =
       currentTokenDeployConfig.xERC20?.extraLockboxLimits ?? [];
 
@@ -210,12 +208,21 @@ async function updateTokenMetrics(
           );
 
           if (balance) {
-            updateTokenBalanceMetrics(
+            const { tokenName, tokenAddress } =
+              await getManagedLockBoxCollateralInfo(
+                token,
+                warpCore.multiProvider,
+                lockbox.lockbox,
+              );
+
+            updateManagedLockboxBalanceMetrics(
               warpCore,
-              token,
+              token.chainName,
+              tokenName,
+              tokenAddress,
+              lockbox.lockbox,
               balance,
               collateralTokenSymbol,
-              lockbox.lockbox,
             );
           }
         }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
@@ -260,9 +267,37 @@ async function getTokenBridgedBalance(
   };
 }
 
-const formatBigInt = (warpToken: Token, num: bigint) => {
+async function getManagedLockBoxCollateralInfo(
+  warpToken: Token,
+  multiProtocolProvider: MultiProtocolProvider,
+  lockBoxAddress: Address,
+): Promise<{ tokenName: string; tokenAddress: Address }> {
+  const lockBoxInstance = await getManagedLockBox(
+    warpToken,
+    multiProtocolProvider,
+    lockBoxAddress,
+  );
+
+  const collateralTokenAddress = await lockBoxInstance.ERC20();
+  const collateralTokenAdapter = new EvmTokenAdapter(
+    warpToken.chainName,
+    multiProtocolProvider,
+    {
+      token: collateralTokenAddress,
+    },
+  );
+
+  const { name } = await collateralTokenAdapter.getMetadata();
+
+  return {
+    tokenName: name,
+    tokenAddress: collateralTokenAddress,
+  };
+}
+
+function formatBigInt(warpToken: Token, num: bigint): number {
   return warpToken.amount(num).getDecimalFormattedAmount();
-};
+}
 
 // Gets the native balance of the ATA payer, which is used to pay for
 // rent when delivering tokens to an account that previously didn't
@@ -356,17 +391,17 @@ async function getExtraLockboxLimits(
   const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
     warpToken.chainName,
   );
-  const lockboxInstance = new Contract(
+  const lockboxInstance = await getManagedLockBox(
+    warpToken,
+    multiProtocolProvider,
     lockboxAddress,
-    managedLockBoxMinimalABI,
-    currentChainProvider,
   );
 
   const xERC20Address = await lockboxInstance.XERC20();
   const vsXERC20Address = IXERC20VS__factory.connect(
     xERC20Address,
     currentChainProvider,
-  );
+  ); // todo use adapter
 
   const [mintMax, burnMax, mint, burn] = await Promise.all([
     vsXERC20Address.mintingMaxLimitOf(lockboxAddress),
@@ -383,6 +418,16 @@ async function getExtraLockboxLimits(
   };
 }
 
+async function getManagedLockBox(
+  warpToken: Token,
+  multiProtocolProvider: MultiProtocolProvider,
+  lockboxAddress: Address,
+): Promise<Contract> {
+  const chainName = warpToken.chainName;
+  const provider = multiProtocolProvider.getEthersV5Provider(chainName);
+  return new Contract(lockboxAddress, managedLockBoxMinimalABI, provider);
+}
+
 async function getExtraLockboxBalance(
   warpToken: Token,
   multiProtocolProvider: MultiProtocolProvider,
@@ -393,32 +438,39 @@ async function getExtraLockboxBalance(
     return;
   }
 
-  const currentChainProvider = multiProtocolProvider.getEthersV5Provider(
-    warpToken.chainName,
-  );
-  const lockboxInstance = new Contract(
+  const lockboxInstance = await getManagedLockBox(
+    warpToken,
+    multiProtocolProvider,
     lockboxAddress,
-    managedLockBoxMinimalABI,
-    currentChainProvider,
   );
 
   const erc20TokenAddress = await lockboxInstance.ERC20();
-  const erc20TokenInstance = ERC20__factory.connect(
-    erc20TokenAddress,
-    currentChainProvider,
+  const erc20tokenAdapter = new EvmTokenAdapter(
+    warpToken.chainName,
+    multiProtocolProvider,
+    {
+      token: erc20TokenAddress,
+    },
   );
 
-  const [balance, tokenPrice] = await Promise.all([
-    erc20TokenInstance.balanceOf(lockboxAddress),
-    tryGetTokenPrice(warpToken, tokenPriceGetter),
-  ]);
+  let balance;
+  try {
+    balance = await erc20tokenAdapter.getBalance(lockboxAddress);
+  } catch (e) {
+    logger.error(
+      `Error getting balance for contract at "${lockboxAddress}" on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
+      e,
+    );
+    return;
+  }
+
+  const tokenPrice = await tryGetTokenPrice(warpToken, tokenPriceGetter);
+
+  const balanceNumber = formatBigInt(warpToken, balance);
 
   return {
-    balance: warpToken.amount(balance.toBigInt()).getDecimalFormattedAmount(),
-    valueUSD: tokenPrice
-      ? warpToken.amount(balance.toBigInt()).getDecimalFormattedAmount() *
-        tokenPrice
-      : undefined,
+    balance: balanceNumber,
+    valueUSD: tokenPrice ? balanceNumber * tokenPrice : undefined,
   };
 }
 

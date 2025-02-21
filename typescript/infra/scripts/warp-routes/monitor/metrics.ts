@@ -53,7 +53,13 @@ const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
   help: 'Current minting and burning limits of xERC20 tokens',
   registers: [metricsRegister],
-  labelNames: ['chain_name', 'limit_type', 'token_name', 'bridge_address'],
+  labelNames: [
+    'chain_name',
+    'limit_type',
+    'token_name',
+    'bridge_address',
+    'token_address',
+  ],
 });
 
 export function updateTokenBalanceMetrics(
@@ -100,6 +106,54 @@ export function updateTokenBalanceMetrics(
     );
   }
 }
+// TODO: This does not need to be a separate function, we can redefine updateTokenBalanceMetrics to be generic
+// TODO: Consider adding some identifier for the managedLockbox contract, could be adding collateralName label for lockboxes, this would help different manages lockboxes that has a different collateral token
+export function updateManagedLockboxBalanceMetrics(
+  warpCore: WarpCore,
+  chainName: ChainName,
+  tokenName: string,
+  tokenAddress: string,
+  lockBoxAddress: string,
+  balanceInfo: WarpRouteBalance,
+  collateralTokenSymbol: string,
+) {
+  const metrics: WarpRouteMetrics = {
+    chain_name: chainName,
+    token_address: tokenAddress,
+    token_name: tokenName,
+    wallet_address: lockBoxAddress,
+    token_standard: TokenStandard.EvmHypXERC20Lockbox, // TODO: we should eventually a new TokenStandard for this
+    warp_route_id: createWarpRouteConfigId(
+      collateralTokenSymbol,
+      warpCore.getTokenChains(),
+    ),
+    related_chain_names: warpCore
+      .getTokenChains()
+      .filter((_chainName) => _chainName !== chainName)
+      .sort()
+      .join(','),
+  };
+
+  warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
+  logger.info(
+    {
+      labels: metrics,
+      balance: balanceInfo.balance,
+    },
+    'ManagedLockbox collateral balance updated',
+  );
+
+  if (balanceInfo.valueUSD) {
+    warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
+    logger.info(
+      {
+        labels: metrics,
+        valueUSD: balanceInfo.valueUSD,
+      },
+      'Wallet value updated for token',
+    );
+  }
+}
 
 export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
   walletBalanceGauge
@@ -121,21 +175,27 @@ export function updateXERC20LimitsMetrics(
   limits: XERC20Limit,
   bridgeAddress: Address,
 ) {
+  const labels = {
+    chain_name: token.chainName,
+    token_name: token.name,
+    bridge_address: bridgeAddress,
+    token_address: token.collateralAddressOrDenom,
+  };
+
   for (const [limitType, limit] of Object.entries(limits)) {
     xERC20LimitsGauge
       .labels({
-        chain_name: token.chainName,
+        ...labels,
         limit_type: limitType,
-        token_name: token.name,
-        bridge_address: bridgeAddress,
       })
       .set(limit);
   }
 
   logger.info(
-    'xERC20 limits updated for bridge at %s on chain %s with data %o',
-    bridgeAddress,
-    token.chainName,
-    limits,
+    {
+      ...labels,
+      limits,
+    },
+    'xERC20 limits updated for bridge on token',
   );
 }
