@@ -2,8 +2,8 @@ import { HyperlaneCore, StarknetCore } from '@hyperlane-xyz/sdk';
 import { ChainName, MessageService } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
-import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { CommandContext, WriteCommandContext } from '../context/types.js';
+import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
+import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -105,72 +105,4 @@ export async function sendTestMessage({
     timeoutSec * 1000,
     'Timed out waiting for message to be delivered',
   );
-}
-
-async function executeDelivery({
-  context,
-  origin,
-  destination,
-  messageBody,
-  skipWaitForDelivery,
-  selfRelay,
-}: {
-  context: CommandContext;
-  origin: ChainName;
-  destination: ChainName;
-  messageBody: string;
-  skipWaitForDelivery: boolean;
-  selfRelay?: boolean;
-}) {
-  const { registry, multiProvider } = context;
-  const chainAddresses = await registry.getAddresses();
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-
-  try {
-    const recipient = chainAddresses[destination].testRecipient;
-    if (!recipient) {
-      throw new Error(`Unable to find TestRecipient for ${destination}`);
-    }
-    const formattedRecipient = addressToBytes32(recipient);
-
-    log('Dispatching message');
-    const { dispatchTx, message } = await core.sendMessage(
-      origin,
-      destination,
-      formattedRecipient,
-      messageBody,
-      // override the default hook (with IGP) for self-relay to avoid race condition with the production relayer
-      selfRelay ? chainAddresses[origin].merkleTreeHook : undefined,
-    );
-    logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
-    logBlue(`Message ID: ${message.id}`);
-    logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
-    log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
-
-    if (selfRelay) {
-      const relayer = new HyperlaneRelayer({ core });
-
-      const hookAddress = await core.getSenderHookAddress(message);
-      const merkleAddress = chainAddresses[origin].merkleTreeHook;
-      stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
-
-      log('Attempting self-relay of message');
-      await relayer.relayMessage(dispatchTx);
-      logGreen('Message was self-relayed!');
-    } else {
-      if (skipWaitForDelivery) {
-        return;
-      }
-
-      log('Waiting for message delivery on destination chain...');
-      // Max wait 10 minutes
-      await core.waitForMessageProcessed(dispatchTx, 10000, 60);
-      logGreen('Message was delivered!');
-    }
-  } catch (e) {
-    errorRed(
-      `Encountered error sending message from ${origin} to ${destination}`,
-    );
-    throw e;
-  }
 }

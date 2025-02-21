@@ -107,6 +107,7 @@ export async function createChainConfig({
 
   const arbitrumNitroMetadata: Pick<ChainMetadata, 'index'> = {};
   if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     const indexFrom = await detectAndConfirmOrPrompt(
       async () => {
         return (await provider.getBlockNumber()).toString();

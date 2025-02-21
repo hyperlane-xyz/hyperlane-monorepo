@@ -179,11 +179,10 @@ export async function runWarpRouteDeploy({
             (_, contracts) => getRouter(contracts).address,
           );
 
-          const { warpCoreConfig, addWarpRouteOptions } =
-            await getWarpCoreConfig(
-              { context, warpDeployConfig: warpRouteConfig },
-              deployedContracts,
-            );
+          const { warpCoreConfig } = await getWarpCoreConfig(
+            { context, warpDeployConfig: warpRouteConfig },
+            deployedContracts,
+          );
           deployments.tokens = [
             ...deployments.tokens,
             ...warpCoreConfig.tokens,
@@ -212,7 +211,7 @@ export async function runWarpRouteDeploy({
           warpRouteConfig,
           multiProvider,
         });
-        const warpCoreConfig = await getWarpCoreConfigForStarknet(
+        const { warpCoreConfig } = await getWarpCoreConfigForStarknet(
           warpRouteConfig,
           multiProvider,
           routerAddresses.starknet,
@@ -236,7 +235,7 @@ export async function runWarpRouteDeploy({
   });
 
   fullyConnectTokens(deployments, context.multiProvider);
-  await writeDeploymentArtifacts(deployments, context, addWarpRouteOptions);
+  await writeDeploymentArtifacts(deployments, context);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -1219,7 +1218,10 @@ async function getWarpCoreConfigForStarknet(
   warpDeployConfig: WarpRouteDeployConfig,
   multiProvider: MultiProvider,
   contracts: ChainMap<string>,
-): Promise<WarpCoreConfig> {
+): Promise<{
+  warpCoreConfig: WarpCoreConfig;
+  addWarpRouteOptions?: AddWarpRouteOptions;
+}> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
@@ -1245,7 +1247,7 @@ async function getWarpCoreConfigForStarknet(
 
   fullyConnectTokens(warpCoreConfig, multiProvider);
 
-  return warpCoreConfig;
+  return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
 
 function generateTokenConfigsForStarknet(
