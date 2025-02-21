@@ -23,7 +23,12 @@ import {
 import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
-import { SafeMultiSend, SignerMultiSend } from '../govern/multisend.js';
+import {
+  ManualMultiSend,
+  MultiSend,
+  SafeMultiSend,
+  SignerMultiSend,
+} from '../govern/multisend.js';
 import { getSafeAndService } from '../utils/safe.js';
 import { getInfraPath } from '../utils/utils.js';
 
@@ -338,66 +343,41 @@ async function checkSafeProposer(
   }
 }
 
-async function sendAsSafeMultiSend(
+async function sendAsMultiSend(
   chain: string,
-  safeAddress: Address,
-  multiProvider: MultiProvider,
   transactions: PopulatedTransaction[],
   bridgeAddress: Address,
+  multiSend?: MultiSend,
+  safeAddress?: Address,
 ) {
-  rootLogger.info(
-    chalk.gray(
-      `[${chain}][${bridgeAddress}] Using SafeMultiSend for ${transactions.length} transaction(s) to ${safeAddress}...`,
-    ),
-  );
-
-  const multiSendTxs = getTxCallData(transactions);
-
-  try {
-    const safeMultiSend = new SafeMultiSend(multiProvider, chain, safeAddress);
-    // TODO: SafeMultiSend.sendTransactions does not wait for the receipt
-    await safeMultiSend.sendTransactions(multiSendTxs);
+  if (!multiSend) {
     rootLogger.info(
-      chalk.green(
-        `[${chain}][${bridgeAddress}] Safe multi-send transaction(s) submitted.`,
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] No MultiSend configured, falling back to manual mode.`,
       ),
     );
-  } catch (error) {
-    rootLogger.error(
-      chalk.red(
-        `[${chain}][${bridgeAddress}] Error sending safe transactions:`,
-        error,
-      ),
-    );
-    throw { chain, error };
+    multiSend = new ManualMultiSend(chain);
   }
-}
 
-async function sendAsSignerMultiSend(
-  chain: string,
-  multiProvider: MultiProvider,
-  transactions: PopulatedTransaction[],
-  bridgeAddress: Address,
-) {
+  const targetAddress = safeAddress ? ` to ${safeAddress}` : '';
   rootLogger.info(
     chalk.gray(
-      `[${chain}][${bridgeAddress}] Using SignerMultiSend for ${transactions.length} transaction(s)...`,
+      `[${chain}][${bridgeAddress}] Using ${multiSend.constructor.name}MultiSend for ${transactions.length} transaction(s)${targetAddress}...`,
     ),
   );
 
   const multiSendTxs = getTxCallData(transactions);
   try {
-    const signerMultiSend = new SignerMultiSend(multiProvider, chain);
-    await signerMultiSend.sendTransactions(multiSendTxs);
+    await multiSend.sendTransactions(multiSendTxs);
     rootLogger.info(
       chalk.green(
-        `[${chain}][${bridgeAddress}] Signer multi-send transaction(s) submitted.`,
+        `[${chain}][${bridgeAddress}] ${multiSend.constructor.name} multi-send transaction(s) submitted.`,
       ),
     );
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `[${chain}][${bridgeAddress}] Error sending signer transactions:`,
+        `[${chain}][${bridgeAddress}] Error sending ${multiSend.constructor.name} transactions:`,
         error,
       ),
     );
@@ -442,6 +422,9 @@ async function sendTransactions(
     bridgeAddress,
   );
 
+  let sender: MultiSend | undefined;
+  let safeAddress: Address | undefined;
+
   if (isOwnerSafe) {
     const isSafeProposer = await checkSafeProposer(
       signerAddress,
@@ -456,39 +439,34 @@ async function sendTransactions(
           `[${chain}][${bridgeAddress}] Signer ${signerAddress} is not a proposer on Safe (${actualOwner}), cannot submit safe transaction. Exiting...`,
         ),
       );
-      throw new Error('Signer is not a safe proposer');
+    } else {
+      rootLogger.info(
+        chalk.gray(`[${chain}][${bridgeAddress}] Sending as Safe transaction`),
+      );
+      sender = new SafeMultiSend(multiProvider, chain, actualOwner);
+      safeAddress = actualOwner;
     }
-
-    rootLogger.info(
-      chalk.gray(`[${chain}][${bridgeAddress}] Sending as Safe transaction`),
-    );
-    await sendAsSafeMultiSend(
-      chain,
-      actualOwner,
-      multiProvider,
-      transactions,
-      bridgeAddress,
-    );
-    return;
   }
 
   if (signerAddress !== actualOwner) {
-    rootLogger.error(
+    rootLogger.warn(
       chalk.red(
-        `[${chain}][${bridgeAddress}] Signer is not the owner of the xERC20 so cannot successful submit a Signer transaction. Exiting...`,
+        `[${chain}][${bridgeAddress}] Signer is not the owner of the xERC20 so cannot successful submit a Signer transaction.`,
       ),
     );
-    throw new Error('Signer is not the owner of the xERC20');
+  } else {
+    rootLogger.info(
+      chalk.gray(`[${chain}][${bridgeAddress}] Sending as Signer transaction`),
+    );
+    sender = new SignerMultiSend(multiProvider, chain);
   }
 
-  rootLogger.info(
-    chalk.gray(`[${chain}][${bridgeAddress}] Sending as Signer transaction`),
-  );
-  await sendAsSignerMultiSend(
+  await sendAsMultiSend(
     chain,
-    multiProvider,
     transactions,
     bridgeAddress,
+    sender,
+    safeAddress,
   );
 }
 
