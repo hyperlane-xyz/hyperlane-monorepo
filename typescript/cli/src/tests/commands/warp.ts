@@ -19,10 +19,8 @@ $.verbose = true;
  * Deploys the Warp route to the specified chain using the provided config.
  */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
-  // --overrides is " " to allow local testing to work
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp init \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         --out ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
@@ -47,7 +45,6 @@ export function hyperlaneWarpDeployRaw({
     hypKey ? ['HYP_KEY=' + hypKey] : ''
   } yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         ${warpCorePath ? ['--config', warpCorePath] : ''} \
         ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
@@ -75,7 +72,6 @@ export async function hyperlaneWarpApply(
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
@@ -99,7 +95,6 @@ export function hyperlaneWarpReadRaw({
 }): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         ${warpAddress ? ['--address', warpAddress] : ''} \
         ${chain ? ['--chain', chain] : ''} \
         ${symbol ? ['--symbol', symbol] : ''} \
@@ -136,7 +131,6 @@ export function hyperlaneWarpCheckRaw({
     hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : ''
   } yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         ${symbol ? ['--symbol', symbol] : ''} \
         ${privateKey && !hypKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
@@ -164,7 +158,6 @@ export function hyperlaneWarpSendRelay(
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         ${relay ? '--relay' : ''} \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         --origin ${origin} \
         --destination ${destination} \
         --warp ${warpCorePath} \

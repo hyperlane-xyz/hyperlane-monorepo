@@ -213,7 +213,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [cosmwasm, evm, sealevel]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -240,7 +240,7 @@ jobs:
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type == 'non-cosmwasm' && './rust/sealevel' || '' }}
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         run: |
@@ -269,13 +269,6 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: agent tests (CosmWasm)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
-        if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust/main
-        env:
-          RUST_BACKTRACE: 'full'
-
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
@@ -286,16 +279,42 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: agent tests (EVM and Sealevel)
+      - name: agent tests (CosmWasm)
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests (EVM)
         run: cargo run --release --bin run-locally --features test-utils
-        if: matrix.e2e-type == 'non-cosmwasm'
+        if: ${{ matrix.e2e-type == 'evm' }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
+
+      - name: agent tests (Sealevel)
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: e2e-matrix
+    if: always()
+    steps:
+      - name: Check e2e matrix status
+        if: ${{ needs.e2e-matrix.result != 'success' }}
+        run: |
+          echo "E2E tests failed"
+          exit 1
 
   env-test:
     runs-on: ubuntu-latest

@@ -1,5 +1,48 @@
 # @hyperlane-xyz/helloworld
 
+## 8.7.0
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/core@5.11.4
+
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
+## 8.6.0
+
+### Patch Changes
+
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/core@5.11.2
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [044665692]
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/core@5.11.1
+  - @hyperlane-xyz/sdk@8.5.0
+
 ## 8.4.0
 
 ### Patch Changes

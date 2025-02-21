@@ -1,5 +1,58 @@
 # @hyperlane-xyz/cli
 
+## 8.7.0
+
+### Minor Changes
+
+- db832b803: Added support for multiple registries in CLI with prioritization.
+- 7dd1f64a6: Update submitWarpApplyTransactions() to try-catch and print safe errors
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/utils@8.7.0
+
+## 8.6.1
+
+### Patch Changes
+
+- 236f27b5f: Fix cli package dependencies.
+  - @hyperlane-xyz/sdk@8.6.1
+  - @hyperlane-xyz/utils@8.6.1
+
+## 8.6.0
+
+### Minor Changes
+
+- d2bc2cfec: Update CLI package.json to be able to export functions
+
+### Patch Changes
+
+- 1e6ee0b9c: Fix default multichain strategy resolving.
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/sdk@8.5.0
+  - @hyperlane-xyz/utils@8.5.0
+
 ## 8.4.0
 
 ### Patch Changes

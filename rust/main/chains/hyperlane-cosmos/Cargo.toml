@@ -21,6 +21,8 @@ hex = { workspace = true }
 http = { workspace = true }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-cosmwasm-interface.workspace = true
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 ibc-proto = { workspace = true }
