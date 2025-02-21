@@ -100,7 +100,10 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's metadata has not been set
    */
   getChainMetadata(chainNameOrId: ChainNameOrId): ChainMetadata<MetaExt> {
-    const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
+    let chainMetadata = this.tryGetChainMetadata(chainNameOrId);
+    if (chainNameOrId === 'paradexsepolia') {
+      chainMetadata = this.tryGetChainMetadata('starknetsepolia');
+    }
     if (!chainMetadata) {
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
     }
