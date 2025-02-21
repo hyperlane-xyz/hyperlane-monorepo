@@ -129,11 +129,11 @@ where
 
         let params = serde_json::to_value(params).expect("valid");
 
-        // errors reported by providers
-        let mut errors = vec![];
+        // retryable errors reported by providers
+        let mut retryable_errors = vec![];
 
-        // non-retryable error from previous attempt
-        let mut non_retriable = None;
+        // non-retryable errors reported by providers
+        let mut non_retryable_errors = vec![];
 
         // retry 4 times if all providers returned a retryable error
         for i in 0..=3 {
@@ -149,19 +149,19 @@ where
                 let value = match categorize_client_response(method, resp) {
                     IsOk(v) => serde_json::from_value(v)?,
                     RetryableErr(e) | RateLimitErr(e) => {
-                        errors.push(e.into());
+                        retryable_errors.push(e.into());
                         continue;
                     }
                     NonRetryableErr(e) => {
-                        non_retriable = Some(e);
+                        non_retryable_errors.push(e.into());
                         continue;
                     }
                 };
 
                 // if we are here, it means one of the providers returned a successful result
-                if !errors.is_empty() {
+                if !retryable_errors.is_empty() {
                     // we log a warning if we got errors from some providers
-                    warn!(errors_count=?errors.len(), errors=?errors, providers=?self.inner.providers, "multicast_request");
+                    warn!(errors_count=?retryable_errors.len(), errors=?retryable_errors, providers=?self.inner.providers, "multicast_request");
                 }
 
                 return Ok(value);
@@ -169,13 +169,15 @@ where
 
             // if we are here, it means that all providers failed
             // if one of the errors was non-retryable, we stop doing retrying attempts
-            if let Some(e) = non_retriable {
-                return Err(e.into());
+            if !non_retryable_errors.is_empty() {
+                // we can unwrap here since array is not empty
+                return Err(non_retryable_errors.pop().unwrap());
             }
         }
 
         // we don't add a warning with all errors since an error will be logged later on
-        Err(FallbackError::AllProvidersFailed(errors).into())
+        retryable_errors.extend(non_retryable_errors);
+        Err(FallbackError::AllProvidersFailed(retryable_errors).into())
     }
 
     async fn fallback<T, R>(&self, method: &str, params: T) -> Result<R, ProviderError>
