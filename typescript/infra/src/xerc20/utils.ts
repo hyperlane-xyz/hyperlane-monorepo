@@ -18,15 +18,13 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
-  getSafe,
-  getSafeDelegates,
-  getSafeService,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { SafeMultiSend, SignerMultiSend } from '../govern/multisend.js';
+import { getSafeAndService } from '../utils/safe.js';
 import { getInfraPath } from '../utils/utils.js';
 
 export const XERC20_BRIDGES_CONFIG_PATH = join(
@@ -283,17 +281,13 @@ async function prepareRateLimitTx(
 }
 
 async function checkOwnerIsSafe(
-  proposer: Address,
   chain: string,
   multiProvider: MultiProvider,
   owner: Address,
   bridgeAddress: Address,
 ): Promise<boolean> {
-  // check if safe service is available
-  await getSafeTxService(chain, multiProvider, bridgeAddress);
-
   try {
-    await getSafe(chain, multiProvider, owner);
+    await getSafeAndService(chain, multiProvider, owner);
     rootLogger.debug(
       chalk.gray(`[${chain}][${bridgeAddress}] Safe found: ${owner}`),
     );
@@ -313,16 +307,16 @@ async function checkSafeProposer(
   safeAddress: Address,
   bridgeAddress: Address,
 ): Promise<boolean> {
-  const safeService = await getSafeTxService(
+  const { safeSdk, safeService } = await getSafeAndService(
     chain,
     multiProvider,
-    bridgeAddress,
+    safeAddress,
   );
-  // TODO: assumes the safeAddress is in fact a safe
-  const safe = await getSafe(chain, multiProvider, safeAddress);
 
-  const delegates = await getSafeDelegates(safeService, safeAddress);
-  const owners = await safe.getOwners();
+  const delegates = await safeService
+    .getSafeDelegates({ safeAddress })
+    .then((r) => r.results.map((r) => r.delegate));
+  const owners = await safeSdk.getOwners();
 
   const isSafeProposer =
     delegates.includes(proposer) || owners.includes(proposer);
@@ -342,25 +336,6 @@ async function checkSafeProposer(
     );
     return false;
   }
-}
-
-async function getSafeTxService(
-  chain: string,
-  multiProvider: MultiProvider,
-  bridgeAddress: Address,
-): Promise<any> {
-  let safeService;
-  try {
-    safeService = getSafeService(chain, multiProvider);
-  } catch (error) {
-    rootLogger.error(
-      chalk.red(
-        `[${chain}][${bridgeAddress}] Safe service not available, cannot send safe transactions, please add the safe service url to registry and try again.`,
-      ),
-    );
-    throw { chain, error };
-  }
-  return safeService;
 }
 
 async function sendAsSafeMultiSend(
@@ -461,7 +436,6 @@ async function sendTransactions(
   // (b) the signer (deployer) has the ability to propose transactions on the safe
   // otherwise fallback to a signer transaction, this fallback will allow for us to handle scenario 1 even though the expected owner is a safe
   const isOwnerSafe = await checkOwnerIsSafe(
-    signerAddress,
     chain,
     multiProvider,
     actualOwner,
