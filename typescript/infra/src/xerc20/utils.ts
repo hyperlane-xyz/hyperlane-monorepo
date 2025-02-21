@@ -298,9 +298,15 @@ async function checkOwnerIsSafe(
       chalk.gray(`[${chain}][${bridgeAddress}] Safe found: ${owner}`),
     );
     return true;
-  } catch {
-    rootLogger.info(
-      chalk.gray(`[${chain}][${bridgeAddress}] Safe not found: ${owner}`),
+  } catch (error) {
+    const level =
+      error instanceof Error &&
+      error.message.includes('must provide tx service url')
+        ? 'warn'
+        : 'info';
+    const color = level === 'warn' ? chalk.yellow : chalk.gray;
+    rootLogger[level](
+      color(`[${chain}][${bridgeAddress}] Safe not found: ${owner}. ${error}`),
     );
     return false;
   }
@@ -627,13 +633,15 @@ function getHypVSXERC20Adapter(
 
 export function validateConfigChains(
   chains: string[] | undefined,
-  bridgesConfig: ChainMap<BridgeConfig>,
+  bridgesConfig: Record<string, BridgeConfig>,
 ) {
-  if (!chains) {
+  if (!chains || chains.length === 0) {
     return;
   }
 
-  const configChains = Object.keys(bridgesConfig);
+  const configChains = Object.values(bridgesConfig).map(
+    (config) => config.chain,
+  );
   const nonConfigChains = chains.filter(
     (chain) => !configChains.includes(chain),
   );
