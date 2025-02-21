@@ -2,6 +2,7 @@ import { Logger } from 'pino';
 import {
   Account,
   CallData,
+  Contract,
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
@@ -42,6 +43,7 @@ export class StarknetDeployer {
 
     const compiledContract = getCompiledContract(contractName, contractType);
     const casm = getCompiledContractCasm(contractName, contractType);
+    console.log('STARKNET DEPLOYER: constructorArgs', constructorArgs);
     const constructorCalldata = CallData.compile(constructorArgs);
 
     const params: ContractFactoryParams = {
@@ -51,7 +53,9 @@ export class StarknetDeployer {
     };
 
     const contractFactory = new ContractFactory(params);
+    console.log('STARKNET DEPLOYER: constructorCalldata', constructorCalldata);
     const contract = await contractFactory.deploy(constructorCalldata);
+    console.log('STARKNET DEPLOYER: contract address', contract.address);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)
@@ -100,10 +104,47 @@ export class StarknetDeployer {
         ];
 
         break;
-      case IsmType.ROUTING:
-        constructorArgs = [ismConfig.owner];
+      case IsmType.ROUTING: {
+        const ROUTING_ISM_ABI = [
+          {
+            type: 'function',
+            name: 'set',
+            inputs: [
+              { name: '_domain', type: 'core::integer::u32' },
+              {
+                name: '_module',
+                type: 'core::starknet::contract_address::ContractAddress',
+              },
+            ],
+            outputs: [],
+            state_mutability: 'external',
+          },
+        ];
 
-        break;
+        constructorArgs = [ismConfig.owner];
+        const ismAddress = await this.deployContract(
+          contractName,
+          constructorArgs,
+        );
+        const contract = new Contract(
+          ROUTING_ISM_ABI,
+          ismAddress,
+          this.account,
+        );
+        const domains = ismConfig.domains;
+        for (const domain of Object.keys(domains)) {
+          const route = await this.deployIsm({
+            chain,
+            ismConfig: domains[domain],
+            mailbox,
+          });
+          console.log('STARKNET DEPLOYER: domain', domain);
+          console.log('STARKNET DEPLOYER: route', route);
+          await contract.invoke('set', [domain, route]);
+        }
+
+        return ismAddress;
+      }
       case IsmType.PAUSABLE:
         constructorArgs = [ismConfig.owner];
 

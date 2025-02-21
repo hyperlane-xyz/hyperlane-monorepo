@@ -137,6 +137,61 @@ export async function runWarpRouteDeploy({
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
+  warpRouteConfig.sepolia.interchainSecurityModule = {
+    type: IsmType.ROUTING,
+    owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943',
+    ownerOverrides: {},
+    domains: {
+      starknetsepolia: {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.PAUSABLE,
+            owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943',
+            paused: false,
+            ownerOverrides: {},
+          },
+          {
+            type: IsmType.MESSAGE_ID_MULTISIG,
+            validators: ['0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'],
+            threshold: 1,
+          },
+        ],
+        threshold: 2,
+      },
+    },
+  };
+
+  warpRouteConfig.starknetsepolia.interchainSecurityModule = {
+    type: IsmType.ROUTING,
+    owner: '0x073Be77d7BD7B2A4eDFB15E33f4b0CF30AEaf795B39618667A4b0146f48Eeba4',
+    ownerOverrides: {},
+    domains: {
+      sepolia: {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.PAUSABLE,
+            owner:
+              '0x073Be77d7BD7B2A4eDFB15E33f4b0CF30AEaf795B39618667A4b0146f48Eeba4',
+            paused: false,
+            ownerOverrides: {},
+          },
+          {
+            type: IsmType.MESSAGE_ID_MULTISIG,
+            validators: ['0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'],
+            threshold: 1,
+          },
+        ],
+        threshold: 2,
+      },
+    },
+  };
+  warpRouteConfig.starknetsepolia.interchainSecurityModule =
+    '0x0609232fc85f4ba827d8ea04e8ac26727098d70c0a5a24168a1bf4d9c743df9e';
+
+  console.log('warpRouteConfig', JSON.stringify(warpRouteConfig, null, 2));
+
   await runDeployPlanStep({
     context,
     warpDeployConfig: warpRouteConfig,
@@ -191,7 +246,9 @@ export async function runWarpRouteDeploy({
             ...deployments.options,
             ...warpCoreConfig.options,
           };
+          console.log('ETH WARPCORECONFIG', warpCoreConfig);
         }
+
         break;
 
       case ProtocolType.Starknet:
@@ -217,7 +274,9 @@ export async function runWarpRouteDeploy({
           routerAddresses.starknet,
         );
         deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
+        console.log('STARKNET WARPCORECONFIG', warpCoreConfig);
         break;
+        throw new Error('test');
 
       default:
         throw new Error(`Unsupported protocol type: ${protocol}`);
