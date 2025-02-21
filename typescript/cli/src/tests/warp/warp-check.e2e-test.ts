@@ -14,7 +14,7 @@ import {
   randomAddress,
   randomHookConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, deepCopy } from '@hyperlane-xyz/utils';
+import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -259,6 +259,7 @@ describe('hyperlane warp check e2e tests', async function () {
       > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
       const actualOwner = hookConfig.owner;
       const wrongOwner = randomAddress();
+      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
       hookConfig.owner = wrongOwner;
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
 
