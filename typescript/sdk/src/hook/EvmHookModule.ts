@@ -54,7 +54,6 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
@@ -91,7 +90,6 @@ export class EvmHookModule extends HyperlaneModule<
   HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmHookModule' });
-  protected readonly reader: EvmHookReader;
   // "ISM" Factory has aggregation hook factories too
   protected readonly hookFactory: HyperlaneIsmFactory;
   protected readonly deployer: HookDeployer;
@@ -115,7 +113,6 @@ export class EvmHookModule extends HyperlaneModule<
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
-    this.reader = new EvmHookReader(multiProvider, this.args.chain);
     this.hookFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [this.args.chain]: params.addresses },
       multiProvider,
@@ -129,11 +126,10 @@ export class EvmHookModule extends HyperlaneModule<
     this.txOverrides = multiProvider.getTransactionOverrides(this.chain);
   }
 
-  //optimize to not fetch the config from the chain in case actual config is provided
   public async read(): Promise<HookConfig> {
     return typeof this.args.config === 'string'
       ? this.args.addresses.deployedHook
-      : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
+      : { ...this.args.config };
   }
 
   public async update(
@@ -148,12 +144,12 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
-    // Update the config
-    this.args.config = targetConfig;
-
     // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig = normalizeConfig(await this.read());
     const normalizedTargetConfig = normalizeConfig(targetConfig);
+
+    // Update the config
+    this.args.config = targetConfig;
 
     // If configs match, no updates needed
     if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
