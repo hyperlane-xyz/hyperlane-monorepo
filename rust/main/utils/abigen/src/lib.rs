@@ -131,7 +131,7 @@ pub fn generate_bindings(
 #[cfg(feature = "fmt")]
 fn fmt_file(path: &Path) {
     if let Err(err) = std::process::Command::new(rustfmt_path())
-        .args(["--edition", "2024"])
+        .args(["--edition", "2021"])
         .arg(path)
         .output()
     {
