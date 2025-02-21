@@ -159,9 +159,9 @@ where
                 };
 
                 // if we are here, it means one of the providers returned a successful result
-                if !retryable_errors.is_empty() {
-                    // we log a warning if we got errors from some providers
-                    warn!(errors_count=?retryable_errors.len(), errors=?retryable_errors, providers=?self.inner.providers, "multicast_request");
+                if !retryable_errors.is_empty() || !non_retryable_errors.is_empty() {
+                    // we log a warning if we got errors from failed providers
+                    warn!(errors_count=?(retryable_errors.len() + non_retryable_errors.len()),  ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request");
                 }
 
                 return Ok(value);
@@ -170,8 +170,7 @@ where
             // if we are here, it means that all providers failed
             // if one of the errors was non-retryable, we stop doing retrying attempts
             if !non_retryable_errors.is_empty() {
-                // we can unwrap here since array is not empty
-                return Err(non_retryable_errors.pop().unwrap());
+                break;
             }
         }
 
