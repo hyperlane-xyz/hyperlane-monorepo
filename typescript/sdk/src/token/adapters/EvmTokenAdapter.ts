@@ -1,4 +1,4 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction, ethers } from 'ethers';
 
 import {
   ERC20,
@@ -474,7 +474,11 @@ export class EvmHypNativeAdapter
       txValue = igpAmount;
     }
 
-    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+    const recipBytes32 =
+      recipient.length === 66
+        ? recipient
+        : ethers.utils.hexZeroPad(recipient, 32); // Pad 65-char address to bytes32
+
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });

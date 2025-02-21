@@ -12,6 +12,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
@@ -59,8 +60,11 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, multiProvider, strategyPath } = argv.context;
+  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
+    argv.context;
 
+  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+  argv.context.multiProtocolProvider = multiProtocolProvider;
   if (!requiresKey) return argv;
 
   const strategyConfig = strategyPath
@@ -84,14 +88,18 @@ export async function signerMiddleware(argv: Record<string, any>) {
     strategyConfig,
     chains,
     multiProvider,
+    multiProtocolProvider,
     { key },
   );
+
+  await multiProtocolSigner.initAllSigners();
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  argv.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.multiProtocolSigner = multiProtocolSigner;
+  argv.multiProvider = multiProtocolSigner.getMultiProvider();
+  argv.multiProtocolSigner = multiProtocolSigner; // TODO: remove this line after making sure `argv.context.multiProtocolSigner` is working properly
+  argv.context.multiProtocolSigner = multiProtocolSigner;
 
   return argv;
 }

@@ -39,7 +39,8 @@
   },
   "workspaces": [
     "solidity",
-    "typescript/*"
+    "typescript/*",
+    "starknet"
   ],
   "resolutions": {
     "async": "^2.6.4",

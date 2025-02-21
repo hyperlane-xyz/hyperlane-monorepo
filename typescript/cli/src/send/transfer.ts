@@ -1,25 +1,30 @@
+// import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
-  HyperlaneRelayer,
+  MessageService,
   MultiProtocolProvider,
   ProviderType,
+  StarknetCore,
   Token,
   TokenAmount,
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  parseWarpRouteMessage,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
-import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export const WarpSendLogs = {
@@ -95,22 +100,45 @@ async function executeDelivery({
   selfRelay?: boolean;
 }) {
   const { multiProvider, registry } = context;
-
-  const signer = multiProvider.getSigner(origin);
-  const recipientSigner = multiProvider.getSigner(destination);
-
-  const recipientAddress = await recipientSigner.getAddress();
-  const signerAddress = await signer.getAddress();
-
-  recipient ||= recipientAddress;
+  const { chainMetadata } = context;
 
   const chainAddresses = await registry.getAddresses();
 
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+  // Create protocol-specific cores map
+  const protocolCores: Partial<
+    Record<ProtocolType, HyperlaneCore | StarknetCore>
+  > = {};
 
-  const provider = multiProvider.getProvider(origin);
-  const connectedSigner = signer.connect(provider);
+  // Initialize cores for the chains
+  for (const chain of [origin, destination]) {
+    const protocol = chainMetadata[chain].protocol;
+    if (!protocolCores[protocol]) {
+      if (protocol === ProtocolType.Starknet) {
+        protocolCores[protocol] = new StarknetCore(
+          chainAddresses,
+          multiProvider,
+          context.multiProtocolSigner!,
+        );
+      } else {
+        protocolCores[protocol] = HyperlaneCore.fromAddressesMap(
+          chainAddresses,
+          multiProvider,
+        );
+      }
+    }
+  }
 
+  const messageService = new MessageService(multiProvider, protocolCores);
+
+  const { signerAddress, recipientAddress } =
+    await getSignerAndRecipientAddresses({
+      context,
+      origin,
+      destination,
+      recipient,
+    });
+
+  recipient ||= recipientAddress;
   const warpCore = WarpCore.FromConfig(
     MultiProtocolProvider.fromMultiProvider(multiProvider),
     warpCoreConfig,
@@ -150,18 +178,55 @@ async function executeDelivery({
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
-      const txResponse = await connectedSigner.sendTransaction(tx.transaction);
-      const txReceipt = await multiProvider.handleTx(origin, txResponse);
-      txReceipts.push(txReceipt);
+    let txReceipt;
+
+    switch (tx.type) {
+      case ProviderType.EthersV5: {
+        const signer = multiProvider.getSigner(origin);
+        const provider = multiProvider.getProvider(origin);
+        const connectedSigner = signer.connect(provider);
+        const txResponse = await connectedSigner.sendTransaction(
+          tx.transaction,
+        );
+        txReceipt = await multiProvider.handleTx(origin, txResponse);
+        break;
+      }
+      case ProviderType.Starknet: {
+        const starknetSigner =
+          context.multiProtocolSigner!.getStarknetSigner(origin)!;
+
+        const txResponse = await starknetSigner.execute([
+          tx.transaction as any,
+        ]);
+
+        txReceipt = await starknetSigner.waitForTransaction(
+          txResponse.transaction_hash,
+        );
+
+        break;
+      }
+      default:
+        throw new Error(`Unsupported provider type: ${tx.type}`);
     }
+
+    txReceipts.push(txReceipt);
   }
+
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
-  const message: DispatchedMessage =
-    HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
-
-  const parsed = parseWarpRouteMessage(message.parsed.body);
+  let message: DispatchedMessage;
+  let parsed: any;
+  if ('transaction_hash' in transferTxReceipt) {
+    message = (
+      protocolCores.starknet! as StarknetCore
+    ).parseDispatchedMessagesFromReceipt(transferTxReceipt, origin);
+  } else {
+    message = HyperlaneCore.getDispatchedMessages(transferTxReceipt as any)[
+      messageIndex
+    ];
+    parsed = parseWarpRouteMessage(message.parsed.body);
+    log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
+  }
 
   logBlue(
     `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
@@ -169,24 +234,66 @@ async function executeDelivery({
   logBlue(`Message ID: ${message.id}`);
   logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
-  log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
+
+  logBlue(`Message dispatched with ID: ${message.id}`);
 
   if (selfRelay) {
-    const relayer = new HyperlaneRelayer({ core });
-
-    const hookAddress = await core.getSenderHookAddress(message);
-    const merkleAddress = chainAddresses[origin].merkleTreeHook;
-    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
-
-    log('Attempting self-relay of transfer...');
-    await relayer.relayMessage(transferTxReceipt, messageIndex, message);
+    log('Attempting self-relay of message');
+    await messageService.relayMessage(message);
     logGreen(WarpSendLogs.SUCCESS);
-    return;
+  } else if (!skipWaitForDelivery) {
+    // log('Waiting for message delivery...');
+    // await messageService.waitForMessageDelivery(message);
+    logGreen('Transfer sent to destination chain!');
+  }
+}
+
+async function getSignerAndRecipientAddresses({
+  context,
+  origin,
+  destination,
+  recipient,
+}: {
+  context: WriteCommandContext;
+  origin: ChainName;
+  destination: ChainName;
+  recipient?: string;
+}): Promise<{
+  signerAddress: string;
+  recipientAddress: string;
+}> {
+  const { multiProvider } = context;
+  const originMetadata = multiProvider.getChainMetadata(origin);
+  const destinationMetadata = multiProvider.getChainMetadata(destination);
+
+  // Get signer address based on origin protocol
+  let signerAddress: string;
+  if (originMetadata.protocol === ProtocolType.Starknet) {
+    const starknetSigner =
+      context.multiProtocolSigner!.getStarknetSigner(origin);
+    signerAddress = starknetSigner.address;
+  } else {
+    // EVM-based chains
+    const evmSigner = multiProvider.getSigner(origin);
+    signerAddress = await evmSigner.getAddress();
   }
 
-  if (skipWaitForDelivery) return;
+  // Get recipient address based on destination protocol
+  let recipientAddress: string;
+  if (recipient) {
+    recipientAddress = recipient;
+  } else if (destinationMetadata.protocol === ProtocolType.Starknet) {
+    const starknetSigner =
+      context.multiProtocolSigner!.getStarknetSigner(destination);
+    recipientAddress = starknetSigner.address;
+  } else {
+    // EVM-based chains
+    const evmSigner = multiProvider.getSigner(destination);
+    recipientAddress = await evmSigner.getAddress();
+  }
 
-  // Max wait 10 minutes
-  await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
-  logGreen(`Transfer sent to ${destination} chain!`);
+  return {
+    signerAddress,
+    recipientAddress,
+  };
 }

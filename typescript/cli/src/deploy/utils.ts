@@ -47,11 +47,18 @@ export async function runPreflightChecksForChains({
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
-    if (metadata.protocol !== ProtocolType.Ethereum)
-      throw new Error('Only Ethereum chains are supported for now');
-    const signer = multiProvider.getSigner(chain);
-    assertSigner(signer);
-    logGreen(`✅ ${metadata.displayName ?? chain} signer is valid`);
+    if (
+      metadata.protocol !== ProtocolType.Ethereum &&
+      metadata.protocol !== ProtocolType.Starknet
+    )
+      throw new Error(
+        'Only Ethereum and Starknet chains are supported for now',
+      );
+    if (metadata.protocol === ProtocolType.Ethereum) {
+      const signer = multiProvider.getSigner(chain);
+      assertSigner(signer);
+      logGreen(`✅ ${chain} signer is valid`);
+    }
   }
   logGreen('✅ Chains are valid');
 

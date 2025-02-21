@@ -20,6 +20,8 @@ import {
   ProviderType,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  StarknetJsProvider,
+  StarknetJsTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -280,9 +282,41 @@ export function estimateTransactionFee({
       sender,
       senderPubKey,
     });
+  } else if (
+    transaction.type === ProviderType.Starknet &&
+    provider.type === ProviderType.Starknet
+  ) {
+    return estimateTransactionFeeStarknet({ transaction, provider, sender });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
     );
   }
+}
+
+export async function estimateTransactionFeeStarknet({
+  transaction,
+  provider,
+  sender,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  // STARKNET needs account or signature to estimate fee, just like ZKSync
+  // const { provider: starknetProvider } = provider;
+  // const nonce = await starknetProvider.getNonceForAddress(sender);
+  //getSimulateTransaction also exists
+  // const estimation = await starknetProvider.getInvokeEstimateFee(
+  //   {
+  //     calldata: transaction.transaction.calldata,
+  //     contractAddress: transaction.transaction.contractAddress,
+  //     entrypoint: transaction.transaction.entrypoint,
+  //     signature: signature,
+  //   },
+
+  //   { nonce },
+  // );
+  // console.log({ estimation });
+  return { gasUnits: 0, gasPrice: 0, fee: 0 };
 }

@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import { groupBy } from 'lodash-es';
+import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
@@ -36,9 +37,13 @@ import {
   PausableIsmConfig,
   RemoteRouters,
   RoutingIsmConfig,
+  STARKNET_SUPPORTED_TOKEN_TYPES,
+  STARKNET_TOKEN_TYPE_TO_STANDARD,
+  StarknetERC20WarpModule,
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
+  TokenType,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -67,6 +72,7 @@ import {
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -78,11 +84,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 
-import {
-  completeDeploy,
-  prepareDeploy,
-  runPreflightChecksForChains,
-} from './utils.js';
+import { prepareDeploy, runPreflightChecksForChains } from './utils.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -98,11 +100,15 @@ interface WarpApplyParams extends DeployParams {
 export async function runWarpRouteDeploy({
   context,
   warpRouteDeploymentConfigPath,
+  multiProtocolSigner,
 }: {
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
+  const multiProvider = await multiProtocolSigner?.getMultiProvider();
+  assert(multiProvider, 'Multiprovider failed!');
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -131,36 +137,106 @@ export async function runWarpRouteDeploy({
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
-  const deploymentParams = {
+  await runDeployPlanStep({
     context,
     warpDeployConfig: warpRouteConfig,
-  };
-
-  await runDeployPlanStep(deploymentParams);
-
-  // Some of the below functions throw if passed non-EVM chains
-  const ethereumChains = chains.filter(
-    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
-  );
-
-  await runPreflightChecksForChains({
-    context,
-    chains: ethereumChains,
-    minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const initialBalances = await prepareDeploy(context, null, ethereumChains);
+  const chainsByProtocol = groupChainsByProtocol(chains, multiProvider);
+  const deployments: WarpCoreConfig = { tokens: [] };
 
-  const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
+  const routerAddresses: {
+    evm: ChainMap<Address>;
+    starknet: ChainMap<Address>;
+  } = {
+    evm: {},
+    starknet: {},
+  };
 
-  const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
-    deploymentParams,
-    deployedContracts,
-  );
+  let starknetSigners: ChainMap<StarknetAccount> = {};
 
-  await writeDeploymentArtifacts(warpCoreConfig, context, addWarpRouteOptions);
+  // Execute deployments for each protocol
+  for (const protocol of Object.keys(chainsByProtocol) as ProtocolType[]) {
+    const protocolChains = chainsByProtocol[protocol];
 
-  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
+    switch (protocol) {
+      case ProtocolType.Ethereum:
+        {
+          await runPreflightChecksForChains({
+            context,
+            chains: protocolChains,
+            minGas: MINIMUM_WARP_DEPLOY_GAS,
+          });
+          await prepareDeploy(context, null, protocolChains);
+          const deployedContracts = await executeDeploy(
+            { context, warpDeployConfig: warpRouteConfig },
+            apiKeys,
+          );
+
+          // Store EVM router addresses
+          routerAddresses.evm = objMap(
+            deployedContracts as HyperlaneContractsMap<HypERC20Factories>,
+            (_, contracts) => getRouter(contracts).address,
+          );
+
+          const { warpCoreConfig, addWarpRouteOptions } =
+            await getWarpCoreConfig(
+              { context, warpDeployConfig: warpRouteConfig },
+              deployedContracts,
+            );
+          deployments.tokens = [
+            ...deployments.tokens,
+            ...warpCoreConfig.tokens,
+          ];
+          deployments.options = {
+            ...deployments.options,
+            ...warpCoreConfig.options,
+          };
+        }
+        break;
+
+      case ProtocolType.Starknet:
+        assert(
+          multiProtocolSigner,
+          'multi protocol signer is required for starknet chain deployment',
+        );
+        starknetSigners = protocolChains.reduce<ChainMap<StarknetAccount>>(
+          (acc, chain) => ({
+            ...acc,
+            [chain]: multiProtocolSigner.getStarknetSigner(chain),
+          }),
+          {},
+        );
+        routerAddresses.starknet = await executeStarknetDeployments({
+          starknetSigners,
+          warpRouteConfig,
+          multiProvider,
+        });
+        const warpCoreConfig = await getWarpCoreConfigForStarknet(
+          warpRouteConfig,
+          multiProvider,
+          routerAddresses.starknet,
+        );
+        deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
+        break;
+
+      default:
+        throw new Error(`Unsupported protocol type: ${protocol}`);
+    }
+  }
+
+  await enrollCrossChainRouters({
+    evmAddresses: routerAddresses.evm,
+    starknetAddresses: routerAddresses.starknet,
+    context,
+    warpRouteConfig,
+    deployments,
+    multiProvider,
+    starknetSigners,
+  });
+
+  fullyConnectTokens(deployments, context.multiProvider);
+  await writeDeploymentArtifacts(deployments, context, addWarpRouteOptions);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -243,6 +319,24 @@ async function resolveWarpIsmAndHook(
 ): Promise<WarpRouteDeployConfig> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
+      if (
+        // for non-evm chains just return config as it is
+        context.multiProvider.getChainMetadata(chain).protocol !==
+          ProtocolType.Ethereum ||
+        !config.interchainSecurityModule ||
+        typeof config.interchainSecurityModule === 'string'
+      ) {
+        logGray(
+          `Config Ism is ${
+            !config.interchainSecurityModule
+              ? 'empty'
+              : config.interchainSecurityModule
+          }, skipping deployment.`,
+        );
+        return config;
+      }
+
+      logBlue(`Loading registry factory addresses for ${chain}...`);
       const chainAddresses = await context.registry.getChainAddresses(chain);
 
       if (!chainAddresses) {
@@ -445,7 +539,7 @@ async function getWarpCoreConfig(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, context.multiProvider);
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -487,7 +581,10 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
+function fullyConnectTokens(
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
       if (
@@ -498,7 +595,7 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
       token1.connections ||= [];
       token1.connections.push({
         token: getTokenConnectionId(
-          ProtocolType.Ethereum,
+          multiProvider.getChainMetadata(token2.chainName).protocol,
           token2.chainName,
           token2.addressOrDenom!,
         ),
@@ -1079,4 +1176,265 @@ async function getWarpApplySubmitter({
     submissionStrategy,
     multiProvider,
   });
+}
+
+function groupChainsByProtocol(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+): Record<ProtocolType, ChainName[]> {
+  return chains.reduce((protocolMap, chainName) => {
+    const protocolType = multiProvider.tryGetProtocol(chainName);
+    assert(protocolType, `Protocol not found for chain: ${chainName}`);
+
+    if (!protocolMap[protocolType]) {
+      protocolMap[protocolType] = [];
+    }
+
+    protocolMap[protocolType].push(chainName);
+    return protocolMap;
+  }, {} as Record<ProtocolType, ChainName[]>);
+}
+
+async function executeStarknetDeployments({
+  starknetSigners,
+  warpRouteConfig,
+  multiProvider,
+}: {
+  starknetSigners: ChainMap<StarknetAccount>;
+  warpRouteConfig: WarpRouteDeployConfig;
+  multiProvider: MultiProvider;
+}): Promise<ChainMap<string>> {
+  validateStarknetWarpConfig(warpRouteConfig);
+
+  const starknetDeployer = new StarknetERC20WarpModule(
+    starknetSigners,
+    warpRouteConfig,
+    multiProvider,
+  );
+
+  return starknetDeployer.deployToken();
+}
+
+async function getWarpCoreConfigForStarknet(
+  warpDeployConfig: WarpRouteDeployConfig,
+  multiProvider: MultiProvider,
+  contracts: ChainMap<string>,
+): Promise<WarpCoreConfig> {
+  const warpCoreConfig: WarpCoreConfig = { tokens: [] };
+
+  // TODO: replace with warp read
+  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+    multiProvider,
+    warpDeployConfig,
+  );
+  assert(
+    tokenMetadata && isTokenMetadata(tokenMetadata),
+    'Missing required token metadata',
+  );
+  const { decimals, symbol, name } = tokenMetadata;
+  assert(decimals, 'Missing decimals on token metadata');
+
+  generateTokenConfigsForStarknet(
+    warpCoreConfig,
+    warpDeployConfig,
+    contracts,
+    symbol,
+    name,
+    decimals,
+  );
+
+  fullyConnectTokens(warpCoreConfig, multiProvider);
+
+  return warpCoreConfig;
+}
+
+function generateTokenConfigsForStarknet(
+  warpCoreConfig: WarpCoreConfig,
+  warpDeployConfig: WarpRouteDeployConfig,
+  contracts: ChainMap<string>,
+  symbol: string,
+  name: string,
+  decimals: number,
+): void {
+  for (const [chainName, contract] of Object.entries(contracts)) {
+    const config = warpDeployConfig[chainName];
+    const collateralAddressOrDenom = isCollateralTokenConfig(config)
+      ? config.token // gets set in the above deriveTokenMetadata()
+      : undefined;
+    warpCoreConfig.tokens.push({
+      chainName,
+      standard:
+        STARKNET_TOKEN_TYPE_TO_STANDARD[
+          config.type as keyof typeof STARKNET_TOKEN_TYPE_TO_STANDARD
+        ],
+      decimals,
+      symbol,
+      name,
+      addressOrDenom: contract,
+      collateralAddressOrDenom,
+    });
+  }
+}
+
+function validateStarknetWarpConfig(warpRouteConfig: WarpRouteDeployConfig) {
+  assert(!warpRouteConfig.isNft, 'NFT routes not supported yet!');
+
+  // token type validation for Starknet chains
+  for (const [chain, config] of Object.entries(warpRouteConfig)) {
+    assert(
+      (STARKNET_SUPPORTED_TOKEN_TYPES as readonly TokenType[]).includes(
+        config.type,
+      ),
+      `Token type "${
+        config.type
+      }" is not supported on Starknet chains (${chain}}). Supported types: ${STARKNET_SUPPORTED_TOKEN_TYPES.join(
+        ', ',
+      )}`,
+    );
+  }
+}
+
+async function enrollRemoteRoutersOfStarknetOnEvm(
+  multiProvider: MultiProvider,
+  evmChains: ChainName[],
+  evmRouterAddresses: ChainMap<Address>,
+  starknetDeployedAddresses: ChainMap<Address>,
+  registryAddresses: ChainMap<ChainAddresses>,
+): Promise<AnnotatedEV5Transaction[]> {
+  const transactions: AnnotatedEV5Transaction[] = [];
+
+  await promiseObjAll(
+    objMap(evmRouterAddresses, async (evmChain, evmRouterAddress) => {
+      if (!evmChains.includes(evmChain)) return;
+
+      await retryAsync(async () => {
+        // Create warp route reader for the EVM chain
+        const warpRouteReader = new EvmERC20WarpRouteReader(
+          multiProvider,
+          evmChain,
+        );
+
+        // Get current config from the deployed router
+        const mutatedWarpRouteConfig =
+          await warpRouteReader.deriveWarpRouteConfig(evmRouterAddress);
+
+        // Filter for only Starknet chains
+        const starknetChains = Object.keys(starknetDeployedAddresses).filter(
+          (chain) =>
+            multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Starknet,
+        );
+
+        // Add Starknet routers to the config
+        mutatedWarpRouteConfig.remoteRouters =
+          starknetChains.reduce<RemoteRouters>(
+            (remoteRouters, starknetChain) => {
+              remoteRouters[multiProvider.getDomainId(starknetChain)] = {
+                address: starknetDeployedAddresses[starknetChain],
+              };
+              return remoteRouters;
+            },
+            {},
+          );
+
+        const {
+          domainRoutingIsmFactory,
+          staticMerkleRootMultisigIsmFactory,
+          staticMessageIdMultisigIsmFactory,
+          staticAggregationIsmFactory,
+          staticAggregationHookFactory,
+          staticMerkleRootWeightedMultisigIsmFactory,
+          staticMessageIdWeightedMultisigIsmFactory,
+        } = registryAddresses[evmChain];
+
+        // Create warp module to update the router
+        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
+          config: mutatedWarpRouteConfig,
+          chain: evmChain,
+          addresses: {
+            deployedTokenRoute: evmRouterAddress,
+            domainRoutingIsmFactory,
+            staticMerkleRootMultisigIsmFactory,
+            staticMessageIdMultisigIsmFactory,
+            staticAggregationIsmFactory,
+            staticAggregationHookFactory,
+            staticMerkleRootWeightedMultisigIsmFactory,
+            staticMessageIdWeightedMultisigIsmFactory,
+          },
+        });
+
+        // Generate transactions to update the router
+        const chainTxs = await evmERC20WarpModule.update(
+          mutatedWarpRouteConfig,
+        );
+        if (chainTxs.length > 0) {
+          transactions.push(...chainTxs);
+        }
+      });
+    }),
+  );
+
+  return transactions;
+}
+
+interface EnrollRoutersParams {
+  evmAddresses: ChainMap<Address>;
+  starknetAddresses: ChainMap<Address>;
+  context: WriteCommandContext;
+  warpRouteConfig: WarpRouteDeployConfig;
+  deployments: WarpCoreConfig;
+  multiProvider: MultiProvider;
+  starknetSigners: ChainMap<StarknetAccount>;
+}
+
+async function enrollCrossChainRouters({
+  evmAddresses,
+  starknetAddresses,
+  context,
+  warpRouteConfig,
+  deployments,
+  multiProvider,
+  starknetSigners,
+}: EnrollRoutersParams): Promise<void> {
+  const hasEvmChains = Object.keys(evmAddresses).length > 0;
+  const hasStarknetChains = Object.keys(starknetAddresses).length > 0;
+
+  if (!hasEvmChains || !hasStarknetChains) return;
+
+  logBlue('Enrolling Starknet routers with EVM chains...');
+
+  const registryAddresses = await context.registry.getAddresses();
+  const evmChains = Object.keys(evmAddresses);
+
+  const starknetWarpModule = new StarknetERC20WarpModule(
+    starknetSigners,
+    warpRouteConfig,
+    multiProvider,
+  );
+
+  await starknetWarpModule.enrollRemoteRouters({
+    ...evmAddresses,
+    ...starknetAddresses,
+  });
+
+  const evmEnrollmentTxs = await enrollRemoteRoutersOfStarknetOnEvm(
+    multiProvider,
+    evmChains,
+    evmAddresses,
+    starknetAddresses,
+    registryAddresses,
+  );
+
+  if (evmEnrollmentTxs.length === 0) return;
+
+  const chainTransactions = groupBy(evmEnrollmentTxs, 'chainId');
+  await submitWarpApplyTransactions(
+    {
+      context,
+      warpDeployConfig: warpRouteConfig,
+      warpCoreConfig: deployments,
+      receiptsDir: './generated/transactions',
+    },
+    chainTransactions,
+  );
 }
