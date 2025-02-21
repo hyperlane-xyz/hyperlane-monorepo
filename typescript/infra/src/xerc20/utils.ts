@@ -347,18 +347,9 @@ async function sendAsMultiSend(
   chain: string,
   transactions: PopulatedTransaction[],
   bridgeAddress: Address,
-  multiSend?: MultiSend,
+  multiSend: MultiSend,
   safeAddress?: Address,
 ) {
-  if (!multiSend) {
-    rootLogger.info(
-      chalk.gray(
-        `[${chain}][${bridgeAddress}] No MultiSend configured, falling back to manual mode.`,
-      ),
-    );
-    multiSend = new ManualMultiSend(chain);
-  }
-
   const targetAddress = safeAddress ? ` to ${safeAddress}` : '';
   rootLogger.info(
     chalk.gray(
@@ -381,6 +372,14 @@ async function sendAsMultiSend(
         error,
       ),
     );
+
+    // if the multi-send fails, fallback to manual mode
+    rootLogger.info(
+      chalk.gray(`[${chain}][${bridgeAddress}] Falling back to manual mode.`),
+    );
+    const manualMultiSend = new ManualMultiSend(chain);
+    await manualMultiSend.sendTransactions(multiSendTxs);
+
     throw { chain, error };
   }
 }
@@ -459,6 +458,16 @@ async function sendTransactions(
       chalk.gray(`[${chain}][${bridgeAddress}] Sending as Signer transaction`),
     );
     sender = new SignerMultiSend(multiProvider, chain);
+  }
+
+  // have a ManualMultiSend as a fallback
+  if (!sender) {
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] No MultiSend configured, falling back to manual mode.`,
+      ),
+    );
+    sender = new ManualMultiSend(chain);
   }
 
   await sendAsMultiSend(
