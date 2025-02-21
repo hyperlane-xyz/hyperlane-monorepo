@@ -10,10 +10,12 @@ import {
 import {
   addBridgeToChain,
   deriveBridgesConfig,
+  getAndValidateBridgesToUpdate,
   getWarpConfigsAndArtifacts,
 } from '../../src/xerc20/utils.js';
 import {
   getArgs,
+  withChains,
   withDryRun,
   withWarpRouteIdRequired,
 } from '../agent-utils.js';
@@ -21,8 +23,8 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId, dryRun } = await withWarpRouteIdRequired(
-    withDryRun(getArgs()),
+  const { environment, warpRouteId, chains, dryRun } = await withChains(
+    withWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
 
   const { warpDeployConfig, warpCoreConfig } =
@@ -38,9 +40,13 @@ async function main() {
     envMultiProvider,
   );
 
+  // if chains are provided, validate that they are in the warp config
+  // throw an error if they are not
+  const bridgesToUpdate = getAndValidateBridgesToUpdate(chains, bridgesConfig);
+
   const erroredChains: string[] = [];
 
-  for (const [_, bridgeConfig] of Object.entries(bridgesConfig)) {
+  for (const bridgeConfig of bridgesToUpdate) {
     try {
       await addBridgeToChain({
         chain: bridgeConfig.chain,
