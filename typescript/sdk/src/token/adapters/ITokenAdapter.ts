@@ -75,3 +75,20 @@ export interface IHypVSXERC20Adapter<Tx> {
     rateLimitPerSecond: bigint,
   ): Promise<Tx>;
 }
+
+export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
+  getRateLimits(bridge: Address): Promise<RateLimitMidPoint>;
+
+  populateSetBufferCapTx(bridge: Address, newBufferCap: bigint): Promise<Tx>;
+
+  populateSetRateLimitPerSecondTx(
+    bridge: Address,
+    newRateLimitPerSecond: bigint,
+  ): Promise<Tx>;
+
+  populateAddBridgeTx(
+    bufferCap: bigint,
+    rateLimitPerSecond: bigint,
+    bridge: Address,
+  ): Promise<Tx>;
+}

@@ -66,10 +66,10 @@ const xERC20ExtraLockboxLimitConfigsSchema = z.object({
 const xERC20TokenMetadataSchema = z.object({
   xERC20: z
     .object({
-      limits: xERC20LimitConfigSchema,
       extraLockboxLimits: z
         .array(xERC20ExtraLockboxLimitConfigsSchema)
         .optional(),
+      warpRouteLimits: xERC20LimitConfigSchema,
     })
     .optional(),
 });

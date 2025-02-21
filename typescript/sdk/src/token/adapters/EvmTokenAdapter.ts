@@ -36,6 +36,7 @@ import {
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   ITokenAdapter,
+  IXERC20VSAdapter,
   InterchainGasQuote,
   RateLimitMidPoint,
   TransferParams,
@@ -597,5 +598,71 @@ export class EvmHypNativeAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
+  }
+}
+
+export class EvmXERC20VSAdapter
+  extends EvmTokenAdapter
+  implements IXERC20VSAdapter<PopulatedTransaction>
+{
+  xERC20VS: IXERC20VS;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.xERC20VS = IXERC20VS__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getRateLimits(bridge: Address): Promise<RateLimitMidPoint> {
+    const result = await this.xERC20VS.rateLimits(bridge);
+
+    const rateLimits: RateLimitMidPoint = {
+      rateLimitPerSecond: BigInt(result.rateLimitPerSecond.toString()),
+      bufferCap: BigInt(result.bufferCap.toString()),
+      lastBufferUsedTime: Number(result.lastBufferUsedTime),
+      bufferStored: BigInt(result.bufferStored.toString()),
+      midPoint: BigInt(result.midPoint.toString()),
+    };
+
+    return rateLimits;
+  }
+
+  async populateSetBufferCapTx(
+    bridge: Address,
+    newBufferCap: bigint,
+  ): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.setBufferCap(
+      bridge,
+      newBufferCap.toString(),
+    );
+  }
+
+  async populateSetRateLimitPerSecondTx(
+    bridge: Address,
+    newRateLimitPerSecond: bigint,
+  ): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.setRateLimitPerSecond(
+      bridge,
+      newRateLimitPerSecond.toString(),
+    );
+  }
+
+  async populateAddBridgeTx(
+    bufferCap: bigint,
+    rateLimitPerSecond: bigint,
+    bridge: Address,
+  ): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.addBridge({
+      bufferCap: bufferCap.toString(),
+      rateLimitPerSecond: rateLimitPerSecond.toString(),
+      bridge,
+    });
   }
 }

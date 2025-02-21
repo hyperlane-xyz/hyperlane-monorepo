@@ -9,11 +9,13 @@ import {
 
 import {
   deriveBridgesConfig,
+  getAndValidateBridgesToUpdate,
   getWarpConfigsAndArtifacts,
   updateChainLimits,
 } from '../../src/xerc20/utils.js';
 import {
   getArgs,
+  withChains,
   withDryRun,
   withWarpRouteIdRequired,
 } from '../agent-utils.js';
@@ -21,40 +23,45 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId, dryRun } = await withWarpRouteIdRequired(
-    withDryRun(getArgs()),
+  const { environment, warpRouteId, chains, dryRun } = await withChains(
+    withWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
 
-  const { warpDeployConfig, warpCoreConfig, warpAddresses } =
+  const { warpDeployConfig, warpCoreConfig } =
     getWarpConfigsAndArtifacts(warpRouteId);
 
   const envConfig = getEnvironmentConfig(environment);
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
   const envMultiProvider = await envConfig.getMultiProvider();
+
   const bridgesConfig = await deriveBridgesConfig(
     warpDeployConfig,
     warpCoreConfig,
-    warpAddresses,
     envMultiProvider,
   );
 
-  const results = await Promise.allSettled(
-    Object.entries(bridgesConfig).map(async ([chain, bridgeConfig]) => {
-      return updateChainLimits({
-        chain,
+  // if chains are provided, validate that they are in the warp config
+  // throw an error if they are not
+  const bridgesToUpdate = getAndValidateBridgesToUpdate(chains, bridgesConfig);
+
+  const erroredChains: string[] = [];
+
+  for (const bridgeConfig of bridgesToUpdate) {
+    try {
+      await updateChainLimits({
+        chain: bridgeConfig.chain,
         bridgeConfig,
         multiProtocolProvider,
         envMultiProvider,
         dryRun,
       });
-    }),
-  );
-
-  const erroredChains = results
-    .filter(
-      (result): result is PromiseRejectedResult => result.status === 'rejected',
-    )
-    .map((result) => result.reason.chain);
+    } catch (e) {
+      rootLogger.error(
+        `Error occurred while setting limits for chain ${bridgeConfig.chain}: ${e}`,
+      );
+      erroredChains.push(bridgeConfig.chain);
+    }
+  }
 
   if (erroredChains.length > 0) {
     rootLogger.error(

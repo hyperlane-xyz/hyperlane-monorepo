@@ -1,3 +1,7 @@
+export { MUTABLE_ISM_TYPE } from './ism/types.js';
+
+export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+
 export { HyperlaneApp } from './app/HyperlaneApp.js';
 export {
   AdapterClassType,
@@ -373,7 +377,11 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
-export { randomAddress } from './test/testUtils.js';
+export {
+  randomAddress,
+  randomHookConfig,
+  randomIsmConfig,
+} from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
@@ -498,6 +506,7 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
+  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
