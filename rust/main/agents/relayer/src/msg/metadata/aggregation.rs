@@ -9,7 +9,7 @@ use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
-use super::{MessageMetadataBuilder, MetadataBuilder};
+use super::{MessageMetadataBuilder, Metadata, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -117,13 +117,9 @@ impl AggregationIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
-    #[instrument(err, skip(self), ret)]
+    #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
@@ -136,6 +132,18 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         )
         .await;
 
+        // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
+        if let Some(first_refusal) = sub_modules_and_metas.iter().find_map(|result| {
+            result.as_ref().ok().and_then(|sub_module_and_meta| {
+                match &sub_module_and_meta.metadata {
+                    Metadata::Refused(reason) => Some(Metadata::Refused(reason.clone())),
+                    _ => None,
+                }
+            })
+        }) {
+            return Ok(first_refusal);
+        }
+
         // Partitions things into
         // 1. ok_sub_modules: ISMs with metadata with valid metadata
         // 2. err_sub_modules: ISMs with invalid metadata
@@ -145,19 +153,21 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .enumerate()
             .partition_map(|(index, (result, ism_address))| match result {
                 Ok(sub_module_and_meta) => match sub_module_and_meta.metadata {
-                    Some(metadata) => Either::Left(IsmAndMetadata::new(
+                    Metadata::Found(metadata) => Either::Left(IsmAndMetadata::new(
                         sub_module_and_meta.ism,
                         index,
                         metadata,
                     )),
-                    None => Either::Right((*ism_address, Some(sub_module_and_meta.module_type))),
+                    _ => Either::Right((*ism_address, Some(sub_module_and_meta.module_type))),
                 },
                 Err(_) => Either::Right((*ism_address, None)),
             });
         let maybe_aggregation_metadata =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
-                .map(|mut metas| Self::format_metadata(&mut metas, ism_addresses.len()));
+                .map_or(Metadata::CouldNotFetch, |mut metas| {
+                    Metadata::Found(Self::format_metadata(&mut metas, ism_addresses.len()))
+                });
         Ok(maybe_aggregation_metadata)
     }
 }

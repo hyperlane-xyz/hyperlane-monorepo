@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
 
-use super::{base::MessageMetadataBuilder, MetadataBuilder};
+use super::{base::MessageMetadataBuilder, Metadata, MetadataBuilder};
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -27,12 +27,8 @@ pub struct CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
+    #[instrument(err, skip(self, message))]
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
 
@@ -42,15 +38,15 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         let info: OffchainLookup = match response {
             Ok(_) => {
                 info!("incorrectly configured getOffchainVerifyInfo, expected revert");
-                return Ok(None);
+                return Ok(Metadata::CouldNotFetch);
             }
             Err(raw_error) => {
                 let matching_regex = Regex::new(r"0x[[:xdigit:]]+")?;
                 if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
                     OffchainLookup::decode(hex_decode(&matching[0][2..])?)?
                 } else {
-                    info!("unable to parse custom error out of revert");
-                    return Ok(None);
+                    info!(?raw_error, "unable to parse custom error out of revert");
+                    return Ok(Metadata::CouldNotFetch);
                 }
             }
         };
@@ -85,7 +81,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 Ok(result) => {
                     // remove leading 0x which hex_decode doesn't like
                     let metadata = hex_decode(&result.data[2..])?;
-                    return Ok(Some(metadata));
+                    return Ok(Metadata::Found(metadata));
                 }
                 Err(_err) => {
                     // try the next URL
@@ -94,6 +90,6 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         }
 
         // No metadata endpoints or endpoints down
-        Ok(None)
+        Ok(Metadata::CouldNotFetch)
     }
 }

@@ -8,7 +8,7 @@ use std::{
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::instruction::Instruction;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -17,7 +17,7 @@ use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, Overhead
 use crate::{
     adjust_gas_price_if_needed,
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
+    cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids, warp_route, Context, CoreProgramIds,
 };
 
@@ -118,6 +118,7 @@ pub struct ChainMetadata {
     name: String,
     /// Collection of RPC endpoints
     rpc_urls: Vec<RpcUrlConfig>,
+    pub is_testnet: Option<bool>,
 }
 
 impl ChainMetadata {
@@ -183,17 +184,12 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                 })
             })
             .unwrap_or_else(|| {
-                let (keypair, keypair_path) = create_and_write_keypair(
-                    key_dir,
-                    format!("{}-{}.json", program_name, chain_config.name).as_str(),
-                    true,
-                );
-                let program_id = keypair.pubkey();
+                let chain_program_name = format!("{}-{}", program_name, chain_config.name);
 
-                deploy_program_idempotent(
+                let program_id = deploy_program(
                     ctx.payer_keypair_path(),
-                    &keypair,
-                    keypair_path.to_str().unwrap(),
+                    key_dir,
+                    &chain_program_name,
                     built_so_dir
                         .join(format!("{}.so", program_name))
                         .to_str()
@@ -218,6 +214,16 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         );
 
         program_id
+    }
+
+    fn verify_config(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, Config>,
+        _app_configs_to_deploy: &HashMap<&String, &Config>,
+        _chain_configs: &HashMap<String, ChainMetadata>,
+    ) {
+        // By default, do nothing.
     }
 
     fn init_program_idempotent(
@@ -362,6 +368,11 @@ pub(crate) fn deploy_routers<
         .iter()
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
+
+    // Verify the configuration.
+    println!("Verifying configuration...");
+    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_configs);
+    println!("Configuration successfully verified!");
 
     warp_route::install_spl_token_cli();
 
@@ -604,6 +615,8 @@ fn enroll_all_remote_routers<
             .collect::<Vec<RemoteRouterConfig>>();
 
         if !router_configs.is_empty() {
+            adjust_gas_price_if_needed(chain_name.as_str(), ctx);
+
             ctx.new_txn()
                 .add_with_description(
                     deployer.enroll_remote_routers_instruction(

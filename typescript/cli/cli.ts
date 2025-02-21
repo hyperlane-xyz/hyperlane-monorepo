@@ -17,7 +17,7 @@ import {
   logFormatCommandOption,
   logLevelCommandOption,
   overrideRegistryUriCommandOption,
-  registryUriCommandOption,
+  registryUrisCommandOption,
   skipConfirmationOption,
   strategyCommandOption,
 } from './src/commands/options.js';
@@ -34,9 +34,6 @@ import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
 
-// From yargs code:
-const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
-
 console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
 await checkVersion();
@@ -46,7 +43,7 @@ try {
     .scriptName('hyperlane')
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
-    .option('registry', registryUriCommandOption)
+    .option('registry', registryUrisCommandOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
     .option('disableProxy', disableProxyCommandOption)
@@ -78,14 +75,7 @@ try {
     .demandCommand()
     .strict()
     .help()
-    .fail((msg, err, yargs) => {
-      if (msg && !msg.includes(MISSING_PARAMS_ERROR)) errorRed('Error: ' + msg);
-      console.log('');
-      yargs.showHelp();
-      console.log('');
-      if (err) errorRed(err.toString());
-      process.exit(1);
-    }).argv;
+    .showHelpOnFail(false).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);
 }

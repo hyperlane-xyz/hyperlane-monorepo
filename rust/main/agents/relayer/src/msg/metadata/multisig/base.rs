@@ -6,6 +6,7 @@ use derive_new::new;
 use ethers::abi::Token;
 
 use eyre::{Context, Result};
+use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
@@ -14,7 +15,7 @@ use tracing::{debug, info};
 
 use crate::msg::metadata::base::MessageMetadataBuilder;
 
-use crate::msg::metadata::MetadataBuilder;
+use crate::msg::metadata::{Metadata, MetadataBuilder};
 
 #[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
@@ -93,11 +94,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
 
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<Vec<u8>>> {
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> Result<Metadata> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
@@ -112,14 +109,27 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
-            return Ok(None);
+            return Ok(Metadata::CouldNotFetch);
         }
 
-        let checkpoint_syncer = self
+        info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
+
+        let checkpoint_syncer = match self
             .as_ref()
-            .build_checkpoint_syncer(&validators, self.as_ref().app_context.clone())
+            .build_checkpoint_syncer(message, &validators, self.as_ref().app_context.clone())
             .await
-            .context(CTX)?;
+        {
+            Ok(syncer) => syncer,
+            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+                return Ok(Metadata::Refused(format!(
+                    "A reorg event occurred {:?}",
+                    reorg_event
+                )));
+            }
+            Err(e) => {
+                return Err(e).context(CTX);
+            }
+        };
 
         if let Some(metadata) = self
             .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
@@ -127,13 +137,13 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?
         {
             debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
-            Ok(Some(self.format_metadata(metadata)?))
+            Ok(Metadata::Found(self.format_metadata(metadata)?))
         } else {
             info!(
                 hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
                 "Could not fetch metadata: Unable to reach quorum"
             );
-            Ok(None)
+            Ok(Metadata::CouldNotFetch)
         }
     }
 }

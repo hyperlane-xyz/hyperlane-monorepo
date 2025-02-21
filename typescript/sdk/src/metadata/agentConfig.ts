@@ -51,6 +51,26 @@ export enum AgentSignerKeyType {
   Cosmos = 'cosmosKey',
 }
 
+export enum AgentSealevelPriorityFeeOracleType {
+  Helius = 'helius',
+  Constant = 'constant',
+}
+
+export enum AgentSealevelHeliusFeeLevel {
+  Recommended = 'recommended',
+  Min = 'min',
+  Low = 'low',
+  Medium = 'medium',
+  High = 'high',
+  VeryHigh = 'veryHigh',
+  UnsafeMax = 'unsafeMax',
+}
+
+export enum AgentSealevelTransactionSubmitterType {
+  Rpc = 'rpc',
+  Jito = 'jito',
+}
+
 const AgentSignerHexKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Hex).optional(),
@@ -120,6 +140,40 @@ export type AgentCosmosGasPrice = z.infer<
   typeof AgentCosmosChainMetadataSchema
 >['gasPrice'];
 
+const AgentSealevelChainMetadataSchema = z.object({
+  priorityFeeOracle: z
+    .union([
+      z.object({
+        type: z.literal(AgentSealevelPriorityFeeOracleType.Helius),
+        url: z.string(),
+        // TODO add options
+        feeLevel: z.nativeEnum(AgentSealevelHeliusFeeLevel),
+      }),
+      z.object({
+        type: z.literal(AgentSealevelPriorityFeeOracleType.Constant),
+        // In microlamports
+        fee: ZUWei,
+      }),
+    ])
+    .optional(),
+  transactionSubmitter: z
+    .object({
+      type: z.nativeEnum(AgentSealevelTransactionSubmitterType),
+      url: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type AgentSealevelChainMetadata = z.infer<
+  typeof AgentSealevelChainMetadataSchema
+>;
+
+export type AgentSealevelPriorityFeeOracle =
+  AgentSealevelChainMetadata['priorityFeeOracle'];
+
+export type AgentSealevelTransactionSubmitter =
+  AgentSealevelChainMetadata['transactionSubmitter'];
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -155,6 +209,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .optional(),
   })
   .merge(AgentCosmosChainMetadataSchema.partial())
+  .merge(AgentSealevelChainMetadataSchema.partial())
   .refine((metadata) => {
     // Make sure that the signer is valid for the protocol
 
@@ -197,6 +252,13 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
     if (metadata.protocol === ProtocolType.Cosmos) {
       if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
+        return false;
+      }
+    }
+
+    // If the protocol type is Sealevel, require everything in AgentSealevelChainMetadataSchema
+    if (metadata.protocol === ProtocolType.Sealevel) {
+      if (!AgentSealevelChainMetadataSchema.safeParse(metadata).success) {
         return false;
       }
     }
@@ -248,8 +310,8 @@ export const AgentConfigSchema = z.object({
     .optional(),
 });
 
-const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
-const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
+const CommaSeparatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
+const CommaSeparatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
 
 export enum GasPaymentEnforcementPolicyType {
   None = 'none',
@@ -293,7 +355,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .min(1)
     .optional()
     .describe('The path to the relayer database.'),
-  relayChains: CommaSeperatedChainList.describe(
+  relayChains: CommaSeparatedChainList.describe(
     'Comma separated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
@@ -321,7 +383,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
-  skipTransactionGasLimitFor: CommaSeperatedDomainList.optional().describe(
+  skipTransactionGasLimitFor: CommaSeparatedDomainList.optional().describe(
     'Comma separated List of chain names to skip applying the transaction gas limit to.',
   ),
   allowLocalCheckpointSyncers: z
@@ -342,7 +404,7 @@ export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
   db: z.string().min(1).describe('Database connection string'),
-  chainsToScrape: CommaSeperatedChainList.describe(
+  chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
 });

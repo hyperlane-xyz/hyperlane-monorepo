@@ -221,6 +221,7 @@ export const createIGPConfig = callWithConfigCreationLogs(
     // Calculate storage gas oracle config
     const oracleConfig = getLocalStorageGasOracleConfig({
       local: localChain,
+      localProtocolType: context.multiProvider.getProtocol(localChain),
       gasOracleParams: prices,
       exchangeRateMarginPct,
     });
@@ -270,7 +271,7 @@ async function getOwnerAndBeneficiary(
 async function selectIgpChains(context: CommandContext) {
   const localChain = await runSingleChainSelectionStep(
     context.chainMetadata,
-    'Select local chain for IGP hook',
+    'Select local chain for IGP hook:',
   );
   const isTestnet = context.chainMetadata[localChain].isTestnet;
   const remoteChains = await runMultiChainSelectionStep({

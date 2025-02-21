@@ -63,39 +63,47 @@ impl CosmosMailboxDispatchIndexer {
         let mut message: Option<HyperlaneMessage> = None;
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                        }
+
+                        MESSAGE_ATTRIBUTE_KEY => {
+                            // Intentionally using read_from to get a Result::Err if there's
+                            // an issue with the message.
+                            let mut reader = Cursor::new(hex::decode(value)?);
+                            message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                        }
+                        v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
+                            // Intentionally using read_from to get a Result::Err if there's
+                            // an issue with the message.
+                            let mut reader = Cursor::new(hex::decode(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?)?);
+                            message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                        }
+
+                        _ => {}
+                    }
                 }
 
-                MESSAGE_ATTRIBUTE_KEY => {
-                    // Intentionally using read_from to get a Result::Err if there's
-                    // an issue with the message.
-                    let mut reader = Cursor::new(hex::decode(value)?);
-                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
-                v if *MESSAGE_ATTRIBUTE_KEY_BASE64 == v => {
-                    // Intentionally using read_from to get a Result::Err if there's
-                    // an issue with the message.
-                    let mut reader = Cursor::new(hex::decode(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?)?);
-                    message = Some(HyperlaneMessage::read_from(&mut reader)?);
-                }
-
-                _ => {}
             }
         }
 
