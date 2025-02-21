@@ -11,7 +11,11 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress, randomInt } from '../test/testUtils.js';
+import {
+  randomAddress,
+  randomIsmConfig,
+  randomMultisigIsmConfig,
+} from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmModule } from './EvmIsmModule.js';
@@ -21,95 +25,10 @@ import {
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
-  ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
-
-const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => randomAddress());
-  return {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
-    validators,
-    threshold: m,
-  };
-};
-
-const ModuleTypes = [
-  ModuleType.AGGREGATION,
-  ModuleType.MERKLE_ROOT_MULTISIG,
-  ModuleType.ROUTING,
-  ModuleType.NULL,
-];
-
-const NonNestedModuleTypes = [ModuleType.MERKLE_ROOT_MULTISIG, ModuleType.NULL];
-
-function randomModuleType(): ModuleType {
-  return ModuleTypes[randomInt(ModuleTypes.length)];
-}
-
-function randomNonNestedModuleType(): ModuleType {
-  return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
-}
-
-const randomIsmConfig = (
-  depth = 0,
-  maxDepth = 2,
-): Exclude<IsmConfig, string> => {
-  const moduleType =
-    depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
-
-  switch (moduleType) {
-    case ModuleType.MERKLE_ROOT_MULTISIG: {
-      const n = randomInt(5, 1);
-      return randomMultisigIsmConfig(randomInt(n, 1), n);
-    }
-    case ModuleType.ROUTING: {
-      const config: RoutingIsmConfig = {
-        type: IsmType.ROUTING,
-        owner: randomAddress(),
-        domains: Object.fromEntries(
-          testChains.map((c) => [c, randomIsmConfig(depth + 1)]),
-        ),
-      };
-      return config;
-    }
-    case ModuleType.AGGREGATION: {
-      const n = randomInt(2, 1);
-      const moduleTypes = new Set();
-      const modules = new Array<number>(n).fill(0).map(() => {
-        let moduleConfig: Exclude<IsmConfig, string>;
-        let moduleType: IsmType;
-
-        // Ensure that we do not add the same module type more than once per level
-        do {
-          moduleConfig = randomIsmConfig(depth + 1, maxDepth);
-          moduleType = moduleConfig.type;
-        } while (moduleTypes.has(moduleType));
-
-        moduleTypes.add(moduleType);
-        return moduleConfig;
-      });
-      const config: AggregationIsmConfig = {
-        type: IsmType.AGGREGATION,
-        threshold: randomInt(n, 1),
-        modules,
-      };
-      return config;
-    }
-    case ModuleType.NULL: {
-      const config: TrustedRelayerIsmConfig = {
-        type: IsmType.TRUSTED_RELAYER,
-        relayer: randomAddress(),
-      };
-      return config;
-    }
-    default:
-      throw new Error(`Unsupported ISM type: ${moduleType}`);
-  }
-};
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;

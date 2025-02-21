@@ -17,6 +17,7 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
+  ismTypeToModuleType,
 } from '../ism/types.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -290,9 +291,12 @@ export const randomIsmConfig = (
   maxDepth = 2,
   providedIsmType?: IsmType,
 ): Exclude<IsmConfig, string> => {
-  const moduleType =
-    providedIsmType ??
-    (depth === maxDepth ? randomNonNestedModuleType() : randomModuleType());
+  // Use input IsmType, otherwise randomize a config based on depth
+  const moduleType = providedIsmType
+    ? ismTypeToModuleType(providedIsmType)
+    : depth === maxDepth
+    ? randomNonNestedModuleType()
+    : randomModuleType();
 
   switch (moduleType) {
     case ModuleType.MERKLE_ROOT_MULTISIG: {
