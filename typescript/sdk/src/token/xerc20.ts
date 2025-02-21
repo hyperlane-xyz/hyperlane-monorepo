@@ -1,12 +1,6 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
-import {
-  Log,
-  getAbiItem,
-  parseEventLogs,
-  toEventSelector,
-  toEventSignature,
-} from 'viem';
+import { Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
@@ -90,12 +84,10 @@ export async function getExtraLockBoxConfigs({
   const currentBlockNumber = await provider.getBlockNumber();
 
   const eventTopic = toEventSelector(
-    toEventSignature(
-      getAbiItem({
-        abi: minimalXERC20VSABI,
-        name: 'ConfigurationChanged',
-      }),
-    ),
+    getAbiItem({
+      abi: minimalXERC20VSABI,
+      name: 'ConfigurationChanged',
+    }),
   );
 
   let logs: (ethers.providers.Log | GetEventLogsResponse)[];
