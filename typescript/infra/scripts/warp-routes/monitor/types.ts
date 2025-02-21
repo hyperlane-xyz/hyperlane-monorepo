@@ -11,6 +11,7 @@ export interface XERC20Limit {
 export interface WarpRouteBalance {
   balance: number;
   valueUSD?: number;
+  tokenAddress: Address;
 }
 
 export interface NativeWalletBalance {

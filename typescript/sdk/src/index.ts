@@ -505,15 +505,19 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
+  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmHypVSXERC20LockboxAdapter,
+  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
   IHypXERC20Adapter,
+  IHypVSXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
@@ -588,6 +592,7 @@ export {
   HypTokenRouterConfigSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
+  isXERC20TokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,

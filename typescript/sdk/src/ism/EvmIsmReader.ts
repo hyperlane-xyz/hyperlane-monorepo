@@ -151,7 +151,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       owner = await defaultFallbackIsmInstance.owner();
     } catch {
       this.logger.debug(
-        'Error accessing owner property, implying this is an ICA routing ISM.',
+        'Error accessing owner property, implying that this is not a DefaultFallbackRoutingIsm.',
         address,
       );
     }

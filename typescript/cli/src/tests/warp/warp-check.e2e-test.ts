@@ -259,9 +259,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const hookConfig: Extract<
         HookConfig,
         { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].hook;
+      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
       const actualOwner = hookConfig.owner;
       const wrongOwner = randomAddress();
+      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
       hookConfig.owner = wrongOwner;
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
 
