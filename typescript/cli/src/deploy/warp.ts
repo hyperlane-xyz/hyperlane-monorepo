@@ -179,7 +179,7 @@ export async function runWarpRouteDeploy({
           },
           {
             type: IsmType.MESSAGE_ID_MULTISIG,
-            validators: ['0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'],
+            validators: ['0x469f0940684d147defc44f3647146cb90dd0bc8e'],
             threshold: 1,
           },
         ],
@@ -188,7 +188,7 @@ export async function runWarpRouteDeploy({
     },
   };
   warpRouteConfig.starknetsepolia.interchainSecurityModule =
-    '0x0609232fc85f4ba827d8ea04e8ac26727098d70c0a5a24168a1bf4d9c743df9e';
+    '0x04b96481bd6b1c5fec5d41b0c17581a56ef212c4fb2a7248309992a962de5649';
 
   console.log('warpRouteConfig', JSON.stringify(warpRouteConfig, null, 2));
 
