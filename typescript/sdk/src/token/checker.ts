@@ -48,16 +48,28 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       isCollateralTokenConfig(this.configMap[chain]) ||
       isXERC20TokenConfig(this.configMap[chain])
     ) {
-      const collateralToken = await this.getCollateralToken(chain);
+      let collateralToken = await this.getCollateralToken(chain);
 
       const provider = this.multiProvider.getProvider(chain);
 
       // XERC20s are Ownable
-      const tokenType = this.configMap[chain].type;
-      if (
-        tokenType === TokenType.XERC20Lockbox ||
-        tokenType === TokenType.XERC20
-      ) {
+      const expectedConfig = this.configMap[chain];
+      if (expectedConfig.type === TokenType.XERC20Lockbox) {
+        const lockbox = IXERC20Lockbox__factory.connect(
+          expectedConfig.token,
+          provider,
+        );
+        collateralToken = ERC20__factory.connect(
+          await lockbox.callStatic['XERC20()'](),
+          provider,
+        );
+        contracts['collateralToken'] = Ownable__factory.connect(
+          collateralToken.address,
+          provider,
+        );
+      }
+
+      if (expectedConfig.type === TokenType.XERC20) {
         contracts['collateralToken'] = Ownable__factory.connect(
           collateralToken.address,
           provider,
