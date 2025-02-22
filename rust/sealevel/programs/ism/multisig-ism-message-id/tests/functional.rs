@@ -306,6 +306,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
         destination: domain + 1,
         recipient: H256::random(),
         body: vec![1, 2, 3, 4, 5],
+        id: std::sync::OnceLock::new(),
     };
 
     // First, call MultisigIsmInstruction::ValidatorsAndThresholdAccountMetas to get the metas
