@@ -634,6 +634,11 @@ export class EvmXERC20VSAdapter
     return rateLimits;
   }
 
+  // remove bridge
+  async populateRemoveBridgeTx(bridge: Address): Promise<PopulatedTransaction> {
+    return this.xERC20VS.populateTransaction.removeBridge(bridge);
+  }
+
   async populateSetBufferCapTx(
     bridge: Address,
     newBufferCap: bigint,
