@@ -202,10 +202,9 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   }
 
   async fetchXERC20Config(
-    type: TokenType.XERC20 | TokenType.XERC20Lockbox,
     xERC20Address: Address,
     warpRouteAddress: Address,
-  ): Promise<XERC20TokenMetadata | {}> {
+  ): Promise<XERC20TokenMetadata> {
     // fetch the limits if possible
     const rateLimitsABI = [
       'function rateLimitPerSecond(address) external view returns (uint128)',
@@ -272,11 +271,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await this.fetchERC20Metadata(token);
 
       if (type === TokenType.XERC20 || type === TokenType.XERC20Lockbox) {
-        xERC20Metadata = await this.fetchXERC20Config(
-          type,
-          token,
-          warpRouteAddress,
-        );
+        xERC20Metadata = await this.fetchXERC20Config(token, warpRouteAddress);
       }
 
       return {
