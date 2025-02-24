@@ -55,6 +55,22 @@ const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
+function hasNonRetryableError(params: { method: string; error: Error }) {
+  const { method, error } = params;
+  const TX_METHODS = ['sendRawTransaction', 'sendTransaction'];
+  const TX_CAll_METHODS = [...TX_METHODS, 'call', 'estimateGas'];
+
+  const nonRetryableError =
+    (TX_CAll_METHODS.includes(method) && error.message.includes('revert')) ||
+    (TX_METHODS.includes(method) &&
+      (error.message.includes('known') ||
+        error.message.includes('nonce') ||
+        error.message.includes('underpriced') ||
+        error.message.includes('insufficient funds') ||
+        error.message.includes('insufficient balance')));
+
+  return nonRetryableError;
+}
 export class HyperlaneSmartProvider
   extends providers.BaseProvider
   implements IProviderMethods
@@ -207,6 +223,7 @@ export class HyperlaneSmartProvider
       () => this.performWithFallback(method, params, supportedProviders, reqId),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
+      ['revert', 'insufficient funds'],
     );
   }
 
@@ -310,10 +327,21 @@ export class HyperlaneSmartProvider
               ...providerMetadata,
             },
             `Error from provider.`,
-            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
-          pIndex += 1;
+
+          const nonRetryable = hasNonRetryableError({
+            method,
+            error: result.error as Error,
+          });
+
+          pIndex += nonRetryable
+            ? providers.length // Setting this to providers.length will force exit the loop and not retry with the next provider
+            : 1;
+
+          this.logger.debug(
+            isLastProvider || nonRetryable ? '' : 'Triggering next provider.',
+          );
         } else {
           throw new Error(
             `Unexpected result from provider: ${JSON.stringify(
