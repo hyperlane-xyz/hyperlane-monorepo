@@ -50,6 +50,7 @@ import {
   hypERC20factories,
   isCollateralTokenConfig,
   isTokenMetadata,
+  splitWarpCoreAndExtendedConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -543,29 +544,6 @@ export async function runWarpRouteApply(
 }
 
 /**
- * Splits warp deploy config into existing and extended configurations based on warp core chains
- * for the warp apply process.
- */
-function splitWarpApplyConfig(
-  warpDeployConfig: WarpRouteDeployConfig,
-  warpCoreChains: string[],
-): [WarpRouteDeployConfig, WarpRouteDeployConfig] {
-  return Object.entries(warpDeployConfig).reduce<
-    [WarpRouteDeployConfig, WarpRouteDeployConfig]
-  >(
-    ([existing, extended], [chain, config]) => {
-      if (warpCoreChains.includes(chain)) {
-        existing[chain] = config;
-      } else {
-        extended[chain] = config;
-      }
-      return [existing, extended];
-    },
-    [{}, {}],
-  );
-}
-
-/**
  * Handles the deployment and configuration of new contracts for extending a Warp route.
  * This function performs several key steps:
  * 1. Derives metadata from existing contracts and applies it to new configurations
@@ -636,10 +614,8 @@ export async function extendWarpRoute(
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
   // Split between the existing and additional config
-  const [existingConfigs, initialExtendedConfigs] = splitWarpApplyConfig(
-    warpDeployConfig,
-    warpCoreChains,
-  );
+  const [existingConfigs, initialExtendedConfigs] =
+    splitWarpCoreAndExtendedConfigs(warpDeployConfig, warpCoreChains);
 
   const extendedChains = Object.keys(initialExtendedConfigs);
   if (extendedChains.length === 0) {

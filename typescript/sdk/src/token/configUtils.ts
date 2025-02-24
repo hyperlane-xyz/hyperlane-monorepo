@@ -92,3 +92,26 @@ export async function expandWarpDeployConfig(
     };
   });
 }
+
+/**
+ * Splits warp deploy config into existing and extended configurations based on warp core chains
+ * for the warp apply process.
+ */
+export function splitWarpCoreAndExtendedConfigs(
+  warpDeployConfig: WarpRouteDeployConfig,
+  warpCoreChains: string[],
+): [WarpRouteDeployConfig, WarpRouteDeployConfig] {
+  return Object.entries(warpDeployConfig).reduce<
+    [WarpRouteDeployConfig, WarpRouteDeployConfig]
+  >(
+    ([existing, extended], [chain, config]) => {
+      if (warpCoreChains.includes(chain)) {
+        existing[chain] = config;
+      } else {
+        extended[chain] = config;
+      }
+      return [existing, extended];
+    },
+    [{}, {}],
+  );
+}

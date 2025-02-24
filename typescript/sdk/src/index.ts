@@ -528,6 +528,7 @@ export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  splitWarpCoreAndExtendedConfigs,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
