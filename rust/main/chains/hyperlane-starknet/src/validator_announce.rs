@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use hyperlane_core::{
-    utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, TxOutcome, H256, U256,
-};
 use hyperlane_core::{Announcement, Encode, SignedType, ValidatorAnnounce};
-use starknet::accounts::{Execution, SingleOwnerAccount};
+use hyperlane_core::{
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, TxOutcome, H256, U256,
+};
+use starknet::accounts::{Account, Execution, SingleOwnerAccount};
 use starknet::core::types::FieldElement;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use starknet::providers::AnyProvider;
@@ -184,17 +184,22 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
     #[instrument(ret, skip(self))]
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        let validator = bytes_to_hex(&announcement.value.validator.to_vec());
+        // let validator = bytes_to_hex(&announcement.value.validator.to_vec());
 
         let Ok((_, max_cost)) = self.announce_contract_call(announcement).await else {
             warn!("Unable to get announce contract call");
             return None;
         };
 
-        let Ok(balance) = self.provider.get_balance(validator).await else {
+        let Ok(balance) = self
+            .provider
+            .get_balance(self.contract.account.address().to_string())
+            .await
+        else {
             warn!("Unable to query balance");
             return None;
         };
+        println!("STARKNET announcebalance: {:?}", balance);
 
         let max_cost_u256: HyU256 = max_cost.into();
 
