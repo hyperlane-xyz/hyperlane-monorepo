@@ -125,6 +125,8 @@ async function getConfigFromMergedRegistry(
     true,
   ).getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
+  //TODO: fix this and manage mailbox
+  //@ts-ignore
   return warpRoute;
 }
 
