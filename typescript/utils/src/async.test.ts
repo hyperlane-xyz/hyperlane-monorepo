@@ -69,6 +69,40 @@ describe('Async Utilities', () => {
       const result = await retryAsync(runner, 5, 10);
       expect(result).to.equal('success');
     });
+
+    it('should immediately throw error if in dontRetry list', async () => {
+      const dontRetryMessage = 'do not retry this';
+      let attempts = 0;
+      const runner = async () => {
+        attempts++;
+        throw new Error(dontRetryMessage);
+      };
+
+      try {
+        await retryAsync(runner, 5, 10, [dontRetryMessage]);
+        throw new Error('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).to.equal(dontRetryMessage);
+        expect(attempts).to.equal(1);
+      }
+    });
+
+    it('should handle multiple dontRetry patterns', async () => {
+      const dontRetryPatterns = ['revert', 'error2'];
+      let attempts = 0;
+      const runner = async () => {
+        attempts++;
+        throw new Error('contains revert message');
+      };
+
+      try {
+        await retryAsync(runner, 5, 10, dontRetryPatterns);
+        throw new Error('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).to.contain('revert');
+        expect(attempts).to.equal(1);
+      }
+    });
   });
 
   describe('pollAsync', () => {

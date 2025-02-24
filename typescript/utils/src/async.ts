@@ -90,6 +90,7 @@ export async function retryAsync<T>(
   runner: () => T,
   attempts = 5,
   baseRetryMs = 50,
+  dontRetry: string[] = [],
 ) {
   let saveError;
   for (let i = 0; i < attempts; i++) {
@@ -97,6 +98,10 @@ export async function retryAsync<T>(
       const result = await runner();
       return result;
     } catch (error) {
+      if (dontRetry.some((msg) => (error as Error).message.includes(msg))) {
+        throw error;
+      }
+
       saveError = error;
       await sleep(baseRetryMs * 2 ** i);
     }
