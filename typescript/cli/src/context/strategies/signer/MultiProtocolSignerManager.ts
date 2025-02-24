@@ -48,7 +48,6 @@ export class MultiProtocolSignerManager {
     this.signerStrategies = new Map();
     this.signers = new Map();
     this.initializeStrategies();
-    this.initMultiProvider();
   }
 
   /**
@@ -56,6 +55,15 @@ export class MultiProtocolSignerManager {
    */
   protected initializeStrategies(): void {
     for (const chain of this.chains) {
+      if (
+        this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum &&
+        this.multiProvider.getProtocol(chain) !== ProtocolType.Starknet
+      ) {
+        this.logger.debug(
+          `Skipping signer strategy initialization for non-EVM chain ${chain}`,
+        );
+        continue;
+      }
       const strategy = MultiProtocolSignerFactory.getSignerStrategy(
         chain,
         this.submissionStrategy,
@@ -68,7 +76,7 @@ export class MultiProtocolSignerManager {
   /**
    * @dev Configures signers for EVM chains in MultiProvider
    */
-  async initMultiProvider(): Promise<MultiProvider> {
+  async getMultiProvider(): Promise<MultiProvider> {
     const ethereumChains = this.chains.filter(
       (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
@@ -77,13 +85,11 @@ export class MultiProtocolSignerManager {
 
     for (const chain of ethereumChains) {
       const signer = await this.initSigner(chain);
-      this.multiProvider.setSigner(chain, signer as Signer);
+      if (this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+        this.multiProvider.setSigner(chain, signer as Signer);
+      }
     }
 
-    return this.multiProvider;
-  }
-
-  getMultiProvider(): MultiProvider {
     return this.multiProvider;
   }
 
@@ -148,12 +154,17 @@ export class MultiProtocolSignerManager {
   }
 
   /**
-   * @notice Resolves all chain configurations
+   * @notice Resolves all chain configurations sequentially to avoid event listener leaks
    */
   private async resolveAllConfigs(): Promise<
     Array<{ chain: ChainName } & SignerConfig>
   > {
-    return Promise.all(this.chains.map((chain) => this.resolveConfig(chain)));
+    const configs: Array<{ chain: ChainName } & SignerConfig> = [];
+    for (const chain of this.chains) {
+      const config = await this.resolveConfig(chain);
+      configs.push(config);
+    }
+    return configs;
   }
 
   /**
@@ -169,38 +180,43 @@ export class MultiProtocolSignerManager {
       return this.resolveStarknetConfig(chain);
     }
 
-    // For other protocols, try CLI/ENV keys first, then fallback to strategy
-    const config = await this.extractPrivateKey(chain);
-    return { chain, ...config };
+    const signerStrategy = this.signerStrategies.get(chain);
+    assert(signerStrategy, `No signer strategy found for chain ${chain}`);
+
+    let privateKey: string;
+
+    if (this.options.key) {
+      this.logger.debug(
+        `Using private key passed via CLI --key flag for chain ${chain}`,
+      );
+      privateKey = this.options.key;
+    } else if (ENV.HYP_KEY) {
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
+      privateKey = ENV.HYP_KEY;
+    } else {
+      privateKey = await this.extractPrivateKey(chain, signerStrategy);
+    }
+
+    return { chain, privateKey };
   }
 
   /**
    * @notice Gets private key from strategy
    */
-  private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
-    if (this.options.key) {
-      this.logger.info(
-        `Using private key passed via CLI --key flag for chain ${chain}`,
-      );
-      return { privateKey: this.options.key };
-    }
-
-    if (ENV.HYP_KEY) {
-      this.logger.info(`Using private key from .env for chain ${chain}`);
-      return { privateKey: ENV.HYP_KEY };
-    }
-
-    const signerStrategy = this.getSignerStrategyOrFail(chain);
+  private async extractPrivateKey(
+    chain: ChainName,
+    signerStrategy: IMultiProtocolSigner,
+  ): Promise<string> {
     const strategyConfig = await signerStrategy.getSignerConfig(chain);
     assert(
       strategyConfig.privateKey,
       `No private key found for chain ${chain}`,
     );
-    this.logger.info(
+
+    this.logger.debug(
       `Extracting private key from strategy config/user prompt for chain ${chain}`,
     );
-
-    return { privateKey: strategyConfig.privateKey };
+    return strategyConfig.privateKey;
   }
 
   private async resolveStarknetConfig(

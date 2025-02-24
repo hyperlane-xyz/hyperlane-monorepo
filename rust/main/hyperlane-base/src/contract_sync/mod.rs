@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+    time::UNIX_EPOCH,
 };
 
 use axum::async_trait;
@@ -98,8 +99,13 @@ where
             .metrics
             .stored_events
             .with_label_values(&[label, chain_name]);
+        let liveness_metric = self
+            .metrics
+            .liveness_metrics
+            .with_label_values(&[label, chain_name]);
 
         loop {
+            Self::update_liveness_metric(&liveness_metric);
             if let Some(rx) = opts.tx_id_receiver.as_mut() {
                 self.fetch_logs_from_receiver(rx, &stored_logs_metric).await;
             }
@@ -107,7 +113,26 @@ where
                 self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
                     .await;
             }
+
+            // Added so that we confuse compiler that it is an infinite loop
+            if false {
+                break;
+            }
         }
+
+        // Although the above loop should never end (unless by panicking),
+        // we put log here to make sure that we see when this method returns normally.
+        // Hopefully, compiler will not optimise this code out.
+        info!(chain = chain_name, label, "contract sync loop exit");
+    }
+
+    fn update_liveness_metric(liveness_metric: &GenericGauge<AtomicI64>) {
+        liveness_metric.set(
+            UNIX_EPOCH
+                .elapsed()
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0),
+        );
     }
 
     #[instrument(fields(domain=self.domain().name()), skip(self, recv, stored_logs_metric))]
@@ -312,6 +337,8 @@ where
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
+                self.metrics.cursor_metrics.clone(),
+                self.domain(),
                 self.store.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
@@ -352,6 +379,8 @@ where
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
+                self.domain(),
+                self.metrics.cursor_metrics.clone(),
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,

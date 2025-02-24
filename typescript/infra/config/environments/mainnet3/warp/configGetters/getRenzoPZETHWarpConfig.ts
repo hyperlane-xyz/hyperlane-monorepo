@@ -1,104 +1,42 @@
+import { ChainMap } from '@hyperlane-xyz/sdk';
+import { pick } from '@hyperlane-xyz/utils';
+
 import {
-  ChainMap,
-  HypTokenRouterConfig,
-  IsmType,
-  TokenType,
-  buildAggregationIsmConfigs,
-} from '@hyperlane-xyz/sdk';
-import { symmetricDifference } from '@hyperlane-xyz/utils';
+  ezEthSafes,
+  ezEthValidators,
+  getRenzoWarpConfigGenerator,
+  renzoTokenPrices,
+} from './getRenzoEZETHWarpConfig.js';
 
-import { getRegistry as getMainnet3Registry } from '../../chains.js';
-
-import { ezEthSafes, ezEthValidators } from './getRenzoEZETHWarpConfig.js';
-
-const lockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
-const xERC20 = '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7';
-const lockboxChain = 'ethereum';
-// over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
-const warpRouteOverheadGas = 200_000;
-
-const chainsToDeploy = ['ethereum', 'zircuit'];
-
-const pzEthValidators = {
-  ethereum: ezEthValidators.ethereum,
-  zircuit: ezEthValidators.zircuit,
+const pzEthProductionLockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
+const pzEthAddresses = {
+  ethereum: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
+  zircuit: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
+  swell: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
 };
 
-const pzEthSafes: Record<string, string> = {
-  ethereum: ezEthSafes.ethereum,
-  zircuit: ezEthSafes.zircuit,
+export const pzEthChainsToDeploy = ['ethereum', 'swell', 'zircuit'];
+
+const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
+const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
+export const pzEthTokenPrices = pick(renzoTokenPrices, pzEthChainsToDeploy);
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+  ethereum: {
+    address: '0x4f4671Ce69c9af15e33eB7Cf6D1358d1B39Af3bF',
+    owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  },
+  zircuit: {
+    address: '0x8b789B4A56675240c9f0985B467752b870c75711',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
 };
 
-export const getRenzoPZETHWarpConfig = async (): Promise<
-  ChainMap<HypTokenRouterConfig>
-> => {
-  const registry = await getMainnet3Registry();
-
-  const validatorDiff = symmetricDifference(
-    new Set(chainsToDeploy),
-    new Set(Object.keys(pzEthValidators)),
-  );
-  const safeDiff = symmetricDifference(
-    new Set(chainsToDeploy),
-    new Set(Object.keys(pzEthSafes)),
-  );
-  if (validatorDiff.size > 0) {
-    throw new Error(
-      `chainsToDeploy !== validatorConfig, diff is ${Array.from(
-        validatorDiff,
-      ).join(', ')}`,
-    );
-  }
-  if (safeDiff.size > 0) {
-    throw new Error(
-      `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(', ')}`,
-    );
-  }
-
-  const tokenConfig = Object.fromEntries<HypTokenRouterConfig>(
-    await Promise.all(
-      chainsToDeploy.map(
-        async (chain): Promise<[string, HypTokenRouterConfig]> => {
-          const ret: [string, HypTokenRouterConfig] = [
-            chain,
-            {
-              isNft: false,
-              type:
-                chain === lockboxChain
-                  ? TokenType.XERC20Lockbox
-                  : TokenType.XERC20,
-              token: chain === lockboxChain ? lockbox : xERC20,
-              owner: pzEthSafes[chain],
-              gas: warpRouteOverheadGas,
-              mailbox: (await registry.getChainAddresses(chain))!.mailbox,
-              interchainSecurityModule: {
-                type: IsmType.AGGREGATION,
-                threshold: 2,
-                modules: [
-                  {
-                    type: IsmType.ROUTING,
-                    owner: pzEthSafes[chain],
-                    domains: buildAggregationIsmConfigs(
-                      chain,
-                      chainsToDeploy,
-                      pzEthValidators,
-                    ),
-                  },
-                  {
-                    type: IsmType.FALLBACK_ROUTING,
-                    domains: {},
-                    owner: pzEthSafes[chain],
-                  },
-                ],
-              },
-            },
-          ];
-
-          return ret;
-        },
-      ),
-    ),
-  );
-
-  return tokenConfig;
-};
+export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
+  chainsToDeploy: pzEthChainsToDeploy,
+  validators: pzEthValidators,
+  safes: pzEthSafes,
+  xERC20Addresses: pzEthAddresses,
+  xERC20Lockbox: pzEthProductionLockbox,
+  tokenPrices: pzEthTokenPrices,
+  existingProxyAdmins: existingProxyAdmins,
+});

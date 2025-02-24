@@ -1,0 +1,10 @@
+{
+  "sonicsvm": {
+    "hex": "0x4c41c164c94a75760556a8c11d213ca882e00da697e50d004b27a462ec3451c6",
+    "base58": "68g96Cq16vKAqyG79BFVeJCgitjK9fQ1NRCRmcPkJtDB"
+  },
+  "solanamainnet": {
+    "hex": "0xd642f2e1c4e448fcc87316a4592673309fdcafa012c5f6b005e1bae508cb4d2b",
+    "base58": "FRPTWpmnNPm4LS2a5NUL1QenUrzGDAuifZBUi1mTWTdt"
+  }
+}

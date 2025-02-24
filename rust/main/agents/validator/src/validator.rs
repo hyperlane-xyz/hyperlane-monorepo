@@ -13,8 +13,9 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     settings::ChainConf,
-    AgentMetadata, BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer,
-    CoreMetrics, HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
+    AgentMetadata, BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer,
+    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, RuntimeMetrics,
+    SequencedDataContractSync,
 };
 
 use hyperlane_core::{
@@ -50,6 +51,7 @@ pub struct Validator {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    runtime_metrics: RuntimeMetrics,
     agent_metadata: AgentMetadata,
 }
 
@@ -65,6 +67,7 @@ impl BaseAgent for Validator {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        runtime_metrics: RuntimeMetrics,
         _tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
@@ -77,10 +80,13 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
+        // Be extra sure to panic checkpoint syncer fails, which indicates
+        // a fatal startup error.
         let checkpoint_syncer = settings
             .checkpoint_syncer
             .build_and_validate(None)
-            .await?
+            .await
+            .expect("Failed to build checkpoint syncer")
             .into();
 
         let mailbox = settings
@@ -130,6 +136,7 @@ impl BaseAgent for Validator {
             agent_metrics,
             chain_metrics,
             core_metrics: metrics,
+            runtime_metrics,
             agent_metadata,
         })
     }
@@ -161,7 +168,7 @@ impl BaseAgent for Validator {
             );
         }
 
-        let metrics_updater = MetricsUpdater::new(
+        let metrics_updater = ChainSpecificMetricsUpdater::new(
             &self.origin_chain_conf,
             self.core_metrics.clone(),
             self.agent_metrics.clone(),
@@ -206,6 +213,7 @@ impl BaseAgent for Validator {
                 }
             }
         }
+        tasks.push(self.runtime_metrics.spawn());
 
         // Note that this only returns an error if one of the tasks panics
         if let Err(err) = try_join_all(tasks).await {
@@ -228,11 +236,11 @@ impl Validator {
                     self.origin_chain
                 )
             });
+        let origin = self.origin_chain.name().to_string();
         tokio::spawn(async move {
-            contract_sync
-                .clone()
-                .sync("merkle_tree_hook", cursor.into())
-                .await;
+            let label = "merkle_tree_hook";
+            contract_sync.clone().sync(label, cursor.into()).await;
+            info!(chain = origin, label, "contract sync task exit");
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }

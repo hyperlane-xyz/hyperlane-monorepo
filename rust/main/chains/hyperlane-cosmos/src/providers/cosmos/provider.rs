@@ -156,8 +156,8 @@ impl CosmosProvider {
                             value: pk.value,
                         };
 
-                        let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?;
+                        let proto: proto::cosmos::crypto::secp256k1::PubKey =
+                            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
 
                         let decompressed = decompress_public_key(&proto.key)
                             .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
@@ -250,8 +250,8 @@ impl CosmosProvider {
             let msg = "could not find contract execution message";
             HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
-        let proto =
-            ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let proto: proto::cosmwasm::wasm::v1::MsgExecuteContract =
+            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
@@ -354,21 +354,8 @@ impl CosmosProvider {
 
         Ok(fee / gas_limit)
     }
-}
 
-impl HyperlaneChain for CosmosProvider {
-    fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
-    }
-
-    fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(self.clone())
-    }
-}
-
-#[async_trait]
-impl HyperlaneProvider for CosmosProvider {
-    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+    async fn block_info_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let response = self
             .rpc_client
             .call(|provider| Box::pin(async move { provider.get_block(height as u32).await }))
@@ -392,7 +379,24 @@ impl HyperlaneProvider for CosmosProvider {
             timestamp: time.unix_timestamp() as u64,
             number: block_height,
         };
+        Ok(block_info)
+    }
+}
 
+impl HyperlaneChain for CosmosProvider {
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(self.clone())
+    }
+}
+
+#[async_trait]
+impl HyperlaneProvider for CosmosProvider {
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let block_info = self.block_info_by_height(height).await?;
         Ok(block_info)
     }
 
@@ -459,6 +463,12 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Ok(None)
+        let height = self.grpc_provider.latest_block_height().await?;
+        let latest_block = self.block_info_by_height(height).await?;
+        let chain_info = ChainInfo {
+            latest_block,
+            min_gas_price: None,
+        };
+        Ok(Some(chain_info))
     }
 }

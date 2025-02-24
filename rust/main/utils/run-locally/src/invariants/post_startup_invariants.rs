@@ -3,7 +3,7 @@ use std::io::BufReader;
 
 use hyperlane_base::AgentMetadata;
 
-use crate::DynPath;
+use crate::{log, DynPath};
 
 pub fn post_startup_invariants(checkpoints_dirs: &[DynPath]) -> bool {
     post_startup_validator_metadata_written(checkpoints_dirs)
@@ -47,6 +47,7 @@ fn metadata_file_check(expected_git_sha: &str, path: &DynPath) -> bool {
     };
 
     if metadata.git_sha != expected_git_sha {
+        log!("Error: Metadata git hash mismatch, maybe try `cargo clean` and try again");
         return false;
     }
 

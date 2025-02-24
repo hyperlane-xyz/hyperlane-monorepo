@@ -31,9 +31,33 @@ const DEFAULT_BWARE_LABS_VALIDATOR: ValidatorConfig = {
   address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
   alias: 'Bware Labs',
 };
+const DEFAULT_ZKV_VALIDATOR: ValidatorConfig = {
+  address: '0x761980c3debdc8ddb69a2713cf5126d4db900f0f',
+  alias: 'ZKV',
+};
+const DEFAULT_BLOCKPI_VALIDATOR: ValidatorConfig = {
+  address: '0x6d113ae51bfea7b63a8828f97e9dce393b25c189',
+  alias: 'BlockPI',
+};
+const DEFAULT_HASHKEY_CLOUD_VALIDATOR: ValidatorConfig = {
+  address: '0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb',
+  alias: 'Hashkey Cloud',
+};
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
+  abstract: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x2ef8ece5b51562e65970c7d36007baa43a1de685',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   abstracttestnet: {
     threshold: 1,
     validators: [
@@ -43,6 +67,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
     ],
   },
+
+  // acala: {
+  //   threshold: 1,
+  //   validators: [
+  //     {
+  //       address: '0x3229bbeeab163c102d0b1fa15119b9ae0ed37cfa',
+  //       alias: AW_VALIDATOR_ALIAS,
+  //     },
+  //   ],
+  // },
 
   alephzeroevmmainnet: {
     threshold: 3,
@@ -166,6 +200,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  arcadia: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   arcadiatestnet2: {
     threshold: 1,
     validators: [
@@ -173,6 +219,30 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff',
         alias: AW_VALIDATOR_ALIAS,
       },
+    ],
+  },
+
+  artela: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x8fcc1ebd4c0b463618db13f83e4565af3e166b00',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  arthera: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x13710ac11c36c169f62fba95767ae59a1e57098d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -193,6 +263,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x89ecdd6caf138934bf3a2fb7b323984d72fd66de',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  aurora: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -225,7 +307,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   base: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       {
         address: '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
@@ -235,6 +317,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_EVERSTAKE_VALIDATOR,
       { address: '0xcff391b4e516452d424db66beb9052b041a9ed79', alias: 'DSRV' },
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
     ],
   },
 
@@ -258,6 +341,26 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  berachain: {
+    threshold: 3,
+    validators: [
+      {
+        address: '0x0190915c55d9c7555e6d2cb838f04d18b5e2260e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
+        alias: 'Renzo',
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   bitlayer: {
     threshold: 2,
     validators: [
@@ -271,7 +374,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   blast: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xf20c0b09f597597c8d2430d3d72dfddaf09177d1',
@@ -279,9 +382,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MITOSIS_VALIDATOR,
       {
-        address: '0xae53467a5c2a9d9420c188d10fef5e1d9b9a5b80',
-        alias: 'Superform',
+        address: '0x1652d8ba766821cf01aeea34306dfc1cab964a32',
+        alias: 'Everclear',
       },
+      { address: '0x54bb0036f777202371429e062fe6aee0d59442f9', alias: 'Renzo' },
     ],
   },
 
@@ -302,6 +406,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xebeb92c94ca8408e73aa16fd554cb3a7df075c59',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  bouncebit: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xaf38612d1e79ec67320d21c5f7e92419427cd154',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -363,7 +479,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   celo: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       {
         address: '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
@@ -373,6 +489,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_EVERSTAKE_VALIDATOR,
       DEFAULT_STAKED_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
+      DEFAULT_BLOCKPI_VALIDATOR,
     ],
   },
 
@@ -421,6 +539,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  chronicleyellowstone: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   citreatestnet: {
     threshold: 1,
     validators: [
@@ -428,6 +556,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x60d7380a41eb95c49be18f141efd2fde5e3dba20',
         alias: AW_VALIDATOR_ALIAS,
       },
+    ],
+  },
+
+  conflux: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x113dfa1dc9b0a2efb6ad01981e2aad86d3658490',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -441,11 +581,35 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  conwai: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x949e2cdd7e79f99ee9bbe549540370cdc62e73c3',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   coredao: {
     threshold: 2,
     validators: [
       {
         address: '0xbd6e158a3f5830d99d7d2bce192695bc4a148de2',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  corn: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xc80b2e3e38220e02d194a0effa9d5bfe89894c07',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -595,6 +759,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  evmos: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x8f82387ad8b7b13aa9e06ed3f77f78a77713afe0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   fantom: {
     threshold: 2,
     validators: [
@@ -630,6 +806,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  flametestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x0272625243bf2377f87538031fed54e21853cc2d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   flare: {
     threshold: 2,
     validators: [
@@ -658,11 +844,33 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  form: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x58554b2e76167993b5fc000d0070a2f883cd333a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   formtestnet: {
     threshold: 1,
     validators: [
       {
         address: '0x72ad7fddf16d17ff902d788441151982fa31a7bc',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  fractal: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3476c9652d3371bb01bbb4962516fffee5e73754',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -722,6 +930,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  glue: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xbe2ded12f7b023916584836506677ea89a0b6924',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   gnosis: {
     threshold: 3,
     validators: [
@@ -747,11 +967,35 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  guru: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x0d756d9051f12c4de6aee2ee972193a2adfe00ef',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   harmony: {
     threshold: 2,
     validators: [
       {
         address: '0xd677803a67651974b1c264171b5d7ca8838db8d5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  hemi: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x312dc72c17d01f3fd0abd31dd9b569bc473266dd',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -765,6 +1009,22 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x7ab28ad88bb45867137ea823af88e2cb02359c03',
         alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  hyperevm: {
+    threshold: 3,
+    validators: [
+      {
+        address: '0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x36f2bd8200ede5f969d63a0a28e654392c51a193',
+        alias: 'Imperator',
       },
     ],
   },
@@ -817,13 +1077,38 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       {
-        address: '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242',
-        alias: 'Caldera',
+        address: '0xd6f6dee54443632490eddc82680d8917544bcb5a',
+        alias: 'Decentrio',
       },
       {
         address: '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9',
         alias: 'Imperator',
       },
+    ],
+  },
+
+  ink: {
+    threshold: 4,
+    validators: [
+      {
+        address: '0xb533b8b104522958b984fb258e0684dec0f1a6a5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0xd207a6dfd887d91648b672727ff1aef6223cb15a',
+        alias: 'Imperator',
+      },
+
+      {
+        address: '0xa40203b5301659f1e201848d92f5e81f64f206f5',
+        alias: 'Enigma',
+      },
+      {
+        address: '0xff9c1e7b266a36eda0d9177d4236994d94819dc0',
+        alias: 'Luganodes',
+      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
+      DEFAULT_TESSELLATED_VALIDATOR,
     ],
   },
 
@@ -966,10 +1251,25 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantle: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       {
         address: '0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
+      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+      DEFAULT_BLOCKPI_VALIDATOR,
+    ],
+  },
+
+  matchain: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x8a052f7934b0626105f34f980c875ec03aaf82e8',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -1074,6 +1374,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  monadtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x734628f55694d2a5f4de3e755ccb40ecd72b16d9',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   moonbeam: {
     threshold: 3,
     validators: [
@@ -1092,6 +1402,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x4884535f393151ec419add872100d352f71af380',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  nero: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xb86f872df37f11f33acbe75b6ed208b872b57183',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -1323,6 +1645,30 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  rivalz: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  ronin: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   rootstockmainnet: {
     threshold: 2,
     validators: [
@@ -1484,6 +1830,30 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  soneium: {
+    threshold: 4,
+    validators: [
+      {
+        address: '0xd4b7af853ed6a2bfc329ecef545df90c959cbee8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0x9f4fa50ce49815b0932428a0eb1988382cef4a97',
+        alias: 'Imperator',
+      },
+      {
+        address: '0x8d2f8ebd61d055d58768cf3b07cb2fb565d87716',
+        alias: 'Enigma',
+      },
+      {
+        address: '0x6c5f6ab7a369222e6691218ad981fe08a5def094',
+        alias: 'Luganodes',
+      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
+      DEFAULT_TESSELLATED_VALIDATOR,
+    ],
+  },
+
   soneiumtestnet: {
     threshold: 1,
     validators: [
@@ -1494,13 +1864,87 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  sonictestnet: {
+  sonic: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  sonicblaze: {
     threshold: 1,
     validators: [
       {
-        address: '0x62e6591d00daec3fb658c3d19403828b4e9ddbb3',
+        address: '0xe5b98110d0688691ea280edea9a4faa1e3617ba1',
         alias: AW_VALIDATOR_ALIAS,
       },
+    ],
+  },
+
+  sonicsvm: {
+    threshold: 3,
+    validators: [
+      {
+        address: '0xf21f46905d8d09f76bc8c503f856e5466bc5ffea',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x85c7a16790cfd9dad6d4abdd4e2d3f1d550c7606',
+        alias: 'Sonic SVM',
+      },
+    ],
+  },
+
+  sonicsvmtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x83d4ef35f170ec822a0eaadb22a0c40003d8de23',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  soon: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x0E6723b3C1eD3Db0C24347AA2cf16D28BC2a1F76',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  sophon: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  story: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x501eda013378c60557d763df98d617b6ba55447a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1543,6 +1987,28 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  subtensor: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xd5f8196d7060b85bea491f0b52a671e05f3d10a2',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  subtensortestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -1595,7 +2061,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   swell: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       {
         address: '0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed',
@@ -1605,8 +2071,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x9eadf9217be22d9878e0e464727a2176d5c69ff8',
         alias: 'Luganodes',
       },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xa5a23fa2a67782bbf1a540cb5ca6a47a0f3f66fb',
+        alias: 'Imperator',
+      },
+      {
+        address: '0x3f707633ccab09d2978e29107c0bbef8a993e7a0',
+        alias: 'Enigma',
+      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
+      DEFAULT_TESSELLATED_VALIDATOR,
     ],
   },
 
@@ -1641,6 +2115,30 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  telos: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xcb08410b14d3adf0d0646f0c61cd07e0daba8e54',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  torus: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x96982a325c28a842bc8cf61b63000737bb9f1f7d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   treasure: {
     threshold: 3,
     validators: [
@@ -1657,6 +2155,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Treasure',
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
     ],
   },
 
@@ -1670,15 +2169,43 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  unichain: {
+  trumpchain: {
     threshold: 2,
+    validators: [
+      {
+        address: '0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      {
+        address: '0xcF8151b8aEFfF4e22F6B48fe2Ffe2d60F00C890C',
+        alias: 'Caldera',
+      },
+    ],
+  },
+
+  unichain: {
+    threshold: 4,
     validators: [
       {
         address: '0x9773a382342ebf604a2e5de0a1f462fb499e28b1',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xa2549be30fb852c210c2fe8e7639039dca779936',
+        alias: 'Imperator',
+      },
+
+      {
+        address: '0xbcbed4d11e946844162cd92c6d09d1cf146b4006',
+        alias: 'Enigma',
+      },
+      {
+        address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
+        alias: 'Luganodes',
+      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
+      DEFAULT_TESSELLATED_VALIDATOR,
     ],
   },
 
@@ -1689,6 +2216,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x5e99961cf71918308c3b17ef21b5f515a4f86fe5',
         alias: AW_VALIDATOR_ALIAS,
       },
+    ],
+  },
+
+  unitzero: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x18818e3ad2012728465d394f2e3c0ea2357ae9c5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1711,10 +2250,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   viction: {
     threshold: 2,
     validators: [
-      {
-        address: '0x6D113Ae51bfeA7b63a8828f97e9dcE393B25c189',
-        alias: 'BlockPi',
-      },
+      DEFAULT_BLOCKPI_VALIDATOR,
       { address: '0xa3f93fe365bf99f431d8fde740b140615e24f99b', alias: 'RockX' },
       {
         address: '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
@@ -1723,8 +2259,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  weavevmtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   worldchain: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       {
         address: '0x31048785845325b22817448b68d08f8a8fe36854',
@@ -1735,6 +2281,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Imperator',
       },
       DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
+      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+      DEFAULT_BLOCKPI_VALIDATOR,
     ],
   },
 
@@ -1762,6 +2311,18 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Imperator',
       },
       DEFAULT_MERKLY_VALIDATOR,
+    ],
+  },
+
+  xpla: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xc11cba01d67f2b9f0288c4c8e8b23c0eca03f26e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 

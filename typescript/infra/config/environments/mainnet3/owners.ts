@@ -6,8 +6,13 @@ import { getMainnetAddresses } from '../../registry.js';
 import { ethereumChainNames } from './chains.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
-export const timelocks: ChainMap<Address | undefined> = {
+export const upgradeTimelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+};
+
+export const timelocks: ChainMap<Address> = {
+  ...upgradeTimelocks,
+  ethereum: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2', // symbiotic network timelock
 };
 
 export function localAccountRouters(): ChainMap<Address> {
@@ -55,14 +60,27 @@ export const safes: ChainMap<Address> = {
   fusemainnet: '0x29a526227CB864C90Cf078d03872da913B473139',
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
-  zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // Q5, 2024 batch
+  berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // HyperEVM
+  hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // zksync chains
+  zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  zksync: '0x9C81aA0cC233e9BddeA426F5d395Ab5B65135450',
+  zklink: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  treasure: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  sophon: '0x3D1baf8cA4935f416671640B1Aa9E17E005986eE',
 };
 
 export const icaOwnerChain = 'ethereum';
 
 // Found by running:
-// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+// yarn tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const icas: Partial<
   Record<(typeof supportedChainNames)[number], Address>
 > = {
@@ -173,6 +191,49 @@ export const icas: Partial<
   // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
   lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
   appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
+
+  // Dec 13, 2024 batch
+  // ----------------------------------------------------------
+  arthera: '0x962e4E5F5e47e1Ab5361eE0B5108Ebeb9Fa5c99B',
+  aurora: '0x853f40c807cbb08EDd19B326b9b6A669bf3c274c',
+  conflux: '0xac8f0e306A126312C273080d149ca01d461603FE',
+  conwai: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  evmos: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  form: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
+  rivalz: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
+  soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  telos: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
+
+  // Jan 13, 2025 batch
+  // ----------------------------------------------------------
+  artela: '0x745CEA119757ea3e27093da590bC91f408bD4448',
+  guru: '0x825cF3d703F384E4aA846BA72eCf70f1985C91b6',
+  hemi: '0x8D18CBB212920e5ef070b23b813d82F8981cC276',
+  nero: '0xbBdb1682B2922C282b56DD716C29db5EFbdb5632',
+  torus: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
+  xpla: '0x24832680dF0468967F413be1C83acfE24154F88D',
+
+  // Feb 3, 2025 batch
+  // ----------------------------------------------------------
+  glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
+  matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
+  unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
+  trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
+
+  // Q5, 2024 batch
+  // ----------------------------------------------------------
+  // berachain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
+
+  // Feb 17, 2025 batch
+  // ----------------------------------------------------------
+  bouncebit: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
+  arcadia: '0xD2344a364b6Dc6B2Fe0f7D836fa344d83056cbaD',
+  ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
+  story: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
+  subtensor: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
@@ -186,7 +247,7 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       {
         owner,
         ownerOverrides: {
-          proxyAdmin: timelocks[local] ?? owner,
+          proxyAdmin: upgradeTimelocks[local] ?? owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
@@ -227,5 +288,13 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   osmosis: {
     owner: 'n/a - nothing owned here',
+  },
+  soon: {
+    // Squads vault
+    owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
+  },
+  sonicsvm: {
+    // Will move to a Squads once it's live
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
 };

@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'bb4e82b-20241107-190423',
+    tag: '7f53c0a-20250208-195222',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -35,16 +35,19 @@ export const keyFunderConfig: KeyFunderConfig<
     berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
+    chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
     ecotestnet: '0.02',
     // no funding for solana
     eclipsetestnet: '0',
+    flametestnet: '0.1',
     formtestnet: '0.1',
     fuji: '5',
     holesky: '5',
-    // hyperliquidevmtestnet: '0.1',
+    hyperliquidevmtestnet: '0.1',
     inksepolia: '0.1',
+    monadtestnet: '0.1',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -52,14 +55,18 @@ export const keyFunderConfig: KeyFunderConfig<
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
-    // no funding for solana
+    // no funding for SVM chains
     solanatestnet: '0',
     soneiumtestnet: '0.1',
-    sonictestnet: '1',
+    sonicblaze: '0.1',
+    // no funding for SVM chains
+    sonicsvmtestnet: '0',
     suavetoliman: '0.1',
+    subtensortestnet: '0.1',
     superpositiontestnet: '1',
     treasuretopaz: '5',
     unichaintestnet: '0.1',
+    weavevmtestnet: '0.1',
   },
   desiredKathyBalancePerChain: {
     alfajores: '1',

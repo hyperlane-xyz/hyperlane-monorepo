@@ -13,7 +13,8 @@ export const SIGN_COMMANDS = [
 export function isSignCommand(argv: any): boolean {
   //TODO: fix reading and checking warp without signer, and remove this
   const temporarySignCommandsCheck =
-    argv._[0] === 'warp' && (argv._[1] === 'read' || argv._[1] === 'check');
+    argv._[0] === 'warp' &&
+    (argv._[1] === 'read' || argv._[1] === 'check' || argv._[1] === 'verify');
   return (
     SIGN_COMMANDS.includes(argv._[0]) ||
     (argv._.length > 1 && SIGN_COMMANDS.includes(argv._[1])) ||

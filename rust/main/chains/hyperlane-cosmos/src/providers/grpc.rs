@@ -553,14 +553,13 @@ impl WasmProvider for WasmGrpcProvider {
     {
         let signer = self.get_signer()?;
         let contract_address = self.get_contract_address();
-        let msgs = vec![MsgExecuteContract {
+        let msg = MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
-        }
-        .to_any()
-        .map_err(ChainCommunicationError::from_other)?];
+        };
+        let msgs = vec![Any::from_msg(&msg).map_err(ChainCommunicationError::from_other)?];
         let gas_limit: Option<u64> = gas_limit.and_then(|limit| match limit.try_into() {
             Ok(limit) => Some(limit),
             Err(err) => {
@@ -629,9 +628,9 @@ impl WasmProvider for WasmGrpcProvider {
         };
 
         let response = self
-            .estimate_gas(vec![msg
-                .to_any()
-                .map_err(ChainCommunicationError::from_other)?])
+            .estimate_gas(vec![
+                Any::from_msg(&msg).map_err(ChainCommunicationError::from_other)?
+            ])
             .await?;
 
         Ok(response)

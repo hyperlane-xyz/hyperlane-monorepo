@@ -18,6 +18,7 @@ spl-token-2022.workspace = true               # FIXME Should we actually use 202
 
 access-control = { path = "../access-control" }
 account-utils = { path = "../account-utils" }
+hyperlane-warp-route = { path = "../../../main/applications/hyperlane-warp-route" }
 hyperlane-core = { path = "../../../main/hyperlane-core" }
 hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = [

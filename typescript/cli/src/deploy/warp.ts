@@ -5,7 +5,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
@@ -234,7 +234,7 @@ export async function runWarpRouteDeploy({
             (_, contracts) => getRouter(contracts).address,
           );
 
-          const warpCoreConfig = await getWarpCoreConfig(
+          const { warpCoreConfig } = await getWarpCoreConfig(
             { context, warpDeployConfig: warpRouteConfig },
             deployedContracts,
           );
@@ -268,7 +268,7 @@ export async function runWarpRouteDeploy({
           warpRouteConfig,
           multiProvider,
         });
-        const warpCoreConfig = await getWarpCoreConfigForStarknet(
+        const { warpCoreConfig } = await getWarpCoreConfigForStarknet(
           warpRouteConfig,
           multiProvider,
           routerAddresses.starknet,
@@ -360,10 +360,11 @@ async function executeDeploy(
 async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
+  addWarpRouteOptions?: AddWarpRouteOptions,
 ) {
   if (!context.isDryRun) {
     log('Writing deployment artifacts...');
-    await context.registry.addWarpRoute(warpCoreConfig);
+    await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
   }
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
@@ -569,7 +570,10 @@ async function createWarpHook({
 async function getWarpCoreConfig(
   { warpDeployConfig, context }: DeployParams,
   contracts: HyperlaneContractsMap<TokenFactories>,
-): Promise<WarpCoreConfig> {
+): Promise<{
+  warpCoreConfig: WarpCoreConfig;
+  addWarpRouteOptions?: AddWarpRouteOptions;
+}> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
@@ -595,7 +599,7 @@ async function getWarpCoreConfig(
 
   fullyConnectTokens(warpCoreConfig, context.multiProvider);
 
-  return warpCoreConfig;
+  return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
 
 /**
@@ -619,7 +623,7 @@ function generateTokenConfigs(
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
       decimals,
-      symbol,
+      symbol: config.symbol || symbol,
       name,
       addressOrDenom:
         contract[warpDeployConfig[chainName].type as keyof TokenFactories]
@@ -747,9 +751,15 @@ async function extendWarpRoute(
     warpCoreConfigByChain,
   );
 
-  const updatedWarpCoreConfig = await getWarpCoreConfig(params, mergedRouters);
+  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
+    await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
-  await writeDeploymentArtifacts(updatedWarpCoreConfig, params.context);
+
+  await writeDeploymentArtifacts(
+    updatedWarpCoreConfig,
+    params.context,
+    addWarpRouteOptions,
+  );
 
   return enrollRemoteRouters(params, mergedRouters);
 }
@@ -1163,29 +1173,34 @@ async function submitWarpApplyTransactions(
 
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
-      await retryAsync(
-        async () => {
-          const chain = chainIdToName[chainId];
-          const submitter: TxSubmitterBuilder<ProtocolType> =
-            await getWarpApplySubmitter({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-            });
-          const transactionReceipts = await submitter.submit(...transactions);
-          if (transactionReceipts) {
-            const receiptPath = `${params.receiptsDir}/${chain}-${
-              submitter.txSubmitterType
-            }-${Date.now()}-receipts.json`;
-            writeYamlOrJson(receiptPath, transactionReceipts);
-            logGreen(
-              `Transactions receipts successfully written to ${receiptPath}`,
-            );
-          }
-        },
-        5, // attempts
-        100, // baseRetryMs
-      );
+      try {
+        await retryAsync(
+          async () => {
+            const chain = chainIdToName[chainId];
+            const submitter: TxSubmitterBuilder<ProtocolType> =
+              await getWarpApplySubmitter({
+                chain,
+                context: params.context,
+                strategyUrl: params.strategyUrl,
+              });
+            const transactionReceipts = await submitter.submit(...transactions);
+            if (transactionReceipts) {
+              const receiptPath = `${params.receiptsDir}/${chain}-${
+                submitter.txSubmitterType
+              }-${Date.now()}-receipts.json`;
+              writeYamlOrJson(receiptPath, transactionReceipts);
+              logGreen(
+                `Transactions receipts successfully written to ${receiptPath}`,
+              );
+            }
+          },
+          5, // attempts
+          100, // baseRetryMs
+        );
+      } catch (e) {
+        logBlue(`Error in submitWarpApplyTransactions`, e);
+        console.dir(transactions);
+      }
     }),
   );
 }
@@ -1262,7 +1277,10 @@ async function getWarpCoreConfigForStarknet(
   warpDeployConfig: WarpRouteDeployConfig,
   multiProvider: MultiProvider,
   contracts: ChainMap<string>,
-): Promise<WarpCoreConfig> {
+): Promise<{
+  warpCoreConfig: WarpCoreConfig;
+  addWarpRouteOptions?: AddWarpRouteOptions;
+}> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
@@ -1288,7 +1306,7 @@ async function getWarpCoreConfigForStarknet(
 
   fullyConnectTokens(warpCoreConfig, multiProvider);
 
-  return warpCoreConfig;
+  return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
 
 function generateTokenConfigsForStarknet(

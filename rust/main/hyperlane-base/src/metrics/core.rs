@@ -13,7 +13,8 @@ use prometheus::{
 };
 use tokio::sync::RwLock;
 
-use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
+use ethers_prometheus::middleware::MiddlewareMetrics;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::metrics::{
     json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
@@ -38,6 +39,7 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
+    latest_tree_insertion_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -47,7 +49,7 @@ pub struct CoreMetrics {
 
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
-    json_rpc_client_metrics: OnceLock<JsonRpcClientMetrics>,
+    client_metrics: OnceLock<PrometheusClientMetrics>,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
@@ -109,6 +111,16 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["phase", "origin", "remote"],
+            registry
+        )?;
+
+        let latest_tree_insertion_index = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("latest_tree_insertion_index"),
+                "Latest leaf index inserted into the merkle tree",
+                const_labels_ref
+            ),
+            &["origin"],
             registry
         )?;
 
@@ -177,6 +189,7 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
+            latest_tree_insertion_index,
 
             submitter_queue_length,
 
@@ -185,7 +198,7 @@ impl CoreMetrics {
 
             latest_checkpoint,
 
-            json_rpc_client_metrics: OnceLock::new(),
+            client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
 
             validator_metrics: ValidatorObservabilityMetricManager::new(
@@ -205,8 +218,8 @@ impl CoreMetrics {
 
     /// Create the json rpc provider metrics attached to this core metrics
     /// instance.
-    pub fn json_rpc_client_metrics(&self) -> JsonRpcClientMetrics {
-        self.json_rpc_client_metrics
+    pub fn client_metrics(&self) -> PrometheusClientMetrics {
+        self.client_metrics
             .get_or_init(|| {
                 create_json_rpc_client_metrics(self).expect("Failed to create rpc client metrics!")
             })
@@ -307,6 +320,14 @@ impl CoreMetrics {
     ///   MessageProcessor loop.
     pub fn last_known_message_nonce(&self) -> IntGaugeVec {
         self.last_known_message_nonce.clone()
+    }
+
+    /// Reports the current highest leaf index which was inserted into the merkle tree.
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the leaf index is being tracked at.
+    pub fn latest_tree_insertion_index(&self) -> IntGaugeVec {
+        self.latest_tree_insertion_index.clone()
     }
 
     /// Latest message nonce in the validator.

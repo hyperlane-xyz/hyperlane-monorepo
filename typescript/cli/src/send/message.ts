@@ -31,14 +31,14 @@ export async function sendTestMessage({
   if (!origin) {
     origin = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the destination chain',
+      'Select the destination chain:',
     );
   }
 
