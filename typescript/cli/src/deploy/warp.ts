@@ -170,22 +170,9 @@ export async function runWarpRouteDeploy({
     ownerOverrides: {},
     domains: {
       sepolia: {
-        type: IsmType.AGGREGATION,
-        modules: [
-          {
-            type: IsmType.PAUSABLE,
-            owner:
-              '0x05fe9ded5ffef4db68deaa012ce6d05e06e3e9906aed5801fc7a49696e28df66',
-            paused: false,
-            ownerOverrides: {},
-          },
-          {
-            type: IsmType.MESSAGE_ID_MULTISIG,
-            validators: ['0x469f0940684d147defc44f3647146cb90dd0bc8e'],
-            threshold: 1,
-          },
-        ],
-        threshold: 2,
+        type: IsmType.MESSAGE_ID_MULTISIG,
+        validators: ['0x469f0940684d147defc44f3647146cb90dd0bc8e'],
+        threshold: 1,
       },
     },
   };
