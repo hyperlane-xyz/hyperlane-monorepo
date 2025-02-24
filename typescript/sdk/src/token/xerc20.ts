@@ -162,6 +162,7 @@ async function getLockboxesFromLogs(
   }, {} as Record<string, ConfigurationChangedLog>);
 
   const lockboxPromises = Object.values(dedupedBridges)
+    // Removing bridges where the limits are set to 0 because it is equivalent of being deactivated
     .filter(
       (log) => log.args.bufferCap !== 0n && log.args.rateLimitPerSecond !== 0n,
     )

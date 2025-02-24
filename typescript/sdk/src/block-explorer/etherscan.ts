@@ -1,16 +1,25 @@
 import { Address, HexString } from '@hyperlane-xyz/utils';
 
-interface EtherscanAPIOptions {
+interface EtherscanLikeAPIOptions {
+  // Explorers like Blockscout don't require an API key for requests
   apiKey?: string;
   apiUrl: string;
 }
 
-function formatExplorerUrl(
-  { apiUrl, apiKey }: EtherscanAPIOptions,
-  params: Record<string, string | number | bigint>,
+interface BaseEtherscanLikeAPIParams<
+  TModule extends string,
+  TAction extends string,
+> {
+  module: TModule;
+  action: TAction;
+}
+
+function formatExplorerUrl<TModule extends string, TAction extends string>(
+  { apiUrl, apiKey }: EtherscanLikeAPIOptions,
+  params: BaseEtherscanLikeAPIParams<TModule, TAction>,
 ): string {
-  // hack for blockscout API urls that in the explorer have the eth-rpc path set
-  // as it will cause requests to fail
+  // hack for Blockscout API urls that in the explorer have the `eth-rpc` path set
+  // as it will cause requests to fail with a not found error
   const urlObject = new URL(apiUrl.replace('eth-rpc', ''));
   for (const [key, value] of Object.entries(params)) {
     urlObject.searchParams.append(key, value.toString());
@@ -35,11 +44,10 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
   return body.result;
 }
 
-type GetContractDeploymentTransaction = {
-  module: 'contract';
-  action: 'getcontractcreation';
+interface GetContractDeploymentTransaction
+  extends BaseEtherscanLikeAPIParams<'contract', 'getcontractcreation'> {
   contractaddresses: Address;
-};
+}
 
 type GetContractDeploymentTransactionResponse = {
   contractAddress: Address;
@@ -48,7 +56,7 @@ type GetContractDeploymentTransactionResponse = {
 };
 
 export async function tryGetContractDeploymentTransaction(
-  explorerOptions: EtherscanAPIOptions,
+  explorerOptions: EtherscanLikeAPIOptions,
   { contractAddress }: { contractAddress: Address },
 ): Promise<GetContractDeploymentTransactionResponse | undefined> {
   const options: GetContractDeploymentTransaction = {
@@ -68,7 +76,7 @@ export async function tryGetContractDeploymentTransaction(
 }
 
 export async function getContractDeploymentTransaction(
-  explorerOptions: EtherscanAPIOptions,
+  explorerOptions: EtherscanLikeAPIOptions,
   requestOptions: { contractAddress: Address },
 ): Promise<GetContractDeploymentTransactionResponse> {
   const deploymentTx = await tryGetContractDeploymentTransaction(
@@ -86,14 +94,12 @@ export async function getContractDeploymentTransaction(
 }
 
 // based on https://docs.etherscan.io/api-endpoints/logs
-type GetEventLogs = {
-  module: 'logs';
-  action: 'getLogs';
+interface GetEventLogs extends BaseEtherscanLikeAPIParams<'logs', 'getLogs'> {
   address: Address;
   fromBlock: number;
   toBlock: number;
   topic0: string;
-};
+}
 
 export type GetEventLogsResponse = {
   address: Address;
@@ -109,7 +115,7 @@ export type GetEventLogsResponse = {
 };
 
 export async function getLogsFromEtherscanLikeExplorerAPI(
-  { apiUrl, apiKey: apikey }: EtherscanAPIOptions,
+  { apiUrl, apiKey: apikey }: EtherscanLikeAPIOptions,
   options: Omit<GetEventLogs, 'module' | 'action'>,
 ): Promise<Array<GetEventLogsResponse>> {
   const data: GetEventLogs = {
