@@ -643,7 +643,7 @@ export async function extendWarpRoute(
 
   const extendedChains = Object.keys(initialExtendedConfigs);
   if (extendedChains.length === 0) {
-    return { ...warpCoreConfig };
+    return warpCoreConfig;
   }
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
