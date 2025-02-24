@@ -147,7 +147,7 @@ describe('SmartProvider', async () => {
 
   it('returns the blockchain error reason: "ERC20: transfer to zero address"', async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 50,
+      maxRetries: 5,
     });
     const signer = new Wallet(PK, smartProvider);
 
