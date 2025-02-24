@@ -139,8 +139,9 @@ export class StarknetDeployer {
             mailbox,
           });
           console.log('STARKNET DEPLOYER: domain', domain);
+          const domainId = BigInt(11155111); // TODO: fix this
           console.log('STARKNET DEPLOYER: route', route);
-          await contract.invoke('set', [domain, route]);
+          await contract.invoke('set', [domainId, route]);
         }
 
         return ismAddress;
