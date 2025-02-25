@@ -7,7 +7,9 @@ import { randomAddress } from '../../test/testUtils.js';
 
 import {
   HyperlaneSmartProvider,
+  TX_ERROR_MESSAGE_PHRASES,
   getSmartProviderErrorMessage,
+  hasNonRetryableError,
 } from './SmartProvider.js';
 
 const PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -196,5 +198,69 @@ describe('SmartProvider', async () => {
         'insufficient funds for intrinsic transaction cost',
       );
     }
+  });
+
+  describe('hasNonRetryableError', () => {
+    it('returns true for revert errors on call methods', () => {
+      const result = hasNonRetryableError({
+        method: 'call',
+        error: new Error(
+          `Transaction reverted: ${TX_ERROR_MESSAGE_PHRASES.Revert}`,
+        ),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for revert errors on estimateGas', () => {
+      const result = hasNonRetryableError({
+        method: 'estimateGas',
+        error: new Error(
+          `Transaction reverted: ${TX_ERROR_MESSAGE_PHRASES.Revert}`,
+        ),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for known errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendTransaction',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Known}`),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for nonce errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendRawTransaction',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Nonce}`),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for underpriced errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendTransaction',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Underpriced}`),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for insufficient funds errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendTransaction',
+        error: new Error(
+          `Transaction ${TX_ERROR_MESSAGE_PHRASES.InsufficientFunds}`,
+        ),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns false for non-transaction methods', () => {
+      const result = hasNonRetryableError({
+        method: 'getBalance',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Revert}`),
+      });
+      expect(result).to.be.false;
+    });
   });
 });
