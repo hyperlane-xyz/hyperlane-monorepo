@@ -1,5 +1,4 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -151,25 +150,23 @@ export async function createWarpRouteDeployConfig({
 
     /**
      * The logic from the cli is as follows:
+     *  --yes flag is provided: set ism to undefined (default ISM config)
      *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
-     *  --yes flag is provided: the address(0) will be used (default ISM config)
      *  -- no flag is provided: the user must choose if the default ISM config should be used:
      *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
-     *    - no: address(0) will be used (default ISM config)
+     *    - no: keep ism as undefined (default ISM config)
      */
-    let interchainSecurityModule: IsmConfig;
-    if (advanced) {
+    let interchainSecurityModule: IsmConfig | undefined;
+    if (context.skipConfirmation) {
+      interchainSecurityModule = undefined;
+    } else if (advanced) {
       interchainSecurityModule = await createAdvancedIsmConfig(context);
-    } else if (context.skipConfirmation) {
-      interchainSecurityModule = ethers.constants.AddressZero;
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
       })
     ) {
       interchainSecurityModule = createDefaultWarpIsmConfig(owner);
-    } else {
-      interchainSecurityModule = ethers.constants.AddressZero;
     }
 
     const type = await select({
