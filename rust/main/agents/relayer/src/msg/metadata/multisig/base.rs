@@ -13,8 +13,9 @@ use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info};
 
-use crate::msg::metadata::base::MessageMetadataBuilder;
-
+use crate::msg::metadata::base::MetadataBuildError;
+use crate::msg::metadata::message_builder::MessageMetadataBuilder;
+use crate::msg::metadata::metadata_builder::MessageMetadataBuildParams;
 use crate::msg::metadata::{Metadata, MetadataBuilder};
 
 #[derive(new, AsRef, Deref)]
@@ -94,11 +95,16 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
 
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> Result<Metadata> {
+    async fn build(
+        &self,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
-            .build_multisig_ism(ism_address)
+            .base_builder()
+            .build_multisig_ism(params.ism_address)
             .await
             .context(CTX)?;
 
@@ -109,22 +115,24 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
-            return Ok(Metadata::CouldNotFetch);
+            return Ok(Metadata::Failed(MetadataBuildError::CouldNotFetch));
         }
 
         info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
 
         let checkpoint_syncer = match self
             .as_ref()
+            .base_builder()
             .build_checkpoint_syncer(message, &validators, self.as_ref().app_context.clone())
             .await
         {
             Ok(syncer) => syncer,
             Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
-                return Ok(Metadata::Refused(format!(
+                let err = MetadataBuildError::Refused(format!(
                     "A reorg event occurred {:?}",
                     reorg_event
-                )));
+                ));
+                return Ok(Metadata::Failed(err));
             }
             Err(e) => {
                 return Err(e).context(CTX);
@@ -143,7 +151,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
                 hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
                 "Could not fetch metadata: Unable to reach quorum"
             );
-            Ok(Metadata::CouldNotFetch)
+            Ok(Metadata::Failed(MetadataBuildError::CouldNotFetch))
         }
     }
 }

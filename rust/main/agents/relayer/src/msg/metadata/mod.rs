@@ -1,15 +1,15 @@
 mod aggregation;
 mod base;
+mod base_builder;
 mod ccip_read;
+mod message_builder;
+mod metadata_builder;
 mod multisig;
-mod null_metadata;
 mod routing;
 
-use aggregation::AggregationIsmMetadataBuilder;
 pub(crate) use base::{
-    AppContextClassifier, BaseMetadataBuilder, IsmAwareAppContextClassifier,
-    MessageMetadataBuilder, Metadata, MetadataBuilder,
+    AppContextClassifier, IsmAwareAppContextClassifier, Metadata, MetadataBuildError,
 };
-use ccip_read::CcipReadIsmMetadataBuilder;
-use null_metadata::NullMetadataBuilder;
-use routing::RoutingIsmMetadataBuilder;
+pub(crate) use base_builder::{BaseMetadataBuilder, BaseMetadataBuilderTrait};
+pub(crate) use message_builder::MessageMetadataBuilder;
+pub(crate) use metadata_builder::{MessageMetadataBuildParams, MetadataBuilder};

@@ -9,7 +9,11 @@ use tracing::{info, instrument};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
 
-use super::{MessageMetadataBuilder, Metadata, MetadataBuilder};
+use crate::msg::metadata::{base::MetadataBuildError, message_builder};
+
+use super::{
+    metadata_builder::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
+};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -119,29 +123,34 @@ impl AggregationIsmMetadataBuilder {
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
     #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
+    async fn build(
+        &self,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching AggregationIsm metadata";
-        let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
+        let ism = self
+            .base_builder()
+            .build_aggregation_ism(params.ism_address)
+            .await
+            .context(CTX)?;
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
-        let sub_modules_and_metas = join_all(
-            ism_addresses
-                .iter()
-                .map(|ism_address| self.base.build_ism_and_metadata(*ism_address, message)),
-        )
+        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
+            let params = MessageMetadataBuildParams {
+                ism_address: *ism_address,
+                ..params.clone()
+            };
+            message_builder::build_message_metadata(&self.base, message, params)
+        }))
         .await;
 
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
-        if let Some(first_refusal) = sub_modules_and_metas.iter().find_map(|result| {
-            result.as_ref().ok().and_then(|sub_module_and_meta| {
-                match &sub_module_and_meta.metadata {
-                    Metadata::Refused(reason) => Some(Metadata::Refused(reason.clone())),
-                    _ => None,
-                }
-            })
-        }) {
-            return Ok(first_refusal);
+        for sub_module in sub_modules_and_metas.iter().flatten() {
+            if !sub_module.metadata.ok() {
+                return Ok(sub_module.metadata.clone());
+            }
         }
 
         // Partitions things into
@@ -165,9 +174,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let maybe_aggregation_metadata =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
-                .map_or(Metadata::CouldNotFetch, |mut metas| {
-                    Metadata::Found(Self::format_metadata(&mut metas, ism_addresses.len()))
-                });
+                .map_or(
+                    Metadata::Failed(MetadataBuildError::CouldNotFetch),
+                    |mut metas| {
+                        Metadata::Found(Self::format_metadata(&mut metas, ism_addresses.len()))
+                    },
+                );
         Ok(maybe_aggregation_metadata)
     }
 }
