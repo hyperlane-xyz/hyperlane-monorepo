@@ -55,7 +55,7 @@ async function main() {
     );
 
     for (const thresholdType of Object.values(BalanceThresholdType)) {
-      if (newChainThresholds[thresholdType]) {
+      if (newChainThresholds[thresholdType] !== undefined) {
         updatedThresholds[thresholdType][chain] =
           newChainThresholds[thresholdType];
       }
@@ -117,7 +117,7 @@ function buildProposedThresholds(
   const proposed = {} as Record<BalanceThresholdType, number>;
   let burn = chainDailyBurn;
   // use the override to reset the burn value
-  if (desiredRelayerBalanceOverride) {
+  if (desiredRelayerBalanceOverride !== undefined) {
     burn = desiredRelayerBalanceOverride / RELAYER_BALANCE_TARGET_DAYS;
   }
 
