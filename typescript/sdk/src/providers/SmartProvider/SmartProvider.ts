@@ -341,6 +341,7 @@ export class HyperlaneSmartProvider
               ...providerMetadata,
             },
             `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
 
@@ -349,13 +350,13 @@ export class HyperlaneSmartProvider
             error: result.error as Error,
           });
 
-          pIndex += nonRetryable
-            ? providers.length // Setting this to providers.length will force exit the loop and not retry with the next provider
-            : 1;
+          if (nonRetryable)
+            this.throwCombinedProviderErrors(
+              providerResultErrors,
+              `Non-retryable error on chain ${this._network.name} for method ${method}`,
+            );
 
-          this.logger.debug(
-            isLastProvider || nonRetryable ? '' : 'Triggering next provider.',
-          );
+          pIndex += 1;
         } else {
           throw new Error(
             `Unexpected result from provider: ${JSON.stringify(
