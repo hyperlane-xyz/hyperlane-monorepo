@@ -57,8 +57,10 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-igp",
 ];
 
-const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
-const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
+// Used for deploying programs & running the relayer
+const SOLANA_DEPLOYER_KEYPAIR: &str = "environments/local-e2e/accounts/test_deployer-keypair.json";
+const SOLANA_DEPLOYER_ACCOUNT: &str = "environments/local-e2e/accounts/test_deployer-account.json";
+
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "environments/local-e2e/warp-routes/testwarproute/token-config.json";
 const SOLANA_CHAIN_CONFIG_FILE: &str = "environments/local-e2e/chain-config.json";
@@ -411,13 +413,17 @@ pub fn initiate_solana_hyperlane_transfer(
         .trim()
         .to_owned();
 
+    // Send to a random account, because for safety reasons we don't allow the
+    // relayer to relay a message that includes the relayer's payer account in its list of accounts.
+    let recipient = "FeSKs7MbwF86PVuofzhKmzWVVFjyVtBTYXJZqQkBYzB6";
+
     let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
         .cmd("transfer-remote")
         .cmd(solana_keypair_str.clone())
         .cmd("10000000000")
         .cmd(SOLANA_REMOTE_CHAIN_ID)
-        .cmd(sender) // send to self
+        .cmd(recipient)
         .cmd("native")
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
         .run_with_output()
