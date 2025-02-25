@@ -1,0 +1,17 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "interchainSecurityModule": "NtVfGz6mMXe17Jy8Mt8pvStgwFbGKHkSvxPeWn1FMNu",
+    "token": "4tARAT4ssRYhrENCTxxZrmjL741eE2G23Q1zLPDW2ipf"
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "adraLRT SOL (Solayer)",
+    "symbol": "lrtsSOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/0342615816a74737bb5c25d7edc4cb0a691cca21/deployments/warp_routes/lrtsSOL/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief"
+  }
+}
