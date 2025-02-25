@@ -1,5 +1,4 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
