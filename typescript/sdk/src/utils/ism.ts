@@ -1,6 +1,36 @@
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
+
+/**
+ * Extracts the ISM and Hook factory addresses from chain-specific registry addresses
+ * @param registryAddresses The registry addresses for a specific chain
+ * @returns The extracted ISM and Hook factory addresses
+ */
+export function extractIsmAndHookFactoryAddresses(
+  registryAddresses: ChainAddresses,
+) {
+  const {
+    domainRoutingIsmFactory,
+    staticMerkleRootMultisigIsmFactory,
+    staticMessageIdMultisigIsmFactory,
+    staticAggregationIsmFactory,
+    staticAggregationHookFactory,
+    staticMerkleRootWeightedMultisigIsmFactory,
+    staticMessageIdWeightedMultisigIsmFactory,
+  } = registryAddresses;
+
+  return {
+    domainRoutingIsmFactory,
+    staticMerkleRootMultisigIsmFactory,
+    staticMessageIdMultisigIsmFactory,
+    staticAggregationIsmFactory,
+    staticAggregationHookFactory,
+    staticMerkleRootWeightedMultisigIsmFactory,
+    staticMessageIdWeightedMultisigIsmFactory,
+  };
+}
 
 export function multisigIsmVerificationCost(m: number, n: number): number {
   if (
