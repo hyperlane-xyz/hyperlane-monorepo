@@ -152,11 +152,8 @@ export async function createWarpRouteDeployConfig({
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
 
-    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
-      context,
-      chain,
-      owner,
-    );
+    const proxyAdmin: DeployedOwnableConfig | undefined =
+      await setProxyAdminConfig(context, chain);
 
     /**
      * The logic from the cli is as follows:
