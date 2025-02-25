@@ -29,7 +29,7 @@ pub fn test_search_dispatched_message_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
@@ -49,7 +49,7 @@ pub fn test_search_dispatched_message_versioned_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
@@ -71,7 +71,7 @@ pub fn test_search_dispatched_message_relevant_instruction_out_of_two_in_single_
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
@@ -91,7 +91,7 @@ pub fn test_search_delivered_message_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
@@ -133,7 +133,7 @@ pub fn test_search_interchain_payment_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
