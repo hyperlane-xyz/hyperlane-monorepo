@@ -152,10 +152,10 @@ export async function createWarpRouteDeployConfig({
     /**
      * The logic from the cli is as follows:
      *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
-     *  --yes flag is provided: the default ISM config will be used (Trusted ISM + Default fallback ISM)
+     *  --yes flag is provided: the address(0) will be used (default ISM config)
      *  -- no flag is provided: the user must choose if the default ISM config should be used:
      *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
-     *    - no: the default fallback ISM will be used
+     *    - no: address(0) will be used (default ISM config)
      */
     let interchainSecurityModule: IsmConfig;
     if (advanced) {
