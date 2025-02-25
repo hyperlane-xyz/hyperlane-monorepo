@@ -55,22 +55,36 @@ const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
-function hasNonRetryableError(params: { method: string; error: Error }) {
+/**
+ * Enum containing common error message phrases related to  transactions.
+ * These phrases are used to detect non-retryable errors when interacting with the RPCs.
+ */
+export enum TX_ERROR_MESSAGE_PHRASES {
+  Known = 'known',
+  Nonce = 'nonce',
+  Underpriced = 'underpriced',
+  InsufficientFunds = 'insufficient funds',
+  InsufficientBalance = 'insufficient balance',
+  Revert = 'revert',
+}
+export function hasNonRetryableError(params: { method: string; error: Error }) {
   const { method, error } = params;
   const TX_METHODS = ['sendRawTransaction', 'sendTransaction'];
   const TX_CAll_METHODS = [...TX_METHODS, 'call', 'estimateGas'];
 
   const nonRetryableError =
-    (TX_CAll_METHODS.includes(method) && error.message.includes('revert')) ||
+    (TX_CAll_METHODS.includes(method) &&
+      error.message.includes(TX_ERROR_MESSAGE_PHRASES.Revert)) ||
     (TX_METHODS.includes(method) &&
-      (error.message.includes('known') ||
-        error.message.includes('nonce') ||
-        error.message.includes('underpriced') ||
-        error.message.includes('insufficient funds') ||
-        error.message.includes('insufficient balance')));
+      (error.message.includes(TX_ERROR_MESSAGE_PHRASES.Known) ||
+        error.message.includes(TX_ERROR_MESSAGE_PHRASES.Nonce) ||
+        error.message.includes(TX_ERROR_MESSAGE_PHRASES.Underpriced) ||
+        error.message.includes(TX_ERROR_MESSAGE_PHRASES.InsufficientFunds) ||
+        error.message.includes(TX_ERROR_MESSAGE_PHRASES.InsufficientBalance)));
 
   return nonRetryableError;
 }
+
 export class HyperlaneSmartProvider
   extends providers.BaseProvider
   implements IProviderMethods
@@ -223,7 +237,7 @@ export class HyperlaneSmartProvider
       () => this.performWithFallback(method, params, supportedProviders, reqId),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
-      ['revert', 'insufficient funds'],
+      Object.values(TX_ERROR_MESSAGE_PHRASES),
     );
   }
 
