@@ -240,9 +240,11 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
+  ChainDisabledReason,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
+  ChainStatus,
   ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
   ExplorerFamily,

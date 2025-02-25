@@ -115,31 +115,6 @@ export const BlockExplorerSchema = z.object({
     ),
 });
 
-export const AvailabilitySchema = z
-  .object({
-    status: z
-      .nativeEnum(ChainStatus)
-      .describe(
-        'The status that represents the chain availability. See ChainStatus for valid values',
-      ),
-    reasons: z.array(z.nativeEnum(ChainDisabledReason)).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (
-      data.status === ChainStatus.Disabled &&
-      (!data.reasons || data.reasons.length === 0)
-    ) {
-      ctx.addIssue({
-        path: ['reasons'],
-        code: z.ZodIssueCode.too_small,
-        minimum: 1,
-        type: 'array',
-        inclusive: true,
-        message: 'At least one reason is required when the status is disabled',
-      });
-    }
-  });
-
 export type BlockExplorer = z.infer<typeof BlockExplorerSchema>;
 
 export const NativeTokenSchema = z.object({
