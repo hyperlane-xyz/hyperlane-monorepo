@@ -53,6 +53,28 @@ pub fn test_search_dispatched_message_versioned_transaction() {
 }
 
 #[test]
+pub fn test_search_dispatched_message_relevant_instruction_out_of_two_in_single_transaction() {
+    // given
+    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
+    let dispatched_message_pda_account =
+        decode_pubkey("HkS7U5adrqR4PZfn6DUEtHzwHxF8hZzmrEkJE8UuqFmz").unwrap();
+    let transactions = transactions(&read_json(
+        "dispatch_message_two_instructions_in_one_txn.json",
+    ));
+
+    // when
+    let transaction_hashes = search_transactions(
+        transactions,
+        &mailbox_program_id,
+        &dispatched_message_pda_account,
+        is_message_dispatch_instruction,
+    );
+
+    // then
+    assert!(!transaction_hashes.is_empty());
+}
+
+#[test]
 pub fn test_search_delivered_message_transaction() {
     // given
     let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
