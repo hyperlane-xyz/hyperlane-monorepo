@@ -67,6 +67,7 @@ describe('hyperlane warp init e2e tests', async function () {
       );
       expect(chain2TokenConfig.owner).equal(initialOwnerAddress);
       expect(chain2TokenConfig.type).equal(TokenType.native);
+      expect(chain2TokenConfig.interchainSecurityModule).undefined;
       expect(chain2TokenConfig.proxyAdmin).undefined;
     }
 
