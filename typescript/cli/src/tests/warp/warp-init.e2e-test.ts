@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -67,6 +67,9 @@ describe('hyperlane warp init e2e tests', async function () {
       );
       expect(chain2TokenConfig.owner).equal(initialOwnerAddress);
       expect(chain2TokenConfig.type).equal(TokenType.native);
+      expect(chain2TokenConfig.interchainSecurityModule).equal(
+        ethers.constants.AddressZero,
+      );
       expect(chain2TokenConfig.proxyAdmin).undefined;
     }
 

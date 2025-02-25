@@ -1,4 +1,5 @@
 import { confirm, input, select } from '@inquirer/prompts';
+import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -160,7 +161,7 @@ export async function createWarpRouteDeployConfig({
     if (advanced) {
       interchainSecurityModule = await createAdvancedIsmConfig(context);
     } else if (context.skipConfirmation) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+      interchainSecurityModule = ethers.constants.AddressZero;
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
@@ -168,7 +169,7 @@ export async function createWarpRouteDeployConfig({
     ) {
       interchainSecurityModule = createDefaultWarpIsmConfig(owner);
     } else {
-      interchainSecurityModule = createFallbackRoutingConfig(owner);
+      interchainSecurityModule = ethers.constants.AddressZero;
     }
 
     const type = await select({
