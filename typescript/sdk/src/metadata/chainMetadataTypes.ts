@@ -40,9 +40,13 @@ export enum ChainStatus {
 }
 
 export enum ChainDisabledReason {
+  // chain is having issues with the RPC url
   BadRpc = 'badrpc',
+  // chain is not being used anymore
   Deprecated = 'deprecated',
+  // chain is not public or launched yet
   Private = 'private',
+  // chain is not available due to upgrades or maintenance
   Unavailable = 'unavailable',
   Other = 'other',
 }
@@ -155,7 +159,7 @@ export const ChainMetadataSchemaObject = z.object({
     .union([DisabledChainSchema, EnabledChainSchema])
     .optional()
     .describe(
-      'Specify if the chain is available and the reasons why it is disabled.',
+      'Specifies if the chain is available and the reasons why it is disabled.',
     ),
 
   bech32Prefix: z
