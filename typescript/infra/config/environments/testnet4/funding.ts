@@ -92,6 +92,8 @@ export const keyFunderConfig: KeyFunderConfig<
   igpClaimThresholdPerChain: {
     alfajores: '1',
     arbitrumsepolia: '0.05',
+    // never claim on celo berabartio testnet
+    berabartio: '1000.0',
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',
