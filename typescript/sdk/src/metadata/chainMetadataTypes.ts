@@ -34,6 +34,19 @@ export enum ChainTechnicalStack {
   Other = 'other',
 }
 
+export enum ChainStatus {
+  Enabled = 'enabled',
+  Disabled = 'disabled',
+}
+
+export enum ChainDisabledReason {
+  BadRpc = 'badrpc',
+  Deprecated = 'deprecated',
+  Private = 'private',
+  Unavailable = 'unavailable',
+  Other = 'Other',
+}
+
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
 
@@ -102,6 +115,31 @@ export const BlockExplorerSchema = z.object({
     ),
 });
 
+export const AvailabilitySchema = z
+  .object({
+    status: z
+      .nativeEnum(ChainStatus)
+      .describe(
+        'The status that represents the chain availability. See ChainStatus for valid values',
+      ),
+    reasons: z.array(z.nativeEnum(ChainDisabledReason)).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.status === ChainStatus.Disabled &&
+      (!data.reasons || data.reasons.length === 0)
+    ) {
+      ctx.addIssue({
+        path: ['reasons'],
+        code: z.ZodIssueCode.too_small,
+        minimum: 1,
+        type: 'array',
+        inclusive: true,
+        message: 'At least one reason is required when the status is disabled',
+      });
+    }
+  });
+
 export type BlockExplorer = z.infer<typeof BlockExplorerSchema>;
 
 export const NativeTokenSchema = z.object({
@@ -118,6 +156,23 @@ export type NativeToken = z.infer<typeof NativeTokenSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
+  availability: z
+    .object({
+      status: z
+        .nativeEnum(ChainStatus)
+        .describe(
+          'The status that represents the chain availability. See ChainStatus for valid values.',
+        ),
+      reasons: z
+        .array(z.nativeEnum(ChainDisabledReason))
+        .optional()
+        .describe('List of reasons for the current status of the chain.'),
+    })
+    .optional()
+    .describe(
+      'Specify if the chain is available and the reasons it could be disabled',
+    ),
+
   bech32Prefix: z
     .string()
     .optional()
@@ -352,6 +407,22 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
     {
       message: 'An index.from value is required for Arbitrum Nitro chains',
       path: ['index', 'from'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.availability?.status === ChainStatus.Disabled &&
+        (!metadata.availability.reasons ||
+          metadata.availability.reasons?.length === 0)
+      ) {
+        return false;
+      } else return true;
+    },
+    {
+      message:
+        'At least one reason is required when availability.status is disabled',
+      path: ['availability', 'reasons'],
     },
   );
 
