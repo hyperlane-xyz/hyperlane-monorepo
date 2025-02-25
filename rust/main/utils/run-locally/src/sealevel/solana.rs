@@ -199,7 +199,7 @@ pub fn start_solana_test_validator(
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let solana_deployer_account = concat_path(&workspace_path, SOLANA_DEPLOYER_ACCOUNT);
+    let solana_deployer_account = concat_path(&sealevel_path, SOLANA_DEPLOYER_ACCOUNT);
     let solana_deployer_account_str = solana_deployer_account.to_string_lossy();
 
     let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
@@ -399,7 +399,9 @@ pub fn initiate_solana_hyperlane_transfer(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let sealevel_path = get_sealevel_path(&workspace_path);
+
+    let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
 
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
@@ -452,7 +454,9 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let sealevel_path = get_sealevel_path(&workspace_path);
+
+    let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
 
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
@@ -538,7 +542,7 @@ fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> P
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
 
     Program::new(concat_path(
