@@ -124,6 +124,26 @@ export const NativeTokenSchema = z.object({
   denom: z.string().optional(),
 });
 
+export const DisabledChainSchema = z.object({
+  status: z
+    .literal(ChainStatus.Disabled)
+    .describe(
+      'The status that represents the chain availability. See ChainStatus for valid values.',
+    ),
+  reasons: z
+    .array(z.nativeEnum(ChainDisabledReason))
+    .min(1)
+    .describe('List of reasons explaining why the chain is disabled.'),
+});
+
+export const EnabledChainSchema = z.object({
+  status: z
+    .literal(ChainStatus.Enabled)
+    .describe(
+      'The status that represents the chain availability. See ChainStatus for valid values.',
+    ),
+});
+
 export type NativeToken = z.infer<typeof NativeTokenSchema>;
 
 /**
@@ -132,20 +152,10 @@ export type NativeToken = z.infer<typeof NativeTokenSchema>;
  */
 export const ChainMetadataSchemaObject = z.object({
   availability: z
-    .object({
-      status: z
-        .nativeEnum(ChainStatus)
-        .describe(
-          'The status that represents the chain availability. See ChainStatus for valid values.',
-        ),
-      reasons: z
-        .array(z.nativeEnum(ChainDisabledReason))
-        .optional()
-        .describe('List of reasons for the current status of the chain.'),
-    })
+    .union([DisabledChainSchema, EnabledChainSchema])
     .optional()
     .describe(
-      'Specify if the chain is available and the reasons it could be disabled',
+      'Specify if the chain is available and the reasons why it is disabled.',
     ),
 
   bech32Prefix: z
@@ -382,22 +392,6 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
     {
       message: 'An index.from value is required for Arbitrum Nitro chains',
       path: ['index', 'from'],
-    },
-  )
-  .refine(
-    (metadata) => {
-      if (
-        metadata.availability?.status === ChainStatus.Disabled &&
-        (!metadata.availability.reasons ||
-          metadata.availability.reasons?.length === 0)
-      ) {
-        return false;
-      } else return true;
-    },
-    {
-      message:
-        'At least one reason is required when availability.status is disabled',
-      path: ['availability', 'reasons'],
     },
   );
 
