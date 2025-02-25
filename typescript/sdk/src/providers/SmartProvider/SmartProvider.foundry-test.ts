@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { errors as EthersError, Wallet, constants } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
+import { randomInt } from '@hyperlane-xyz/utils';
 
 import { randomAddress } from '../../test/testUtils.js';
 
@@ -17,6 +18,7 @@ const NETWORK = 31337;
 const URL = 'http://127.0.0.1:8545';
 
 describe('SmartProvider', async () => {
+  const maxRetries = randomInt(50, 0);
   let signer: Wallet;
   let smartProvider: HyperlaneSmartProvider;
   let contractAddress: string;
@@ -147,9 +149,9 @@ describe('SmartProvider', async () => {
     expect(erc20.address).to.not.be.empty;
   });
 
-  it('returns the blockchain error reason: "ERC20: transfer to zero address"', async () => {
+  it(`returns the blockchain error reason: "ERC20: transfer to zero address" with ${maxRetries} retries`, async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 5,
+      maxRetries,
     });
     const signer = new Wallet(PK, smartProvider);
 
@@ -164,9 +166,9 @@ describe('SmartProvider', async () => {
     }
   });
 
-  it('returns the blockchain error reason: "ERC20: transfer amount exceeds balance"', async () => {
+  it(`returns the blockchain error reason: "ERC20: transfer amount exceeds balance with ${maxRetries} retries"`, async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 5,
+      maxRetries,
     });
     const signer = new Wallet(PK, smartProvider);
 
@@ -181,9 +183,9 @@ describe('SmartProvider', async () => {
     }
   });
 
-  it('returns the blockchain error reason: "insufficient funds for intrinsic transaction cost"', async () => {
+  it(`returns the blockchain error reason: "insufficient funds for intrinsic transaction cost" with ${maxRetries} retries`, async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 5,
+      maxRetries,
     });
     const signer = new Wallet(PK, smartProvider);
 
