@@ -44,7 +44,7 @@ export enum ChainDisabledReason {
   Deprecated = 'deprecated',
   Private = 'private',
   Unavailable = 'unavailable',
-  Other = 'Other',
+  Other = 'other',
 }
 
 // A type that also allows for literal values of the enum
