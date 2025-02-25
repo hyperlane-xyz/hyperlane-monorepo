@@ -585,6 +585,7 @@ export {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
 } from './token/types.js';
