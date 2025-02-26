@@ -96,14 +96,6 @@ export class StarknetERC20WarpModule {
         }
 
         case TokenType.collateral: {
-          console.log({
-            mailbox: mailbox,
-            // @ts-ignore
-            erc20: rest.token,
-            owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
-            hook: getChecksumAddress(0),
-            interchain_security_module: ismAddress,
-          });
           const tokenAddress = await deployer.deployContract(
             'HypErc20Collateral',
             {
