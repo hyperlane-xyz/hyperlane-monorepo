@@ -996,6 +996,10 @@
           "http": "https://free-rpc.nethermind.io/sepolia-juno/"
         }
       ],
+      "signer": {
+        "address": "VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV",
+        "type": "starkKey"
+      },
       "defaultHook": "0x034ce029c6b4aeb766f6ed88ce9bef9549fe2f3b4c452085acf1adfa9ed9c164",
       "defaultIsm": "0x07db72e03c02e649e62d63b28b02180b119e4bc1192ca55a70855752cb935699",
       "mailbox": "0x0019e5d42d3aec14251fe06f40489fdbd8e87d662b81f0ab3917f4144c1b6f95",
@@ -2355,6 +2359,10 @@
           "http": "https://pathfinder.api.testnet.paradex.trade/rpc/v0_7"
         }
       ],
+      "signer": {
+        "address": "QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd",
+        "type": "starkKey"
+      },
       "defaultHook": "0x0026a476ba3eddb400af1af92f119942d68446d53d068f79665fb9e3f1f190ff",
       "defaultIsm": "0x0292e432ba9ce3b593b499cadeb6a17c71ad2986c61cd37d2fd8296bc7db4d6f",
       "mailbox": "0x02676997848389a9b79c68b708cfa52387cd6796e325b75e53f2cba10707c630",
