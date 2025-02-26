@@ -490,11 +490,11 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_payment_found_minimum_policy() {
+    async fn test_deminimis_payment_found_minimum_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
             let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_payment_found_minimum_policy"), db);
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_deminimis_payment_found_minimum_policy"), db);
 
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
@@ -531,6 +531,50 @@ mod test {
         })
         .await;
     }
+
+    #[tokio::test]
+    async fn test_zero_payment_found_minimum_policy() {
+        #[allow(unused_must_use)]
+        test_utils::run_test_db(|db| async move {
+            let hyperlane_db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_zero_payment_found_miniumn_policy"), db);
+
+            let payment = InterchainGasPayment {
+                message_id: HyperlaneMessage::default().id(),
+                destination: HyperlaneMessage::default().destination,
+                payment: U256::from(0),
+                gas_amount: U256::from(0),
+            };
+            hyperlane_db.process_gas_payment(payment, &LogMeta::random());
+
+            let enforcer = GasPaymentEnforcer::new(
+                // Require a payment
+                vec![GasPaymentEnforcementConf {
+                    policy: GasPaymentEnforcementPolicy::Minimum {
+                        payment: U256::from(0),
+                    },
+                    matching_list: MatchingList::default(),
+                }],
+                hyperlane_db,
+            );
+
+            assert_eq!(
+                enforcer
+                    .message_meets_gas_payment_requirement(
+                        &HyperlaneMessage::default(),
+                        &TxCostEstimate {
+                            gas_limit: U256::one(),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::PolicyMet(U256::one())
+            );
+        })
+        .await;
+    }
+
 
     #[tokio::test]
     async fn test_no_payment_found_none_policy() {
@@ -645,8 +689,8 @@ mod test {
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
                 destination: HyperlaneMessage::default().destination,
-                payment: U256::from(100),
-                gas_amount: U256::from(100),
+                payment: U256::from(1),
+                gas_amount: U256::from(50),
             };
             hyperlane_db.process_gas_payment(payment, &LogMeta::random());
 
