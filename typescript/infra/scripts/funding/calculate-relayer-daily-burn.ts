@@ -37,7 +37,7 @@ const SCRAPER_READ_ONLY_DB_SECRET_NAME =
 const LOOK_BACK_DAYS = 10; // the number of days to look back for average destination tx costs
 const MIN_NUMBER_OF_TXS = 100; // the minimum number of txs to consider for daily burn
 const PROMETHEUS_LOCAL_PORT = 9090;
-const MIN_BURN_INCREASE_FACTOR = 0.1; // burn should be at least 10% higher than current to be updated
+const MIN_BURN_INCREASE_FACTOR = 0.05; // burn should be at least 5% higher than current to be updated
 const LOW_PROPOSED_BURN_FACTOR = 0.5; // proposed burn should be at least 50% lower than current to initiate user review
 
 async function main() {
@@ -205,8 +205,10 @@ async function getSealevelBurnProm(
 async function calculateDailyRelayerBurn(
   sealevelDomainIds: ChainMap<string>,
 ): Promise<ChainMap<number>> {
-  const dbBurnData = await getDailyRelayerBurnScraperDB(sealevelDomainIds);
-  const sealevelBurnData = await getSealevelBurnProm(sealevelDomainIds);
+  const [dbBurnData, sealevelBurnData] = await Promise.all([
+    getDailyRelayerBurnScraperDB(sealevelDomainIds),
+    getSealevelBurnProm(sealevelDomainIds),
+  ]);
 
   const combinedBurnData: ChainMap<number> = {
     ...dbBurnData,
