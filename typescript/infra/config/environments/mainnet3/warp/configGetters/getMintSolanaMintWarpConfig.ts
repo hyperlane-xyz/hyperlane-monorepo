@@ -24,7 +24,7 @@ export const getMintSolanaMintWarpConfig = async (
       ...routerConfig.solanamainnet,
       owner: ownersByChain.solanamainnet,
       type: TokenType.synthetic,
-      foreignDeployment: 'J766C8JY4xE6S6fbyJMKDZq6RbvHWrrvB2HQx29KWJUD',
+      foreignDeployment: 'DTp6yLfHyGo46Zu7xrbXwUF3YZSaYV2W7UhQb8q9QN5Q',
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     },
     mint: {
