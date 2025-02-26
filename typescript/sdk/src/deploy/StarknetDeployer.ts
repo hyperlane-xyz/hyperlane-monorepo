@@ -77,10 +77,9 @@ export class StarknetDeployer {
     mailbox: Address;
   }): Promise<Address> {
     const { chain, ismConfig, mailbox } = params;
-    assert(
-      typeof ismConfig !== 'string',
-      'String ism config is not supported on starknet',
-    );
+    if (typeof ismConfig === 'string') {
+      return ismConfig;
+    }
     const ismType = ismConfig.type;
     this.logger.debug(`Deploying ${ismType} to ${chain}`);
 
@@ -139,9 +138,9 @@ export class StarknetDeployer {
             mailbox,
           });
           console.log('STARKNET DEPLOYER: domain', domain);
-          const domainId = BigInt(11155111); // TODO: fix this
+          // TODO: Convert domain to domainId
           console.log('STARKNET DEPLOYER: route', route);
-          await contract.invoke('set', [domainId, route]);
+          await contract.invoke('set', [domain, route]);
         }
 
         return ismAddress;

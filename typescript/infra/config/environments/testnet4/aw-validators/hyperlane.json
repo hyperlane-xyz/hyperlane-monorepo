@@ -123,5 +123,8 @@
   },
   "weavevmtestnet": {
     "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
+  },
+  "starknetsepolia": {
+    "validators": ["0xd07272cc3665d6e383a319691dcce5731ecf54a5"]
   }
 }

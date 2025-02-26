@@ -139,43 +139,9 @@ export async function runWarpRouteDeploy({
 
   console.log('warpRouteConfig', warpRouteConfig);
 
-  warpRouteConfig.sepolia.interchainSecurityModule = {
-    type: IsmType.ROUTING,
-    owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943',
-    ownerOverrides: {},
-    domains: {
-      paradexsepolia: {
-        type: IsmType.AGGREGATION,
-        modules: [
-          {
-            type: IsmType.PAUSABLE,
-            owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943',
-            paused: false,
-            ownerOverrides: {},
-          },
-          {
-            type: IsmType.MESSAGE_ID_MULTISIG,
-            validators: ['0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943'],
-            threshold: 1,
-          },
-        ],
-        threshold: 2,
-      },
-    },
-  };
+  warpRouteConfig.sepolia.interchainSecurityModule = undefined;
 
-  warpRouteConfig.paradexsepolia.interchainSecurityModule = {
-    type: IsmType.ROUTING,
-    owner: '0x05fe9ded5ffef4db68deaa012ce6d05e06e3e9906aed5801fc7a49696e28df66',
-    ownerOverrides: {},
-    domains: {
-      sepolia: {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        validators: ['0x469f0940684d147defc44f3647146cb90dd0bc8e'],
-        threshold: 1,
-      },
-    },
-  };
+  warpRouteConfig.paradexsepolia.interchainSecurityModule = undefined;
   // warpRouteConfig.starknetsepolia.interchainSecurityModule =
   //   '0x04b96481bd6b1c5fec5d41b0c17581a56ef212c4fb2a7248309992a962de5649';
 
