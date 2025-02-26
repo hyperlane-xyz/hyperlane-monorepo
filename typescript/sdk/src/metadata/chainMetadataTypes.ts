@@ -35,7 +35,7 @@ export enum ChainTechnicalStack {
 }
 
 export enum ChainStatus {
-  Enabled = 'enabled',
+  Live = 'live',
   Disabled = 'disabled',
 }
 
@@ -142,7 +142,7 @@ export const DisabledChainSchema = z.object({
 
 export const EnabledChainSchema = z.object({
   status: z
-    .literal(ChainStatus.Enabled)
+    .literal(ChainStatus.Live)
     .describe(
       'The status that represents the chain availability. See ChainStatus for valid values.',
     ),

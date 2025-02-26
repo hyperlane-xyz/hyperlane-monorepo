@@ -83,7 +83,7 @@ describe('ChainMetadataSchema', () => {
       isValidChainMetadata({
         ...minimalSchema,
         availability: {
-          status: ChainStatus.Enabled,
+          status: ChainStatus.Live,
         },
       }),
     ).to.eq(true);
