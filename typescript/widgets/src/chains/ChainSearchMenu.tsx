@@ -4,9 +4,10 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainStatus,
   mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import {
   SearchMenu,
@@ -88,7 +89,11 @@ export function ChainSearchMenu({
       chainMetadata,
       overrideChainMetadata,
     );
-    return { mergedMetadata, listData: Object.values(mergedMetadata) };
+    const disabledChainMetadata = getDisabledChains(mergedMetadata);
+    return {
+      mergedMetadata: disabledChainMetadata,
+      listData: Object.values(disabledChainMetadata),
+    };
   }, [chainMetadata, overrideChainMetadata]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
@@ -332,4 +337,17 @@ function useCustomizedListItems(
   ) as SortState<ChainSortByOption> | undefined;
 
   return { ListComponent, searchFn, sortOptions, defaultSortState };
+}
+
+function getDisabledChains(chainMetadata: ChainMap<ChainMetadata>) {
+  return objMap(chainMetadata, (key, chain) => {
+    if (
+      !chain.availability ||
+      chain.availability.status === ChainStatus.Enabled
+    ) {
+      return chain;
+    }
+
+    return { ...chain, disabled: true };
+  });
 }
