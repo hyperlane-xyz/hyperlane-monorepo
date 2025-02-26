@@ -79,7 +79,7 @@ pub fn generate_bindings(
         .as_ref()
         .file_name()
         .and_then(OsStr::to_str)
-        .expect("contract filename not is not valid unicode.")
+        .expect("contract filename is not valid unicode.")
         .split('.')
         .next()
         .expect("missing extension in path");
@@ -158,7 +158,7 @@ fn rustfmt_path() -> &'static Path {
     } else {
         // assume it is in PATH
         unsafe {
-            PATH = Some(which::which("rustmft").unwrap_or_else(|_| "rustfmt".into()));
+            PATH = Some(which::which("rustfmt").unwrap_or_else(|_| "rustfmt".into()));
             PATH.as_ref().unwrap()
         }
     }
