@@ -647,6 +647,10 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()> {
+        println!(
+            "SEALEVEL: store_highest_seen_message_nonce_number: {:?}",
+            nonce
+        );
         // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
         self.store_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default(), nonce)
     }
