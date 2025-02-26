@@ -100,7 +100,7 @@ impl GasPaymentEnforcer {
         let current_payment_option = self
             .db
             .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
-        
+
         let payment_found = current_payment_option.is_some();
 
         let current_payment = match current_payment_option {
@@ -462,8 +462,10 @@ mod test {
     async fn test_no_payment_found_minimum_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_no_payment_found_minimum_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_no_payment_found_minimum_policy"),
+                db,
+            );
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -493,8 +495,10 @@ mod test {
     async fn test_deminimis_payment_found_minimum_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_deminimis_payment_found_minimum_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_deminimis_payment_found_minimum_policy"),
+                db,
+            );
 
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
@@ -536,8 +540,10 @@ mod test {
     async fn test_zero_payment_found_minimum_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_zero_payment_found_miniumn_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_zero_payment_found_miniumn_policy"),
+                db,
+            );
 
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
@@ -575,13 +581,14 @@ mod test {
         .await;
     }
 
-
     #[tokio::test]
     async fn test_no_payment_found_none_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_no_payment_found_none_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_no_payment_found_none_policy"),
+                db,
+            );
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -610,8 +617,10 @@ mod test {
     async fn test_payment_found_none_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_payment_found_none_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_payment_found_none_policy"),
+                db,
+            );
 
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
@@ -651,8 +660,10 @@ mod test {
     async fn test_no_payment_found_quote_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_no_payment_found_quote_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_no_payment_found_quote_policy"),
+                db,
+            );
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
@@ -683,8 +694,10 @@ mod test {
     async fn test_payment_found_quote_policy() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
-            let hyperlane_db =
-                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("test_payment_found_quote_policy"), db);
+            let hyperlane_db = HyperlaneRocksDB::new(
+                &HyperlaneDomain::new_test_domain("test_payment_found_quote_policy"),
+                db,
+            );
 
             let payment = InterchainGasPayment {
                 message_id: HyperlaneMessage::default().id(),
