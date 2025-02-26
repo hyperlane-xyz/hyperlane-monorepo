@@ -28,16 +28,13 @@
     "Cairo",
     "Starknet"
   ],
-  "engines": {
-    "node": ">=16"
-  },
   "dependencies": {
-    "globby": "^14.1.0",
     "starknet": "6.11.0"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
+    "globby": "^14.1.0",
     "prettier": "^2.8.8",
     "tsx": "^4.7.1",
     "typescript": "5.3.3"
