@@ -231,7 +231,7 @@ function chainSearch({
   filter,
   customListItemField,
 }: {
-  data: ChainMetadata[];
+  data: Array<ChainMetadata & { disabled: boolean }>;
   query: string;
   sort: SortState<ChainSortByOption>;
   filter: ChainFilterState;
@@ -262,6 +262,10 @@ function chainSearch({
       })
       // Sort options
       .sort((c1, c2) => {
+        // If one chain is disabled and the other is not, place the disabled chain at the bottom
+        if (c1.disabled && !c2.disabled) return 1;
+        if (!c1.disabled && c2.disabled) return -1;
+
         // Special case handling for if the chains are being sorted by the
         // custom field provided to ChainSearchMenu
         if (customListItemField && sort.sortBy === customListItemField.header) {
