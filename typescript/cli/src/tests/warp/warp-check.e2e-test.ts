@@ -97,7 +97,7 @@ describe('hyperlane warp check e2e tests', async function () {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
-      const output = hyperlaneWarpCheckRaw({
+      const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
@@ -131,7 +131,7 @@ describe('hyperlane warp check e2e tests', async function () {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
-      const output = hyperlaneWarpCheckRaw({
+      const output = await hyperlaneWarpCheckRaw({
         symbol: tokenSymbol,
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })

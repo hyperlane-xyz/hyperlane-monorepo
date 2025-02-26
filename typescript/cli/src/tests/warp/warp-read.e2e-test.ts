@@ -76,7 +76,7 @@ describe('hyperlane warp read e2e tests', async function () {
     it('should successfully read the complete warp route config from all the chains', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
-      const output = hyperlaneWarpReadRaw({
+      const output = await hyperlaneWarpReadRaw({
         symbol: 'ETH',
         outputPath: WARP_CONFIG_PATH_2,
       })
