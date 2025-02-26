@@ -1,0 +1,52 @@
+name: warp checker
+
+on:
+  issue_comment:
+    types: ['created', 'edited']
+  pull_request:
+    types: [ labeled ] # Used to also prevent unauthorized users from running this work flow
+    branches:
+      - '*'
+  merge_group:
+  workflow_dispatch:
+
+jobs:
+  warp-route-checker:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.label.name == 'warp-route-deploy' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-install
+        run: yarn install
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: Parse Warp Id
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          regex="warp-route-deploy:[[:space:]]*([^[:space:]]+)"
+          if [[ $BODY =~ $regex ]]; then
+            WARP_ID="${BASH_REMATCH[1]}"
+            echo "WARP_ID=$WARP_ID" >> "$GITHUB_ENV"
+            echo "Warp Id parsed: $WARP_ID"
+          else
+            echo Could not parse warp Id
+          fi
+
+      - name: Run infra warp route checker
+        run: |
+          echo "warpID $WARP_ID"
+          cd ./typescript/infra
+          yarn tsx ./scripts/check/check-deploy.ts -e mainnet3 -m warp --warpRouteId $WARP_ID
