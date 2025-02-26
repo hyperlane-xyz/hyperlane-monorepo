@@ -3,7 +3,6 @@
     "type": "collateral",
     "decimals": 9,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "interchainSecurityModule": "NtVfGz6mMXe17Jy8Mt8pvStgwFbGKHkSvxPeWn1FMNu",
     "token": "sSo14endRuUbvQaJS3dq36Q829a3A6BEfoeeRGJywEh"
   },
   "sonicsvm": {
