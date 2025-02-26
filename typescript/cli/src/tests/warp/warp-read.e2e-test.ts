@@ -62,7 +62,6 @@ describe('hyperlane warp read e2e tests', async function () {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
       const output = await hyperlaneWarpReadRaw({
-        privateKey: ANVIL_KEY,
         outputPath: WARP_CONFIG_PATH_2,
       }).nothrow();
 
@@ -77,14 +76,6 @@ describe('hyperlane warp read e2e tests', async function () {
     it('should successfully read the complete warp route config from all the chains', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
-      const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-      ];
-
       const output = hyperlaneWarpReadRaw({
         symbol: 'ETH',
         outputPath: WARP_CONFIG_PATH_2,
@@ -92,9 +83,7 @@ describe('hyperlane warp read e2e tests', async function () {
         .stdio('pipe')
         .nothrow();
 
-      const finalOutput = await handlePrompts(output, steps);
-
-      expect(finalOutput.exitCode).to.equal(0);
+      expect(output.exitCode).to.equal(0);
 
       const warpReadResult: WarpRouteDeployConfig =
         readYamlOrJson(WARP_CONFIG_PATH_2);
@@ -131,7 +120,6 @@ describe('hyperlane warp read e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpReadRaw({
-        privateKey: ANVIL_KEY,
         symbol: 'ETH',
         outputPath: WARP_DEPLOY_OUTPUT_PATH,
       })
@@ -153,7 +141,7 @@ describe('hyperlane warp read e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp read --key ... --chain ... --config ...', () => {
+  describe('hyperlane warp read ... --chain ... --config ...', () => {
     it('should be able to read a warp route', async function () {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
