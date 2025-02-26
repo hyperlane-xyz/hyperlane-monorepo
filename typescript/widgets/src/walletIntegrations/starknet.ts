@@ -6,6 +6,7 @@ import {
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
 import { Call } from 'starknet';
+import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
 import {
   ChainName,
@@ -61,17 +62,21 @@ export function useStarknetWalletDetails(): WalletDetails {
 }
 
 export function useStarknetConnectFn(): () => void {
-  const { connect, connectors } = useConnect();
+  const { connectAsync, connectors } = useConnect();
 
-  return useCallback(() => {
-    // Get the first available connector (usually ArgentX or Braavos)
-    const connector = connectors[0];
+  // This is how they do it: https://github.com/argentlabs/starknetkit-example-dapp/blob/d1d5ba8b5e06eef76b9df9b01832b57d2f22c649/src/components/connect/ConnectStarknetReactNext.tsx#L21
+  const { starknetkitConnectModal } = useStarknetkitConnectModal({
+    connectors: connectors as StarknetkitConnector[],
+  });
+
+  return useCallback(async () => {
+    const { connector } = await starknetkitConnectModal();
     if (connector) {
-      connect({ connector });
+      await connectAsync({ connector });
     } else {
       logger.error('No Starknet wallet connectors available');
     }
-  }, [connect, connectors]);
+  }, [connectAsync, starknetkitConnectModal]);
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {
@@ -80,7 +85,7 @@ export function useStarknetDisconnectFn(): () => Promise<void> {
 }
 
 export function useStarknetActiveChain(
-  multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
   const { chain } = useNetwork();
 
@@ -110,7 +115,7 @@ export function useStarknetTransactionFns(
         );
       }
     },
-    [chain],
+    [chain, multiProvider],
   );
 
   const onSendTx = useCallback(
