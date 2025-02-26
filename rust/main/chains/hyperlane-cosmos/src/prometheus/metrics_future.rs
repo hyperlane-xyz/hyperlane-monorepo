@@ -10,6 +10,7 @@ use pin_project::pin_project;
 use tonic::codegen::http::{request, response};
 use tonic::Code;
 
+/// This is only needed to capture the result of the future
 #[pin_project]
 pub struct MetricsChannelFuture<F> {
     method: String,
@@ -55,8 +56,6 @@ where
                     .map(|s| Code::from_bytes(s.as_bytes()))
                     .unwrap_or(Code::Ok)
             });
-            let code_str = format!("{:?}", code);
-
             this.metrics.increment_metrics(
                 this.metrics_config,
                 this.method,
