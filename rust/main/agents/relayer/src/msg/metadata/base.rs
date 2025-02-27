@@ -28,7 +28,7 @@ pub enum MetadataBuildError {
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
     MaxDepthExceeded(u32),
-    #[error("Exceeded max depth when building metadata ({0})")]
+    #[error("Exceeded max count when building metadata ({0})")]
     MaxIsmCountReached(u32),
 }
 
