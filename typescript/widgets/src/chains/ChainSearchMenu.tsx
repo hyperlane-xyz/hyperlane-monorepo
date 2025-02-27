@@ -369,13 +369,10 @@ function getDisabledChains(
   if (showDisabledChains) return chainMetadata;
 
   return objMap(chainMetadata, (_, chain) => {
-    if (
-      !chain.availability ||
-      chain.availability.status === ChainStatus.Enabled
-    ) {
-      return chain;
+    if (chain.availability?.status === ChainStatus.Disabled) {
+      return { ...chain, disabled: true };
     }
 
-    return { ...chain, disabled: true };
+    return chain;
   });
 }
