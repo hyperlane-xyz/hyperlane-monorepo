@@ -2,6 +2,7 @@
 
 use maplit::hashmap;
 
+use crate::invariants::provider_metrics_invariant_met;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::{fetch_metric, RELAYER_METRICS_PORT};
@@ -110,26 +111,14 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if !request_metric_invariant_met(relayer_metrics_port, messages_expected)? {
+    if !provider_metrics_invariant_met(
+        relayer_metrics_port,
+        messages_expected,
+        &hashmap! {"status" => "success"},
+    )? {
         return Ok(false);
     }
 
     log!("Termination invariants have been meet");
-    Ok(true)
-}
-
-pub fn request_metric_invariant_met(
-    relayer_port: u32,
-    expected_request_count: u32,
-) -> eyre::Result<bool> {
-    let request_count = fetch_metric(
-        &relayer_port.to_string(),
-        "hyperlane_request_count",
-        &hashmap! {"status" => "success"},
-    )?
-    .iter()
-    .sum::<u32>();
-
-    assert!(request_count > expected_request_count);
     Ok(true)
 }
