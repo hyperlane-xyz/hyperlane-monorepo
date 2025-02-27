@@ -13,6 +13,8 @@ runs:
       shell: bash
       run: |
         regex="warp-route-deploy:[[:space:]]*([^[:space:]]+)"
+        echo "da body $body"
+        body=$inputs.body
         if [[ $body =~ $regex ]]; then
           WARP_ID="${BASH_REMATCH[1]}"
           echo "WARP_ID=$WARP_ID" >> "$GITHUB_ENV"
