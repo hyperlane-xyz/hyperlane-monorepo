@@ -1420,6 +1420,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  paradexsepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   plumetestnet: {
     threshold: 1,
     validators: [

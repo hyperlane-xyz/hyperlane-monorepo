@@ -430,5 +430,17 @@ export const validatorChainConfig = (
         'sonicblaze',
       ),
     },
+    paradexsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('paradexsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'paradexsepolia',
+      ),
+    },
   };
 };

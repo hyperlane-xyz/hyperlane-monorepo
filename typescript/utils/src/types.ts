@@ -5,6 +5,7 @@ export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
   Cosmos = 'cosmos',
+  Starknet = 'starknet',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;

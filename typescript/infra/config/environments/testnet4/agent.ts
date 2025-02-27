@@ -62,6 +62,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
@@ -98,6 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: false,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
@@ -134,6 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: false,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
@@ -247,7 +250,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7339a35-20250117-144312',
+      tag: '7f71a8c-20250226-140437',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
