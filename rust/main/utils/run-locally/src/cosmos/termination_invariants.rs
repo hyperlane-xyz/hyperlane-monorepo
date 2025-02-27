@@ -2,10 +2,10 @@
 
 use maplit::hashmap;
 
+use crate::fetch_metric;
 use crate::invariants::provider_metrics_invariant_met;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
-use crate::{fetch_metric, RELAYER_METRICS_PORT};
 
 pub fn termination_invariants_met(
     relayer_metrics_port: u32,
@@ -112,7 +112,7 @@ pub fn termination_invariants_met(
     }
 
     if !provider_metrics_invariant_met(
-        relayer_metrics_port,
+        &relayer_metrics_port.to_string(),
         messages_expected,
         &hashmap! {"status" => "success"},
     )? {
