@@ -30,18 +30,7 @@ pub struct CosmosInterchainSecurityModule {
 /// The Cosmos Interchain Security Module Implementation.
 impl CosmosInterchainSecurityModule {
     /// Creates a new Cosmos Interchain Security Module.
-    pub fn new(
-        conf: &ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,

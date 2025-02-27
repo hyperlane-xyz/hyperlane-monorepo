@@ -33,17 +33,10 @@ impl CosmosMailbox {
     /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
     pub fn new(
+        provider: CosmosProvider,
         conf: ConnectionConf,
         locator: ContractLocator,
-        signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
         Ok(Self {
             config: conf,
             domain: locator.domain.clone(),

@@ -17,6 +17,7 @@ mod mailbox;
 mod merkle_tree_hook;
 mod multisig_ism;
 mod payloads;
+mod prometheus;
 mod providers;
 mod routing_ism;
 mod rpc_clients;
