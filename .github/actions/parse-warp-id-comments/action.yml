@@ -13,10 +13,11 @@ runs:
       shell: bash
       run: |
         regex="warp-route-deploy:[[:space:]]*([^[:space:]]+)"
-          if [[ ${{inputs.body}} =~ $regex ]]; then
-            WARP_ID="${BASH_REMATCH[1]}"
-            echo "WARP_ID=$WARP_ID" >> "$GITHUB_ENV"
-            echo "Warp Id parsed: $WARP_ID"
-          else
-            echo Could not parse warp Id
-          fi
+        body="${{ inputs.body }}"
+        if [[ $body =~ $regex ]]; then
+          WARP_ID="${BASH_REMATCH[1]}"
+          echo "WARP_ID=$WARP_ID" >> "$GITHUB_ENV"
+          echo "Warp Id parsed: $WARP_ID"
+        else
+          echo Could not parse warp Id
+        fi
