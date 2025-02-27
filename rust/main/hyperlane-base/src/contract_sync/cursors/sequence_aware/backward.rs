@@ -161,6 +161,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
 
                 self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
 
+                // Update metrics during fast-forward (actually backward in this case) so that
+                // the metrics do not stuck on the last indexed sequence.
+                self.update_metrics().await;
+
                 debug!(
                     last_indexed_snapshot=?self.last_indexed_snapshot,
                     current_indexing_snapshot=?self.current_indexing_snapshot,
