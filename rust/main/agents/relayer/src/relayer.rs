@@ -22,10 +22,10 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
-    metrics::{AgentMetrics, MetricsUpdater},
+    metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
     settings::{ChainConf, IndexSettings},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
-    HyperlaneAgentCore, SyncOptions,
+    HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ContractSyncCursor,
@@ -91,6 +91,7 @@ pub struct Relayer {
     // or move them in `core_metrics`, like the validator metrics
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    runtime_metrics: RuntimeMetrics,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 }
@@ -125,6 +126,7 @@ impl BaseAgent for Relayer {
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        runtime_metrics: RuntimeMetrics,
         tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
@@ -311,6 +313,7 @@ impl BaseAgent for Relayer {
             core_metrics,
             agent_metrics,
             chain_metrics,
+            runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
         })
     }
@@ -358,7 +361,7 @@ impl BaseAgent for Relayer {
                 task_monitor.clone(),
             ));
 
-            let metrics_updater = MetricsUpdater::new(
+            let metrics_updater = ChainSpecificMetricsUpdater::new(
                 dest_conf,
                 self.core_metrics.clone(),
                 self.agent_metrics.clone(),
@@ -421,6 +424,8 @@ impl BaseAgent for Relayer {
             ));
             tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
+
+        tasks.push(self.runtime_metrics.spawn());
 
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(
