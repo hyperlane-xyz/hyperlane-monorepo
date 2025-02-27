@@ -1,4 +1,4 @@
-name: warp checker
+name: checker
 
 on:
   issue_comment:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  warp-route-checker:
+  check-warp-deploy:
     runs-on: ubuntu-latest
     if: ${{ github.event.label.name == 'warp-route-deploy' }}
     steps:
