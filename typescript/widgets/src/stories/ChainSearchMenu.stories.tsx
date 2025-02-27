@@ -107,7 +107,7 @@ export const WithDisabledChains = {
     onChangeOverrideMetadata: () => {},
     showAddChainButton: true,
     defaultSortField: 'custom',
-    showDisabledChains: false,
+    shouldDisableChains: true,
     customListItemField: {
       header: 'Warp Routes',
       data: {

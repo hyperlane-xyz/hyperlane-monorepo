@@ -66,9 +66,9 @@ export interface ChainSearchMenuProps {
   // Field by which data will be sorted by default
   defaultSortField?: DefaultSortField;
   /**
-   * Include disabled chains in the shown list. Defaults to `true`
+   * Allow chains to be shown as disabled. Defaults to `false`
    */
-  showDisabledChains?: boolean;
+  shouldDisableChains?: boolean;
 }
 
 export function ChainSearchMenu({
@@ -81,7 +81,7 @@ export function ChainSearchMenu({
   showAddChainButton,
   showAddChainMenu,
   defaultSortField,
-  showDisabledChains = true,
+  shouldDisableChains = false,
 }: ChainSearchMenuProps) {
   const [drilldownChain, setDrilldownChain] = useState<ChainName | undefined>(
     showChainDetails,
@@ -96,18 +96,18 @@ export function ChainSearchMenu({
     );
     const disabledChainMetadata = getDisabledChains(
       mergedMetadata,
-      showDisabledChains,
+      shouldDisableChains,
     );
     return {
       mergedMetadata: disabledChainMetadata,
       listData: Object.values(disabledChainMetadata),
     };
-  }, [chainMetadata, overrideChainMetadata, showDisabledChains]);
+  }, [chainMetadata, overrideChainMetadata, shouldDisableChains]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
     useCustomizedListItems(
       customListItemField,
-      showDisabledChains,
+      shouldDisableChains,
       defaultSortField,
     );
 
@@ -242,14 +242,14 @@ function chainSearch({
   sort,
   filter,
   customListItemField,
-  showDisabledChains,
+  shouldDisableChains,
 }: {
   data: ChainMetadata[];
   query: string;
   sort: SortState<ChainSortByOption>;
   filter: ChainFilterState;
   customListItemField?: CustomListItemField;
-  showDisabledChains?: boolean;
+  shouldDisableChains?: boolean;
 }) {
   const queryFormatted = query.trim().toLowerCase();
   return (
@@ -276,7 +276,7 @@ function chainSearch({
       })
       // Sort options
       .sort((c1, c2) => {
-        if (showDisabledChains === false) {
+        if (shouldDisableChains) {
           // If one chain is disabled and the other is not, place the disabled chain at the bottom
           const c1Disabled = c1.availability?.status === ChainStatus.Disabled;
           const c2Disabled = c2.availability?.status === ChainStatus.Disabled;
@@ -317,7 +317,7 @@ function chainSearch({
  */
 function useCustomizedListItems(
   customListItemField,
-  showDisabledChains: boolean,
+  shouldDisableChains: boolean,
   defaultSortField?: DefaultSortField,
 ) {
   // Create closure of ChainListItem but with customField pre-bound
@@ -331,8 +331,8 @@ function useCustomizedListItems(
   // Bind the custom field to the search function
   const searchFn = useCallback(
     (args: Parameters<typeof chainSearch>[0]) =>
-      chainSearch({ ...args, showDisabledChains, customListItemField }),
-    [customListItemField, showDisabledChains],
+      chainSearch({ ...args, shouldDisableChains, customListItemField }),
+    [customListItemField, shouldDisableChains],
   );
 
   // Merge the custom field into the sort options if a custom field exists
@@ -364,9 +364,9 @@ function useCustomizedListItems(
 
 function getDisabledChains(
   chainMetadata: ChainMap<ChainMetadata>,
-  showDisabledChains: boolean,
+  shouldDisableChains: boolean,
 ) {
-  if (showDisabledChains) return chainMetadata;
+  if (!shouldDisableChains) return chainMetadata;
 
   return objMap(chainMetadata, (_, chain) => {
     if (chain.availability?.status === ChainStatus.Disabled) {
