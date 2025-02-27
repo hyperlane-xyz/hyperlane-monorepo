@@ -49,7 +49,7 @@ export enum AgentSignerKeyType {
   Hex = 'hexKey',
   Node = 'node',
   Cosmos = 'cosmosKey',
-  Stark = 'starkKey',
+  Starknet = 'starkKey',
 }
 
 export enum AgentSealevelPriorityFeeOracleType {
