@@ -21,15 +21,15 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: yarn-install
+      - name: Yarn Install
         run: yarn install
 
-      - name: yarn-build
+      - name: Yarn Build
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Checkout registry
+      - name: Checkout Registry
         uses: ./.github/actions/checkout-registry
 
       - name: Parse Warp Id
@@ -45,7 +45,7 @@ jobs:
             echo Could not parse warp Id
           fi
 
-      - name: Run infra warp route checker
+      - name: Run Infra Warp Route Checker
         run: |
           echo "Running infra checker with warp ID: $WARP_ID"
           cd ./typescript/infra
