@@ -36,6 +36,6 @@ pub trait MetadataBuilder: Send + Sync {
     async fn build(
         &self,
         message: &HyperlaneMessage,
-        mut params: MessageMetadataBuildParams,
+        params: MessageMetadataBuildParams,
     ) -> eyre::Result<Metadata>;
 }
