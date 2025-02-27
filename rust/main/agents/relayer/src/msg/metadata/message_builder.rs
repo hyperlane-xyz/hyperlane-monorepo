@@ -77,7 +77,7 @@ pub async fn build_message_metadata(
     message_builder: &MessageMetadataBuilder,
     message: &HyperlaneMessage,
     params: MessageMetadataBuildParams,
-) -> eyre::Result<IsmWithMetadataAndType> {
+) -> Result<IsmWithMetadataAndType> {
     let ism: Box<dyn InterchainSecurityModule> = message_builder
         .base_builder()
         .build_ism(params.ism_address)

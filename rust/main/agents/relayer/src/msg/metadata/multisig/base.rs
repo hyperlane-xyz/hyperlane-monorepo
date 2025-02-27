@@ -99,7 +99,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         &self,
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
-    ) -> eyre::Result<Metadata> {
+    ) -> Result<Metadata> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
