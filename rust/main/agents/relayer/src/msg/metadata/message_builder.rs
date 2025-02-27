@@ -104,7 +104,9 @@ async fn build_message_metadata_recursive(
         if message_builder.depth >= options.max_depth {
             return Ok(IsmWithMetadataAndType {
                 ism,
-                metadata: Metadata::Failed(MetadataBuildError::MaxDepthExceeded(options.max_depth)),
+                metadata: Metadata::Failed(MetadataBuildError::MaxIsmDepthExceeded(
+                    options.max_depth,
+                )),
                 module_type,
             });
         }
@@ -259,7 +261,7 @@ mod test {
                 panic!("Metadata found when it should have failed");
             }
             Metadata::Failed(err) => {
-                assert_eq!(err, MetadataBuildError::MaxDepthExceeded(0));
+                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
             }
         }
     }
@@ -318,7 +320,7 @@ mod test {
                 panic!("Metadata found when it should have failed");
             }
             Metadata::Failed(err) => {
-                assert_eq!(err, MetadataBuildError::MaxDepthExceeded(2));
+                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(2));
             }
         }
     }

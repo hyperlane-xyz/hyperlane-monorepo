@@ -27,7 +27,7 @@ pub enum MetadataBuildError {
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
-    MaxDepthExceeded(u32),
+    MaxIsmDepthExceeded(u32),
     #[error("Exceeded max count when building metadata ({0})")]
     MaxIsmCountReached(u32),
 }

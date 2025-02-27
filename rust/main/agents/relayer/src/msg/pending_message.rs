@@ -309,7 +309,7 @@ impl PendingOperation for PendingMessage {
                         warn!(?reason, "Unsupported module type");
                         return PendingOperationResult::Drop;
                     }
-                    MetadataBuildError::MaxDepthExceeded(depth) => {
+                    MetadataBuildError::MaxIsmDepthExceeded(depth) => {
                         warn!(depth, "Max ISM depth reached");
                         return PendingOperationResult::Drop;
                     }
