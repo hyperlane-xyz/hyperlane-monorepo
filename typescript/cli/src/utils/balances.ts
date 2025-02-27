@@ -19,7 +19,7 @@ export async function nativeBalancesAreSufficient(
       logGray(`Skipping balance check for non-EVM chain: ${chain}`);
       continue;
     }
-    const address = multiProvider.getSigner(chain).getAddress();
+    const address = await multiProvider.getSigner(chain).getAddress();
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();

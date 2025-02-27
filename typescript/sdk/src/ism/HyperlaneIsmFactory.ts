@@ -26,6 +26,7 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import {
   Address,
   Domain,
@@ -47,8 +48,10 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import {
   AggregationIsmConfig,
@@ -250,11 +253,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       factory:
         | StorageMerkleRootMultisigIsm__factory
         | StorageMessageIdMultisigIsm__factory,
+      artifact: ZkSyncArtifact | undefined,
     ) => {
       const contract = await this.multiProvider.handleDeploy(
         destination,
         factory,
         [config.validators, config.threshold],
+        artifact,
       );
       return contract.address;
     };
@@ -275,11 +280,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         address = await deployStorage(
           new StorageMerkleRootMultisigIsm__factory(),
+          await getZKArtifactByContractName('StorageMerkleRootMultisigIsm'),
         );
         break;
       case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
         address = await deployStorage(
           new StorageMessageIdMultisigIsm__factory(),
+          await getZKArtifactByContractName('StorageMessageIdMultisigIsm'),
         );
         break;
       default:
@@ -467,6 +474,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
+          await getZKArtifactByContractName('DefaultFallbackRoutingIsm'),
         );
         // TODO: Should verify contract here
         logger.debug('Initialising fallback routing ISM ...');
@@ -482,6 +490,31 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       } else {
         // deploying new domain routing ISM
         const owner = config.owner;
+
+        // if zksync we can't use the proxy factories, so we need to deploy directly
+        const isZksync =
+          this.multiProvider.getChainMetadata(destination).technicalStack ===
+          ChainTechnicalStack.ZKSync;
+        if (isZksync) {
+          assert(
+            this.deployer,
+            'HyperlaneDeployer must be set to deploy routing ISM',
+          );
+          const routingIsm = await this.deployer?.deployContractFromFactory(
+            destination,
+            new DomainRoutingIsm__factory(),
+            IsmType.ROUTING,
+            [],
+          );
+          await routingIsm['initialize(address,uint32[],address[])'](
+            owner,
+            safeConfigDomains,
+            submoduleAddresses,
+            overrides,
+          );
+          return routingIsm;
+        }
+
         // estimate gas
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
           owner,
@@ -553,10 +586,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     if (config.type === IsmType.STORAGE_AGGREGATION) {
       // TODO: support using minimal proxy factories for storage aggregation ISMs too
       const factory = new StorageAggregationIsm__factory().connect(signer);
-      const ism = await this.multiProvider.handleDeploy(destination, factory, [
-        addresses,
-        config.threshold,
-      ]);
+      const ism = await this.multiProvider.handleDeploy(
+        destination,
+        factory,
+        [addresses, config.threshold],
+        await getZKArtifactByContractName('StorageAggregationIsm'),
+      );
       ismAddress = ism.address;
     } else {
       const staticAggregationIsmFactory =
