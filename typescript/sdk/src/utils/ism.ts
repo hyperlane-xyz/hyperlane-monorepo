@@ -1,5 +1,5 @@
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, pick } from '@hyperlane-xyz/utils';
 
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
 
@@ -11,25 +11,15 @@ import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
 export function extractIsmAndHookFactoryAddresses(
   registryAddresses: ChainAddresses,
 ) {
-  const {
-    domainRoutingIsmFactory,
-    staticMerkleRootMultisigIsmFactory,
-    staticMessageIdMultisigIsmFactory,
-    staticAggregationIsmFactory,
-    staticAggregationHookFactory,
-    staticMerkleRootWeightedMultisigIsmFactory,
-    staticMessageIdWeightedMultisigIsmFactory,
-  } = registryAddresses;
-
-  return {
-    domainRoutingIsmFactory,
-    staticMerkleRootMultisigIsmFactory,
-    staticMessageIdMultisigIsmFactory,
-    staticAggregationIsmFactory,
-    staticAggregationHookFactory,
-    staticMerkleRootWeightedMultisigIsmFactory,
-    staticMessageIdWeightedMultisigIsmFactory,
-  };
+  return pick(registryAddresses, [
+    'domainRoutingIsmFactory',
+    'staticMerkleRootMultisigIsmFactory',
+    'staticMessageIdMultisigIsmFactory',
+    'staticAggregationIsmFactory',
+    'staticAggregationHookFactory',
+    'staticMerkleRootWeightedMultisigIsmFactory',
+    'staticMessageIdWeightedMultisigIsmFactory',
+  ]);
 }
 
 export function multisigIsmVerificationCost(m: number, n: number): number {
