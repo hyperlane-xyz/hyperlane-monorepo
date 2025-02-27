@@ -8,7 +8,7 @@ use fuels::tx::Receipt as FuelReceipt;
 use super::{types::Receipt, ReceiptType};
 
 // These conversions are the `From` implementations for converting the `Receipt` schema from the Fuels Rust SDK
-// since we cannot implement `From` for our custom Recipt schema on the `fuels::tx::Receipt` directly.
+// since we cannot implement `From` for our custom Receipt schema on the `fuels::tx::Receipt` directly.
 
 pub fn generate_receipt(schema: Receipt) -> Result<FuelReceipt, ConversionError> {
     Ok(match schema.receipt_type {
