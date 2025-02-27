@@ -147,6 +147,18 @@ pub fn get_matching_lines<'a>(
     }
     matches
 }
+#[cfg(feature = "fuel")]
+pub fn fuel_to_hex_addr(addr: &fuels::types::bech32::Bech32ContractId) -> String {
+    format!("0x{}", fuels::types::ContractId::from(addr).to_string())
+}
+
+#[cfg(feature = "cosmos")]
+pub fn cw_to_hex_addr(addr: &str) -> String {
+    format!(
+        "0x{}",
+        hex::encode(hyperlane_cosmwasm_interface::types::bech32_decode(addr).unwrap())
+    )
+}
 
 /// Returns absolute path to rust workspace
 /// `/<...>/hyperlane-monorepo/rust/main`.

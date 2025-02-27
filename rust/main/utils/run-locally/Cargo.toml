@@ -37,6 +37,9 @@ regex.workspace = true
 relayer = { path = "../../agents/relayer" }
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
+fuels.workspace = true
+futures.workspace = true
+rand.workspace = true
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -44,4 +47,5 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
 cosmos = []
+fuel = []
 sealevel = []

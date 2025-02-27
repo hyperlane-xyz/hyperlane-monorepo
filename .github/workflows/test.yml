@@ -213,7 +213,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, evm, sealevel]
+        e2e-type: [cosmwasm, evm, sealevel, fuel]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -230,6 +230,12 @@ jobs:
 
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: setup fuel toolchain
+        uses: FuelLabs/action-fuel-toolchain@v0.7.0
+        if: matrix.e2e-type == 'fuel'
+        with:
+          toolchain: latest
 
       - name: rust cache
         uses: Swatinem/rust-cache@v2
@@ -282,6 +288,13 @@ jobs:
       - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests (Fuel)
+        run: cargo test --release --package run-locally --bin run-locally --features fuel test-utils -- fuel::test --nocapture
+        if: ${{ matrix.e2e-type == 'fuel' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'

@@ -1,28 +1,34 @@
-use crate::{
-    contracts::mailbox::Mailbox as FuelMailboxInner, conversions::*, ConnectionConf, FuelProvider,
+use std::{
+    fmt::{Debug, Formatter},
+    ops::RangeInclusive,
 };
+
 use async_trait::async_trait;
 use fuels::{
     prelude::{Bech32ContractId, WalletUnlocked},
+    programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
-    types::{transaction::TxPolicies, Bytes},
+    types::{transaction::TxPolicies, transaction_builders::VariableOutputPolicy, Bytes},
 };
+use tracing::{instrument, warn};
+
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, Delivery,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H256, H512, U256,
 };
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-    ops::RangeInclusive,
-};
-use tracing::{instrument, warn};
 
+use crate::{
+    contracts::mailbox::{DispatchEvent, Mailbox as FuelMailboxContract, ProcessIdEvent},
+    conversions::*,
+    ConnectionConf, FuelIndexer, FuelProvider,
+};
+
+const GAS_ESTIMATE_MULTIPLIER: f64 = 1.3;
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
-    contract: FuelMailboxInner<WalletUnlocked>,
+    contract: FuelMailboxContract<WalletUnlocked>,
     provider: FuelProvider,
     domain: HyperlaneDomain,
 }
@@ -40,7 +46,7 @@ impl FuelMailbox {
         let address = Bech32ContractId::from_h256(&locator.address);
 
         Ok(FuelMailbox {
-            contract: FuelMailboxInner::new(address, wallet),
+            contract: FuelMailboxContract::new(address, wallet),
             domain: locator.domain.clone(),
             provider: fuel_provider,
         })
@@ -73,18 +79,23 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        assert!(
-            reorg_period.is_none(),
-            "Fuel does not support querying point-in-time"
-        );
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         self.contract
             .methods()
             .nonce()
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read nonce for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -93,10 +104,18 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .delivered(fuels::types::Bits256::from_h256(&id))
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read delivered status for message 0x{:?} - {:?}",
+                        id, e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(err, ret, skip(self))]
@@ -105,22 +124,42 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .default_ism()
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read default ISM for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let parsed_recipient = Bech32ContractId::from_h256(&recipient);
         self.contract
             .methods()
-            .recipient_ism(Bech32ContractId::from_h256(&recipient))
-            .simulate()
+            .recipient_ism(parsed_recipient.clone())
+            .with_contract_ids(&[parsed_recipient])
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read recipient ISM for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(err, ret, skip(self))]
@@ -156,13 +195,32 @@ impl Mailbox for FuelMailbox {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
+            .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
             .with_tx_policies(tx_policies)
-            .determine_missing_contracts(Some(3))
+            .determine_missing_contracts(None)
             .await
-            .map_err(ChainCommunicationError::from_other)?
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to determine missing contracts for process call of mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?
             .call()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to call process for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?;
 
         // Extract transaction success from the receipts
         let success = call_res
@@ -174,7 +232,15 @@ impl Mailbox for FuelMailbox {
             })
             .any(|result| matches!(result, ScriptExecutionResult::Success));
 
-        let tx_id = H512::from(call_res.tx_id.unwrap().into_h256());
+        let tx_id = match call_res.tx_id {
+            Some(tx_id) => H512::from(tx_id.into_h256()),
+            None => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "Transaction ID not found",
+                ))
+            }
+        };
+
         Ok(TxOutcome {
             transaction_id: tx_id,
             executed: success,
@@ -191,125 +257,161 @@ impl Mailbox for FuelMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let call_res = self
+        let gas_price = self.provider.get_gas_price().await?;
+
+        let simulate_call = self
             .contract
             .methods()
             .process(
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
-            .determine_missing_contracts(Some(3))
+            .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
+            .determine_missing_contracts(None)
             .await
-            .map_err(ChainCommunicationError::from_other)?
-            .estimate_transaction_cost(None, None)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to determine missing contracts for process cost estimation of mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?
+            .simulate(Execution::Realistic)
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read process call cost for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?;
 
         Ok(TxCostEstimate {
-            gas_limit: call_res.total_fee.into(),
-            gas_price: call_res.gas_price.into(),
+            gas_limit: ((simulate_call.gas_used as f64 * GAS_ESTIMATE_MULTIPLIER) as u64).into(),
+            gas_price: gas_price.into(),
             l2_gas_limit: None,
         })
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        // Seems like this is not needed for Fuel, as it's only used in mocks
-        todo!()
+    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
+        todo!() // not required
     }
 }
 
-/// Struct that retrieves event data for a Fuel Mailbox contract
+// ----------------------------------------------------------
+// ------------------ Dispatch Indexer ----------------------
+// ----------------------------------------------------------
+
+/// Struct that retrieves Dispatch events from a Fuel Mailbox contract
 #[derive(Debug)]
-pub struct FuelMailboxIndexer {
-    contract: FuelMailboxInner<WalletUnlocked>,
-    provider: FuelProvider,
+pub struct FuelDispatchIndexer {
+    indexer: FuelIndexer<DispatchEvent>,
+    contract: FuelMailboxContract<WalletUnlocked>,
 }
 
-impl FuelMailboxIndexer {
+impl FuelDispatchIndexer {
     /// Create a new FuelMailboxIndexer
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
         wallet: WalletUnlocked,
     ) -> ChainResult<Self> {
-        let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
+        let contract = FuelMailboxContract::new(
+            Bech32ContractId::from_h256(&locator.address),
+            wallet.clone(),
+        );
 
-        let address = Bech32ContractId::from_h256(&locator.address);
-        let contract = FuelMailboxInner::new(address, wallet);
-
-        Ok(FuelMailboxIndexer {
-            contract,
-            provider: fuel_provider,
-        })
+        let indexer = FuelIndexer::new(conf, locator, wallet).await;
+        Ok(Self { indexer, contract })
     }
 }
 
 #[async_trait]
-impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
+impl Indexer<HyperlaneMessage> for FuelDispatchIndexer {
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let mailbox_address = self.contract.contract_id().clone();
-        self.provider
-            .index_logs_in_range(range, mailbox_address)
-            .await
+        self.indexer.index_logs_in_range(range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.provider.get_finalized_block_number().await
+        self.indexer.provider().get_finalized_block_number().await
     }
 }
 
 #[async_trait]
-impl Indexer<H256> for FuelMailboxIndexer {
-    async fn fetch_logs_in_range(
-        &self,
-        range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        todo!() // Needed for scraper
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.provider.get_finalized_block_number().await
-    }
-}
-
-#[async_trait]
-impl SequenceAwareIndexer<H256> for FuelMailboxIndexer {
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
-
-        // No sequence for message deliveries.
-        Ok((None, tip))
-    }
-}
-
-#[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
-    #[allow(clippy::unnecessary_cast)] // TODO: `rustc` 1.80.1 clippy issue
+impl SequenceAwareIndexer<HyperlaneMessage> for FuelDispatchIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
         self.contract
             .methods()
             .nonce()
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
-            .map(|sequence| (Some(sequence as u32), tip))
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read nonce for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
+            .map(|sequence| (Some(sequence), tip))
     }
 }
 
-#[allow(dead_code)] // TODO: Remove this once the FuelMailboxAbi is implemented
-struct FuelMailboxAbi;
+// ----------------------------------------------------------
+// ------------------ Delivery Indexer ----------------------
+// ----------------------------------------------------------
 
-impl HyperlaneAbi for FuelMailboxAbi {
-    const SELECTOR_SIZE_BYTES: usize = 8;
+/// Struct that retrieves ProcessId events from a Fuel Mailbox contract
+#[derive(Debug)]
+pub struct FuelDeliveryIndexer {
+    indexer: FuelIndexer<ProcessIdEvent>,
+}
 
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        // Can't support this without Fuels exporting it in the generated code
-        todo!()
+impl FuelDeliveryIndexer {
+    /// Create a new FuelMailboxIndexer
+    pub async fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator<'_>,
+        wallet: WalletUnlocked,
+    ) -> ChainResult<Self> {
+        let indexer = FuelIndexer::new(conf, locator, wallet).await;
+        Ok(Self { indexer })
+    }
+}
+
+#[async_trait]
+impl Indexer<Delivery> for FuelDeliveryIndexer {
+    async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<Delivery>, LogMeta)>> {
+        self.indexer.index_logs_in_range(range).await
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.indexer.provider().get_finalized_block_number().await
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<Delivery> for FuelDeliveryIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<Delivery>::get_finalized_block_number(&self).await?;
+        // No sequence for message deliveries.
+        Ok((None, tip))
     }
 }

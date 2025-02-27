@@ -2736,6 +2736,56 @@
         "gasPrice": 200000000
       }
     },
+    "fuelignition": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://app.fuel.network/",
+          "family": "other",
+          "name": "Fuel Explorer",
+          "url": "https://app.fuel.network/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 0
+      },
+      "chainId": 1717982311,
+      "deployer": {
+        "name": "Simply Staking",
+        "url": "https://simplystaking.com/"
+      },
+      "displayName": "FuelIgnition",
+      "domainId": 1717982311,
+      "gasCurrencyCoinGeckoId": "fuel-2",
+      "name": "fuelignition",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "Ethereum",
+        "symbol": "ETH"
+      },
+      "protocol": "fuel",
+      "rpcUrls": [
+        {
+          "http": "https://mainnet.fuel.network/v1/graphql"
+        }
+      ],
+      "mailbox": "",
+      "postDispatch": "",
+      "recipient": "",
+      "interchainSecurityModule": "",
+      "merkleTreeHook": "",
+      "storageGasOracle": "",
+      "interchainGasPaymaster": "",
+      "interchainGasPaymasterHook": "",
+      "warpRouteNative": "",
+      "warpRouteBridged": "",
+      "validatorAnnounce": "",
+      "index": {
+        "from": 0,
+        "chunk": 10
+      }
+    },
     "sei": {
       "aggregationHook": "0x40514BD46C57455933Be8BAedE96C4F0Ba3507D6",
       "blockExplorers": [

@@ -66,8 +66,12 @@ dhat = "0.3.3"
 ed25519-dalek = "~1.0"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
-fuels = "0.65.0"
-fuels-code-gen = "0.65.0"
+fuels = { version = "0.66.9", features = ["coin-cache"] }
+fuels-code-gen = "0.66.9"
+cynic = "3.9.0"
+cynic-codegen = { version = "3" }
+fuel-core-client = "0.40.1"
+fuel-core-types = "0.40.1"
 futures = "0.3"
 futures-util = "0.3"
 generic-array = { version = "0.14", features = ["serde", "more_lengths"] }

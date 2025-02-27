@@ -215,6 +215,7 @@ fn parse_chain(
             batch_contract_address,
             max_batch_size,
         },
+        &reorg_period,
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
