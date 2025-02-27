@@ -78,15 +78,6 @@ pub async fn build_message_metadata(
     message: &HyperlaneMessage,
     params: MessageMetadataBuildParams,
 ) -> eyre::Result<IsmWithMetadataAndType> {
-    let res = build_message_metadata_recursive(message_builder.clone(), message, params).await?;
-    Ok(res)
-}
-
-async fn build_message_metadata_recursive(
-    mut message_builder: MessageMetadataBuilder,
-    message: &HyperlaneMessage,
-    params: MessageMetadataBuildParams,
-) -> eyre::Result<IsmWithMetadataAndType> {
     let ism: Box<dyn InterchainSecurityModule> = message_builder
         .base_builder()
         .build_ism(params.ism_address)
