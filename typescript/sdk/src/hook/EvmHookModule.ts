@@ -30,6 +30,7 @@ import {
   EvmChainId,
   ProtocolType,
   addressToBytes32,
+  deepCopy,
   deepEquals,
   eqAddress,
   rootLogger,
@@ -54,6 +55,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
+import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
@@ -90,6 +92,7 @@ export class EvmHookModule extends HyperlaneModule<
   HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmHookModule' });
+  protected readonly reader: EvmHookReader;
   // "ISM" Factory has aggregation hook factories too
   protected readonly hookFactory: HyperlaneIsmFactory;
   protected readonly deployer: HookDeployer;
@@ -113,6 +116,7 @@ export class EvmHookModule extends HyperlaneModule<
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
+    this.reader = new EvmHookReader(multiProvider, this.args.chain);
     this.hookFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [this.args.chain]: params.addresses },
       multiProvider,
@@ -127,9 +131,17 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    return typeof this.args.config === 'string'
-      ? this.args.addresses.deployedHook
-      : { ...this.args.config };
+    const { config, addresses } = this.args;
+
+    if (typeof config === 'string') {
+      return addresses.deployedHook;
+    }
+    // config is an already derived config
+    if ('address' in config) {
+      return deepCopy(config);
+    }
+
+    return this.reader.deriveHookConfig(addresses.deployedHook);
   }
 
   public async update(
