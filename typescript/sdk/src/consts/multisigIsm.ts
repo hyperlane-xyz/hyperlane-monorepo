@@ -31,6 +31,18 @@ const DEFAULT_BWARE_LABS_VALIDATOR: ValidatorConfig = {
   address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
   alias: 'Bware Labs',
 };
+const DEFAULT_ZKV_VALIDATOR: ValidatorConfig = {
+  address: '0x761980c3debdc8ddb69a2713cf5126d4db900f0f',
+  alias: 'ZKV',
+};
+const DEFAULT_BLOCKPI_VALIDATOR: ValidatorConfig = {
+  address: '0x6d113ae51bfea7b63a8828f97e9dce393b25c189',
+  alias: 'BlockPI',
+};
+const DEFAULT_HASHKEY_CLOUD_VALIDATOR: ValidatorConfig = {
+  address: '0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb',
+  alias: 'Hashkey Cloud',
+};
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
@@ -189,12 +201,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   arcadia: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -293,7 +307,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   base: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       {
         address: '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
@@ -303,6 +317,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_EVERSTAKE_VALIDATOR,
       { address: '0xcff391b4e516452d424db66beb9052b041a9ed79', alias: 'DSRV' },
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
     ],
   },
 
@@ -399,12 +414,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   bouncebit: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xaf38612d1e79ec67320d21c5f7e92419427cd154',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -462,7 +479,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   celo: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       {
         address: '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
@@ -472,6 +489,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_EVERSTAKE_VALIDATOR,
       DEFAULT_STAKED_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
+      DEFAULT_BLOCKPI_VALIDATOR,
     ],
   },
 
@@ -995,11 +1014,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   hyperevm: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x36f2bd8200ede5f969d63a0a28e654392c51a193',
+        alias: 'Imperator',
       },
     ],
   },
@@ -1226,7 +1251,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantle: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       {
         address: '0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52',
@@ -1234,6 +1259,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
+      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+      DEFAULT_BLOCKPI_VALIDATOR,
     ],
   },
 
@@ -1630,12 +1658,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ronin: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1895,22 +1925,26 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sophon: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
   story: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x501eda013378c60557d763df98d617b6ba55447a',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1959,12 +1993,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   subtensor: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xd5f8196d7060b85bea491f0b52a671e05f3d10a2',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2119,10 +2155,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Treasure',
       },
       DEFAULT_MITOSIS_VALIDATOR,
-      {
-        address: '0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb',
-        alias: 'Hashkey Cloud',
-      },
+      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
     ],
   },
 
@@ -2152,22 +2185,27 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   unichain: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       {
         address: '0x9773a382342ebf604a2e5de0a1f462fb499e28b1',
         alias: AW_VALIDATOR_ALIAS,
       },
       {
+        address: '0xa2549be30fb852c210c2fe8e7639039dca779936',
+        alias: 'Imperator',
+      },
+
+      {
+        address: '0xbcbed4d11e946844162cd92c6d09d1cf146b4006',
+        alias: 'Enigma',
+      },
+      {
         address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
         alias: 'Luganodes',
       },
-      {
-        address: '0xfe318024ca6197f2157905209149067a11e6982c',
-        alias: 'Renzo',
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_BWARE_LABS_VALIDATOR,
+      DEFAULT_TESSELLATED_VALIDATOR,
     ],
   },
 
@@ -2212,10 +2250,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   viction: {
     threshold: 2,
     validators: [
-      {
-        address: '0x6D113Ae51bfeA7b63a8828f97e9dcE393B25c189',
-        alias: 'BlockPi',
-      },
+      DEFAULT_BLOCKPI_VALIDATOR,
       { address: '0xa3f93fe365bf99f431d8fde740b140615e24f99b', alias: 'RockX' },
       {
         address: '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
@@ -2235,7 +2270,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   worldchain: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       {
         address: '0x31048785845325b22817448b68d08f8a8fe36854',
@@ -2246,6 +2281,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Imperator',
       },
       DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_ZKV_VALIDATOR,
+      DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+      DEFAULT_BLOCKPI_VALIDATOR,
     ],
   },
 
