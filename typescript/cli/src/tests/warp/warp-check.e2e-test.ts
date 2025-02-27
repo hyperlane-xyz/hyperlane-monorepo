@@ -1,9 +1,13 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Wallet, constants } from 'ethers';
 
 import { ERC20Test } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainName,
+  HookType,
+  HypTokenRouterConfig,
+  IsmType,
   TokenType,
   WarpRouteDeployConfig,
   randomAddress,
@@ -96,23 +100,7 @@ describe('hyperlane warp check e2e tests', async function () {
     return warpReadResult;
   }
 
-  describe('HYP_KEY=... hyperlane warp check --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
-      await deployAndExportWarpRoute(tokenSymbol, token.address);
-
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        hypKey: ANVIL_KEY,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
-      );
-    });
-  });
+  describe('HYP_KEY=... hyperlane warp check --config ...', () => {});
 
   describe('hyperlane warp check --key ... --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
@@ -198,6 +186,180 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+  });
+
+  describe('Optional checks', () => {
+    async function deployAndExportSingleChainWarpRoute(
+      chainName: ChainName,
+      warpConfig: HypTokenRouterConfig,
+    ): Promise<WarpRouteDeployConfig> {
+      const deployConfig: WarpRouteDeployConfig = {
+        [chainName]: warpConfig,
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(tokenSymbol, [
+        chainName,
+      ]);
+
+      const derivedConfig = await readWarpConfig(
+        chainName,
+        WARP_CORE_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      return derivedConfig;
+    }
+
+    it(`should not check the hook config if it is not provided in the input file`, async function () {
+      const derivedConfig = await deployAndExportSingleChainWarpRoute(
+        CHAIN_NAME_2,
+        {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          hook: {
+            type: HookType.MERKLE_TREE,
+          },
+          owner: ownerAddress,
+        },
+      );
+
+      derivedConfig[CHAIN_NAME_2].hook = undefined;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, derivedConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Select from matching warp routes'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneWarpCheck(WARP_DEPLOY_OUTPUT_PATH, tokenSymbol)
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(0);
+      expect(finalOutput.text()).to.include('No violations found');
+    });
+
+    it(`should check the hook config if it is provided in the input file and find differences`, async function () {
+      const derivedConfig = await deployAndExportSingleChainWarpRoute(
+        CHAIN_NAME_2,
+        {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      );
+
+      derivedConfig[CHAIN_NAME_2].hook = {
+        type: HookType.MERKLE_TREE,
+      };
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, derivedConfig);
+
+      const expectedDiffText = `type: ${HookType.MERKLE_TREE}\n`;
+      const expectedActualText = `ACTUAL: "${constants.AddressZero}"\n`;
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Select from matching warp routes'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneWarpCheck(WARP_DEPLOY_OUTPUT_PATH, tokenSymbol)
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text()).to.include(expectedDiffText);
+      expect(finalOutput.text()).to.include(expectedActualText);
+    });
+
+    it(`should not check the ism config if it is not provided in the input file`, async function () {
+      const derivedConfig = await deployAndExportSingleChainWarpRoute(
+        CHAIN_NAME_2,
+        {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          interchainSecurityModule: {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: randomAddress(),
+          },
+          owner: ownerAddress,
+        },
+      );
+
+      derivedConfig[CHAIN_NAME_2].interchainSecurityModule = undefined;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, derivedConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Select from matching warp routes'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneWarpCheck(WARP_DEPLOY_OUTPUT_PATH, tokenSymbol)
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(0);
+      expect(finalOutput.text()).to.include('No violations found');
+    });
+
+    it(`should check the ism config if it is provided in the input file and find differences`, async function () {
+      const derivedConfig = await deployAndExportSingleChainWarpRoute(
+        CHAIN_NAME_2,
+        {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      );
+
+      derivedConfig[CHAIN_NAME_2].interchainSecurityModule = {
+        type: IsmType.TRUSTED_RELAYER,
+        relayer: randomAddress(),
+      };
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, derivedConfig);
+
+      const expectedDiffText = `type: ${IsmType.TRUSTED_RELAYER}\n`;
+      const expectedActualText = `ACTUAL: "${constants.AddressZero}"\n`;
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Select from matching warp routes'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneWarpCheck(WARP_DEPLOY_OUTPUT_PATH, tokenSymbol)
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text()).to.include(expectedDiffText);
+      expect(finalOutput.text()).to.include(expectedActualText);
     });
   });
 });
