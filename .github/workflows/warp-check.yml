@@ -47,6 +47,6 @@ jobs:
 
       - name: Run infra warp route checker
         run: |
-          echo "warpID $WARP_ID"
+          echo "Running infra checker with warp ID: $WARP_ID"
           cd ./typescript/infra
           yarn tsx ./scripts/check/check-deploy.ts -e mainnet3 -m warp --warpRouteId $WARP_ID
