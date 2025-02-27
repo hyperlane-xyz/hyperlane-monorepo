@@ -563,6 +563,14 @@ fn configure_owner(
             )
             .with_client(&client)
             .send_with_payer();
+
+        // Sanity check that it was updated!
+
+        // Sleep 5 seconds for the owner to update
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        let new_owner = deployer.get_owner(&client, program_id);
+        assert_eq!(new_owner, expected_owner);
     }
 }
 
@@ -576,35 +584,7 @@ fn configure_upgrade_authority(
 ) {
     let client = chain_config.client();
 
-    let program_account = client.get_account(program_id).unwrap();
-    // If the program isn't upgradeable, exit
-    if program_account.owner == bpf_loader_upgradeable::id() {
-        return;
-    }
-
-    // The program id must actually be a program
-    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
-        programdata_address,
-    }) = program_account.state()
-    {
-        programdata_address
-    } else {
-        return;
-    };
-
-    let program_data_account = client.get_account(&programdata_address).unwrap();
-
-    // The program data account must actually a program data account
-    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
-        upgrade_authority_address,
-        slot: _,
-    }) = program_data_account.state()
-    {
-        upgrade_authority_address
-    } else {
-        return;
-    };
-
+    let actual_upgrade_authority = get_program_upgrade_authority(&client, program_id).unwrap();
     let expected_upgrade_authority = Some(router_config.ownable.owner(ctx.payer_pubkey));
 
     // And the upgrade authority is not what we expect...
@@ -639,7 +619,51 @@ fn configure_upgrade_authority(
             )
             .with_client(&client)
             .send_with_payer();
+
+        // Sanity check that it was updated!
+
+        // Sleep 5 seconds for the upgrade authority to update
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        let new_upgrade_authority = get_program_upgrade_authority(&client, program_id).unwrap();
+        assert_eq!(new_upgrade_authority, expected_upgrade_authority);
     }
+}
+
+fn get_program_upgrade_authority(
+    client: &RpcClient,
+    program_id: &Pubkey,
+) -> Result<Option<Pubkey>, &'static str> {
+    let program_account = client.get_account(program_id).unwrap();
+    // If the program isn't upgradeable, exit
+    if program_account.owner != bpf_loader_upgradeable::id() {
+        return Err("Program is not upgradeable");
+    }
+
+    // The program id must actually be a program
+    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
+        programdata_address,
+    }) = program_account.state()
+    {
+        programdata_address
+    } else {
+        return Err("Unable to deserialize program account");
+    };
+
+    let program_data_account = client.get_account(&programdata_address).unwrap();
+
+    // If the program data account somehow isn't deserializable, exit
+    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
+        upgrade_authority_address,
+        slot: _,
+    }) = program_data_account.state()
+    {
+        upgrade_authority_address
+    } else {
+        return Err("Unable to deserialize program data account");
+    };
+
+    Ok(actual_upgrade_authority)
 }
 
 /// For each chain in app_configs_to_deploy, enrolls all the remote routers.
