@@ -21,21 +21,29 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # - name: Yarn Install
-      #   run: yarn install
+      - name: Yarn Install
+        run: yarn install
 
-      # - name: Yarn Build
-      #   uses: ./.github/actions/yarn-build-with-cache
-      #   with:
-      #     ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Yarn Build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # - name: Checkout Registry
-      #   uses: ./.github/actions/checkout-registry
+      - name: Checkout Registry
+        uses: ./.github/actions/checkout-registry
 
       - name: Parse Warp Id
-        uses: ./.github/actions/parse-warp-id-comments
-        with:
-          body: ${{ github.event.pull_request.body }}
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          regex="warp-route-deploy:[[:space:]]*([^[:space:]]+)"
+          if [[ $BODY =~ $regex ]]; then
+            WARP_ID="${BASH_REMATCH[1]}"
+            echo "WARP_ID=$WARP_ID" >> "$GITHUB_ENV"
+            echo "Warp Id parsed: $WARP_ID"
+          else
+            echo Could not parse warp Id
+          fi
 
       - name: Run Infra Warp Route Checker
         run: |
