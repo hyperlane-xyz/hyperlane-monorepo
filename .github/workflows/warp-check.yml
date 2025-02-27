@@ -35,7 +35,7 @@ jobs:
       - name: Parse Warp Id
         uses: ./.github/actions/parse-warp-id-comments
         with:
-          BODY: ${{ github.event.pull_request.body }}
+          body: ${{ github.event.pull_request.body }}
 
       - name: Run Infra Warp Route Checker
         run: |
