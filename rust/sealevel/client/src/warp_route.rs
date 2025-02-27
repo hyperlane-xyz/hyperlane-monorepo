@@ -747,6 +747,8 @@ pub fn install_spl_token_cli() {
             "dan/create-token-for-mint",
             "--rev",
             "ae4c8ac46",
+            "--locked",
+            "--force",
         ])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
