@@ -186,7 +186,11 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Read the highest index of this Syncer
     #[instrument(skip(self))]
     async fn latest_index(&self) -> Result<Option<u32>> {
-        match self.inner.get_object(&self.bucket, &(self.object_path(LATEST_INDEX_KEY))).await {
+        match self
+            .inner
+            .get_object(&self.bucket, &(self.object_path(LATEST_INDEX_KEY)))
+            .await
+        {
             Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
             Err(e) => match e {
                 // never written before to this bucket
@@ -203,7 +207,8 @@ impl CheckpointSyncer for GcsStorageClient {
     #[instrument(skip(self, index))]
     async fn write_latest_index(&self, index: u32) -> Result<()> {
         let data = serde_json::to_vec(&index)?;
-        self.upload_and_log(&(self.object_path(LATEST_INDEX_KEY)), data).await
+        self.upload_and_log(&(self.object_path(LATEST_INDEX_KEY)), data)
+            .await
     }
 
     /// Update the latest index of this syncer if necessary
@@ -244,7 +249,8 @@ impl CheckpointSyncer for GcsStorageClient {
         let object_key = Self::get_checkpoint_key(signed_checkpoint.value.index);
         let object_name = self.object_path(&object_key);
         let data = serde_json::to_vec(signed_checkpoint)?;
-        self.upload_and_log(&(self.object_path(&checkpoint_key)), data).await
+        self.upload_and_log(&(self.object_path(&checkpoint_key)), data)
+            .await
     }
 
     /// Write the agent metadata to this syncer
@@ -279,13 +285,18 @@ impl CheckpointSyncer for GcsStorageClient {
     #[instrument(skip(self, reorg_event))]
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()> {
         let data = serde_json::to_string_pretty(reorg_event)?.into_bytes();
-        self.upload_and_log(&(self.object_path(REORG_FLAG_KEY)), data).await
+        self.upload_and_log(&(self.object_path(REORG_FLAG_KEY)), data)
+            .await
     }
 
     /// Read the reorg status from this syncer
     #[instrument(skip(self))]
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        match self.inner.get_object(&self.bucket, &(self.object_path(REORG_FLAG_KEY))).await {
+        match self
+            .inner
+            .get_object(&self.bucket, &(self.object_path(REORG_FLAG_KEY)))
+            .await
+        {
             Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
             Err(e) => match e {
                 ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
