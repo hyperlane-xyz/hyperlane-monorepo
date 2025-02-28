@@ -1,4 +1,5 @@
 import { input, select } from '@inquirer/prompts';
+import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -21,6 +22,7 @@ import {
   sortThresholds,
 } from '../../src/funding/balances.js';
 import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { withSkipReview } from '../agent-utils.js';
 
 enum UserReview {
   AcceptAllProposed = 'allProposed',
@@ -30,6 +32,9 @@ enum UserReview {
 const LOW_PROPOSED_THRESHOLD_FACTOR = 0.5;
 
 async function main() {
+  const { skipReview } = await withSkipReview(yargs(process.argv.slice(2)))
+    .argv;
+
   const dailyBurn: ChainMap<number> = rawDailyBurn;
   const desiredRelayerBalanceOverrides: ChainMap<number> =
     rawDesiredRelayerBalanceOverrides;
@@ -51,6 +56,7 @@ async function main() {
       chain,
       dailyBurn[chain],
       currentChainThresholds,
+      skipReview,
       desiredRelayerBalanceOverrides[chain],
     );
 
@@ -76,6 +82,7 @@ async function processChainThresholds(
   chain: string,
   chainDailyBurn: number,
   currentThresholds: Record<BalanceThresholdType, number>,
+  skipReview: boolean,
   desiredRelayerBalanceOverride?: number,
 ): Promise<Record<BalanceThresholdType, number>> {
   const proposedThresholds = buildProposedThresholds(
@@ -83,11 +90,13 @@ async function processChainThresholds(
     desiredRelayerBalanceOverride,
   );
 
-  const reviewNeeded = checkIfReviewNeeded(
-    proposedThresholds,
-    currentThresholds,
-    !!desiredRelayerBalanceOverride,
-  );
+  const reviewNeeded =
+    !skipReview &&
+    checkIfReviewNeeded(
+      proposedThresholds,
+      currentThresholds,
+      !!desiredRelayerBalanceOverride,
+    );
 
   let finalThresholds: Record<BalanceThresholdType, number>;
   if (reviewNeeded) {

@@ -1,5 +1,6 @@
 import { input, select } from '@inquirer/prompts';
 import postgres from 'postgres';
+import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -25,6 +26,7 @@ import {
 } from '../../src/infrastructure/monitoring/prometheus.js';
 import { fetchLatestGCPSecret } from '../../src/utils/gcloud.js';
 import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { withSkipReview } from '../agent-utils.js';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 const currentDailyRelayerBurn: ChainMap<number> = rawDailyRelayerBurn;
@@ -41,13 +43,16 @@ const MIN_BURN_INCREASE_FACTOR = 0.05; // burn should be at least 5% higher than
 const LOW_PROPOSED_BURN_FACTOR = 0.5; // proposed burn should be at least 50% lower than current to initiate user review
 
 async function main() {
+  const { skipReview } = await withSkipReview(yargs(process.argv.slice(2)))
+    .argv;
+
   validateTokenPrices();
 
   const sealevelDomainIds: ChainMap<string> = await getSealevelDomainIds();
 
   let burnData: ChainMap<number>;
   try {
-    burnData = await calculateDailyRelayerBurn(sealevelDomainIds);
+    burnData = await calculateDailyRelayerBurn(sealevelDomainIds, skipReview);
   } catch (err) {
     rootLogger.error('Error fetching daily burn data:', err);
     process.exit(1);
@@ -204,6 +209,7 @@ async function getSealevelBurnProm(
 
 async function calculateDailyRelayerBurn(
   sealevelDomainIds: ChainMap<string>,
+  skipReview: boolean,
 ): Promise<ChainMap<number>> {
   const [dbBurnData, sealevelBurnData] = await Promise.all([
     getDailyRelayerBurnScraperDB(sealevelDomainIds),
@@ -242,8 +248,8 @@ async function calculateDailyRelayerBurn(
 
     const newBurn = decideNewDailyBurn(proposedBurn, currentBurn);
 
-    // If the proposed is > 50% lower than current, we store it for confirmation
-    if (proposedBurn < currentBurn * LOW_PROPOSED_BURN_FACTOR) {
+    // If the proposed is > 50% lower than current, we store it for review
+    if (!skipReview && proposedBurn < currentBurn * LOW_PROPOSED_BURN_FACTOR) {
       lowProposedDailyBurn.push({
         chain,
         proposedBurn,
@@ -269,6 +275,13 @@ async function calculateDailyRelayerBurn(
   }
 
   console.table(burnInfoTable);
+
+  if (skipReview) {
+    rootLogger.info(
+      'Skipping review for proposed burn values thar are less than the current values.',
+    );
+    return updatedBurnData;
+  }
 
   if (lowProposedDailyBurn.length > 0) {
     console.table(lowProposedDailyBurn);
@@ -331,6 +344,41 @@ async function handleLowProposedDailyBurn(
 ): Promise<ChainMap<number>> {
   const updatedDailyBurn: ChainMap<number> = {};
   const manualOption = 'manual';
+
+  enum UserChoice {
+    Accept = 'accept',
+    Reject = 'reject',
+    Manual = manualOption,
+  }
+
+  // allow to sweepingly accept or reject all proposed daily burn changes or fallback to individual review
+  const selectedOption = await select<string>({
+    message: 'Accept all proposed daily burn changes?',
+    choices: [
+      {
+        description: 'Accept all the proposed daily burn changes',
+        value: UserChoice.Accept,
+      },
+      {
+        description:
+          'Reject all the proposed daily burn changes and keep the current daily burns',
+        value: UserChoice.Reject,
+      },
+      {
+        description: 'Manually review the daily burn changes for each chain',
+        value: UserChoice.Manual,
+      },
+    ],
+  });
+
+  if (selectedOption === UserChoice.Accept) {
+    for (const item of lowProposedDailyBurn) {
+      updatedDailyBurn[item.chain] = item.proposedBurn;
+    }
+    return updatedDailyBurn;
+  } else if (selectedOption === UserChoice.Reject) {
+    return updatedDailyBurn;
+  }
 
   for (const item of lowProposedDailyBurn) {
     const { chain, proposedBurn, currentBurn } = item;
