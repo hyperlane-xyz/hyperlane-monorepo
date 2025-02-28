@@ -32,25 +32,57 @@ export async function runWarpRouteRead({
 }): Promise<Record<ChainName, any>> {
   const { multiProvider } = context;
 
+  // Get addresses map either from warpCoreConfig or direct input
   let addresses: ChainMap<string>;
-  if (symbol || warp) {
-    const warpCoreConfig =
-      context.warpCoreConfig ?? // this case is be handled by MultiChainHandler.forWarpCoreConfig() interceptor
-      (await getWarpCoreConfigOrExit({
-        context,
-        warp,
-        symbol,
-      }));
+  let warpCoreConfig = context.warpCoreConfig;
 
-    // TODO: merge with XERC20TokenAdapter and WarpRouteReader
-    const xerc20Limits = await Promise.all(
-      warpCoreConfig.tokens
-        .filter(
-          (t) =>
-            t.standard === TokenStandard.EvmHypXERC20 ||
-            t.standard === TokenStandard.EvmHypXERC20Lockbox,
-        )
-        .map(async (t) => {
+  if (warpCoreConfig) {
+    addresses = Object.fromEntries(
+      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+    );
+  } else if (symbol || warp) {
+    warpCoreConfig = await getWarpCoreConfigOrExit({
+      context,
+      warp,
+      symbol,
+    });
+    addresses = Object.fromEntries(
+      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+    );
+  } else if (chain && address) {
+    addresses = { [chain]: address };
+  } else {
+    logRed(`Please specify either a symbol, chain and address or warp file`);
+    process.exit(1);
+  }
+
+  // Validate all chains are EVM compatible
+  const nonEvmChains = Object.entries(addresses)
+    .filter(([_, address]) => !isAddressEvm(address))
+    .map(([chain]) => chain);
+
+  if (nonEvmChains.length > 0) {
+    const chainList = nonEvmChains.join(', ');
+    logRed(
+      `${chainList} ${
+        nonEvmChains.length > 1 ? 'are' : 'is'
+      } non-EVM and not compatible with the cli`,
+    );
+    process.exit(1);
+  }
+
+  // Get XERC20 limits if warpCoreConfig is available
+  if (warpCoreConfig) {
+    const xerc20Tokens = warpCoreConfig.tokens.filter(
+      (t) =>
+        t.standard === TokenStandard.EvmHypXERC20 ||
+        t.standard === TokenStandard.EvmHypXERC20Lockbox,
+    );
+
+    if (xerc20Tokens.length > 0) {
+      // TODO: merge with XERC20TokenAdapter and WarpRouteReader
+      const xerc20Limits = await Promise.all(
+        xerc20Tokens.map(async (t) => {
           const provider = multiProvider.getProvider(t.chainName);
           const router = t.addressOrDenom!;
           const xerc20Address =
@@ -74,46 +106,19 @@ export async function runWarpRouteRead({
 
           return [t.chainName, formattedLimits];
         }),
-    );
+      );
 
-    if (xerc20Limits.length > 0) {
       logGray('xERC20 Limits:');
       logTable(Object.fromEntries(xerc20Limits));
     }
-
-    addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-    );
-  } else if (chain && address) {
-    addresses = {
-      [chain]: address,
-    };
-  } else {
-    logRed(`Please specify either a symbol, chain and address or warp file`);
-    process.exit(1);
   }
 
-  // Check if there any non-EVM chains in the config and exit
-  const nonEvmChains = Object.entries(addresses)
-    .filter(([_, address]) => !isAddressEvm(address))
-    .map(([chain]) => chain);
-  if (nonEvmChains.length > 0) {
-    const chainList = nonEvmChains.join(', ');
-    logRed(
-      `${chainList} ${
-        nonEvmChains.length > 1 ? 'are' : 'is'
-      } non-EVM and not compatible with the cli`,
-    );
-    process.exit(1);
-  }
-
-  const config = await promiseObjAll(
+  // Derive and return warp route config
+  return promiseObjAll(
     objMap(addresses, async (chain, address) =>
       new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
         address,
       ),
     ),
   );
-
-  return config;
 }
