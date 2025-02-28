@@ -21,16 +21,16 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # - name: Yarn Install
-      #   run: yarn install
+      - name: Yarn Install
+        run: yarn install
 
-      # - name: Yarn Build
-      #   uses: ./.github/actions/yarn-build-with-cache
-      #   with:
-      #     ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Yarn Build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # - name: Checkout Registry
-      #   uses: ./.github/actions/checkout-registry
+      - name: Checkout Registry
+        uses: ./.github/actions/checkout-registry
 
       - name: Parse Warp Id
         uses: ./.github/actions/parse-warp-id-comments
