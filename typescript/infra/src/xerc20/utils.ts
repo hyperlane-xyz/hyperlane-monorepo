@@ -178,6 +178,42 @@ export async function updateChainLimits({
     bufferCap: currentBufferCap,
   } = await xERC20Adapter.getRateLimits(bridgeAddress);
 
+  // if buffer cap is 0, remove the bridge
+  if (bufferCap === 0) {
+    // return if the bridge is already removed
+    if (currentBufferCap === BigInt(0)) {
+      rootLogger.info(
+        chalk.yellow(`[${chain}][${bridgeAddress}] Bridge already removed`),
+      );
+      return;
+    }
+
+    const removeBridgeTx = await prepareRemoveBridgeTx(
+      chain,
+      xERC20Adapter,
+      bridgeAddress,
+    );
+
+    if (dryRun) {
+      rootLogger.info(
+        chalk.gray(
+          `[${chain}][${bridgeAddress}] Dry run, no transactions sent, exiting...`,
+        ),
+      );
+      return;
+    }
+
+    await sendTransactions(
+      envMultiProvider,
+      chain,
+      [removeBridgeTx],
+      xERC20Address,
+      bridgeAddress,
+    );
+
+    return;
+  }
+
   const bufferCapTx = await prepareBufferCapTx(
     chain,
     xERC20Adapter,
@@ -221,6 +257,20 @@ export async function updateChainLimits({
       ),
     );
   }
+}
+
+// Remove bridge
+async function prepareRemoveBridgeTx(
+  chain: string,
+  adapter: EvmXERC20VSAdapter,
+  bridgeAddress: Address,
+): Promise<PopulatedTransaction> {
+  rootLogger.info(
+    chalk.gray(
+      `[${chain}][${bridgeAddress}] Preparing to remove bridge from ${adapter.addresses.token}`,
+    ),
+  );
+  return adapter.populateRemoveBridgeTx(bridgeAddress);
 }
 
 async function prepareBufferCapTx(
