@@ -11,11 +11,11 @@ runs:
   steps:
     - name: Parse Warp Id
       shell: bash
+      env:
+        BODY: ${{ inputs.body }}
       run: |
         regex="warp-route-deploy:[[:space:]]*([^[:space:]]+)"
-        body=$inputs.body
-        echo "da body $body"
-        if [[ $body =~ $regex ]]; then
+        if [[ $BODY =~ $regex ]]; then
           WARP_ID="${BASH_REMATCH[1]}"
           echo "WARP_ID=$WARP_ID" >> "$GITHUB_ENV"
           echo "Warp Id parsed: $WARP_ID"
