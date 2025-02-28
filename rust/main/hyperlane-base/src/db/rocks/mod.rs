@@ -58,7 +58,7 @@ impl DB {
 
         Rocks::open(&opts, &path)
             .map_err(|e| DbError::OpeningError {
-                source: e,
+                source: Box::new(e),
                 path: db_path.into(),
                 canonicalized: path,
             })
