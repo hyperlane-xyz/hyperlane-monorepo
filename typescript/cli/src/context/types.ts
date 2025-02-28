@@ -17,6 +17,7 @@ export interface ContextSettings {
   disableProxy?: boolean;
   skipConfirmation?: boolean;
   strategyPath?: string;
+  authToken?: string;
 }
 
 export interface CommandContext {
