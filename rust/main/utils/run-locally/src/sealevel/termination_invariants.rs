@@ -1,14 +1,17 @@
 use std::path::Path;
 
+use maplit::hashmap;
+
 use crate::{
     config::Config,
     invariants::{
-        relayer_termination_invariants_met, scraper_termination_invariants_met,
-        RelayerTerminationInvariantParams,
+        provider_metrics_invariant_met, relayer_termination_invariants_met,
+        scraper_termination_invariants_met, RelayerTerminationInvariantParams,
     },
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
+    {fetch_metric, RELAYER_METRICS_PORT},
 };
 
 /// Use the metrics to check if the relayer queues are empty and the expected
@@ -56,6 +59,14 @@ pub fn termination_invariants_met(
         gas_payment_events_count,
         total_messages_dispatched,
         total_messages_expected,
+    )? {
+        return Ok(false);
+    }
+
+    if !provider_metrics_invariant_met(
+        RELAYER_METRICS_PORT,
+        total_messages_expected,
+        &hashmap! {"chain" => "sealeveltest1", "status" => "success"},
     )? {
         return Ok(false);
     }

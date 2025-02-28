@@ -1,5 +1,24 @@
 # @hyperlane-xyz/cli
 
+## 8.7.0
+
+### Minor Changes
+
+- db832b803: Added support for multiple registries in CLI with prioritization.
+- 7dd1f64a6: Update submitWarpApplyTransactions() to try-catch and print safe errors
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/utils@8.7.0
+
 ## 8.6.1
 
 ### Patch Changes
