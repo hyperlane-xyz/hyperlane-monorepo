@@ -99,7 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    paradexsepolia: false,
+    paradexsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
