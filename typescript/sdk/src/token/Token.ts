@@ -515,10 +515,7 @@ export class Token implements IToken {
       return true;
     }
 
-    if (
-      this.standard === TokenStandard.EvmIntent ||
-      this.standard === TokenStandard.EvmIntentNative
-    ) {
+    if (this.standard === TokenStandard.EvmIntentNative) {
       return true;
     }
 
