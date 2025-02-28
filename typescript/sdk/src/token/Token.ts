@@ -321,7 +321,7 @@ export class Token implements IToken {
       );
       const outputToken =
         destination &&
-        this.getConnectionForChain(destination)?.token.addressOrDenom;
+        this.getConnectionForChain(destination)?.token.collateralAddressOrDenom;
       assert(
         outputToken,
         `Couldn't find token on destination chain ${destination}`,
@@ -339,7 +339,8 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.EvmIntentNative) {
       const outputToken =
         (destination &&
-          this.getConnectionForChain(destination)?.token.addressOrDenom) ||
+          this.getConnectionForChain(destination)?.token
+            .collateralAddressOrDenom) ||
         zeroAddress; // when native, it can be undefined or null, thus default to zero address
       return new EvmIntentNativeMultiChainAdapter(
         chainName,
