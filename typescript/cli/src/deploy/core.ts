@@ -11,6 +11,7 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  IsmType,
   StarknetCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -119,9 +120,32 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.Starknet:
       {
+        config.defaultIsm = {
+          type: IsmType.ROUTING,
+          domains: {
+            sepolia: {
+              type: IsmType.MESSAGE_ID_MULTISIG,
+              validators: [
+                '0x469f0940684d147defc44f3647146cb90dd0bc8e',
+                '0xb22b65f202558adf86a8bb2847b76ae1036686a5',
+                '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
+              ],
+              threshold: 2,
+            },
+            paradexsepolia: {
+              type: IsmType.MESSAGE_ID_MULTISIG,
+              validators: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
+              threshold: 1,
+            },
+          },
+          owner: config.owner,
+        };
+
         const domainId = multiProvider.getDomainId(chain);
         const account = await multiProtocolSigner?.getStarknetSigner(chain);
         assert(account, 'Starknet account failed!');
+
+        console.log('account', account);
         const starknetCoreModule = new StarknetCoreModule(
           account as StarknetAccount,
           domainId,
