@@ -442,6 +442,7 @@ export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToViemChain,
+  chainMetadataToStarknetChain,
 } from './metadata/chainMetadataConversion.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export {
@@ -652,9 +653,11 @@ export { StarknetCoreModule } from './core/StarknetCoreModule.js';
 
 export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
 export { StarknetCore } from './core/StarknetCore.js';
+export { StarknetRelayer } from './core/StarknetRelayer.js';
 
 export { MessageService } from './messaging/MessageService.js';
 export { MessageBus } from './messaging/MessageBus.js';
+export { MultiProtocolMessageService } from './messaging/MultiProtocolMessageService.js';
 export {
   formatEthereumMessageForStarknet,
   formatStarknetMessageForEthereum,
