@@ -149,7 +149,7 @@ export class StarknetDeployer {
         constructorArgs = [ismConfig.owner];
 
         break;
-      case IsmType.AGGREGATION:
+      case IsmType.AGGREGATION: {
         const addresses: Address[] = [];
         for (const module of ismConfig.modules) {
           const submodule = await this.deployIsm({
@@ -166,6 +166,7 @@ export class StarknetDeployer {
         ];
 
         break;
+      }
       case IsmType.TRUSTED_RELAYER:
         constructorArgs = [mailbox, ismConfig.relayer];
         break;

@@ -132,9 +132,9 @@ export async function runCoreDeploy(params: DeployParams) {
               ],
               threshold: 2,
             },
-            starknetsepolia: {
+            paradexsepolia: {
               type: IsmType.MESSAGE_ID_MULTISIG,
-              validators: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
+              validators: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
               threshold: 1,
             },
           },
@@ -144,6 +144,8 @@ export async function runCoreDeploy(params: DeployParams) {
         const domainId = multiProvider.getDomainId(chain);
         const account = await multiProtocolSigner?.getStarknetSigner(chain);
         assert(account, 'Starknet account failed!');
+
+        console.log('account', account);
         const starknetCoreModule = new StarknetCoreModule(
           account as StarknetAccount,
           domainId,
