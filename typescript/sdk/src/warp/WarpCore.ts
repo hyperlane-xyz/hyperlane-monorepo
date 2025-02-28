@@ -104,13 +104,24 @@ export class WarpCore {
             return false;
           }
 
-          switch (t.standard) {
-            case TokenStandard.EvmIntent:
-              return t.collateralAddressOrDenom === addressOrDenom;
-            case TokenStandard.EvmIntentNative:
-              return true;
-            default:
-              return t.addressOrDenom === addressOrDenom;
+          if (
+            token1.standard === TokenStandard.EvmIntent ||
+            token1.standard === TokenStandard.EvmIntentNative
+          ) {
+            if (
+              t.standard === TokenStandard.EvmIntent ||
+              t.standard === TokenStandard.EvmIntentNative
+            ) {
+              if (t.standard === TokenStandard.EvmIntent) {
+                return t.collateralAddressOrDenom === addressOrDenom;
+              }
+              if (t.standard === TokenStandard.EvmIntentNative) {
+                return true;
+              }
+            }
+            return false;
+          } else {
+            return t.addressOrDenom === addressOrDenom;
           }
         });
         assert(
