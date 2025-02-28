@@ -37,21 +37,22 @@ lazy_static! {
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct SealevelProvider {
-    domain: HyperlaneDomain,
     rpc_client: Arc<SealevelRpcClient>,
+    domain: HyperlaneDomain,
     native_token: NativeToken,
 }
 
 impl SealevelProvider {
-    /// Create a new Sealevel provider.
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
-        // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
+    /// constructor
+    pub fn new(
+        rpc_client: Arc<SealevelRpcClient>,
+        domain: HyperlaneDomain,
+        conf: &ConnectionConf,
+    ) -> Self {
         let native_token = conf.native_token.clone();
-
         Self {
-            domain,
             rpc_client,
+            domain,
             native_token,
         }
     }
@@ -161,6 +162,23 @@ impl SealevelProvider {
             ))?,
         })
     }
+
+    async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {
+        let confirmed_block = self.rpc_client.get_block(slot).await?;
+
+        let block_hash = decode_h256(&confirmed_block.blockhash)?;
+
+        let block_time = confirmed_block
+            .block_time
+            .ok_or(HyperlaneProviderError::CouldNotFindBlockByHeight(slot))?;
+
+        let block_info = BlockInfo {
+            hash: block_hash,
+            timestamp: block_time as u64,
+            number: slot,
+        };
+        Ok(block_info)
+    }
 }
 
 impl HyperlaneChain for SealevelProvider {
@@ -180,20 +198,7 @@ impl HyperlaneChain for SealevelProvider {
 #[async_trait]
 impl HyperlaneProvider for SealevelProvider {
     async fn get_block_by_height(&self, slot: u64) -> ChainResult<BlockInfo> {
-        let confirmed_block = self.rpc_client.get_block(slot).await?;
-
-        let block_hash = decode_h256(&confirmed_block.blockhash)?;
-
-        let block_time = confirmed_block
-            .block_time
-            .ok_or(HyperlaneProviderError::CouldNotFindBlockByHeight(slot))?;
-
-        let block_info = BlockInfo {
-            hash: block_hash,
-            timestamp: block_time as u64,
-            number: slot,
-        };
-
+        let block_info = self.block_info_by_height(slot).await?;
         Ok(block_info)
     }
 
@@ -260,6 +265,12 @@ impl HyperlaneProvider for SealevelProvider {
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Ok(None)
+        let slot = self.rpc_client.get_slot_raw().await?;
+        let latest_block = self.block_info_by_height(slot).await?;
+        let chain_info = ChainInfo {
+            latest_block,
+            min_gas_price: None,
+        };
+        Ok(Some(chain_info))
     }
 }

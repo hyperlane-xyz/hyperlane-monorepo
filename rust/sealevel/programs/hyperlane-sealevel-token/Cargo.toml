@@ -30,6 +30,7 @@ hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp", features = [
 ] }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+hyperlane-warp-route = { path = "../../../main/applications/hyperlane-warp-route" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 [dev-dependencies]

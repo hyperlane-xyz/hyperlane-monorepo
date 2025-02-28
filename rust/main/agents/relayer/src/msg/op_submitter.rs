@@ -32,10 +32,16 @@ use hyperlane_core::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::settings::matching_list::MatchingList;
+use crate::server::MessageRetryRequest;
 
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
+
+/// This is needed for logic where we need to allocate
+/// based on how many queues exist in each OpSubmitter.
+/// This value needs to be manually updated if we ever
+/// update the number of queues an OpSubmitter has.
+pub const SUBMITTER_QUEUE_COUNT: usize = 3;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -105,7 +111,7 @@ impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
-        retry_op_transmitter: Sender<MatchingList>,
+        retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
@@ -224,14 +230,8 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        let status = op.retrieve_status_from_db().unwrap_or_else(|| {
-            trace!(
-                ?op,
-                "No status found for message, defaulting to FirstPrepareAttempt"
-            );
-            PendingOperationStatus::FirstPrepareAttempt
-        });
-        prepare_queue.push(op, Some(status)).await;
+        let op_status = op.status();
+        prepare_queue.push(op, Some(op_status)).await;
     }
 }
 

@@ -45,6 +45,7 @@ export { PencilIcon } from './icons/Pencil.js';
 export { PlusIcon } from './icons/Plus.js';
 export { PlusCircleIcon } from './icons/PlusCircle.js';
 export { QuestionMarkIcon } from './icons/QuestionMark.js';
+export { RefreshIcon } from './icons/Refresh.js';
 export { SearchIcon } from './icons/Search.js';
 export { ShieldIcon } from './icons/Shield.js';
 export { SpinnerIcon } from './icons/Spinner.js';

@@ -86,7 +86,28 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
+        manager
+            .create_index(
+                Index::create()
+                    .table(GasPayment::Table)
+                    .name("gas_payment_domain_id_idx")
+                    .col(GasPayment::Domain)
+                    .col(GasPayment::Id)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(GasPayment::Table)
+                    .name("gas_payment_origin_id_idx")
+                    .col(GasPayment::Origin)
+                    .col(GasPayment::Id)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
         manager
             .create_index(
                 Index::create()
@@ -99,7 +120,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
         manager
             .get_connection()
             .execute_unprepared(&format!(
@@ -124,7 +144,6 @@ impl MigrationTrait for Migration {
                 tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
             ))
             .await?;
-
         Ok(())
     }
 
