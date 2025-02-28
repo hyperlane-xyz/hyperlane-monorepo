@@ -1,5 +1,5 @@
 import http from 'http';
-import { Pushgateway, Registry } from 'prom-client';
+import { Gauge, Pushgateway, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -65,4 +65,25 @@ export function startMetricsServer(register: Registry): http.Server {
         .catch((err) => logger.error(err));
     })
     .listen(parseInt(process.env['PROMETHEUS_PORT'] || '9090'));
+}
+
+export function getWalletBalanceGauge(
+  register: Registry,
+  additionalLabels: string[] = [],
+) {
+  return new Gauge({
+    // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
+    name: 'hyperlane_wallet_balance',
+    help: 'Current balance of a wallet for a token',
+    registers: [register],
+    labelNames: [
+      'chain',
+      'wallet_address',
+      'wallet_name',
+      'token_address',
+      'token_symbol',
+      'token_name',
+      ...additionalLabels,
+    ],
+  });
 }

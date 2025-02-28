@@ -1,5 +1,10 @@
-use crate::CoreMetrics;
+use std::sync::Arc;
+
 use prometheus::{IntCounterVec, IntGaugeVec};
+
+use crate::CoreMetrics;
+
+use super::cursors::CursorMetrics;
 
 /// Struct encapsulating prometheus metrics used by the ContractSync.
 #[derive(Debug, Clone)]
@@ -20,6 +25,12 @@ pub struct ContractSyncMetrics {
 
     /// See `last_known_message_nonce` in CoreMetrics.
     pub message_nonce: IntGaugeVec,
+
+    /// Contract sync liveness metric
+    pub liveness_metrics: IntGaugeVec,
+
+    /// Metrics for SequenceAware and RateLimited cursors.
+    pub cursor_metrics: Arc<CursorMetrics>,
 }
 
 impl ContractSyncMetrics {
@@ -41,12 +52,23 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register stored_events metric");
 
+        let liveness_metrics = metrics
+            .new_int_gauge(
+                "contract_sync_liveness",
+                "Last timestamp observed by contract sync",
+                &["data_type", "chain"],
+            )
+            .expect("failed to register liveness metric");
+
         let message_nonce = metrics.last_known_message_nonce();
+        let cursor_metrics = Arc::new(CursorMetrics::new(metrics));
 
         ContractSyncMetrics {
             indexed_height,
             stored_events,
             message_nonce,
+            liveness_metrics,
+            cursor_metrics,
         }
     }
 }

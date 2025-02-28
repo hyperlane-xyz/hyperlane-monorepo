@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import { stringify as yamlStringify } from 'yaml';
 

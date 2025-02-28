@@ -43,6 +43,21 @@ const safeDeploymentsVersions = {
   },
 };
 
+// Override for chains that haven't yet been published in the safe-deployments package.
+// Temporary until PR to safe-deployments package is merged and SDK dependency is updated.
+const chainOverrides = {
+  // zeronetwork
+  543210: {
+    multiSend: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
+    multiSendCallOnly: '0xf220D3b4DFb23C4ade8C88E526C1353AbAcbC38F',
+  },
+  // berachain
+  80094: {
+    multiSend: '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761',
+    multiSendCallOnly: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D',
+  },
+};
+
 export async function getSafe(chain, multiProvider, safeAddress) {
   // Create Ethers Adapter
   const signer = multiProvider.getSigner(chain);
@@ -61,7 +76,16 @@ export async function getSafe(chain, multiProvider, safeAddress) {
 
   // Get the multiSend and multiSendCallOnly deployments for the given chain
   let multiSend, multiSendCallOnly;
-  if (safeDeploymentsVersions[safeVersion]) {
+  if (chainOverrides[chainId]) {
+    multiSend = {
+      networkAddresses: { [chainId]: chainOverrides[chainId].multiSend },
+    };
+    multiSendCallOnly = {
+      networkAddresses: {
+        [chainId]: chainOverrides[chainId].multiSendCallOnly,
+      },
+    };
+  } else if (safeDeploymentsVersions[safeVersion]) {
     const { multiSendVersion, multiSendCallOnlyVersion } =
       safeDeploymentsVersions[safeVersion];
     multiSend = getMultiSendDeployment({
@@ -103,7 +127,7 @@ export async function canProposeSafeTransactions(
   let safeService;
   try {
     safeService = getSafeService(chain, multiProvider);
-  } catch (e) {
+  } catch {
     return false;
   }
   const safe = await getSafe(chain, multiProvider, safeAddress);

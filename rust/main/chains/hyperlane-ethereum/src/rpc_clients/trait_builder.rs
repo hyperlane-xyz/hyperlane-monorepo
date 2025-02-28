@@ -1,8 +1,10 @@
-use std::fmt::{Debug, Write};
+use std::fmt::Debug;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ethers::middleware::gas_escalator::{Frequency, GasEscalatorMiddleware, GeometricGasPrice};
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
@@ -10,18 +12,23 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
+use ethers::types::Address;
+use ethers_signers::Signer;
 use hyperlane_core::rpc_clients::FallbackProvider;
+use hyperlane_metric::utils::url_to_host_info;
+use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Client, Url};
 use thiserror::Error;
 
-use ethers_prometheus::json_rpc_client::{
-    JsonRpcBlockGetter, JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo,
-    PrometheusJsonRpcClient, PrometheusJsonRpcClientConfig,
-};
+use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClient};
 use ethers_prometheus::middleware::{MiddlewareMetrics, PrometheusMiddlewareConf};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
+use hyperlane_metric::prometheus_metric::{
+    NodeInfo, PrometheusClientMetrics, PrometheusClientMetricsBuilder, PrometheusConfig,
+};
+use tracing::instrument;
 
 use crate::signer::Signers;
 use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
@@ -63,18 +70,14 @@ pub trait BuildableWithProvider {
         conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        rpc_metrics: Option<JsonRpcClientMetrics>,
+        client_metrics: Option<PrometheusClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
         Ok(match &conn.rpc_connection {
             RpcConnectionConf::HttpQuorum { urls } => {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls {
-                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
+                    let http_provider = build_http_provider(url.clone())?;
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
                     // We've observed issues where the QuorumProvider will first get the latest
                     // block number and then submit an RPC at that block height,
@@ -87,7 +90,7 @@ pub trait BuildableWithProvider {
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
                         url.clone(),
-                        &rpc_metrics,
+                        &client_metrics,
                         &middleware_metrics,
                     );
                     let retrying_provider =
@@ -100,16 +103,12 @@ pub trait BuildableWithProvider {
             }
             RpcConnectionConf::HttpFallback { urls } => {
                 let mut builder = FallbackProvider::builder();
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls {
-                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
+                    let http_provider = build_http_provider(url.clone())?;
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
                         url.clone(),
-                        &rpc_metrics,
+                        &client_metrics,
                         &middleware_metrics,
                     );
                     builder = builder.add_provider(metrics_provider);
@@ -123,15 +122,11 @@ pub trait BuildableWithProvider {
                     .await?
             }
             RpcConnectionConf::Http { url } => {
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
-                let http_provider = Http::new_with_client(url.clone(), http_client);
+                let http_provider = build_http_provider(url.clone())?;
                 let metrics_provider = self.wrap_rpc_with_metrics(
                     http_provider,
                     url.clone(),
-                    &rpc_metrics,
+                    &client_metrics,
                     &middleware_metrics,
                 );
                 let retrying_http_provider = RetryingProvider::new(metrics_provider, None, None);
@@ -152,28 +147,17 @@ pub trait BuildableWithProvider {
         &self,
         client: C,
         url: Url,
-        rpc_metrics: &Option<JsonRpcClientMetrics>,
+        client_metrics: &Option<PrometheusClientMetrics>,
         middleware_metrics: &Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> PrometheusJsonRpcClient<C> {
         PrometheusJsonRpcClient::new(
             client,
-            rpc_metrics
+            client_metrics
                 .clone()
-                .unwrap_or_else(|| JsonRpcClientMetricsBuilder::default().build().unwrap()),
-            PrometheusJsonRpcClientConfig {
+                .unwrap_or_else(|| PrometheusClientMetricsBuilder::default().build().unwrap()),
+            PrometheusConfig {
                 node: Some(NodeInfo {
-                    host: {
-                        let mut s = String::new();
-                        if let Some(host) = url.host_str() {
-                            s.push_str(host);
-                            if let Some(port) = url.port() {
-                                write!(&mut s, ":{port}").unwrap();
-                            }
-                            Some(s)
-                        } else {
-                            None
-                        }
-                    },
+                    host: url_to_host_info(&url),
                 }),
                 // steal the chain info from the middleware conf
                 chain: middleware_metrics
@@ -195,13 +179,13 @@ pub trait BuildableWithProvider {
     where
         P: JsonRpcClient + 'static,
     {
-        let provider = wrap_with_gas_oracle(Provider::new(client), locator.domain)?;
-        self.build_with_signer(provider, conn, locator, signer)
+        self.build_with_signer(Provider::new(client), conn, locator, signer)
             .await
     }
 
     /// Wrap the provider creation with a signing provider if signers were
     /// provided, and then create the associated trait.
+    #[instrument(skip(self, provider, conn, locator, signer), fields(domain=locator.domain.name()), level = "debug")]
     async fn build_with_signer<M>(
         &self,
         provider: M,
@@ -213,10 +197,20 @@ pub trait BuildableWithProvider {
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
-            let signing_provider = wrap_with_signer(provider, signer)
+            // The signing provider is used for sending txs, which may end up stuck in the mempool due to
+            // gas pricing issues. We first wrap the provider in a signer middleware, to sign any new txs sent by the gas escalator middleware.
+            // We keep nonce manager as the outermost middleware, so that every new tx with a higher gas price reuses the same nonce.
+            let signing_provider = wrap_with_signer(provider, signer.clone())
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
-            self.build_with_provider(signing_provider, conn, locator)
+            let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
+            let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
+            let nonce_manager_provider =
+                wrap_with_nonce_manager(gas_oracle_provider, signer.address())
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?;
+
+            self.build_with_provider(nonce_manager_provider, conn, locator)
         } else {
             self.build_with_provider(provider, conn, locator)
         }
@@ -237,15 +231,19 @@ pub trait BuildableWithProvider {
 async fn wrap_with_signer<M: Middleware>(
     provider: M,
     signer: Signers,
-) -> Result<SignerMiddleware<NonceManagerMiddleware<M>, Signers>, M::Error> {
+) -> Result<SignerMiddleware<M, Signers>, M::Error> {
     let provider_chain_id = provider.get_chainid().await?;
     let signer = ethers::signers::Signer::with_chain_id(signer, provider_chain_id.as_u64());
 
-    let address = ethers::prelude::Signer::address(&signer);
-    let provider = NonceManagerMiddleware::new(provider, address);
+    Ok(SignerMiddleware::new(provider, signer))
+}
 
-    let signing_provider = SignerMiddleware::new(provider, signer);
-    Ok(signing_provider)
+async fn wrap_with_nonce_manager<M: Middleware>(
+    provider: M,
+    signer_address: Address,
+) -> Result<NonceManagerMiddleware<M>, M::Error> {
+    let nonce_manager_provider = NonceManagerMiddleware::new(provider, signer_address);
+    Ok(nonce_manager_provider)
 }
 
 fn build_polygon_gas_oracle(chain: ethers_core::types::Chain) -> ChainResult<Box<dyn GasOracle>> {
@@ -276,4 +274,60 @@ where
         }
     };
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
+}
+
+fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M>
+where
+    M: Middleware + 'static,
+{
+    // Increase the gas price by 12.5% every 90 seconds
+    // (These are the default values from ethers doc comments)
+    const COEFFICIENT: f64 = 1.125;
+    const EVERY_SECS: u64 = 90u64;
+    // a 3k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
+    const MAX_GAS_PRICE: u128 = 3_000 * 10u128.pow(9);
+    let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
+    // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
+    // which adds unnecessary load on the provider.
+    const FREQUENCY: Frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
+    GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
+}
+
+fn build_http_provider(url: Url) -> ChainResult<Http> {
+    let mut queries_to_keep = vec![];
+    let mut headers = reqwest::header::HeaderMap::new();
+
+    // A hack to pass custom headers to the provider without
+    // requiring a bunch of changes to our configuration surface area.
+    // Any `custom_rpc_header` query parameter is expected to have the value
+    // format: `header_name:header_value`, will be added to the headers
+    // of the HTTP client, and removed from the URL params.
+    let mut updated_url = url.clone();
+    for (key, value) in url.query_pairs() {
+        if key != "custom_rpc_header" {
+            queries_to_keep.push((key.clone(), value.clone()));
+            continue;
+        }
+        if let Some((header_name, header_value)) = value.split_once(':') {
+            let header_name =
+                HeaderName::from_str(header_name).map_err(ChainCommunicationError::from_other)?;
+            let mut header_value =
+                HeaderValue::from_str(header_value).map_err(ChainCommunicationError::from_other)?;
+            header_value.set_sensitive(true);
+            headers.insert(header_name, header_value);
+        }
+    }
+
+    updated_url
+        .query_pairs_mut()
+        .clear()
+        .extend_pairs(queries_to_keep);
+
+    let http_client = Client::builder()
+        .timeout(HTTP_CLIENT_TIMEOUT)
+        .default_headers(headers)
+        .build()
+        .map_err(EthereumProviderConnectionError::from)?;
+
+    Ok(Http::new_with_client(url, http_client))
 }

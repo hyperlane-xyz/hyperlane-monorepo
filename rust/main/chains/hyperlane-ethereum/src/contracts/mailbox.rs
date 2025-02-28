@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::ops::RangeInclusive;
+use std::ops::{Mul, RangeInclusive};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -11,6 +11,7 @@ use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
+use ethers_core::utils::WEI_IN_ETHER;
 use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
@@ -495,7 +496,7 @@ where
             .into())
     }
 
-    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self, message, metadata), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -560,8 +561,8 @@ where
                 arbitrum_node_interface
                     .estimate_retryable_ticket(
                         H160::zero().into(),
-                        // Give the sender a deposit, otherwise it reverts
-                        U256::MAX.into(),
+                        // Give the sender a deposit (100 ETH), otherwise it reverts
+                        WEI_IN_ETHER.mul(100u32),
                         self.contract.address(),
                         U256::zero().into(),
                         H160::zero().into(),

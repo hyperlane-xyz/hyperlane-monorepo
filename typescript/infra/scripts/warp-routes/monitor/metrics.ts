@@ -3,7 +3,9 @@ import { Gauge, Registry } from 'prom-client';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 
-import { WarpRouteBalance, XERC20Limit } from './types.js';
+import { getWalletBalanceGauge } from '../../../src/utils/metrics.js';
+
+import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
 import { logger } from './utils.js';
 
 export const metricsRegister = new Registry();
@@ -44,6 +46,8 @@ const warpRouteCollateralValue = new Gauge({
   labelNames: warpRouteMetricLabels,
 });
 
+const walletBalanceGauge = getWalletBalanceGauge(metricsRegister);
+
 const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
   help: 'Current minting and burning limits of xERC20 tokens',
@@ -55,6 +59,7 @@ export function updateTokenBalanceMetrics(
   warpCore: WarpCore,
   token: Token,
   balanceInfo: WarpRouteBalance,
+  collateralTokenSymbol: string,
 ) {
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
@@ -63,7 +68,7 @@ export function updateTokenBalanceMetrics(
     wallet_address: token.addressOrDenom,
     token_standard: token.standard,
     warp_route_id: createWarpRouteConfigId(
-      token.symbol,
+      collateralTokenSymbol,
       warpCore.getTokenChains(),
     ),
     related_chain_names: warpCore
@@ -92,6 +97,21 @@ export function updateTokenBalanceMetrics(
       'Wallet value updated for token',
     );
   }
+}
+
+export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
+  walletBalanceGauge
+    .labels({
+      chain: balance.chain,
+      wallet_address: balance.walletAddress,
+      wallet_name: balance.walletName,
+      token_symbol: 'Native',
+      token_name: 'Native',
+    })
+    .set(balance.balance);
+  logger.info('Native wallet balance updated', {
+    balanceInfo: balance,
+  });
 }
 
 export function updateXERC20LimitsMetrics(token: Token, limits: XERC20Limit) {

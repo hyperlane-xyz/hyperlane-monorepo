@@ -8,6 +8,8 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const DEFAULT_LOCAL_REGISTRY = `${os.homedir()}/.hyperlane`;
+
 export const demandOption = (option: Options): Options => ({
   ...option,
   demandOption: true,
@@ -25,17 +27,20 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
-export const registryUriCommandOption: Options = {
-  type: 'string',
-  description: 'Registry URI, such as a Github repo URL or a local file path',
+export const registryUrisCommandOption: Options = {
+  type: 'array',
+  string: true,
+  description:
+    'List of Github or local path registries, later registry takes priority over previous',
   alias: 'r',
-  default: DEFAULT_GITHUB_REGISTRY,
+  default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
 };
 
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
-  default: `${os.homedir()}/.hyperlane`,
+  default: '',
+  hidden: true,
 };
 
 export const skipConfirmationOption: Options = {
@@ -95,6 +100,7 @@ export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
   './configs/warp-route-deployment.yaml';
 
 export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
+export const DEFAULT_STRATEGY_CONFIG_PATH = `${os.homedir()}/.hyperlane/strategies/default-strategy.yaml`;
 
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
@@ -196,8 +202,8 @@ export const transactionsCommandOption: Options = {
 export const strategyCommandOption: Options = {
   type: 'string',
   description: 'The submission strategy input file path.',
-  alias: 's',
-  demandOption: true,
+  alias: ['s', 'strategy'],
+  demandOption: false,
 };
 
 export const addressCommandOption = (

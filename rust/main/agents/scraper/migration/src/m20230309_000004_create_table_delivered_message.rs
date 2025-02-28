@@ -47,6 +47,7 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(DeliveredMessage::Sequence).big_integer())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(DeliveredMessage::Domain)
@@ -57,6 +58,29 @@ impl MigrationTrait for Migration {
                             .from_col(DeliveredMessage::DestinationTxId)
                             .to(Transaction::Table, Transaction::Id),
                     )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(DeliveredMessage::Table)
+                    .name("delivered_message_domain_destination_mailbox_idx")
+                    .col(DeliveredMessage::Domain)
+                    .col(DeliveredMessage::DestinationMailbox)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(DeliveredMessage::Table)
+                    .name("delivered_message_domain_destination_mailbox_sequence_idx")
+                    .col(DeliveredMessage::Domain)
+                    .col(DeliveredMessage::DestinationMailbox)
+                    .col(DeliveredMessage::Sequence)
+                    .index_type(IndexType::BTree)
                     .to_owned(),
             )
             .await?;
@@ -105,4 +129,6 @@ pub enum DeliveredMessage {
     DestinationMailbox,
     /// Transaction the delivery was included in
     DestinationTxId,
+    /// Sequence when message was delivered
+    Sequence,
 }

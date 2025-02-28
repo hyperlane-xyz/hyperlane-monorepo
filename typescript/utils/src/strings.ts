@@ -6,6 +6,10 @@ export function toTitleCase(str: string) {
   });
 }
 
+export function toUpperCamelCase(string: string) {
+  return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
 // Only allows letters and numbers
 const alphanumericRgex = /[^a-zA-Z0-9]/gi;
 export function sanitizeString(str: string) {

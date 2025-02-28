@@ -2,22 +2,24 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   RouterConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+
 export const getEthereumEclipseTETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  const eclipsemainnet: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'BJa3fPvvjKx8gRCWunoSrWBbsmieub37gsGpjp4BfTfW',
-    gas: 300_000,
+    gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
     interchainSecurityModule: ethers.constants.AddressZero,

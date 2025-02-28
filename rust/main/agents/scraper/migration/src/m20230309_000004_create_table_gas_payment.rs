@@ -39,6 +39,17 @@ impl MigrationTrait for Migration {
                             .big_unsigned()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(GasPayment::Origin).unsigned().not_null())
+                    .col(
+                        ColumnDef::new(GasPayment::Destination)
+                            .unsigned()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new_with_type(GasPayment::InterchainGasPaymaster, Address)
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(GasPayment::Sequence).big_integer())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(GasPayment::TxId)
@@ -47,6 +58,11 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(GasPayment::Domain)
+                            .to(Domain::Table, Domain::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(GasPayment::Origin)
                             .to(Domain::Table, Domain::Id),
                     )
                     .index(
@@ -70,7 +86,40 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
+        manager
+            .create_index(
+                Index::create()
+                    .table(GasPayment::Table)
+                    .name("gas_payment_domain_id_idx")
+                    .col(GasPayment::Domain)
+                    .col(GasPayment::Id)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(GasPayment::Table)
+                    .name("gas_payment_origin_id_idx")
+                    .col(GasPayment::Origin)
+                    .col(GasPayment::Id)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(GasPayment::Table)
+                    .name("gas_payment_origin_interchain_gas_paymaster_sequence_idx")
+                    .col(GasPayment::Origin)
+                    .col(GasPayment::InterchainGasPaymaster)
+                    .col(GasPayment::Sequence)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
         manager
             .get_connection()
             .execute_unprepared(&format!(
@@ -95,7 +144,6 @@ impl MigrationTrait for Migration {
                 tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
             ))
             .await?;
-
         Ok(())
     }
 
@@ -136,6 +184,16 @@ pub enum GasPayment {
     /// Used to disambiguate duplicate payments from multiple payments made in
     /// same transaction.
     LogIndex,
+    /// Domain ID of the chain the payment was made on; technically duplicating
+    /// field Domain, but Domain becomes ambiguous as we add Destination domain as well.
+    Origin,
+    /// Domain ID of the chain the payment was made for.
+    Destination,
+    /// Interchain Gas Paymaster contract address
+    InterchainGasPaymaster,
+    /// Sequence of this payment for indexing by agent. It can be null if agent
+    /// does not use sequence-aware indexing.
+    Sequence,
 }
 
 #[derive(Iden)]

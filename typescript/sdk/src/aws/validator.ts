@@ -4,6 +4,7 @@ import {
   S3Announcement,
   S3CheckpointWithId,
   ValidatorConfig,
+  ValidatorMetadata,
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
@@ -13,7 +14,8 @@ const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
-const LOCATION_PREFIX = 's3://';
+const METADATA_KEY = 'metadata_latest.json';
+export const S3_LOCATION_PREFIX = 's3://';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
@@ -32,8 +34,8 @@ export class S3Validator extends BaseValidator {
   static async fromStorageLocation(
     storageLocation: string,
   ): Promise<S3Validator> {
-    if (storageLocation.startsWith(LOCATION_PREFIX)) {
-      const suffix = storageLocation.slice(LOCATION_PREFIX.length);
+    if (storageLocation.startsWith(S3_LOCATION_PREFIX)) {
+      const suffix = storageLocation.slice(S3_LOCATION_PREFIX.length);
       const pieces = suffix.split('/');
       if (pieces.length >= 2) {
         const s3Config = {
@@ -76,6 +78,15 @@ export class S3Validator extends BaseValidator {
     return resp.data;
   }
 
+  async getMetadata(): Promise<ValidatorMetadata> {
+    const resp = await this.s3Bucket.getS3Obj<ValidatorMetadata>(METADATA_KEY);
+    if (!resp) {
+      throw new Error(`No metadata found for ${this.config.localDomain}`);
+    }
+
+    return resp.data;
+  }
+
   async getCheckpoint(index: number): Promise<S3CheckpointWithId | void> {
     const key = checkpointWithMessageIdKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<S3CheckpointWithId>(key);
@@ -101,7 +112,7 @@ export class S3Validator extends BaseValidator {
   }
 
   storageLocation(): string {
-    return `${LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
+    return `${S3_LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
   }
 
   getLatestCheckpointUrl(): string {

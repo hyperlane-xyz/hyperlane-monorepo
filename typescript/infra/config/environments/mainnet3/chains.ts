@@ -1,5 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -16,14 +16,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsc: {
     transactionOverrides: {
       gasPrice: 3 * 10 ** 9, // 3 gwei
-    },
-  },
-  polygon: {
-    transactionOverrides: {
-      // A very high max fee per gas is used as Polygon is susceptible
-      // to large swings in gas prices.
-      maxFeePerGas: 800 * 10 ** 9, // 800 gwei
-      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
   polygonzkevm: {
@@ -53,6 +45,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
+  morph: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 6, // 0.001 gwei
+    },
+  },
   rootstockmainnet: {
     transactionOverrides: {
       gasPrice: 7 * 10 ** 7, // 0.07 gwei
@@ -65,22 +62,54 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
+  // taiko: {
+  //   transactionOverrides: {
+  //     gasPrice: 25 * 10 ** 7, // 0.25 gwei
+  //   },
+  // },
+  // linea: {
+  //   transactionOverrides: {
+  //     gasPrice: 5 * 10 ** 8, // 0.5 gwei
+  //   },
+  // },
   // zircuit: {
   //   blocks: {
   //     confirmations: 3,
   //   },
   // },
-  // prom: {
+  // degenchain: {
   //   transactionOverrides: {
-  //     gasPrice: 20 * 10 ** 9, // 20 gwei
+  //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
+  //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
+  //   },
+  // },
+  // polygon: {
+  //   transactionOverrides: {
+  //     // A very high max fee per gas is used as Polygon is susceptible
+  //     // to large swings in gas prices.
+  //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
+  //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
+  //   },
+  // },
+  // unitzero: {
+  //   transactionOverrides: {
+  //     gasPrice: 600 * 10 ** 9, // 600 gwei
+  //   },
+  // },
+  // matchain: {
+  //   blocks: {
+  //     confirmations: 5,
   //   },
   // },
 };
 
-export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+export const getRegistry = async (
+  useSecrets = true,
+  chains: ChainName[] = supportedChainNames,
+): Promise<IRegistry> =>
   getRegistryForEnvironment(
     environment,
-    supportedChainNames,
+    chains,
     chainMetadataOverrides,
     useSecrets,
   );

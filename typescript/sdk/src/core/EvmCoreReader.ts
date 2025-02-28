@@ -10,22 +10,27 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { proxyAdmin } from '../deploy/proxy.js';
-import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
-import { CoreConfig } from './types.js';
+import { CoreConfig, DerivedCoreConfig } from './types.js';
 
 interface CoreReader {
-  deriveCoreConfig(address: Address): Promise<CoreConfig>;
+  deriveCoreConfig(contracts: {
+    mailbox: Address;
+    interchainAccountRouter: Address;
+  }): Promise<CoreConfig>;
 }
 
 export class EvmCoreReader implements CoreReader {
-  provider: providers.Provider;
-  evmHookReader: EvmHookReader;
-  evmIsmReader: EvmIsmReader;
+  public readonly provider: providers.Provider;
+  public readonly evmHookReader: EvmHookReader;
+  public readonly evmIsmReader: EvmIsmReader;
+  public readonly evmIcaRouterReader: EvmIcaRouterReader;
+
   protected readonly logger = rootLogger.child({ module: 'EvmCoreReader' });
 
   constructor(
@@ -38,6 +43,9 @@ export class EvmCoreReader implements CoreReader {
     this.provider = this.multiProvider.getProvider(chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    this.evmIcaRouterReader = new EvmIcaRouterReader(
+      multiProvider.getProvider(chain),
+    );
   }
 
   /**
@@ -46,24 +54,33 @@ export class EvmCoreReader implements CoreReader {
    * @param address - The address of the Mailbox contract.
    * @returns A promise that resolves to the CoreConfig object, containing the owner, default ISM, default Hook, and required Hook configurations.
    */
-  async deriveCoreConfig(address: Address): Promise<CoreConfig> {
-    const mailbox = Mailbox__factory.connect(address, this.provider);
+  async deriveCoreConfig({
+    mailbox,
+    interchainAccountRouter,
+  }: {
+    mailbox: Address;
+    interchainAccountRouter?: Address;
+  }): Promise<DerivedCoreConfig> {
+    const mailboxInstance = Mailbox__factory.connect(mailbox, this.provider);
     const [defaultIsm, defaultHook, requiredHook, mailboxProxyAdmin] =
       await Promise.all([
-        mailbox.defaultIsm(),
-        mailbox.defaultHook(),
-        mailbox.requiredHook(),
-        proxyAdmin(this.provider, mailbox.address),
+        mailboxInstance.defaultIsm(),
+        mailboxInstance.defaultHook(),
+        mailboxInstance.requiredHook(),
+        proxyAdmin(this.provider, mailboxInstance.address),
       ]);
 
     // Parallelize each configuration request
     const results = await promiseObjAll(
       objMap(
         {
-          owner: mailbox.owner(),
+          owner: mailboxInstance.owner(),
           defaultIsm: this.evmIsmReader.deriveIsmConfig(defaultIsm),
           defaultHook: this.evmHookReader.deriveHookConfig(defaultHook),
           requiredHook: this.evmHookReader.deriveHookConfig(requiredHook),
+          interchainAccountRouter: interchainAccountRouter
+            ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
+            : undefined,
           proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
         },
         async (_, readerCall) => {
@@ -71,7 +88,7 @@ export class EvmCoreReader implements CoreReader {
             return readerCall;
           } catch (e) {
             this.logger.error(
-              `EvmCoreReader: readerCall failed for ${address}:`,
+              `EvmCoreReader: readerCall failed for ${mailbox}:`,
               e,
             );
             return;
@@ -80,7 +97,7 @@ export class EvmCoreReader implements CoreReader {
       ),
     );
 
-    return results as CoreConfig;
+    return results as DerivedCoreConfig;
   }
 
   private async getProxyAdminConfig(

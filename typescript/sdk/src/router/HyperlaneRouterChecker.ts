@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 import {
   AddressBytes32,
   addressToBytes32,
-  assert,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -20,6 +20,7 @@ import { RouterApp } from './RouterApps.js';
 import {
   ClientViolation,
   ClientViolationType,
+  MissingRouterViolation,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
@@ -66,11 +67,7 @@ export class HyperlaneRouterChecker<
       });
     }
 
-    if (config.hook) {
-      assert(
-        typeof config.hook === 'string',
-        'Hook objects not supported in router checker',
-      );
+    if (config.hook && typeof config.hook === 'string') {
       const hook = await router.hook();
       if (!eqAddress(hook, config.hook as string)) {
         this.addViolation({
@@ -104,7 +101,10 @@ export class HyperlaneRouterChecker<
 
       let expectedConfig = config.interchainSecurityModule;
 
-      if (typeof expectedConfig === 'string') {
+      if (
+        typeof expectedConfig === 'string' &&
+        !isZeroishAddress(expectedConfig)
+      ) {
         expectedConfig = await ismReader.deriveIsmConfig(expectedConfig);
       }
 
@@ -126,17 +126,27 @@ export class HyperlaneRouterChecker<
 
   async checkEnrolledRouters(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
-    const remoteChains = await this.app.remoteChains(chain);
+    const actualRemoteChains = await this.app.remoteChains(chain);
+
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};
-    const routerDiff: ChainMap<{
+
+    const misconfiguredRouterDiff: ChainMap<{
       actual: AddressBytes32;
       expected: AddressBytes32;
     }> = {};
+    const missingRouterDomains: ChainName[] = [];
 
     await Promise.all(
-      remoteChains.map(async (remoteChain) => {
-        const remoteRouterAddress = this.app.routerAddress(remoteChain);
+      actualRemoteChains.map(async (remoteChain) => {
+        let remoteRouterAddress: string;
+        try {
+          remoteRouterAddress = this.app.routerAddress(remoteChain);
+        } catch {
+          // failed to read remote router address from the config
+          missingRouterDomains.push(remoteChain);
+          return;
+        }
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
         const actualRouter = await router.routers(remoteDomainId);
         const expectedRouter = addressToBytes32(remoteRouterAddress);
@@ -145,7 +155,7 @@ export class HyperlaneRouterChecker<
         expectedRouters[remoteChain] = expectedRouter;
 
         if (actualRouter !== expectedRouter) {
-          routerDiff[remoteChain] = {
+          misconfiguredRouterDiff[remoteChain] = {
             actual: actualRouter,
             expected: expectedRouter,
           };
@@ -153,15 +163,31 @@ export class HyperlaneRouterChecker<
       }),
     );
 
-    if (Object.keys(routerDiff).length > 0) {
+    const expectedRouterChains = actualRemoteChains.filter(
+      (chain) => !missingRouterDomains.includes(chain),
+    );
+
+    if (Object.keys(misconfiguredRouterDiff).length > 0) {
       const violation: RouterViolation = {
         chain,
-        type: RouterViolationType.EnrolledRouter,
+        type: RouterViolationType.MisconfiguredEnrolledRouter,
         contract: router,
         actual: currentRouters,
         expected: expectedRouters,
-        routerDiff,
+        routerDiff: misconfiguredRouterDiff,
         description: `Routers for some domains are missing or not enrolled correctly`,
+      };
+      this.addViolation(violation);
+    }
+
+    if (missingRouterDomains.length > 0) {
+      const violation: MissingRouterViolation = {
+        chain,
+        type: RouterViolationType.MissingRouter,
+        contract: router,
+        actual: actualRemoteChains.join(','),
+        expected: expectedRouterChains.join(','),
+        description: `Routers for some domains are missing from the config`,
       };
       this.addViolation(violation);
     }

@@ -1,9 +1,13 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
+import { ChainName } from '@hyperlane-xyz/sdk';
+
+import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
+import { getWarpAddresses } from '../../config/registry.js';
 import { warpConfigGetterMap } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
-import { Modules } from '../agent-utils.js';
+import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
@@ -14,12 +18,15 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { environment, asDeployer, chains, fork, context, pushMetrics } =
-    await getCheckWarpDeployArgs().argv;
-
-  const envConfig = getEnvironmentConfig(environment);
-  // Get the multiprovider once to avoid recreating it for each warp route
-  const multiProvider = await envConfig.getMultiProvider();
+  const {
+    environment,
+    asDeployer,
+    chains,
+    fork,
+    context,
+    pushMetrics,
+    interactive,
+  } = await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
   const checkerViolationsGauge = new Gauge(
@@ -29,8 +36,49 @@ async function main() {
 
   const failedWarpRoutesChecks: string[] = [];
 
+  const routesToSkip: string[] = [
+    WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
+  ];
+
+  let warpIdsToCheck: string[];
+  if (interactive) {
+    warpIdsToCheck = await getWarpRouteIdsInteractive();
+  } else {
+    console.log(chalk.yellow('Skipping the following warp routes:'));
+    routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
+
+    warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
+      (warpRouteId) => !routesToSkip.includes(warpRouteId),
+    );
+  }
+
+  // Determine which chains have warp configs
+  const chainsWithWarpConfigs = warpIdsToCheck.reduce((chains, warpRouteId) => {
+    const warpAddresses = getWarpAddresses(warpRouteId);
+    Object.keys(warpAddresses).forEach((chain) => chains.add(chain));
+    return chains;
+  }, new Set<ChainName>());
+
+  console.log(
+    `Found warp configs for chains: ${Array.from(chainsWithWarpConfigs).join(
+      ', ',
+    )}`,
+  );
+
+  // Get the multiprovider once to avoid recreating it for each warp route
+  // We specify the chains to avoid creating a multiprovider for all chains.
+  // This ensures that we don't fail to fetch secrets for new chains in the cron job.
+  const envConfig = getEnvironmentConfig(environment);
+  // Use default values for context, role, and useSecrets
+  const multiProvider = await envConfig.getMultiProvider(
+    undefined,
+    undefined,
+    undefined,
+    Array.from(chainsWithWarpConfigs),
+  );
+
   // TODO: consider retrying this if check throws an error
-  for (const warpRouteId of Object.keys(warpConfigGetterMap)) {
+  for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
     const warpModule = Modules.WARP;
 

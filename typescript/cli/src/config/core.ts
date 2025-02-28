@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
+  CoreConfig,
   CoreConfigSchema,
   HookConfig,
   IsmConfig,
@@ -38,7 +39,7 @@ export async function createCoreDeployConfig({
   logBlue('Creating a new core deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
+    async () => context.signerAddress,
     ENTER_DESIRED_VALUE_MSG,
     'owner address',
     SIGNER_PROMPT_LABEL,
@@ -63,7 +64,7 @@ export async function createCoreDeployConfig({
     });
     proxyAdmin = {
       owner: await detectAndConfirmOrPrompt(
-        async () => context.signer?.getAddress(),
+        async () => context.signerAddress,
         ENTER_DESIRED_VALUE_MSG,
         'ProxyAdmin owner address',
         SIGNER_PROMPT_LABEL,
@@ -95,7 +96,7 @@ export async function createCoreDeployConfig({
   }
 }
 
-export async function readCoreDeployConfigs(filePath: string) {
+export function readCoreDeployConfigs(filePath: string): CoreConfig {
   const config = readYamlOrJson(filePath);
   return CoreConfigSchema.parse(config);
 }

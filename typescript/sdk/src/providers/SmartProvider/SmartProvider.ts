@@ -1,5 +1,5 @@
 import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
-import pino, { Logger } from 'pino';
+import { Logger, pino } from 'pino';
 
 import {
   raceWithContext,
@@ -126,7 +126,7 @@ export class HyperlaneSmartProvider
   async getPriorityFee(): Promise<BigNumber> {
     try {
       return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
-    } catch (error) {
+    } catch {
       return BigNumber.from('1500000000');
     }
   }

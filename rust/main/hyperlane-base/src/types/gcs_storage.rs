@@ -241,7 +241,8 @@ impl CheckpointSyncer for GcsStorageClient {
         &self,
         signed_checkpoint: &SignedCheckpointWithMessageId,
     ) -> Result<()> {
-        let checkpoint_key = Self::get_checkpoint_key(signed_checkpoint.value.index);
+        let object_key = Self::get_checkpoint_key(signed_checkpoint.value.index);
+        let object_name = self.object_path(&object_key);
         let data = serde_json::to_vec(signed_checkpoint)?;
         self.upload_and_log(&(self.object_path(&checkpoint_key)), data).await
     }

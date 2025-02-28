@@ -13,8 +13,8 @@ export async function executeCoreRead({
   chain: ChainName;
   mailbox?: Address;
 }): Promise<CoreConfig> {
+  const addresses = await context.registry.getChainAddresses(chain);
   if (!mailbox) {
-    const addresses = await context.registry.getChainAddresses(chain);
     mailbox = addresses?.mailbox;
 
     assert(
@@ -25,7 +25,10 @@ export async function executeCoreRead({
 
   const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
   try {
-    return evmCoreReader.deriveCoreConfig(mailbox);
+    return evmCoreReader.deriveCoreConfig({
+      mailbox,
+      interchainAccountRouter: addresses?.interchainAccountRouter,
+    });
   } catch (e: any) {
     errorRed(
       `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,

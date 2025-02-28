@@ -54,6 +54,10 @@ jobs:
             exit 1
           fi
 
+      # Check for mismatched dep versions across the monorepo
+      - name: syncpack
+        run: yarn syncpack list-mismatches
+
   lint-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
@@ -72,6 +76,12 @@ jobs:
             .yarn
           key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           fail-on-cache-miss: true
+
+      # Build required before linting or the intra-monorepo package cycle checking won't work
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
         run: yarn lint
@@ -116,11 +126,21 @@ jobs:
       fail-fast: false
       matrix:
         test:
-          - core
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-init
+          - core-read
+          # Other commands
           - relay
-          - warp-read
+          # Warp Commands
           - warp-apply
+          - warp-check
           - warp-deploy
+          - warp-init
+          - warp-read
+          - warp-send
     steps:
       - uses: actions/checkout@v4
         with:
@@ -193,7 +213,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [cosmwasm, evm, sealevel]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -220,7 +240,7 @@ jobs:
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type == 'non-cosmwasm' && './rust/sealevel' || '' }}
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         run: |
@@ -249,13 +269,6 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: agent tests (CosmWasm)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
-        if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust/main
-        env:
-          RUST_BACKTRACE: 'full'
-
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
@@ -266,22 +279,50 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: agent tests (EVM and Sealevel)
+      - name: agent tests (CosmWasm)
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests (EVM)
         run: cargo run --release --bin run-locally --features test-utils
-        if: matrix.e2e-type == 'non-cosmwasm'
+        if: ${{ matrix.e2e-type == 'evm' }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
+
+      - name: agent tests (Sealevel)
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: e2e-matrix
+    if: always()
+    steps:
+      - name: Check e2e matrix status
+        if: ${{ needs.e2e-matrix.result != 'success' }}
+        run: |
+          echo "E2E tests failed"
+          exit 1
 
   env-test:
     runs-on: ubuntu-latest
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+      MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+      TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
 
     timeout-minutes: 10
     needs: [yarn-install]
@@ -289,7 +330,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        chain: [ethereum, arbitrum, optimism, inevm]
         module: [core, igp]
         include:
           - environment: testnet4
@@ -312,8 +353,15 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment with retries
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+          on_retry_command: |
+            echo "Test failed, waiting before retry..."
 
   coverage:
     runs-on: ubuntu-latest

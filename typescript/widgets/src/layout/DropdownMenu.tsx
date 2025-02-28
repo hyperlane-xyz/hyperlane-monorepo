@@ -1,5 +1,5 @@
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { ComponentProps, ReactNode } from 'react';
 
 export type DropdownMenuProps = {

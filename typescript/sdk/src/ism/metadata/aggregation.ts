@@ -10,12 +10,13 @@ import {
 import { DerivedIsmConfig } from '../EvmIsmReader.js';
 import { AggregationIsmConfig, IsmType } from '../types.js';
 
+import type { BaseMetadataBuilder } from './builder.js';
+import { decodeIsmMetadata } from './decode.js';
 import {
-  BaseMetadataBuilder,
   MetadataBuilder,
   MetadataContext,
   StructuredMetadata,
-} from './builder.js';
+} from './types.js';
 
 // null indicates that metadata is NOT INCLUDED for this submodule
 // empty or 0x string indicates that metadata is INCLUDED but NULL
@@ -137,7 +138,7 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
       const range = this.metadataRange(metadata, index);
       if (range.start == 0) return null;
       if (typeof ism === 'string') return range.encoded;
-      return BaseMetadataBuilder.decode(range.encoded, {
+      return decodeIsmMetadata(range.encoded, {
         ...context,
         ism: ism as DerivedIsmConfig,
       });

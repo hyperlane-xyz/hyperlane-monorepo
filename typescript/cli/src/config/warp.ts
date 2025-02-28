@@ -82,7 +82,7 @@ async function fillDefaults(
       let owner = config.owner;
       if (!owner) {
         owner =
-          (await context.signer?.getAddress()) ??
+          context.signerAddress ??
           (await context.multiProvider.getSignerAddress(chain));
       }
       return {
@@ -122,13 +122,6 @@ export async function createWarpRouteDeployConfig({
 }) {
   logBlue('Creating a new warp route deployment config...');
 
-  const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
-    'Enter the desired',
-    'owner address',
-    'signer',
-  );
-
   const warpChains = await runMultiChainSelectionStep({
     chainMetadata: context.chainMetadata,
     message: 'Select chains to connect',
@@ -142,6 +135,12 @@ export async function createWarpRouteDeployConfig({
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
+    const owner = await detectAndConfirmOrPrompt(
+      async () => context.signerAddress,
+      'Enter the desired',
+      'owner address',
+      'signer',
+    );
 
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);
@@ -153,33 +152,28 @@ export async function createWarpRouteDeployConfig({
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
 
-    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
-      context,
-      chain,
-      owner,
-    );
+    const proxyAdmin: DeployedOwnableConfig | undefined =
+      await setProxyAdminConfig(context, chain);
 
     /**
      * The logic from the cli is as follows:
+     *  --yes flag is provided: set ism to undefined (default ISM config)
      *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
-     *  --yes flag is provided: the default ISM config will be used (Trusted ISM + Default fallback ISM)
      *  -- no flag is provided: the user must choose if the default ISM config should be used:
      *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
-     *    - no: the default fallback ISM will be used
+     *    - no: keep ism as undefined (default ISM config)
      */
-    let interchainSecurityModule: IsmConfig;
-    if (advanced) {
+    let interchainSecurityModule: IsmConfig | undefined;
+    if (context.skipConfirmation) {
+      interchainSecurityModule = undefined;
+    } else if (advanced) {
       interchainSecurityModule = await createAdvancedIsmConfig(context);
-    } else if (context.skipConfirmation) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
       })
     ) {
       interchainSecurityModule = createDefaultWarpIsmConfig(owner);
-    } else {
-      interchainSecurityModule = createFallbackRoutingConfig(owner);
     }
 
     const type = await select({

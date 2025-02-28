@@ -28,13 +28,13 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
-import { IsmConfigSchema } from './schemas.js';
 import {
   DeployedIsm,
+  DomainRoutingIsmConfig,
   IsmConfig,
+  IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
-  RoutingIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 
@@ -161,7 +161,7 @@ export class EvmIsmModule extends HyperlaneModule<
       targetConfig.type === IsmType.FALLBACK_ROUTING
     ) {
       updateTxs = await this.updateRoutingIsm({
-        current: currentConfig as RoutingIsmConfig,
+        current: currentConfig,
         target: targetConfig,
         logger,
       });
@@ -221,8 +221,8 @@ export class EvmIsmModule extends HyperlaneModule<
     target,
     logger,
   }: {
-    current: RoutingIsmConfig;
-    target: RoutingIsmConfig;
+    current: DomainRoutingIsmConfig;
+    target: DomainRoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedEV5Transaction[]> {
     const contract = DomainRoutingIsm__factory.connect(

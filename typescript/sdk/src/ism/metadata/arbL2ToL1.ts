@@ -20,7 +20,7 @@ import { ArbL2ToL1HookConfig } from '../../hook/types.js';
 import { findMatchingLogEvents } from '../../utils/logUtils.js';
 import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
-import { MetadataBuilder, MetadataContext } from './builder.js';
+import type { MetadataBuilder, MetadataContext } from './types.js';
 
 export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
 export type ArbL2ToL1Metadata = Omit<

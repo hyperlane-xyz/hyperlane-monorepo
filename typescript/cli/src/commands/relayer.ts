@@ -9,17 +9,17 @@ import { Address } from '@hyperlane-xyz/utils';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { tryReadJson, writeJson } from '../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../utils/input.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 import {
+  DEFAULT_LOCAL_REGISTRY,
   agentTargetsCommandOption,
-  overrideRegistryUriCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes } from './send.js';
 
-const DEFAULT_RELAYER_CACHE = `${overrideRegistryUriCommandOption.default}/relayer-cache.json`;
+const DEFAULT_RELAYER_CACHE = `${DEFAULT_LOCAL_REGISTRY}/relayer-cache.json`;
 
 export const relayerCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & {

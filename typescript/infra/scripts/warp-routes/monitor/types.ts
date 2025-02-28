@@ -1,3 +1,6 @@
+import { ChainName } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
+
 export interface XERC20Limit {
   mint: number;
   burn: number;
@@ -8,4 +11,11 @@ export interface XERC20Limit {
 export interface WarpRouteBalance {
   balance: number;
   valueUSD?: number;
+}
+
+export interface NativeWalletBalance {
+  chain: ChainName;
+  walletAddress: Address;
+  walletName: string;
+  balance: number;
 }

@@ -46,7 +46,7 @@ impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneDbS
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self
             .db
-            .retrieve_message_by_nonce(self.domain.id(), &self.mailbox_address, sequence)
+            .retrieve_dispatched_message_by_nonce(self.domain.id(), &self.mailbox_address, sequence)
             .await?;
         Ok(message)
     }

@@ -1,6 +1,7 @@
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, {
   ComponentType,
+  forwardRef,
   useCallback,
   useEffect,
   useMemo,
@@ -105,6 +106,7 @@ export function SearchMenu<
       e.stopPropagation();
       if (results.length === 1) {
         const item = results[0];
+        if (item.disabled) return;
         isEditMode ? onClickEditItem(item) : onClickItem(item);
       }
     },
@@ -184,7 +186,7 @@ export function SearchMenu<
   );
 }
 
-const SearchBar = React.forwardRef(function SearchBar(
+const SearchBar = forwardRef(function SearchBar(
   { onChange, value, ...props }: InputProps,
   ref: React.Ref<HTMLInputElement>,
 ) {

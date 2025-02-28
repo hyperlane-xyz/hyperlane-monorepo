@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
 import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';

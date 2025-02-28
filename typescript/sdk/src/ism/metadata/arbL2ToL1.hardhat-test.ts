@@ -16,8 +16,12 @@ import {
   MockArbSys__factory,
   TestRecipient,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, objMap } from '@hyperlane-xyz/utils';
-import { bytes32ToAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  bytes32ToAddress,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
 import {
@@ -38,7 +42,7 @@ import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig } from '../types.js';
 
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
-import { MetadataContext } from './builder.js';
+import { MetadataContext } from './types.js';
 
 describe('ArbL2ToL1MetadataBuilder', () => {
   const origin: ChainName = 'test4';

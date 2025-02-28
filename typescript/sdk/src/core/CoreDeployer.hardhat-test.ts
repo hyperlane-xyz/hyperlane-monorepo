@@ -1,9 +1,10 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import '@nomiclabs/hardhat-waffle';
 import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -17,6 +18,7 @@ import { testCoreConfig } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
 import { EvmCoreReader } from './EvmCoreReader.js';
+import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
@@ -30,9 +32,10 @@ describe('core', async () => {
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
   let ismFactory: HyperlaneIsmFactory;
+  let signer: SignerWithAddress;
 
   before(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
@@ -122,21 +125,47 @@ describe('core', async () => {
   });
 
   describe('CoreConfigReader', async () => {
+    let icaRouterAddressMap: ChainMap<Address>;
+
     beforeEach(async () => {
       contracts = await deployer.deploy(coreConfig);
+
+      const icaMap: ChainMap<Address> = {};
+      for (const chain of Object.keys(contracts)) {
+        const { interchainAccountRouter } = (
+          await EvmIcaModule.create({
+            chain,
+            multiProvider: multiProvider,
+            config: {
+              mailbox: contracts[chain].mailbox.address,
+              owner: signer.address,
+            },
+          })
+        ).serialize();
+        icaMap[chain] = interchainAccountRouter;
+      }
+
+      icaRouterAddressMap = icaMap;
     });
 
-    async function deriveCoreConfig(chainName: string, mailboxAddress: string) {
-      return new EvmCoreReader(multiProvider, chainName).deriveCoreConfig(
-        mailboxAddress,
-      );
+    async function deriveCoreConfig(
+      chainName: string,
+      mailboxAddress: string,
+      icaRouterAddress: string,
+    ) {
+      return new EvmCoreReader(multiProvider, chainName).deriveCoreConfig({
+        mailbox: mailboxAddress,
+        interchainAccountRouter: icaRouterAddress,
+      });
     }
+
     it('should derive defaultIsm correctly', async () => {
       await promiseObjAll(
         objMap(contracts, async (chainName, contract) => {
           const coreConfigOnChain = await deriveCoreConfig(
             chainName,
             contract.mailbox.address,
+            icaRouterAddressMap[chainName],
           );
 
           // Cast because we don't expect the 'string' type
@@ -149,12 +178,14 @@ describe('core', async () => {
         }),
       );
     });
+
     it('should derive defaultHook correctly', async () => {
       await promiseObjAll(
         objMap(contracts, async (chainName, contract) => {
           const coreConfigOnChain = await deriveCoreConfig(
             chainName,
             contract.mailbox.address,
+            icaRouterAddressMap[chainName],
           );
 
           // Cast because we don't expect the 'string' type
@@ -167,12 +198,14 @@ describe('core', async () => {
         }),
       );
     });
+
     it('should derive requiredHook correctly', async () => {
       await promiseObjAll(
         objMap(contracts, async (chainName, contract) => {
           const coreConfigOnChain = await deriveCoreConfig(
             chainName,
             contract.mailbox.address,
+            icaRouterAddressMap[chainName],
           );
           const { address: _, ...requiredHookOnchain } =
             coreConfigOnChain.requiredHook as DerivedHookConfig;
@@ -195,7 +228,7 @@ describe('core', async () => {
       try {
         await deployer.deploy(coreConfig);
         // eslint-disable-next-line no-empty
-      } catch (e: any) {}
+      } catch {}
     });
 
     afterEach(async () => {
@@ -252,7 +285,7 @@ describe('core', async () => {
       deployer.chainTimeoutMs = 1;
       try {
         await deployer.deploy(coreConfig);
-      } catch (e: any) {
+      } catch {
         // TODO: figure out how to test specific error case
         // expect(e.message).to.include('Timed out in 1ms');
       }

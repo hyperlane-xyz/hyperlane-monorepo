@@ -4,7 +4,6 @@ import { WarpRouteDeployConfig, normalizeConfig } from '@hyperlane-xyz/sdk';
 import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
-import '../utils/output.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
 export async function runWarpRouteCheck({

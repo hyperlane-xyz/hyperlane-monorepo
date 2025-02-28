@@ -3,7 +3,7 @@ import { WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { IsmType, NullIsmConfig } from '../types.js';
 
-import { MetadataBuilder, MetadataContext } from './builder.js';
+import type { MetadataBuilder, MetadataContext } from './types.js';
 
 export const NULL_METADATA = '0x';
 

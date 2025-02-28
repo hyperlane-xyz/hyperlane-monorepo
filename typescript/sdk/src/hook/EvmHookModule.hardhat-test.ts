@@ -1,9 +1,14 @@
-/* eslint-disable no-console */
 import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, assert, deepEquals, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  assert,
+  deepEquals,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -30,6 +35,7 @@ import {
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
+const DEFAULT_TOKEN_DECIMALS = 18;
 
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
@@ -100,6 +106,7 @@ function randomHookConfig(
             {
               tokenExchangeRate: randomInt(1234567891234).toString(),
               gasPrice: randomInt(1234567891234).toString(),
+              tokenDecimals: DEFAULT_TOKEN_DECIMALS,
             },
           ]),
         ),
@@ -348,18 +355,22 @@ describe('EvmHookModule', async () => {
               test1: {
                 tokenExchangeRate: '1032586497157',
                 gasPrice: '1026942205817',
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
               },
               test2: {
                 tokenExchangeRate: '81451154935',
                 gasPrice: '1231220057593',
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
               },
               test3: {
                 tokenExchangeRate: '31347320275',
                 gasPrice: '21944956734',
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
               },
               test4: {
                 tokenExchangeRate: '1018619796544',
                 gasPrice: '1124484183261',
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
               },
             },
           },
@@ -385,18 +396,22 @@ describe('EvmHookModule', async () => {
                   test1: {
                     tokenExchangeRate: '1132883204938',
                     gasPrice: '1219466305935',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                   test2: {
                     tokenExchangeRate: '938422264723',
                     gasPrice: '229134538568',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                   test3: {
                     tokenExchangeRate: '69699594189',
                     gasPrice: '475781234236',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                   test4: {
                     tokenExchangeRate: '1027245678936',
                     gasPrice: '502686418976',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                 },
               },
@@ -418,18 +433,22 @@ describe('EvmHookModule', async () => {
                   test1: {
                     tokenExchangeRate: '443874625350',
                     gasPrice: '799154764503',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                   test2: {
                     tokenExchangeRate: '915348561750',
                     gasPrice: '1124345797215',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                   test3: {
                     tokenExchangeRate: '930832717805',
                     gasPrice: '621743941770',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                   test4: {
                     tokenExchangeRate: '147394981623',
                     gasPrice: '766494385983',
+                    tokenDecimals: DEFAULT_TOKEN_DECIMALS,
                   },
                 },
               },
@@ -479,6 +498,7 @@ describe('EvmHookModule', async () => {
               {
                 tokenExchangeRate: randomInt(1234567891234).toString(),
                 gasPrice: randomInt(1234567891234).toString(),
+                tokenDecimals: DEFAULT_TOKEN_DECIMALS,
               },
             ]),
           ),
@@ -526,6 +546,7 @@ describe('EvmHookModule', async () => {
           {
             tokenExchangeRate: randomInt(987654321).toString(),
             gasPrice: randomInt(987654321).toString(),
+            tokenDecimals: DEFAULT_TOKEN_DECIMALS,
           },
         ]),
       );
@@ -730,6 +751,33 @@ describe('EvmHookModule', async () => {
 
       // expect 0 updates
       await expectTxsAndUpdate(hook, config, 0);
+    });
+
+    it('should not update a hook if given address matches actual config', async () => {
+      // create a new agg hook with the owner hardcoded
+      const hookConfig: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            ...(randomHookConfig(
+              0,
+              2,
+              HookType.FALLBACK_ROUTING,
+            ) as FallbackRoutingHookConfig),
+            owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+          },
+        ],
+      };
+      const { hook } = await createHook(hookConfig);
+      const deployedHookBefore =
+        (await hook.read()) as WithAddress<AggregationHookConfig>;
+
+      // expect 0 updates, but actually deploys a new hook
+      await expectTxsAndUpdate(hook, hookConfig, 0);
+      const deployedHookAfter =
+        (await hook.read()) as WithAddress<AggregationHookConfig>;
+
+      expect(deployedHookBefore.address).to.equal(deployedHookAfter.address);
     });
 
     // generate a random config for each ownable hook type

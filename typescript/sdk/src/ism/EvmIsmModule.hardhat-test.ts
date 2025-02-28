@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import assert from 'assert';
 import { expect } from 'chai';
 import { Signer } from 'ethers';
@@ -19,6 +18,7 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -54,7 +54,10 @@ function randomNonNestedModuleType(): ModuleType {
   return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
 }
 
-const randomIsmConfig = (depth = 0, maxDepth = 2) => {
+const randomIsmConfig = (
+  depth = 0,
+  maxDepth = 2,
+): Exclude<IsmConfig, string> => {
   const moduleType =
     depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
 
@@ -77,8 +80,8 @@ const randomIsmConfig = (depth = 0, maxDepth = 2) => {
       const n = randomInt(2, 1);
       const moduleTypes = new Set();
       const modules = new Array<number>(n).fill(0).map(() => {
-        let moduleConfig;
-        let moduleType;
+        let moduleConfig: Exclude<IsmConfig, string>;
+        let moduleType: IsmType;
 
         // Ensure that we do not add the same module type more than once per level
         do {
@@ -110,7 +113,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2) => {
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
-  let exampleRoutingConfig: RoutingIsmConfig;
+  let exampleRoutingConfig: DomainRoutingIsmConfig;
   let mailboxAddress: Address;
   let fundingAccount: Signer;
 
@@ -197,6 +200,7 @@ describe('EvmIsmModule', async () => {
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
     const derivedConfiig = await testIsm.read();
+
     const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
     const normalizedConfig = normalizeConfig(testConfig);
 
@@ -242,6 +246,12 @@ describe('EvmIsmModule', async () => {
         await createIsm(exampleRoutingConfig);
       });
     }
+
+    it(`deploys ${IsmType.ICA_ROUTING}`, async () => {
+      await createIsm({
+        type: IsmType.ICA_ROUTING,
+      });
+    });
 
     for (let i = 0; i < 16; i++) {
       it(`deploys a random ism config #${i}`, async () => {
@@ -318,7 +328,7 @@ describe('EvmIsmModule', async () => {
 
         // keep track of the domains before deleting
         const numDomainsBefore = Object.keys(
-          ((await ism.read()) as RoutingIsmConfig).domains,
+          ((await ism.read()) as DomainRoutingIsmConfig).domains,
         ).length;
 
         // deleting the domain and removing from multiprovider should unenroll the domain
@@ -333,7 +343,7 @@ describe('EvmIsmModule', async () => {
 
         // domains should have decreased by 1
         const numDomainsAfter = Object.keys(
-          ((await ism.read()) as RoutingIsmConfig).domains,
+          ((await ism.read()) as DomainRoutingIsmConfig).domains,
         ).length;
         expect(numDomainsBefore - 1).to.equal(numDomainsAfter);
       });

@@ -25,6 +25,7 @@ export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
   getTotalSupply(): Promise<bigint | undefined>;
   getMetadata(isNft?: boolean): Promise<TokenMetadata>;
+  getMinimumTransferAmount(recipient: Address): Promise<bigint>;
   isApproveRequired(
     owner: Address,
     spender: Address,
@@ -39,7 +40,11 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getRouterAddress(domain: Domain): Promise<Buffer>;
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
   getBridgedSupply(): Promise<bigint | undefined>;
-  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote>;
+  // Sender is only required for Sealevel origins.
+  quoteTransferRemoteGas(
+    destination: Domain,
+    sender?: Address,
+  ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
 
