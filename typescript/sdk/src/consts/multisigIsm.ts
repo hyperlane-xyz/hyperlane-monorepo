@@ -1277,6 +1277,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  matchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8a052f7934b0626105f34f980c875ec03aaf82e8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   merlin: {
     threshold: 2,
     validators: [
@@ -1519,6 +1529,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xea483af11c19fa41b16c31d1534c2a486a92bcac',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  paradexsepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

@@ -31,6 +31,7 @@ export enum ProviderType {
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
+  Starknet = 'starknet',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -40,6 +41,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+  [ProtocolType.Starknet]: ProviderType.EthersV5,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -62,6 +64,12 @@ type ProtocolTypesMapping = {
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
+  };
+  [ProtocolType.Starknet]: {
+    transaction: EthersV5Transaction;
+    provider: EthersV5Provider;
+    contract: EthersV5Contract;
+    receipt: EthersV5TransactionReceipt;
   };
 };
 
