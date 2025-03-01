@@ -29115,21 +29115,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nan@npm:^2.13.2":
+"nan@npm:^2.13.2, nan@npm:^2.14.0":
   version: 2.22.0
   resolution: "nan@npm:2.22.0"
   dependencies:
     node-gyp: "npm:latest"
   checksum: 10/ab165ba910e549fcc21fd561a33f534d86e81ae36c97b1019dcfe506b09692ff867c97794a54b49c9a83b8b485f529f0f58d24966c3a11863c97dc70814f4d50
-  languageName: node
-  linkType: hard
-
-"nan@npm:^2.14.0":
-  version: 2.16.0
-  resolution: "nan@npm:2.16.0"
-  dependencies:
-    node-gyp: "npm:latest"
-  checksum: 10/1a91ddf50722f17244caa5d3b4fb3d2c7367f7063b8c5edc8126cfde061af351a7de4012fc4711f9190f5bebf565d5da92f7a5ed8996c73625b481cfae5a24ed
   languageName: node
   linkType: hard
 
