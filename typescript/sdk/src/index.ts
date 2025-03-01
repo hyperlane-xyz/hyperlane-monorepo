@@ -107,6 +107,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
@@ -205,7 +206,13 @@ export {
   WeightedMultisigIsmConfig,
   WeightedMultisigIsmConfigSchema,
 } from './ism/types.js';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
+export {
+  collectValidators,
+  moduleCanCertainlyVerify,
+  isStaticDeploymentSupported,
+  isIsmCompatible,
+  isStaticIsm,
+} from './ism/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
