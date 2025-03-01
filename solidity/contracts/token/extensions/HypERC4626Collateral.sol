@@ -42,8 +42,9 @@ contract HypERC4626Collateral is HypERC20Collateral {
 
     constructor(
         ERC4626 _vault,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(_vault.asset(), _mailbox) {
+    ) HypERC20Collateral(_vault.asset(), _scale, _mailbox) {
         vault = _vault;
     }
 

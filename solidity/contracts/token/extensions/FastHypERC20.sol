@@ -15,8 +15,9 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 contract FastHypERC20 is FastTokenRouter, HypERC20 {
     constructor(
         uint8 __decimals,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20(__decimals, _mailbox) {}
+    ) HypERC20(__decimals, _scale, _mailbox) {}
 
     /**
      * @dev delegates transfer logic to `_transferTo`.
