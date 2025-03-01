@@ -223,7 +223,7 @@ git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2025-02-03"
 
 [workspace.dependencies.ethers-signers]
-features = ["aws"]
+features = ["aws", "yubi"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2025-02-03"
 

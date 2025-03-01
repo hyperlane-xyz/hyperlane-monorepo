@@ -30,11 +30,15 @@ tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
 
+ecdsa = { version = "0.14", default-features = false }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+k256 = { version = "0.11", features = ["ecdsa", "keccak256", "sha256"] }
+signature = { version = "1.3.2", features = ["derive-preview"] }
+yubihsm = { version = "0.41.0", features = ["secp256k1", "http", "usb"] }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }
