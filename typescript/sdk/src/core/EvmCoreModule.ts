@@ -418,13 +418,24 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
+    factoryDeploymentPlan?: Record<string, boolean>;
   }): Promise<HyperlaneAddresses<ProxyFactoryFactories>> {
-    const { chainName, config, multiProvider, contractVerifier } = params;
+    const {
+      chainName,
+      config,
+      multiProvider,
+      contractVerifier,
+      factoryDeploymentPlan,
+    } = params;
 
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
       contractVerifier,
+      false,
+      factoryDeploymentPlan,
     );
+
+    // If no deployment plan, deploy all factories as before
     const ismFactoriesFactory = await proxyFactoryDeployer.deploy({
       [chainName]: config,
     });
