@@ -12,6 +12,7 @@ use super::CoreMetrics;
 const RUNTIME_DROPPED_TASKS_HELP: &str = "The number of tasks dropped";
 
 /// Metrics for the runtime
+#[derive(Clone)]
 pub struct RuntimeMetrics {
     producer: TaskMonitor,
     dropped_tasks: IntCounter,

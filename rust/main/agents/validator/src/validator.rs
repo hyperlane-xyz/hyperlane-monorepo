@@ -26,13 +26,20 @@ use hyperlane_core::{
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
 use crate::{
-    settings::ValidatorSettings,
+    settings::{ChainValidatorSettings, ValidatorSettings},
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
 
-/// A validator agent
+/// A hyperlane validator which validates one more chain
 #[derive(Debug, AsRef)]
 pub struct Validator {
+    validators: Vec<ChainValidator>,
+    api_server_task: JoinHandle<()>,
+}
+
+// A validator bound to a single chain
+#[derive(Debug, AsRef)]
+pub struct ChainValidator {
     origin_chain: HyperlaneDomain,
     origin_chain_conf: ChainConf,
     #[as_ref]
@@ -73,45 +80,147 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let db = DB::from_path(&settings.db)?;
-        let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
+        //  Create one set of sync metrics, otherwise process will crash with duplicate metrics registration errors
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+
+        // Create validators for each config
+        let hyperlane_agent_core: HyperlaneAgentCore =
+            settings.build_hyperlane_core(metrics.clone());
+        let mut validators = vec![];
+        for chain_validator_settings in &settings.validators {
+            let validator = ChainValidator::make_validator(
+                agent_metadata.clone(),
+                chain_validator_settings.clone(),
+                &settings.clone(),
+                metrics.clone(),
+                agent_metrics.clone(),
+                chain_metrics.clone(),
+                runtime_metrics.clone(),
+                &contract_sync_metrics.clone(),
+            )
+            .await;
+
+            validators.push(validator.unwrap());
+        }
+
+        // Create an api server
+        let api_server_task = build_api_server(hyperlane_agent_core, metrics);
+
+        Ok(Self {
+            validators,
+            api_server_task,
+        })
+    }
+
+    async fn run(mut self) {
+        let mut tasks: Vec<JoinHandle<()>> = vec![];
+
+        // Start tasks for each validator
+        for mut validator in self.validators {
+            let chain_name = validator.origin_chain.name().to_string();
+
+            // tasks.push(
+            tasks.push(
+                tokio::task::Builder::new()
+                    .name(format!("{} validator", chain_name).as_str())
+                    .spawn(
+                        async move { validator.run().await }
+                            .instrument(info_span!("Validator", chain = chain_name)),
+                    )
+                    .unwrap(),
+            );
+        }
+
+        // And for the api server...
+        tasks.push(self.api_server_task);
+
+        // Note that this only returns an error if one of the tasks panics
+        if let Err(err) = try_join_all(tasks).await {
+            error!(?err, "One of the validator tasks returned an error");
+
+            // Actively crash the entire process if a threaded validator fails, so that we don't silently drop a validator.
+            std::process::exit(1)
+        }
+    }
+}
+
+fn build_api_server(
+    hyperlane_agent_core: HyperlaneAgentCore,
+    metrics: Arc<CoreMetrics>,
+) -> JoinHandle<()> {
+    // Set domain name to be custom "multiple-networks" in api server order to prevent confusion when looking at output.
+    let api_server_domain = HyperlaneDomain::new_test_domain("multiple-networks");
+
+    // Build an api server
+    let custom_routes = validator_server::routes(api_server_domain, metrics.clone());
+    let server = hyperlane_agent_core
+        .settings
+        .server(metrics.clone())
+        .expect("Failed to create server");
+
+    let server_task = tokio::task::Builder::new()
+        .name("api server")
+        .spawn(async move {
+            server.run_with_custom_routes(custom_routes);
+        })
+        .unwrap();
+    return server_task;
+}
+
+impl ChainValidator {
+    async fn make_validator(
+        agent_metadata: AgentMetadata,
+        chain_validator_settings: ChainValidatorSettings,
+        parent_settings: &ValidatorSettings,
+        metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
+        runtime_metrics: RuntimeMetrics,
+        contract_sync_metrics: &Arc<ContractSyncMetrics>,
+    ) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let db = DB::from_path(&chain_validator_settings.db)?;
+        let msg_db = HyperlaneRocksDB::new(&chain_validator_settings.origin_chain, db);
 
         // Intentionally using hyperlane_ethereum for the validator's signer
-        let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
+        let (signer_instance, signer) =
+            SingletonSigner::new(chain_validator_settings.validator.build().await?);
 
-        let core = settings.build_hyperlane_core(metrics.clone());
+        let core = parent_settings.build_hyperlane_core(metrics.clone());
         // Be extra sure to panic checkpoint syncer fails, which indicates
         // a fatal startup error.
-        let checkpoint_syncer = settings
+        let checkpoint_syncer = chain_validator_settings
             .checkpoint_syncer
             .build_and_validate(None)
             .await
             .expect("Failed to build checkpoint syncer")
             .into();
 
-        let mailbox = settings
-            .build_mailbox(&settings.origin_chain, &metrics)
+        let mailbox = parent_settings
+            .build_mailbox(&chain_validator_settings.origin_chain, &metrics)
             .await?;
 
-        let merkle_tree_hook = settings
-            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+        let merkle_tree_hook = parent_settings
+            .build_merkle_tree_hook(&chain_validator_settings.origin_chain, &metrics)
             .await?;
 
-        let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain, &metrics)
+        let validator_announce = parent_settings
+            .build_validator_announce(&chain_validator_settings.origin_chain, &metrics)
             .await?;
 
         let origin_chain_conf = core
             .settings
-            .chain_setup(&settings.origin_chain)
+            .chain_setup(&chain_validator_settings.origin_chain)
             .unwrap()
             .clone();
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let merkle_tree_hook_sync = settings
+        let merkle_tree_hook_sync = parent_settings
             .sequenced_contract_sync::<MerkleTreeInsertion, _>(
-                &settings.origin_chain,
+                &chain_validator_settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
                 msg_db.clone().into(),
@@ -120,7 +229,7 @@ impl BaseAgent for Validator {
             .await?;
 
         Ok(Self {
-            origin_chain: settings.origin_chain,
+            origin_chain: chain_validator_settings.origin_chain,
             origin_chain_conf,
             core,
             db: msg_db,
@@ -130,8 +239,8 @@ impl BaseAgent for Validator {
             validator_announce: validator_announce.into(),
             signer,
             signer_instance: Some(Box::new(signer_instance)),
-            reorg_period: settings.reorg_period,
-            interval: settings.interval,
+            reorg_period: chain_validator_settings.reorg_period,
+            interval: chain_validator_settings.interval,
             checkpoint_syncer,
             agent_metrics,
             chain_metrics,
@@ -173,7 +282,7 @@ impl BaseAgent for Validator {
             self.core_metrics.clone(),
             self.agent_metrics.clone(),
             self.chain_metrics.clone(),
-            Self::AGENT_NAME.to_string(),
+            "chain_validator".to_string(),
         )
         .await
         .unwrap();
@@ -220,9 +329,7 @@ impl BaseAgent for Validator {
             error!(?err, "One of the validator tasks returned an error");
         }
     }
-}
 
-impl Validator {
     async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<()>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
