@@ -1,5 +1,46 @@
 # @hyperlane-xyz/sdk
 
+## 8.7.0
+
+### Minor Changes
+
+- bd0b8861f: Deploy to hyperevm.
+- 55db270e3: Deploy to chains bouncebit, arcadia, ronin, sophon, story, subtensor.
+- b92eb1b57: Deploy to subtensortestnet.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 12e3c4da0: Enroll new validators for unichain, celo, base, mantle, worldchain, bouncebit, arcadia, ronin, sophon, story, subtensor, hyperevm.
+- d6724c4c3: Fix an issue with HookModule that causes HookModule trigger triggering a new deployment due to unnormalized config despite configs being the same
+- d93a38cab: Add MissingRouterViolation when config misses enrolled routers
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.7.0
+- @hyperlane-xyz/core@5.11.4
+
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
+## 8.6.0
+
+### Minor Changes
+
+- 407d82004: Enroll new validators for glue, matchain, unitzero, abstract, sonicsvm, injective, swell.
+- 276d7ce4e: Deploy to berachain.
+- 1e6ee0b9c: Add new validators for unichain and berachain.
+- 77946bb13: Deploy to chronicleyellowstone testnet.
+
+### Patch Changes
+
+- ac984a17b: Fix contract address filtering to remove undefined factory addresses from the addresses map
+- ba50e62fc: Added ESLint configuration and dependency to enforce Node.js module restrictions
+- Updated dependencies [ba50e62fc]
+  - @hyperlane-xyz/core@5.11.2
+  - @hyperlane-xyz/utils@8.6.0
+
 ## 8.5.0
 
 ### Minor Changes

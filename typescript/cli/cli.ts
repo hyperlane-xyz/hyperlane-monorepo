@@ -17,7 +17,7 @@ import {
   logFormatCommandOption,
   logLevelCommandOption,
   overrideRegistryUriCommandOption,
-  registryUriCommandOption,
+  registryUrisCommandOption,
   skipConfirmationOption,
   strategyCommandOption,
 } from './src/commands/options.js';
@@ -43,7 +43,7 @@ try {
     .scriptName('hyperlane')
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
-    .option('registry', registryUriCommandOption)
+    .option('registry', registryUrisCommandOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
     .option('disableProxy', disableProxyCommandOption)

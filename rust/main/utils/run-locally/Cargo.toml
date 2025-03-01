@@ -47,3 +47,4 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 [features]
 cosmos = []
 starknet = []
+sealevel = []

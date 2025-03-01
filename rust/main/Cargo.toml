@@ -3,6 +3,9 @@ members = [
   "agents/relayer",
   "agents/scraper",
   "agents/validator",
+  "applications/hyperlane-application",
+  "applications/hyperlane-operation-verifier",
+  "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
@@ -102,6 +105,7 @@ num-traits = "0.2"
 once_cell = "1.18.0"
 parking_lot = "0.12"
 paste = "1.0"
+pin-project = "1.1.9"
 pretty_env_logger = "0.5.0"
 primitive-types = "=0.12.1"
 prometheus = "0.13"
@@ -147,10 +151,11 @@ thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
 tokio = { version = "1.42.0", features = ["parking_lot", "tracing"] }
-tokio-metrics = { version = "0.3.1", default-features = false }
+tokio-metrics = { version = "0.4.0" }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
 tonic = "0.12.3"
+tower = "*"
 tracing = { version = "0.1" }
 tracing-error = "0.2"
 tracing-futures = "0.2"
@@ -206,27 +211,27 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-01-10"
+tag = "2025-02-03"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-01-10"
+tag = "2025-02-03"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-01-10"
+tag = "2025-02-03"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-01-10"
+tag = "2025-02-03"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-01-10"
+tag = "2025-02-03"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
@@ -245,42 +250,42 @@ version = "=0.5.2"
 
 [patch.crates-io.solana-account-decoder]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-clap-utils]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-cli-config]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-client]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-program]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-transaction-status]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.solana-zk-token-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2024-11-20"
+tag = "hyperlane-1.14.13-2025-02-14"
 version = "=1.14.13"
 
 [patch.crates-io.spl-associated-token-account]

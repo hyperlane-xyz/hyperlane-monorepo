@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use derive_new::new;
 use hyperlane_core::ChainResult;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
@@ -25,23 +26,16 @@ pub trait TransactionSubmitter: Send + Sync {
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
 
+    /// Get the RPC client
     fn rpc_client(&self) -> Option<&SealevelRpcClient> {
         None
     }
 }
 
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct RpcTransactionSubmitter {
     rpc_client: SealevelRpcClient,
-}
-
-impl RpcTransactionSubmitter {
-    pub fn new(url: String) -> Self {
-        Self {
-            rpc_client: SealevelRpcClient::new(url),
-        }
-    }
 }
 
 #[async_trait]
@@ -71,7 +65,7 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
 }
 
 /// A transaction submitter that uses the Jito API to submit transactions.
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct JitoTransactionSubmitter {
     rpc_client: SealevelRpcClient,
 }
@@ -80,12 +74,6 @@ impl JitoTransactionSubmitter {
     /// The minimum tip to include in a transaction.
     /// From https://docs.jito.wtf/lowlatencytxnsend/#sendtransaction
     const MINIMUM_TIP_LAMPORTS: u64 = 1000;
-
-    pub fn new(url: String) -> Self {
-        Self {
-            rpc_client: SealevelRpcClient::new(url),
-        }
-    }
 }
 
 #[async_trait]

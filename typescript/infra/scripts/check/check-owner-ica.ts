@@ -1,5 +1,12 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  eqAddress,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { icas } from '../../config/environments/mainnet3/owners.js';
 import { chainsToSkip } from '../../src/config/chain.js';
@@ -16,6 +23,8 @@ function getArgs() {
 }
 
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
   const { environment, ownerChain, chains } = await getArgs();
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
