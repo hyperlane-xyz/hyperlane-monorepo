@@ -99,10 +99,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .end();
 
         // Do not set interval, it is automatically computed.
-        let interval = p.chain(&mut err).get_opt_key("interval").parse_u64().end();
-        if let Some(_) = interval {
-            panic!("do not set interval, it is computed automatically");
-        }
+        let interval = p
+            .chain(&mut err)
+            .get_opt_key("interval")
+            .parse_u64()
+            .map(Duration::from_secs)
+            .unwrap_or(Duration::from_secs(5));
 
         // Get active chains
         let origin_chain_names = p
@@ -133,6 +135,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                 checkpoint_syncer.clone(),
                 validator.clone(),
                 origin_chain_name.as_str(),
+                interval,
             );
             validators.push(validator.unwrap());
         }
@@ -151,6 +154,7 @@ fn parse_validator(
     mut checkpoint_syncer: CheckpointSyncerConf,
     validator: SignerConf,
     origin_chain_name: &str,
+    interval: Duration,
 ) -> Result<ChainValidatorSettings, ConfigParsingError> {
     let mut err: ConfigParsingError = ConfigParsingError::default();
     let origin_chain = base
@@ -174,9 +178,6 @@ fn parse_validator(
     // Automatically set interval to be one block
     let chain_config = base.chains.get(origin_chain_name);
     cfg_unwrap_all!(cwp, err: [chain_config]);
-
-    // TODO: Determine the correct interval to use.
-    let interval = Duration::from_secs(30);
 
     // Get chain config, which is needed to find the reorg period
     let reorg_period = chain_config.reorg_period.clone();
