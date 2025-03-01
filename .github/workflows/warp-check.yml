@@ -4,7 +4,6 @@ on:
   issue_comment:
     types: ['created', 'edited']
   pull_request:
-    types: [ labeled ] # Used to also prevent unauthorized users from running this work flow
     branches:
       - '*'
   merge_group:
