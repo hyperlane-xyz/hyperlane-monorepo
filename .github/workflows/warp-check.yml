@@ -12,7 +12,7 @@ on:
 jobs:
   check-warp-deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && github.event.issue.comments.author_association == 'MEMBER'}}
+    if: ${{ github.event.issue.comments.author_association == 'MEMBER'}}
     steps:
       - uses: actions/checkout@v4
         with:
