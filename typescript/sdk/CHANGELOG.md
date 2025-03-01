@@ -140,7 +140,7 @@
 - 170a0fc73: Add `createHookUpdateTxs()` to `WarpModule.update()` such that it 1) deploys a hook for a warp route _without_ an existing hook, or 2) update an existing hook.
 - 9a09afcc7: Deploy to appchain, treasure, zklink.
 - 24784af95: Introduce GcpValidator for retrieving announcements, checkpoints and metadata for a Validator posting to a GCP bucket. Uses GcpStorageWrapper for bucket operations.
-- 3e8dd70ac: Update validators for boba, duckchain, unichain, vana, bsquared, superseed. Update oort's own validator. Update blockpi's viction validator. Adad luganodes/dsrv to flame validator set.
+- 3e8dd70ac: Update validators for boba, duckchain, unichain, vana, bsquared, supersede. Update oort's own validator. Update blockpi's viction validator. Adad luganodes/dsrv to flame validator set.
 - aa1ea9a48: updates the warp deployment config schema to be closer to the ica routing schema
 - f0b98fdef: Updated the derivation logic to enable ICA ISM metadata building from on chain data to enable self relaying of ICA messages
 - ff9e8a72b: Added a getter to derive ATA payer accounts on Sealevel warp routes
@@ -453,7 +453,7 @@
 - 0a40dcb8b: Update cosmos chain schema
 - ab827a3fa: Removes inaccurate contract verification check, resulting in proxy contracts not being marked as proxies during contract verification.
 - dfa908796: add error message for all calls to assert util
-- ed63e04c4: Creates HyperlaneReader to re-use dyn provider log level & silences provider logs in deriveIsmConfig like deriveHookConfig.
+- ed63e04c4: Creates HyperlaneReader to reuse dyn provider log level & silences provider logs in deriveIsmConfig like deriveHookConfig.
 - 5aa24611b: Add 'isInitialized' check before initializing implementation contract (for contracts that disableInitializers in constructors).
 - 7fdd3958d: Adds logic to prune and minify build artifacts to address 'entity size too large' error thrown from explorers. Note that the only identified instance of this issue is on BSC mainnet.
 - fef629673: ContractVerifier now adjusts timeouts based on explorer family, which helps with many rate-limiting related contract verification issues. In addition, the ContractVerifier verify logic has been greatly simplified to allowing for a predictable callstack + easy debugging.
@@ -666,7 +666,7 @@
 
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
-  - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
+  - Updated the `HyperlaneIsmFactory` to reuse the `HyperlaneDeployer` for deployment where possible.
   - Minor logging improvements throughout deployers.
 
 - 9681df08d: Add `WarpCore`, `Token`, and `TokenAmount` classes for interacting with Warp Route instances.
