@@ -149,6 +149,7 @@ async function getConfigurationChangedLogsFromRpc({
   const currentBlockNumber = await provider.getBlockNumber();
   return provider.getLogs({
     address: xERC20Address,
+    fromBlock: 0,
     toBlock: currentBlockNumber,
     topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
   });
