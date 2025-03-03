@@ -64,6 +64,7 @@ import {
   HookConfig,
   HookConfigSchema,
   HookType,
+  HookTypeToContractNameMap,
   IgpHookConfig,
   MUTABLE_HOOK_TYPE,
   OpStackHookConfig,
@@ -936,9 +937,10 @@ export class EvmHookModule extends HyperlaneModule<
       // deploy fallback hook
       const fallbackHook = await this.deploy({ config: config.fallback });
       // deploy routing hook with fallback
-      routingHook = await this.deployer.deployContract(
+      routingHook = await this.deployer.deployContractWithName(
         this.chain,
         HookType.FALLBACK_ROUTING,
+        HookTypeToContractNameMap[HookType.FALLBACK_ROUTING],
         [this.args.addresses.mailbox, deployerAddress, fallbackHook.address],
       );
     } else {
