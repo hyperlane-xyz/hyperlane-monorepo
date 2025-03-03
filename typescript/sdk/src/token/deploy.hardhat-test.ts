@@ -67,7 +67,7 @@ describe('TokenDeployer', async () => {
     await deployer.deploy(config);
   });
 
-  for (const type of [TokenType.collateral, TokenType.synthetic]) {
+  for (const type of [TokenType.collateral, TokenType.synthetic] as const) {
     describe('ERC20WarpRouterReader', async () => {
       let reader: EvmERC20WarpRouteReader;
       let routerAddress: Address;

@@ -115,13 +115,22 @@ async function getWarpRouteFactory(
   factory: ContractFactory;
   tokenType: Exclude<
     TokenType,
-    TokenType.syntheticUri | TokenType.collateralUri
+    | TokenType.syntheticUri
+    | TokenType.collateralUri
+    | TokenType.intent
+    | TokenType.intentNative
   >;
 }> {
   const warpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chainName);
   const tokenType = (await warpRouteReader.deriveTokenType(
     warpRouteAddress,
-  )) as Exclude<TokenType, TokenType.syntheticUri | TokenType.collateralUri>;
+  )) as Exclude<
+    TokenType,
+    | TokenType.syntheticUri
+    | TokenType.collateralUri
+    | TokenType.intent
+    | TokenType.intentNative
+  >;
 
   const factory = objFilter(
     hypERC20factories,

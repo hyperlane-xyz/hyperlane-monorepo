@@ -1,4 +1,11 @@
+import { Hyperlane7683__factory } from '@bootnodedev/intents-framework-core';
 import { BigNumber, PopulatedTransaction } from 'ethers';
+import {
+  type Address as ViemAddress,
+  encodeAbiParameters,
+  pad,
+  zeroAddress,
+} from 'viem';
 
 import {
   ERC20,
@@ -478,5 +485,259 @@ export class EvmHypNativeAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
+  }
+}
+
+export class EvmIntentTokenAdapter extends EvmTokenAdapter {
+  contract;
+  intent;
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      router: Address;
+      outputToken: Address;
+    },
+    public readonly contractFactory = ERC20__factory,
+    public readonly intentFactory = Hyperlane7683__factory,
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.contract = contractFactory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+    this.intent = intentFactory.connect(addresses.router, this.getProvider());
+  }
+}
+
+export class EvmIntentNativeTokenAdapter extends EvmNativeTokenAdapter {
+  intent;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      router: Address;
+      outputToken: Address;
+    },
+    public readonly intentFactory = Hyperlane7683__factory,
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.intent = intentFactory.connect(addresses.router, this.getProvider());
+  }
+}
+
+export class EvmIntentMultiChainAdapter
+  extends EvmIntentTokenAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  intent;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly fillDeadline: number,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      router: Address;
+      outputToken: Address;
+    },
+    public readonly contractFactory = ERC20__factory,
+    public readonly intentFactory = Hyperlane7683__factory,
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.intent = intentFactory.connect(addresses.router, this.getProvider());
+  }
+  set deadline(value: number) {
+    throw new Error('Method not implemented.');
+  }
+  getDomains(): Promise<Domain[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(domain: Domain): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    throw new Error('Method not implemented.');
+  }
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not implemented.');
+  }
+
+  async quoteTransferRemoteGas(
+    destination: Domain,
+    sender?: Address,
+  ): Promise<InterchainGasQuote> {
+    // TODO: Find the proper way to get the gas
+    return { amount: 0n };
+  }
+
+  async populateTransferRemoteTx({
+    recipient,
+    weiAmountOrId,
+    destination,
+    fromAccountOwner,
+  }: TransferRemoteParams) {
+    const orderDataType =
+      '0x08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e';
+    // TODO: calculate based on fee
+    const amountOut = weiAmountOrId;
+    const senderNonce = Date.now();
+
+    return this.intent.populateTransaction.open({
+      fillDeadline: this.fillDeadline,
+      orderDataType,
+      orderData: encodeAbiParameters(
+        [
+          {
+            components: [
+              { name: 'sender', type: 'bytes32' },
+              { name: 'recipient', type: 'bytes32' },
+              { name: 'inputToken', type: 'bytes32' },
+              { name: 'outputToken', type: 'bytes32' },
+              { name: 'amountIn', type: 'uint256' },
+              { name: 'amountOut', type: 'uint256' },
+              { name: 'senderNonce', type: 'uint256' },
+              { name: 'originDomain', type: 'uint32' },
+              { name: 'destinationDomain', type: 'uint32' },
+              { name: 'destinationSettler', type: 'bytes32' },
+              { name: 'fillDeadline', type: 'uint32' },
+              { name: 'data', type: 'bytes' },
+            ],
+            name: 'orderData',
+            type: 'tuple',
+          },
+        ],
+        [
+          {
+            sender: pad(fromAccountOwner as ViemAddress),
+            recipient: pad(recipient as ViemAddress),
+            inputToken: pad(
+              (this.addresses.token ?? zeroAddress) as ViemAddress,
+            ),
+            outputToken: pad(this.addresses.outputToken as ViemAddress),
+            amountIn: BigInt(weiAmountOrId),
+            amountOut: BigInt(amountOut),
+            senderNonce: BigInt(senderNonce.toString()),
+            originDomain: Number(this.multiProvider.getChainId(this.chainName)),
+            destinationDomain: destination,
+            destinationSettler: pad(this.addresses.router as ViemAddress),
+            fillDeadline: Number(this.fillDeadline),
+            data: '0x',
+          },
+        ],
+      ),
+    });
+  }
+}
+
+export class EvmIntentNativeMultiChainAdapter
+  extends EvmIntentNativeTokenAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  intent;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly fillDeadline: number,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      router: Address;
+      outputToken: Address;
+    },
+    public readonly contractFactory = ERC20__factory,
+    public readonly intentFactory = Hyperlane7683__factory,
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.intent = intentFactory.connect(addresses.router, this.getProvider());
+  }
+  set deadline(value: number) {
+    throw new Error('Method not implemented.');
+  }
+  getDomains(): Promise<Domain[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(domain: Domain): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    throw new Error('Method not implemented.');
+  }
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not implemented.');
+  }
+
+  async quoteTransferRemoteGas(
+    destination: Domain,
+    sender?: Address,
+  ): Promise<InterchainGasQuote> {
+    // Todo: Find the proper way to get the gas
+    return { amount: 0n };
+  }
+
+  async populateTransferRemoteTx({
+    recipient,
+    weiAmountOrId,
+    destination,
+    fromAccountOwner,
+  }: TransferRemoteParams) {
+    const orderDataType =
+      '0x08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e';
+    // TODO: calculate based on fee
+    const amountOut = weiAmountOrId;
+    const senderNonce = Date.now();
+
+    return this.intent.populateTransaction.open(
+      {
+        fillDeadline: this.fillDeadline,
+        orderDataType,
+        orderData: encodeAbiParameters(
+          [
+            {
+              components: [
+                { name: 'sender', type: 'bytes32' },
+                { name: 'recipient', type: 'bytes32' },
+                { name: 'inputToken', type: 'bytes32' },
+                { name: 'outputToken', type: 'bytes32' },
+                { name: 'amountIn', type: 'uint256' },
+                { name: 'amountOut', type: 'uint256' },
+                { name: 'senderNonce', type: 'uint256' },
+                { name: 'originDomain', type: 'uint32' },
+                { name: 'destinationDomain', type: 'uint32' },
+                { name: 'destinationSettler', type: 'bytes32' },
+                { name: 'fillDeadline', type: 'uint32' },
+                { name: 'data', type: 'bytes' },
+              ],
+              name: 'orderData',
+              type: 'tuple',
+            },
+          ],
+          [
+            {
+              sender: pad(fromAccountOwner as ViemAddress),
+              recipient: pad(recipient as ViemAddress),
+              inputToken: pad(
+                (this.addresses.token ?? zeroAddress) as ViemAddress,
+              ),
+              outputToken: pad(this.addresses.outputToken as ViemAddress),
+              amountIn: BigInt(weiAmountOrId),
+              amountOut: BigInt(amountOut),
+              senderNonce: BigInt(senderNonce.toString()),
+              originDomain: Number(
+                this.multiProvider.getChainId(this.chainName),
+              ),
+              destinationDomain: destination,
+              destinationSettler: pad(this.addresses.router as ViemAddress),
+              fillDeadline: Number(this.fillDeadline),
+              data: '0x',
+            },
+          ],
+        ),
+      },
+      { value: amountOut },
+    );
   }
 }
