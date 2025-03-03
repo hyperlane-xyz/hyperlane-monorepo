@@ -388,7 +388,7 @@ export function getRenzoWarpConfigGenerator(params: {
 
     if (tokenPriceDiff.size > 0) {
       throw new Error(
-        `chainsToDeploy !== xERC20Diff, diff is ${Array.from(
+        `chainsToDeploy !== tokenPriceDiff, diff is ${Array.from(
           tokenPriceDiff,
         ).join(', ')}`,
       );
@@ -488,5 +488,5 @@ export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
   };
 }
 
-export const getRenzoGnosisSafeBuilderStrategyConfig =
+export const getEZETHGnosisSafeBuilderStrategyConfig =
   getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
