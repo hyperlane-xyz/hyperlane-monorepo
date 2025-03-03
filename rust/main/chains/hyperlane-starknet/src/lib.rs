@@ -19,6 +19,8 @@ pub use validator_announce::*;
 #[allow(clippy::all)]
 pub mod contracts;
 
+/// Application specific functionality
+pub mod application;
 mod error;
 mod indexer;
 mod interchain_gas;

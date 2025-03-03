@@ -578,14 +578,6 @@ impl PendingMessage {
                 trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
                 0
             }
-        };
-
-        let mut pm = Self::new(message, ctx, message_status, app_context);
-        if num_retries > 0 {
-            let next_attempt_after =
-                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
-            pm.num_retries = num_retries;
-            pm.next_attempt_after = next_attempt_after;
         }
     }
 

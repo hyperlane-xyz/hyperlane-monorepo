@@ -28,6 +28,7 @@ use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
     SealevelRpcClient, TransactionSubmitter,
 };
+use hyperlane_starknet as h_starknet;
 
 use crate::{
     metrics::AgentMetricsConf,
