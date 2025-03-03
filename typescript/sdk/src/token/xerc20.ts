@@ -44,6 +44,13 @@ const minimalXERC20VSABI = [
   },
 ] as const;
 
+const CONFIGURATION_CHANGED_EVENT_SELECTOR = toEventSelector(
+  getAbiItem({
+    abi: minimalXERC20VSABI,
+    name: 'ConfigurationChanged',
+  }),
+);
+
 export type GetExtraLockboxesOptions = {
   chain: ChainNameOrId;
   xERC20Address: Address;
@@ -57,7 +64,7 @@ export async function getExtraLockBoxConfigs({
   multiProvider,
   logger = rootLogger,
 }: GetExtraLockboxesOptions): Promise<XERC20TokenExtraLockboxLimits[]> {
-  const { apiUrl, family, apiKey } = multiProvider.getExplorerApi(chain);
+  const { family, apiKey } = multiProvider.getExplorerApi(chain);
 
   // Fallback to use the rpc if the user has not provided an API key and the explorer family is Etherscan
   // because the endpoint requires it or the explorer family is not known
@@ -67,51 +74,23 @@ export async function getExtraLockBoxConfigs({
     family !== ExplorerFamily.Other && isExplorerConfiguredCorrectly;
 
   const provider = multiProvider.getProvider(chain);
-  let startBlock = 0;
-  if (canUseExplorerApi) {
-    const contractDeploymentTx = await getContractDeploymentTransaction(
-      { apiUrl, apiKey: apiKey },
-      { contractAddress: xERC20Address },
-    );
-
-    const deploymentTransactionReceipt = await provider.getTransactionReceipt(
-      contractDeploymentTx.txHash,
-    );
-
-    startBlock = deploymentTransactionReceipt.blockNumber;
-  }
-
-  const currentBlockNumber = await provider.getBlockNumber();
-
-  const eventTopic = toEventSelector(
-    getAbiItem({
-      abi: minimalXERC20VSABI,
-      name: 'ConfigurationChanged',
-    }),
-  );
-
   let logs: (ethers.providers.Log | GetEventLogsResponse)[];
   if (canUseExplorerApi) {
-    logs = await getLogsFromEtherscanLikeExplorerAPI(
-      { apiUrl, apiKey: apiKey },
-      {
-        address: xERC20Address,
-        fromBlock: startBlock,
-        toBlock: currentBlockNumber,
-        topic0: eventTopic,
-      },
-    );
+    logs = await getConfigurationChangedLogsFromExplorerApi({
+      chain,
+      multiProvider,
+      xERC20Address,
+    });
   } else {
     logger.debug(
       `Using rpc request to retrieve bridges on on lockbox contract ${xERC20Address} on chain ${chain}`,
     );
 
     // Should be safe to use even with public RPCs as the total number of events in this topic should be low
-    logs = await provider.getLogs({
-      address: xERC20Address,
-      fromBlock: startBlock,
-      toBlock: currentBlockNumber,
-      topics: [eventTopic],
+    logs = await getConfigurationChangedLogsFromRpc({
+      chain,
+      multiProvider,
+      xERC20Address,
     });
   }
 
@@ -129,6 +108,50 @@ export async function getExtraLockBoxConfigs({
   );
 
   return getLockboxesFromLogs(viemLogs, provider, chain, logger);
+}
+
+async function getConfigurationChangedLogsFromExplorerApi({
+  xERC20Address,
+  chain,
+  multiProvider,
+}: GetExtraLockboxesOptions): Promise<Array<GetEventLogsResponse>> {
+  const { apiUrl, apiKey } = multiProvider.getExplorerApi(chain);
+
+  const contractDeploymentTx = await getContractDeploymentTransaction(
+    { apiUrl, apiKey },
+    { contractAddress: xERC20Address },
+  );
+
+  const provider = multiProvider.getProvider(chain);
+  const [currentBlockNumber, deploymentTransactionReceipt] = await Promise.all([
+    provider.getBlockNumber(),
+    provider.getTransactionReceipt(contractDeploymentTx.txHash),
+  ]);
+
+  return getLogsFromEtherscanLikeExplorerAPI(
+    { apiUrl, apiKey },
+    {
+      address: xERC20Address,
+      fromBlock: deploymentTransactionReceipt.blockNumber,
+      toBlock: currentBlockNumber,
+      topic0: CONFIGURATION_CHANGED_EVENT_SELECTOR,
+    },
+  );
+}
+
+async function getConfigurationChangedLogsFromRpc({
+  xERC20Address,
+  chain,
+  multiProvider,
+}: GetExtraLockboxesOptions): Promise<Array<ethers.providers.Log>> {
+  const provider = multiProvider.getProvider(chain);
+
+  const currentBlockNumber = await provider.getBlockNumber();
+  return provider.getLogs({
+    address: xERC20Address,
+    toBlock: currentBlockNumber,
+    topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
+  });
 }
 
 type ConfigurationChangedLog = Log<

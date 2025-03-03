@@ -22,7 +22,9 @@ function formatExplorerUrl<TModule extends string, TAction extends string>(
   // as it will cause requests to fail with a not found error
   const urlObject = new URL(apiUrl.replace('eth-rpc', ''));
   for (const [key, value] of Object.entries(params)) {
-    urlObject.searchParams.append(key, value.toString());
+    if (value !== undefined) {
+      urlObject.searchParams.append(key, value.toString());
+    }
   }
 
   if (apiKey) {
