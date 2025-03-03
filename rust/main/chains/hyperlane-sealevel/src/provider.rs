@@ -66,7 +66,7 @@ impl SealevelProvider {
         let received_signature = txn
             .signatures
             .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(Box::new(*hash)))?;
         let received_hash = decode_h512(received_signature)?;
 
         if &received_hash != hash {
@@ -86,7 +86,7 @@ impl SealevelProvider {
         let signer = message
             .account_keys
             .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(Box::new(*hash)))?;
         let pubkey = decode_pubkey(&signer.pubkey)?;
         let sender = H256::from_slice(&pubkey.to_bytes());
         Ok(sender)
@@ -113,12 +113,14 @@ impl SealevelProvider {
             .collect::<Vec<&String>>();
 
         if programs.len() > 1 {
-            Err(HyperlaneSealevelError::TooManyNonNativePrograms(*hash))?;
+            Err(HyperlaneSealevelError::TooManyNonNativePrograms(Box::new(
+                *hash,
+            )))?;
         }
 
         let program_id = programs
             .first()
-            .ok_or(HyperlaneSealevelError::NoNonNativePrograms(*hash))?;
+            .ok_or(HyperlaneSealevelError::NoNonNativePrograms(Box::new(*hash)))?;
 
         let pubkey = decode_pubkey(program_id)?;
         let recipient = H256::from_slice(&pubkey.to_bytes());
@@ -158,7 +160,7 @@ impl SealevelProvider {
         Ok(match &txn.message {
             UiMessage::Parsed(m) => m,
             m => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedMessageEncoding(m.clone()),
+                HyperlaneSealevelError::UnsupportedMessageEncoding(Box::new(m.clone())),
             ))?,
         })
     }
@@ -217,7 +219,7 @@ impl HyperlaneProvider for SealevelProvider {
         let txn = match &txn_with_meta.transaction {
             EncodedTransaction::Json(t) => t,
             t => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedTransactionEncoding(t.clone()),
+                HyperlaneSealevelError::UnsupportedTransactionEncoding(Box::new(t.clone())),
             ))?,
         };
 

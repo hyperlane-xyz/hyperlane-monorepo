@@ -33,14 +33,17 @@ impl CosmosRpcClient {
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
         let tendermint_url = tendermint_rpc::Url::try_from(url.to_owned())
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
         let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let client = HttpClient::builder(url)
             // Consider supporting different compatibility modes.
             .compat_mode(CompatMode::latest())
             .build()
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok(Self {
@@ -57,6 +60,7 @@ impl CosmosRpcClient {
                 .client
                 .block(height)
                 .await
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?)
         })
         .await
@@ -69,6 +73,7 @@ impl CosmosRpcClient {
                 .client
                 .block_results(height)
                 .await
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?)
         })
         .await
@@ -81,6 +86,7 @@ impl CosmosRpcClient {
                 .client
                 .block_by_hash(hash)
                 .await
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?)
         })
         .await
@@ -93,6 +99,7 @@ impl CosmosRpcClient {
                 .client
                 .latest_block()
                 .await
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?)
         })
         .await
@@ -105,6 +112,7 @@ impl CosmosRpcClient {
                 .client
                 .tx(hash, false)
                 .await
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?)
         })
         .await
