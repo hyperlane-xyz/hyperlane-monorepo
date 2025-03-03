@@ -42,6 +42,10 @@ impl Debug for MerkleTreeProcessor {
 
 #[async_trait]
 impl ProcessorExt for MerkleTreeProcessor {
+    fn name(&self) -> String {
+        format!("processor::merkle_tree::{}", self.domain().name())
+    }
+
     /// The domain this processor is getting merkle tree hook insertions from.
     fn domain(&self) -> &HyperlaneDomain {
         self.db.domain()
