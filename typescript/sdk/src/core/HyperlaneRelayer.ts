@@ -115,6 +115,7 @@ export class HyperlaneRelayer {
     this.logger = core.logger.child({ module: 'Relayer' });
     this.metadataBuilder = new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
+
     if (whitelist) {
       this.whitelist = objMap(
         whitelist,

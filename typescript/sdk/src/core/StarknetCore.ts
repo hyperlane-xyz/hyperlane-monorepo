@@ -2,6 +2,7 @@ import {
   Account,
   CairoOption,
   CairoOptionVariant,
+  GetTransactionReceiptResponse,
   InvokeFunctionResponse,
 } from 'starknet';
 
@@ -9,6 +10,7 @@ import {
   ChainName,
   DispatchedMessage,
   HyperlaneAddressesMap,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
@@ -29,15 +31,18 @@ export class StarknetCore {
   protected addressesMap: HyperlaneAddressesMap<any>;
   public multiProvider: MultiProvider;
   private multiProtocolSigner: IMultiProtocolSignerManager;
+  private multiProtocolProvider: MultiProtocolProvider;
 
   constructor(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
     multiProtocolSigner: IMultiProtocolSignerManager,
+    multiProtocolProvider: MultiProtocolProvider,
   ) {
     this.addressesMap = addressesMap;
     this.multiProvider = multiProvider;
     this.multiProtocolSigner = multiProtocolSigner;
+    this.multiProtocolProvider = multiProtocolProvider;
   }
 
   getAddresses(chain: ChainName) {
@@ -45,7 +50,7 @@ export class StarknetCore {
   }
 
   parseDispatchedMessagesFromReceipt(
-    receipt: any,
+    receipt: GetTransactionReceiptResponse,
     origin: ChainName,
   ): DispatchedMessage {
     const mailboxAddress = this.addressesMap[origin].mailbox;
@@ -145,33 +150,102 @@ export class StarknetCore {
 
       this.logger.debug(`Listening for dispatch on ${originChain}`);
 
-      // Set up event listener
-      const eventKey = 'contracts::mailbox::mailbox::Dispatch';
-      const unsubscribe = mailboxContract.on(eventKey, async (event: any) => {
-        const messages = parseStarknetDispatchedMessages(
-          [event],
-          (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
-        );
-        if (messages.length > 0) {
-          const dispatched = messages[0];
+      // Set up event listener using a polling approach for better reliability
+      let lastBlockChecked: number | undefined;
 
-          // Add human readable chain names like HyperlaneCore
-          dispatched.parsed.originChain = this.multiProvider.getChainName(
-            dispatched.parsed.origin,
-          );
-          dispatched.parsed.destinationChain = this.multiProvider.getChainName(
-            dispatched.parsed.destination,
-          );
+      const pollForEvents = async () => {
+        try {
+          // Get the latest block
+          const provider =
+            this.multiProtocolProvider.getStarknetProvider(originChain);
+          const latestBlock = await provider.getBlock('latest');
 
-          this.logger.info(
-            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
-          );
+          // If this is the first check, just record the current block and wait for next poll
+          if (lastBlockChecked === undefined) {
+            lastBlockChecked = latestBlock.block_number;
+            return;
+          }
 
-          await handler(dispatched, event);
+          // Only check for new blocks
+          if (latestBlock.block_number <= lastBlockChecked) {
+            return;
+          }
+
+          // Get events from the blocks we haven't checked yet
+          const events = await provider.getEvents({
+            address: mailboxAddress,
+            from_block: { block_number: lastBlockChecked + 1 },
+            to_block: { block_number: latestBlock.block_number },
+            chunk_size: 400,
+          });
+
+          // keys: [['contracts::mailbox::mailbox::Dispatch']],
+          // Update the last block we checked
+          lastBlockChecked = latestBlock.block_number;
+
+          // Process events
+          if (events.events.length > 0) {
+            for (const event of events.events) {
+              if (event.transaction_hash) {
+                // Get transaction receipt -> this is the receipt of the dispatch transaction
+                const receipt = await provider.getTransactionReceipt(
+                  event.transaction_hash,
+                );
+
+                const parsedEvents = mailboxContract.parseEvents(receipt);
+
+                // Continue with your existing logic using parsedEvents
+                const messages = parseStarknetDispatchedMessages(
+                  parsedEvents,
+                  (domain) =>
+                    this.multiProvider.tryGetChainName(domain) ?? undefined,
+                );
+
+                // Process each message
+                for (const dispatched of messages) {
+                  dispatched.parsed.originChain =
+                    this.multiProvider.getChainName(dispatched.parsed.origin);
+                  dispatched.parsed.destinationChain =
+                    this.multiProvider.getChainName(
+                      dispatched.parsed.destination,
+                    );
+
+                  this.logger.info(
+                    `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+                  );
+
+                  // Call the handler with the event data
+                  const eventData = parsedEvents.find(
+                    (event) => 'contracts::mailbox::mailbox::Dispatch' in event,
+                  );
+                  if (eventData) {
+                    await handler(dispatched, { ...event, eventData });
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `Error polling for events on ${originChain}: ${error}`,
+          );
         }
+      };
+
+      // Start polling
+      const intervalId = setInterval(pollForEvents, 15000); // Poll every 15 seconds
+
+      // Initial poll
+      pollForEvents().catch((error) => {
+        this.logger.error(
+          `Error in initial poll for events on ${originChain}: ${error}`,
+        );
       });
 
-      eventSubscriptions.push(unsubscribe);
+      // Return a function to stop polling
+      eventSubscriptions.push(() => {
+        clearInterval(intervalId);
+      });
     });
 
     return {

@@ -68,6 +68,7 @@ export async function sendTestMessage({
           addressMap,
           multiProvider,
           context.multiProtocolSigner!,
+          context.multiProtocolProvider!,
         );
       } else {
         // For all other protocols, use HyperlaneCore

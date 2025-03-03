@@ -118,6 +118,7 @@ async function executeDelivery({
           chainAddresses,
           multiProvider,
           context.multiProtocolSigner!,
+          context.multiProtocolProvider!,
         );
       } else {
         protocolCores[protocol] = HyperlaneCore.fromAddressesMap(

@@ -36,6 +36,34 @@ export function formatEthereumMessageForStarknet(message: DispatchedMessage): {
   };
 }
 
+// TODO: Figure out types
+export function formatParsedStarknetMessageForEthereum(message: {
+  version: number;
+  nonce: number;
+  origin: number;
+  sender: Uint256;
+  destination: number;
+  recipient: Uint256;
+  body: { size: number; data: bigint[] };
+}): DispatchedMessage['parsed'] {
+  const sender = uint256.uint256ToBN(message.sender).toString();
+  const recipient = uint256.uint256ToBN(message.recipient).toString();
+
+  const nonce = message.nonce;
+  const origin = message.origin;
+  const destination = message.destination;
+
+  return {
+    version: message.version,
+    nonce,
+    origin,
+    sender: '0x' + sender,
+    destination,
+    recipient: '0x' + recipient,
+    body: '0x',
+  };
+}
+
 export function formatStarknetMessageForEthereum(
   starknetMessage: ParsedMessage & {
     body: { size: bigint; data: bigint[] };

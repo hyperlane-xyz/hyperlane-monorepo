@@ -653,11 +653,8 @@ export { StarknetCoreModule } from './core/StarknetCoreModule.js';
 
 export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
 export { StarknetCore } from './core/StarknetCore.js';
-export { StarknetRelayer } from './core/StarknetRelayer.js';
 
 export { MessageService } from './messaging/MessageService.js';
-export { MessageBus } from './messaging/MessageBus.js';
-export { MultiProtocolMessageService } from './messaging/MultiProtocolMessageService.js';
 export {
   formatEthereumMessageForStarknet,
   formatStarknetMessageForEthereum,
@@ -668,3 +665,12 @@ export {
   getStarknetHypERC20Contract,
   getStarknetMailboxContract,
 } from './utils/starknet.js';
+
+export { MessageBus } from './bus/MessageBus.js';
+export { EvmAdapter } from './bus/adapters/EvmAdapter.js';
+export { StarknetAdapter } from './bus/adapters/StarknetAdapter.js';
+export {
+  MessageHandler,
+  MessageWithStatus,
+  MessageBusConfig,
+} from './bus/types.js';

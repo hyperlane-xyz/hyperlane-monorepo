@@ -1,4 +1,3 @@
-import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -120,12 +119,9 @@ export async function runCoreDeploy(params: DeployParams) {
     case ProtocolType.Starknet:
       {
         const domainId = multiProvider.getDomainId(chain);
-        const account = await multiProtocolSigner?.getStarknetSigner(chain);
+        const account = multiProtocolSigner!.getStarknetSigner(chain);
         assert(account, 'Starknet account failed!');
-        const starknetCoreModule = new StarknetCoreModule(
-          account as StarknetAccount,
-          domainId,
-        );
+        const starknetCoreModule = new StarknetCoreModule(account, domainId);
         deployedAddresses = await starknetCoreModule.deploy({
           chain,
           config,

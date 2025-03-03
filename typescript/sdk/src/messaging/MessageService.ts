@@ -10,7 +10,7 @@ import { getMessageMetadata, translateMessage } from './messageUtils.js';
 
 export class MessageService {
   constructor(
-    private readonly multiProvider: MultiProvider,
+    protected readonly multiProvider: MultiProvider,
     private readonly cores: Partial<
       Record<ProtocolType, HyperlaneCore | StarknetCore>
     >,
