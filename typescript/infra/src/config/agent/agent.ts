@@ -243,14 +243,15 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
     // For Ethereum and Sealevel, use a hex key
-    case ProtocolType.Ethereum:
-    case ProtocolType.Starknet:
+    case ProtocolType.Starknet: {
+      console.log('starknet', metadata);
       return {
         type: AgentSignerKeyType.Starknet,
-        address:
-          '0x05fe9ded5ffef4db68deaa012ce6d05e06e3e9906aed5801fc7a49696e28df66',
+        address: 'QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd',
         key: 'PRIVATE_KEY',
       };
+    }
+    case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:
       return { type: AgentSignerKeyType.Hex };
