@@ -5,12 +5,13 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {TokenMessage} from "./TokenMessage.sol";
 import {TokenRouter} from "./TokenRouter.sol";
+import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 
 /**
  * @title Common FastTokenRouter functionality for ERC20 Tokens with remote transfer support.
  * @author Abacus Works
  */
-abstract contract FastTokenRouter is TokenRouter {
+abstract contract FastTokenRouter is FungibleTokenRouter {
     using TypeCasts for bytes32;
     using TokenMessage for bytes;
 

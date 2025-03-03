@@ -13,8 +13,15 @@ contract HypXERC20Lockbox is HypERC20Collateral {
 
     constructor(
         address _lockbox,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(address(IXERC20Lockbox(_lockbox).ERC20()), _mailbox) {
+    )
+        HypERC20Collateral(
+            address(IXERC20Lockbox(_lockbox).ERC20()),
+            _scale,
+            _mailbox
+        )
+    {
         lockbox = IXERC20Lockbox(_lockbox);
         xERC20 = lockbox.XERC20();
         approveLockbox();
