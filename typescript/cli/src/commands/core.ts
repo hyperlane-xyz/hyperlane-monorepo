@@ -32,6 +32,7 @@ import {
   DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
   chainCommandOption,
   dryRunCommandOption,
+  fixFactoriesCommandOption,
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
@@ -104,6 +105,7 @@ export const deploy: CommandModuleWithWriteContext<{
   config: string;
   dryRun: string;
   fromAddress: string;
+  fixFactories: boolean;
 }> = {
   command: 'deploy',
   describe: 'Deploy Hyperlane contracts',
@@ -116,9 +118,20 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    'fix-factories': fixFactoriesCommandOption,
   },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    dryRun,
+    fixFactories,
+  }) => {
+    logCommandHeader(
+      `Hyperlane Core deployment${dryRun ? ' dry-run' : ''}${
+        fixFactories ? ' (fix mode)' : ''
+      }`,
+    );
 
     try {
       await runCoreDeploy({
