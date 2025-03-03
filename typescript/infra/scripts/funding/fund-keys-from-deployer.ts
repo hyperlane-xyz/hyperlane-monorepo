@@ -108,6 +108,7 @@ const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 // Example usage:
 //   tsx ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
 async function main() {
+  console.log('a');
   const { environment, ...argv } = await getArgs()
     .string('f')
     .array('f')
@@ -165,6 +166,7 @@ async function main() {
   let contextFunders: ContextFunder[];
 
   if (argv.f) {
+    console.log('b - f');
     contextFunders = argv.f.map((path) =>
       ContextFunder.fromSerializedAddressFile(
         environment,
@@ -178,6 +180,7 @@ async function main() {
       ),
     );
   } else {
+    console.log('b - local');
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
@@ -399,7 +402,9 @@ class ContextFunder {
     const chainsToFund = supportedChainNames.filter(
       (chain) => !chainsToSkip.includes(chain),
     );
+    console.log('c - chainsToFund', chainsToFund);
     for (const role of rolesToFund) {
+      console.log('d - role', role);
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
       if (!roleAddress) {
@@ -410,6 +415,7 @@ class ContextFunder {
       fundableRoleKeys[role] = roleAddress;
 
       for (const chain of chainsToFund) {
+        console.log('e - chain', chain);
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
@@ -454,6 +460,7 @@ class ContextFunder {
   }
 
   private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
+    console.log('f - fundChain', chain, keys);
     const { promise, cleanup } = createTimeoutPromise(
       CHAIN_FUNDING_TIMEOUT_MS,
       `Timed out funding chain ${chain} after ${
