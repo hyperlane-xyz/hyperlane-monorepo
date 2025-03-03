@@ -278,7 +278,7 @@ async function calculateDailyRelayerBurn(
 
   if (skipReview) {
     rootLogger.info(
-      'Skipping review for proposed burn values thar are less than the current values.',
+      'Skipping review for proposed burn values that are less than the current values.',
     );
     return updatedBurnData;
   }
