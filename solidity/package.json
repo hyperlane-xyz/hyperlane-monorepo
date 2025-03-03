@@ -9,10 +9,13 @@
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
-    "fx-portal": "^1.0.3"
+    "fx-portal": "^1.0.3",
+    "zksync-ethers": "^5.10.0"
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",
+    "@matterlabs/hardhat-zksync-deploy": "^0.7.0",
+    "@matterlabs/hardhat-zksync-solc": "^1.2.4",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@typechain/ethers-v5": "^11.1.2",
@@ -43,16 +46,20 @@
   },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./mailbox": "./dist/contracts/Mailbox.js",
-    "./buildArtifact.js": "./dist/buildArtifact.js",
-    "./buildArtifact.json": "./dist/buildArtifact.json",
-    "./contracts": "./contracts"
+    ".": "./dist/evm/types/index.js",
+    "./mailbox": "./dist/evm/types/contracts/Mailbox.js",
+    "./buildArtifact.js": "./dist/evm/buildArtifact.js",
+    "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
+    "./buildArtifact.json": "./dist/evm/buildArtifact.json",
+    "./contracts": "./contracts",
+    "./zksync-artifacts": "./dist/zksync/artifacts/index.js",
+    "./zksync-artifacts/*": "./dist/zksync/artifacts/*.js"
   },
-  "types": "./dist/index.d.ts",
+  "types": "./dist/evm/types/index.d.ts",
   "files": [
     "/dist",
-    "/contracts"
+    "/contracts",
+    "/dist/zksync/artifacts"
   ],
   "engines": {
     "node": ">=16"
@@ -65,13 +72,14 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "yarn version:update && yarn hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
+    "build": "yarn version:update && yarn hardhat-esm compile && yarn hardhat-zk compile && ts-node generate-artifact-exports.mjs && tsc && ./exportBuildArtifact.sh",
     "lint": "solhint contracts/**/*.sol",
-    "clean": "yarn hardhat-esm clean && rm -rf ./dist ./cache ./types ./coverage ./out ./forge-cache ./fixtures",
+    "clean": "yarn hardhat-esm clean && yarn hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "yarn fixtures && ./coverage.sh",
     "docs": "forge doc",
     "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",
     "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-zk": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config zk-hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./test",
     "test": "yarn version:exhaustive && yarn hardhat-esm test && yarn test:forge",
     "test:hardhat": "yarn hardhat-esm test",

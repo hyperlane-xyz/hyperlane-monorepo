@@ -1,0 +1,10 @@
+defaultHook:
+  type: merkleTreeHook
+defaultIsm:
+  threshold: 1
+  type: storageMessageIdMultisigIsm
+  validators:
+    - '0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A'
+owner: '0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A'
+requiredHook:
+  type: merkleTreeHook

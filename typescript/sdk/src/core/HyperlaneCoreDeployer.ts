@@ -91,6 +91,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         chain,
         config.defaultIsm,
         mailbox.address,
+        defaultIsm,
       );
     }
     this.cachedAddresses[chain].interchainSecurityModule = defaultIsm;
@@ -214,11 +215,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: IsmConfig,
     mailbox: Address,
+    existingIsmAddress?: Address,
   ): Promise<Address> {
     const ism = await this.ismFactory.deploy({
       destination: chain,
       config,
       mailbox,
+      existingIsmAddress:
+        existingIsmAddress && !isZeroishAddress(existingIsmAddress)
+          ? existingIsmAddress
+          : undefined,
     });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;

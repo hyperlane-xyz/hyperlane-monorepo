@@ -1,5 +1,6 @@
 import { input } from '@inquirer/prompts';
 import { ethers, providers } from 'ethers';
+import { Wallet } from 'zksync-ethers';
 
 import { impersonateAccount } from '@hyperlane-xyz/sdk';
 import { Address, ensure0x } from '@hyperlane-xyz/utils';
@@ -16,7 +17,7 @@ export async function getSigner({
 }: {
   key?: string;
   skipConfirmation?: boolean;
-}) {
+}): Promise<{ key?: string; signer: Wallet }> {
   key ||= await retrieveKey(skipConfirmation);
   const signer = privateKeyToSigner(key);
   return { key, signer };
@@ -77,14 +78,14 @@ async function addressToImpersonatedSigner(
  * @param key a private key
  * @returns a signer for the private key
  */
-function privateKeyToSigner(key: string): ethers.Wallet {
+function privateKeyToSigner(key: string): Wallet {
   if (!key) throw new Error('No private key provided');
 
   const formattedKey = key.trim().toLowerCase();
   if (ethers.utils.isHexString(ensure0x(formattedKey)))
-    return new ethers.Wallet(ensure0x(formattedKey));
+    return new Wallet(ensure0x(formattedKey));
   else if (formattedKey.split(' ').length >= 6)
-    return ethers.Wallet.fromMnemonic(formattedKey);
+    return Wallet.fromMnemonic(formattedKey);
   else throw new Error('Invalid private key format');
 }
 

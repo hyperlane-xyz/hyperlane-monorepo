@@ -5,9 +5,13 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainTechnicalStack,
+  CoreConfig,
   IsmConfig,
+  IsmType,
   MultisigConfig,
   getLocalProvider,
+  shouldSkipStaticDeployment,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -19,6 +23,7 @@ import {
   logGray,
   logGreen,
   logPink,
+  logRed,
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
@@ -190,4 +195,30 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
     'Native Token: Name': chainMetadata.nativeToken?.name,
     'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
   };
+}
+
+/**
+ * Checks if the given chain technical stack is compatible with the core configuration.
+ *
+ * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain.
+ * @param {CoreConfig} params.config - The core configuration to check.
+ * @returns {boolean} True if the configuration is compatible, false otherwise.
+ */
+export function checkTechStackCoreConfigCompatibility({
+  chainTechnicalStack,
+  config,
+}: {
+  chainTechnicalStack: ChainTechnicalStack | undefined;
+  config: CoreConfig;
+}): boolean {
+  // Static deployment is not available on certain chains (e.g., ZKSync) for aggregation ISMs.
+  if (
+    shouldSkipStaticDeployment(chainTechnicalStack) &&
+    typeof config.defaultIsm !== 'string' &&
+    config.defaultIsm.type === IsmType.AGGREGATION
+  ) {
+    logRed('⛔ Static contract deployment not available on ZKSync!');
+    return false;
+  }
+  return true;
 }
