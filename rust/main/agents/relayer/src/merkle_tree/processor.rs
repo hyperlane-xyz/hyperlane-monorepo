@@ -1,20 +1,21 @@
 use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use prometheus::{IntCounter, IntGauge};
+use tokio::sync::RwLock;
+use tracing::trace;
+
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
-use prometheus::IntGauge;
-use tokio::sync::RwLock;
-use tracing::trace;
 
 use crate::processor::ProcessorExt;
 
@@ -56,11 +57,18 @@ impl ProcessorExt for MerkleTreeProcessor {
     async fn tick(&mut self) -> Result<()> {
         if let Some(insertion) = self.next_unprocessed_leaf()? {
             // Feed the message to the prover sync
-            self.prover_sync
-                .write()
-                .await
-                .ingest_message_id(insertion.message_id())
-                .await?;
+            let mut guard = self.prover_sync.write().await;
+
+            let begin = Instant::now();
+
+            guard.ingest_message_id(insertion.message_id())?;
+
+            self.metrics
+                .merkle_tree_ingest_message_id_total_elapsed_micros
+                .inc_by(begin.elapsed().as_micros() as u64);
+            self.metrics
+                .merkle_tree_ingest_message_id_single_elapsed_micros
+                .set(begin.elapsed().as_micros() as i64);
 
             // Increase the leaf index to move on to the next leaf
             self.leaf_index += 1;
@@ -73,6 +81,7 @@ impl ProcessorExt for MerkleTreeProcessor {
 
 impl MerkleTreeProcessor {
     fn next_unprocessed_leaf(&mut self) -> Result<Option<MerkleTreeInsertion>> {
+        let begin = Instant::now();
         let leaf = if let Some(insertion) = self
             .db
             .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
@@ -87,6 +96,14 @@ impl MerkleTreeProcessor {
             trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
             None
         };
+
+        self.metrics
+            .merkle_tree_retrieve_insertion_total_elapsed_micros
+            .inc_by(begin.elapsed().as_micros() as u64);
+        self.metrics
+            .merkle_tree_retrieve_insertion_single_elapsed_micros
+            .set(begin.elapsed().as_micros() as i64);
+
         Ok(leaf)
     }
 }
@@ -94,6 +111,10 @@ impl MerkleTreeProcessor {
 #[derive(Debug)]
 pub struct MerkleTreeProcessorMetrics {
     latest_tree_insertion_index_gauge: IntGauge,
+    merkle_tree_retrieve_insertion_total_elapsed_micros: IntCounter,
+    merkle_tree_retrieve_insertion_single_elapsed_micros: IntGauge,
+    merkle_tree_ingest_message_id_total_elapsed_micros: IntCounter,
+    merkle_tree_ingest_message_id_single_elapsed_micros: IntGauge,
 }
 
 impl MerkleTreeProcessorMetrics {
@@ -101,6 +122,18 @@ impl MerkleTreeProcessorMetrics {
         Self {
             latest_tree_insertion_index_gauge: metrics
                 .latest_tree_insertion_index()
+                .with_label_values(&[origin.name()]),
+            merkle_tree_retrieve_insertion_total_elapsed_micros: metrics
+                .merkle_tree_retrieve_insertion_total_elapsed_micros()
+                .with_label_values(&[origin.name()]),
+            merkle_tree_retrieve_insertion_single_elapsed_micros: metrics
+                .merkle_tree_retrieve_insertion_single_elapsed_micros()
+                .with_label_values(&[origin.name()]),
+            merkle_tree_ingest_message_id_total_elapsed_micros: metrics
+                .merkle_tree_ingest_message_id_total_elapsed_micros()
+                .with_label_values(&[origin.name()]),
+            merkle_tree_ingest_message_id_single_elapsed_micros: metrics
+                .merkle_tree_ingest_message_id_single_elapsed_micros()
                 .with_label_values(&[origin.name()]),
         }
     }
