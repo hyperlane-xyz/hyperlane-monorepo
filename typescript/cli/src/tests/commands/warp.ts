@@ -121,11 +121,15 @@ export function hyperlaneWarpCheckRaw({
   symbol,
   privateKey,
   hypKey,
+  warpCoreConfigPath,
+  warpRouteId,
 }: {
   symbol?: string;
   privateKey?: string;
   warpDeployPath?: string;
   hypKey?: string;
+  warpCoreConfigPath?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`${
     hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : ''
@@ -134,17 +138,21 @@ export function hyperlaneWarpCheckRaw({
         ${symbol ? ['--symbol', symbol] : ''} \
         ${privateKey && !hypKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : ''}`;
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : ''} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''}`;
 }
 
 export function hyperlaneWarpCheck(
   warpDeployPath: string,
   symbol: string,
+  warpCoreConfigPath?: string,
 ): ProcessPromise {
   return hyperlaneWarpCheckRaw({
     warpDeployPath,
     privateKey: ANVIL_KEY,
     symbol,
+    warpCoreConfigPath,
   });
 }
 
