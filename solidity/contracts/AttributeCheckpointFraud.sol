@@ -5,29 +5,16 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "./PackageVersioned.sol";
 import {TREE_DEPTH} from "./libs/Merkle.sol";
 import {CheckpointLib, Checkpoint} from "./libs/CheckpointLib.sol";
 import {CheckpointFraudProofs} from "./CheckpointFraudProofs.sol";
-
-enum FraudType {
-    Whitelist,
-    Premature,
-    MessageId,
-    Root
-}
-
-struct Attribution {
-    FraudType fraudType;
-    // for comparison with staking epoch
-    uint48 timestamp;
-}
+import {FraudType, Attribution} from "./libs/FraudMessage.sol";
 
 /**
  * @title AttributeCheckpointFraud
  * @dev The AttributeCheckpointFraud contract is used to attribute fraud to a specific ECDSA checkpoint signer.
  */
-
 contract AttributeCheckpointFraud is Ownable, PackageVersioned {
     using CheckpointLib for Checkpoint;
     using Address for address;
@@ -69,6 +56,13 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
         bytes calldata signature
     ) external view returns (Attribution memory) {
         (address signer, bytes32 digest) = _recover(checkpoint, signature);
+        return _attributions[signer][digest];
+    }
+
+    function attributions(
+        address signer,
+        bytes32 digest
+    ) external view returns (Attribution memory) {
         return _attributions[signer][digest];
     }
 
