@@ -44,8 +44,7 @@ export const walletNameQueryFormat: Record<WalletName, string> = {
 export const alertConfigMapping: Record<AlertType, AlertConfig> = {
   [AlertType.LowUrgencyKeyFunderBalance]: {
     walletName: WalletName.KeyFunder,
-    // grafanaAlertId: 'ae9z3blz6fj0gb',
-    grafanaAlertId: 'KiJNg6p4k',
+    grafanaAlertId: 'ae9z3blz6fj0gb',
     configFileName:
       balanceThresholdConfigMapping[
         BalanceThresholdType.LowUrgencyKeyFunderBalance
@@ -77,8 +76,7 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
   },
   [AlertType.HighUrgencyRelayerBalance]: {
     walletName: WalletName.Relayer,
-    // grafanaAlertId: 'beb9c2jwhacqoe',
-    grafanaAlertId: 'be64gvjo8jvuod',
+    grafanaAlertId: 'beb9c2jwhacqoe',
     configFileName:
       balanceThresholdConfigMapping[
         BalanceThresholdType.HighUrgencyRelayerBalance
