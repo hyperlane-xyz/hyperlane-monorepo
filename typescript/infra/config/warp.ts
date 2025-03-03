@@ -1,4 +1,4 @@
-import { getRegistry } from '@hyperlane-xyz/cli';
+import { getRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainSubmissionStrategy,
