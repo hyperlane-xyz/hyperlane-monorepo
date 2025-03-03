@@ -58,7 +58,7 @@ const xERC20LimitConfigSchema = z.object({
 });
 export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
 
-const xERC20ExtraLockboxLimitConfigsSchema = z.object({
+const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   lockbox: z.string(),
   limits: xERC20LimitConfigSchema,
 });
@@ -66,16 +66,14 @@ const xERC20ExtraLockboxLimitConfigsSchema = z.object({
 const xERC20TokenMetadataSchema = z.object({
   xERC20: z
     .object({
-      extraLockboxLimits: z
-        .array(xERC20ExtraLockboxLimitConfigsSchema)
-        .optional(),
+      extraBridges: z.array(xERC20ExtraBridgesLimitConfigsSchema).optional(),
       warpRouteLimits: xERC20LimitConfigSchema,
     })
     .optional(),
 });
 export type XERC20TokenMetadata = z.infer<typeof xERC20TokenMetadataSchema>;
-export type XERC20TokenExtraLockboxLimits = z.infer<
-  typeof xERC20ExtraLockboxLimitConfigsSchema
+export type XERC20TokenExtraBridgesLimits = z.infer<
+  typeof xERC20ExtraBridgesLimitConfigsSchema
 >;
 
 export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(

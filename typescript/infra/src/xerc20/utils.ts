@@ -544,8 +544,8 @@ export async function deriveBridgesConfig(
       xERC20Address = await hypXERC20Lockbox.xERC20();
     }
 
-    if (xERC20.extraLockboxLimits) {
-      for (const extraLockboxLimit of xERC20.extraLockboxLimits) {
+    if (xERC20.extraBridges) {
+      for (const extraLockboxLimit of xERC20.extraBridges) {
         const { lockbox, limits } = extraLockboxLimit;
         const {
           bufferCap: extraBufferCap,

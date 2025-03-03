@@ -215,7 +215,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
 
     try {
-      const extraLockboxLimits = await getExtraLockBoxConfigs({
+      const extraBridgesLimits = await getExtraLockBoxConfigs({
         chain: this.chain,
         multiProvider: this.multiProvider,
         xERC20Address,
@@ -230,8 +230,8 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
             ).toString(),
             bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
           },
-          extraLockboxLimits:
-            extraLockboxLimits.length > 0 ? extraLockboxLimits : undefined,
+          extraBridges:
+            extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
         },
       };
     } catch (error) {

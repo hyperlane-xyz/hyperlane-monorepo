@@ -14,7 +14,7 @@ import { ExplorerFamily } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
-import { XERC20TokenExtraLockboxLimits } from './types.js';
+import { XERC20TokenExtraBridgesLimits } from './types.js';
 
 const minimalXERC20VSABI = [
   {
@@ -63,7 +63,7 @@ export async function getExtraLockBoxConfigs({
   chain,
   multiProvider,
   logger = rootLogger,
-}: GetExtraLockboxesOptions): Promise<XERC20TokenExtraLockboxLimits[]> {
+}: GetExtraLockboxesOptions): Promise<XERC20TokenExtraBridgesLimits[]> {
   const { family, apiKey } = multiProvider.getExplorerApi(chain);
 
   // Fallback to use the rpc if the user has not provided an API key and the explorer family is Etherscan
@@ -169,7 +169,7 @@ async function getLockboxesFromLogs(
   provider: ethers.providers.Provider,
   chain: ChainNameOrId,
   logger: Logger,
-): Promise<XERC20TokenExtraLockboxLimits[]> {
+): Promise<XERC20TokenExtraBridgesLimits[]> {
   const parsedLogs = parseEventLogs({
     abi: minimalXERC20VSABI,
     eventName: 'ConfigurationChanged',

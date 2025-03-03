@@ -297,7 +297,7 @@ describe('hyperlane warp check e2e tests', async function () {
                 bufferCap: '0',
                 rateLimitPerSecond: '0',
               },
-              extraLockboxLimits: [
+              extraBridges: [
                 {
                   limits: {
                     bufferCap: '1000',
@@ -335,23 +335,23 @@ describe('hyperlane warp check e2e tests', async function () {
           warpDeployConfig[CHAIN_NAME_2].type === TokenType.XERC20,
           'Deploy config should be for an XERC20 token',
         );
-        const currentExtraLockboxLimits =
-          warpDeployConfig[CHAIN_NAME_2].xERC20!.extraLockboxLimits![0];
+        const currentExtraBridgesLimits =
+          warpDeployConfig[CHAIN_NAME_2].xERC20!.extraBridges![0];
         const wrongBufferCap = randomInt(100).toString();
-        warpDeployConfig[CHAIN_NAME_2].xERC20!.extraLockboxLimits = [
+        warpDeployConfig[CHAIN_NAME_2].xERC20!.extraBridges = [
           {
-            ...currentExtraLockboxLimits,
+            ...currentExtraBridgesLimits,
             limits: {
               bufferCap: wrongBufferCap,
               rateLimitPerSecond:
-                currentExtraLockboxLimits.limits.rateLimitPerSecond,
+                currentExtraBridgesLimits.limits.rateLimitPerSecond,
             },
           },
         ];
 
         writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
         const expectedDiffText = `EXPECTED: "${wrongBufferCap}"\n`;
-        const expectedActualText = `ACTUAL: "${currentExtraLockboxLimits.limits.rateLimitPerSecond}"\n`;
+        const expectedActualText = `ACTUAL: "${currentExtraBridgesLimits.limits.rateLimitPerSecond}"\n`;
 
         const output = await hyperlaneWarpCheck(
           WARP_DEPLOY_OUTPUT_PATH,
