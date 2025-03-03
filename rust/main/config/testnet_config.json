@@ -472,19 +472,21 @@
           "http": "https://testnet.fuel.network/v1/graphql"
         }
       ],
-      "mailbox": "0xba28b20003ba7332e9a44b7c96bf08cace0404711fb4df606f41b2bc20b3f830",
-      "postDispatch": "0xf581318c940ac5c5f42b80bae1d77dd0beb4956ec06d4eeb9dfba537431a8910",
-      "recipient": "0xaf127490a1ba82cf364c82c7874cb41970c2936017cdfd1e3b3461e0a1afcd86",
-      "interchainSecurityModule": "0xf3d62e27518753adb4f2e6209cf2949b1eb33a7228ff9a9b25c85a096c71eea8",
-      "merkleTreeHook": "0xa7cd5cc289e0f4307353f9b5249c4b44b559c50d305c70adfd82e666bc31fa31",
-      "storageGasOracle": "0x5368f7e405a523aad22a68e45edc744c07e6cf087e72a59cfaccfb2e5d5bd0c8",
-      "interchainGasPaymaster": "0x142b6b9c045409a40c955c0683ad12f828f1159d290254c97c4e448746a0daf1",
-      "interchainGasPaymasterHook": "0x4a98830842b3fb00cf7364ae274e4c7a3b4fb5bc4fc56605c54c3eb739708b06",
-      "warpRouteNative": "0x546bf7faef2ed5b7904026f0f78b21ce8bbe46fb1706e119b209872aedcce851",
-      "warpRouteBridged": "0x36f77d8e6ca9ac0cc73edd2143d5f5b5d14779f5d685b8b1ef6958bb58b65d68",
-      "validatorAnnounce": "0x23b714b9895b71c5d9d052a9b8ef32fdbec99f496bef19926e639beaea563cc3",
+      "mailbox": "0xd622d165194c653c8feb58efb9a6aea6b38b8e50fa751e341c1009cc818a3be6",
+      "recipient": "0xa4ffb2e36ce79077ba956d7d6134a8b87ad6760ff8a3d0c26d5b42c694575c81",
+      "interchainSecurityModule": "0xa1758aa52065d7934a5c853278b95caa79e0978e129ebfaede9f81011bcc3708",
+      "merkleTreeHook": "0x7b8dedc18441b75700f2c7e1917bb692d3e275cd6a2926c417663100de0740ef",
+      "storageGasOracle": "0x559aec65eafad239e02029473e0b619a8927f73e45fcf1a2b375a35788a302c9",
+      "interchainGasPaymaster": "0xb35ffc1d5ad7d27425ad4edbf492109c08b835282026825bfe8e1b78f6d42dea",
+      "pausableHook": "0xf68422fdda758545d0d2207a5089efb17c817e482fa719d795a9ca0a1a1f3109",
+      "pausableIsm": "0x09fd0cf53ae7162b429895d7fc8291630c4de8c0340cd27d5685f2efb637ae3f",
+      "protocolFee": "0x0973837f39b40f0ac3d386389e0247dc77064db311168b98beb4089bdb034cdb",
+      "domainRoutingIsm": "0xbe6413cfea569b5ec67082b835e69a000ffc28a26593b3dd1e4473559654b3ba",
+      "fallbackRoutingHook": "0xad8082631f85fb3a5a2bb925414aeae49b5d3792835baa2a289399db48b2c67e",
+      "testRecipient": "0xa4ffb2e36ce79077ba956d7d6134a8b87ad6760ff8a3d0c26d5b42c694575c81",
+      "validatorAnnounce": "0xdd1be39f3f00c0e4a36f6970a1a8f173f7f6f1d1682601b24023c61d550882e7",
       "index": {
-        "from": 15563188,
+        "from": 24921894,
         "chunk": 10
       }
     },
