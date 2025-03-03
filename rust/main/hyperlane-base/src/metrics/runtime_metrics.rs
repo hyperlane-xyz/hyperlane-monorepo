@@ -61,7 +61,7 @@ impl RuntimeMetrics {
                 self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
                     .await;
             })
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
             .instrument(info_span!("RuntimeMetricsUpdater"))
     }
 }

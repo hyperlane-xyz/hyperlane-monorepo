@@ -158,7 +158,7 @@ impl SerialSubmitter {
             .spawn(TaskMonitor::instrument(&task_monitor, async move {
                 self.run().await
             }))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
             .instrument(span)
     }
 
@@ -192,7 +192,7 @@ impl SerialSubmitter {
                 &self.task_monitor,
                 receive_task(self.domain.clone(), rx_prepare, self.prepare_queue.clone()),
             ))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     fn create_prepare_task(&self) -> JoinHandle<()> {
@@ -210,7 +210,7 @@ impl SerialSubmitter {
                     self.metrics.clone(),
                 ),
             ))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     fn create_submit_task(&self) -> JoinHandle<()> {
@@ -228,7 +228,7 @@ impl SerialSubmitter {
                     self.metrics.clone(),
                 ),
             ))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     fn create_confirm_task(&self) -> JoinHandle<()> {
@@ -245,7 +245,7 @@ impl SerialSubmitter {
                     self.metrics.clone(),
                 ),
             ))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     fn task_name(prefix: &str, domain: &HyperlaneDomain) -> String {

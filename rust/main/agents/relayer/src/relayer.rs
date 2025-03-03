@@ -332,7 +332,7 @@ impl BaseAgent for Relayer {
                         error!(error=?e, "Tokio console server failed to start");
                     }
                 }))
-                .expect("spawning tokio task from Builder is infalliable");
+                .expect("spawning tokio task from Builder is infallible");
             tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
@@ -493,7 +493,7 @@ impl Relayer {
                 contract_sync.clone().sync(label, cursor.into()).await;
                 info!(chain = origin_name, label, "contract sync task exit");
             }))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
             .instrument(info_span!("MessageSync"))
     }
 
@@ -531,7 +531,7 @@ impl Relayer {
                     .await;
                 info!(chain = origin_name, label, "contract sync task exit");
             }))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
             .instrument(info_span!("IgpSync"))
     }
 
@@ -565,7 +565,7 @@ impl Relayer {
                     .await;
                 info!(chain = origin_name, label, "contract sync task exit");
             }))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
             .instrument(info_span!("MerkleTreeHookSync"))
     }
 
@@ -656,7 +656,7 @@ impl Relayer {
                     )
                 });
             }))
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
             .instrument(span)
     }
 

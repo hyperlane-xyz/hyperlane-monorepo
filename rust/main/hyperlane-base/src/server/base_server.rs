@@ -50,7 +50,7 @@ impl Server {
                     .await
                     .expect("Failed to start server");
             })
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     /// Gather available metrics into an encoded (plaintext, OpenMetrics format)

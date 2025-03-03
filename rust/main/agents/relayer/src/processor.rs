@@ -36,7 +36,7 @@ impl Processor {
         tokio::task::Builder::new()
             .name(&name)
             .spawn(instrumented)
-            .expect("spawning tokio task from Builder is infalliable")
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     #[instrument(ret, skip(self), level = "info", fields(domain=%self.ticker.domain()))]
