@@ -241,9 +241,7 @@ impl Debug for MessageProcessor {
 impl ProcessorExt for MessageProcessor {
     /// The name of this processor
     fn name(&self) -> String {
-        let mut name = "processor::message::".to_string();
-        name.push_str(self.domain().name());
-        name
+        format!("processor::message::{}", self.domain().name())
     }
 
     /// The domain this processor is getting messages from.

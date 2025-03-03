@@ -253,8 +253,7 @@ impl ChainSpecificMetricsUpdater {
 
     /// Spawns a tokio task to update the metrics
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
-        let mut name = "metrics::agent::".to_string();
-        name.push_str(&self.conf.domain.name());
+        let name = format!("metrics::agent::{}", self.conf.domain.name());
         tokio::task::Builder::new()
             .name(&name)
             .spawn(async move {

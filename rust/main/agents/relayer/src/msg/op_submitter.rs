@@ -249,10 +249,7 @@ impl SerialSubmitter {
     }
 
     fn task_name(prefix: &str, domain: &HyperlaneDomain) -> String {
-        let mut name = "op_submitter::".to_owned();
-        name.push_str(prefix);
-        name.push_str(&domain.name());
-        name
+        format!("op_submitter::{}{}", prefix, domain.name())
     }
 }
 

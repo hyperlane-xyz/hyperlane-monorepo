@@ -570,10 +570,7 @@ impl Relayer {
     }
 
     fn contract_sync_task_name(prefix: &str, domain: &str) -> String {
-        let mut name = "contract::sync::".to_string();
-        name.push_str(prefix);
-        name.push_str(domain);
-        name
+        format!("contract::sync::{}{}", prefix, domain)
     }
 
     fn run_message_processor(
@@ -647,8 +644,7 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
-        let mut name = "submitter::destination::".to_string();
-        name.push_str(&destination.name());
+        let name = format!("submitter::destination::{}", destination.name());
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(&task_monitor, async move {
