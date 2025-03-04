@@ -680,6 +680,9 @@ const blacklistedMessageIds = [
   '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
   '0xad52d640ed71b4363731a78becc8ad1d4aa8549a290c554e48281196478ade83',
   '0x984994d247edd9967182ba91b236a4e10223ef66e3b96259f06f2b7c7fbd8176',
+
+  // oUSDT dest with zero'd out limits
+  '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
