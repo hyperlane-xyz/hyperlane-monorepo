@@ -17,13 +17,10 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  KeyBoardKeys,
-  TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
   getCombinedWarpRoutePath,
-  handlePrompts,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpCheck,
@@ -96,74 +93,24 @@ describe('hyperlane warp check e2e tests', async function () {
     return warpReadResult;
   }
 
-  describe('HYP_KEY=... hyperlane warp check --config ...', () => {
+  describe('hyperlane warp check --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        hypKey: ANVIL_KEY,
+      const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
 
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
-      );
-    });
-  });
-
-  describe('hyperlane warp check --key ... --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
-      await deployAndExportWarpRoute(tokenSymbol, token.address);
-
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        privateKey: ANVIL_KEY,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.include(
         'Please specify either a symbol, chain and address or warp file',
       );
     });
   });
 
   describe('hyperlane warp check --symbol ... --config ...', () => {
-    it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute(tokenSymbol, token.address);
-
-      const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-      ];
-
-      const output = hyperlaneWarpCheckRaw({
-        symbol: tokenSymbol,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      const finalOutput = await handlePrompts(output, steps);
-
-      expect(finalOutput.exitCode).to.equal(0);
-      expect(finalOutput.text()).to.include('No violations found');
-    });
-  });
-
-  describe('hyperlane warp check --symbol ... --config ... --key ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
