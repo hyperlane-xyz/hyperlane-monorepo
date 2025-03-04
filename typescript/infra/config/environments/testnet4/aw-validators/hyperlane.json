@@ -5,13 +5,6 @@
   "alephzeroevmtestnet": {
     "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
   },
-  "alfajores": {
-    "validators": [
-      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
-      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
-      "0x86485dcec5f7bb8478dd251676372d054dea6653"
-    ]
-  },
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
@@ -20,9 +13,6 @@
   },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
-  },
-  "berabartio": {
-    "validators": ["0x541dd3cb282cf869d72883557badae245b63e1fd"]
   },
   "bsctestnet": {
     "validators": [

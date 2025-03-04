@@ -24,6 +24,7 @@ import {
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {
   ContextAndRoles,
@@ -395,6 +396,9 @@ class ContextFunder {
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
+    const chainsToFund = supportedChainNames.filter(
+      (chain) => !chainsToSkip.includes(chain),
+    );
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -405,7 +409,7 @@ class ContextFunder {
       }
       fundableRoleKeys[role] = roleAddress;
 
-      for (const chain of supportedChainNames) {
+      for (const chain of chainsToFund) {
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],

@@ -32,6 +32,10 @@ export const chainsToSkip: ChainName[] = [
   // testnets
   'abstracttestnet',
   'treasuretopaz',
+  // Down as of Feb 24, 2025
+  'alfajores',
+  // To be fully removed soon
+  'berabartio',
 
   // Oct 16 batch
   'lumia',
