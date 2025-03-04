@@ -30,6 +30,7 @@ import {
   EvmChainId,
   ProtocolType,
   addressToBytes32,
+  deepCopy,
   deepEquals,
   eqAddress,
   rootLogger,
@@ -130,9 +131,17 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    return typeof this.args.config === 'string'
-      ? this.args.addresses.deployedHook
-      : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
+    const { config, addresses } = this.args;
+
+    if (typeof config === 'string') {
+      return addresses.deployedHook;
+    }
+    // config is an already derived config
+    if ('address' in config) {
+      return deepCopy(config);
+    }
+
+    return this.reader.deriveHookConfig(addresses.deployedHook);
   }
 
   public async update(
@@ -147,12 +156,12 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
-    // Update the config
-    this.args.config = targetConfig;
-
     // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig = normalizeConfig(await this.read());
     const normalizedTargetConfig = normalizeConfig(targetConfig);
+
+    // Update the config
+    this.args.config = targetConfig;
 
     // If configs match, no updates needed
     if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
