@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -16,6 +17,7 @@ import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { planFactoryDeployments } from '../utils/deploymentPlan.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
@@ -29,6 +31,7 @@ interface DeployParams {
   context: WriteCommandContext;
   chain: ChainName;
   config: CoreConfig;
+  fix?: boolean;
 }
 
 interface ApplyParams extends DeployParams {
@@ -49,6 +52,7 @@ export async function runCoreDeploy(params: DeployParams) {
     registry,
     skipConfirmation,
     multiProvider,
+    fixFactories,
   } = context;
 
   // Select a dry-run chain if it's not supplied
@@ -61,14 +65,35 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
+
+  let existingCoreAddresses: ChainAddresses = {};
+  let factoryDeploymentPlan: Record<string, boolean> = {};
+  if (fixFactories) {
+    existingCoreAddresses = (await registry.getChainAddresses(
+      chain,
+    )) as ChainAddresses;
+
+    // safety check
+    if (!existingCoreAddresses.mailbox) {
+      throw Error(
+        'Mailbox contract not found! Please run `hyperlane core deploy` to deploy core contracts first.',
+      );
+    }
+
+    factoryDeploymentPlan = planFactoryDeployments(existingCoreAddresses);
+  }
+
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
   const signer = multiProvider.getSigner(chain);
 
+  // Skips confirmations in fix mode for mailbox redeployment prompt
   const deploymentParams: DeployParams = {
-    context: { ...context, signer },
+    context: fixFactories
+      ? { ...context, skipConfirmation: true }
+      : { ...context, signer },
     chain,
     config,
   };
@@ -92,25 +117,42 @@ export async function runCoreDeploy(params: DeployParams) {
   );
 
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
-  const evmCoreModule = await EvmCoreModule.create({
-    chain,
-    config,
-    multiProvider,
-    contractVerifier,
-  });
+
+  let deployedAddresses: ChainAddresses = {};
+  if (fixFactories) {
+    deployedAddresses = await EvmCoreModule.deployIsmFactories({
+      chainName: chain,
+      config,
+      multiProvider,
+      contractVerifier,
+      factoryDeploymentPlan,
+    });
+  } else {
+    const evmCoreModule = await EvmCoreModule.create({
+      chain,
+      config,
+      multiProvider,
+      contractVerifier,
+    } as const);
+    deployedAddresses = evmCoreModule.serialize();
+  }
 
   await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);
-  const deployedAddresses = evmCoreModule.serialize();
+
+  const addresses = {
+    ...existingCoreAddresses,
+    ...deployedAddresses,
+  };
 
   if (!isDryRun) {
     await registry.updateChain({
       chainName: chain,
-      addresses: deployedAddresses,
+      addresses,
     });
   }
 
   logGreen('✅ Core contract deployments complete:\n');
-  log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
+  log(indentYamlOrJson(yamlStringify(addresses, null, 2), 4));
 }
 
 export async function runCoreApply(params: ApplyParams) {
