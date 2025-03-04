@@ -5,6 +5,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^4.0.0",
     "@aws-sdk/client-s3": "^3.577.0",
+    "@bootnodedev/intents-framework-core": "^0.1.0",
     "@chain-registry/types": "^0.50.14",
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
