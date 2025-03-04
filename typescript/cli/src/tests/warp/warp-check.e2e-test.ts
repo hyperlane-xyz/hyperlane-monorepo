@@ -40,6 +40,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let token: ERC20Test;
   let tokenSymbol: string;
   let ownerAddress: Address;
+  let combinedWarpCoreConfigPath: string;
 
   before(async function () {
     [chain2Addresses, chain3Addresses] = await Promise.all([
@@ -56,7 +57,7 @@ describe('hyperlane warp check e2e tests', async function () {
     collateralTokenSymbol: string,
     collateralTokenAddress: Address,
   ): Promise<WarpRouteDeployConfig> {
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+    combinedWarpCoreConfigPath = getCombinedWarpRoutePath(
       collateralTokenSymbol,
       [CHAIN_NAME_2, CHAIN_NAME_3],
     );
@@ -79,12 +80,12 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const chain2WarpConfig = await readWarpConfig(
       CHAIN_NAME_2,
-      COMBINED_WARP_CORE_CONFIG_PATH,
+      combinedWarpCoreConfigPath,
       WARP_DEPLOY_OUTPUT_PATH,
     );
     const chain3WarpConfig = await readWarpConfig(
       CHAIN_NAME_3,
-      COMBINED_WARP_CORE_CONFIG_PATH,
+      combinedWarpCoreConfigPath,
       WARP_DEPLOY_OUTPUT_PATH,
     );
     const warpReadResult = {
@@ -97,7 +98,7 @@ describe('hyperlane warp check e2e tests', async function () {
   }
 
   describe('HYP_KEY=... hyperlane warp check --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
+    it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
       const finalOutput = await hyperlaneWarpCheckRaw({
@@ -109,13 +110,13 @@ describe('hyperlane warp check e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
+        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
       );
     });
   });
 
   describe('hyperlane warp check --key ... --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
+    it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
       const finalOutput = await hyperlaneWarpCheckRaw({
@@ -127,12 +128,12 @@ describe('hyperlane warp check e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
+        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
       );
     });
   });
 
-  describe('hyperlane warp check --symbol ... --config ...', () => {
+  describe('hyperlane warp check --symbol ... --config ... --warp ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute(tokenSymbol, token.address);
 
@@ -152,6 +153,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = hyperlaneWarpCheckRaw({
         symbol: tokenSymbol,
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
       })
         .stdio('pipe')
         .nothrow();
@@ -170,6 +172,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
         tokenSymbol,
+        combinedWarpCoreConfigPath,
       );
 
       expect(output.exitCode).to.equal(0);
@@ -193,6 +196,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
         tokenSymbol,
+        combinedWarpCoreConfigPath,
       ).nothrow();
 
       expect(output.exitCode).to.equal(1);
