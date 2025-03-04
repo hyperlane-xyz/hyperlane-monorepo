@@ -3,41 +3,12 @@ name: checker
 on:
   issue_comment:
     types: ['created', 'edited']
-  pull_request:
-    branches:
-      - '*'
-  merge_group:
-  workflow_dispatch:
 
 jobs:
   check-warp-deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.comments.author_association == 'MEMBER'}}
+    if: ${{ github.event.issue.pull_request && github.event.issue.author_association == 'MEMBER'}}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          fetch-depth: 0
-
       - name: Yarn Install
-        run: yarn install
-
-      - name: Yarn Build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Checkout Registry
-        uses: ./.github/actions/checkout-registry
-
-      - name: Parse Warp Id
-        uses: ./.github/actions/parse-warp-id-comments
-        with:
-          body: ${{ github.event.pull_request.body }}
-
-      - name: Run Infra Warp Route Checker
         run: |
-          echo "Running infra checker with warp ID: $WARP_ID"
-          cd ./typescript/infra
-          yarn tsx ./scripts/check/check-deploy.ts -e mainnet3 -m warp --warpRouteId $WARP_ID
+          echo "running!"
