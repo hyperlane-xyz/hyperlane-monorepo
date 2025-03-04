@@ -57,22 +57,22 @@ abstract class TokenDeployer<
     }); // factories not used in deploy
   }
 
-  async constructorArgs(
-    _: ChainName,
-    config: HypTokenRouterConfig,
-  ): Promise<any> {
-    if (isCollateralTokenConfig(config)) {
-      return [config.token, config.mailbox];
-    } else if (isNativeTokenConfig(config)) {
-      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
-    } else if (isSyntheticTokenConfig(config)) {
+  async constructorArgs(_: ChainName, config: TokenRouterConfig): Promise<any> {
+    // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
+    const scale = config.scale ?? 1;
+
+    if (isCollateralConfig(config)) {
+      return [config.token, scale, config.mailbox];
+    } else if (isNativeConfig(config)) {
+      return [scale, config.mailbox];
+    } else if (isSyntheticConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, config.mailbox];
-    } else if (isSyntheticRebaseTokenConfig(config)) {
+      return [config.decimals, scale, config.mailbox];
+    } else if (isSyntheticRebaseConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, config.mailbox, collateralDomain];
+      return [config.decimals, scale, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
