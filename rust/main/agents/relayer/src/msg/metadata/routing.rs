@@ -18,7 +18,11 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching RoutingIsm metadata";
-        let ism = self.build_routing_ism(ism_address).await.context(CTX)?;
+        let ism = self
+            .base_builder()
+            .build_routing_ism(ism_address)
+            .await
+            .context(CTX)?;
         let module = ism.route(message).await.context(CTX)?;
         self.base.build(module, message).await.context(CTX)
     }
