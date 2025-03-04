@@ -291,7 +291,7 @@ const releaseCandidate: RootAgentConfig = {
     whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
+    transactionGasLimit: 2_500_000_000_000,
     resources: relayerResources,
   },
   validators: {

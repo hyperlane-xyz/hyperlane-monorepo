@@ -128,6 +128,7 @@ impl StarknetMailbox {
                     .overall_fee
             }
         };
+        println!("SAQUON gas estimate {:?}, {:?}", gas_estimate, tx);
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
 
