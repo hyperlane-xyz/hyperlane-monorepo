@@ -19,10 +19,7 @@ use super::{
     aggregation::AggregationIsmMetadataBuilder,
     base::{IsmWithMetadataAndType, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
-    multisig::{
-        MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder,
-        MultisigIsmMetadataBuilder,
-    },
+    multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
     Metadata, MetadataBuilder,
