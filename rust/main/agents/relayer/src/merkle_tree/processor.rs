@@ -66,9 +66,7 @@ impl ProcessorExt for MerkleTreeProcessor {
             self.metrics
                 .merkle_tree_ingest_message_id_total_elapsed_micros
                 .inc_by(begin.elapsed().as_micros() as u64);
-            self.metrics
-                .merkle_tree_ingest_message_id_single_elapsed_micros
-                .set(begin.elapsed().as_micros() as i64);
+            self.metrics.merkle_tree_ingest_message_ids_count.inc();
 
             // Increase the leaf index to move on to the next leaf
             self.leaf_index += 1;
@@ -100,9 +98,7 @@ impl MerkleTreeProcessor {
         self.metrics
             .merkle_tree_retrieve_insertion_total_elapsed_micros
             .inc_by(begin.elapsed().as_micros() as u64);
-        self.metrics
-            .merkle_tree_retrieve_insertion_single_elapsed_micros
-            .set(begin.elapsed().as_micros() as i64);
+        self.metrics.merkle_tree_retrieve_insertions_count.inc();
 
         Ok(leaf)
     }
@@ -112,9 +108,9 @@ impl MerkleTreeProcessor {
 pub struct MerkleTreeProcessorMetrics {
     latest_tree_insertion_index_gauge: IntGauge,
     merkle_tree_retrieve_insertion_total_elapsed_micros: IntCounter,
-    merkle_tree_retrieve_insertion_single_elapsed_micros: IntGauge,
+    merkle_tree_retrieve_insertions_count: IntCounter,
     merkle_tree_ingest_message_id_total_elapsed_micros: IntCounter,
-    merkle_tree_ingest_message_id_single_elapsed_micros: IntGauge,
+    merkle_tree_ingest_message_ids_count: IntCounter,
 }
 
 impl MerkleTreeProcessorMetrics {
@@ -126,14 +122,14 @@ impl MerkleTreeProcessorMetrics {
             merkle_tree_retrieve_insertion_total_elapsed_micros: metrics
                 .merkle_tree_retrieve_insertion_total_elapsed_micros()
                 .with_label_values(&[origin.name()]),
-            merkle_tree_retrieve_insertion_single_elapsed_micros: metrics
-                .merkle_tree_retrieve_insertion_single_elapsed_micros()
+            merkle_tree_retrieve_insertions_count: metrics
+                .merkle_tree_retrieve_insertions_count()
                 .with_label_values(&[origin.name()]),
             merkle_tree_ingest_message_id_total_elapsed_micros: metrics
                 .merkle_tree_ingest_message_id_total_elapsed_micros()
                 .with_label_values(&[origin.name()]),
-            merkle_tree_ingest_message_id_single_elapsed_micros: metrics
-                .merkle_tree_ingest_message_id_single_elapsed_micros()
+            merkle_tree_ingest_message_ids_count: metrics
+                .merkle_tree_ingest_message_ids_count()
                 .with_label_values(&[origin.name()]),
         }
     }

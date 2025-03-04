@@ -42,9 +42,9 @@ pub struct CoreMetrics {
 
     latest_tree_insertion_index: IntGaugeVec,
     merkle_tree_retrieve_insertion_total_elapsed_micros: IntCounterVec,
-    merkle_tree_retrieve_insertion_single_elapsed_micros: IntGaugeVec,
+    merkle_tree_retrieve_insertions_count: IntCounterVec,
     merkle_tree_ingest_message_id_total_elapsed_micros: IntCounterVec,
-    merkle_tree_ingest_message_id_single_elapsed_micros: IntGaugeVec,
+    merkle_tree_ingest_message_ids_count: IntCounterVec,
 
     submitter_queue_length: IntGaugeVec,
 
@@ -140,10 +140,10 @@ impl CoreMetrics {
             registry
         )?;
 
-        let merkle_tree_retrieve_insertion_single_elapsed_micros = register_int_gauge_vec_with_registry!(
+        let merkle_tree_retrieve_insertions_count = register_int_counter_vec_with_registry!(
             opts!(
-                namespaced!("merkle_tree_retrieve_insertion_single_elapsed_micros"),
-                "Elapsed time of a single retrieval of insertions by leaf index from database, in microseconds",
+                namespaced!("merkle_tree_retrieve_insertions_count"),
+                "Number of times insertion into merkle tree was retrieved by leaf index from database",
                 const_labels_ref
             ),
             &["origin"],
@@ -160,10 +160,10 @@ impl CoreMetrics {
             registry
         )?;
 
-        let merkle_tree_ingest_message_id_single_elapsed_micros = register_int_gauge_vec_with_registry!(
+        let merkle_tree_ingest_message_ids_count = register_int_counter_vec_with_registry!(
             opts!(
-                namespaced!("merkle_tree_ingest_message_id_single_elapsed_micros"),
-                "Elapsed time of a single ingestion a message id into merkle tree, in microseconds",
+                namespaced!("merkle_tree_ingest_message_ids_count"),
+                "Number of times message id was ingested into merkle tree",
                 const_labels_ref
             ),
             &["origin"],
@@ -238,9 +238,9 @@ impl CoreMetrics {
 
             latest_tree_insertion_index,
             merkle_tree_retrieve_insertion_total_elapsed_micros,
-            merkle_tree_retrieve_insertion_single_elapsed_micros,
+            merkle_tree_retrieve_insertions_count,
             merkle_tree_ingest_message_id_total_elapsed_micros,
-            merkle_tree_ingest_message_id_single_elapsed_micros,
+            merkle_tree_ingest_message_ids_count,
 
             submitter_queue_length,
 
@@ -391,14 +391,12 @@ impl CoreMetrics {
             .clone()
     }
 
-    /// Reports elapsed time of a single retrieval of insertions by leaf index from database,
-    /// in microseconds
+    /// Number of times insertion into merkle tree was retrieved by leaf index from database
     ///
     /// Labels:
     /// - `origin`: Origin chain the merkle tree.
-    pub fn merkle_tree_retrieve_insertion_single_elapsed_micros(&self) -> IntGaugeVec {
-        self.merkle_tree_retrieve_insertion_single_elapsed_micros
-            .clone()
+    pub fn merkle_tree_retrieve_insertions_count(&self) -> IntCounterVec {
+        self.merkle_tree_retrieve_insertions_count.clone()
     }
 
     /// Reports accumulated elapsed time of ingesting a message id into merkle tree,
@@ -411,13 +409,12 @@ impl CoreMetrics {
             .clone()
     }
 
-    /// Reports elapsed time of a single ingestion a message id into merkle tree, in microseconds
+    /// Number of times message id was ingested into merkle tree
     ///
     /// Labels:
     /// - `origin`: Origin chain the merkle tree.
-    pub fn merkle_tree_ingest_message_id_single_elapsed_micros(&self) -> IntGaugeVec {
-        self.merkle_tree_ingest_message_id_single_elapsed_micros
-            .clone()
+    pub fn merkle_tree_ingest_message_ids_count(&self) -> IntCounterVec {
+        self.merkle_tree_ingest_message_ids_count.clone()
     }
 
     /// Latest message nonce in the validator.
