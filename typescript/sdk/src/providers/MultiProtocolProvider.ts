@@ -27,6 +27,7 @@ import {
   TypedProvider,
   TypedTransaction,
   ViemProvider,
+  ZKSyncProvider,
 } from './ProviderType.js';
 import {
   ProviderBuilderMap,
@@ -99,12 +100,12 @@ export class MultiProtocolProvider<
     const providers = objMap(
       this.providers,
       (_, typeToProviders) => typeToProviders[ProviderType.EthersV5]?.provider,
-    ) as ChainMap<EthersV5Provider['provider'] | undefined>;
+    ) as ChainMap<ZKSyncProvider['provider'] | undefined>;
 
     const filteredProviders = objFilter(
       providers,
-      (_, p): p is EthersV5Provider['provider'] => !!p,
-    ) as ChainMap<EthersV5Provider['provider']>;
+      (_, p): p is ZKSyncProvider['provider'] => !!p,
+    ) as ChainMap<ZKSyncProvider['provider']>;
 
     newMp.setProviders(filteredProviders);
     return newMp;

@@ -43,7 +43,6 @@ export abstract class HyperlaneRouterDeployer<
     this.logger.debug(
       `Enrolling deployed routers with each other (if not already)...`,
     );
-
     // Make all routers aware of each other.
 
     // Routers that were deployed.
