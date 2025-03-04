@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Optimize HookModule.read() by removing redundant hook config derivation
+Optimize EvmHookModule read method with EvmHookReader
