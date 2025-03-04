@@ -239,6 +239,11 @@ impl Debug for MessageProcessor {
 
 #[async_trait]
 impl ProcessorExt for MessageProcessor {
+    /// The name of this processor
+    fn name(&self) -> String {
+        format!("processor::message::{}", self.domain().name())
+    }
+
     /// The domain this processor is getting messages from.
     fn domain(&self) -> &HyperlaneDomain {
         self.nonce_iterator.high_nonce_iter.db.domain()

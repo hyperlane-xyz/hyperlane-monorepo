@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 
 use crate::config::Config;
@@ -299,5 +300,19 @@ pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool
         );
         return Ok(false);
     }
+    Ok(true)
+}
+
+#[allow(dead_code)]
+pub fn provider_metrics_invariant_met(
+    relayer_port: &str,
+    expected_request_count: u32,
+    filter_hashmap: &HashMap<&str, &str>,
+) -> eyre::Result<bool> {
+    let request_count = fetch_metric(relayer_port, "hyperlane_request_count", filter_hashmap)?
+        .iter()
+        .sum::<u32>();
+
+    assert!(request_count > expected_request_count);
     Ok(true)
 }

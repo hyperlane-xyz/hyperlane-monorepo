@@ -4,7 +4,6 @@ use std::sync::OnceLock;
 use std::time;
 
 use eyre::Result;
-use hyperlane_core::{HyperlaneDomain, H160};
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
@@ -14,6 +13,7 @@ use prometheus::{
 use tokio::sync::RwLock;
 
 use ethers_prometheus::middleware::MiddlewareMetrics;
+use hyperlane_core::{HyperlaneDomain, H160};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::metrics::{
@@ -39,7 +39,13 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
+
     latest_tree_insertion_index: IntGaugeVec,
+    merkle_tree_retrieve_insertion_total_elapsed_micros: IntCounterVec,
+    merkle_tree_retrieve_insertions_count: IntCounterVec,
+    merkle_tree_ingest_message_id_total_elapsed_micros: IntCounterVec,
+    merkle_tree_ingest_message_ids_count: IntCounterVec,
+
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -124,6 +130,46 @@ impl CoreMetrics {
             registry
         )?;
 
+        let merkle_tree_retrieve_insertion_total_elapsed_micros = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_retrieve_insertion_total_elapsed_micros"),
+                "Accumulated elapsed time of retrieval of insertions by leaf index from database, in microseconds",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_retrieve_insertions_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_retrieve_insertions_count"),
+                "Number of times insertion into merkle tree was retrieved by leaf index from database",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_ingest_message_id_total_elapsed_micros = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_ingest_message_id_total_elapsed_micros"),
+                "Accumulated elapsed time of ingesting a message id into merkle tree, in microseconds",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_ingest_message_ids_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_ingest_message_ids_count"),
+                "Number of times message id was ingested into merkle tree",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
         let observed_validator_latest_index = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("observed_validator_latest_index"),
@@ -189,7 +235,12 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
+
             latest_tree_insertion_index,
+            merkle_tree_retrieve_insertion_total_elapsed_micros,
+            merkle_tree_retrieve_insertions_count,
+            merkle_tree_ingest_message_id_total_elapsed_micros,
+            merkle_tree_ingest_message_ids_count,
 
             submitter_queue_length,
 
@@ -328,6 +379,42 @@ impl CoreMetrics {
     /// - `origin`: Origin chain the leaf index is being tracked at.
     pub fn latest_tree_insertion_index(&self) -> IntGaugeVec {
         self.latest_tree_insertion_index.clone()
+    }
+
+    /// Reports accumulated elapsed time of retrieval of insertions by leaf index from database,
+    /// in microseconds.
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_retrieve_insertion_total_elapsed_micros(&self) -> IntCounterVec {
+        self.merkle_tree_retrieve_insertion_total_elapsed_micros
+            .clone()
+    }
+
+    /// Number of times insertion into merkle tree was retrieved by leaf index from database
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_retrieve_insertions_count(&self) -> IntCounterVec {
+        self.merkle_tree_retrieve_insertions_count.clone()
+    }
+
+    /// Reports accumulated elapsed time of ingesting a message id into merkle tree,
+    /// in microseconds
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_ingest_message_id_total_elapsed_micros(&self) -> IntCounterVec {
+        self.merkle_tree_ingest_message_id_total_elapsed_micros
+            .clone()
+    }
+
+    /// Number of times message id was ingested into merkle tree
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_ingest_message_ids_count(&self) -> IntCounterVec {
+        self.merkle_tree_ingest_message_ids_count.clone()
     }
 
     /// Latest message nonce in the validator.

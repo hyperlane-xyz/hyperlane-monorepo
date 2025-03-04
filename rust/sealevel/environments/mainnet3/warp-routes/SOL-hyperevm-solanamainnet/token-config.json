@@ -9,6 +9,7 @@
   "solanamainnet": {
     "type": "native",
     "decimals": 9,
-    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ"
   }
 }
