@@ -47,13 +47,17 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
 import {
+  getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
-  getRenzoGnosisSafeBuilderStagingStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHSTAGEWarpConfig.js';
 import {
+  getEZETHGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHWarpConfig,
-  getRenzoGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
+import {
+  getPZETHSTAGEGnosisSafeBuilderStrategyConfig,
+  getRenzoPZETHStagingWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getRenzoPZETHSTAGEWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
@@ -83,6 +87,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
+  [WarpRouteIds.EthereumSwellZircuitPZETHSTAGE]: getRenzoPZETHStagingWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
@@ -109,9 +114,13 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
 export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH]:
-    getRenzoGnosisSafeBuilderStrategyConfig,
+    getEZETHGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
-    getRenzoGnosisSafeBuilderStagingStrategyConfig,
+    getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.EthereumSwellZircuitPZETH]:
+    getEZETHGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.EthereumSwellZircuitPZETHSTAGE]:
+    getPZETHSTAGEGnosisSafeBuilderStrategyConfig,
 };
 
 /**
