@@ -153,12 +153,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-    const routesToEnroll = Array.from(
-      difference(
-        new Set(Object.keys(expectedRemoteRouters)),
-        new Set(Object.keys(actualRemoteRouters)),
-      ),
-    );
+    const routesToEnroll = Object.entries(expectedRemoteRouters)
+      .filter(([domain, expectedRouter]) => {
+        const actualRouter = actualRemoteRouters[domain];
+        // Enroll if router doesn't exist for domain or has different address
+        return (
+          !actualRouter ||
+          !eqAddress(actualRouter.address, expectedRouter.address)
+        );
+      })
+      .map(([domain]) => domain);
 
     if (routesToEnroll.length === 0) {
       return updateTransactions;
