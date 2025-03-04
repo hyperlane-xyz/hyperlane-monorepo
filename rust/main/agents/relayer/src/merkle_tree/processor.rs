@@ -57,11 +57,14 @@ impl ProcessorExt for MerkleTreeProcessor {
     async fn tick(&mut self) -> Result<()> {
         if let Some(insertion) = self.next_unprocessed_leaf()? {
             // Feed the message to the prover sync
-            let mut guard = self.prover_sync.write().await;
 
-            let begin = Instant::now();
-
-            guard.ingest_message_id(insertion.message_id())?;
+            let begin = {
+                // drop the guard at the end of this block
+                let mut guard = self.prover_sync.write().await;
+                let begin = Instant::now();
+                guard.ingest_message_id(insertion.message_id())?;
+                begin
+            };
 
             self.metrics
                 .merkle_tree_ingest_message_id_total_elapsed_micros
