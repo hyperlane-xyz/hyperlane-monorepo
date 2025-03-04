@@ -65,6 +65,9 @@ export const tokens = {
   zeronetwork: {
     USDC: '0x6a6394F47DD0BAF794808F2749C09bd4Ee874E70',
   },
+  mint: {
+    MINT: '0x8511138208529fe1b9a37b863c7EEE3Fe234b7Ab',
+  },
 };
 
 export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;

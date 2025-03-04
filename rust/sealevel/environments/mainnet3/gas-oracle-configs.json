@@ -19,7 +19,7 @@
     "base": {
       "oracleConfig": {
         "tokenExchangeRate": "239372224587870308412",
-        "gasPrice": "292925457",
+        "gasPrice": "234340482",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -67,7 +67,7 @@
     "optimism": {
       "oracleConfig": {
         "tokenExchangeRate": "239372224587870308412",
-        "gasPrice": "292925457",
+        "gasPrice": "234340482",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -124,6 +124,14 @@
       "oracleConfig": {
         "tokenExchangeRate": "2108704909057728572",
         "gasPrice": "26601447181",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "mint": {
+      "oracleConfig": {
+        "tokenExchangeRate": "239372224587870308412",
+        "gasPrice": "234340482",
         "tokenDecimals": 18
       },
       "overhead": 166887

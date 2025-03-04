@@ -239,7 +239,7 @@ impl SealevelRpcClient {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::JsonParsed),
             commitment: Some(CommitmentConfig::finalized()),
-            ..Default::default()
+            max_supported_transaction_version: Some(0),
         };
         self.0
             .get_transaction_with_config(signature, config)
