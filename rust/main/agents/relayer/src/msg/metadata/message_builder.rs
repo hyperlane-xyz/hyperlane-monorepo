@@ -234,7 +234,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn depth_reached() {
+    async fn depth_already_reached() {
         let base_builder = build_mock_base_builder();
         insert_mock_routing_ism(&base_builder);
 
@@ -263,7 +263,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn zero_ism_count() {
+    async fn ism_count_already_reached() {
         let base_builder = build_mock_base_builder();
         insert_mock_routing_ism(&base_builder);
 
