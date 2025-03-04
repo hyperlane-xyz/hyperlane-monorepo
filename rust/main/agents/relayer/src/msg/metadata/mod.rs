@@ -5,6 +5,7 @@ mod ccip_read;
 mod message_builder;
 mod metadata_builder;
 mod multisig;
+mod null_metadata;
 mod routing;
 
 pub(crate) use base::{
@@ -12,4 +13,4 @@ pub(crate) use base::{
 };
 pub(crate) use base_builder::{BaseMetadataBuilder, BaseMetadataBuilderTrait};
 pub(crate) use message_builder::MessageMetadataBuilder;
-pub(crate) use metadata_builder::{MessageMetadataBuildParams, MetadataBuilder};
+pub(crate) use metadata_builder::MetadataBuilder;

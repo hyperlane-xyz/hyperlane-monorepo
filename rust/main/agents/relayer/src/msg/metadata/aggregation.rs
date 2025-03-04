@@ -11,9 +11,7 @@ use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H25
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
-use super::{
-    metadata_builder::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
-};
+use super::{MessageMetadataBuilder, Metadata, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -123,26 +121,18 @@ impl AggregationIsmMetadataBuilder {
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
     #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn build(
-        &self,
-        message: &HyperlaneMessage,
-        params: MessageMetadataBuildParams,
-    ) -> eyre::Result<Metadata> {
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self
             .base_builder()
-            .build_aggregation_ism(params.ism_address)
+            .build_aggregation_ism(ism_address)
             .await
             .context(CTX)?;
         let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
-            let params = MessageMetadataBuildParams {
-                ism_address: *ism_address,
-                ..params.clone()
-            };
-            message_builder::build_message_metadata(&self.base, message, params)
+            message_builder::build_message_metadata(self.base.clone(), message, *ism_address)
         }))
         .await;
 

@@ -22,7 +22,7 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
+use crate::msg::metadata::MetadataBuildError;
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -275,10 +275,8 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let metadata_build_params =
-            MessageMetadataBuildParams::new(ism_address, ISM_MAX_DEPTH, ISM_MAX_COUNT);
         let metadata = match message_metadata_builder
-            .build(&self.message, metadata_build_params)
+            .build(ism_address, &self.message)
             .await
         {
             Ok(metadata) => metadata,
@@ -307,15 +305,18 @@ impl PendingOperation for PendingMessage {
                     // These errors cannot be recovered from, so we drop them
                     MetadataBuildError::UnsupportedModuleType(reason) => {
                         warn!(?reason, "Unsupported module type");
-                        return PendingOperationResult::Drop;
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
                     }
                     MetadataBuildError::MaxIsmDepthExceeded(depth) => {
                         warn!(depth, "Max ISM depth reached");
-                        return PendingOperationResult::Drop;
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
                     }
                     MetadataBuildError::MaxIsmCountReached(count) => {
                         warn!(count, "Max ISM count reached");
-                        return PendingOperationResult::Drop;
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
                     }
                 }
             }

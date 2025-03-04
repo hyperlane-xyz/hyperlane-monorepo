@@ -15,7 +15,6 @@ use tracing::{debug, info};
 
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
-use crate::msg::metadata::metadata_builder::MessageMetadataBuildParams;
 use crate::msg::metadata::{Metadata, MetadataBuilder};
 
 #[derive(new, AsRef, Deref)]
@@ -95,16 +94,12 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
 
 #[async_trait]
 impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
-    async fn build(
-        &self,
-        message: &HyperlaneMessage,
-        params: MessageMetadataBuildParams,
-    ) -> Result<Metadata> {
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> Result<Metadata> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
             .base_builder()
-            .build_multisig_ism(params.ism_address)
+            .build_multisig_ism(ism_address)
             .await
             .context(CTX)?;
 
