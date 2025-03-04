@@ -1,7 +1,13 @@
 import { Gauge, Registry } from 'prom-client';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
-import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  Token,
+  TokenStandard,
+  WarpCore,
+  defaultMultisigConfigs,
+} from '@hyperlane-xyz/sdk';
 
 import { getWalletBalanceGauge } from '../../../src/utils/metrics.js';
 
@@ -20,6 +26,9 @@ interface WarpRouteMetrics {
   token_standard: TokenStandard;
   warp_route_id: string;
   related_chain_names: string;
+  validator_names: string;
+  number_of_validators: number;
+  validator_threshold: number;
 }
 
 const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
@@ -30,6 +39,9 @@ const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
   'token_standard',
   'warp_route_id',
   'related_chain_names',
+  'validator_names',
+  'number_of_validators',
+  'validator_threshold',
 ];
 
 const warpRouteTokenBalance = new Gauge({
@@ -76,6 +88,13 @@ export function updateTokenBalanceMetrics(
       .filter((chainName) => chainName !== token.chainName)
       .sort()
       .join(','),
+    validator_names: defaultMultisigConfigs[token.chainName].validators
+      .map((v) => v.alias)
+      .sort()
+      .join(','),
+    number_of_validators:
+      defaultMultisigConfigs[token.chainName].validators.length,
+    validator_threshold: defaultMultisigConfigs[token.chainName].threshold,
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
