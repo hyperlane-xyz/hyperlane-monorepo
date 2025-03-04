@@ -13,7 +13,7 @@ pub enum DbError {
     OpeningError {
         /// Rocksdb error during opening
         #[source]
-        source: rocksdb::Error,
+        source: Box<rocksdb::Error>,
         /// Raw database path provided
         path: PathBuf,
         /// Parsed path used
