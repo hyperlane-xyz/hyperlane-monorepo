@@ -116,7 +116,10 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
-export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter.js';
+export {
+  SealevelOverheadIgpAdapter,
+  SealevelIgpAdapter,
+} from './gas/adapters/SealevelIgpAdapter.js';
 export {
   SealevelInterchainGasPaymasterConfig,
   SealevelInterchainGasPaymasterConfigSchema,
