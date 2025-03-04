@@ -89,16 +89,17 @@ impl MerkleTreeProcessor {
             self.metrics
                 .latest_tree_insertion_index_gauge
                 .set(insertion.index() as i64);
+
+            self.metrics
+                .merkle_tree_retrieve_insertion_total_elapsed_micros
+                .inc_by(begin.elapsed().as_micros() as u64);
+            self.metrics.merkle_tree_retrieve_insertions_count.inc();
+
             Some(insertion)
         } else {
             trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
             None
         };
-
-        self.metrics
-            .merkle_tree_retrieve_insertion_total_elapsed_micros
-            .inc_by(begin.elapsed().as_micros() as u64);
-        self.metrics.merkle_tree_retrieve_insertions_count.inc();
 
         Ok(leaf)
     }
