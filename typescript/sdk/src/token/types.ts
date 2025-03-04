@@ -162,10 +162,11 @@ const _RequiredMailboxSchema = z.record(
   }),
 );
 
+export const WarpRouteDeployConfigMailboxRequiredSchema =
+  WarpRouteDeployConfigSchema.and(_RequiredMailboxSchema);
+
 export type WarpRouteDeployConfigMailboxRequired = z.infer<
-  ReturnType<
-    typeof WarpRouteDeployConfigSchema.and<typeof _RequiredMailboxSchema>
-  >
+  typeof WarpRouteDeployConfigMailboxRequiredSchema
 >;
 
 function isCollateralRebasePairedCorrectly(

@@ -12,6 +12,7 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -100,9 +101,7 @@ export async function readWarpRouteDeployConfig(
   config = await fillDefaults(context, config as any);
 
   //fillDefaults would have added a mailbox to the config if it was missing
-  return WarpRouteDeployConfigSchema.parse(
-    config,
-  ) as WarpRouteDeployConfigMailboxRequired;
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
