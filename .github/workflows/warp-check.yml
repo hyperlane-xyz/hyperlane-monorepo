@@ -3,11 +3,16 @@ name: checker
 on:
   issue_comment:
     types: ['created', 'edited']
+  pull_request:
+    branches:
+      - '*'
+  merge_group:
+  workflow_dispatch:
 
 jobs:
   check-warp-deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && github.event.issue.author_association == 'MEMBER'}}
+    if: ${{ github.event.issue.author_association == 'MEMBER'}}
     steps:
       - name: Yarn Install
         run: |
