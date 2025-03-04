@@ -78,4 +78,5 @@ export enum WarpRouteIds {
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
+  BaseCeloFraxtalInkLiskModeOptimismSoneiumSuperseedUnichainWorldchainUSDT = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
 }
