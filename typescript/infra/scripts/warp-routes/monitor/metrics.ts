@@ -88,6 +88,10 @@ export function updateTokenBalanceMetrics(
       .filter((chainName) => chainName !== token.chainName)
       .sort()
       .join(','),
+    // we are assuming that all routes are using the defaultISM
+    // we could do a check to verify this however this would exclude routes like Renzo that include the defaultISM as part of an aggregation
+    // the goal of these metrics is to inform us of the Value at risk for routes that rely (or partially rely) on the defaultISM
+    // we are technically overestimating the total value at risk using this approach as we will account for balances that are not secured by the defaultISM
     validator_names: defaultMultisigConfigs[token.chainName].validators
       .map((v) => v.alias)
       .sort()
