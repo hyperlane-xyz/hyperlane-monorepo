@@ -4,15 +4,17 @@ import { Wallet } from 'ethers';
 import { ERC20Test } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMetadata,
   TokenType,
   WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -26,6 +28,7 @@ import {
   handlePrompts,
 } from '../commands/helpers.js';
 import {
+  hyperlaneWarpApply,
   hyperlaneWarpCheck,
   hyperlaneWarpCheckRaw,
   hyperlaneWarpDeploy,
@@ -36,6 +39,7 @@ describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Addresses: ChainAddresses = {};
+  let chain2Metadata: ChainMetadata;
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
   let tokenSymbol: string;
@@ -46,6 +50,8 @@ describe('hyperlane warp check e2e tests', async function () {
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
+
+    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();
@@ -198,6 +204,50 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+
+    it(`should find differences in the remoteRouters config between the local and on chain config`, async function () {
+      const warpDeployConfig = await deployAndExportWarpRoute(
+        tokenSymbol,
+        token.address,
+      );
+
+      const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+      ]);
+
+      // Unenroll CHAIN 2 from CHAIN 3
+      const oldChain3RemoteRoutersConfig =
+        warpDeployConfig[CHAIN_NAME_3].remoteRouters;
+      const expectedChain2TokenAddress =
+        warpDeployConfig[CHAIN_NAME_3].remoteRouters![chain2Metadata.chainId]
+          .address;
+      warpDeployConfig[CHAIN_NAME_3].remoteRouters = {};
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+      await hyperlaneWarpApply(
+        WARP_DEPLOY_OUTPUT_PATH,
+        WARP_CORE_CONFIG_PATH_2_3,
+      );
+
+      // Reset the config to the original state to trigger the inconsistency
+      warpDeployConfig[CHAIN_NAME_3].remoteRouters =
+        oldChain3RemoteRoutersConfig;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+      const expectedActualText = `ACTUAL: ""\n`;
+      const expectedDiffText = `      EXPECTED:
+        routerAddress: "${expectedChain2TokenAddress.toLowerCase()}"`;
+
+      const output = await hyperlaneWarpCheck(
+        WARP_DEPLOY_OUTPUT_PATH,
+        tokenSymbol,
+      ).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(expectedDiffText);
+      expect(output.text()).to.includes(expectedActualText);
     });
   });
 });
