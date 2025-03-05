@@ -147,9 +147,6 @@ fn attempt_program_deploy(
         program_keypair_path.to_str().unwrap(),
         "--buffer",
         buffer_keypair_path.to_str().unwrap(),
-        // make sure transaction lands and is finalized before next step
-        "--commitment",
-        "finalized",
     ];
 
     let compute_unit_price_str = compute_unit_price.to_string();
@@ -157,6 +154,10 @@ fn attempt_program_deploy(
 
     // Success!
     if let Ok(true) = run_cmd(command.as_slice(), None, None) {
+        // TODO: use commitment level instead of just sleeping here?
+        println!("Sleeping for 5 seconds to fully allow program to be deployed");
+        sleep(Duration::from_secs(5));
+
         return Ok(());
     }
 
