@@ -42,7 +42,7 @@ pub struct MessageMetadataBuilder {
 impl MetadataBuilder for MessageMetadataBuilder {
     #[instrument(err, skip(self, message), fields(destination_domain=self.base_builder().destination_domain().name()))]
     async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
-        build_message_metadata(self.clone(), message, ism_address)
+        build_message_metadata(self.clone(), ism_address, message)
             .await
             .map(|res| res.metadata)
     }
@@ -74,8 +74,8 @@ impl MessageMetadataBuilder {
 /// Builds metadata for a message.
 pub async fn build_message_metadata(
     mut message_builder: MessageMetadataBuilder,
-    message: &HyperlaneMessage,
     ism_address: H256,
+    message: &HyperlaneMessage,
 ) -> Result<IsmWithMetadataAndType> {
     let ism: Box<dyn InterchainSecurityModule> = message_builder
         .base_builder()
@@ -248,7 +248,7 @@ mod test {
 
         message_builder.depth = ISM_MAX_DEPTH;
 
-        let res = build_message_metadata(message_builder, &message, ism_address)
+        let res = build_message_metadata(message_builder, ism_address, &message)
             .await
             .expect("Metadata building failed");
 
@@ -277,7 +277,7 @@ mod test {
 
         *message_builder.ism_count.lock().await = ISM_MAX_COUNT;
 
-        let res = build_message_metadata(message_builder, &message, ism_address)
+        let res = build_message_metadata(message_builder, ism_address, &message)
             .await
             .expect("Metadata building failed");
 
@@ -308,7 +308,7 @@ mod test {
                 .expect("Failed to build MessageMetadataBuilder");
         message_builder.depth = ISM_MAX_DEPTH - 2;
 
-        let res = build_message_metadata(message_builder, &message, ism_address)
+        let res = build_message_metadata(message_builder, ism_address, &message)
             .await
             .expect("Metadata building failed");
 
@@ -340,7 +340,7 @@ mod test {
 
         *message_builder.ism_count.lock().await = ISM_MAX_COUNT - 10;
 
-        let res = build_message_metadata(message_builder, &message, ism_address)
+        let res = build_message_metadata(message_builder, ism_address, &message)
             .await
             .expect("Metadata building failed");
 
@@ -411,7 +411,7 @@ mod test {
                 .expect("Failed to build MessageMetadataBuilder");
 
         *message_builder.ism_count.lock().await = ISM_MAX_COUNT - 4;
-        let res = build_message_metadata(message_builder, &message, ism_address)
+        let res = build_message_metadata(message_builder, ism_address, &message)
             .await
             .expect("Metadata building failed");
 

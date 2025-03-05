@@ -132,7 +132,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
-            message_builder::build_message_metadata(self.base.clone(), message, *ism_address)
+            message_builder::build_message_metadata(self.base.clone(), *ism_address, message)
         }))
         .await;
 
