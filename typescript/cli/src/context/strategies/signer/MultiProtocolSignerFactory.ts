@@ -112,6 +112,12 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
       userAddress && extraParams?.provider,
       'Missing StarknetAccount arguments',
     );
-    return new StarknetAccount(extraParams.provider, userAddress, privateKey);
+    return new StarknetAccount(
+      extraParams.provider,
+      userAddress,
+      privateKey,
+      undefined,
+      '0x3',
+    );
   }
 }

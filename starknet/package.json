@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "globby": "^14.1.0",
-    "starknet": "6.11.0"
+    "starknet": "^6.23.1"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
