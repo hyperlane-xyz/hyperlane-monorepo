@@ -22,9 +22,11 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
+use crate::msg::metadata::MetadataBuildError;
+
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{BaseMetadataBuilderTrait, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -40,6 +42,8 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 };
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
+pub const ISM_MAX_DEPTH: u32 = 13;
+pub const ISM_MAX_COUNT: u32 = 1000;
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -50,7 +54,7 @@ pub struct MessageContext {
     pub origin_db: Arc<dyn HyperlaneDb>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
-    pub metadata_builder: Arc<BaseMetadataBuilder>,
+    pub metadata_builder: Arc<Box<dyn BaseMetadataBuilderTrait>>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
     pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -259,9 +263,9 @@ impl PendingOperation for PendingMessage {
         };
 
         let message_metadata_builder = match MessageMetadataBuilder::new(
+            self.ctx.metadata_builder.clone(),
             ism_address,
             &self.message,
-            self.ctx.metadata_builder.clone(),
         )
         .await
         {
@@ -286,13 +290,35 @@ impl PendingOperation for PendingMessage {
                 self.metadata = Some(metadata_bytes.clone());
                 metadata_bytes
             }
-            Metadata::CouldNotFetch => {
-                return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
-            }
-            // If the metadata building is refused, we still allow it to be retried later.
-            Metadata::Refused(reason) => {
-                warn!(?reason, "Metadata building refused");
-                return self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
+            Metadata::Failed(err) => {
+                match err {
+                    MetadataBuildError::CouldNotFetch => {
+                        return self
+                            .on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
+                    }
+                    // If the metadata building is refused, we still allow it to be retried later.
+                    MetadataBuildError::Refused(reason) => {
+                        warn!(?reason, "Metadata building refused");
+                        return self
+                            .on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
+                    }
+                    // These errors cannot be recovered from, so we drop them
+                    MetadataBuildError::UnsupportedModuleType(reason) => {
+                        warn!(?reason, "Unsupported module type");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                    MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                        warn!(depth, "Max ISM depth reached");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                    MetadataBuildError::MaxIsmCountReached(count) => {
+                        warn!(count, "Max ISM count reached");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                }
             }
         };
 

@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
 
-use super::{base::MessageMetadataBuilder, Metadata, MetadataBuilder};
+use super::{
+    base::MetadataBuildError, message_builder::MessageMetadataBuilder, Metadata, MetadataBuilder,
+};
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -30,7 +32,11 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     #[instrument(err, skip(self, message))]
     async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
         const CTX: &str = "When fetching CcipRead metadata";
-        let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
+        let ism = self
+            .base_builder()
+            .build_ccip_read_ism(ism_address)
+            .await
+            .context(CTX)?;
 
         let response = ism
             .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())
@@ -38,7 +44,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         let info: OffchainLookup = match response {
             Ok(_) => {
                 info!("incorrectly configured getOffchainVerifyInfo, expected revert");
-                return Ok(Metadata::CouldNotFetch);
+                return Ok(Metadata::Failed(MetadataBuildError::CouldNotFetch));
             }
             Err(raw_error) => {
                 let matching_regex = Regex::new(r"0x[[:xdigit:]]+")?;
@@ -46,7 +52,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                     OffchainLookup::decode(hex_decode(&matching[0][2..])?)?
                 } else {
                     info!(?raw_error, "unable to parse custom error out of revert");
-                    return Ok(Metadata::CouldNotFetch);
+                    return Ok(Metadata::Failed(MetadataBuildError::CouldNotFetch));
                 }
             }
         };
@@ -90,6 +96,6 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         }
 
         // No metadata endpoints or endpoints down
-        Ok(Metadata::CouldNotFetch)
+        Ok(Metadata::Failed(MetadataBuildError::CouldNotFetch))
     }
 }
