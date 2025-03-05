@@ -84,10 +84,10 @@ export class StarknetCore {
       this.multiProtocolSigner.getStarknetSigner(origin),
     );
 
-    // Convert messageBody to Bytes struct format
     const messageBodyBytes = toStarknetMessageBytes(
       new TextEncoder().encode(body),
     );
+
     this.logger.debug({
       messageBodyBytes,
       encoded: new TextEncoder().encode(body),
@@ -103,7 +103,6 @@ export class StarknetCore {
       messageBody: messageBodyBytes,
     });
 
-    // Dispatch the message
     const dispatchTx = await mailboxContract.invoke('dispatch', [
       destinationDomain,
       recipient,
@@ -150,7 +149,6 @@ export class StarknetCore {
 
       this.logger.debug(`Listening for dispatch on ${originChain}`);
 
-      // Set up event listener using a polling approach for better reliability
       let lastBlockChecked: number | undefined;
 
       const pollForEvents = async () => {
@@ -172,56 +170,35 @@ export class StarknetCore {
           }
 
           // Get events from the blocks we haven't checked yet
-          const events = await provider.getEvents({
+          const { events } = await provider.getEvents({
             address: mailboxAddress,
             from_block: { block_number: lastBlockChecked + 1 },
             to_block: { block_number: latestBlock.block_number },
-            chunk_size: 400,
+            chunk_size: 400, // not sure what this is
           });
 
-          // keys: [['contracts::mailbox::mailbox::Dispatch']],
-          // Update the last block we checked
           lastBlockChecked = latestBlock.block_number;
 
-          // Process events
-          if (events.events.length > 0) {
-            for (const event of events.events) {
-              if (event.transaction_hash) {
-                // Get transaction receipt -> this is the receipt of the dispatch transaction
-                const receipt = await provider.getTransactionReceipt(
-                  event.transaction_hash,
+          if (events.length > 0) {
+            for (const event of events) {
+              // Get transaction receipt -> this is the receipt of the dispatch transaction
+              const receipt = await provider.getTransactionReceipt(
+                event.transaction_hash,
+              );
+
+              const parsedEvents = mailboxContract.parseEvents(receipt);
+              const messages = parseStarknetDispatchedMessages(
+                parsedEvents,
+                (domain) =>
+                  this.multiProvider.tryGetChainName(domain) ?? undefined,
+              );
+
+              for (const dispatched of messages) {
+                this.logger.info(
+                  `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
                 );
 
-                const parsedEvents = mailboxContract.parseEvents(receipt);
-
-                // Continue with your existing logic using parsedEvents
-                const messages = parseStarknetDispatchedMessages(
-                  parsedEvents,
-                  (domain) =>
-                    this.multiProvider.tryGetChainName(domain) ?? undefined,
-                );
-
-                // Process each message
-                for (const dispatched of messages) {
-                  dispatched.parsed.originChain =
-                    this.multiProvider.getChainName(dispatched.parsed.origin);
-                  dispatched.parsed.destinationChain =
-                    this.multiProvider.getChainName(
-                      dispatched.parsed.destination,
-                    );
-
-                  this.logger.info(
-                    `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
-                  );
-
-                  // Call the handler with the event data
-                  const eventData = parsedEvents.find(
-                    (event) => 'contracts::mailbox::mailbox::Dispatch' in event,
-                  );
-                  if (eventData) {
-                    await handler(dispatched, { ...event, eventData });
-                  }
-                }
+                await handler(dispatched, event);
               }
             }
           }
@@ -232,17 +209,14 @@ export class StarknetCore {
         }
       };
 
-      // Start polling
-      const intervalId = setInterval(pollForEvents, 15000); // Poll every 15 seconds
+      const intervalId = setInterval(pollForEvents, 10000); // Poll every 15 seconds
 
-      // Initial poll
       pollForEvents().catch((error) => {
         this.logger.error(
           `Error in initial poll for events on ${originChain}: ${error}`,
         );
       });
 
-      // Return a function to stop polling
       eventSubscriptions.push(() => {
         clearInterval(intervalId);
       });

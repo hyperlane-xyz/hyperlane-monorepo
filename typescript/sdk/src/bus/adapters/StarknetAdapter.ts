@@ -1,4 +1,5 @@
 import { Logger } from 'pino';
+import { ParsedEvent } from 'starknet';
 
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -91,13 +92,13 @@ export class StarknetAdapter implements MessageHandler {
    */
   protected enrichMessage(
     message: DispatchedMessage,
-    event: any,
+    event: ParsedEvent,
   ): MessageWithStatus {
     return {
       ...message,
       attempts: 0,
       lastAttempt: Date.now(),
-      dispatchTx: event.transaction_hash,
+      dispatchTx: event.transaction_hash ?? '',
       status: 'pending',
     };
   }

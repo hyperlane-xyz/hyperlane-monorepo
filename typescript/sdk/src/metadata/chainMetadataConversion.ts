@@ -97,10 +97,18 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
 
   return { chain, assets };
 }
-
 export function chainMetadataToStarknetChain(
   metadata: ChainMetadata,
 ): StarknetChain {
+  const httpUrls = metadata.rpcUrls
+    .map((url) => {
+      if (typeof url.http === 'string') {
+        return url.http;
+      }
+      return null;
+    })
+    .filter((url): url is string => url !== null);
+
   return {
     id: BigInt(metadata.chainId),
     name: metadata.name,
@@ -116,10 +124,10 @@ export function chainMetadataToStarknetChain(
     testnet: metadata.isTestnet,
     rpcUrls: {
       default: {
-        http: metadata.rpcUrls.map((url) => url.toString()),
+        http: httpUrls,
       },
       public: {
-        http: metadata.rpcUrls.map((url) => url.toString()),
+        http: httpUrls,
       },
     },
   };
