@@ -31,7 +31,7 @@ import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { proxyAdmin } from './../deploy/proxy.js';
-import { TokenType } from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   HypTokenConfig,
   HypTokenRouterConfig,
@@ -143,8 +143,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
           to: warpRouteAddress,
           value: BigNumber.from(0),
         },
-        // Use zero address as the sender as signer is not provided for read commands
-        constants.AddressZero,
+        NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
       );
       return TokenType.native;
     } catch (e) {
