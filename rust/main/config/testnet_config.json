@@ -1315,13 +1315,13 @@
       },
       "displayName": "Hyperliquid EVM Testnet",
       "domainId": 998,
-      "gasCurrencyCoinGeckoId": "ethereum",
+      "gasCurrencyCoinGeckoId": "hyperliquid",
       "isTestnet": true,
       "name": "hyperliquidevmtestnet",
       "nativeToken": {
         "decimals": 18,
-        "name": "Ethereum",
-        "symbol": "ETH"
+        "name": "Hyperliquid",
+        "symbol": "HYPE"
       },
       "protocol": "ethereum",
       "rpcUrls": [

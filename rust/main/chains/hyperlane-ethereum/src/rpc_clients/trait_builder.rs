@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Write};
+use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,17 +15,18 @@ use ethers::prelude::{
 use ethers::types::Address;
 use ethers_signers::Signer;
 use hyperlane_core::rpc_clients::FallbackProvider;
+use hyperlane_metric::utils::url_to_host_info;
 use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Client, Url};
 use thiserror::Error;
 
-use ethers_prometheus::json_rpc_client::{
-    JsonRpcBlockGetter, JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo,
-    PrometheusJsonRpcClient, PrometheusJsonRpcClientConfig,
-};
+use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClient};
 use ethers_prometheus::middleware::{MiddlewareMetrics, PrometheusMiddlewareConf};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
+};
+use hyperlane_metric::prometheus_metric::{
+    NodeInfo, PrometheusClientMetrics, PrometheusClientMetricsBuilder, PrometheusConfig,
 };
 use tracing::instrument;
 
@@ -69,7 +70,7 @@ pub trait BuildableWithProvider {
         conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        rpc_metrics: Option<JsonRpcClientMetrics>,
+        client_metrics: Option<PrometheusClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
         Ok(match &conn.rpc_connection {
@@ -89,7 +90,7 @@ pub trait BuildableWithProvider {
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
                         url.clone(),
-                        &rpc_metrics,
+                        &client_metrics,
                         &middleware_metrics,
                     );
                     let retrying_provider =
@@ -107,7 +108,7 @@ pub trait BuildableWithProvider {
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
                         url.clone(),
-                        &rpc_metrics,
+                        &client_metrics,
                         &middleware_metrics,
                     );
                     builder = builder.add_provider(metrics_provider);
@@ -125,7 +126,7 @@ pub trait BuildableWithProvider {
                 let metrics_provider = self.wrap_rpc_with_metrics(
                     http_provider,
                     url.clone(),
-                    &rpc_metrics,
+                    &client_metrics,
                     &middleware_metrics,
                 );
                 let retrying_http_provider = RetryingProvider::new(metrics_provider, None, None);
@@ -146,28 +147,17 @@ pub trait BuildableWithProvider {
         &self,
         client: C,
         url: Url,
-        rpc_metrics: &Option<JsonRpcClientMetrics>,
+        client_metrics: &Option<PrometheusClientMetrics>,
         middleware_metrics: &Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> PrometheusJsonRpcClient<C> {
         PrometheusJsonRpcClient::new(
             client,
-            rpc_metrics
+            client_metrics
                 .clone()
-                .unwrap_or_else(|| JsonRpcClientMetricsBuilder::default().build().unwrap()),
-            PrometheusJsonRpcClientConfig {
+                .unwrap_or_else(|| PrometheusClientMetricsBuilder::default().build().unwrap()),
+            PrometheusConfig {
                 node: Some(NodeInfo {
-                    host: {
-                        let mut s = String::new();
-                        if let Some(host) = url.host_str() {
-                            s.push_str(host);
-                            if let Some(port) = url.port() {
-                                write!(&mut s, ":{port}").unwrap();
-                            }
-                            Some(s)
-                        } else {
-                            None
-                        }
-                    },
+                    host: url_to_host_info(&url),
                 }),
                 // steal the chain info from the middleware conf
                 chain: middleware_metrics
