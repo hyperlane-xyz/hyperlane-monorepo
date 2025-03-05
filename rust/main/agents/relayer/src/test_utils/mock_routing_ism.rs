@@ -50,3 +50,32 @@ impl HyperlaneChain for MockRoutingIsm {
         unimplemented!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_mock_001() {
+        let mock_ism = MockRoutingIsm::default();
+        mock_ism
+            .responses
+            .route
+            .lock()
+            .unwrap()
+            .push_back(Ok(H256::zero()));
+        mock_ism
+            .responses
+            .route
+            .lock()
+            .unwrap()
+            .push_back(Ok(H256::from_low_u64_le(10)));
+
+        let message = HyperlaneMessage::default();
+        let module_type = mock_ism.route(&message).await.expect("No response");
+        assert_eq!(module_type, H256::zero());
+
+        let module_type = mock_ism.route(&message).await.expect("No response");
+        assert_eq!(module_type, H256::from_low_u64_le(10));
+    }
+}

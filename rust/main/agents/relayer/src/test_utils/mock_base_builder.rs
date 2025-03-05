@@ -30,7 +30,7 @@ pub struct MockBaseMetadataBuilderResponses {
         ResponseList<Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MockBaseMetadataBuilder {
     pub responses: MockBaseMetadataBuilderResponses,
 }
@@ -143,5 +143,65 @@ impl BaseMetadataBuilderTrait for MockBaseMetadataBuilder {
             .unwrap()
             .pop_front()
             .expect("No mock build_checkpoint_syncer response set")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::ModuleType;
+
+    use crate::test_utils::mock_ism::MockInterchainSecurityModule;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_mock_001() {
+        let base_builder = MockBaseMetadataBuilder::default();
+        {
+            let mock_ism = MockInterchainSecurityModule::default();
+            mock_ism
+                .responses
+                .module_type
+                .lock()
+                .unwrap()
+                .push_back(Ok(ModuleType::Routing));
+            base_builder
+                .responses
+                .build_ism
+                .lock()
+                .unwrap()
+                .push_back(Ok(Box::new(mock_ism)));
+        }
+        {
+            let mock_ism = MockInterchainSecurityModule::default();
+            mock_ism
+                .responses
+                .module_type
+                .lock()
+                .unwrap()
+                .push_back(Ok(ModuleType::Aggregation));
+            base_builder
+                .responses
+                .build_ism
+                .lock()
+                .unwrap()
+                .push_back(Ok(Box::new(mock_ism)));
+        }
+
+        let ism = base_builder
+            .build_ism(H256::zero())
+            .await
+            .expect("No response");
+        let module_type = ism.module_type().await.expect("No response");
+
+        assert_eq!(module_type, ModuleType::Routing);
+
+        let ism = base_builder
+            .build_ism(H256::zero())
+            .await
+            .expect("No response");
+        let module_type = ism.module_type().await.expect("No response");
+
+        assert_eq!(module_type, ModuleType::Aggregation);
     }
 }

@@ -66,3 +66,33 @@ impl HyperlaneChain for MockInterchainSecurityModule {
         unimplemented!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::mock_ism::MockInterchainSecurityModule;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_mock_001() {
+        let mock_ism = MockInterchainSecurityModule::default();
+        mock_ism
+            .responses
+            .module_type
+            .lock()
+            .unwrap()
+            .push_back(Ok(ModuleType::Routing));
+        mock_ism
+            .responses
+            .module_type
+            .lock()
+            .unwrap()
+            .push_back(Ok(ModuleType::Aggregation));
+
+        let module_type = mock_ism.module_type().await.expect("No response");
+        assert_eq!(module_type, ModuleType::Routing);
+
+        let module_type = mock_ism.module_type().await.expect("No response");
+        assert_eq!(module_type, ModuleType::Aggregation);
+    }
+}
