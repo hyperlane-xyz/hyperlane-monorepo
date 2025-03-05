@@ -48,6 +48,12 @@ impl Metadata {
     }
 }
 
+#[async_trait::async_trait]
+pub trait MetadataBuilder: Send + Sync {
+    /// Given a message, build it's ISM metadata
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata>;
+}
+
 #[derive(Debug)]
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
