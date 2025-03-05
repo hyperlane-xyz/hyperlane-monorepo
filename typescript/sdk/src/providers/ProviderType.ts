@@ -31,6 +31,7 @@ export enum ProviderType {
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
+  CosmosModule = 'cosmos-module',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -40,6 +41,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+  [ProtocolType.CosmosModule]: ProviderType.CosmosModule,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -58,6 +60,13 @@ type ProtocolTypesMapping = {
     receipt: SolanaWeb3TransactionReceipt;
   };
   [ProtocolType.Cosmos]: {
+    transaction: CosmJsWasmTransaction;
+    provider: CosmJsWasmProvider;
+    contract: CosmJsWasmContract;
+    receipt: CosmJsWasmTransactionReceipt;
+  };
+  // TODO
+  [ProtocolType.CosmosModule]: {
     transaction: CosmJsWasmTransaction;
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
@@ -124,13 +133,21 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
+// TODO: add hyperlane sdk client type here
+export interface CosmosModuleProvider
+  extends TypedProviderBase<Promise<CosmWasmClient>> {
+  type: ProviderType.CosmosModule;
+  provider: Promise<CosmWasmClient>;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
   | ViemProvider
   | SolanaWeb3Provider
   | CosmJsProvider
-  | CosmJsWasmProvider;
+  | CosmJsWasmProvider
+  | CosmosModuleProvider;
 
 /**
  * Contracts with discriminated union of provider type

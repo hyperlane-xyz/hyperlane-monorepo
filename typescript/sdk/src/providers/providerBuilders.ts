@@ -11,6 +11,7 @@ import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
+  CosmosModuleProvider,
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
@@ -109,6 +110,17 @@ export function defaultCosmJsWasmProviderBuilder(
   };
 }
 
+export function defaultCosmosModuleProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): CosmosModuleProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  return {
+    type: ProviderType.CosmosModule,
+    provider: CosmWasmClient.connect(rpcUrls[0].http), // TODO: add cosmos module client here
+  };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -128,6 +140,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
+  [ProviderType.CosmosModule]: defaultCosmosModuleProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -137,4 +150,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
+  [ProtocolType.CosmosModule]: defaultCosmosModuleProviderBuilder,
 };

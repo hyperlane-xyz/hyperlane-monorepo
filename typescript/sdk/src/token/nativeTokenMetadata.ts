@@ -22,4 +22,10 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Atom',
     symbol: 'ATOM',
   },
+  [ProtocolType.CosmosModule]: {
+    decimals: 6,
+    denom: 'uatom',
+    name: 'Atom', // TODO: what is the native token for the cosmos module???
+    symbol: 'ATOM',
+  },
 };
