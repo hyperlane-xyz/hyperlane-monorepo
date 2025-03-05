@@ -1,6 +1,7 @@
 import {
   HIGH_URGENCY_RELAYER_FOOTER,
   HIGH_URGENCY_RELAYER_HEADER,
+  LOW_URGENCY_ENG_KEY_FUNDER_FOOTER,
   LOW_URGENCY_KEY_FUNDER_FOOTER,
   LOW_URGENCY_KEY_FUNDER_HEADER,
 } from './alert-query-templates.js';
@@ -70,7 +71,7 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       ].choiceLabel,
     queryTemplate: {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
-      footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
+      footer: LOW_URGENCY_ENG_KEY_FUNDER_FOOTER,
     },
   },
   [AlertType.HighUrgencyRelayerBalance]: {

@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  DeployedOwnableConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -28,7 +29,10 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { detectAndConfirmOrPrompt } from '../utils/input.js';
+import {
+  detectAndConfirmOrPrompt,
+  setProxyAdminConfig,
+} from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
@@ -148,6 +152,9 @@ export async function createWarpRouteDeployConfig({
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
 
+    const proxyAdmin: DeployedOwnableConfig | undefined =
+      await setProxyAdminConfig(context, chain);
+
     /**
      * The logic from the cli is as follows:
      *  --yes flag is provided: set ism to undefined (default ISM config)
@@ -189,6 +196,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -202,6 +210,7 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           isNft,
+          proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
         };
@@ -215,6 +224,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -229,6 +239,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -241,6 +252,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
         };
