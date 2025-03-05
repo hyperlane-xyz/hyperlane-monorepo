@@ -3,7 +3,10 @@ import { utils } from 'ethers';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { MockMailbox__factory, TestRecipient__factory } from '../types';
+import {
+  MockMailbox__factory,
+  TestRecipient__factory,
+} from '../core-utils/typechain';
 
 import { getSigner } from './signer';
 
