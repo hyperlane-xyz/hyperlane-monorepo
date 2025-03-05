@@ -258,3 +258,10 @@ export const avsChainCommandOption: Options = {
   demandOption: true,
   choices: ['holesky', 'ethereum'],
 };
+
+export const fixFactoriesCommandOption: Options = {
+  type: 'boolean',
+  description:
+    'Only deploy missing factory contracts while preserving existing ones',
+  default: false,
+};
