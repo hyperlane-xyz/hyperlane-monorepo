@@ -69,6 +69,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         HypERC4626Collateral implementation = new HypERC4626Collateral(
             vault,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -85,11 +86,13 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         remoteToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             address(remoteMailbox),
             localToken.localDomain()
         );
         peerToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             address(peerMailbox),
             localToken.localDomain()
         );
