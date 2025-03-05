@@ -14,12 +14,7 @@ export async function nativeBalancesAreSufficient(
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
-    // Only Ethereum chains are supported
-    if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-      logGray(`Skipping balance check for non-EVM chain: ${chain}`);
-      continue;
-    }
-    const address = multiProvider.getSigner(chain).getAddress();
+    // TODO: skip if chain is not evm
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();
