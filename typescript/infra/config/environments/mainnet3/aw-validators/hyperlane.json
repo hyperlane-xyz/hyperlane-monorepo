@@ -445,5 +445,23 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "bouncebit": {
+    "validators": ["0xaf38612d1e79ec67320d21c5f7e92419427cd154"]
+  },
+  "arcadia": {
+    "validators": ["0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38"]
+  },
+  "ronin": {
+    "validators": ["0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a"]
+  },
+  "sophon": {
+    "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
+  },
+  "story": {
+    "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
+  },
+  "subtensor": {
+    "validators": ["0xd5f8196d7060b85bea491f0b52a671e05f3d10a2"]
   }
 }
