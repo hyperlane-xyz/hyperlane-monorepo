@@ -1,18 +1,13 @@
-use std::path::Path;
-
 use maplit::hashmap;
 
-use crate::{
-    config::Config,
-    invariants::{
-        provider_metrics_invariant_met, relayer_termination_invariants_met,
-        scraper_termination_invariants_met, RelayerTerminationInvariantParams,
-    },
-    logging::log,
-    sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
-    server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
-    RELAYER_METRICS_PORT,
+use crate::config::Config;
+use crate::invariants::{
+    provider_metrics_invariant_met, relayer_termination_invariants_met,
+    scraper_termination_invariants_met, RelayerTerminationInvariantParams,
 };
+use crate::logging::log;
+use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
+use crate::{RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -20,15 +15,11 @@ use crate::{
 pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
-    solana_cli_tools_path: &Path,
-    solana_config_path: &Path,
 ) -> eyre::Result<bool> {
-    let sol_messages_expected = SOL_MESSAGES_EXPECTED;
-    let sol_messages_with_non_matching_igp = SOL_MESSAGES_WITH_NON_MATCHING_IGP;
+    let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
 
     // this is total messages expected to be delivered
-    let total_messages_expected = sol_messages_expected;
-    let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
+    let total_messages_expected = eth_messages_expected;
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
@@ -41,23 +32,18 @@ pub fn termination_invariants_met(
         msg_processed_count,
         gas_payment_events_count,
         total_messages_expected,
-        total_messages_dispatched,
-        submitter_queue_length_expected: sol_messages_with_non_matching_igp,
+        total_messages_dispatched: total_messages_expected,
+        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
         non_matching_igp_message_count: 0,
-        double_insertion_message_count: sol_messages_with_non_matching_igp,
+        double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
     };
     if !relayer_termination_invariants_met(params)? {
         return Ok(false);
     }
 
-    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
-        log!("Solana termination invariants not met");
-        return Ok(false);
-    }
-
     if !scraper_termination_invariants_met(
         gas_payment_events_count,
-        total_messages_dispatched,
+        total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
         total_messages_expected,
     )? {
         return Ok(false);
@@ -66,8 +52,8 @@ pub fn termination_invariants_met(
     if !provider_metrics_invariant_met(
         RELAYER_METRICS_PORT,
         total_messages_expected,
-        &hashmap! {"chain" => "sealeveltest1", "status" => "success"},
-        &hashmap! {"chain" => "sealeveltest1"},
+        &hashmap! {"chain" => "test1", "status" => "success"},
+        &hashmap! {"chain" => "test1"},
     )? {
         return Ok(false);
     }

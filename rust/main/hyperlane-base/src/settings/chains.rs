@@ -23,7 +23,7 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::prometheus_metric::ChainInfo;
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusConfig};
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
     SealevelRpcClient, TransactionSubmitter,
@@ -960,10 +960,17 @@ impl ChainConf {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();
-        let rpc_metrics = Some(metrics.client_metrics());
+        let client_metrics = metrics.client_metrics();
+
+        // increment provider metric countclient_metrics
+        let chain_name = PrometheusConfig::chain_name(&metrics_conf.chain);
+        client_metrics.increment_provider_instance(chain_name);
+
+        let client_metrics = Some(client_metrics);
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
+
         let res = builder
-            .build_with_connection_conf(conf, locator, signer, rpc_metrics, middleware_metrics)
+            .build_with_connection_conf(conf, locator, signer, client_metrics, middleware_metrics)
             .await;
         Ok(res?)
     }
@@ -978,6 +985,11 @@ fn build_sealevel_rpc_client(
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
     let client_metrics = metrics.client_metrics();
+
+    // increment provider metric count
+    let chain_name = PrometheusConfig::chain_name(&middleware_metrics.chain);
+    client_metrics.increment_provider_instance(chain_name);
+
     SealevelRpcClientBuilder::new(rpc_client_url)
         .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
         .build()
@@ -1015,13 +1027,18 @@ fn build_cosmos_provider(
     signer: Option<Signer>,
 ) -> ChainResult<CosmosProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_metrics = metrics.client_metrics();
+    let client_metrics = metrics.client_metrics();
+
+    // increment provider metric count
+    let chain_name = PrometheusConfig::chain_name(&middleware_metrics.chain);
+    client_metrics.increment_provider_instance(chain_name);
+
     CosmosProvider::new(
         locator.domain.clone(),
         connection_conf.clone(),
         locator,
         signer,
-        rpc_metrics,
+        client_metrics,
         middleware_metrics.chain.clone(),
     )
 }
@@ -1036,6 +1053,11 @@ fn build_cosmos_wasm_provider(
 ) -> ChainResult<CosmosWasmRpcProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
+
+    // increment provider metric count
+    let chain_name = PrometheusConfig::chain_name(&middleware_metrics.chain);
+    client_metrics.increment_provider_instance(chain_name);
+
     CosmosWasmRpcProvider::new(
         connection_conf,
         locator,
