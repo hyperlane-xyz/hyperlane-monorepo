@@ -331,16 +331,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  berabartio: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x541dd3cb282cf869d72883557badae245b63e1fd',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   berachain: {
     threshold: 3,
     validators: [

@@ -209,18 +209,6 @@ export const validatorChainConfig = (
         'polygonamoy',
       ),
     },
-    berabartio: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('berabartio'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x541dd3cb282cf869d72883557badae245b63e1fd'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'berabartio',
-      ),
-    },
     citreatestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('citreatestnet'),

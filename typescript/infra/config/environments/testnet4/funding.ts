@@ -32,7 +32,6 @@ export const keyFunderConfig: KeyFunderConfig<
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
     basesepolia: '0.1',
-    berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
     chronicleyellowstone: '0.001',
@@ -92,8 +91,6 @@ export const keyFunderConfig: KeyFunderConfig<
   igpClaimThresholdPerChain: {
     alfajores: '1',
     arbitrumsepolia: '0.05',
-    // never claim on berachain berabartio testnet
-    berabartio: '1000.0',
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',

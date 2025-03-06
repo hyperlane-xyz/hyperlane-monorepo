@@ -6,7 +6,6 @@ export const testnet4SupportedChainNames = [
   'arbitrumsepolia',
   'arcadiatestnet2',
   'basesepolia',
-  'berabartio',
   'bsctestnet',
   'camptestnet',
   'chronicleyellowstone',
