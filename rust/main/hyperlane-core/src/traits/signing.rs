@@ -112,7 +112,7 @@ impl<T: Signable> SignedType<T> {
         let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
         let sig = ethers_core::types::Signature::from(self.signature);
 
-        Ok(sig.recover(hash)?.into())
+        Ok(sig.recover(hash).map_err(Box::new)?.into())
     }
 
     /// Check whether a message was signed by a specific address
@@ -121,7 +121,7 @@ impl<T: Signable> SignedType<T> {
         let hash = ethers_core::types::H256::from(self.value.eth_signed_message_hash());
         let sig = ethers_core::types::Signature::from(self.signature);
         let signer = ethers_core::types::H160::from(signer);
-        Ok(sig.verify(hash, signer)?)
+        Ok(sig.verify(hash, signer).map_err(Box::new)?)
     }
 }
 

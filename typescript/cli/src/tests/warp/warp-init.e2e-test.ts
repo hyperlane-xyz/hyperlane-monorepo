@@ -46,6 +46,8 @@ describe('hyperlane warp init e2e tests', async function () {
       const chain2TokenConfig = warpConfig[chainName];
       expect(chain2TokenConfig.owner).equal(initialOwnerAddress);
       expect(chain2TokenConfig.type).equal(TokenType.native);
+      expect(chain2TokenConfig.interchainSecurityModule).undefined;
+      expect(chain2TokenConfig.proxyAdmin).undefined;
     }
 
     it('it should generate a warp deploy config with a single chain', async function () {

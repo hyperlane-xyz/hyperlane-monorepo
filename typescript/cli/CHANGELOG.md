@@ -1,5 +1,27 @@
 # @hyperlane-xyz/cli
 
+## 8.8.1
+
+### Patch Changes
+
+- c68529807: Update registry dependency.
+  - @hyperlane-xyz/sdk@8.8.1
+  - @hyperlane-xyz/utils@8.8.1
+
+## 8.8.0
+
+### Minor Changes
+
+- d82d24cc7: Update `hyperlane warp init` to be undefined for ISM by default.
+- b054b0424: Update `hyperlane warp init` to not output proxyAdmin by default.
+
+### Patch Changes
+
+- Updated dependencies [719d022ec]
+- Updated dependencies [c61546cb7]
+  - @hyperlane-xyz/sdk@8.8.0
+  - @hyperlane-xyz/utils@8.8.0
+
 ## 8.7.0
 
 ### Minor Changes
