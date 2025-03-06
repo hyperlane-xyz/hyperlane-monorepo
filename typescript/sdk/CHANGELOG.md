@@ -1,5 +1,24 @@
 # @hyperlane-xyz/sdk
 
+## 8.8.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+- @hyperlane-xyz/core@5.11.6
+
+## 8.8.0
+
+### Minor Changes
+
+- 719d022ec: Add availability field to Chain Metadata
+- c61546cb7: Remove priority fee for sealevel non-solana chains
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+- @hyperlane-xyz/core@5.11.5
+
 ## 8.7.0
 
 ### Minor Changes

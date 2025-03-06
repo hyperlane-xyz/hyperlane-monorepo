@@ -50,7 +50,7 @@ use crate::{
     },
     SealevelKeypair,
 };
-use crate::{tx_submitter::TransactionSubmitter, utils::force_non_signers};
+use crate::{tx_submitter::TransactionSubmitter, utils::sanitize_dynamic_accounts};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -285,9 +285,8 @@ impl SealevelMailbox {
 
         let account_metas = self.get_account_metas(instruction).await?;
 
-        // Force all dynamically provided account metas to be non-signers to protect against
-        // potential theft from the payer.
-        Ok(force_non_signers(account_metas))
+        // Ensure dynamically provided account metas are safe to prevent theft from the payer.
+        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
     async fn get_process_instruction(

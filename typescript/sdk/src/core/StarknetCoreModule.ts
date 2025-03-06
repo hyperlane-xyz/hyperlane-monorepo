@@ -46,10 +46,14 @@ export class StarknetCoreModule {
       'only protocolFee hook is accepted for required hook',
     );
 
+    // Deploy core components in sequence:
+    // 1. NoopISM - A basic interchain security module that performs no validation
     const noopIsm = await this.deployer.deployContract('noop_ism', []);
 
+    // 2. Default Hook - A basic hook implementation for message processing
     const defaultHook = await this.deployer.deployContract('hook', []);
 
+    // 3. Protocol Fee Hook - Handles fee collection for cross-chain messages
     const protocolFee = await this.deployer.deployContract('protocol_fee', [
       BigNumber.from(config.requiredHook.maxProtocolFee),
       BigNumber.from(config.requiredHook.protocolFee),
@@ -57,6 +61,8 @@ export class StarknetCoreModule {
       config.owner,
       '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
     ]);
+
+    // 4. Deploy Mailbox with initial configuration
     const mailboxContract = await this.deployMailbox(
       config.owner,
       noopIsm,
@@ -64,6 +70,7 @@ export class StarknetCoreModule {
       protocolFee,
     );
 
+    // 5. Update the configuration with custom ISM and hooks if specified
     const { defaultIsm, requiredHook } = await this.update(config, {
       chain,
       mailboxContract,
@@ -122,6 +129,7 @@ export class StarknetCoreModule {
 
     const actualConfig = await this.read(args.mailboxContract);
 
+    // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
       const defaultIsm = await this.deployer.deployIsm({
         chain: args.chain.toString(),
@@ -140,7 +148,13 @@ export class StarknetCoreModule {
       result.defaultIsm = defaultIsm;
     }
 
+    // Update required hook to MerkleTreeHook if specified
     if (expectedConfig.requiredHook) {
+      this.logger.info(
+        `Deploying MerkleTreeHook with explicit owner (${args.owner}). Note: Unlike EVM where deployer becomes owner, ` +
+          `in Starknet the owner is specified during construction.`,
+      );
+
       const merkleTreeHook = await this.deployer.deployContract(
         'merkle_tree_hook',
         [args.mailboxContract.address, args.owner],
@@ -160,6 +174,7 @@ export class StarknetCoreModule {
       result.requiredHook = merkleTreeHook;
     }
 
+    // Update owner if different from current
     if (expectedConfig.owner && actualConfig.owner !== expectedConfig.owner) {
       this.logger.trace(`Updating mailbox owner ${expectedConfig.owner}..`);
       const { transaction_hash: transferOwnershipTxHash } =

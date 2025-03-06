@@ -90,6 +90,21 @@ export class StarknetDeployer {
     const contractName =
       StarknetIsmContractName[ismType as SupportedIsmTypesOnStarknetType];
     let constructorArgs: RawArgs | undefined;
+
+    // Log ownership model difference for ownable ISMs
+    if (
+      [
+        IsmType.MERKLE_ROOT_MULTISIG,
+        IsmType.MESSAGE_ID_MULTISIG,
+        IsmType.AGGREGATION,
+      ].includes(ismType)
+    ) {
+      this.logger.info(
+        `Deploying ${ismType} with deployer (${this.account.address}) as initial owner. ` +
+          'Note: Unlike EVM, this ISM type is ownable on Starknet and ownership can be transferred later.',
+      );
+    }
+
     switch (ismType) {
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
