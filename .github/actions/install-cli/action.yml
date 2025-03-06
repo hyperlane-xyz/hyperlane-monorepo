@@ -19,10 +19,10 @@ runs:
       id: pack-cli
       run: |
         cd typescript/cli
-        echo "PACKAGED_CLI=$(npm pack --loglevel=silent | grep -i hyperlane-xyz-cli-)" >> $GITHUB_OUTPUT
+        yarn pack
 
     - name: Install the packaged CLI
       shell: bash
       run: |
         cd typescript/cli
-        npm i -g ${{ steps.pack-cli.outputs.PACKAGED_CLI }}
+        npm i -g package.tgz
