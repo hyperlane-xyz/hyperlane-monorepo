@@ -5,7 +5,6 @@ use ::futures::future;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cosmrs::{tx::Raw, Any, Tx};
-use hyperlane_core::MerkleTreeInsertion;
 use once_cell::sync::Lazy;
 use prost::Message;
 use tendermint::abci::EventAttribute;
@@ -15,7 +14,7 @@ use tracing::{instrument, warn};
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, utils, ChainCommunicationError, ChainResult, ContractLocator,
     Decode, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    SequenceAwareIndexer, H256, H512,
+    MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{

@@ -1,4 +1,4 @@
-use std::{io::Cursor, ops::Deref};
+use std::ops::Deref;
 
 use cosmrs::{
     crypto::PublicKey,
@@ -14,20 +14,6 @@ use cosmrs::{
     AccountId, Any, Coin, Tx,
 };
 use derive_new::new;
-
-use super::{rest::RestProvider, RpcProvider};
-use crate::{
-    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
-};
-use hyperlane_core::{
-    h512_to_bytes,
-    rpc_clients::{BlockNumberGetter, FallbackProvider},
-    utils::{self, to_atto},
-    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, TxnInfo, TxnReceiptInfo,
-    H256, H512, U256,
-};
 use itertools::Itertools;
 use prost::Message;
 use reqwest::Error;
@@ -41,6 +27,22 @@ use tendermint_rpc::{
 use time::OffsetDateTime;
 use tonic::async_trait;
 use tracing::{debug, trace, warn};
+
+use hyperlane_core::{
+    h512_to_bytes,
+    rpc_clients::{BlockNumberGetter, FallbackProvider},
+    utils::{self, to_atto},
+    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, TxnInfo, TxnReceiptInfo,
+    H256, H512, U256,
+};
+
+use crate::{
+    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
+};
+
+use super::{rest::RestProvider, RpcProvider};
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos-native`
 #[derive(new, Clone)]

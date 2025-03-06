@@ -1,12 +1,12 @@
-use core::panic;
 use std::str::FromStr;
+
+use tonic::async_trait;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
     MultisigIsm, ReorgPeriod, H160, H256, U256,
 };
-use tonic::async_trait;
 
 use crate::{ConnectionConf, CosmosNativeProvider, Signer, ISM};
 

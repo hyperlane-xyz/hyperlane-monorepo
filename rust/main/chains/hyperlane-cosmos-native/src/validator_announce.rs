@@ -1,14 +1,14 @@
 use std::hash::Hash;
 
 use async_trait::async_trait;
-
 use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any};
+use prost::Message;
+
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Signable, SignedType,
     TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use prost::Message;
 
 use crate::{
     signers::Signer, ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError,

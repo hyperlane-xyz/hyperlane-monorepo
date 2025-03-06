@@ -1,15 +1,11 @@
-use std::{cmp::max, sync::atomic::AtomicU32};
+use reqwest::Error;
+use serde::{de::DeserializeOwned, Deserialize, Deserializer};
+use tonic::async_trait;
 
-use base64::Engine;
 use hyperlane_core::{
     rpc_clients::{BlockNumberGetter, FallbackProvider},
     utils, ChainCommunicationError, ChainResult, ReorgPeriod, H160, H256,
 };
-use reqwest::Error;
-use serde::{de::DeserializeOwned, Deserialize, Deserializer};
-use tendermint::block::Height;
-use tendermint_rpc::endpoint::abci_query::{self, AbciQuery};
-use tonic::async_trait;
 
 use crate::HyperlaneCosmosError;
 

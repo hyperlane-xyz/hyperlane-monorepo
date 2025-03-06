@@ -5,10 +5,10 @@ use base64::Engine;
 use itertools::Itertools;
 use tracing::instrument;
 
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, MerkleTreeHook, ReorgPeriod, H256,
+    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
+    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    MerkleTreeHook, ReorgPeriod, H256,
 };
 
 use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, Signer};

@@ -5,9 +5,6 @@ use ::futures::future;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cosmrs::{tx::Raw, Any, Tx};
-use hyperlane_core::{
-    HyperlaneChain, HyperlaneDomain, InterchainGasPaymaster, InterchainGasPayment, U256,
-};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use prost::Message;
@@ -17,8 +14,9 @@ use tracing::{instrument, warn};
 
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, utils, ChainCommunicationError, ChainResult, ContractLocator,
-    Decode, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    SequenceAwareIndexer, H256, H512,
+    Decode, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::{

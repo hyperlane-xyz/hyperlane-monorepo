@@ -1,13 +1,9 @@
-use crate::{error, CosmosNativeProvider};
-use futures::future;
-use hyperlane_core::rpc_clients::BlockNumberGetter;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneProvider, Indexed, LogMeta, H256, H512, U256,
-};
-use itertools::Itertools;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
+
+use futures::future;
+use itertools::Itertools;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
@@ -16,6 +12,13 @@ use tendermint_rpc::endpoint::block_results::{self, Response as BlockResultsResp
 use tendermint_rpc::endpoint::tx;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, event, trace, warn, Level};
+
+use hyperlane_core::{
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, HyperlaneProvider,
+    Indexed, LogMeta, H256, H512, U256,
+};
+
+use crate::{error, CosmosNativeProvider};
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.

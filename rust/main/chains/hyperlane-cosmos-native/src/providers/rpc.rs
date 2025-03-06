@@ -1,5 +1,3 @@
-use std::{io::Cursor, sync::atomic::AtomicU32};
-
 use cosmrs::{
     crypto::PublicKey,
     proto::cosmos::{
@@ -10,12 +8,6 @@ use cosmrs::{
     rpc::HttpClient,
     tx::{self, Fee, MessageExt, SequenceNumber, SignDoc, SignerInfo, SignerPublicKey},
     AccountId, Any, Coin, Tx,
-};
-use hyperlane_core::{
-    h512_to_bytes,
-    rpc_clients::{BlockNumberGetter, FallbackProvider},
-    utils::to_atto,
-    AccountAddressType, ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
 };
 use itertools::Itertools;
 use prost::Message;
@@ -32,6 +24,13 @@ use tendermint_rpc::{
 };
 use tonic::async_trait;
 use tracing::{debug, warn};
+
+use hyperlane_core::{
+    h512_to_bytes,
+    rpc_clients::{BlockNumberGetter, FallbackProvider},
+    utils::to_atto,
+    AccountAddressType, ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
+};
 
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
