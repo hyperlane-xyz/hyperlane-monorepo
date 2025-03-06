@@ -24,6 +24,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     gasPrice: 0.5 * 10 ** 9, // 0.5 gwei
   //   },
   // },
+  // somniatestnet: {
+  //   transactionOverrides: {
+  //     gasLimit: 10000000,
+  //   },
+  // },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>

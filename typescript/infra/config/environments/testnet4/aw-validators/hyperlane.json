@@ -113,5 +113,11 @@
   },
   "weavevmtestnet": {
     "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
+  },
+  "carrchaintestnet": {
+    "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
+  },
+  "somniatestnet": {
+    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
   }
 }

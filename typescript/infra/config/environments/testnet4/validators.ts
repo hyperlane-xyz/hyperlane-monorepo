@@ -460,5 +460,26 @@ export const validatorChainConfig = (
         'weavevmtestnet',
       ),
     },
+
+    carrchaintestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('carrchaintestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa96dfc4d8c6cabb510701732ee01e52a75776205'],
+        },
+        'carrchaintestnet',
+      ),
+    },
+    somniatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('somniatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb3b27a27bfa94002d344e9cf5217a0e3502e018b'],
+        },
+        'somniatestnet',
+      ),
+    },
   };
 };

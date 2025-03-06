@@ -34,6 +34,7 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
+    carrchaintestnet: '0.1',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
@@ -56,6 +57,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sepolia: '5',
     // no funding for SVM chains
     solanatestnet: '0',
+    somniatestnet: '10',
     soneiumtestnet: '0.1',
     sonicblaze: '0.1',
     // no funding for SVM chains
