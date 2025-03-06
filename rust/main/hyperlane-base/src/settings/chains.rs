@@ -744,7 +744,9 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::CosmosNative(_connection_conf) => todo!(),
+            ChainConnectionConf::CosmosNative(_) => {
+                Err(eyre!("Cosmos Native does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -780,7 +782,9 @@ impl ChainConf {
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
-            ChainConnectionConf::CosmosNative(_connection_conf) => todo!(),
+            ChainConnectionConf::CosmosNative(_) => {
+                Err(eyre!("Cosmos Native does not support aggregation ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -809,8 +813,8 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
-            ChainConnectionConf::CosmosNative(_connection_conf) => {
-                Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
+            ChainConnectionConf::CosmosNative(_) => {
+                Err(eyre!("Cosmos Native does not support CCIP read ISM yet")).context(ctx)
             }
         }
         .context(ctx)
