@@ -16,8 +16,8 @@ import type {
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 import {
-  CallDetails as StarknetCallDetails,
   Contract as StarknetContract,
+  Invocation as StarknetInvocation,
   RpcProvider as StarknetProvider,
   ReceiptTx as StarknetReceiptTx,
 } from 'starknet';
@@ -245,9 +245,9 @@ export interface CosmJsWasmTransaction
 }
 
 export interface StarknetJsTransaction
-  extends TypedTransactionBase<StarknetCallDetails> {
+  extends TypedTransactionBase<StarknetInvocation> {
   type: ProviderType.Starknet;
-  transaction: StarknetCallDetails;
+  transaction: StarknetInvocation;
 }
 
 export type TypedTransaction =
