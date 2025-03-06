@@ -57,7 +57,7 @@ impl ProcessorExt for MerkleTreeProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        if let Some(insertion) = self.next_unprocessed_leaf_task().await? {
+        if let Some(insertion) = self.next_unprocessed_leaf().await? {
             // Feed the message to the prover sync
 
             let begin = {
@@ -83,53 +83,40 @@ impl ProcessorExt for MerkleTreeProcessor {
 }
 
 impl MerkleTreeProcessor {
-    async fn next_unprocessed_leaf_task(&mut self) -> Result<Option<MerkleTreeInsertion>> {
-        let index = self.leaf_index;
-        let db = self.db.clone();
-        let metrics = self.metrics.clone();
-        let name = format!("{}::retrieval::{}::{}", PREFIX, self.domain(), index);
-        let insertion = tokio::task::Builder::new()
-            .name(&name)
-            .spawn_blocking(move || Self::next_unprocessed_leaf(&index, &db, &metrics))?
-            .await??;
-        Ok(insertion)
-    }
-
-    fn next_unprocessed_leaf(
-        leaf_index: &u32,
-        db: &HyperlaneRocksDB,
-        metrics: &MerkleTreeProcessorMetrics,
-    ) -> Result<Option<MerkleTreeInsertion>> {
+    async fn next_unprocessed_leaf(&self) -> Result<Option<MerkleTreeInsertion>> {
         let begin = Instant::now();
-        let insertion = db.retrieve_merkle_tree_insertion_by_leaf_index(leaf_index)?;
-        let leaf = if let Some(insertion) = insertion {
-            Self::update_metrics(metrics, &insertion, &begin);
+        let leaf = if let Some(insertion) = self.retrieve().await? {
+            self.update_metrics(&insertion, &begin);
             Some(insertion)
         } else {
-            trace!(
-                ?leaf_index,
-                "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed"
-            );
+            trace!(leaf_index=?self.leaf_index,"No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
             None
         };
 
         Ok(leaf)
     }
 
-    fn update_metrics(
-        metrics: &MerkleTreeProcessorMetrics,
-        insertion: &MerkleTreeInsertion,
-        begin: &Instant,
-    ) {
+    async fn retrieve(&self) -> Result<Option<MerkleTreeInsertion>> {
+        let db = self.db.clone();
+        let index = self.leaf_index;
+        let name = format!("{}::retrieval::{}::{}", PREFIX, self.domain(), index);
+        let insertion = tokio::task::Builder::new()
+            .name(&name)
+            .spawn_blocking(move || db.retrieve_merkle_tree_insertion_by_leaf_index(&index))?
+            .await??;
+        Ok(insertion)
+    }
+
+    fn update_metrics(&self, insertion: &MerkleTreeInsertion, begin: &Instant) {
         // Update the metrics
         // we assume that leaves are inserted in order so this will be monotonically increasing
-        metrics
+        self.metrics
             .latest_tree_insertion_index_gauge
             .set(insertion.index() as i64);
-        metrics
+        self.metrics
             .merkle_tree_retrieve_insertion_total_elapsed_micros
             .inc_by(begin.elapsed().as_micros() as u64);
-        metrics.merkle_tree_retrieve_insertions_count.inc();
+        self.metrics.merkle_tree_retrieve_insertions_count.inc();
     }
 }
 
