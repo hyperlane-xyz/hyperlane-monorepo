@@ -2588,9 +2588,6 @@
       "index": {
         "chunk": 999,
         "from": 12593277
-      },
-      "transactionOverrides": {
-        "gasLimit": 1000000
       }
     }
   },
