@@ -3,7 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch, ignoring md files
   push:
-    branches: [main, ccip-warp-route]
+    branches: [main]
   # Triggers on pull requests, ignoring md files
   pull_request:
     branches:
