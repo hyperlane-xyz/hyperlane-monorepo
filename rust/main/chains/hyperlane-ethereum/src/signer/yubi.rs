@@ -7,7 +7,7 @@ use signature::{DigestSigner, Error};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, RwLock};
 use yubihsm::ecdsa::sec1::FromEncodedPoint;
 use yubihsm::ecdsa::sec1::ToEncodedPoint;
 use yubihsm::object;
@@ -48,8 +48,8 @@ impl Hash for YubihsmClientCacheKey {
 /// A thread safe cache for signers against a yubihsm.
 /// Yubihsms have a limited number of sessions (16), which remain open for at least 30 seconds. If a number of connections is requested
 /// too quickly, the devices resources will become exhausted leading to failures.
-static YUBIHSM_CLIENT_CACHE: LazyLock<Mutex<HashMap<YubihsmClientCacheKey, WrappedSigner>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static YUBIHSM_CLIENT_CACHE: LazyLock<RwLock<HashMap<YubihsmClientCacheKey, WrappedSigner>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Get a signer.
 /// If a matching signer is in the cache, the cached version is returned. Otherwise a new signer is initialized, and added to the cache.
@@ -64,17 +64,23 @@ fn get_signer_with_cache(
         credentials: credentials.clone(),
         id: id.clone(),
     };
-    let mut cache = YUBIHSM_CLIENT_CACHE.lock().unwrap();
 
     // If a client already exists for this key, return a clone of the Arc.
-    if let Some(existing_client) = cache.get(&cache_key) {
-        return Arc::clone(existing_client);
+    {
+        let cache = YUBIHSM_CLIENT_CACHE.read().unwrap();
+
+        if let Some(existing_client) = cache.get(&cache_key) {
+            return Arc::clone(existing_client);
+        }
     }
 
     // Build a new client and add it to the cache.
     let client = YubiHsmSigner::connect(http_config, credentials);
     let signer = Arc::new(YubiSigner::create(client, id).unwrap());
-    cache.insert(cache_key, Arc::clone(&signer));
+    {
+        let mut cache = YUBIHSM_CLIENT_CACHE.write().unwrap();
+        cache.insert(cache_key, Arc::clone(&signer));
+    }
 
     signer
 }
