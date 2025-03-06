@@ -1,7 +1,10 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils.js';
-import { provider as starknetProvider } from 'starknet';
+import {
+  Provider as StarknetProvider,
+  provider as starknetProvider,
+} from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -104,6 +107,7 @@ export async function createChainConfig({
 
   const arbitrumNitroMetadata: Pick<ChainMetadata, 'index'> = {};
   if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     const indexFrom = await detectAndConfirmOrPrompt(
       async () => {
         return (await provider.getBlockNumber()).toString();
@@ -280,7 +284,7 @@ async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
     message:
       'Do you want to set native token properties for this chain config (defaults to ETH)',
   });
-  let symbol, name, decimals;
+  let symbol, name, decimals, denom;
   if (wantNativeConfig) {
     symbol = await input({
       message: "Enter the native token's symbol:",
@@ -291,12 +295,16 @@ async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
     decimals = await input({
       message: "Enter the native token's decimals:",
     });
+    denom = await input({
+      message: "Enter the native token's address:",
+    });
   }
 
   metadata.nativeToken = {
     symbol: symbol ?? 'ETH',
     name: name ?? 'Ether',
     decimals: decimals ? parseInt(decimals, 10) : 18,
+    denom: denom ?? undefined,
   };
 }
 

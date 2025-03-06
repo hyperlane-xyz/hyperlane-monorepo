@@ -144,6 +144,7 @@ export async function runWarpRouteDeploy({
 
   const chainsByProtocol = groupChainsByProtocol(chains, multiProvider);
   const deployments: WarpCoreConfig = { tokens: [] };
+  let deploymentAddWarpRouteOptions: AddWarpRouteOptions | undefined;
 
   const routerAddresses: {
     evm: ChainMap<Address>;
@@ -179,10 +180,12 @@ export async function runWarpRouteDeploy({
             (_, contracts) => getRouter(contracts).address,
           );
 
-          const { warpCoreConfig } = await getWarpCoreConfig(
-            { context, warpDeployConfig: warpRouteConfig },
-            deployedContracts,
-          );
+          const { warpCoreConfig, addWarpRouteOptions } =
+            await getWarpCoreConfig(
+              { context, warpDeployConfig: warpRouteConfig },
+              deployedContracts,
+            );
+          deploymentAddWarpRouteOptions = addWarpRouteOptions;
           deployments.tokens = [
             ...deployments.tokens,
             ...warpCoreConfig.tokens,
@@ -211,11 +214,13 @@ export async function runWarpRouteDeploy({
           warpRouteConfig,
           multiProvider,
         });
-        const { warpCoreConfig } = await getWarpCoreConfigForStarknet(
-          warpRouteConfig,
-          multiProvider,
-          routerAddresses.starknet,
-        );
+        const { warpCoreConfig, addWarpRouteOptions } =
+          await getWarpCoreConfigForStarknet(
+            warpRouteConfig,
+            multiProvider,
+            routerAddresses.starknet,
+          );
+        deploymentAddWarpRouteOptions = addWarpRouteOptions;
         deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
         break;
 
@@ -235,7 +240,11 @@ export async function runWarpRouteDeploy({
   });
 
   fullyConnectTokens(deployments, context.multiProvider);
-  await writeDeploymentArtifacts(deployments, context, addWarpRouteOptions);
+  await writeDeploymentArtifacts(
+    deployments,
+    context,
+    deploymentAddWarpRouteOptions,
+  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -508,9 +517,18 @@ async function createWarpHook({
   return deployedHook;
 }
 
-async function getWarpCoreConfig(
-  { warpDeployConfig, context }: DeployParams,
-  contracts: HyperlaneContractsMap<TokenFactories>,
+async function getWarpCoreConfigCore<T>(
+  warpDeployConfig: WarpRouteDeployConfig,
+  multiProvider: MultiProvider,
+  contracts: T,
+  generateConfigsFn: (
+    warpCoreConfig: WarpCoreConfig,
+    warpDeployConfig: WarpRouteDeployConfig,
+    contracts: T,
+    symbol: string,
+    name: string,
+    decimals: number,
+  ) => void,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions?: AddWarpRouteOptions;
@@ -519,7 +537,7 @@ async function getWarpCoreConfig(
 
   // TODO: replace with warp read
   const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    context.multiProvider,
+    multiProvider,
     warpDeployConfig,
   );
   assert(
@@ -529,7 +547,7 @@ async function getWarpCoreConfig(
   const { decimals, symbol, name } = tokenMetadata;
   assert(decimals, 'Missing decimals on token metadata');
 
-  generateTokenConfigs(
+  generateConfigsFn(
     warpCoreConfig,
     warpDeployConfig,
     contracts,
@@ -538,9 +556,24 @@ async function getWarpCoreConfig(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig, context.multiProvider);
+  fullyConnectTokens(warpCoreConfig, multiProvider);
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
+}
+
+async function getWarpCoreConfig(
+  { warpDeployConfig, context }: DeployParams,
+  contracts: HyperlaneContractsMap<TokenFactories>,
+): Promise<{
+  warpCoreConfig: WarpCoreConfig;
+  addWarpRouteOptions?: AddWarpRouteOptions;
+}> {
+  return getWarpCoreConfigCore(
+    warpDeployConfig,
+    context.multiProvider,
+    contracts,
+    generateTokenConfigs,
+  );
 }
 
 /**
@@ -1222,32 +1255,12 @@ async function getWarpCoreConfigForStarknet(
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions?: AddWarpRouteOptions;
 }> {
-  const warpCoreConfig: WarpCoreConfig = { tokens: [] };
-
-  // TODO: replace with warp read
-  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+  return getWarpCoreConfigCore(
+    warpDeployConfig,
     multiProvider,
-    warpDeployConfig,
-  );
-  assert(
-    tokenMetadata && isTokenMetadata(tokenMetadata),
-    'Missing required token metadata',
-  );
-  const { decimals, symbol, name } = tokenMetadata;
-  assert(decimals, 'Missing decimals on token metadata');
-
-  generateTokenConfigsForStarknet(
-    warpCoreConfig,
-    warpDeployConfig,
     contracts,
-    symbol,
-    name,
-    decimals,
+    generateTokenConfigsForStarknet,
   );
-
-  fullyConnectTokens(warpCoreConfig, multiProvider);
-
-  return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
 
 function generateTokenConfigsForStarknet(
