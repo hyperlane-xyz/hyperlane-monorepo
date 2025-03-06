@@ -10,7 +10,7 @@ runs:
   using: "composite"
   steps:
     - name: yarn-build
-      uses: ../yarn-build-with-cache
+      uses: ./.github/actions/yarn-build-with-cache
       with:
         ref: ${{ inputs.ref }}
 
