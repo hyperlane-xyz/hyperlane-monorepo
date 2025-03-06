@@ -33,6 +33,7 @@ export const testnet4SupportedChainNames = [
   'soneiumtestnet',
   'sonicblaze',
   'sonicsvmtestnet',
+  'starknetsepolia',
   'suavetoliman',
   'subtensortestnet',
   'superpositiontestnet',

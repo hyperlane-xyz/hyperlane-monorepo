@@ -89,6 +89,7 @@ impl StarknetValidatorAnnounce {
         let signature_bytes = announcement.signature.to_vec();
         let signature = &to_strk_message_bytes(&signature_bytes);
 
+        println!("SAQUON announce validator: {:?}", self.contract.address);
         let tx = self
             .contract
             .announce(&EthAddress(validator), &storage_location, signature);
