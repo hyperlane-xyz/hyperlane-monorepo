@@ -155,7 +155,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_mock_001() {
+    async fn test_mock_works() {
         let base_builder = MockBaseMetadataBuilder::default();
         {
             let mock_ism = MockInterchainSecurityModule::default();

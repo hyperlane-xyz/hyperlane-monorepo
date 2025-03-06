@@ -74,7 +74,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_mock_001() {
+    async fn test_mock_works() {
         let mock_ism = MockInterchainSecurityModule::default();
         mock_ism
             .responses

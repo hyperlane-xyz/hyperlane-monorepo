@@ -34,10 +34,29 @@ pub struct MessageMetadataBuilder {
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
     pub depth: u32,
-    /// current ISM count
+    /// current ISM count.
+    /// ISM count is Arc<Mutex<>> because it will be shared between
+    /// threads as the "linked-list" of ISMs becomes a "tree" of ISMs
+    /// due to aggregation ISMs, etc.
     pub ism_count: Arc<Mutex<u32>>,
 }
 
+/// This is the entry point for recursively building ISM metadata.
+/// MessageMetadataBuilder acts as the state of the recursion.
+/// Recursion works by creating additional Builders that not only impl MetadataBuilder
+/// but also takes in an inner MessageMetadataBuilder when instantiated
+/// to keep the recursion state.
+/// ie. AggregationIsmMetadataBuilder, RoutingIsmMetadataBuilder
+/// Logic-wise, it will look something like
+/// ```
+/// MessageMetadataBuilder.build()
+///   |
+///   +-> RoutingIsmMetadataBuilder::new(self.clone()).build()
+///         |
+///         +-> self.base_builder().build()
+///                    |
+///                 MessageMetadataBuilder
+/// ```
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
     #[instrument(err, skip(self, message), fields(destination_domain=self.base_builder().destination_domain().name()))]
@@ -111,37 +130,23 @@ pub async fn build_message_metadata(
         *ism_count = ism_count.saturating_add(1);
     }
 
-    let metadata_builder: eyre::Result<Metadata> = match module_type {
+    let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
         ModuleType::MerkleRootMultisig => {
-            MerkleRootMultisigMetadataBuilder::new(message_builder)
-                .build(ism_address, message)
-                .await
+            Box::new(MerkleRootMultisigMetadataBuilder::new(message_builder))
         }
         ModuleType::MessageIdMultisig => {
-            MessageIdMultisigMetadataBuilder::new(message_builder)
-                .build(ism_address, message)
-                .await
+            Box::new(MessageIdMultisigMetadataBuilder::new(message_builder))
         }
-        ModuleType::Routing => {
-            RoutingIsmMetadataBuilder::new(message_builder)
-                .build(ism_address, message)
-                .await
-        }
-        ModuleType::Aggregation => {
-            AggregationIsmMetadataBuilder::new(message_builder)
-                .build(ism_address, message)
-                .await
-        }
-        ModuleType::CcipRead => {
-            CcipReadIsmMetadataBuilder::new(message_builder)
-                .build(ism_address, message)
-                .await
-        }
-        ModuleType::Null => NullMetadataBuilder::new().build(ism_address, message).await,
+        ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_builder)),
+        ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
+        ModuleType::Null => Box::new(NullMetadataBuilder::new()),
+        ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type).into()),
     };
-
-    let metadata = metadata_builder.context("When building metadata")?;
+    let metadata = metadata_builder
+        .build(ism_address, message)
+        .await
+        .context("When building metadata")?;
 
     Ok(IsmWithMetadataAndType {
         ism,
