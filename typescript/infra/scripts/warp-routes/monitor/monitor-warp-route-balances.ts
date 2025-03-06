@@ -181,7 +181,7 @@ async function updateTokenMetrics(
 
     if (!warpDeployConfig) {
       logger.warn(
-        `Cant read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
+        `Can't read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
       );
       return;
     }
