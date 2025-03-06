@@ -13,7 +13,7 @@ import {
   timeout,
 } from '@hyperlane-xyz/utils';
 
-import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
+import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -43,14 +43,14 @@ export async function sendTestMessage({
   if (!origin) {
     origin = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the destination chain',
+      'Select the destination chain:',
     );
   }
 
@@ -145,6 +145,7 @@ async function executeDelivery({
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
+    logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
     log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
     if (selfRelay) {

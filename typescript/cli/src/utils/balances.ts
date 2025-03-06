@@ -1,15 +1,16 @@
-import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { logGray, logGreen, logRed } from '../logger.js';
+import { autoConfirm } from '../config/prompts.js';
+import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
   chains: ChainName[],
   minGas: string,
+  skipConfirmation: boolean,
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
@@ -42,9 +43,10 @@ export async function nativeBalancesAreSufficient(
   if (allSufficient) {
     logGreen('✅ Balances are sufficient');
   } else {
-    const isResume = await confirm({
-      message: 'Deployment may fail due to insufficient balance(s). Continue?',
-    });
+    warnYellow(`Deployment may fail due to insufficient balance(s)`);
+    const isResume = await autoConfirm('Continue?', skipConfirmation, () =>
+      logBlue('Continuing deployment with insufficient balances'),
+    );
     if (!isResume) throw new Error('Canceled deployment due to low balance');
   }
 }

@@ -13,8 +13,7 @@ import type {
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
 export interface ContextSettings {
-  registryUri: string;
-  registryOverrideUri: string;
+  registryUris: string[];
   key?: string;
   fromAddress?: string;
   requiresKey?: boolean;

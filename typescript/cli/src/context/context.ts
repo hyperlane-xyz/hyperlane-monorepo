@@ -17,9 +17,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
-import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -39,8 +38,10 @@ export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
-    registryUri: argv.registry,
-    registryOverrideUri: argv.overrides,
+    registryUris: [
+      ...argv.registry,
+      ...(argv.overrides ? [argv.overrides] : []),
+    ],
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
@@ -66,9 +67,9 @@ export async function signerMiddleware(argv: Record<string, any>) {
   argv.context.multiProtocolProvider = multiProtocolProvider;
   if (!requiresKey) return argv;
 
-  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
-    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
-  );
+  const strategyConfig = strategyPath
+    ? await readChainSubmissionStrategyConfig(strategyPath)
+    : {};
 
   /**
    * Intercepts Hyperlane command to determine chains.
@@ -106,14 +107,14 @@ export async function signerMiddleware(argv: Record<string, any>) {
  * @returns context for the current command
  */
 export async function getContext({
-  registryUri,
-  registryOverrideUri,
+  registryUris,
   key,
   requiresKey,
   skipConfirmation,
   disableProxy = false,
+  strategyPath,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry(registryUris, !disableProxy);
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
@@ -133,6 +134,7 @@ export async function getContext({
     key,
     skipConfirmation: !!skipConfirmation,
     signerAddress,
+    strategyPath,
   } as CommandContext;
 }
 
@@ -142,8 +144,7 @@ export async function getContext({
  */
 export async function getDryRunContext(
   {
-    registryUri,
-    registryOverrideUri,
+    registryUris,
     key,
     fromAddress,
     skipConfirmation,
@@ -151,7 +152,7 @@ export async function getDryRunContext(
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry(registryUris, !disableProxy);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -193,13 +194,12 @@ export async function getDryRunContext(
  * and an override one (such as a local directory)
  * @returns a new MergedRegistry
  */
-function getRegistry(
-  primaryRegistryUri: string,
-  overrideRegistryUri: string,
+export function getRegistry(
+  registryUris: string[],
   enableProxy: boolean,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
-  const registries = [primaryRegistryUri, overrideRegistryUri]
+  const registries = registryUris
     .map((uri) => uri.trim())
     .filter((uri) => !!uri)
     .map((uri, index) => {

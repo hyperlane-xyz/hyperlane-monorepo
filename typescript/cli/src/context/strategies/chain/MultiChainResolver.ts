@@ -4,8 +4,9 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
@@ -26,13 +27,12 @@ import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
 import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
-  ORIGIN_DESTINATION,
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_READ,
   STRATEGY,
-  RELAYER,
   CORE_APPLY,
+  DEFAULT,
 }
 
 // This class could be broken down into multiple strategies
@@ -54,13 +54,11 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
         return this.resolveStrategyChains(argv);
-      case ChainSelectionMode.RELAYER:
-        return this.resolveRelayerChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
-      case ChainSelectionMode.ORIGIN_DESTINATION:
+      case ChainSelectionMode.DEFAULT:
       default:
-        return this.resolveOriginDestinationChains(argv);
+        return this.resolveRelayerChains(argv);
     }
   }
 
@@ -70,7 +68,7 @@ export class MultiChainResolver implements ChainResolver {
     argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
     argv.context.chains = await this.getWarpRouteConfigChains(
       argv.config.trim(),
-      argv.skipConfirmation,
+      argv.context.skipConfirmation,
     );
     return argv.context.chains;
   }
@@ -119,28 +117,6 @@ export class MultiChainResolver implements ChainResolver {
     return [argv.origin, ...argv.targets];
   }
 
-  private async resolveOriginDestinationChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const { chainMetadata } = argv.context;
-
-    argv.origin =
-      argv.origin ??
-      (await runSingleChainSelectionStep(
-        chainMetadata,
-        'Select the origin chain',
-      ));
-
-    argv.destination =
-      argv.destination ??
-      (await runSingleChainSelectionStep(
-        chainMetadata,
-        'Select the destination chain',
-      ));
-
-    return [argv.origin, argv.destination];
-  }
-
   private async resolveStrategyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -151,7 +127,31 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    return argv.chains.split(',').map((item: string) => item.trim());
+    const { multiProvider } = argv.context;
+    const chains = new Set<ChainName>();
+
+    if (argv.origin) {
+      chains.add(argv.origin);
+    }
+
+    if (argv.chain) {
+      chains.add(argv.chain);
+    }
+
+    if (argv.chains) {
+      const additionalChains = argv.chains
+        .split(',')
+        .map((item: string) => item.trim());
+      return Array.from(new Set([...chains, ...additionalChains]));
+    }
+
+    // If no destination is specified, return all EVM chains
+    if (!argv.destination) {
+      return Array.from(this.getEvmChains(multiProvider));
+    }
+
+    chains.add(argv.destination);
+    return Array.from(chains);
   }
 
   private async getWarpRouteConfigChains(
@@ -219,16 +219,20 @@ export class MultiChainResolver implements ChainResolver {
     }
   }
 
+  private getEvmChains(multiProvider: MultiProvider): ChainName[] {
+    const chains = multiProvider.getKnownChainNames();
+
+    return chains.filter(
+      (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+  }
+
   static forAgentKurtosis(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.AGENT_KURTOSIS);
   }
 
-  static forOriginDestination(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.ORIGIN_DESTINATION);
-  }
-
   static forRelayer(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.RELAYER);
+    return new MultiChainResolver(ChainSelectionMode.DEFAULT);
   }
 
   static forStrategyConfig(): MultiChainResolver {
@@ -245,5 +249,9 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
+  }
+
+  static default(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.DEFAULT);
   }
 }
