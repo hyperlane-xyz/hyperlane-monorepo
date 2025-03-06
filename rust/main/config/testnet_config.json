@@ -1515,7 +1515,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "http://0.0.0.0:8545"
+          "http": "http://127.0.0.1:8545"
         }
       ],
       "aggregationHook": "0x7F54A0734c5B443E5B04cc26B54bb8ecE0455785",
