@@ -48,7 +48,6 @@ pub struct MessageMetadataBuilder {
 /// to keep the recursion state.
 /// ie. AggregationIsmMetadataBuilder, RoutingIsmMetadataBuilder
 /// Logic-wise, it will look something like
-/// ```
 /// MessageMetadataBuilder.build()
 ///   |
 ///   +-> RoutingIsmMetadataBuilder::new(self.clone()).build()
@@ -56,7 +55,6 @@ pub struct MessageMetadataBuilder {
 ///         +-> self.base_builder().build()
 ///                    |
 ///                 MessageMetadataBuilder
-/// ```
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
     #[instrument(err, skip(self, message), fields(destination_domain=self.base_builder().destination_domain().name()))]
