@@ -8,6 +8,7 @@
   "berabartio": "10",
   "bsctestnet": "10",
   "camptestnet": "10",
+  "chronicleyellowstone": "10",
   "citreatestnet": "10",
   "connextsepolia": "10",
   "ecotestnet": "10",
@@ -18,6 +19,7 @@
   "holesky": "10",
   "hyperliquidevmtestnet": "10",
   "inksepolia": "10",
+  "monadtestnet": "10",
   "odysseytestnet": "10",
   "optimismsepolia": "10",
   "polygonamoy": "10",
@@ -29,7 +31,9 @@
   "sonicblaze": "10",
   "sonicsvmtestnet": "10",
   "suavetoliman": "10",
+  "subtensortestnet": "10",
   "superpositiontestnet": "10",
   "treasuretopaz": "10",
-  "unichaintestnet": "10"
+  "unichaintestnet": "10",
+  "weavevmtestnet": "10"
 }

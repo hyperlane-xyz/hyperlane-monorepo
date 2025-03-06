@@ -430,5 +430,47 @@ export const validatorChainConfig = (
         'sonicblaze',
       ),
     },
+
+    subtensortestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('subtensortestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33'],
+        },
+        'subtensortestnet',
+      ),
+    },
+    chronicleyellowstone: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('chronicleyellowstone'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4'],
+        },
+        'chronicleyellowstone',
+      ),
+    },
+
+    monadtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('monadtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x734628f55694d2a5f4de3e755ccb40ecd72b16d9'],
+        },
+        'monadtestnet',
+      ),
+    },
+    weavevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('weavevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40'],
+        },
+        'weavevmtestnet',
+      ),
+    },
   };
 };

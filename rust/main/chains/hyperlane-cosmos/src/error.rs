@@ -22,19 +22,19 @@ pub enum HyperlaneCosmosError {
     Bech32Encode(#[from] bech32::EncodeError),
     /// gRPC error
     #[error("{0}")]
-    GrpcError(#[from] tonic::Status),
+    GrpcError(#[from] Box<tonic::Status>),
     /// Cosmos error
     #[error("{0}")]
-    CosmosError(#[from] cosmrs::Error),
+    CosmosError(#[from] Box<cosmrs::Error>),
     /// Cosmos error report
     #[error("{0}")]
-    CosmosErrorReport(#[from] cosmrs::ErrorReport),
+    CosmosErrorReport(#[from] Box<cosmrs::ErrorReport>),
     #[error("{0}")]
     /// Cosmrs Tendermint Error
-    CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
+    CosmrsTendermintError(#[from] Box<cosmrs::tendermint::Error>),
     #[error("{0}")]
     /// CosmWasm Error
-    CosmWasmError(#[from] cosmwasm_std::StdError),
+    CosmWasmError(#[from] Box<cosmwasm_std::StdError>),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),
@@ -43,7 +43,7 @@ pub enum HyperlaneCosmosError {
     TonicGenError(#[from] tonic::codegen::StdError),
     /// Tendermint RPC Error
     #[error(transparent)]
-    TendermintError(#[from] tendermint_rpc::error::Error),
+    TendermintError(#[from] Box<tendermint_rpc::error::Error>),
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
