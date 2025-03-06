@@ -55,11 +55,15 @@ impl RuntimeMetrics {
 
     /// Spawns a tokio task to update the metrics
     pub fn spawn(self) -> JoinHandle<()> {
-        tokio::spawn(async move {
-            self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                .await;
-        }
-        .instrument(info_span!("RuntimeMetricsUpdater")))
+        tokio::task::Builder::new()
+            .name("metrics::runtime")
+            .spawn(
+                async move {
+                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                        .await;
+                }
+                .instrument(info_span!("RuntimeMetricsUpdater")),
+            )
+            .expect("spawning tokio task from Builder is infallible")
     }
 }
-
