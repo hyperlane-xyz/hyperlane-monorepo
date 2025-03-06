@@ -247,7 +247,7 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
       console.log('starknet', metadata);
       return {
         type: AgentSignerKeyType.Starknet,
-        address: 'QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd',
+        address: 'VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV',
         key: 'PRIVATE_KEY',
       };
     }

@@ -442,6 +442,20 @@ export const validatorChainConfig = (
         'paradexsepolia',
       ),
     },
+
+    starknetsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('starknetsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'starknetsepolia',
+      ),
+    },
+
     subtensortestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('subtensortestnet'),

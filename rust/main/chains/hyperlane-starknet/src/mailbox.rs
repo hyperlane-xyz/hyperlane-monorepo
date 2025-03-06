@@ -74,7 +74,7 @@ impl StarknetMailbox {
             &conn.url,
             signer.local_wallet(),
             &signer.address,
-            true,
+            false,
             locator.domain.id(),
         );
 

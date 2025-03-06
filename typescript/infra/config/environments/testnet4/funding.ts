@@ -56,6 +56,7 @@ export const keyFunderConfig: KeyFunderConfig<
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
+    starknetsepolia: '0',
     // no funding for SVM chains
     solanatestnet: '0',
     soneiumtestnet: '0.1',
@@ -87,6 +88,7 @@ export const keyFunderConfig: KeyFunderConfig<
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
+    starknetsepolia: '0',
     // no funding for solana
     solanatestnet: '0',
     superpositiontestnet: '0',
@@ -113,6 +115,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',
+    starknetsepolia: '0', // starknetsepolia doesn't have IGP currently
     superpositiontestnet: '0.1',
   },
 };
