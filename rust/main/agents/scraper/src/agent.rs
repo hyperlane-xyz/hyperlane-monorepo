@@ -91,7 +91,7 @@ impl BaseAgent for Scraper {
             async move {
                 server.run();
             }
-            .instrument(info_span!("RelaScraperyer server")),
+            .instrument(info_span!("Scraper server")),
         );
         tasks.push(server_task);
 
