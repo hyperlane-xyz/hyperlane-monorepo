@@ -34,9 +34,31 @@ pub struct RestProvider {
 #[derive(serde::Deserialize, Clone, Debug)]
 pub struct IncrementalTree {
     /// base64 encoded strings
-    pub branch: [String; 32],
+    pub leafs: [String; 32],
     /// leaf count
     pub count: usize,
+    /// base 64 encoded merkle tree root
+    pub root: String,
+}
+
+/// Merkle Tree Hook
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct MerkleTreeHook {
+    /// 32 byte hex string
+    pub id: String,
+    /// 32 byte hex string
+    pub owner: String,
+    /// 32 byte hex string
+    pub mailbox_id: String,
+    /// incremental merkle tree
+    pub merkle_tree: IncrementalTree,
+}
+
+/// Merkle Tree Hook Response
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct MerkleTreeHookResponse {
+    /// Merkle Tree Hook
+    pub merkle_tree_hook: MerkleTreeHook,
 }
 
 /// Mailbox
@@ -47,26 +69,13 @@ pub struct Mailbox {
     /// 32 byte hex string
     pub id: String,
     /// bech32 encoded address
-    pub creator: String,
+    pub owner: String,
     /// number of messages sent
     pub message_sent: usize,
     /// number of messages received
     pub message_received: usize,
     /// 32 byte hex string, address of the default ism
     pub default_ism: String,
-    /// cucrrent incremental tree of the mailbox
-    pub tree: IncrementalTree,
-}
-
-/// MultiSig ISM
-///
-/// contains the validator public keys and threshold
-#[derive(serde::Deserialize, Clone, Debug)]
-pub struct MultiSig {
-    /// ethereum addresses of the validators
-    pub validator_pub_keys: Vec<String>,
-    /// threshold for the multi sig to be valid
-    pub threshold: usize,
 }
 
 /// ISM Types
@@ -78,23 +87,27 @@ pub struct MultiSig {
 pub enum ISM {
     /// Multisig ISM
     MultiSigISM {
+        /// custom type url for the ISM
+        #[serde(rename = "@type")]
+        type_url: String,
         /// 32 byte hex string
         id: String,
         /// bech32 encoded address
-        creator: String,
-        /// type of ISM (MultiSig)
-        ism_type: usize,
-        /// MultiSig relevant values like validators and threshold
-        multi_sig: MultiSig,
+        owner: String,
+        /// ethereum addresses of the validators
+        validators: Vec<String>,
+        /// threshold for the multi sig to be valid
+        threshold: usize,
     },
     /// NoOp ISM
     NoOpISM {
+        /// custom type url for the ISM
+        #[serde(rename = "@type")]
+        type_url: String,
         /// 32 byte hex string
         id: String,
         /// bech32 encoded address
-        creator: String,
-        /// type of ISM (NoOp)
-        ism_type: usize,
+        owner: String,
     },
 }
 
@@ -110,9 +123,15 @@ pub struct MailboxResponse {
     mailbox: Mailbox,
 }
 
+/// Single ISM
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct IsmResponse {
+    ism: ISM,
+}
+
 /// List of ISM
 #[derive(serde::Deserialize, Clone, Debug)]
-pub struct ISMResponse {
+pub struct IsmsResponse {
     isms: Vec<ISM>,
 }
 
@@ -125,17 +144,13 @@ pub struct WarpRoute {
     /// 32 byte hex encoded address
     pub id: String,
     /// bech32 encoded address
-    pub creator: String,
+    pub owner: String,
     /// Type of token being bridged
     pub token_type: String,
     /// 32 byte hex encoded address
     pub origin_mailbox: String,
     /// Original denomination of the token
     pub origin_denom: String,
-    /// Domain ID of the receiver chain
-    pub receiver_domain: usize,
-    /// 32 byte hex encoded address. NOTE: 20 byte address are padded to with zeros to 32 bytes
-    pub receiver_contract: String,
 }
 
 /// Response wrapper for warp routes query
@@ -143,13 +158,6 @@ pub struct WarpRoute {
 pub struct WarpRoutesResponse {
     /// List of available warp routes
     pub tokens: Vec<WarpRoute>,
-}
-
-/// Response containing a count value
-#[derive(serde::Deserialize, Clone, Debug)]
-pub struct CountResponse {
-    /// The count value
-    pub count: u32,
 }
 
 /// Response indicating message delivery status
@@ -223,6 +231,38 @@ impl RestProvider {
         }
     }
 
+    async fn get_at_height<T>(&self, path: &str, height: u32) -> ChainResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        self.clients
+            .call(move |client| {
+                let path = path.to_owned();
+                let future = async move {
+                    let final_url = client.url.to_string() + "hyperlane/v1/" + &path;
+                    let request = reqwest::Client::new();
+                    let response = request
+                        .get(final_url.clone())
+                        .header("x-cosmos-block-height", height)
+                        .send()
+                        .await
+                        .map_err(HyperlaneCosmosError::from)?;
+
+                    let result: Result<T, Error> = response.json().await;
+                    match result {
+                        Ok(result) => Ok(result),
+                        Err(err) => Err(HyperlaneCosmosError::ParsingFailed(format!(
+                            "Failed to parse response for: {:?} {:?}",
+                            final_url, err
+                        ))
+                        .into()),
+                    }
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
     async fn get<T>(&self, path: &str, reorg_period: ReorgPeriod) -> ChainResult<T>
     where
         T: DeserializeOwned,
@@ -256,7 +296,11 @@ impl RestProvider {
                                 .await
                                 .map_err(HyperlaneCosmosError::from)?
                         }
-                        ReorgPeriod::Tag(_) => todo!(),
+                        ReorgPeriod::Tag(_) => {
+                            return Err(ChainCommunicationError::from_other_str(
+                                "tag reorg period not supported by cosmos native",
+                            ))
+                        }
                     };
 
                     let result: Result<T, Error> = response.json().await;
@@ -289,8 +333,14 @@ impl RestProvider {
 
     /// list of all isms
     pub async fn isms(&self, reorg_period: ReorgPeriod) -> ChainResult<Vec<ISM>> {
-        let isms: ISMResponse = self.get("isms", reorg_period).await?;
+        let isms: IsmsResponse = self.get("isms", reorg_period).await?;
         Ok(isms.isms)
+    }
+
+    /// ism details of specific ism
+    pub async fn ism(&self, ism: H256, reorg_period: ReorgPeriod) -> ChainResult<ISM> {
+        let ism: IsmResponse = self.get(&format!("isms/{ism:?}"), reorg_period).await?;
+        Ok(ism.ism)
     }
 
     /// list of all warp routes
@@ -299,70 +349,60 @@ impl RestProvider {
         Ok(warp.tokens)
     }
 
-    /// returns the current leaf count for mailbox
-    pub async fn leaf_count(&self, mailbox: H256, reorg_period: ReorgPeriod) -> ChainResult<u32> {
-        let leafs: CountResponse = self
-            .get(&format!("mailboxes/{mailbox:?}/tree/count"), reorg_period)
+    /// returns the current nonce for the mailbox
+    pub async fn mailbox_nonce(
+        &self,
+        mailbox: H256,
+        reorg_period: ReorgPeriod,
+    ) -> ChainResult<u32> {
+        let mailbox: MailboxResponse = self
+            .get(&format!("mailboxes/{mailbox:?}"), reorg_period)
             .await?;
-        Ok(leafs.count)
+        Ok(mailbox.mailbox.message_sent as u32)
     }
 
-    /// returns the current leaf count for mailbox
-    pub async fn leaf_count_at_height(&self, mailbox: H256, height: u32) -> ChainResult<u32> {
-        self.clients
-            .call(move |client| {
-                let mailbox = mailbox.clone();
-                let future = async move {
-                    let final_url = &format!(
-                        "{}/hyperlane/v1/mailboxes/{mailbox:?}/tree/count",
-                        client.url
-                    );
-                    let client = reqwest::Client::new();
-                    let response = client
-                        .get(final_url.clone())
-                        .header("x-cosmos-block-height", height)
-                        .send()
-                        .await
-                        .map_err(HyperlaneCosmosError::from)?;
+    /// returns the leaf count for a merkle tree hook at a specific height
+    pub async fn leaf_count_at_height(
+        &self,
+        merkle_tree_hook: H256,
+        height: u32,
+    ) -> ChainResult<u32> {
+        let response: MerkleTreeHookResponse = self
+            .get_at_height(&format!("merkle_tree_hooks/{merkle_tree_hook:?}"), height)
+            .await?;
+        Ok(response.merkle_tree_hook.merkle_tree.count as u32)
+    }
 
-                    let result: Result<CountResponse, Error> = response.json().await;
-                    match result {
-                        Ok(result) => Ok(result.count),
-                        Err(err) => Err(HyperlaneCosmosError::ParsingFailed(format!(
-                            "Failed to parse response for: {:?} {:?} height:{height}",
-                            final_url, err
-                        ))
-                        .into()),
-                    }
-                };
-                Box::pin(future)
-            })
-            .await
+    /// returns nonce for a mailbox at a specific height
+    pub async fn nonce_at_height(&self, mailbox: H256, height: u32) -> ChainResult<u32> {
+        let response: MailboxResponse = self
+            .get_at_height(&format!("mailboxes/{mailbox:?}"), height)
+            .await?;
+        Ok(response.mailbox.message_sent as u32)
     }
 
     /// returns if the message id has been delivered
-    pub async fn delivered(&self, message_id: H256) -> ChainResult<bool> {
+    pub async fn delivered(&self, mailbox_id: H256, message_id: H256) -> ChainResult<bool> {
         let response: DeliveredResponse = self
-            .get(&format!("delivered/{message_id:?}"), ReorgPeriod::None)
+            .get(
+                &format!("mailboxes/{mailbox_id:?}/delivered/{message_id:?}"),
+                ReorgPeriod::None,
+            )
             .await?;
         Ok(response.delivered)
     }
 
-    /// returns the latest checkpoint
-    pub async fn latest_checkpoint(
+    /// returns the merkle tree hook information
+    pub async fn merkle_tree_hook(
         &self,
-        mailbox: H256,
-        height: ReorgPeriod,
-    ) -> ChainResult<LatestCheckpointResponse> {
-        let response: LatestCheckpointResponse = self
-            .get(
-                &format!("mailboxes/{mailbox:?}/tree/latest_checkpoint"),
-                height,
-            )
+        address: H256,
+        reorg_period: ReorgPeriod,
+    ) -> ChainResult<MerkleTreeHook> {
+        let response: MerkleTreeHookResponse = self
+            .get(&format!("merkle_tree_hooks/{address:?}"), reorg_period)
             .await?;
-        Ok(response)
+        Ok(response.merkle_tree_hook)
     }
-
     /// returns the recipient ism
     pub async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let response: RecipientIsmResponse = self
@@ -373,12 +413,16 @@ impl RestProvider {
         })
     }
 
-    /// mailbox/v1/announced_storage_locations/{validator_address}
-    pub async fn validator_storage_locations(&self, validator: H256) -> ChainResult<Vec<String>> {
+    /// returns the current storage locations for this validator
+    pub async fn validator_storage_locations(
+        &self,
+        mailbox: H256,
+        validator: H256,
+    ) -> ChainResult<Vec<String>> {
         let validator = H160::from(validator);
         let response: ValidatorStorageLocationsResponse = self
             .get(
-                &format!("announced_storage_locations/{validator:?}"),
+                &format!("mailboxes/{mailbox:?}/announced_storage_locations/{validator:?}"),
                 ReorgPeriod::None,
             )
             .await?;

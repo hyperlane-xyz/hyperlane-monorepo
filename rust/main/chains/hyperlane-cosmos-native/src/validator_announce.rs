@@ -4,9 +4,9 @@ use async_trait::async_trait;
 
 use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any};
 use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome,
-    ValidatorAnnounce, H160, H256, U256,
+    Announcement, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Signable, SignedType,
+    TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 use prost::Message;
 
@@ -74,7 +74,7 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
             let locations = self
                 .provider
                 .rest()
-                .validator_storage_locations(validator.clone())
+                .validator_storage_locations(self.address.clone(), validator.clone())
                 .await;
             if let Ok(locations) = locations {
                 validator_locations.push(locations);
@@ -99,17 +99,23 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
         };
 
         let any_msg = Any {
-            type_url: "/hyperlane.core.v1.MsgAnnounceValidator".to_string(),
+            type_url: "/hyperlane.core.interchain_security.v1.MsgAnnounceValidator".to_string(),
             value: announce.encode_to_vec(),
         };
 
         let response = self.provider.rpc().send(vec![any_msg], None).await?;
-        let tx = TxResponse::decode(response.data).map_err(HyperlaneCosmosError::from)?;
+
+        // we assume that the underlying cosmos chain does not have gas refunds
+        // in that case the gas paid will always be:
+        // gas_wanted * gas_price
+        let gas_price =
+            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
+
         Ok(TxOutcome {
             transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
-            executed: tx.code == 0,
-            gas_used: tx.gas_used.into(),
-            gas_price: U256::one().try_into()?,
+            executed: response.check_tx.code.is_ok() && response.tx_result.code.is_ok(),
+            gas_used: response.tx_result.gas_used.into(),
+            gas_price,
         })
     }
 

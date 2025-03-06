@@ -35,21 +35,11 @@ impl CosmosNativeIsm {
         })
     }
 
-    async fn get_ism(&self) -> ChainResult<Option<ISM>> {
-        let isms = self.provider.rest().isms(ReorgPeriod::None).await?;
-        for ism in isms {
-            match ism.clone() {
-                ISM::NoOpISM { id, .. } if id.parse::<H256>()? == self.address => {
-                    return Ok(Some(ism))
-                }
-                ISM::MultiSigISM { id, .. } if id.parse::<H256>()? == self.address => {
-                    return Ok(Some(ism))
-                }
-                _ => {}
-            }
-        }
-
-        Ok(None)
+    async fn get_ism(&self) -> ChainResult<ISM> {
+        self.provider
+            .rest()
+            .ism(self.address.clone(), ReorgPeriod::None)
+            .await
     }
 }
 
@@ -79,21 +69,11 @@ impl InterchainSecurityModule for CosmosNativeIsm {
     /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let isms = self.provider.rest().isms(ReorgPeriod::None).await?;
-        for ism in isms {
-            match ism {
-                ISM::NoOpISM { id, .. } if id.parse::<H256>()? == self.address => {
-                    return Ok(ModuleType::Null)
-                }
-                ISM::MultiSigISM { id, .. } if id.parse::<H256>()? == self.address => {
-                    return Ok(ModuleType::MerkleRootMultisig)
-                }
-                _ => {}
-            }
+        let ism = self.get_ism().await?;
+        match ism {
+            ISM::MultiSigISM { .. } => Ok(ModuleType::MerkleRootMultisig),
+            ISM::NoOpISM { .. } => Ok(ModuleType::Null),
         }
-        Err(ChainCommunicationError::from_other_str(
-            "cannot convert ism to contract type",
-        ))
     }
 
     /// Dry runs the `verify()` ISM call and returns `Some(gas_estimate)` if the call
@@ -117,27 +97,26 @@ impl MultisigIsm for CosmosNativeIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let ism = self.get_ism().await?.ok_or_else(|| {
-            ChainCommunicationError::from_other_str("ism contract does not exists on chain")
-        })?;
+        let ism = self.get_ism().await?;
 
         match ism {
             ISM::MultiSigISM {
+                type_url,
                 id,
-                creator,
-                ism_type,
-                multi_sig,
+                owner,
+                validators,
+                threshold,
             } => {
-                let validators = multi_sig
-                    .validator_pub_keys
+                let validators = validators
                     .iter()
                     .map(|v| H160::from_str(v).map(H256::from))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok((validators, multi_sig.threshold as u8))
+                Ok((validators, threshold as u8))
             }
-            _ => Err(ChainCommunicationError::from_other_str(
-                "ISM address is not a MultiSigISM",
-            )),
+            e => Err(ChainCommunicationError::from_other_str(&format!(
+                "ISM {:?} not a multi sig ism",
+                self.address
+            ))),
         }
     }
 }

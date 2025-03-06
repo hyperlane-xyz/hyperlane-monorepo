@@ -203,8 +203,9 @@ fn install_sim_app() -> PathBuf {
 
     let release_name = format!("{BINARY_NAME}_{target}");
     log!("Downloading Sim App {}", release_name);
+    // TODO: point to official releases on github, right now we only have this private preview binary of a simulation app    let uri = format!(
     let uri = format!(
-        "https://files.kyve.network/hyperlane/nightly/{}", // TODO: point to official releases on github, right now we only have this private preview binary of a simulation app
+        "https://files.kyve.network/hyperlane/nightly/{}",
         release_name
     );
 

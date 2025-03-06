@@ -438,8 +438,8 @@ impl HyperlaneProvider for CosmosNativeProvider {
             sender,
             recipient: Some(contract),
             receipt: Some(TxnReceiptInfo {
-                gas_used: U256::from(response.tx_result.gas_used),
-                cumulative_gas_used: U256::from(response.tx_result.gas_used),
+                gas_used: response.tx_result.gas_used.into(),
+                cumulative_gas_used: response.tx_result.gas_used.into(),
                 effective_gas_price: Some(gas_price),
             }),
             raw_input_data: None,

@@ -23,8 +23,10 @@ use tendermint::{hash::Algorithm, Hash};
 use tendermint_rpc::{
     client::CompatMode,
     endpoint::{
-        block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
-        broadcast::tx_sync, tx::Response as TxResponse,
+        block::Response as BlockResponse,
+        block_results::Response as BlockResultsResponse,
+        broadcast::{tx_commit, tx_sync},
+        tx::Response as TxResponse,
     },
     Client,
 };
@@ -333,7 +335,7 @@ impl RpcProvider {
         &self,
         msgs: Vec<Any>,
         gas_limit: Option<u64>,
-    ) -> ChainResult<tx_sync::Response> {
+    ) -> ChainResult<tx_commit::Response> {
         let gas_limit = match gas_limit {
             Some(limit) => limit,
             None => self.estimate_gas(msgs.clone()).await?,
@@ -347,13 +349,14 @@ impl RpcProvider {
             .map_err(HyperlaneCosmosError::from)?;
         let signed_tx = signed_tx.to_bytes()?;
 
+        // broadcast tx commit blocks until the tx is included in a block
         self.provider
             .call(|client| {
                 let signed_tx = signed_tx.clone();
                 let future = async move {
                     client
                         .client
-                        .broadcast_tx_sync(signed_tx)
+                        .broadcast_tx_commit(signed_tx)
                         .await
                         .map_err(ChainCommunicationError::from_other)
                 };

@@ -1,7 +1,7 @@
 use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any, Tx};
 use hex::ToHex;
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainResult, ContractLocator, HyperlaneChain,
+    rpc_clients::BlockNumberGetter, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
     RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
@@ -90,13 +90,16 @@ impl Mailbox for CosmosNativeMailbox {
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         self.provider
             .rest()
-            .leaf_count(self.address, reorg_period.clone())
+            .mailbox_nonce(self.address, reorg_period.clone())
             .await
     }
 
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        self.provider.rest().delivered(id).await
+        self.provider
+            .rest()
+            .delivered(self.address.clone(), id)
+            .await
     }
 
     /// Fetch the current default interchain security module value
@@ -134,13 +137,17 @@ impl Mailbox for CosmosNativeMailbox {
             .send(vec![any_encoded], gas_limit)
             .await?;
 
-        let tx = TxResponse::decode(response.data).map_err(HyperlaneCosmosError::from)?;
+        // we assume that the underlying cosmos chain does not have gas refunds
+        // in that case the gas paid will always be:
+        // gas_wanted * gas_price
+        let gas_price =
+            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
 
         Ok(TxOutcome {
             transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
-            executed: tx.code == 0,
-            gas_used: tx.gas_used.into(),
-            gas_price: U256::one().try_into()?,
+            executed: response.tx_result.code.is_ok() && response.check_tx.code.is_ok(),
+            gas_used: response.tx_result.gas_used.into(),
+            gas_price,
         })
     }
 
@@ -153,6 +160,7 @@ impl Mailbox for CosmosNativeMailbox {
         let hex_string = hex::encode(metadata);
         let any_encoded = self.encode_hyperlane_message(message, metadata);
         let gas_limit = self.provider.rpc().estimate_gas(vec![any_encoded]).await?;
+
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),
             gas_price: self.provider.rpc().gas_price(),

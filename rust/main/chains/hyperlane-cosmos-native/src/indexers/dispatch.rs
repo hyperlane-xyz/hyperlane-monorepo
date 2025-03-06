@@ -116,8 +116,9 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
         let sequence = self
             .provider
             .rest()
-            .leaf_count_at_height(self.address, tip)
+            .nonce_at_height(self.address, tip)
             .await?;
+
         Ok((Some(sequence), tip))
     }
 }

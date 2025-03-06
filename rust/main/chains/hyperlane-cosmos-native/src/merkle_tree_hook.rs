@@ -67,15 +67,15 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let mailbox = self
+        let hook = self
             .provider
             .rest()
-            .mailbox(self.address, reorg_period.clone())
+            .merkle_tree_hook(self.address, reorg_period.clone())
             .await?;
 
-        let branch = mailbox
-            .tree
-            .branch
+        let branch = hook
+            .merkle_tree
+            .leafs
             .iter()
             .map(|hash| {
                 let result = base64::prelude::BASE64_STANDARD.decode(hash);
@@ -87,7 +87,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
             .filter_map(|hash| hash.ok())
             .collect_vec();
 
-        if branch.len() < mailbox.tree.branch.len() {
+        if branch.len() < hook.merkle_tree.leafs.len() {
             return Err(ChainCommunicationError::CustomError(
                 "Failed to parse incremental merkle tree".to_string(),
             ));
@@ -103,16 +103,19 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         };
         Ok(IncrementalMerkle {
             branch,
-            count: mailbox.tree.count,
+            count: hook.merkle_tree.count,
         })
     }
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        self.provider
+        let result = self
+            .provider
             .rest()
-            .leaf_count(self.address, reorg_period.clone())
-            .await
+            .merkle_tree_hook(self.address, reorg_period.clone())
+            .await?;
+
+        Ok(result.merkle_tree.count as u32)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -120,17 +123,24 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         let response = self
             .provider
             .rest()
-            .latest_checkpoint(self.address, reorg_period.clone())
+            .merkle_tree_hook(self.address, reorg_period.clone())
             .await?;
         let root = base64::prelude::BASE64_STANDARD
-            .decode(response.root)
+            .decode(response.merkle_tree.root)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
         let root = H256::from_slice(&root);
+
+        let index = if response.merkle_tree.count == 0 {
+            0
+        } else {
+            response.merkle_tree.count as u32 - 1
+        };
+
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address,
             mailbox_domain: self.domain.id(),
             root,
-            index: response.count,
+            index,
         })
     }
 }

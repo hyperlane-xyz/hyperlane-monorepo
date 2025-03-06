@@ -160,7 +160,7 @@ impl SimApp {
             "set-destination-gas-config",
             "0xd7194459d45619d04a5a0f9e78dc9594a0f37fd6da8382fe12ddda6f2f46d647",
             destination_domain,
-            "1",
+            "10000000000", //1e10
             "1",
             "200000",
         ]);
@@ -196,17 +196,33 @@ impl SimApp {
             "create-collateral-token",
             "0x8ba32dc5efa59ba35e2cf6f541dfacbbf49c95891e5afc2c9ca36142de8fb880",
             DENOM,
+        ]);
+
+        // enroll the remote domain to this token
+        // cmd is following: token-id receiver-domain receiver-contract
+        self.tx(vec![
+            "hyperlane-transfer",
+            "enroll-remote-router",
+            "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2",
             destination_domain,
             "0xb32677d8121a50c7b960b8561ead86278a7d75ec786807983e1eebfcbc2d9cfc",
         ]);
 
         // create warp route
         // cmd is following: origin-mailbox denom receiver-domain receiver-contract
-        // expected address: 0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2
+        // expected address: 0xb32677d8121a50c7b960b8561ead86278a7d75ec786807983e1eebfcbc2d9cfc
         self.tx(vec![
             "hyperlane-transfer",
             "create-synthetic-token",
             "0x8ba32dc5efa59ba35e2cf6f541dfacbbf49c95891e5afc2c9ca36142de8fb880",
+        ]);
+
+        // enroll the remote domain to this token
+        // cmd is following: token-id receiver-domain receiver-contract
+        self.tx(vec![
+            "hyperlane-transfer",
+            "enroll-remote-router",
+            "0xb32677d8121a50c7b960b8561ead86278a7d75ec786807983e1eebfcbc2d9cfc",
             destination_domain,
             "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2",
         ]);
