@@ -15,6 +15,7 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
+import { HyperlaneModuleClient } from 'hyperlane-cosmos-sdk';
 import type {
   GetContractReturnType,
   PublicClient,
@@ -135,9 +136,9 @@ export interface CosmJsWasmProvider
 
 // TODO: add hyperlane sdk client type here
 export interface CosmosModuleProvider
-  extends TypedProviderBase<Promise<CosmWasmClient>> {
+  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
   type: ProviderType.CosmosModule;
-  provider: Promise<CosmWasmClient>;
+  provider: Promise<HyperlaneModuleClient>;
 }
 
 export type TypedProvider =

@@ -208,7 +208,7 @@ export class MultiProtocolProvider<
 
   getCosmosModuleProvider(
     chainNameOrId: ChainNameOrId,
-  ): CosmJsWasmProvider['provider'] {
+  ): CosmosModuleProvider['provider'] {
     return this.getSpecificProvider<CosmosModuleProvider['provider']>(
       chainNameOrId,
       ProviderType.CosmosModule,

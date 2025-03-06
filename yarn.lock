@@ -4254,6 +4254,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@bufbuild/protobuf@npm:^2.2.3":
+  version: 2.2.3
+  resolution: "@bufbuild/protobuf@npm:2.2.3"
+  checksum: 10/30bf3ac56338159dadaa87dce5372d19ff50dc32d06293bdf655e35ebc1766435b485714d3b73a3b7070ce29f58891a9e2b0f453a2d7deef583797b4a420273c
+  languageName: node
+  linkType: hard
+
 "@chain-registry/client@npm:^1.49.11":
   version: 1.53.13
   resolution: "@chain-registry/client@npm:1.53.13"
@@ -4904,7 +4911,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cosmjs/stargate@npm:^0.32.3, @cosmjs/stargate@npm:^0.32.4":
+"@cosmjs/stargate@npm:^0.32.0, @cosmjs/stargate@npm:^0.32.3, @cosmjs/stargate@npm:^0.32.4":
   version: 0.32.4
   resolution: "@cosmjs/stargate@npm:0.32.4"
   dependencies:
@@ -7588,6 +7595,7 @@ __metadata:
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
     hardhat: "npm:^2.22.2"
+    hyperlane-cosmos-sdk: "portal:/Users/troykessler/work/hyperlane/hyperlane-cosmos-sdk"
     mocha: "npm:^10.2.0"
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
@@ -18143,6 +18151,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"axios@npm:^1.7.9":
+  version: 1.8.1
+  resolution: "axios@npm:1.8.1"
+  dependencies:
+    follow-redirects: "npm:^1.15.6"
+    form-data: "npm:^4.0.0"
+    proxy-from-env: "npm:^1.1.0"
+  checksum: 10/5a09a2b39e724e018bc94d0424bb1a6042e71864039fbcc8c8d9dd50f3acd9d01f81b895994c9b46bc82c026afa3dfd1ec343a27bfe4723b70841f3b3dd6edfa
+  languageName: node
+  linkType: hard
+
 "babel-core@npm:^7.0.0-bridge.0":
   version: 7.0.0-bridge.0
   resolution: "babel-core@npm:7.0.0-bridge.0"
@@ -25306,6 +25325,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"hyperlane-cosmos-sdk@portal:/Users/troykessler/work/hyperlane/hyperlane-cosmos-sdk::locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk":
+  version: 0.0.0-use.local
+  resolution: "hyperlane-cosmos-sdk@portal:/Users/troykessler/work/hyperlane/hyperlane-cosmos-sdk::locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
+  dependencies:
+    "@bufbuild/protobuf": "npm:^2.2.3"
+    "@cosmjs/stargate": "npm:^0.32.0"
+    axios: "npm:^1.7.9"
+    long: "npm:^5.2.4"
+    protobufjs: "npm:^7.4.0"
+  languageName: node
+  linkType: soft
+
 "i18next-browser-languagedetector@npm:7.1.0":
   version: 7.1.0
   resolution: "i18next-browser-languagedetector@npm:7.1.0"
@@ -27959,6 +27990,13 @@ __metadata:
   version: 5.2.3
   resolution: "long@npm:5.2.3"
   checksum: 10/9167ec6947a825b827c30da169a7384eec6c0c9ec2f0b9c74da2e93d81159bbe39fb09c3f13dae9721d4b807ccfa09797a7dd1012f5d478e3e33ca3c78b608e6
+  languageName: node
+  linkType: hard
+
+"long@npm:^5.2.4":
+  version: 5.3.1
+  resolution: "long@npm:5.3.1"
+  checksum: 10/7713e10b4fe10db041d9939b7c4c3d73d3dd91785be72269ca8c5262feae7cb45f4eebed2b77bd346de7fe5f847e90f52c577c89ab3f2bd8a5ddc8b4098cbe35
   languageName: node
   linkType: hard
 
@@ -31114,6 +31152,26 @@ __metadata:
     "@types/node": "npm:>=13.7.0"
     long: "npm:^5.0.0"
   checksum: 10/aff4aa2a3a2f011accb51e23fcae122acbee35cb761abe51f799675a61ab39ad9a506911f307e0fdb9a1703bed1f522cfbdaafaeefd2b3aaca2ddc18f03029d9
+  languageName: node
+  linkType: hard
+
+"protobufjs@npm:^7.4.0":
+  version: 7.4.0
+  resolution: "protobufjs@npm:7.4.0"
+  dependencies:
+    "@protobufjs/aspromise": "npm:^1.1.2"
+    "@protobufjs/base64": "npm:^1.1.2"
+    "@protobufjs/codegen": "npm:^2.0.4"
+    "@protobufjs/eventemitter": "npm:^1.1.0"
+    "@protobufjs/fetch": "npm:^1.1.0"
+    "@protobufjs/float": "npm:^1.0.2"
+    "@protobufjs/inquire": "npm:^1.1.0"
+    "@protobufjs/path": "npm:^1.1.2"
+    "@protobufjs/pool": "npm:^1.1.0"
+    "@protobufjs/utf8": "npm:^1.1.0"
+    "@types/node": "npm:>=13.7.0"
+    long: "npm:^5.0.0"
+  checksum: 10/408423506610f70858d7593632f4a6aa4f05796c90fd632be9b9252457c795acc71aa6d3b54bb7f48a890141728fee4ca3906723ccea6c202ad71f21b3879b8b
   languageName: node
   linkType: hard
 

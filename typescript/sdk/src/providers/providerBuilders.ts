@@ -2,6 +2,7 @@ import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
+import { HyperlaneModuleClient } from 'hyperlane-cosmos-sdk';
 import { createPublicClient, http } from 'viem';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
@@ -117,7 +118,7 @@ export function defaultCosmosModuleProviderBuilder(
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmosModule,
-    provider: CosmWasmClient.connect(rpcUrls[0].http), // TODO: add cosmos module client here
+    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
   };
 }
 

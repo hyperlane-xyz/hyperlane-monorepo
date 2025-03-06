@@ -19,6 +19,7 @@
     "cosmjs-types": "^0.9.0",
     "cross-fetch": "^3.1.5",
     "ethers": "^5.7.2",
+    "hyperlane-cosmos-sdk": "portal:/Users/troykessler/work/hyperlane/hyperlane-cosmos-sdk",
     "pino": "^8.19.0",
     "viem": "^2.21.45",
     "zod": "^3.21.2"
