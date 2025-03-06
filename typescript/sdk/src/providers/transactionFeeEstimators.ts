@@ -303,19 +303,18 @@ export async function estimateTransactionFeeStarknet({
   provider: StarknetJsProvider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  // STARKNET needs account or signature to estimate fee, just like ZKSync
   // const { provider: starknetProvider } = provider;
   // const nonce = await starknetProvider.getNonceForAddress(sender);
-  //getSimulateTransaction also exists
   // const estimation = await starknetProvider.getInvokeEstimateFee(
   //   {
   //     calldata: transaction.transaction.calldata,
   //     contractAddress: transaction.transaction.contractAddress,
   //     entrypoint: transaction.transaction.entrypoint,
-  //     signature: signature,
+  //     signature: [],
   //   },
-
   //   { nonce },
+  //   'latest',
+  //   true,
   // );
   // console.log({ estimation });
   return { gasUnits: 0, gasPrice: 0, fee: 0 };

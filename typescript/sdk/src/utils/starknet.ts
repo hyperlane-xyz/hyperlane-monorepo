@@ -62,8 +62,8 @@ export function parseStarknetDispatchedMessages(
 
       const originChain = chainNameResolver(Number(message.origin));
       const destinationChain = chainNameResolver(Number(message.destination));
-
-      const messageId = getStarknetMessageId(message as unknown as Message);
+      // TODO: check if this is correct
+      const { evmId } = getStarknetMessageId(message as unknown as Message);
 
       return {
         parsed: {
@@ -71,7 +71,7 @@ export function parseStarknetDispatchedMessages(
           originChain,
           destinationChain,
         },
-        id: messageId.toString(),
+        id: evmId,
         message: message.raw,
       } as DispatchedMessage;
     });
@@ -123,7 +123,10 @@ export interface ByteData {
   size: number;
 }
 
-export function getStarknetMessageId(message: Message): bigint {
+export function getStarknetMessageId(message: Message): {
+  starknetId: bigint;
+  evmId: string;
+} {
   const input: ByteData[] = [
     { value: BigInt(message.version), size: 1 },
     { value: BigInt(message.nonce), size: 4 },
@@ -133,13 +136,15 @@ export function getStarknetMessageId(message: Message): bigint {
     { value: message.recipient, size: 32 },
   ];
 
-  // Append message body
   const serializedInput = serializeByteData(input, message.body);
 
   const hash = utils.keccak256(serializedInput);
 
   // Convert hash to BigInt and reverse endianness
-  return reverseEndianness(BigInt(hash));
+  return {
+    starknetId: reverseEndianness(BigInt(hash)),
+    evmId: hash,
+  };
 }
 
 /**
