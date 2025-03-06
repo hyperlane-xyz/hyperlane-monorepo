@@ -7311,7 +7311,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cli@npm:8.8.0, @hyperlane-xyz/cli@workspace:typescript/cli":
+"@hyperlane-xyz/cli@npm:8.8.1, @hyperlane-xyz/cli@workspace:typescript/cli":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
@@ -7320,9 +7320,9 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:9.5.0"
-    "@hyperlane-xyz/sdk": "npm:8.8.0"
-    "@hyperlane-xyz/utils": "npm:8.8.0"
+    "@hyperlane-xyz/registry": "npm:10.7.0"
+    "@hyperlane-xyz/sdk": "npm:8.8.1"
+    "@hyperlane-xyz/utils": "npm:8.8.1"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7361,13 +7361,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:5.11.5, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:5.11.6, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:8.8.0"
+    "@hyperlane-xyz/utils": "npm:8.8.1"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7419,14 +7419,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:8.8.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:8.8.1, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:5.11.5"
-    "@hyperlane-xyz/registry": "npm:9.5.0"
-    "@hyperlane-xyz/sdk": "npm:8.8.0"
+    "@hyperlane-xyz/core": "npm:5.11.6"
+    "@hyperlane-xyz/registry": "npm:10.7.0"
+    "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -7475,11 +7475,11 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/cli": "npm:8.8.0"
-    "@hyperlane-xyz/helloworld": "npm:8.8.0"
-    "@hyperlane-xyz/registry": "npm:9.5.0"
-    "@hyperlane-xyz/sdk": "npm:8.8.0"
-    "@hyperlane-xyz/utils": "npm:8.8.0"
+    "@hyperlane-xyz/cli": "npm:8.8.1"
+    "@hyperlane-xyz/helloworld": "npm:8.8.1"
+    "@hyperlane-xyz/registry": "npm:10.7.0"
+    "@hyperlane-xyz/sdk": "npm:8.8.1"
+    "@hyperlane-xyz/utils": "npm:8.8.1"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -7540,17 +7540,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:9.5.0":
-  version: 9.5.0
-  resolution: "@hyperlane-xyz/registry@npm:9.5.0"
+"@hyperlane-xyz/registry@npm:10.7.0":
+  version: 10.7.0
+  resolution: "@hyperlane-xyz/registry@npm:10.7.0"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/a5dc2fcee12f4976a106b3da2b6756892171e27fb22a8c0e08e7fe03dac41c4421d9931a30f5854690737cfcd84e4631879f327c3368472ac385fffccb7c4468
+  checksum: 10/961f22cbb4474a7ca7945c232326c065fd7c7ef5b96f6dd2140c5cfc11bc93e6a32dcfdfc098aae2907d1408f04103bea839c6bd0022cac40152e82fa9f8e5bf
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:8.8.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:8.8.1, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -7560,8 +7560,8 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:5.11.5"
-    "@hyperlane-xyz/utils": "npm:8.8.0"
+    "@hyperlane-xyz/core": "npm:5.11.6"
+    "@hyperlane-xyz/utils": "npm:8.8.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -7604,7 +7604,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:8.8.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:8.8.1, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -7645,9 +7645,9 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/registry": "npm:9.5.0"
-    "@hyperlane-xyz/sdk": "npm:8.8.0"
-    "@hyperlane-xyz/utils": "npm:8.8.0"
+    "@hyperlane-xyz/registry": "npm:10.7.0"
+    "@hyperlane-xyz/sdk": "npm:8.8.1"
+    "@hyperlane-xyz/utils": "npm:8.8.1"
     "@interchain-ui/react": "npm:^1.23.28"
     "@rainbow-me/rainbowkit": "npm:^2.2.0"
     "@solana/wallet-adapter-react": "npm:^0.15.32"
