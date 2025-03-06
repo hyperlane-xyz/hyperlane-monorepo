@@ -73,6 +73,7 @@ mod tests {
 
     use super::*;
 
+    /// Just to test mock structs work
     #[tokio::test]
     async fn test_mock_works() {
         let mock_ism = MockInterchainSecurityModule::default();

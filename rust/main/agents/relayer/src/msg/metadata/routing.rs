@@ -2,8 +2,9 @@ use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
 use eyre::Context;
-use hyperlane_core::{HyperlaneMessage, H256};
 use tracing::instrument;
+
+use hyperlane_core::{HyperlaneMessage, H256};
 
 use super::{MessageMetadataBuilder, Metadata, MetadataBuilder};
 
