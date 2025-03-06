@@ -1,12 +1,14 @@
 import { getRegistry } from '@hyperlane-xyz/cli';
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MultiProvider,
   OwnableConfig,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objMap } from '@hyperlane-xyz/utils';
+import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import {
   EnvironmentConfig,
@@ -120,14 +122,36 @@ async function getConfigFromMergedRegistry(
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const warpRoute = await getRegistry(
-    [DEFAULT_REGISTRY_URI],
-    true,
-  ).getWarpDeployConfig(warpRouteId);
+  const registry = getRegistry([DEFAULT_REGISTRY_URI], true);
+  const warpRoute = await registry.getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
-  //TODO: fix this and manage mailbox
-  //@ts-ignore
-  return warpRoute;
+
+  return populateWarpRouteMailboxAddresses(warpRoute, registry);
+}
+
+/**
+ * Populates warp route configuration by filling in mailbox addresses for each chain entry
+ * @param warpRoute The warp route configuration
+ * @param registry The registry to fetch chain addresses from if needed
+ * @returns Populated configuration with mailbox addresses for all chains
+ */
+async function populateWarpRouteMailboxAddresses(
+  warpRoute: WarpRouteDeployConfig,
+  registry: IRegistry,
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const mailboxPromises = objMap(warpRoute, async (chainName, config) => {
+    const mailbox =
+      config.mailbox || (await registry.getChainAddresses(chainName))?.mailbox;
+
+    assert(mailbox, `Mailbox not found for ${chainName}`);
+
+    return {
+      ...config,
+      mailbox,
+    };
+  });
+
+  return promiseObjAll(mailboxPromises);
 }
 
 export async function getWarpConfig(
