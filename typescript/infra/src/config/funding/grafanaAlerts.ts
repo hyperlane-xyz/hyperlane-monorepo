@@ -27,6 +27,7 @@ interface AlertConfig {
     header: string;
     footer: string;
   };
+  writePriority: number;
 }
 
 export enum WalletName {
@@ -57,6 +58,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
       footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
     },
+    writePriority:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyKeyFunderBalance
+      ].dailyRelayerBurnMultiplier,
   },
   [AlertType.LowUrgencyEngKeyFunderBalance]: {
     walletName: WalletName.KeyFunder,
@@ -73,6 +78,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
       footer: LOW_URGENCY_ENG_KEY_FUNDER_FOOTER,
     },
+    writePriority:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyEngKeyFunderBalance
+      ].dailyRelayerBurnMultiplier,
   },
   [AlertType.HighUrgencyRelayerBalance]: {
     walletName: WalletName.Relayer,
@@ -89,6 +98,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       header: HIGH_URGENCY_RELAYER_HEADER,
       footer: HIGH_URGENCY_RELAYER_FOOTER,
     },
+    writePriority:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.HighUrgencyRelayerBalance
+      ].dailyRelayerBurnMultiplier,
   },
 };
 
