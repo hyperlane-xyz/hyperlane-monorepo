@@ -76,7 +76,7 @@ fn get_signer_with_cache(
 
     // Build a new client and add it to the cache.
     let client = YubiHsmSigner::connect(http_config, credentials);
-    let signer = Arc::new(YubiSigner::create(client, id).unwrap());
+    let signer = Arc::new(YubiSigner::create(client, id).expect("unable to create yubihsm signer"));
     {
         let mut cache = YUBIHSM_CLIENT_CACHE.write().unwrap();
         cache.insert(cache_key, Arc::clone(&signer));
@@ -123,7 +123,8 @@ impl YubiHsmSigner {
     /// This function does not use a cache. Care should be taken to not exhaust the number of sessions on the yubihsm when calling this function.
     fn connect(http_config: HttpConfig, credentials: Credentials) -> Client {
         let connector = ethers::signers::yubihsm::Connector::http(&http_config);
-        Client::open(connector.clone(), credentials.clone(), true).unwrap()
+        Client::open(connector.clone(), credentials.clone(), true)
+            .expect("unable to connect to yubihsm")
     }
 
     /// Returns the address from the device.
