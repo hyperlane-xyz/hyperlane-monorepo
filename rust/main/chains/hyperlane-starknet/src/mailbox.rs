@@ -73,6 +73,7 @@ impl StarknetMailbox {
         let account;
         if locator.domain.id() == 12263410 {
             // paradexsepolia
+            println!("ANYMA, {:?}, {:?}", locator.domain.name(), signer.address);
             account = build_single_owner_account(
                 &conn.url,
                 signer.local_wallet(),
@@ -81,6 +82,11 @@ impl StarknetMailbox {
                 locator.domain.id(),
             );
         } else {
+            println!(
+                "DISCLOSURE, {:?}, {:?}",
+                locator.domain.name(),
+                signer.address
+            );
             // other chains
             account = build_single_owner_account(
                 &conn.url,
