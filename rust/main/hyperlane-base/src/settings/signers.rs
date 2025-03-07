@@ -1,16 +1,19 @@
-use super::aws_credentials::AwsChainCredentialsProvider;
-use crate::types::utils;
 use async_trait::async_trait;
 use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
-use hyperlane_core::{AccountAddressType, H256};
-use hyperlane_ethereum::yubi;
-use hyperlane_sealevel::Keypair;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
+
+use hyperlane_core::{AccountAddressType, H256};
+use hyperlane_ethereum::yubi;
+use hyperlane_sealevel::Keypair;
+
+use crate::types::utils;
+
+use super::aws_credentials::AwsChainCredentialsProvider;
 
 /// Signer types
 #[derive(Default, Debug, Clone)]

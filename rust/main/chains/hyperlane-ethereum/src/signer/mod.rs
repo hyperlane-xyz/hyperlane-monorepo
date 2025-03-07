@@ -3,10 +3,11 @@ use ethers::prelude::{Address, Signature};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip712::Eip712;
 use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError};
+use yubi::YubiHsmWallet;
+
 use hyperlane_core::{
     HyperlaneSigner, HyperlaneSignerError, Signature as HyperlaneSignature, H160, H256,
 };
-use yubi::YubiHsmWallet;
 
 mod singleton;
 pub use singleton::*;
