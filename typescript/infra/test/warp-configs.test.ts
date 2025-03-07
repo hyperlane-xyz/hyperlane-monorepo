@@ -1,7 +1,8 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
-import { DEFAULT_GITHUB_REGISTRY, getRegistry } from '@hyperlane-xyz/registry';
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { diffObjMerge, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -28,6 +29,7 @@ describe('Warp Configs', async function () {
     configsFromGithub = await getRegistry(
       [DEFAULT_GITHUB_REGISTRY],
       true,
+      '',
       rootLogger,
     ).getWarpDeployConfigs();
   });

@@ -1,7 +1,8 @@
 import { confirm } from '@inquirer/prompts';
 import { Signer, ethers } from 'ethers';
 
-import { IRegistry, getRegistry } from '@hyperlane-xyz/registry';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
@@ -101,7 +102,7 @@ export async function getContext({
   disableProxy = false,
   strategyPath,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUris, !disableProxy, rootLogger);
+  const registry = getRegistry(registryUris, !disableProxy, '', rootLogger);
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
@@ -139,7 +140,7 @@ export async function getDryRunContext(
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUris, !disableProxy, rootLogger);
+  const registry = getRegistry(registryUris, !disableProxy, '', rootLogger);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
