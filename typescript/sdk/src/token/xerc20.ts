@@ -146,11 +146,10 @@ async function getConfigurationChangedLogsFromRpc({
 }: GetExtraLockboxesOptions): Promise<Array<ethers.providers.Log>> {
   const provider = multiProvider.getProvider(chain);
 
-  const currentBlockNumber = await provider.getBlockNumber();
+  const endBlock = await provider.getBlockNumber();
   return provider.getLogs({
     address: xERC20Address,
-    fromBlock: 0,
-    toBlock: currentBlockNumber,
+    toBlock: endBlock,
     topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
   });
 }
