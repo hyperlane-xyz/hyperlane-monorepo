@@ -11,12 +11,15 @@ pub use keypair::*;
 pub use mailbox::*;
 pub use merkle_tree_hook::*;
 pub use provider::*;
-pub(crate) use rpc::SealevelRpcClient;
+pub use rpc::*;
 pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
+pub use tx_submitter::TransactionSubmitter;
 pub use validator_announce::*;
 
 mod account;
+/// Hyperlane Application specific functionality
+pub mod application;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;
@@ -24,6 +27,7 @@ mod keypair;
 mod log_meta_composer;
 mod mailbox;
 mod merkle_tree_hook;
+mod metric;
 mod multisig_ism;
 mod priority_fee;
 mod provider;

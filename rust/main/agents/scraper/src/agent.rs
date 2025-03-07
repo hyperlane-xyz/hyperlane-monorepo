@@ -9,8 +9,8 @@ use tracing::{info, info_span, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
-    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    MetricsUpdater, SyncOptions,
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSyncMetrics, ContractSyncer,
+    CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
 use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
@@ -27,6 +27,7 @@ pub struct Scraper {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    runtime_metrics: RuntimeMetrics,
 }
 
 #[derive(Debug)]
@@ -47,6 +48,7 @@ impl BaseAgent for Scraper {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        runtime_metrics: RuntimeMetrics,
         _tokio_console_server: console_subscriber::Server,
     ) -> eyre::Result<Self>
     where
@@ -71,6 +73,7 @@ impl BaseAgent for Scraper {
             core_metrics: metrics,
             agent_metrics,
             chain_metrics,
+            runtime_metrics,
         })
     }
 
@@ -98,7 +101,7 @@ impl BaseAgent for Scraper {
                 }
             };
 
-            let metrics_updater = match MetricsUpdater::new(
+            let metrics_updater = match ChainSpecificMetricsUpdater::new(
                 chain_conf,
                 self.core_metrics.clone(),
                 self.agent_metrics.clone(),
@@ -129,6 +132,7 @@ impl BaseAgent for Scraper {
             }
             tasks.push(metrics_updater.spawn());
         }
+        tasks.push(self.runtime_metrics.spawn());
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(error = ?err, "Scraper task panicked");
         }
