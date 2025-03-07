@@ -7,7 +7,10 @@ import {
   PartialRegistry,
   warpConfigToWarpAddresses,
 } from '@hyperlane-xyz/registry';
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
+import {
+  FileSystemRegistry,
+  getRegistry as getMergedRegistry,
+} from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
@@ -108,6 +111,32 @@ export function getWarpAddresses(
   warpRouteId: string,
 ): ChainMap<ChainAddresses> {
   const warpCoreConfig = getWarpCoreConfig(warpRouteId);
+  return warpConfigToWarpAddresses(warpCoreConfig);
+}
+
+export async function getWarpCoreConfigFromGithubFileSystem(
+  warpRouteId: string,
+  registries: string[],
+): Promise<WarpCoreConfig> {
+  const registry = getMergedRegistry(registries, true);
+  const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
+
+  if (!warpRouteConfig) {
+    throw new Error(
+      `Warp route config for ${warpRouteId} not found in registry`,
+    );
+  }
+  return warpRouteConfig;
+}
+
+export async function getWarpAddressesFromGithub(
+  warpRouteId: string,
+  registries: string[],
+): Promise<ChainMap<ChainAddresses>> {
+  const warpCoreConfig = await getWarpCoreConfigFromGithubFileSystem(
+    warpRouteId,
+    registries,
+  );
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
 
