@@ -489,12 +489,7 @@ export class WarpCore {
     let destinationBalance: bigint;
 
     const adapter = destinationToken.getAdapter(this.multiProvider);
-    if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
+    if (MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
       const adapter = destinationToken.getAdapter(
         this.multiProvider,
       ) as IHypXERC20Adapter<unknown>;
@@ -790,7 +785,19 @@ export class WarpCore {
       originTokenAmount,
       destination,
     });
-    if (!valid) return { amount: 'Insufficient collateral on destination' };
+
+    if (!valid) {
+      const destinationName = this.multiProvider.getChainName(destination);
+      const destinationToken =
+        originTokenAmount.token.getConnectionForChain(destinationName)?.token;
+      if (
+        destinationToken &&
+        MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
+      ) {
+        return { amount: 'Rate limit exceeded on destination' };
+      }
+      return { amount: 'Insufficient collateral on destination' };
+    }
 
     return null;
   }
