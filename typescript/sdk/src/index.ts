@@ -624,7 +624,11 @@ export {
   // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
-export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export {
+  multisigIsmVerificationCost,
+  normalizeConfig,
+  sortArraysInConfig,
+} from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
 export {
