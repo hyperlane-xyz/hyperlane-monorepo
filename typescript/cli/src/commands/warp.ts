@@ -372,7 +372,13 @@ export const check: CommandModuleWithContext<{
       symbol,
     });
 
-    const warpCoreConfig = context.warpCoreConfig;
+    const warpCoreConfig =
+      context.warpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        context,
+        warp,
+        symbol,
+      }));
 
     if (!warpCoreConfig) {
       throw new Error('No warp core config found');
