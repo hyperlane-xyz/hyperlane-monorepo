@@ -1932,7 +1932,7 @@ version = "0.1.0"
 dependencies = [
  "elliptic-curve 0.13.8",
  "hex 0.4.3",
- "k256 0.13.4",
+ "k256 0.11.6",
  "thiserror",
 ]
 
@@ -7575,7 +7575,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
  "jobserver",
- "k256 0.13.4",
+ "k256 0.11.6",
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.4",
@@ -10808,7 +10808,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-test",
- "k256 0.13.4",
+ "k256 0.11.6",
  "mockall",
  "prometheus",
  "reqwest",
