@@ -116,55 +116,54 @@ where
                     .into_iter()
                     .enumerate()
                     .filter_map(move |(index, tx)| {
-                        if !tx.is_valid()
-                            || !self.is_transaction_from_contract(&tx)
-                            || !self.has_event(&tx)
-                        {
+                        if !tx.is_valid() || !self.is_transaction_from_contract(&tx) {
                             return None;
                         }
 
                         let receipts = tx.extract_receipts().unwrap_or_default();
+                        Some(
+                            self.extract_logs::<T>(receipts.clone())
+                                .into_iter()
+                                .map(|(relevant_event, log_index)| {
+                                    let log_meta = LogMeta {
+                                        address: self.contract_address.clone().into_h256(),
+                                        block_number,
+                                        block_hash,
+                                        transaction_id: H512::from(tx.id.0 .0.into_h256()),
+                                        transaction_index: index as u64,
+                                        log_index: U256::from(log_index),
+                                    };
 
-                        let (relevant_event, log_index) =
-                            self.extract_log::<T>(receipts.clone())?;
-
-                        let log_meta = LogMeta {
-                            address: self.contract_address.clone().into_h256(),
-                            block_number,
-                            block_hash,
-                            transaction_id: H512::from(tx.id.0 .0.into_h256()),
-                            transaction_index: index as u64,
-                            log_index: U256::from(log_index),
-                        };
-
-                        Some((relevant_event.into(), log_meta))
+                                    (relevant_event.into(), log_meta)
+                                })
+                                .collect::<Vec<_>>(),
+                        )
                     })
             })
+            .flatten()
             .collect::<Vec<_>>()
     }
 
-    fn has_event(&self, tx: &SchemaTransaction) -> bool {
+    fn decode_log(&self, receipt: Receipt) -> Option<E> {
         let decoder = &self.log_decoder;
-        let receipts = tx.extract_receipts().unwrap_or_default();
-        if let Ok(decoded_logs) = decoder.decode_logs_with_type::<E>(&receipts) {
-            return !decoded_logs.is_empty();
+        match decoder.decode_logs_with_type::<E>(&[receipt]) {
+            Ok(decoded_logs) if !decoded_logs.is_empty() => Some(decoded_logs[0].clone()),
+            _ => None,
         }
-        false
     }
 
-    fn extract_log<T>(&self, receipts: Vec<Receipt>) -> Option<(T, usize)>
+    fn extract_logs<T>(&self, receipts: Vec<Receipt>) -> Vec<(T, usize)>
     where
         T: Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static + From<E>,
     {
-        let decoder = &self.log_decoder;
-        for (index, receipt) in receipts.into_iter().enumerate() {
-            if let Ok(decoded_logs) = decoder.decode_logs_with_type::<E>(&[receipt]) {
-                if !decoded_logs.is_empty() && decoded_logs.len() == 1 {
-                    return Some((decoded_logs[0].clone().transform::<T>(), index));
-                }
-            }
-        }
-        None
+        receipts
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, receipt)| {
+                self.decode_log(receipt)
+                    .map(|decoded_log| (decoded_log.transform::<T>(), index))
+            })
+            .collect()
     }
 
     fn is_transaction_from_contract(&self, tx: &SchemaTransaction) -> bool {

@@ -124,6 +124,12 @@ cargo test --release --package run-locally --bin run-locally --features cosmos -
 cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
 ```
 
+##### FuelVM E2E Test
+
+```bash
+cargo test --release --package run-locally --bin run-locally --features fuel -- fuel::test --nocapture
+```
+
 ### Building Agent Docker Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a

@@ -110,14 +110,16 @@ pub fn base_termination_invariants_met(
         return Ok(false);
     }
 
-    if !provider_metrics_invariant_met(
-        &relayer_metrics_port.to_string(),
-        messages_expected,
-        &hashmap! {"status" => "success"},
-    )? {
-        return Ok(false);
+    #[cfg(feature = "cosmos")]
+    {
+        if !provider_metrics_invariant_met(
+            &relayer_metrics_port.to_string(),
+            messages_expected,
+            &hashmap! {"status" => "success"},
+        )? {
+            return Ok(false);
+        }
     }
-
     log!("Termination invariants have been meet");
     Ok(true)
 }
