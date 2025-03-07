@@ -238,7 +238,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       const expectedActualText = `ACTUAL: ""\n`;
       const expectedDiffText = `      EXPECTED:
-        routerAddress: "${expectedChain2TokenAddress.toLowerCase()}"`;
+        address: "${expectedChain2TokenAddress.toLowerCase()}"`;
 
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,

@@ -3,52 +3,55 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
-  normalizeConfig,
+  sortArraysInConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
-  ChainId,
+  FormatObjectFormatter,
   ObjectDiff,
   diffObjMerge,
+  formatObj,
 } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
-type HypTokenRouterConfigToCheck = Omit<
-  HypTokenRouterConfig,
-  'remoteRouters'
-> & {
-  remoteRouters: Record<ChainId, { routerAddress: Address }>;
+const formatter: FormatObjectFormatter = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => {
+  // Needed to check if we are currently inside the remoteRouters object
+  const key = propPath[propPath.length - 3];
+  const parentKey = propPath[propPath.length - 1];
+
+  // Remove the address and ownerOverrides fields if we are not inside the
+  // remoteRouters property
+  if (
+    (parentKey === 'address' && key !== 'remoteRouters') ||
+    parentKey === 'ownerOverrides'
+  ) {
+    return {
+      formattedValue: obj,
+      shouldInclude: false,
+    };
+  }
+
+  if (typeof obj === 'string') {
+    return {
+      formattedValue: obj.toLowerCase(),
+      shouldInclude: true,
+    };
+  }
+
+  return {
+    formattedValue: obj,
+    shouldInclude: true,
+  };
 };
 
-// Changes address fields occurrences that should be checked in the config to have a
-// different name as the normalizeConfig function removes all the address
-// fields from a given object
-function formatTokenConfigToCheck(
-  config: HypTokenRouterConfig,
-): HypTokenRouterConfigToCheck {
-  const formattedConfig: any = {};
-  for (const [key, value] of Object.entries(config)) {
-    if ((key as keyof HypTokenRouterConfig) !== 'remoteRouters') {
-      formattedConfig[key as keyof HypTokenRouterConfig] = value;
-    }
-  }
-
-  if (config.remoteRouters) {
-    formattedConfig.remoteRouters = Object.entries(config.remoteRouters).reduce(
-      (acc, [chain, config]) => {
-        acc[chain] = {
-          routerAddress: config.address,
-        };
-
-        return acc;
-      },
-      {} as HypTokenRouterConfigToCheck['remoteRouters'],
-    );
-  }
-
-  return formattedConfig;
+export function formatConfigToCheck(
+  obj: HypTokenRouterConfig,
+): HypTokenRouterConfig {
+  return sortArraysInConfig(formatObj(obj, formatter));
 }
 
 export async function runWarpRouteCheck({
@@ -62,8 +65,8 @@ export async function runWarpRouteCheck({
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
       const { mergedObject, isInvalid } = diffObjMerge(
-        normalizeConfig(formatTokenConfigToCheck(onChainWarpConfig[chain])),
-        normalizeConfig(formatTokenConfigToCheck(warpRouteConfig[chain])),
+        formatConfigToCheck(onChainWarpConfig[chain]),
+        formatConfigToCheck(warpRouteConfig[chain]),
       );
 
       if (isInvalid) {
