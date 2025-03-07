@@ -1,8 +1,8 @@
 import { Argv } from 'yargs';
 
-export function withRegistry<T>(args: Argv<T>) {
+export function withRegistryUrls<T>(args: Argv<T>) {
   return args
-    .describe('registry', 'Github registry url')
+    .describe('registry', 'Github registry urls (comma separated)')
     .string('registry')
     .array('registry');
 }

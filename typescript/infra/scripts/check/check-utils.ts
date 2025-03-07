@@ -53,7 +53,7 @@ import {
   withWarpRouteIdNoChoices,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
-import { withRegistry } from '../github-utils.js';
+import { withRegistryUrls } from '../github-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
@@ -67,7 +67,9 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistry(withWarpRouteIdNoChoices(withModule(getCheckBaseArgs())));
+  return withRegistryUrls(
+    withWarpRouteIdNoChoices(withModule(getCheckBaseArgs())),
+  );
 }
 
 export async function getGovernor(
