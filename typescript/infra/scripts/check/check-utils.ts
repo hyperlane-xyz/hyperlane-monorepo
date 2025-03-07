@@ -23,7 +23,10 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
-import { getWarpAddresses } from '../../config/registry.js';
+import {
+  getWarpAddresses,
+  getWarpAddressesFromGithub,
+} from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -47,9 +50,10 @@ import {
   withGovern,
   withModule,
   withPushMetrics,
-  withWarpRouteId,
+  withWarpRouteIdNoChoices,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { withRegistry } from '../github-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
@@ -63,7 +67,7 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withWarpRouteId(withModule(getCheckBaseArgs()));
+  return withRegistry(withWarpRouteIdNoChoices(withModule(getCheckBaseArgs())));
 }
 
 export async function getGovernor(
@@ -76,6 +80,7 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
+  registry?: string[],
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -196,8 +201,15 @@ export async function getGovernor(
     if (!warpRouteId) {
       warpRouteId = await getWarpRouteIdInteractive();
     }
-    const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    const warpAddresses = getWarpAddresses(warpRouteId);
+    const config = await getWarpConfig(
+      multiProvider,
+      envConfig,
+      warpRouteId,
+      registry,
+    );
+    const warpAddresses = registry
+      ? await getWarpAddressesFromGithub(warpRouteId, registry)
+      : getWarpAddresses(warpRouteId);
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
