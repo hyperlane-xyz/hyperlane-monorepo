@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 8.8.1
+
+### Patch Changes
+
+- c68529807: Update registry dependency.
+  - @hyperlane-xyz/sdk@8.8.1
+  - @hyperlane-xyz/utils@8.8.1
+
 ## 8.8.0
 
 ### Minor Changes
