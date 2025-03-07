@@ -206,6 +206,13 @@ export function withWarpRouteId<T>(args: Argv<T>) {
     .choices('warpRouteId', Object.values(WarpRouteIds));
 }
 
+export function withWarpRouteIdNoChoices<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteId', 'warp route id')
+    .string('warpRouteId')
+    .demandOption('warpRouteId');
+}
+
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
   return withWarpRouteId(args).demandOption('warpRouteId');
 }
