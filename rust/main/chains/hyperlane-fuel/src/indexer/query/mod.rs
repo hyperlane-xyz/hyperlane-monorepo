@@ -1,4 +1,4 @@
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, time::Duration};
 
 use cynic::{GraphQlResponse, QueryBuilder};
 use fuels::client::{PageDirection, PaginationRequest};
@@ -25,7 +25,10 @@ impl FuelGraphQLClient {
     /// Create a new FuelGraphQLClient
     pub fn new(url: &Url) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .expect("Failed to create reqwest client"),
             url: url.clone(),
         }
     }

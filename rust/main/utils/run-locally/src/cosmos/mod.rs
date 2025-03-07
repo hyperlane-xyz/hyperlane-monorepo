@@ -18,12 +18,10 @@ mod deploy;
 mod link;
 mod rpc;
 mod source;
-mod termination_invariants;
 mod types;
 mod utils;
 
 use rpc::*;
-use termination_invariants::*;
 pub use types::*;
 use utils::*;
 

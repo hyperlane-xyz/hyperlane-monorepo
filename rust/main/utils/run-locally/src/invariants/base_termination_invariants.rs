@@ -1,5 +1,6 @@
 use maplit::hashmap;
 
+use crate::invariants::provider_metrics_invariant_met;
 use crate::{fetch_metric, log, metrics::agent_balance_sum};
 
 /// Base termination invariants which should be met for the E2E tests to pass
@@ -106,6 +107,14 @@ pub fn base_termination_invariants_met(
             delivered_messages_scraped,
             messages_expected
         );
+        return Ok(false);
+    }
+
+    if !provider_metrics_invariant_met(
+        &relayer_metrics_port.to_string(),
+        messages_expected,
+        &hashmap! {"status" => "success"},
+    )? {
         return Ok(false);
     }
 
