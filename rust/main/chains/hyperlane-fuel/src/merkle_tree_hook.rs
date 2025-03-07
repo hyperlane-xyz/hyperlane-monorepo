@@ -64,7 +64,8 @@ impl HyperlaneChain for FuelMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for FuelMerkleTreeHook {
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        self.contract
+        let res = self
+            .contract
             .methods()
             .tree()
             .simulate(Execution::StateReadOnly)
@@ -78,14 +79,20 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
                     )
                     .as_str(),
                 )
-            })
-            .map(|res| {
-                let merkle_tree = res.value;
-                IncrementalMerkle {
-                    branch: merkle_tree.branch.into_h256_array(),
-                    count: merkle_tree.count as usize,
-                }
-            })
+            })?;
+
+        let merkle_tree = res.value;
+
+        let branch = merkle_tree.branch.into_h256_array().map_err(|e| {
+            ChainCommunicationError::from_other_str(
+                format!("Failed to convert branch to H256 array: {}", e).as_str(),
+            )
+        })?;
+
+        Ok(IncrementalMerkle {
+            branch,
+            count: merkle_tree.count as usize,
+        })
     }
 
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {

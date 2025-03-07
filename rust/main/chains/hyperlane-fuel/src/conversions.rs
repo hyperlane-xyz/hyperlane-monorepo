@@ -1,3 +1,4 @@
+use anyhow::Result;
 use fuels::types::{Bits256, EvmAddress};
 use hyperlane_core::{ModuleType, H160, H256};
 
@@ -7,17 +8,19 @@ pub struct IsmType(pub crate::contracts::interchain_security_module::ModuleType)
 /// Trait for converting an array of Bits256 to an array of H256.
 pub trait FromBits256Array {
     /// Convert into an array of H256
-    fn into_h256_array(self) -> [H256; 32];
+    fn into_h256_array(self) -> Result<[H256; 32]>;
 }
 
 impl FromBits256Array for Vec<Bits256> {
-    fn into_h256_array(self) -> [H256; 32] {
-        assert!(self.len() == 32);
+    fn into_h256_array(self) -> Result<[H256; 32]> {
+        if self.len() != 32 {
+            return Err(anyhow::anyhow!("Expected 32 elements, got {}", self.len()));
+        }
         let mut h256_array: [H256; 32] = [H256::zero(); 32];
         for (i, bits256) in self.iter().enumerate() {
             h256_array[i] = H256::from(bits256.0);
         }
-        h256_array
+        Ok(h256_array)
     }
 }
 
