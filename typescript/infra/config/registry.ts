@@ -114,7 +114,7 @@ export function getWarpAddresses(
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
 
-export async function getWarpCoreConfigFromGithubFileSystem(
+export async function getWarpCoreConfigFromMergedRegistry(
   warpRouteId: string,
   registries: string[],
 ): Promise<WarpCoreConfig> {
@@ -129,11 +129,11 @@ export async function getWarpCoreConfigFromGithubFileSystem(
   return warpRouteConfig;
 }
 
-export async function getWarpAddressesFromGithub(
+export async function getWarpAddressesFromMergedRegistry(
   warpRouteId: string,
   registries: string[],
 ): Promise<ChainMap<ChainAddresses>> {
-  const warpCoreConfig = await getWarpCoreConfigFromGithubFileSystem(
+  const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
     warpRouteId,
     registries,
   );

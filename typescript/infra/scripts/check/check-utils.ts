@@ -25,7 +25,7 @@ import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import {
   getWarpAddresses,
-  getWarpAddressesFromGithub,
+  getWarpAddressesFromMergedRegistry,
 } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
@@ -208,7 +208,7 @@ export async function getGovernor(
       registry,
     );
     const warpAddresses = registry
-      ? await getWarpAddressesFromGithub(warpRouteId, registry)
+      ? await getWarpAddressesFromMergedRegistry(warpRouteId, registry)
       : getWarpAddresses(warpRouteId);
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
