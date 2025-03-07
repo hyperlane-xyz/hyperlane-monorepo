@@ -382,7 +382,7 @@ function internalFormatObj(
   maxDepth: number,
 ): FormatObjResult {
   if (propPath.length > maxDepth) {
-    throw new Error('formatObj went too deep. Max depth is 15');
+    throw new Error(`formatObj went too deep. Max depth is ${maxDepth}`);
   }
 
   if (Array.isArray(obj)) {

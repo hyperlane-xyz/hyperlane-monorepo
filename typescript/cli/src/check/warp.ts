@@ -20,13 +20,13 @@ const formatter: FormatObjectFormatter = (
   propPath: ReadonlyArray<string>,
 ) => {
   // Needed to check if we are currently inside the remoteRouters object
-  const key = propPath[propPath.length - 3];
+  const maybeRemoteRoutersKey = propPath[propPath.length - 3];
   const parentKey = propPath[propPath.length - 1];
 
   // Remove the address and ownerOverrides fields if we are not inside the
   // remoteRouters property
   if (
-    (parentKey === 'address' && key !== 'remoteRouters') ||
+    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
     parentKey === 'ownerOverrides'
   ) {
     return {
