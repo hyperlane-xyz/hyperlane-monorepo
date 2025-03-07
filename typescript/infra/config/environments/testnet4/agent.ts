@@ -265,7 +265,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7f71a8c-20250226-140437',
+      tag: 'a3b9e8e-20250306-173951',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
