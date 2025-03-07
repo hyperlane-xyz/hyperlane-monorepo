@@ -1,4 +1,4 @@
-import { getRegistry } from '@hyperlane-xyz/cli';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainSubmissionStrategy,
@@ -123,11 +123,11 @@ async function getConfigFromMergedRegistry(
   _routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
+  registry: string[],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const warpRoute = await getRegistry(
-    [DEFAULT_REGISTRY_URI],
-    true,
-  ).getWarpDeployConfig(warpRouteId);
+  const warpRoute = await getRegistry(registry, true).getWarpDeployConfig(
+    warpRouteId,
+  );
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
   return warpRoute;
 }
@@ -136,6 +136,7 @@ export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
   warpRouteId: string,
+  registry = [DEFAULT_REGISTRY_URI],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
@@ -172,5 +173,6 @@ export async function getWarpConfig(
     routerConfigWithoutOwner,
     abacusWorksEnvOwnerConfig,
     warpRouteId,
+    registry,
   );
 }
