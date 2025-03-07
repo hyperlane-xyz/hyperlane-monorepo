@@ -5,7 +5,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
-import { ANVIL_KEY, REGISTRY_PATH, isLocalTestRun } from './helpers.js';
+import { ANVIL_KEY, REGISTRY_PATH, localTestRunCmdPrefix } from './helpers.js';
 
 /**
  * Deploys the Hyperlane core contracts to the specified chain using the provided config.
@@ -16,18 +16,9 @@ export function hyperlaneCoreDeployRaw(
   skipConfirmationPrompts?: boolean,
   hypKey?: string,
 ): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`${
-      hypKey ? ['HYP_KEY=' + hypKey] : ''
-    } yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreInputPath} \
-        ${privateKey ? ['--key', privateKey] : ''} \
-        --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
-  }
-
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : ''}  hyperlane core deploy \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : ''
+  } ${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         ${privateKey ? ['--key', privateKey] : ''} \
@@ -42,17 +33,7 @@ export async function hyperlaneCoreDeploy(
   chain: string,
   coreInputPath: string,
 ) {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreInputPath} \
-        --chain ${chain} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane core deploy \
+  return $`${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --chain ${chain} \
@@ -65,16 +46,7 @@ export async function hyperlaneCoreDeploy(
  * Reads a Hyperlane core deployment on the specified chain using the provided config.
  */
 export async function hyperlaneCoreRead(chain: string, coreOutputPath: string) {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core read \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreOutputPath} \
-        --chain ${chain} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane core read \
+  return $`${localTestRunCmdPrefix()} hyperlane core read \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
@@ -90,17 +62,7 @@ export function hyperlaneCoreCheck(
   coreOutputPath: string,
   mailbox?: Address,
 ): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core check \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreOutputPath} \
-        --chain ${chain} \
-        ${mailbox ? ['--mailbox', mailbox] : ''} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane core check \
+  return $`${localTestRunCmdPrefix()} hyperlane core check \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
@@ -117,18 +79,9 @@ export function hyperlaneCoreInit(
   privateKey?: string,
   hyp_key?: string,
 ): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`${
-      hyp_key ? ['HYP_KEY=' + hyp_key] : ''
-    } yarn workspace @hyperlane-xyz/cli run hyperlane core init \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreOutputPath} \
-        ${privateKey ? ['--key', privateKey] : ''} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`${hyp_key ? ['HYP_KEY=' + hyp_key] : ''} hyperlane core init \
+  return $`${
+    hyp_key ? ['HYP_KEY=' + hyp_key] : ''
+  } ${localTestRunCmdPrefix()} hyperlane core init \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         ${privateKey ? ['--key', privateKey] : ''} \
@@ -143,17 +96,7 @@ export async function hyperlaneCoreApply(
   chain: string,
   coreOutputPath: string,
 ) {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core apply \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreOutputPath} \
-        --chain ${chain} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane core apply \
+  return $`${localTestRunCmdPrefix()} hyperlane core apply \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \

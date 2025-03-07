@@ -335,26 +335,19 @@ export async function sendWarpRouteMessageRoundTrip(
   return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
 }
 
-/// Verifies if the IS_CI var is set
-export function isLocalTestRun() {
-  return !process.env.IS_CI;
+// Verifies if the IS_CI var is set and generates the correct prefix for running the command
+// in the current env
+export function localTestRunCmdPrefix() {
+  return !process.env.IS_CI
+    ? ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run']
+    : [];
 }
 
 export async function hyperlaneSendMessage(
   origin: string,
   destination: string,
 ) {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane send message \
-        --registry ${REGISTRY_PATH} \
-        --origin ${origin} \
-        --destination ${destination} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane send message \
+  return $`${localTestRunCmdPrefix()} hyperlane send message \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
@@ -364,17 +357,7 @@ export async function hyperlaneSendMessage(
 }
 
 export function hyperlaneRelayer(chains: string[], warp?: string) {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
-        --registry ${REGISTRY_PATH} \
-        --chains ${chains.join(',')} \
-        --warp ${warp ?? ''} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane relayer \
+  return $`${localTestRunCmdPrefix()} hyperlane relayer \
         --registry ${REGISTRY_PATH} \
         --chains ${chains.join(',')} \
         --warp ${warp ?? ''} \

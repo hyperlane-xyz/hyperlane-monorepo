@@ -15,7 +15,7 @@ import {
   ANVIL_KEY,
   REGISTRY_PATH,
   getDeployedWarpAddress,
-  isLocalTestRun,
+  localTestRunCmdPrefix,
 } from './helpers.js';
 
 $.verbose = true;
@@ -24,16 +24,7 @@ $.verbose = true;
  * Deploys the Warp route to the specified chain using the provided config.
  */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp init \
-        --registry ${REGISTRY_PATH} \
-        --out ${warpCorePath} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes`;
-  }
-
-  return $`hyperlane warp init \
+  return $`${localTestRunCmdPrefix()} hyperlane warp init \
         --registry ${REGISTRY_PATH} \
         --out ${warpCorePath} \
         --key ${ANVIL_KEY} \
@@ -55,18 +46,9 @@ export function hyperlaneWarpDeployRaw({
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
 }): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`${
-      hypKey ? ['HYP_KEY=' + hypKey] : ''
-    } yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
-        --registry ${REGISTRY_PATH} \
-        ${warpCorePath ? ['--config', warpCorePath] : ''} \
-        ${privateKey ? ['--key', privateKey] : ''} \
-        --verbosity debug \
-        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
-  }
-
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : ''} hyperlane warp deploy \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : ''
+  } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
         ${warpCorePath ? ['--config', warpCorePath] : ''} \
         ${privateKey ? ['--key', privateKey] : ''} \
@@ -93,18 +75,7 @@ export async function hyperlaneWarpApply(
   warpCorePath: string,
   strategyUrl = '',
 ) {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
-        --registry ${REGISTRY_PATH} \
-        --config ${warpDeployPath} \
-        --warp ${warpCorePath} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --strategy ${strategyUrl} \
-        --yes`;
-  }
-
-  return $`hyperlane warp apply \
+  return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
@@ -125,17 +96,7 @@ export function hyperlaneWarpReadRaw({
   warpAddress?: string;
   outputPath?: string;
 }): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
-        --registry ${REGISTRY_PATH} \
-        ${warpAddress ? ['--address', warpAddress] : ''} \
-        ${chain ? ['--chain', chain] : ''} \
-        ${symbol ? ['--symbol', symbol] : ''} \
-        --verbosity debug \
-        ${outputPath ? ['--config', outputPath] : ''}`;
-  }
-
-  return $`hyperlane warp read \
+  return $`${localTestRunCmdPrefix()} hyperlane warp read \
         --registry ${REGISTRY_PATH} \
         ${warpAddress ? ['--address', warpAddress] : ''} \
         ${chain ? ['--chain', chain] : ''} \
@@ -163,15 +124,7 @@ export function hyperlaneWarpCheckRaw({
   symbol?: string;
   warpDeployPath?: string;
 }): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
-        --registry ${REGISTRY_PATH} \
-        ${symbol ? ['--symbol', symbol] : ''} \
-        --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : ''}`;
-  }
-
-  return $`hyperlane warp check \
+  return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
         ${symbol ? ['--symbol', symbol] : ''} \
         --verbosity debug \
@@ -195,20 +148,7 @@ export function hyperlaneWarpSendRelay(
   relay = true,
   value = 1,
 ): ProcessPromise {
-  if (isLocalTestRun()) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
-        ${relay ? '--relay' : ''} \
-        --registry ${REGISTRY_PATH} \
-        --origin ${origin} \
-        --destination ${destination} \
-        --warp ${warpCorePath} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --yes \
-        --amount ${value}`;
-  }
-
-  return $`hyperlane warp send \
+  return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : ''} \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
