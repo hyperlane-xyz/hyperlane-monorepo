@@ -1069,6 +1069,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  infinityvmmonza: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   injective: {
     threshold: 2,
     validators: [

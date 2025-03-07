@@ -75,6 +75,10 @@
     "amount": "0.1",
     "decimals": 9
   },
+  "infinityvmmonza": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "inksepolia": {
     "amount": "0.001000252",
     "decimals": 9

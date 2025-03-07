@@ -19,6 +19,7 @@ export const testnet4SupportedChainNames = [
   'fuji',
   'holesky',
   'hyperliquidevmtestnet',
+  'infinityvmmonza',
   'inksepolia',
   'monadtestnet',
   'odysseytestnet',

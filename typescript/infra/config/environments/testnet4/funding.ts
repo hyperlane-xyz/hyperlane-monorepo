@@ -46,6 +46,7 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
+    infinityvmmonza: '0',
     inksepolia: '0.1',
     monadtestnet: '0.1',
     odysseytestnet: '0.1',
