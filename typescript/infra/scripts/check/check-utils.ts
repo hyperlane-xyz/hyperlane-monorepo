@@ -80,7 +80,7 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
-  registry?: string[],
+  registryUrls?: string[],
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -205,10 +205,10 @@ export async function getGovernor(
       multiProvider,
       envConfig,
       warpRouteId,
-      registry,
+      registryUrls,
     );
-    const warpAddresses = registry
-      ? await getWarpAddressesFromMergedRegistry(warpRouteId, registry)
+    const warpAddresses = registryUrls
+      ? await getWarpAddressesFromMergedRegistry(warpRouteId, registryUrls)
       : getWarpAddresses(warpRouteId);
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
