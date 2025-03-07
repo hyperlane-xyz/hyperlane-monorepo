@@ -18,8 +18,8 @@ import type {
 import {
   Contract as StarknetContract,
   Invocation as StarknetInvocation,
-  RpcProvider as StarknetProvider,
-  ReceiptTx as StarknetReceiptTx,
+  Provider as StarknetProvider,
+  TransactionReceipt as StarknetTxReceipt,
 } from 'starknet';
 import type {
   GetContractReturnType,
@@ -299,9 +299,9 @@ export interface CosmJsWasmTransactionReceipt
 }
 
 export interface StarknetJsTransactionReceipt
-  extends TypedTransactionReceiptBase<StarknetReceiptTx> {
+  extends TypedTransactionReceiptBase<StarknetTxReceipt> {
   type: ProviderType.Starknet;
-  receipt: StarknetReceiptTx;
+  receipt: StarknetTxReceipt;
 }
 
 export type TypedTransactionReceipt =

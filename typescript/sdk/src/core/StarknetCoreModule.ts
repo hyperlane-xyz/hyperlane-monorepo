@@ -1,11 +1,12 @@
 import { BigNumber } from 'ethers';
-import { Account, Contract } from 'starknet';
+import { Account, Contract, MultiType } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
 import { ChainNameOrId } from '../types.js';
 
 import { StarknetCoreReader } from './StarknetCoreReader.js';
@@ -59,7 +60,8 @@ export class StarknetCoreModule {
       BigNumber.from(config.requiredHook.protocolFee),
       config.requiredHook.beneficiary,
       config.owner,
-      '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
+      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
+        .denom as MultiType,
     ]);
 
     // 4. Deploy Mailbox with initial configuration

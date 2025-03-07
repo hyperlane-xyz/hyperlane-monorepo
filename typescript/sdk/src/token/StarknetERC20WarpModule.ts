@@ -1,6 +1,7 @@
 import {
   Account,
   Contract,
+  MultiType,
   Uint256,
   byteArray,
   eth,
@@ -18,6 +19,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import { HypERC20Deployer } from './deploy.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 import { WarpRouteDeployConfig } from './types.js';
 
 export class StarknetERC20WarpModule {
@@ -83,8 +85,9 @@ export class StarknetERC20WarpModule {
             'HypNative',
             {
               mailbox: mailbox,
-              native_token:
-                '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
+              native_token: PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[
+                ProtocolType.Starknet
+              ]!.denom as MultiType,
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
               owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner

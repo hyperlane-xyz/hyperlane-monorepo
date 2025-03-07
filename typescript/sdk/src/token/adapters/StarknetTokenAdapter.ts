@@ -1,7 +1,13 @@
 import { BigNumber } from 'ethers';
 import { CairoOption, CairoOptionVariant, Call, Contract, num } from 'starknet';
 
-import { Address, Domain, Numberish, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  Numberish,
+  ProtocolType,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -10,6 +16,7 @@ import {
   getStarknetHypERC20CollateralContract,
   getStarknetHypERC20Contract,
 } from '../../utils/starknet.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -214,7 +221,8 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
       multiProvider.getChainMetadata(chainName)?.nativeToken?.denom;
     assert(nativeAddress, `Native address not found for chain ${chainName}`);
     this.nativeContract = getStarknetHypERC20Contract(
-      nativeAddress,
+      nativeAddress ??
+        PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!.denom,
       multiProvider.getStarknetProvider(chainName),
     );
   }
