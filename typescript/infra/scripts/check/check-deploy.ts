@@ -14,6 +14,7 @@ async function main() {
     fork,
     govern,
     warpRouteId,
+    registry,
   } = await getCheckDeployArgs().argv;
 
   const governor = await getGovernor(
@@ -25,6 +26,8 @@ async function main() {
     chains,
     fork,
     govern,
+    undefined,
+    registry,
   );
 
   if (fork) {
