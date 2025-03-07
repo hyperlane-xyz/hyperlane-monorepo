@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 
 import {
+  FormatObjectFormatter,
   arrayToObject,
   deepCopy,
   deepEquals,
   deepFind,
   diffObjMerge,
+  formatObj,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
@@ -351,6 +353,191 @@ describe('Object utilities', () => {
     it('should throw an error if the value does not exist', () => {
       const obj = { a: 1, b: 2 };
       expect(() => mustGet(obj, 'c')).to.Throw();
+    });
+  });
+
+  describe(formatObj.name, () => {
+    it('should format a string', () => {
+      const actual = 'HELLO';
+      const expected = 'hello';
+      const formatter: FormatObjectFormatter = (obj: any) => ({
+        formattedValue: typeof obj === 'string' ? obj.toLowerCase() : obj,
+        shouldInclude: true,
+      });
+
+      expect(formatObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should format a number', () => {
+      const actual = 42;
+      const expected = 84;
+      const formatter: FormatObjectFormatter = (obj: any) => ({
+        formattedValue: typeof obj === 'number' ? obj * 2 : obj,
+        shouldInclude: true,
+      });
+
+      expect(formatObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should return an empty object when given an empty object', () => {
+      const actual = {};
+      const expected = {};
+      const formatter: FormatObjectFormatter = (obj: any) => ({
+        formattedValue: obj,
+        shouldInclude: true,
+      });
+
+      expect(formatObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should return an empty array when given an empty array', () => {
+      const actual: any[] = [];
+      const expected: any[] = [];
+      const formatter: FormatObjectFormatter = (obj) => ({
+        formattedValue: obj,
+        shouldInclude: true,
+      });
+
+      expect(formatObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should remove values when shouldInclude is false', () => {
+      const actual = {
+        keep: 'value',
+        remove: 'this should be removed',
+      };
+
+      const expected = {
+        keep: 'value',
+      };
+
+      const formatter: FormatObjectFormatter = (
+        obj: any,
+        propPath: ReadonlyArray<string>,
+      ) => {
+        const parentKey = propPath[propPath.length - 1];
+        return {
+          formattedValue: obj,
+          shouldInclude: parentKey !== 'remove',
+        };
+      };
+
+      expect(formatObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should throw an error when maximum depth is exceeded', () => {
+      // Build a nested object with depth > 15.
+      const obj: any = {};
+      let current = obj;
+      for (let i = 0; i < 16; i++) {
+        current['level' + i] = {};
+        current = current['level' + i];
+      }
+      const formatter: FormatObjectFormatter = (obj) => ({
+        formattedValue: obj,
+        shouldInclude: true,
+      });
+
+      expect(() => formatObj(obj, formatter)).to.throw(
+        'formatObj went too deep. Max depth is 15',
+      );
+    });
+
+    const testCases: Array<{ actual: any; expected: any }> = [
+      { actual: { a: 'Henlo', b: 2 }, expected: { a: 'henlo', b: 2 } },
+      {
+        actual: {
+          a: {
+            b: 'Test',
+          },
+          c: {
+            d: {
+              e: 'TeSt 2',
+            },
+          },
+        },
+        expected: {
+          a: {
+            b: 'test',
+          },
+          c: {
+            d: {
+              e: 'test 2',
+            },
+          },
+        },
+      },
+    ];
+
+    for (const { actual, expected } of testCases) {
+      it('should successfully apply the formatter function to an object', () => {
+        const formatter: FormatObjectFormatter = (obj: any) => {
+          return {
+            formattedValue: typeof obj === 'string' ? obj.toLowerCase() : obj,
+            shouldInclude: true,
+          };
+        };
+
+        const formatted = formatObj(actual, formatter);
+
+        expect(formatted).to.eql(expected);
+      });
+    }
+
+    it('should successfully apply the formatter when it includes a condition based on the current key path', () => {
+      const actual = {
+        ism: {
+          address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
+          type: 'NULL',
+        },
+        remoteRouters: {
+          '1': {
+            address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+          },
+        },
+      };
+
+      const expected = {
+        ism: {
+          type: 'NULL',
+        },
+        remoteRouters: {
+          '1': {
+            address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
+          },
+        },
+      };
+
+      const formatter: FormatObjectFormatter = (
+        obj: any,
+        propPath: ReadonlyArray<string>,
+      ) => {
+        const key = propPath[propPath.length - 3];
+        const parentKey = propPath[propPath.length - 1];
+
+        if (key === 'remoteRouters' && typeof obj === 'string') {
+          return {
+            formattedValue: obj.toLowerCase(),
+            shouldInclude: true,
+          };
+        }
+
+        if (parentKey === 'address') {
+          return {
+            formattedValue: obj,
+            shouldInclude: false,
+          };
+        }
+
+        return {
+          formattedValue: obj,
+          shouldInclude: true,
+        };
+      };
+
+      const formatted = formatObj(actual, formatter);
+
+      expect(formatted).to.eql(expected);
     });
   });
 });

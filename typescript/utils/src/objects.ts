@@ -337,3 +337,82 @@ export function mustGet<T>(obj: Record<string, T>, key: string): T {
   }
   return value;
 }
+
+type FormatObjResult = {
+  // The value after it has been transformed
+  formattedValue: any;
+
+  // Wether the formatted value should be included or not in the final object
+  shouldInclude: boolean;
+};
+
+export type FormatObjectFormatter = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => FormatObjResult;
+
+/**
+ * Recursively applies `formatter` to the provided object
+ *
+ * @param obj
+ * @param formatter a function that takes an object and formats it, if the `shouldInclude` property in the return value is set to false, the current value won't be included in the final result
+ * @param maxDepth the maximum depth that can be reached when going through nested fields of a property
+ *
+ * @throws if `maxDepth` is reached in an object property
+ */
+export function formatObj(
+  obj: any,
+  formatter: FormatObjectFormatter,
+  maxDepth = 15,
+): any {
+  const { formattedValue, shouldInclude } = internalFormatObj(
+    obj,
+    formatter,
+    [],
+    maxDepth,
+  );
+
+  return shouldInclude ? formattedValue : undefined;
+}
+
+function internalFormatObj(
+  obj: any,
+  formatter: FormatObjectFormatter,
+  propPath: Array<string>,
+  maxDepth: number,
+): FormatObjResult {
+  if (propPath.length > maxDepth) {
+    throw new Error('formatObj went too deep. Max depth is 15');
+  }
+
+  if (Array.isArray(obj)) {
+    return {
+      formattedValue: obj
+        .map((obj) =>
+          internalFormatObj(obj, formatter, [...propPath], maxDepth),
+        )
+        .filter((obj) => obj.shouldInclude)
+        .map((obj) => obj.formattedValue),
+      shouldInclude: true,
+    };
+  } else if (isObject(obj)) {
+    const newObj = Object.entries(obj).reduce((formattedObj, [key, value]) => {
+      const { formattedValue, shouldInclude } = internalFormatObj(
+        value,
+        formatter,
+        [...propPath, key],
+        maxDepth,
+      );
+
+      if (shouldInclude) {
+        formattedObj[key] = formattedValue;
+      }
+
+      return formattedObj;
+    }, {} as any);
+
+    return formatter(newObj, propPath);
+  }
+
+  return formatter(obj, propPath);
+}

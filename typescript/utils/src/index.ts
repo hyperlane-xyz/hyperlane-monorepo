@@ -127,6 +127,8 @@ export {
   pick,
   promiseObjAll,
   stringifyObject,
+  formatObj,
+  FormatObjectFormatter,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
