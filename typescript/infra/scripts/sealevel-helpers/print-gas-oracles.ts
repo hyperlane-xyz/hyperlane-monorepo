@@ -100,6 +100,8 @@ function getChainConnections(
     connectedChains = [
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
+      // Cod3x route
+      ['solanamainnet', 'sophon'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
