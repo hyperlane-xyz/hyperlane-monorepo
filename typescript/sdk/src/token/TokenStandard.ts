@@ -119,11 +119,6 @@ export const XERC20_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
 ];
 
-export const VSXERC20_STANDARDS = [
-  TokenStandard.EvmHypVSXERC20,
-  TokenStandard.EvmHypVSXERC20Lockbox,
-];
-
 export const MINT_LIMITED_STANDARDS = [...XERC20_STANDARDS];
 
 export const TOKEN_HYP_STANDARDS = [

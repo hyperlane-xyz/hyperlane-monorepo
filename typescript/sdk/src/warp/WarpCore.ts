@@ -26,7 +26,6 @@ import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
-  VSXERC20_STANDARDS,
 } from '../token/TokenStandard.js';
 import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
@@ -793,7 +792,7 @@ export class WarpCore {
         originTokenAmount.token.getConnectionForChain(destinationName)?.token;
       if (
         destinationToken &&
-        VSXERC20_STANDARDS.includes(destinationToken.standard)
+        MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
       ) {
         return { amount: 'Rate limit exceeded on destination' };
       }
