@@ -5,4 +5,4 @@
 '@hyperlane-xyz/core': minor
 ---
 
-Added utils fro fetching extra lockboxes data from a xERC20 warp route
+Added utils for fetching extra lockboxes data from a xERC20 warp route

@@ -177,9 +177,16 @@ async function getLockboxesFromLogs(
     logs,
   });
 
+  // A bridge might appear more than once in the event logs, we are only
+  // interested in the most recent one for each bridge so we deduplicate
+  // entries here
   const dedupedBridges = parsedLogs.reduce((acc, log) => {
-    if (log.blockNumber > (acc[log.args.bridge]?.blockNumber ?? 0n)) {
-      acc[log.args.bridge] = log;
+    const bridgeAddress = log.args.bridge;
+    const isMostRecentLogForBridge =
+      log.blockNumber > (acc[bridgeAddress]?.blockNumber ?? 0n);
+
+    if (isMostRecentLogForBridge) {
+      acc[bridgeAddress] = log;
     }
 
     return acc;
