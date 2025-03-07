@@ -183,6 +183,15 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Temporary workaround due to InfinityVM Monza whitelisting.
+      { originDomain: getDomainId('infinityvmmonza') },
+      // Temporary workaround due to InfinityVM Monza whitelisting.
+      { destinationDomain: getDomainId('infinityvmmonza') },
+    ],
+  },
   // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -243,7 +252,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '319a395-20250208-204916',
+      tag: '9c57bfe-20250307-120826',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -265,7 +274,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '319a395-20250208-204916',
+      tag: '9c57bfe-20250307-120826',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -274,7 +283,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '319a395-20250208-204916',
+      tag: '9c57bfe-20250307-120826',
     },
     resources: scraperResources,
   },

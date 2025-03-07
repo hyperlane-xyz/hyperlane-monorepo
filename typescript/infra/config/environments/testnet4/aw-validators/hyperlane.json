@@ -58,6 +58,9 @@
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
+  "infinityvmmonza": {
+    "validators": ["0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"]
+  },
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   },
@@ -119,8 +122,5 @@
   },
   "weavevmtestnet": {
     "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
-  },
-  "infinityvmmonza": {
-    "validators": ["0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"]
   }
 }
