@@ -279,8 +279,6 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
     }
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
     function testTransferEvent() public {
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
