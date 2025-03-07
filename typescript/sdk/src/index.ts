@@ -569,6 +569,7 @@ export {
   TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
   XERC20_STANDARDS,
+  VSXERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
   CollateralRebaseTokenConfigSchema,
