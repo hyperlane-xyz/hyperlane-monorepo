@@ -342,7 +342,7 @@ type FormatObjResult = {
   // The value after it has been transformed
   formattedValue: any;
 
-  // Wether the formatted value should be included or not in the final object
+  // Whether the formatted value should be included or not in the final object
   shouldInclude: boolean;
 };
 
