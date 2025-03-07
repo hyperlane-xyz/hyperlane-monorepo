@@ -33,7 +33,7 @@ import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { proxyAdmin } from './../deploy/proxy.js';
-import { TokenType } from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   HypTokenConfig,
   HypTokenRouterConfig,
@@ -154,11 +154,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     // Finally check native
     // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
     try {
-      await this.multiProvider.estimateGas(this.chain, {
-        to: warpRouteAddress,
-        from: await this.multiProvider.getSignerAddress(this.chain),
-        value: BigNumber.from(0),
-      });
+      await this.multiProvider.estimateGas(
+        this.chain,
+        {
+          to: warpRouteAddress,
+          value: BigNumber.from(0),
+        },
+        NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
+      );
       return TokenType.native;
     } catch (e) {
       throw Error(`Error accessing token specific method ${e}`);

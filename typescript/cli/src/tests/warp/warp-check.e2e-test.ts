@@ -86,37 +86,18 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  describe('HYP_KEY=... hyperlane warp check --config ...', () => {
+  describe('hyperlane warp check --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
       await deployAndExportWarpRoute();
 
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        hypKey: ANVIL_KEY,
+      const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
 
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
-      );
-    });
-  });
-
-  describe('hyperlane warp check --key ... --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
-      await deployAndExportWarpRoute();
-
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        privateKey: ANVIL_KEY,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.include(
         'Please specify either a symbol, chain and address or warp file',
       );
     });

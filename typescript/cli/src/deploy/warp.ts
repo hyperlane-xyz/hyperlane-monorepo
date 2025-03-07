@@ -1033,29 +1033,34 @@ async function submitWarpApplyTransactions(
 
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
-      await retryAsync(
-        async () => {
-          const chain = chainIdToName[chainId];
-          const submitter: TxSubmitterBuilder<ProtocolType> =
-            await getWarpApplySubmitter({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-            });
-          const transactionReceipts = await submitter.submit(...transactions);
-          if (transactionReceipts) {
-            const receiptPath = `${params.receiptsDir}/${chain}-${
-              submitter.txSubmitterType
-            }-${Date.now()}-receipts.json`;
-            writeYamlOrJson(receiptPath, transactionReceipts);
-            logGreen(
-              `Transactions receipts successfully written to ${receiptPath}`,
-            );
-          }
-        },
-        5, // attempts
-        100, // baseRetryMs
-      );
+      try {
+        await retryAsync(
+          async () => {
+            const chain = chainIdToName[chainId];
+            const submitter: TxSubmitterBuilder<ProtocolType> =
+              await getWarpApplySubmitter({
+                chain,
+                context: params.context,
+                strategyUrl: params.strategyUrl,
+              });
+            const transactionReceipts = await submitter.submit(...transactions);
+            if (transactionReceipts) {
+              const receiptPath = `${params.receiptsDir}/${chain}-${
+                submitter.txSubmitterType
+              }-${Date.now()}-receipts.json`;
+              writeYamlOrJson(receiptPath, transactionReceipts);
+              logGreen(
+                `Transactions receipts successfully written to ${receiptPath}`,
+              );
+            }
+          },
+          5, // attempts
+          100, // baseRetryMs
+        );
+      } catch (e) {
+        logBlue(`Error in submitWarpApplyTransactions`, e);
+        console.dir(transactions);
+      }
     }),
   );
 }

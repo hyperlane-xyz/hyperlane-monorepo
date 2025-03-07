@@ -330,6 +330,13 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .alias('r', 'rpcUrls');
 }
 
+export function withSkipReview<T>(args: Argv<T>) {
+  return args
+    .describe('skipReview', 'Skip review')
+    .boolean('skipReview')
+    .default('skipReview', false);
+}
+
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
   const choices = Object.values(WarpRouteIds).map((id) => ({

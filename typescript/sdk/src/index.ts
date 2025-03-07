@@ -248,11 +248,15 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
+  ChainDisabledReason,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
+  ChainStatus,
   ChainTechnicalStack,
+  DisabledChainSchema,
   EthJsonRpcBlockParameterTag,
+  EnabledChainSchema,
   ExplorerFamily,
   ExplorerFamilyValue,
   getChainIdNumber,
@@ -609,6 +613,8 @@ export {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
+  XERC20TokenMetadata,
+  XERC20LimitConfig,
 } from './token/types.js';
 export {
   ChainMap,
