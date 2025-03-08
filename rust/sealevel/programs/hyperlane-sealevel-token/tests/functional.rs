@@ -472,6 +472,7 @@ async fn transfer_from_remote(
         destination: LOCAL_DOMAIN,
         recipient: program_id.to_bytes().into(),
         body: TokenMessage::new(recipient, remote_transfer_amount, vec![]).to_vec(),
+        id: std::sync::OnceLock::new(),
     };
 
     process(
@@ -810,6 +811,7 @@ async fn test_transfer_remote() {
         recipient: remote_router,
         // Expect the remote_transfer_amount to be in the message.
         body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, vec![]).to_vec(),
+        id: std::sync::OnceLock::new(),
     };
 
     assert_eq!(

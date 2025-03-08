@@ -671,6 +671,7 @@ fn outbox_dispatch(
         destination: dispatch.destination_domain,
         recipient: dispatch.recipient,
         body: dispatch.message_body,
+        id: std::sync::OnceLock::new(),
     };
     let mut encoded_message = vec![];
     message

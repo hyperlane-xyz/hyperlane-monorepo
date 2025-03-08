@@ -19,6 +19,7 @@ bs58.workspace = true
 bytes = { workspace = true, features = ["serde"] }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
+derivative.workspace = true
 derive-new.workspace = true
 derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }

@@ -55,6 +55,7 @@ mod test {
                 destination: 12,
                 recipient: H256::from_low_u64_be(5),
                 body: vec![1, 2, 3],
+                id: std::sync::OnceLock::new(),
             };
             let meta = LogMeta {
                 address: H256::from_low_u64_be(1),

@@ -200,6 +200,7 @@ impl ScraperDb {
                 sender: bytes_to_address(message.sender)?,
                 recipient: bytes_to_address(message.recipient)?,
                 body: message.msg_body.unwrap_or(Vec::new()),
+                id: std::sync::OnceLock::new(),
             }))
         } else {
             Ok(None)
