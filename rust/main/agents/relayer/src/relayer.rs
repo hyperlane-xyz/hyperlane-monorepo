@@ -419,11 +419,10 @@ impl BaseAgent for Relayer {
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
-            tasks.push(self.run_message_processor(
-                origin,
-                send_channels.clone(),
-                task_monitor.clone(),
-            ));
+            tasks.push(
+                self.run_message_processor(origin, send_channels.clone(), task_monitor.clone())
+                    .await,
+            );
             tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
 
@@ -573,7 +572,7 @@ impl Relayer {
         format!("contract::sync::{}{}", prefix, domain)
     }
 
-    fn run_message_processor(
+    async fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
@@ -609,7 +608,8 @@ impl Relayer {
             destination_ctxs,
             self.metric_app_contexts.clone(),
             self.max_retries,
-        );
+        )
+        .await;
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
