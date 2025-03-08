@@ -26,7 +26,7 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   // desired balance config, must be set for each chain
   desiredBalancePerChain: {
-    abstract: '0',
+    abstract: '0.05',
     // acala: '5',
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
