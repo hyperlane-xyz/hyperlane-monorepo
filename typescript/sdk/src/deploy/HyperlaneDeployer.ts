@@ -415,6 +415,8 @@ export abstract class HyperlaneDeployer<
       } else {
         this.logger.debug(
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
+          'args',
+          initializeArgs,
         );
 
         // Estimate gas for the initialize transaction
@@ -422,12 +424,30 @@ export abstract class HyperlaneDeployer<
           ...initializeArgs,
         );
 
+        this.logger.debug(
+          'Estimated gas for initialize:',
+          estimatedGas,
+          'args',
+          initializeArgs,
+          'chain',
+          chain,
+        );
+
         // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
+        this.logger.debug(
+          'overrides for initialize:',
+          overrides,
+          'chain',
+          chain,
+          'gasLimit',
+          addBufferToGasLimit(estimatedGas),
+        );
         const initTx = await contract.initialize(...initializeArgs, {
           gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
         });
+        this.logger.debug('init tx:', initTx, 'chain', chain);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,

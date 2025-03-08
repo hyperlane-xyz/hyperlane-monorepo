@@ -1,0 +1,10 @@
+{
+  "solanatestnet": {
+    "hex": "0x1058005a5e03d74481a9ce2711c63a3918bf847672491aa430405fab7f2ef00c",
+    "base58": "26oMREEgB1SgQ1wHmuXzh81C2uXvnudyTZ1E4HWqALLB"
+  },
+  "infinityvmmonza": {
+    "hex": "0x000000000000000000000000e63844ca06ce8e6d4097cb33e9b3d62704122307",
+    "base58": "1111111111114D2XEP9JSE2wd8FgkraPkTUiNNdt"
+  }
+}
