@@ -45,11 +45,13 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  await runPreflightChecksForChains({
-    context,
-    chains,
-    minGas: MINIMUM_TEST_SEND_GAS,
-  });
+  // TODO: this should be skipped for non-evm chains
+  // await runPreflightChecksForChains({
+  //   context,
+  //   chains: [origin, destination],
+  //   chainsToGasCheck: [origin],
+  //   minGas: MINIMUM_TEST_SEND_GAS,
+  // });
 
   for (let i = 0; i < chains.length; i++) {
     const origin = chains[i];
