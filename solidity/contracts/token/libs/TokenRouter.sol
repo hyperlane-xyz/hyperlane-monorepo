@@ -6,6 +6,7 @@ import {GasRouter} from "../../client/GasRouter.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenMessage} from "./TokenMessage.sol";
+import {DepositReceiver} from "../interfaces/DepositReceiver.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
@@ -164,6 +165,11 @@ abstract contract TokenRouter is GasRouter {
         uint256 amount = _message.amount();
         bytes calldata metadata = _message.metadata();
         _transferTo(recipient.bytes32ToAddress(), amount, metadata);
+        // If metadata provided, deposit tokens into the recipient app contract
+        if (metadata.length > 0) {
+            address user = bytes32(metadata[0:32]).bytes32ToAddress();
+            DepositReceiver(recipient.bytes32ToAddress()).depositFromBridge(user, address(this), amount);
+        }
         emit ReceivedTransferRemote(_origin, recipient, amount);
     }
 
