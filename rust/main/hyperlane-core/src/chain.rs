@@ -31,7 +31,7 @@ pub struct ContractLocator<'a> {
 }
 
 #[cfg(feature = "strum")]
-impl<'a> std::fmt::Display for ContractLocator<'a> {
+impl std::fmt::Display for ContractLocator<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 
         struct ReorgPeriodVisitor;
 
-        impl<'de> de::Visitor<'de> for ReorgPeriodVisitor {
+        impl de::Visitor<'_> for ReorgPeriodVisitor {
             type Value = ReorgPeriod;
 
             fn expecting(&self, f: &mut Formatter) -> std::fmt::Result {
