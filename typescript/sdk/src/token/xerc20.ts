@@ -3,7 +3,7 @@ import { Logger } from 'pino';
 import { Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import {
   GetEventLogsResponse,
@@ -147,11 +147,58 @@ async function getConfigurationChangedLogsFromRpc({
   const provider = multiProvider.getProvider(chain);
 
   const endBlock = await provider.getBlockNumber();
-  return provider.getLogs({
-    address: xERC20Address,
-    toBlock: endBlock,
-    topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
-  });
+  let currentStartBlock = await getContractCreationBlockFromRpc(
+    xERC20Address,
+    provider,
+  );
+
+  const logs = [];
+  const range = 5000;
+  while (currentStartBlock < endBlock) {
+    const currentLogs = await provider.getLogs({
+      address: xERC20Address,
+      fromBlock: currentStartBlock,
+      toBlock: currentStartBlock + range,
+      topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
+    });
+    logs.push(...currentLogs);
+    currentStartBlock += range;
+
+    // Sleep to avoid being rate limited with public RPCs
+    await sleep(350);
+  }
+
+  return logs;
+}
+
+// Retrieves the contract deployment number by performing a binary search
+// calling getCode until the creation block is found
+async function getContractCreationBlockFromRpc(
+  contractAddress: Address,
+  provider: ethers.providers.Provider,
+): Promise<number> {
+  const latestBlock = await provider.getBlockNumber();
+  const latestCode = await provider.getCode(contractAddress, latestBlock);
+  if (latestCode === '0x') {
+    throw new Error('Provided address is not a contract');
+  }
+
+  let low = 0;
+  let high = latestBlock;
+  let creationBlock = latestBlock;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const code = await provider.getCode(contractAddress, mid);
+
+    if (code !== '0x') {
+      creationBlock = mid;
+      high = mid - 1;
+    } else {
+      low = mid + 1;
+    }
+  }
+
+  return creationBlock;
 }
 
 type ConfigurationChangedLog = Log<
