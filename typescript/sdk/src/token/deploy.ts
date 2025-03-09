@@ -7,7 +7,13 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objKeys,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -110,6 +116,10 @@ abstract class TokenDeployer<
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
         return TokenMetadataSchema.parse(config);
+      }
+
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        continue;
       }
 
       if (isNativeTokenConfig(config)) {

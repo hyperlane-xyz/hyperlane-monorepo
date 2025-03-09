@@ -43,13 +43,6 @@
       "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
     ]
   },
-  "berabartio": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": [
-      "0x541dd3cb282cf869d72883557badae245b63e1fd"
-    ]
-  },
   "bsctestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -64,6 +57,20 @@
     "threshold": 1,
     "validators": [
       "0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"
+    ]
+  },
+  "carrchaintestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xa96dfc4d8c6cabb510701732ee01e52a75776205"
+    ]
+  },
+  "chronicleyellowstone": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"
     ]
   },
   "citreatestnet": {
@@ -94,6 +101,13 @@
       "0xb3191420d463c2af8bd9b4a395e100ec5c05915a"
     ]
   },
+  "flametestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x0272625243bf2377f87538031fed54e21853cc2d"
+    ]
+  },
   "formtestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
@@ -117,11 +131,32 @@
       "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
     ]
   },
+  "hyperliquidevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xea673a92a23ca319b9d85cc16b248645cd5158da"
+    ]
+  },
+  "infinityvmmonza": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"
+    ]
+  },
   "inksepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
       "0xe61c846aee275070207fcbf43674eb254f06097a"
+    ]
+  },
+  "monadtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x734628f55694d2a5f4de3e755ccb40ecd72b16d9"
     ]
   },
   "odysseytestnet": {
@@ -163,11 +198,25 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
+  "somniatestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"
+    ]
+  },
   "soneiumtestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
     "validators": [
       "0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"
+    ]
+  },
+  "sonicblaze": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xe5b98110d0688691ea280edea9a4faa1e3617ba1"
     ]
   },
   "sonicsvmtestnet": {
@@ -182,6 +231,13 @@
     "threshold": 1,
     "validators": [
       "0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"
+    ]
+  },
+  "subtensortestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"
     ]
   },
   "superpositiontestnet": {
@@ -203,6 +259,13 @@
     "threshold": 1,
     "validators": [
       "0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"
+    ]
+  },
+  "weavevmtestnet": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"
     ]
   }
 }

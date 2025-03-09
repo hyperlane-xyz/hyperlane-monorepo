@@ -108,6 +108,7 @@ function getChainConnections(
       // As testnet warp routes are not tracked well, hardcode the connected chains.
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
+      ['solanatestnet', 'infinityvmmonza'],
     ];
   } else {
     throw new Error(`Unknown environment: ${environment}`);
