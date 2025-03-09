@@ -324,6 +324,7 @@ struct TokenTransferRemote {
     recipient: String,
     #[arg(value_enum)]
     token_type: TokenType,
+    metadata: Option<String>,
 }
 
 #[derive(Args)]
@@ -1076,6 +1077,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 destination_domain: xfer.destination_domain,
                 recipient,
                 amount_or_id: xfer.amount.into(),
+                metadata: xfer.metadata.unwrap_or_default().into(),
             });
 
             // Transfers tokens to a remote.

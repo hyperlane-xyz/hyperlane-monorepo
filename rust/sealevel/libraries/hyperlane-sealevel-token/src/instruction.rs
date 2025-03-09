@@ -66,6 +66,8 @@ pub struct TransferRemote {
     pub recipient: H256,
     /// The amount or ID of the token to transfer.
     pub amount_or_id: U256,
+    /// The metadata to include in the message.
+    pub metadata: Vec<u8>,
 }
 
 /// Gets an instruction to initialize the program. This provides only the

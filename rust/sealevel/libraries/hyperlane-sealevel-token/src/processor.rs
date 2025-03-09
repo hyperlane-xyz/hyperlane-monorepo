@@ -452,8 +452,9 @@ where
         ];
 
         // The token message body, which specifies the remote_amount.
+        // TODO: any verification logic of metadata?
         let token_transfer_message =
-            TokenMessage::new(xfer.recipient, remote_amount, vec![]).to_vec();
+            TokenMessage::new(xfer.recipient, remote_amount, xfer.metadata).to_vec();
 
         if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
             // Dispatch the message and pay for gas.

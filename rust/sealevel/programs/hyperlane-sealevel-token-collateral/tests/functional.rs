@@ -652,6 +652,7 @@ async fn test_transfer_remote(spl_token_program_id: Pubkey) {
                 destination_domain: REMOTE_DOMAIN,
                 recipient: remote_token_recipient,
                 amount_or_id: transfer_amount.into(),
+                metadata: vec![],
             })
             .encode()
             .unwrap(),
