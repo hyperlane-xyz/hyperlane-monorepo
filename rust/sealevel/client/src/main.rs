@@ -324,6 +324,7 @@ struct TokenTransferRemote {
     recipient: String,
     #[arg(value_enum)]
     token_type: TokenType,
+    #[arg(long)]
     metadata: Option<String>,
 }
 
