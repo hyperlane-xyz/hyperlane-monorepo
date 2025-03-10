@@ -26,12 +26,11 @@ describe('Warp Configs', async function () {
 
   before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
-    configsFromGithub = await getRegistry(
-      [DEFAULT_GITHUB_REGISTRY],
-      true,
-      '',
-      rootLogger,
-    ).getWarpDeployConfigs();
+    configsFromGithub = await getRegistry({
+      registryUris: [DEFAULT_GITHUB_REGISTRY],
+      enableProxy: true,
+      logger: rootLogger,
+    }).getWarpDeployConfigs();
   });
 
   const envConfig = getEnvironmentConfig(ENV);

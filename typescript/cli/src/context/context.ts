@@ -102,7 +102,11 @@ export async function getContext({
   disableProxy = false,
   strategyPath,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUris, !disableProxy, '', rootLogger);
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: !disableProxy,
+    logger: rootLogger,
+  });
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
@@ -140,7 +144,11 @@ export async function getDryRunContext(
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUris, !disableProxy, '', rootLogger);
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: !disableProxy,
+    logger: rootLogger,
+  });
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
