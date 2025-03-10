@@ -116,8 +116,8 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
       extraParams.provider,
       userAddress,
       privateKey,
-      undefined,
-      '0x3',
+      // undefined,
+      // '0x3',
     );
   }
 }
