@@ -13,6 +13,8 @@ export enum TokenType {
   collateralUri = 'collateralUri',
   native = 'native',
   nativeScaled = 'nativeScaled',
+  intent = 'intent',
+  intentNative = 'intentNative',
 }
 
 export const gasOverhead = (tokenType: TokenType): number => {
