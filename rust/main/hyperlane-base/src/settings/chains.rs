@@ -23,7 +23,7 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
     SealevelRpcClient, TransactionSubmitter,
