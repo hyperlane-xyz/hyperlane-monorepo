@@ -19,7 +19,7 @@ export class CosmosModuleTokenAdapter
   extends BaseCosmosModuleAdapter
   implements ITokenAdapter<MsgRemoteTransferEncodeObject>
 {
-  protected denom: string;
+  private denom: string;
 
   constructor(
     public readonly chainName: ChainName,
@@ -38,8 +38,11 @@ export class CosmosModuleTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    // TODO: implement
-    return 0n;
+    const provider = await this.getProvider();
+    const supply = await provider
+      .getHyperlaneQueryClient()!
+      .bank.supplyOf(this.denom);
+    return BigInt(supply.amount);
   }
 
   getMetadata(): Promise<TokenMetadata> {
@@ -92,40 +95,85 @@ export class CosmosModuleHypSyntheticAdapter
   extends CosmosModuleTokenAdapter
   implements IHypTokenAdapter<MsgRemoteTransferEncodeObject>
 {
+  private tokenAddress: string;
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
+
+    this.tokenAddress = addresses.token;
   }
 
   async getDomains(): Promise<Domain[]> {
-    // TODO: implement
-    return [];
+    const provider = await this.getProvider();
+    const remoteRouters = await provider
+      .getHyperlaneQueryClient()!
+      .warp.RemoteRouters({ id: this.tokenAddress });
+
+    return remoteRouters.remote_routers.map((router) => router.receiver_domain);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const remoteRouters = await provider
+      .getHyperlaneQueryClient()!
+      .warp.RemoteRouters({ id: this.tokenAddress });
+
+    const router = remoteRouters.remote_routers.find(
+      (router) => router.receiver_domain === domain,
+    );
+
+    if (!router) {
+      throw new Error(`Router with domain "${domain}" not found`);
+    }
+
+    return Buffer.from(router.receiver_contract);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const remoteRouters = await provider
+      .getHyperlaneQueryClient()!
+      .warp.RemoteRouters({ id: this.tokenAddress });
+
+    return remoteRouters.remote_routers.map((router) => ({
+      domain: router.receiver_domain,
+      address: Buffer.from(router.receiver_contract),
+    }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const { bridged_supply } = await provider
+      .getHyperlaneQueryClient()!
+      .warp.BridgedSupply({ id: this.tokenAddress });
+
+    if (!bridged_supply) {
+      return undefined;
+    }
+
+    return BigInt(bridged_supply.amount);
   }
 
   async quoteTransferRemoteGas(
-    _destination: Domain,
+    destination: Domain,
     _sender?: Address,
   ): Promise<InterchainGasQuote> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const { gas_payment } = await provider
+      .getHyperlaneQueryClient()!
+      .warp.QuoteRemoteTransfer({
+        id: this.tokenAddress,
+        destination_domain: destination.toString(),
+      });
+
+    return {
+      addressOrDenom: this.tokenAddress,
+      amount: BigInt(gas_payment[0].amount),
+    };
   }
 
   async populateTransferRemoteTx(
@@ -147,40 +195,85 @@ export class CosmosModuleHypCollateralAdapter
   extends CosmosModuleTokenAdapter
   implements IHypTokenAdapter<MsgRemoteTransferEncodeObject>
 {
+  private tokenAddress: string;
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
+
+    this.tokenAddress = addresses.token;
   }
 
   async getDomains(): Promise<Domain[]> {
-    // TODO: implement
-    return [];
+    const provider = await this.getProvider();
+    const remoteRouters = await provider
+      .getHyperlaneQueryClient()!
+      .warp.RemoteRouters({ id: this.tokenAddress });
+
+    return remoteRouters.remote_routers.map((router) => router.receiver_domain);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const remoteRouters = await provider
+      .getHyperlaneQueryClient()!
+      .warp.RemoteRouters({ id: this.tokenAddress });
+
+    const router = remoteRouters.remote_routers.find(
+      (router) => router.receiver_domain === domain,
+    );
+
+    if (!router) {
+      throw new Error(`Router with domain "${domain}" not found`);
+    }
+
+    return Buffer.from(router.receiver_contract);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const remoteRouters = await provider
+      .getHyperlaneQueryClient()!
+      .warp.RemoteRouters({ id: this.tokenAddress });
+
+    return remoteRouters.remote_routers.map((router) => ({
+      domain: router.receiver_domain,
+      address: Buffer.from(router.receiver_contract),
+    }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const { bridged_supply } = await provider
+      .getHyperlaneQueryClient()!
+      .warp.BridgedSupply({ id: this.tokenAddress });
+
+    if (!bridged_supply) {
+      return undefined;
+    }
+
+    return BigInt(bridged_supply.amount);
   }
 
   async quoteTransferRemoteGas(
-    _destination: Domain,
+    destination: Domain,
     _sender?: Address,
   ): Promise<InterchainGasQuote> {
-    // TODO: implement
-    throw new Error('Method not implemented yet.');
+    const provider = await this.getProvider();
+    const { gas_payment } = await provider
+      .getHyperlaneQueryClient()!
+      .warp.QuoteRemoteTransfer({
+        id: this.tokenAddress,
+        destination_domain: destination.toString(),
+      });
+
+    return {
+      addressOrDenom: this.tokenAddress,
+      amount: BigInt(gas_payment[0].amount),
+    };
   }
 
   async populateTransferRemoteTx(
