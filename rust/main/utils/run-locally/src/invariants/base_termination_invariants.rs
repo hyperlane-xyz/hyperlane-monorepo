@@ -1,5 +1,6 @@
 use maplit::hashmap;
 
+#[cfg(feature = "cosmos")]
 use crate::invariants::provider_metrics_invariant_met;
 use crate::{fetch_metric, log, metrics::agent_balance_sum};
 

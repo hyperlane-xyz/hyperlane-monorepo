@@ -31,45 +31,62 @@ pub async fn deploy_fuel_hyperlane(
     target_domain: u32,
     validator_addr: H160,
 ) -> FuelDeployments {
+    let wallet_bits = Bits256(wallet.address().hash().into());
+    let configurables = AggregationISMConfigurables::default()
+        .with_EXPECTED_INITIALIZER(wallet_bits)
+        .unwrap();
+
     let aggregation_ism_id = Contract::load_from(
         "./src/fuel/fuel-contracts/aggregation-ism.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
     .unwrap();
 
+    let configurables = DomainRoutingISMConfigurables::default()
+        .with_EXPECTED_OWNER(wallet_bits)
+        .unwrap();
     let domain_routing_ism_id = Contract::load_from(
         "./src/fuel/fuel-contracts/domain-routing-ism.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
     .unwrap();
 
+    let configurables = FallbackDomainRoutingHookConfigurables::default()
+        .with_EXPECTED_OWNER(wallet_bits)
+        .unwrap();
     let fallback_domain_routing_hook_id = Contract::load_from(
         "./src/fuel/fuel-contracts/fallback-domain-routing-hook.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
     .unwrap();
 
+    let configurables = GasOracleConfigurables::default()
+        .with_EXPECTED_OWNER(wallet_bits)
+        .unwrap();
     let gas_oracle_id = Contract::load_from(
         "./src/fuel/fuel-contracts/gas-oracle.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
     .unwrap();
 
+    let configurables = GasPaymasterConfigurables::default()
+        .with_EXPECTED_OWNER(wallet_bits)
+        .unwrap();
     let igp_id = Contract::load_from(
         "./src/fuel/fuel-contracts/gas-paymaster.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
@@ -78,6 +95,8 @@ pub async fn deploy_fuel_hyperlane(
 
     let configurables = MailboxConfigurables::default()
         .with_LOCAL_DOMAIN(origin_domain)
+        .unwrap()
+        .with_EXPECTED_OWNER(wallet_bits)
         .unwrap();
     let mailbox_id = Contract::load_from(
         "./src/fuel/fuel-contracts/mailbox.bin",
@@ -90,6 +109,8 @@ pub async fn deploy_fuel_hyperlane(
 
     let configurables = MessageIdMultisigISMConfigurables::default()
         .with_THRESHOLD(1)
+        .unwrap()
+        .with_EXPECTED_INITIALIZER(wallet_bits)
         .unwrap();
     let message_id_multisig_ism_id = Contract::load_from(
         "./src/fuel/fuel-contracts/message-id-multisig-ism.bin",
@@ -100,18 +121,24 @@ pub async fn deploy_fuel_hyperlane(
     .await
     .unwrap();
 
+    let configurables = PausableISMConfigurables::default()
+        .with_EXPECTED_OWNER(wallet_bits)
+        .unwrap();
     let pausable_ism_id = Contract::load_from(
         "./src/fuel/fuel-contracts/pausable-ism.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
     .unwrap();
 
+    let configurables = MerkleTreeHookConfigurables::default()
+        .with_EXPECTED_INITIALIZER(wallet_bits)
+        .unwrap();
     let merkle_tree_hook_id = Contract::load_from(
         "./src/fuel/fuel-contracts/merkle-tree-hook.bin",
-        get_deployment_config(),
+        get_deployment_config().with_configurables(configurables),
     )
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
@@ -154,7 +181,7 @@ pub async fn deploy_fuel_hyperlane(
     ];
     aggregation_ism
         .methods()
-        .initialize(owner, aggregate_isms, 2)
+        .initialize(aggregate_isms, 2)
         .call()
         .await
         .unwrap();

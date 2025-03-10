@@ -4,8 +4,9 @@ use fuels::{
     accounts::wallet::WalletUnlocked,
     crypto::SecretKey,
     prelude::{FuelService, Provider},
+    programs::calls::{CallParameters, Execution},
     test_helpers::{ChainConfig, NodeConfig, StateConfig},
-    types::{Bits256, Bytes, ContractId},
+    types::{transaction_builders::VariableOutputPolicy, AssetId, Bits256, Bytes, ContractId},
 };
 use futures::future::join_all;
 use macro_rules_attribute::apply;
@@ -369,6 +370,24 @@ pub async fn dispatch(nodes: &Vec<FuelNetwork>) -> u32 {
                 ContractId::from(target.deployments.msg_recipient_test.contract_id()).into(),
             );
 
+            let quote = node
+                .deployments
+                .mailbox
+                .methods()
+                .quote_dispatch(
+                    target.config.domain,
+                    recipient,
+                    msg_body.clone(),
+                    Bytes(vec![]),
+                    ContractId::default(),
+                )
+                .determine_missing_contracts(None)
+                .await
+                .unwrap()
+                .simulate(Execution::Realistic)
+                .await
+                .unwrap();
+
             let res = node
                 .deployments
                 .mailbox
@@ -380,6 +399,9 @@ pub async fn dispatch(nodes: &Vec<FuelNetwork>) -> u32 {
                     Bytes(vec![]),
                     ContractId::default(),
                 )
+                .call_params(CallParameters::new(quote.value, AssetId::BASE, 1_500_000))
+                .unwrap()
+                .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
                 .determine_missing_contracts(None)
                 .await
                 .unwrap()
