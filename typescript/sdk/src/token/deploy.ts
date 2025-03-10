@@ -36,6 +36,7 @@ import {
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
 } from './types.js';
 
 abstract class TokenDeployer<
@@ -61,7 +62,7 @@ abstract class TokenDeployer<
     _: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
-    if (isCollateralTokenConfig(config)) {
+    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
       return [config.token, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
       return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
@@ -89,7 +90,11 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (isCollateralTokenConfig(config) || isNativeTokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isNativeTokenConfig(config)
+    ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
@@ -122,7 +127,7 @@ abstract class TokenDeployer<
         }
       }
 
-      if (isCollateralTokenConfig(config)) {
+      if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
         const provider = multiProvider.getProvider(chain);
 
         if (config.isNft) {

@@ -1,0 +1,81 @@
+arbitrum:
+  mailbox: '0x979Ca5202784112f4738403dBec5D0F3B9daabB9'
+  owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+  type: synthetic
+  interchainSecurityModule:
+    type: domainRoutingIsm
+    owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+    domains:
+      polygon:
+        type: ccipIsm
+        originChain: polygon
+      base:
+        type: ccipIsm
+        originChain: base
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: domainRoutingHook
+        owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+        domains:
+          polygon:
+            type: ccipHook
+            destinationChain: polygon
+          base:
+            type: ccipHook
+            destinationChain: base
+polygon:
+  mailbox: '0x5d934f4e2f797775e53561bB72aca21ba36B96BB'
+  owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+  type: native
+  interchainSecurityModule:
+    type: domainRoutingIsm
+    owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+    domains:
+      arbitrum:
+        type: ccipIsm
+        originChain: arbitrum
+      base:
+        type: ccipIsm
+        originChain: base
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: domainRoutingHook
+        owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+        domains:
+          arbitrum:
+            type: ccipHook
+            destinationChain: arbitrum
+          base:
+            type: ccipHook
+            destinationChain: base
+base:
+  mailbox: '0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D'
+  owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+  type: synthetic
+  interchainSecurityModule:
+    type: domainRoutingIsm
+    owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+    domains:
+      polygon:
+        type: ccipIsm
+        originChain: polygon
+      arbitrum:
+        type: ccipIsm
+        originChain: arbitrum
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: domainRoutingHook
+        owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+        domains:
+          polygon:
+            type: ccipHook
+            destinationChain: polygon
+          arbitrum:
+            type: ccipHook
+            destinationChain: arbitrum
