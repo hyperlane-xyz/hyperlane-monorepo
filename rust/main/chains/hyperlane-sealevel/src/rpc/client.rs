@@ -54,10 +54,9 @@ impl SealevelRpcClient {
 
     /// constructor
     pub fn new(rpc_endpoint: String) -> Self {
-        Self(RpcClient::new_with_commitment(
-            rpc_endpoint,
-            CommitmentConfig::processed(),
-        ))
+        let rpc_client =
+            RpcClient::new_with_commitment(rpc_endpoint, CommitmentConfig::processed());
+        Self::from_rpc_client(rpc_client)
     }
 
     /// constructor with an rpc client

@@ -21,7 +21,7 @@ pub(crate) fn create_json_rpc_client_metrics(
             REQUEST_DURATION_SECONDS_HELP,
             REQUEST_DURATION_SECONDS_LABELS,
         )?)
-        .provider_count(metrics.new_int_counter(
+        .provider_count(metrics.new_int_gauge(
             "provider_count",
             PROVIDER_COUNT_HELP,
             PROVIDER_COUNT_LABELS,

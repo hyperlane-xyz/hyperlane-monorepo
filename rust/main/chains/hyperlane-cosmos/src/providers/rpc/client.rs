@@ -18,7 +18,7 @@ use url::Url;
 use crate::{ConnectionConf, HyperlaneCosmosError};
 
 /// Thin wrapper around Cosmos RPC client with error mapping
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct CosmosRpcClient {
     client: HttpClient,
     metrics: PrometheusClientMetrics,
@@ -42,6 +42,10 @@ impl CosmosRpcClient {
             .compat_mode(CompatMode::latest())
             .build()
             .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        // increment provider metric count
+        let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
+        metrics.increment_provider_instance(chain_name);
 
         Ok(Self {
             client,
@@ -121,6 +125,27 @@ impl CosmosRpcClient {
         self.metrics
             .increment_metrics(&self.metrics_config, method, start, res.is_ok());
         res
+    }
+}
+
+impl Drop for CosmosRpcClient {
+    fn drop(&mut self) {
+        // decrement provider metric count
+        let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
+    }
+}
+
+impl Clone for CosmosRpcClient {
+    fn clone(&self) -> Self {
+        // decrement provider metric count
+        let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
+        self.metrics.increment_provider_instance(chain_name);
+        Self {
+            client: self.client.clone(),
+            metrics: self.metrics.clone(),
+            metrics_config: self.metrics_config.clone(),
+        }
     }
 }
 

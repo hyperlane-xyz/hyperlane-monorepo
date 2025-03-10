@@ -4,7 +4,7 @@ use std::{fmt::Debug, time::Instant};
 
 use derive_builder::Builder;
 use maplit::hashmap;
-use prometheus::{CounterVec, IntCounterVec};
+use prometheus::{CounterVec, IntCounterVec, IntGaugeVec};
 use serde::Deserialize;
 use url::Url;
 
@@ -33,7 +33,7 @@ pub struct PrometheusClientMetrics {
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
     #[builder(setter(into, strip_option), default)]
-    pub provider_count: Option<IntCounterVec>,
+    pub provider_count: Option<IntGaugeVec>,
 
     /// Total number of requests made to this client.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
@@ -64,7 +64,15 @@ impl PrometheusClientMetrics {
             "chain" => chain,
         };
         if let Some(counter) = &self.provider_count {
-            counter.with(&labels).inc()
+            counter.with(&labels).inc();
+        }
+    }
+    pub fn decrement_provider_instance(&self, chain: &str) {
+        let labels = hashmap! {
+            "chain" => chain,
+        };
+        if let Some(counter) = &self.provider_count {
+            counter.with(&labels).dec();
         }
     }
 

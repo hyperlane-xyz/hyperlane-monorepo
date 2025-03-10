@@ -283,6 +283,8 @@ pub fn provider_metrics_invariant_met(
     .iter()
     .sum::<u32>();
 
+    log!("Provider instance count: {}", provider_count);
+
     if provider_count == 0 {
         log!("Provider only has 0 count, expected non-zero",);
         return Ok(false);
