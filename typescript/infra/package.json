@@ -15,7 +15,7 @@
     "@google-cloud/secret-manager": "^5.5.0",
     "@hyperlane-xyz/cli": "8.8.1",
     "@hyperlane-xyz/helloworld": "8.8.1",
-    "@hyperlane-xyz/registry": "10.9.0",
+    "@hyperlane-xyz/registry": "10.11.0",
     "@hyperlane-xyz/sdk": "8.8.1",
     "@hyperlane-xyz/utils": "8.8.1",
     "@inquirer/prompts": "3.3.2",
