@@ -40,6 +40,7 @@ import {
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
+import { getExtraLockBoxConfigs } from './xerc20.js';
 
 export class EvmERC20WarpRouteReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({
@@ -215,7 +216,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       'function bufferCap(address) external view returns (uint112)',
     ];
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+
     try {
+      const extraBridgesLimits = await getExtraLockBoxConfigs({
+        chain: this.chain,
+        multiProvider: this.multiProvider,
+        xERC20Address,
+        logger: this.logger,
+      });
+
       return {
         xERC20: {
           warpRouteLimits: {
@@ -224,9 +233,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
             ).toString(),
             bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
           },
+          extraBridges:
+            extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
         },
       };
-    } catch (_error) {
+    } catch (error) {
+      this.logger.error(
+        `Error fetching xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
+        error,
+      );
       return {};
     }
   }

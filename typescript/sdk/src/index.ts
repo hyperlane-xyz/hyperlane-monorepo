@@ -493,6 +493,7 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,

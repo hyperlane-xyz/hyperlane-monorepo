@@ -355,9 +355,7 @@ function generateSuperTokenConfig(
             rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
             bufferCap: bufferCapPerChain[chain],
           },
-          ...(extraLockboxes
-            ? { extraLockboxLimits: extraLockboxes[chain] }
-            : {}),
+          extraBridges: extraLockboxes ? extraLockboxes[chain] : undefined,
         },
         // The ISM configuration uses a fallback routing ISM that routes messages based on amount thresholds:
         // - Below threshold: Uses default ISM
