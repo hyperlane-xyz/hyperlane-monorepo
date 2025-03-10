@@ -357,7 +357,6 @@ async fn submit_task(
     let recv_limit = max_batch_size as usize;
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
-
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
                 // The queue is empty, so give some time before checking again to prevent burning CPU

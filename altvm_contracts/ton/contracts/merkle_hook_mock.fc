@@ -1,0 +1,86 @@
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/op_codes.fc";
+#include "imports/events.fc";
+#include "imports/errors.fc";
+#include "imports/signing_utils.fc";
+
+global int g::index;
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_uint(g::index, 32)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::index = ds~load_uint(32);
+}
+
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    slice s = msg_body;
+    slice hyp_message = s~load_ref_slice();
+    cell hook_metadata = s~load_maybe_ref();
+    int message_id = build_message_id(hyp_message);
+
+    builder data = begin_cell()
+        .store_uint(message_id, 256)
+        .store_uint(g::index, 32);
+    send_event(
+        event::inserted_into_tree,
+        data
+    );
+
+    g::index += 1;
+
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
+        query_id,
+        0,
+        msg_sender,
+        msg_body
+    );
+    validate_msg_value(msg_value, 0);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+
+    if (op == op::hook::post_dispatch) {
+        post_dispatch(
+            query_id,
+            in_msg_body,
+            msg_value,
+            msg_sender
+        );
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+
+int get_count() method_id { 
+    load_globals();
+    return g::index + 1;
+}
+
+(int, int) get_latest_checkpoint() method_id {
+    load_globals();
+    return (0, g::index);
+}

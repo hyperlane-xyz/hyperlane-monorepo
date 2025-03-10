@@ -1,0 +1,30 @@
+defaultHook:
+  type: merkleTreeHook
+defaultIsm:
+  threshold: 1
+  type: messageIdMultisigIsm
+  validators:
+    - "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+owner: "0xf92769A0dFee5B4807daC7De454a0AE009886Fb0"
+proxyAdmin:
+  owner: "0xf92769A0dFee5B4807daC7De454a0AE009886Fb0"
+requiredHook:
+  beneficiary: "0xf92769A0dFee5B4807daC7De454a0AE009886Fb0"
+  oracleConfig:
+    sepolia:
+      gasPrice: "12335838332"
+      tokenExchangeRate: "11000000000"
+    tontest1:
+      gasPrice: "1000000000"
+      tokenExchangeRate: "11000000000"
+    tontest2:
+      gasPrice: "1000000000"
+      tokenExchangeRate: "11000000000"
+  oracleKey: "0xf92769A0dFee5B4807daC7De454a0AE009886Fb0"
+  overhead:
+    sepolia: 1000
+    tontest1: 777001
+    tontest2: 777002
+  owner: "0xf92769A0dFee5B4807daC7De454a0AE009886Fb0"
+  type: interchainGasPaymaster
+

@@ -1,0 +1,78 @@
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/op_codes.fc";
+#include "imports/events.fc";
+#include "imports/errors.fc";
+#include "imports/signing_utils.fc";
+#include "imports/merkle.fc";
+
+global int g::count;
+global cell g::tree;
+
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_uint(g::count, 256)
+        .store_dict(g::tree)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::count = ds~load_uint(256);
+    g::tree = ds~load_dict();
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+
+    if(op == op::merkle_test) {
+        int message_id = in_msg_body~load_uint(256);
+
+        (int count, cell tree) = insert_into_tree(message_id, g::count, g::tree);
+
+        g::count = count;
+        g::tree = tree;
+
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+;;
+;; GET-METHODS
+;; 
+
+int root() inline {
+    return root_w_ctx(zero_hashes(), g::count, g::tree);
+}
+
+(cell, int) get_tree() method_id {
+    load_globals();
+    return (g::tree, g::count);
+}
+
+int get_count() method_id { 
+    load_globals();
+    return g::count;
+}
+
+int get_root() method_id {
+    load_globals();
+    return root();
+}

@@ -1,0 +1,16 @@
+const int ONE_TON = 1000000000;
+
+;; Persistent globals
+
+;; Optional ISM address. Can be addr_none$00 or addr_std$10 ...
+global slice g::ism_addr;
+global slice g::jetton_addr;
+global slice g::mailbox_addr;
+global slice g::owner_addr;
+global cell g::routers;
+global cell g::jetton_wallet_code;
+
+;; Runtime globals
+global slice g::msg_sender;
+global int g::query_id;
+global int g::msg_value;

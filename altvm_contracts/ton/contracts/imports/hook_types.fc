@@ -1,0 +1,5 @@
+const int hook_type::routing = 1;
+const int hook_type::aggregation = 2;
+const int hook_type::merkle_tree = 3;
+const int hook_type::interchain_gas_paymaster = 4;
+const int hook_type::protocol_fee = 8;

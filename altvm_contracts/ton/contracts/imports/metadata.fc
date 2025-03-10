@@ -1,0 +1,29 @@
+const int STD_VARIANT = 1;
+
+builder standard_metadata::new(int destination, slice sender) inline {
+    (_, int refund_addr) = sender.parse_std_addr();
+    return begin_cell()
+        .store_uint(STD_VARIANT, 16)  ;; variant
+        .store_uint(0, 256) ;;  value
+        .store_uint(0, 256) ;; gas limit
+        .store_uint(refund_addr, 256);
+}
+
+cell token_message::new(int recipient, int amount) inline {
+    return begin_cell()
+        .store_uint(recipient, 256)
+        .store_uint(amount, 256)
+        .end_cell();
+}
+
+int metadata::refund_addr(cell metadata, int default_addr) inline {
+    if (null?(metadata)) {
+        return default_addr;
+    }
+    return metadata.begin_parse().skip_bits(16 + 256 + 256).preload_uint(256);
+}
+
+int metadata::unpack::gas_limit(slice metadata) inline {
+    metadata~skip_bits(16 + 256);
+    return metadata~load_uint(256);
+}

@@ -1,0 +1,26 @@
+const int delivery::reserved_balance = 010000000;
+
+(cell) delivery::build_initial_data(int message_id) impure inline {
+  return begin_cell()
+    .store_uint(0, 1) ;; initiated?
+    .store_uint(message_id, 256)
+    .store_slice(my_address())
+  .end_cell();
+}
+
+() delivery::deploy(
+  int msg_value,
+  int msg_flags,
+  cell delivery_code,
+  cell delivery_data,
+  cell msg_body
+) impure inline {
+  deploy_contract(
+    delivery_code,
+    delivery_data,
+    msg_value,
+    true,
+    msg_body,
+    msg_flags
+  );
+}

@@ -1,0 +1,21 @@
+;; sending a message with x TONs.
+const int reserve_mode::this_amount = 0;
+;; sending a message with almost whole balance but leaving x TONs,
+;; and if not enough - throw error.
+const int reserve_mode::leave_this_amount = 1;
+;; sending a message with x TONs, and if not enough - don't throw error.
+;; but (!) if you will try to send something from it - will throw
+const int reserve_mode::at_most_this_amount = 2;
+;; sending a message with almost whole balance but leaving x TONs,
+;; and if balance is less than x - do nothing
+const int reserve_mode::leave_max_this_amount = 3;
+;; sending a message with (balance before msg + x) TONs
+const int reserve_mode::balance_plus_this_amount = 4;
+;; leaving on contract (balance before msg + x) TONs
+;; and sending a message with the rest (4 + 1)
+const int reserve_mode::leave_balance_plus_this_amount = 5;
+;; sending a message with (balance before msg - x) TONs (8 + 4)
+const int reserve_mode::balance_minus_this_amount = 12;
+;; leaving on contract (balance before msg - x) TONs
+;; and sending a message with the rest (8 + 4 + 1)
+const int reserve_mode::leave_balance_minus_this_amount = 13;
