@@ -34,6 +34,10 @@ import {
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter.js';
 import {
+  CosmosModuleHypCollateralAdapter,
+  CosmosModuleHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.ts.js';
+import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
@@ -265,6 +269,14 @@ export class Token implements IToken {
         },
         false,
       );
+    } else if (standard === TokenStandard.CosmosModuleHypCollateral) {
+      return new CosmosModuleHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.CosmosModuleHypSynthetic) {
+      return new CosmosModuleHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (standard === TokenStandard.CwHypNative) {
       return new CwHypNativeAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
