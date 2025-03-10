@@ -72,6 +72,7 @@ export enum Modules {
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CCIP = 'ccip',
 }
 
 export const REGISTRY_MODULES = [
@@ -82,6 +83,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CCIP,
 ];
 
 export function getArgs() {
@@ -204,6 +206,13 @@ export function withWarpRouteId<T>(args: Argv<T>) {
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
     .choices('warpRouteId', Object.values(WarpRouteIds));
+}
+
+export function withDryRun<T>(args: Argv<T>) {
+  return args
+    .describe('dryRun', 'Dry run')
+    .boolean('dryRun')
+    .default('dryRun', false);
 }
 
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {

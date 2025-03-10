@@ -11,7 +11,7 @@ use crate::{
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
-    {fetch_metric, RELAYER_METRICS_PORT},
+    RELAYER_METRICS_PORT,
 };
 
 /// Use the metrics to check if the relayer queues are empty and the expected

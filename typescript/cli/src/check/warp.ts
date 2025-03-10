@@ -54,6 +54,15 @@ export function formatConfigToCheck(
   return sortArraysInConfig(formatObj(obj, formatter));
 }
 
+const KEYS_TO_IGNORE = ['totalSupply'];
+
+function sanitizeConfig(obj: any): any {
+  // Remove keys from obj
+  return Object.fromEntries(
+    Object.entries(obj).filter(([key]) => !KEYS_TO_IGNORE.includes(key)),
+  );
+}
+
 export async function runWarpRouteCheck({
   warpRouteConfig,
   onChainWarpConfig,
@@ -65,8 +74,8 @@ export async function runWarpRouteCheck({
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
       const { mergedObject, isInvalid } = diffObjMerge(
-        formatConfigToCheck(onChainWarpConfig[chain]),
-        formatConfigToCheck(warpRouteConfig[chain]),
+        sanitizeConfig(formatConfigToCheck(onChainWarpConfig[chain])),
+        sanitizeConfig(formatConfigToCheck(warpRouteConfig[chain])),
       );
 
       if (isInvalid) {

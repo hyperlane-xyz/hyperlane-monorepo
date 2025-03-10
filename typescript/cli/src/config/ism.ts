@@ -83,6 +83,8 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.TEST_ISM]:
     'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
   [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
+  [IsmType.AMOUNT_ROUTING]:
+    'Route messages based on the token amount to transfer',
 };
 
 export async function createAdvancedIsmConfig(
@@ -121,6 +123,8 @@ export async function createAdvancedIsmConfig(
       return { type: IsmType.TEST_ISM };
     case IsmType.TRUSTED_RELAYER:
       return createTrustedRelayerConfig(context, true);
+    case IsmType.AMOUNT_ROUTING:
+      return createAmountRoutingIsmConfig(context);
     default:
       throw new Error(`Unsupported ISM type: ${moduleType}.`);
   }
@@ -258,4 +262,26 @@ export const createFallbackRoutingConfig = callWithConfigCreationLogs(
     };
   },
   IsmType.FALLBACK_ROUTING,
+);
+
+export const createAmountRoutingIsmConfig = callWithConfigCreationLogs(
+  async (context: CommandContext): Promise<IsmConfig> => {
+    const lowerIsm = await createAdvancedIsmConfig(context);
+    const upperIsm = await createAdvancedIsmConfig(context);
+
+    const threshold = parseInt(
+      await input({
+        message: 'Enter the threshold amount for routing verification (number)',
+      }),
+      10,
+    );
+
+    return {
+      type: IsmType.AMOUNT_ROUTING,
+      lowerIsm,
+      upperIsm,
+      threshold,
+    };
+  },
+  IsmType.AMOUNT_ROUTING,
 );
