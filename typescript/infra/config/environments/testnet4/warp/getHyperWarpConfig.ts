@@ -3,6 +3,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { ETHEREUM_DEPLOYER_ADDRESS } from '../owners.js';
 
+// use VYPER alias for obfuscation
 const tokenConfig = {
   name: 'Vyper Token',
   symbol: 'VYPER',
@@ -50,7 +51,7 @@ const stakedWarpRouteConfig = objMap(
     if (chain === 'sepolia') {
       return {
         type: TokenType.collateral,
-        token: '0xa324825e5da89f05ce99dc5a7e9b5c7bb7aa8316',
+        token: '0xa324825e5da89f05ce99dc5a7e9b5c7bb7aa8316', // symbiotic tokenized vault
         ...config,
       };
     } else {
