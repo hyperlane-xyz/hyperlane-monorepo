@@ -15,11 +15,13 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-export class CosmosModuleTokenAdapter
+export class CosmosModuleHypSyntheticAdapter
   extends BaseCosmosModuleAdapter
-  implements ITokenAdapter<MsgRemoteTransferEncodeObject>
+  implements
+    ITokenAdapter<MsgRemoteTransferEncodeObject>,
+    IHypTokenAdapter<MsgRemoteTransferEncodeObject>
 {
-  private denom: string;
+  protected tokenId: string;
 
   constructor(
     public readonly chainName: ChainName,
@@ -28,20 +30,26 @@ export class CosmosModuleTokenAdapter
   ) {
     super(chainName, multiProvider, addresses);
 
-    this.denom = `hyperlane/${addresses.token}`;
+    this.tokenId = addresses.token;
+  }
+
+  protected async getTokenDenom(): Promise<string> {
+    return `hyperlane/${this.tokenId}`;
   }
 
   async getBalance(address: string): Promise<bigint> {
     const provider = await this.getProvider();
-    const balance = await provider.getBalance(address, this.denom);
+    const denom = await this.getTokenDenom();
+    const balance = await provider.getBalance(address, denom);
     return BigInt(balance.amount);
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
     const provider = await this.getProvider();
+    const denom = await this.getTokenDenom();
     const supply = await provider
       .getHyperlaneQueryClient()!
-      .bank.supplyOf(this.denom);
+      .bank.supplyOf(denom);
     return BigInt(supply.amount);
   }
 
@@ -89,29 +97,12 @@ export class CosmosModuleTokenAdapter
     };
     return msg;
   }
-}
-
-export class CosmosModuleHypSyntheticAdapter
-  extends CosmosModuleTokenAdapter
-  implements IHypTokenAdapter<MsgRemoteTransferEncodeObject>
-{
-  private tokenAddress: string;
-
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-
-    this.tokenAddress = addresses.token;
-  }
 
   async getDomains(): Promise<Domain[]> {
     const provider = await this.getProvider();
     const remoteRouters = await provider
       .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenAddress });
+      .warp.RemoteRouters({ id: this.tokenId });
 
     return remoteRouters.remote_routers.map((router) => router.receiver_domain);
   }
@@ -120,7 +111,7 @@ export class CosmosModuleHypSyntheticAdapter
     const provider = await this.getProvider();
     const remoteRouters = await provider
       .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenAddress });
+      .warp.RemoteRouters({ id: this.tokenId });
 
     const router = remoteRouters.remote_routers.find(
       (router) => router.receiver_domain === domain,
@@ -137,7 +128,7 @@ export class CosmosModuleHypSyntheticAdapter
     const provider = await this.getProvider();
     const remoteRouters = await provider
       .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenAddress });
+      .warp.RemoteRouters({ id: this.tokenId });
 
     return remoteRouters.remote_routers.map((router) => ({
       domain: router.receiver_domain,
@@ -149,7 +140,7 @@ export class CosmosModuleHypSyntheticAdapter
     const provider = await this.getProvider();
     const { bridged_supply } = await provider
       .getHyperlaneQueryClient()!
-      .warp.BridgedSupply({ id: this.tokenAddress });
+      .warp.BridgedSupply({ id: this.tokenId });
 
     if (!bridged_supply) {
       return undefined;
@@ -166,12 +157,12 @@ export class CosmosModuleHypSyntheticAdapter
     const { gas_payment } = await provider
       .getHyperlaneQueryClient()!
       .warp.QuoteRemoteTransfer({
-        id: this.tokenAddress,
+        id: this.tokenId,
         destination_domain: destination.toString(),
       });
 
     return {
-      addressOrDenom: this.tokenAddress,
+      addressOrDenom: this.tokenId,
       amount: BigInt(gas_payment[0].amount),
     };
   }
@@ -191,102 +182,15 @@ export class CosmosModuleHypSyntheticAdapter
   }
 }
 
-export class CosmosModuleHypCollateralAdapter
-  extends CosmosModuleTokenAdapter
-  implements IHypTokenAdapter<MsgRemoteTransferEncodeObject>
-{
-  private tokenAddress: string;
-
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-
-    this.tokenAddress = addresses.token;
-  }
-
-  async getDomains(): Promise<Domain[]> {
+export class CosmosModuleHypCollateralAdapter extends CosmosModuleHypSyntheticAdapter {
+  protected async getTokenDenom(): Promise<string> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider
+    const { token } = await provider
       .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenAddress });
+      .warp.Token({ id: this.tokenId });
 
-    return remoteRouters.remote_routers.map((router) => router.receiver_domain);
+    return token?.origin_denom ?? '';
   }
 
-  async getRouterAddress(domain: Domain): Promise<Buffer> {
-    const provider = await this.getProvider();
-    const remoteRouters = await provider
-      .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenAddress });
-
-    const router = remoteRouters.remote_routers.find(
-      (router) => router.receiver_domain === domain,
-    );
-
-    if (!router) {
-      throw new Error(`Router with domain "${domain}" not found`);
-    }
-
-    return Buffer.from(router.receiver_contract);
-  }
-
-  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    const provider = await this.getProvider();
-    const remoteRouters = await provider
-      .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenAddress });
-
-    return remoteRouters.remote_routers.map((router) => ({
-      domain: router.receiver_domain,
-      address: Buffer.from(router.receiver_contract),
-    }));
-  }
-
-  async getBridgedSupply(): Promise<bigint | undefined> {
-    const provider = await this.getProvider();
-    const { bridged_supply } = await provider
-      .getHyperlaneQueryClient()!
-      .warp.BridgedSupply({ id: this.tokenAddress });
-
-    if (!bridged_supply) {
-      return undefined;
-    }
-
-    return BigInt(bridged_supply.amount);
-  }
-
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    _sender?: Address,
-  ): Promise<InterchainGasQuote> {
-    const provider = await this.getProvider();
-    const { gas_payment } = await provider
-      .getHyperlaneQueryClient()!
-      .warp.QuoteRemoteTransfer({
-        id: this.tokenAddress,
-        destination_domain: destination.toString(),
-      });
-
-    return {
-      addressOrDenom: this.tokenAddress,
-      amount: BigInt(gas_payment[0].amount),
-    };
-  }
-
-  async populateTransferRemoteTx(
-    params: TransferRemoteParams,
-  ): Promise<MsgRemoteTransferEncodeObject> {
-    const msg: MsgRemoteTransferEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgRemoteTransfer',
-      value: {
-        sender: params.fromTokenAccount,
-        recipient: params.recipient,
-        amount: params.weiAmountOrId.toString(),
-      },
-    };
-    return msg;
-  }
+  // TODO: can we take bridged supply for both synthetic and collateral?
 }
