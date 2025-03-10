@@ -82,6 +82,7 @@ export class MultiChainResolver implements ChainResolver {
         warp: argv.warp,
         symbol: argv.symbol,
       });
+
       argv.context.warpCoreConfig = warpCoreConfig;
       const chains = extractChainsFromObj(warpCoreConfig);
       return chains;
