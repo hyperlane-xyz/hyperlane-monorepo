@@ -123,7 +123,7 @@ export async function updateGrafanaAlert(
 
 export function generateQuery(
   alertType: AlertType,
-  thresholds: ChainMap<number>,
+  thresholds: ChainMap<string>,
 ): string {
   const config = alertConfigMapping[alertType];
   const walletQueryName = walletNameQueryFormat[config.walletName];
@@ -139,7 +139,7 @@ export function generateQuery(
       }
       return `last_over_time(hyperlane_wallet_balance{${labels.join(
         ', ',
-      )}}[1d]) - ${minBalance.toString()} or`;
+      )}}[1d]) - ${minBalance} or`;
     },
   );
 

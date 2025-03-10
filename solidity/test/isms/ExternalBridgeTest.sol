@@ -113,13 +113,12 @@ abstract contract ExternalBridgeTest is Test {
     }
 
     function test_postDispatch_revertWhen_insufficientValue() public {
-        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         originMailbox.updateLatestDispatchedId(messageId);
 
         uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
 
         if (quote > 0) {
-            vm.expectRevert(); //arithmetic underflow
+            vm.expectRevert();
             hook.postDispatch{value: quote - 1}(testMetadata, encodedMessage);
         }
     }
