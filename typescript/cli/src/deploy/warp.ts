@@ -160,8 +160,6 @@ export async function runWarpRouteDeploy({
   // warpRouteConfig.starknetsepolia.interchainSecurityModule =
   //   '0x04b96481bd6b1c5fec5d41b0c17581a56ef212c4fb2a7248309992a962de5649';
 
-  console.log('warpRouteConfig', JSON.stringify(warpRouteConfig, null, 2));
-
   await runDeployPlanStep({
     context,
     warpDeployConfig: warpRouteConfig,

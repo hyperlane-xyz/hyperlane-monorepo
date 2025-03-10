@@ -2,12 +2,10 @@ import { Logger } from 'pino';
 import {
   Account,
   CallData,
-  CompiledSierra,
   Contract,
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
-  hash,
 } from 'starknet';
 
 import {
@@ -48,30 +46,14 @@ export class StarknetDeployer {
     console.log('STARKNET DEPLOYER: constructorArgs', constructorArgs);
     const constructorCalldata = CallData.compile(constructorArgs);
 
-    const classHash = hash.computeSierraContractClassHash(
-      compiledContract as CompiledSierra,
-    );
-    console.log('STARKNET DEPLOYER: classHash', classHash);
-
-    // const feeEstimation = await this.account.estimateDeployFee(
-    //   {
-    //     classHash,
-    //     constructorCalldata,
-    //   },
-    //   {
-    //     resourceBounds: {
-    //       l1_gas: {
-    //         max_amount: '0x0',
-    //         max_price_per_unit: '0x0',
-    //       },
-    //       l2_gas: {
-    //         max_amount: '0x100000',
-    //         max_price_per_unit: '0x23335508',
-    //       },
-    //     },
-    //   },
+    // const classHash = hash.computeSierraContractClassHash(
+    //   compiledContract as CompiledSierra,
     // );
-    // console.log('STARKNET DEPLOYER: feeEstimation', feeEstimation);
+
+    // const feeEstimation = await this.account.estimateDeployFee({
+    //   classHash,
+    //   constructorCalldata,
+    // });
 
     // const bounds = stark.estimateFeeToBounds(
     //   {
@@ -83,7 +65,6 @@ export class StarknetDeployer {
     //   50,
     //   20,
     // );
-    // console.log('STARKNET DEPLOYER: bounds', bounds);
     const params: ContractFactoryParams = {
       compiledContract,
       account: this.account,
@@ -92,58 +73,7 @@ export class StarknetDeployer {
 
     const contractFactory = new ContractFactory(params);
     console.log('STARKNET DEPLOYER: constructorCalldata', constructorCalldata);
-    const contract = await contractFactory.deploy(constructorCalldata, {
-      resourceBounds: {
-        l1_gas: {
-          max_amount: '0x0',
-          max_price_per_unit: '0x0',
-        },
-        l2_gas: {
-          max_amount: '0x2',
-          max_price_per_unit: '0x23335508',
-        },
-      },
-    });
-
-    // const contract = await contractFactory.deploy(constructorCalldata, {
-    //   resourceBounds: {
-    //     l1_gas: {
-    //       max_amount: '0x100000',
-    //       max_price_per_unit: '0x30000000',
-    //     },
-    //     l2_gas: {
-    //       max_amount: '0x100000',
-    //       max_price_per_unit: '0x1',
-    //     },
-    //   },
-    // });
-
-    // const contract =  await this.account.declareAndDeploy({
-    //   classHash: casm.classHash,
-    //   constructorCalldata,
-    //   addressSalt: '0x07e52f68e3160e1ef698211cdf6d3792368fe347e7e2d4a8ace14d9b248f39c5',
-    //   chainId: StarknetChainId.SN_SEPOLIA,
-    //   version: '0x3',
-    //   nonce: 0n,
-    // });
-
-    // )/
-    // const deployOptions = {
-    //   resourceBounds: {
-    //     l1Gas: {
-    //       max_amount: '0x2a00',
-    //       max_price_per_unit: '0x5c00000',
-    //     },
-    //     l2Gas: {
-    //       max_amount: '0x200000', // Adding l2Gas values as they seem to be required
-    //       max_price_per_unit: '0x5af3107a4000', // Use an appropriate value
-    //     },
-    //   },
-    // };
-    // const contract = await contractFactory.deploy(
-    //   constructorCalldata,
-    //   deployOptions,
-    // );
+    const contract = await contractFactory.deploy(constructorCalldata);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)

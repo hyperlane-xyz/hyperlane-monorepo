@@ -83,6 +83,10 @@ export class StarknetHypSyntheticAdapter
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
+    // console.log('quoteTransferRemoteGas: ', _destination);
+    // const quote = await this.contract.quote_gas_payment(_destination);
+    // console.log('quote: ', quote);
+
     return { amount: BigInt(0) };
   }
 

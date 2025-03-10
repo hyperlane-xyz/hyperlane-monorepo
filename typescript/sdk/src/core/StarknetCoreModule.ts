@@ -55,7 +55,7 @@ export class StarknetCoreModule {
       BigNumber.from(config.requiredHook.protocolFee),
       config.requiredHook.beneficiary,
       config.owner,
-      '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
+      '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7', // ETH address on Starknet chains
     ]);
     const mailboxContract = await this.deployMailbox(
       config.owner,
