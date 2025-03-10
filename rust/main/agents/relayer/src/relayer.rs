@@ -339,8 +339,7 @@ impl BaseAgent for Relayer {
                 .expect("spawning tokio task from Builder is infallible");
             tasks.push(console_server);
         }
-        let sender: BroadcastSender<relayer_server::MessageRetryRequest> =
-            BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
