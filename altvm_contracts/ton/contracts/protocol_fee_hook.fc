@@ -1,0 +1,128 @@
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/op_codes.fc";
+#include "imports/events.fc";
+#include "imports/errors.fc";
+#include "imports/hook_types.fc";
+
+global int g::protocol_fee;
+global int g::max_protocol_fee;
+global int g::collected_fees;
+global slice g::beneficiary;
+global slice g::owner;
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_uint(g::protocol_fee, 128)
+        .store_uint(g::max_protocol_fee, 128)
+        .store_uint(g::collected_fees, 128)
+        .store_slice(g::beneficiary)
+        .store_slice(g::owner)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::protocol_fee = ds~load_uint(128);
+    g::max_protocol_fee = ds~load_uint(128);
+    g::collected_fees = ds~load_uint(128);
+    g::beneficiary = ds~load_msg_addr();
+    g::owner = ds~load_msg_addr();
+}
+
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    g::collected_fees += g::protocol_fee;
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
+        query_id,
+        g::protocol_fee,
+        msg_sender,
+        msg_body
+    );
+    validate_msg_value(msg_value, g::protocol_fee);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+
+    if (op == op::hook::post_dispatch) {
+        post_dispatch(
+            query_id,
+            in_msg_body,
+            msg_value,
+            msg_sender
+        );
+        return store_globals();
+    }
+
+    if (op == op::set_protocol_fee) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner)
+        );
+        int protocol_fee = in_msg_body~load_uint(128);
+        throw_if(
+            error::exceeds_max_protocol_fee,
+            protocol_fee > g::max_protocol_fee
+        );
+
+        g::protocol_fee = protocol_fee;
+        return store_globals();
+    }
+
+    if (op == op::set_beneficiary) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner)
+        );
+        g::beneficiary = in_msg_body~load_msg_addr();
+        return store_globals();
+    }
+
+    if (op == op::collect_protocol_fee) {
+        builder msg = build_message(
+            g::beneficiary,
+            g::collected_fees,
+            false,
+            null(),
+            null()
+        );
+        g::collected_fees = 0;
+
+        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::pay_transfer_fees_separately);
+
+        return store_globals();
+    }
+
+    if (op == op::transfer_ownership) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner)
+        );
+        g::owner = in_msg_body~load_msg_addr();
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+(int, int, slice, int, int) get_hook_data() method_id {
+    load_globals();
+    return (g::max_protocol_fee, g::protocol_fee, 
+        g::beneficiary, g::collected_fees, hook_type::protocol_fee);
+}
+

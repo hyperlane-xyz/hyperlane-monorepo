@@ -4,6 +4,11 @@
 #include "imports/ton_msg.fc";
 #include "imports/events.fc";
 #include "imports/signing_utils.fc";
+#include "imports/hyp_message.fc";
+#include "imports/metadata.fc";
+#include "imports/delivery.lib.fc";
+
+const int MINIMAL_DISPATCH_VALUE = 500000000;
 
 global int g::version;
 global int g::local_domain;
@@ -13,9 +18,8 @@ global slice g::default_ism_addr;
 global slice g::default_hook_addr;
 global slice g::required_hook_addr;
 global slice g::owner_addr;
-global cell g::deliveries; ;; dict
-global cell g::cur_recipients; ;; dict
-global cell g::cur_isms; ;; dict
+global cell g::delivery_code;
+global cell g::process_requests;
 
 ;; Global runtime var
 global int g::query_id;
@@ -27,13 +31,12 @@ global int g::query_id;
     g::nonce = ds~load_uint(32);
     g::latest_dispatched_id = ds~load_uint(256);
     g::owner_addr = ds~load_msg_addr();
-    g::deliveries = ds~load_dict();
-    g::cur_recipients = ds~load_dict();
-    g::cur_isms = ds~load_dict();
-    slice ds = ds~load_ref().begin_parse();
-    g::default_ism_addr = ds~load_msg_addr();
-    g::default_hook_addr = ds~load_msg_addr();
-    g::required_hook_addr = ds~load_msg_addr();
+    g::delivery_code = ds~load_ref();
+    slice hooks = ds~load_ref_slice();
+    g::process_requests = ds~load_dict();
+    g::default_ism_addr = hooks~load_msg_addr();
+    g::default_hook_addr = hooks~load_msg_addr();
+    g::required_hook_addr = hooks~load_msg_addr();
 }
 
 () store_globals() impure inline_ref {
@@ -48,55 +51,105 @@ global int g::query_id;
         .store_uint(g::nonce, 32)
         .store_uint(g::latest_dispatched_id, 256)
         .store_slice(g::owner_addr)
-        .store_dict(g::deliveries)
-        .store_dict(g::cur_recipients)
-        .store_dict(g::cur_isms)
+        .store_ref(g::delivery_code)
         .store_ref(addr_cell)
+        .store_dict(g::process_requests)
         .end_cell();
     set_data(data);
 }
 
-(cell, ()) ~authorize(
-    cell addr_dict,
-    slice msg_sender
+() using::delivery::deploy(
+    int message_id
 ) impure inline {
-    (slice expected_addr, int found?) = addr_dict~udict_delete_get?(64, g::query_id);
-    throw_unless(error::unauthorized_sender, found?);
-    throw_unless(
-        error::unauthorized_sender,
-        equal_slices(expected_addr, msg_sender)
+    reserve_original_balance(0);
+    cell msg_body = begin_cell()
+        .store_uint(op::delivery::initialize, 32)
+        .store_uint(g::query_id, 64)
+    .end_cell();
+    return delivery::deploy(
+        0,
+        send_mode::carry_remaining_balance,
+        g::delivery_code,
+        delivery::build_initial_data(message_id),
+        msg_body
     );
-    return (addr_dict, ());
 }
 
-builder hyperlane::message::build(
-    slice sender,
-    int dest_domain,
-    int recipient_addr,
-    cell message
+cell process_request::pack(
+    cell hyp_message, 
+    cell hyp_medatata,
+    slice initiator, 
+    slice ism
 ) inline {
-    (_, int parsed_addr) = parse_std_addr(sender);
     return begin_cell()
-        .store_uint(g::version, 8)
-        .store_uint(g::nonce, 32)
-        .store_uint(g::local_domain, 32)
-        .store_uint(parsed_addr, 256)
-        .store_uint(dest_domain, 32)
-        .store_uint(recipient_addr, 256)
-        .store_ref(message);
+        .store_ref(hyp_message)
+        .store_ref(hyp_medatata)
+        .store_slice(initiator)
+        .store_slice(ism)
+        .end_cell();
 }
 
-(int, int, int, int, int, int, int, cell) hyperlane::message::unpack(slice hyp_msg) inline {
-    int id = message_id(hyp_msg);
-    int version = hyp_msg~load_uint(8);
-    int nonce = hyp_msg~load_uint(32);
-    int origin_domain = hyp_msg~load_uint(32);
-    int sender = hyp_msg~load_uint(256);
-    int dest_domain = hyp_msg~load_uint(32);
-    int recipient = hyp_msg~load_uint(256);
-    cell body = hyp_msg~load_ref();
+cell process_request::new(
+    cell hyp_message, 
+    cell hyp_medatata,
+    slice initiator
+) inline {
+    return begin_cell()
+        .store_ref(hyp_message)
+        .store_ref(hyp_medatata)
+        .store_slice(initiator)
+        .store_uint(0, 2)
+        .end_cell();
+}
 
-    return (id, version, nonce, origin_domain, sender, dest_domain, recipient, body);
+(cell, cell, slice, slice) process_request::unpack(slice s) inline {
+    return (s~load_ref(), s~load_ref(), s~load_msg_addr(), s~load_msg_addr());
+}
+
+slice get_current_request() impure inline {
+    (cell value, int ok?) = g::process_requests.udict_get_ref?(64, g::query_id);
+    throw_unless(error::process_request_not_found, ok?);
+    return value.begin_parse();
+}
+
+slice delete_current_request() impure inline {
+    (slice value, int ok?) = 
+        g::process_requests~udict_delete_get?(64, g::query_id);
+    throw_unless(error::process_request_not_found, ok?);
+    return value~load_ref_slice();
+}
+
+() handle_bounced_msg(slice in_msg_body) impure inline {
+    in_msg_body~skip_bits(32); ;; 0xFFFFFFFF
+    int op = in_msg_body~load_uint(32);
+    load_globals();
+    throw_unless(
+        error::unknown_op, 
+        (op == op::recipient::get_ism) | 
+        (op == op::ism::verify) | 
+        (op == op::recipient::handle) |
+        (op == op::delivery::initialize)
+    );
+    g::query_id = in_msg_body~load_uint(64);
+    (slice req, int ok?) = g::process_requests~udict_delete_get?(64, g::query_id);
+    throw_unless(error::process_request_not_found, ok?);
+    (_, _, slice initiator, _) = process_request::unpack(req);
+    send_change_with_payload(
+        initiator,
+        op::mailbox::process,
+        g::query_id,
+        send_mode::carry_remaining_value,
+        begin_cell().store_uint(error::mailbox_bounced, 32).store_uint(op, 32)
+    );
+    store_globals();
+}
+
+slice build_delivery_address(int message_id) inline {
+    cell delivery_data = build_stateinit(
+        g::delivery_code,
+        delivery::build_initial_data(message_id)
+    );
+    return build_addr(0, cell_hash(delivery_data));
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -106,7 +159,7 @@ builder hyperlane::message::build(
     slice cs = in_msg_full.begin_parse();
     int flags = cs~load_uint(4);
     if ( flags & 1 ) { ;; ignore all bounced messages
-        return ();
+        return handle_bounced_msg(in_msg_body);
     }
 
     slice msg_sender = cs~load_msg_addr();
@@ -115,169 +168,213 @@ builder hyperlane::message::build(
 
     load_globals();
 
-    if (op == op::dispatch) {
+    if (op == op::mailbox::dispatch) {
         int dest_domain = in_msg_body~load_uint(32);
         int recipient_addr = in_msg_body~load_uint(256);
-        int required_value = in_msg_body~load_uint(128);
-        cell message = in_msg_body~load_ref();
-        cell hook_metadata = in_msg_body~load_ref();
+        cell messageBody = in_msg_body~load_ref();
+        cell hook_metadata = in_msg_body~load_maybe_ref();
 
-        builder interchain_msg = hyperlane::message::build(
+        builder hyperlane_message = hyperlane::message::build(
+            g::version,
+            g::nonce,
+            g::local_domain,
             msg_sender,
             dest_domain,
             recipient_addr,
-            message
+            messageBody
         );
-
-        int id = message_id(interchain_msg.end_cell().begin_parse());
-
-        builder data = begin_cell()
-            .store_uint(id, 256)
-            .store_ref(begin_cell()
-                .store_slice(msg_sender)
-                .store_uint(dest_domain, 32)
-                .store_uint(recipient_addr, 256)
-                .store_ref(interchain_msg.end_cell())
-                .end_cell()
-            );
-
-        send_event(event::dispatch, data);
-        g::latest_dispatched_id = id;
         g::nonce += 1;
-        
+
         cell body = begin_cell()
-            .store_uint(op::post_dispatch, 32)
+            .store_uint(op::hook::post_dispatch, 32)
             .store_uint(g::query_id, 64)
-            .store_uint(id, 256)
-            .store_uint(dest_domain, 32)
-            .store_slice(msg_sender)
-            .store_ref(hook_metadata)
+            .store_ref(hyperlane_message.end_cell())
+            .store_maybe_ref(hook_metadata)
             .end_cell();
 
-        builder post_dispatch_msg = build_message(
-            g::required_hook_addr,
-            msg_value - required_value,
-            true,
-            null(),
-            body
+        build_message(g::required_hook_addr, 0, true, null(), body).send();
+        validate_msg_value(msg_value, MINIMAL_DISPATCH_VALUE);
+        return store_globals();
+    }
+        
+    if(op == op::hook::post_dispatch::answer) {
+        cell hyp_message = in_msg_body~load_ref();
+        cell hook_metadata = in_msg_body~load_maybe_ref();
+        int required_hook? = equal_slices(msg_sender, g::required_hook_addr);
+        int default_hook? = equal_slices(msg_sender, g::default_hook_addr);
+        throw_unless(
+            error::unauthorized_sender,
+            required_hook? | default_hook?
         );
+        if (required_hook?) {
+            cell body = begin_cell()
+                .store_uint(op::hook::post_dispatch, 32)
+                .store_uint(g::query_id, 64)
+                .store_ref(hyp_message)
+                .store_maybe_ref(hook_metadata)
+                .end_cell();
+                
+            build_message(g::default_hook_addr, 0, true, null(), body).send();
+        } else {
+            slice ms = hyp_message.begin_parse();
+            int id = build_message_id(ms);
+            int dest_domain = message::unpack::dest_domain(ms);
+            int recipient_addr = message::unpack::recipient(ms);
 
-        reserve_original_balance(msg_value, required_value);
-        send_raw_message(post_dispatch_msg.end_cell(), send_mode::pay_transfer_fees_separately);
+            builder data = begin_cell()
+                .store_uint(id, 256)
+                .store_ref(begin_cell()
+                    .store_slice(msg_sender)
+                    .store_uint(dest_domain, 32)
+                    .store_uint(recipient_addr, 256)
+                    .store_ref(hyp_message)
+                    .end_cell()
+                );
 
-        msg_value = msg_value - required_value;
+            send_event(event::dispatch, data);
+            g::latest_dispatched_id = id;
 
-        builder default_hook_msg = build_message(
-            g::default_hook_addr,
-            msg_value,
-            true,
-            null(),
-            body
-        );
-        send_raw_message(default_hook_msg.end_cell(), send_mode::carry_remaining_balance);
+            int sender_addr = message::unpack::sender_addr(ms);
+            int refund_addr = hook_metadata.metadata::refund_addr(sender_addr);
 
+            build_message(build_addr(0, refund_addr), 0, false, null(), null())
+                .store_uint(0, 1)
+                .store_uint(op::mailbox::dispatch::answer, 32)
+                .store_uint(g::query_id, 64)
+                .send();
+        }
+        validate_msg_value(msg_value, 0);
         return store_globals();
     }
 
-    if (op == op::process) {
-        int sub_op = in_msg_body~load_uint(32);
-        if (sub_op == op::process::init) {
-            int block_number = in_msg_body~load_uint(48);
-            slice forward_payload = in_msg_body;
-            ;; formatted hyperlane message
-            slice message = in_msg_body~load_ref().begin_parse();
-            (
-                int id,
-                int version,
-                int nonce, 
-                int origin_domain, 
-                int sender,
-                int dest_domain,
-                int recipient,
-                cell body
-            ) = hyperlane::message::unpack(message);
+    if (op == op::mailbox::process) {
+        ;; formatted hyperlane message.
+        cell hyp_message = in_msg_body~load_ref();
+        cell hyp_metadata = in_msg_body~load_ref();
+        in_msg_body.end_parse();
+        (   int version,
+            _, 
+            _, 
+            _,
+            int dest_domain,
+            int recipient,
+            _
+        ) = hyperlane::message::unpack(hyp_message.begin_parse());
+        ;; check if message has right version.
+        throw_unless(error::wrong_mailbox_version, version == g::version);
+        ;; check if message has right destination domain.
+        throw_unless(error::wrong_dest_domain, dest_domain == g::local_domain);
+        ;; Create a process request.
+        g::process_requests~udict_set_ref(64, g::query_id, 
+            process_request::new(hyp_message, hyp_metadata, msg_sender)
+        );
 
-            ;; check if message has right version
-            throw_unless(error::wrong_mailbox_version, version == g::version);
+        int recipient = message::unpack::recipient(hyp_message.begin_parse());
+        
+        ;; send `get recipient ism` request
+        cell get_ism_body = begin_cell()
+            .store_uint(op::recipient::get_ism, 32)
+            .store_uint(g::query_id, 64)
+            .end_cell();
+        build_message(build_addr(0, recipient), 0, true, null(), get_ism_body).send();
+        validate_msg_value(msg_value, 0);
+        return store_globals();
+    }
 
-            ;; check if message has right destination domain
-            throw_unless(error::wrong_dest_domain, dest_domain == g::local_domain);
+    if(op == op::recipient::get_ism::answer) {
+        slice req = get_current_request();
+        (cell hyp_message, 
+            cell hyp_metadata, 
+            slice initiator,
+            slice ism_addr ) = process_request::unpack(req);
+        int recipient = message::unpack::recipient(hyp_message.begin_parse());
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, build_addr(0, recipient))
+        );
 
-            ;; check if message was delivered
-            (_, int found?) = g::deliveries.udict_get_ref?(256, id);
-            throw_if(error::message_delivered, found?);
+        slice recipient_ism_addr = in_msg_body~load_msg_addr();
+        in_msg_body.end_parse();
+        cell verify_body = begin_cell()
+            .store_uint(op::ism::verify, 32)
+            .store_uint(g::query_id, 64)
+            .store_ref(hyp_message)
+            .store_ref(hyp_metadata)
+            .end_cell();
+        ;; if recipient's ism address in AddrNone - use default ism.
+        ism_addr = recipient_ism_addr.preload_uint(2) == 0 ? 
+            g::default_ism_addr : recipient_ism_addr;
 
-            cell delivery = begin_cell()
-                .store_uint(sender, 256)
-                .store_uint(block_number, 48)
-                .end_cell();
+        g::process_requests~udict_set_ref(64, g::query_id, 
+            process_request::pack(hyp_message, hyp_metadata, initiator, ism_addr));
 
-            g::deliveries~udict_set_ref(256, id, delivery);
+        build_message(ism_addr, 0, true, null(), verify_body).send();
+        validate_msg_value(msg_value, 0);
+        return store_globals();
+    }
 
-            ;; get recepient ism 
-            slice recipient_addr = build_addr(0, recipient);
-            g::cur_recipients~udict_set(64, g::query_id, recipient_addr);
-            cell get_ism_body = begin_cell()
-                .store_uint(op::get_ism, 32)
-                .store_uint(g::query_id, 64)
-                .store_slice(forward_payload)
-                .end_cell();
-            builder get_ism_msg = build_message(recipient_addr, 0, true, null(), get_ism_body);
-            send_raw_message(get_ism_msg.end_cell(), send_mode::carry_remaining_value);
-            return store_globals();
-        }
+    if (op == op::ism::verify::answer) {
+        slice req = get_current_request();
+        (cell hyp_message, 
+            _, 
+            _, 
+            slice ism_addr ) = process_request::unpack(req);
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, ism_addr)
+        );
+        int verified? = in_msg_body~load_int(1);
+        throw_unless(error::message_verification_failed, verified?);
 
-        if(sub_op == op::process::verify) {
-            g::cur_recipients~authorize(msg_sender);
+        ;; Deploy delivery contract to prevent double processing of the same message.
+        ;; If delivery contract is already deployed then it will bounce to mailbox which 
+        ;; will return change to sender. Otherwise the contract will response with initialize::answer opcode
+        int message_id = build_message_id(hyp_message.begin_parse());
+        using::delivery::deploy(message_id);
+        validate_msg_value(msg_value, 0);
+        return store_globals();
+    }
 
-            ;; verify message
-            int ism_found? = in_msg_body~load_int(1);
-            cell message = in_msg_body~load_ref();
-            cell metadata = in_msg_body~load_ref();
-            cell verify_body = begin_cell()
-                .store_uint(op::verify, 32)
-                .store_uint(g::query_id, 64)
-                .store_ref(message)
-                .store_ref(metadata)
-                .end_cell();
-            slice ism_addr = ism_found? ? in_msg_body~load_msg_addr() : g::default_ism_addr;
-            g::cur_isms~udict_set(64, g::query_id, ism_addr);
-            builder verify_msg = build_message(ism_addr, 0, true, null(), verify_body);
-            send_raw_message(verify_msg.end_cell(), send_mode::carry_remaining_value);
-            return store_globals();
-        }
+    if (op == op::delivery::initialize::answer) {
+        in_msg_body.end_parse();
+        slice req = delete_current_request();
+        (   cell hyp_message, 
+            _, 
+            slice initiator, 
+            _ 
+        ) = process_request::unpack(req);
+        
+        ;; Only delivery contract can send this opcode. But we need to calculate
+        ;; delivery contract address based on message_id.
+        int message_id = build_message_id(hyp_message.begin_parse());
+        slice delivery_addr = build_delivery_address(message_id);
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, delivery_addr)
+        );
 
-        if (sub_op == op::process::deliver_message) {
-            g::cur_isms~authorize(msg_sender);
+        (   _,
+            _, 
+            int origin_domain, 
+            int sender,
+            _,
+            int recipient,
+            cell message_body
+        ) = hyperlane::message::unpack(hyp_message.begin_parse());
+            
+        cell body = begin_cell()
+            .store_uint(op::recipient::handle, 32)
+            .store_uint(g::query_id, 64)
+            .store_uint(origin_domain, 32)
+            .store_uint(sender, 256)
+            .store_slice(initiator)
+            .store_ref(message_body)
+            .end_cell();
 
-            int verified? = in_msg_body~load_int(1);
-            throw_unless(error::message_verification_failed, verified?);
-            slice message = in_msg_body~load_ref().begin_parse();
-
-            message~skip_bits(8 + 32);
-
-            int origin_domain = message~load_uint(32);
-            int sender = message~load_uint(256);
-            int dest_domain = message~load_uint(32);
-            int recipient = message~load_uint(256);
-            cell message_body = message~load_ref();
-
-            slice recipient_addr = build_addr(0, recipient);
-            cell body = begin_cell()
-                .store_uint(op::handle, 32)
-                .store_uint(g::query_id, 64)
-                .store_uint(origin_domain, 32)
-                .store_uint(sender, 256)
-                .store_ref(message_body)
-                .end_cell();
-
-
-            ;; deliver message (send msg with handle opcode)
-            builder msg = build_message(recipient_addr, 0, true, null(), body);
-            send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
-            return store_globals();
-        }
-        throw(error::unknown_sub_op);
+        ;; deliver message (send msg with handle opcode)
+        build_message(build_addr(0, recipient), 0, true, null(), body).send();
+        validate_msg_value(msg_value, 0);
+        return store_globals();
     }
 
     if (op == op::set_default_ism) {
@@ -310,37 +407,11 @@ builder hyperlane::message::build(
     throw(error::unknown_op);
 }
 
-int get_nonce() method_id {
-    load_globals();
-    return g::nonce;
-}
-
-int get_local_domain() method_id {
-    load_globals();
-    return g::local_domain;
-}
-
-int get_latest_dispatched_id() method_id {
-    load_globals();
-    return g::latest_dispatched_id;
-}
-
-cell get_deliveries() method_id {
-    load_globals();
-    return g::deliveries;
+cell get_storage() method_id {
+    return get_data();
 }
 
 slice get_default_ism() method_id {
     load_globals();
     return g::default_ism_addr;
-}
-
-slice get_default_hook() method_id {
-    load_globals();
-    return g::default_hook_addr;
-}
-
-slice get_required_hook() method_id {
-    load_globals();
-    return g::required_hook_addr;
 }

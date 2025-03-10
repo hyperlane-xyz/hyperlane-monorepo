@@ -9,18 +9,29 @@ int gasconsumed() impure asm "GASCONSUMED";
 int gasfee(int gas_used, int is_mc) impure asm "GETGASFEE";
 ;; Answer bit, set in response opcodes to indicate an answer for request.
 const int ANSWER_BIT = 0x80000000;
+const int FWD_FEES = 3000000;
 
-const int MSG_FEES = 1000000;
-const int FWD_FEES = 2700000;
-
-() reserve_original_balance(int value, int required_value) impure inline {
-  int gas_fee = gasfee(
-    gasconsumed(),
+() validate_msg_value(int value, int extra_value) impure inline {
+    int gas_fee = gasfee(
+    gasconsumed() + 2000,
     false ;; NOT a masterchain
   );
-  int min_msg_value = gas_fee + required_value + storagefee() + FWD_FEES + MSG_FEES;
+  int min_msg_value = gas_fee + extra_value + storagefee() + FWD_FEES;
   throw_if(error::msg_value_too_low, value < min_msg_value);
-  raw_reserve(storagefee(), reserve_mode::balance_plus_this_amount);
+}
+
+() reserve_original_balance(int extra_value) impure inline {
+    raw_reserve(storagefee() + extra_value, reserve_mode::balance_plus_this_amount);
+}
+
+() send(builder msg) impure inline {
+    reserve_original_balance(0);
+    send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
+}
+
+() send_all_except_extra(builder msg, int extra_value) impure inline {
+    reserve_original_balance(extra_value);
+    send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
 }
 
 ;; Builds TON message header.
@@ -73,6 +84,24 @@ builder build_message(
   send_raw_message(msg, mode | send_mode::ignore_errors);
 }
 
+
+;; Sends change with defined opcode to destination address.
+() send_change_with_payload(
+  slice dest, ;; destination address
+  int op, ;; operation code
+  int query_id, ;; ID of the current processing deposit
+  int mode, ;; send mode
+  builder payload
+) impure inline_ref {
+  var msg_b = build_message(dest, 0, false, null(), null());
+  cell msg = msg_b.store_uint(0, 1)
+    .store_uint(op | ANSWER_BIT, 32)
+    .store_uint(query_id, 64)
+    .store_builder(payload)
+    .end_cell();
+  send_raw_message(msg, mode | send_mode::ignore_errors);
+}
+
 ;; Sends TON external outbound message.
 () send_event(
   int event_id, ;; ID of logged event
@@ -87,6 +116,23 @@ builder build_message(
     .store_builder(data)
   .end_cell();
   send_raw_message(log, 0);
+}
+
+() reserve_and_send_remaining(
+    int op, 
+    int query_id,
+    int extra_reserved, 
+    slice dest, 
+    slice body
+) impure inline {
+    cell body = begin_cell()
+        .store_uint(op | ANSWER_BIT, 32)
+        .store_uint(query_id, 64)
+        .store_slice(body)
+        .end_cell();
+        
+    build_message(dest, 0, false, null(), body)
+        .send_all_except_extra(extra_reserved);
 }
 
 ;; Builds state init of a TON contract.
@@ -126,3 +172,4 @@ slice build_addr(int wc, int addr256) inline {
   builder msg_b = build_message(dest_address, value, bounce?, state_init, body);
   send_raw_message(msg_b.end_cell(), mode);
 }
+

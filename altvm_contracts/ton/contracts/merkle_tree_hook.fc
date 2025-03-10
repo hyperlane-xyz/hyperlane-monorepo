@@ -4,18 +4,17 @@
 #include "imports/events.fc";
 #include "imports/errors.fc";
 #include "imports/signing_utils.fc";
-#include "imports/zeroes.fc";
-
-const int TREE_DEPTH = 32;
-const int MAX_LEAVES = 4294967295;
+#include "imports/merkle.fc";
 
 global int g::count;
+global slice g::mailbox_addr;
 global cell g::tree;
 
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
         .store_uint(g::count, 256)
+        .store_slice(g::mailbox_addr)
         .store_dict(g::tree)
         .end_cell();
     set_data(data);
@@ -24,55 +23,31 @@ global cell g::tree;
 () load_globals() impure inline_ref {
     slice ds = get_data().begin_parse();
     g::count = ds~load_uint(256);
+    g::mailbox_addr = ds~load_msg_addr();
     g::tree = ds~load_dict();
 }
 
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    slice s = msg_body;
+    slice hyp_message = s~load_ref_slice();
 
-() insert_into_tree(int node) impure inline {
-    throw_unless(
-        error::merkle_tree_full,
-        g::count < MAX_LEAVES
+    int message_id = build_message_id(hyp_message);
+    (g::count, g::tree) = insert_into_tree(message_id, g::count, g::tree);
+
+    builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
+    send_event(
+        event::inserted_into_tree,
+        data
     );
-    g::count += 1;
-    int size = g::count;
-    int i = 0;
-    repeat(TREE_DEPTH) {
-        if ((size & 1) == 1) {
-            g::tree~udict_set_builder(KEY_LEN, i, begin_cell().store_uint(node, 256));
-            return ();
-        }
-        (slice s, _) = g::tree.udict_get?(KEY_LEN, i);
-        node = keccak256_builder(
-            begin_cell()
-                .store_slice(s)
-                .store_uint(node, 256)
-        );
-        size /= 2;
-        i += 1;
-    }
-    return ();
-}
 
-int root_w_ctx(cell zeroes) impure inline {
-    int index = g::count;
-    int i = 0;
-    int current = 0;
-    repeat(TREE_DEPTH) {
-        int iht_bit = (index >> i) & 1;
-        (slice next, _) = g::tree.udict_get?(KEY_LEN, i);
-        if (iht_bit == 1) {
-            current = keccak256_builder(
-                begin_cell().store_slice(next).store_uint(current, 256)
-            );
-        } else {
-            (slice zero, _) = zeroes.udict_get?(KEY_LEN, i);
-            current = keccak256_builder(
-                begin_cell().store_uint(current, 256).store_slice(zero)
-            );
-        }
-        i += 1;
-    }
-    return current;
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
+        query_id,
+        0,
+        msg_sender,
+        msg_body
+    );
+    validate_msg_value(msg_value, 0);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -91,17 +66,13 @@ int root_w_ctx(cell zeroes) impure inline {
 
     load_globals();
 
-    if(op == op::post_dispatch) {
-        int message_id = in_msg_body~load_uint(256);
-
-        insert_into_tree(message_id);
-
-        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
-        send_event(
-            event::inserted_into_tree,
-            data
+    if (op == op::hook::post_dispatch) {
+        post_dispatch(
+            query_id,
+            in_msg_body,
+            msg_value,
+            msg_sender
         );
-
         return store_globals();
     }
 
@@ -113,7 +84,7 @@ int root_w_ctx(cell zeroes) impure inline {
 ;; 
 
 int root() inline {
-    return root_w_ctx(zero_hashes());
+    return root_w_ctx(zero_hashes(), g::count, g::tree);
 }
 
 (cell, int) get_tree() method_id {

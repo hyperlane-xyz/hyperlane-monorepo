@@ -58,6 +58,8 @@ pub enum HyperlaneTonError {
     Timeout,
     #[error("Ton message error")]
     TonMessageError(String),
+    #[error("{0}")]
+    TonCellError(#[from] tonlib_core::cell::TonCellError),
 }
 
 impl From<HyperlaneTonError> for ChainCommunicationError {

@@ -6,7 +6,7 @@ use tempfile::tempdir;
 use crate::{
     logging::log,
     program::Program,
-    ton::evm::{launch_evm_to_ton_relayer, launch_evm_ton_scraper, launch_evm_validator},
+    ton::evm::{launch_evm_to_ton_relayer, launch_evm_validator},
     ton::setup::{deploy_and_setup_domain, deploy_and_setup_domains, send_dispatch},
     ton::types::{generate_ton_config, TonAgentConfig},
     ton::utils::{build_rust_bins, resolve_abs_path},
@@ -17,11 +17,10 @@ mod evm;
 mod setup;
 mod types;
 mod utils;
+mod warp_route;
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
-    pub scraper: AgentHandles,
-    pub postgres: AgentHandles,
 }
 
 impl Drop for TonHyperlaneStack {
@@ -29,8 +28,6 @@ impl Drop for TonHyperlaneStack {
         for v in &mut self.validators {
             stop_child(&mut v.1);
         }
-        stop_child(&mut self.scraper.1);
-        stop_child(&mut self.postgres.1);
         stop_child(&mut self.relayer.1);
     }
 }
@@ -89,19 +86,6 @@ fn run_ton_to_ton() {
     let metrics_port = 9090;
     let debug = false;
 
-    let scraper_metrics_port = metrics_port + 10;
-    info!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "ton-scraper-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
-
-    sleep(Duration::from_secs(10));
-
     let relayer = launch_ton_relayer(
         agent_config_path.clone(),
         relay_chains.clone(),
@@ -131,21 +115,12 @@ fn run_ton_to_ton() {
 
     let validators = vec![validator1, validator2];
 
-    let scraper = launch_ton_scraper(
-        agent_config_path.clone(),
-        relay_chains.clone(),
-        scraper_metrics_port,
-        debug,
-    );
-
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
 
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join()).collect(),
         relayer: relayer.join(),
-        scraper: scraper.join(),
-        postgres,
     };
 }
 
@@ -205,19 +180,6 @@ fn run_ton_to_evm() {
     let metrics_port = 9090;
     let debug = false;
 
-    let scraper_metrics_port = metrics_port + 10;
-    info!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "ton-evm-scraper-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
-
-    sleep(Duration::from_secs(10));
-
     let relayer = launch_evm_to_ton_relayer(
         agent_config_path.clone(),
         relay_chains.clone(),
@@ -247,21 +209,12 @@ fn run_ton_to_evm() {
 
     let validators = vec![validator1, validator2];
 
-    let scraper = launch_evm_ton_scraper(
-        agent_config_path.clone(),
-        relay_chains.clone(),
-        scraper_metrics_port,
-        debug,
-    );
-
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
 
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join_box()).collect(),
         relayer: relayer.join(),
-        scraper: scraper.join(),
-        postgres,
     };
 }
 
@@ -349,51 +302,24 @@ pub fn launch_ton_validator(
 
     validator
 }
-#[apply(as_task)]
-#[allow(clippy::let_and_return)]
-fn launch_ton_scraper(
-    agent_config_path: String,
-    chains: Vec<String>,
-    metrics: u32,
-    debug: bool,
-) -> AgentHandles {
-    let bin = concat_path("../../target/debug", "scraper");
-
-    info!(
-        "Current working directory: {:?}",
-        env::current_dir().unwrap()
-    );
-    info!("CHAINSTOSCRAPE env variable: {}", chains.join(","));
-
-    let scraper = Program::default()
-        .bin(bin)
-        .working_dir("../../")
-        .env("CONFIG_FILES", resolve_abs_path(agent_config_path))
-        .env("RUST_BACKTRACE", "1")
-        .hyp_env("CHAINSTOSCRAPE", chains.join(","))
-        .hyp_env("tontest1", "1")
-        .hyp_env("tontest2", "1")
-        .hyp_env(
-            "DB",
-            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-        )
-        .hyp_env("TRACING_LEVEL", if debug { "info" } else { "warn" })
-        .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("TON_SCR", None);
-
-    scraper
-}
 
 #[cfg(feature = "ton")]
 mod test {
-    #[test]
-    fn test_run() {
+    #[tokio::test]
+    async fn test_run() {
         use crate::ton::run_ton_to_ton;
+        use std::env;
         env_logger::init();
 
         use crate::ton::run_ton_to_evm;
+        use crate::ton::warp_route::run_ton_to_ton_warp_route;
+        let test_case = env::var("TEST_CASE").expect("A required parameter is missing TEST_CASE");
 
-        run_ton_to_evm()
-        // run_ton_to_ton()
+        match test_case.as_str() {
+            "ton_to_ton" => run_ton_to_ton(),
+            "ton_to_evm" => run_ton_to_evm(),
+            "ton_warp_route" => run_ton_to_ton_warp_route().await,
+            _ => panic!("Unknown TEST_CASE: {}", test_case),
+        }
     }
 }

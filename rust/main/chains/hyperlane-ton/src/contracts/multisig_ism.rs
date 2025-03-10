@@ -54,10 +54,11 @@ impl MultisigIsm for TonMultisigIsm {
             value: StackValue::String(domain.to_string()),
         }]);
 
-        let function_name = "get_validators_and_threshold".to_string();
+        let function_name = "get_validators_and_threshold";
+        let multisig_hex = self.multisig_address.to_hex();
         let response = self
             .provider
-            .run_get_method(self.multisig_address.to_hex(), function_name, stack)
+            .run_get_method(&multisig_hex, function_name, stack)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(

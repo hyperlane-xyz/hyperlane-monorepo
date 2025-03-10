@@ -3,6 +3,7 @@
 #include "imports/op_codes.fc";
 #include "imports/events.fc";
 #include "imports/errors.fc";
+#include "imports/signing_utils.fc";
 
 global int g::index;
 
@@ -16,6 +17,32 @@ global int g::index;
 () load_globals() impure inline_ref {
     slice ds = get_data().begin_parse();
     g::index = ds~load_uint(32);
+}
+
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    slice s = msg_body;
+    slice hyp_message = s~load_ref_slice();
+    cell hook_metadata = s~load_maybe_ref();
+    int message_id = build_message_id(hyp_message);
+
+    builder data = begin_cell()
+        .store_uint(message_id, 256)
+        .store_uint(g::index, 32);
+    send_event(
+        event::inserted_into_tree,
+        data
+    );
+
+    g::index += 1;
+
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
+        query_id,
+        0,
+        msg_sender,
+        msg_body
+    );
+    validate_msg_value(msg_value, 0);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -34,22 +61,13 @@ global int g::index;
 
     load_globals();
 
-    if(op == op::post_dispatch) {
-        int message_id = in_msg_body~load_uint(256);
-        int dest_domain = in_msg_body~load_uint(32);
-        slice refund_addr = in_msg_body~load_msg_addr();
-        cell hook_metadata = in_msg_body~load_ref();
-        ~dump(3);
-
-        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::index, 32);
-        ~dump(4);
-        send_event(
-            event::inserted_into_tree,
-            data
+    if (op == op::hook::post_dispatch) {
+        post_dispatch(
+            query_id,
+            in_msg_body,
+            msg_value,
+            msg_sender
         );
-        ~dump(5);
-
-        g::index += 1;
         return store_globals();
     }
 

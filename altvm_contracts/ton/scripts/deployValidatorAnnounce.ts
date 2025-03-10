@@ -3,18 +3,21 @@ import { Address, Dictionary, beginCell, toNano } from '@ton/core';
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { ValidatorAnnounce } from '../wrappers/ValidatorAnnounce';
 
+import { loadDeployedContracts } from './loadDeployedContracts';
+
 export async function run(provider: NetworkProvider) {
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const domain = Number(process.env.ORIGIN_DOMAIN!);
+  let deployedContracts = loadDeployedContracts(domain);
+  const sampleWallet = new ethers.Wallet(process.env.VALIDATOR_KEY!);
   console.log(sampleWallet.address);
   const dict = Dictionary.empty(
     Dictionary.Keys.BigUint(256),
     Dictionary.Values.Cell(),
   );
 
-  console.log('domain', Number(process.env.DOMAIN!));
+  console.log('domain', domain);
   console.log('version', Number(process.env.MAILBOX_VERSION!));
   console.log('validator', sampleWallet.address);
 
@@ -55,5 +58,5 @@ export async function run(provider: NetworkProvider) {
     merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress,
   };
 
-  fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));
+  fs.writeFileSync(`./deployedContracts_${domain}.json`, JSON.stringify(data));
 }

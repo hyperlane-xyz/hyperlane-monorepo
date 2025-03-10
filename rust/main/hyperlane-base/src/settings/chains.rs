@@ -1,13 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
-use eyre::{eyre, Context, Result};
-use reqwest::Client;
+use axum::async_trait;
+use ethers::prelude::Selector;
+use eyre::{eyre, Context, Report, Result};
 
-use crate::{
-    metrics::AgentMetricsConf,
-    settings::signers::{BuildableWithSignerConf, SignerConf},
-    CoreMetrics,
-};
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
@@ -32,6 +28,13 @@ use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
     SealevelRpcClient, TransactionSubmitter,
 };
+
+use crate::{
+    metrics::AgentMetricsConf,
+    settings::signers::{BuildableWithSignerConf, SignerConf},
+    CoreMetrics,
+};
+
 use hyperlane_ton as h_ton;
 use hyperlane_ton::{
     ConversionUtils, TonAggregationIsm, TonMerkleTreeHook, TonMerkleTreeHookIndexer, TonProvider,
@@ -231,6 +234,7 @@ impl ChainConf {
                 h_cosmos::application::CosmosApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Ton(_) => todo!(),
         };
 
         result.context(ctx)
@@ -259,7 +263,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Ton(conf) => Ok(Box::new(TonProvider::new(
-                Client::new(),
+                reqwest::Client::new(),
                 conf.clone(),
                 locator.domain.clone(),
             )) as Box<dyn HyperlaneProvider>),
@@ -311,7 +315,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
                 let mailbox_address =
                     ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
 
@@ -358,7 +362,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
 
                 let address =
                     ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
@@ -431,7 +435,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address =
@@ -499,7 +503,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address =
@@ -556,7 +560,7 @@ impl ChainConf {
                 use tonlib_core::TonAddress;
 
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
@@ -635,7 +639,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
                 let igp_address = ConversionUtils::h256_to_ton_address(
                     &self.addresses.interchain_gas_paymaster,
                     0,
@@ -713,7 +717,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
 
                 let address =
                     ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
@@ -759,7 +763,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
                 let validator_announce_address =
                     ConversionUtils::h256_to_ton_address(&self.addresses.validator_announce, 0);
 
@@ -867,7 +871,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
 
                 let multisig_address = ConversionUtils::h256_to_ton_address(&address, 0);
 
@@ -909,7 +913,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
 
                 let address = ConversionUtils::h256_to_ton_address(&address, 0);
                 let ism = Box::new(TonRoutingIsm::new(provider, address)?);
@@ -953,7 +957,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(conf) => {
                 let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                    TonProvider::new(reqwest::Client::new(), conf.clone(), locator.domain.clone());
 
                 let address = ConversionUtils::h256_to_ton_address(&address, 0);
                 let ism = Box::new(TonAggregationIsm::new(provider, address)?);

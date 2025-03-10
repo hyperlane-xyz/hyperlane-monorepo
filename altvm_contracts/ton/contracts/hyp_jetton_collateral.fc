@@ -1,0 +1,95 @@
+#include "imports/stdlib.fc";
+#include "imports/op_codes.fc";
+#include "jetton/op-codes.fc";
+#include "imports/errors.fc";
+#include "imports/send_mode.fc";
+#include "imports/ton_msg.fc";
+#include "imports/events.fc";
+#include "jetton/jetton-utils.fc";
+#include "token_router.fc";
+
+() op_handler::handle(
+    int op, 
+    slice in_msg_body
+) impure inline {
+    if (op == op::recipient::handle) {
+        throw_unless(
+            error::unauthorized_sender, 
+            equal_slices(g::msg_sender, g::mailbox_addr)
+        );
+        (int amount, slice recipient_addr, slice response_addr) = handle_params::unpack_checked(in_msg_body);
+
+        cell transfer_body = begin_cell()
+            .store_uint(op::transfer, 32)
+            .store_uint(g::query_id, 64)
+            .store_coins(amount)
+            .store_slice(recipient_addr)
+            .store_slice(response_addr)
+            .store_uint(0, 1) ;; custom payload
+            .store_coins(0)
+            .store_uint(0, 1) ;; forward payload
+        .end_cell();
+
+        slice jetton_wallet_addr = calculate_user_jetton_wallet_address(
+            my_address(), g::jetton_addr, g::jetton_wallet_code);
+        builder msg = build_message(
+            jetton_wallet_addr,
+            0,
+            true,
+            null(),
+            transfer_body
+        );
+
+        send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
+        throw(0);
+    }
+}
+
+() op_handler::transfer_notification(
+    int op, 
+    slice in_msg_body
+) impure inline {
+    if (op::transfer_notification) {
+        equal_slices(
+            calculate_user_jetton_wallet_address(my_address(), g::jetton_addr, g::jetton_wallet_code), 
+            g::msg_sender
+        );
+        (int destination, 
+         int recipient, 
+         int amount,
+         cell hook_metadata, 
+         cell hook_addr,
+         slice sender_addr) = transfer_params::unpack_checked(in_msg_body);
+        transfer_remote(destination, recipient, amount, 
+            hook_metadata, hook_addr, 0, sender_addr);
+        throw(0);
+    }
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) {
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    g::msg_value = msg_value;
+    g::msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    g::query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+    op_handler::get_ism(op, in_msg_body);
+    op_handler::manage_routers(op, in_msg_body);
+    op_handler::handle(op, in_msg_body);
+    op_handler::transfer_notification(op, in_msg_body);
+    throw(error::unknown_op);
+}
+
+slice get_ism() method_id {
+    load_globals();
+    return g::ism_addr;
+}

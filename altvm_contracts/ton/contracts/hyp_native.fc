@@ -1,0 +1,60 @@
+#include "token_router.fc";
+
+() op_handler::handle(
+    int op, 
+    slice in_msg_body
+) impure inline {
+    if (op == op::recipient::handle) {
+        throw_unless(
+            error::unauthorized_sender, 
+            equal_slices(g::msg_sender, g::mailbox_addr)
+        );
+        (int amount, slice recipient_addr, slice response_addr) = handle_params::unpack_checked(in_msg_body);
+
+        raw_reserve(amount, reserve_mode::balance_minus_this_amount);
+        build_message(recipient_addr, amount, false, null(), null())
+            .store_uint(0, 1)
+            .end_cell()
+            .send_raw_message(send_mode::pay_transfer_fees_separately);
+        send_change(response_addr, op, g::query_id, send_mode::carry_remaining_balance);
+        throw(0);
+    }
+}
+
+() op_handler::transfer_remote(int op, slice in_msg_body) impure inline {
+    if (op == op::transfer_remote) {
+        int destination = in_msg_body~load_uint(32);
+        int recipient = in_msg_body~load_uint(256);
+        int amount = in_msg_body~load_uint(256);
+        cell hook_metadata = in_msg_body~load_maybe_ref();
+        cell hook_addr = in_msg_body~load_maybe_ref();
+        in_msg_body.end_parse();
+        throw_if(error::msg_value_too_low, g::msg_value < amount + ONE_TON);
+        transfer_remote(destination, recipient, amount, 
+            hook_metadata, hook_addr, amount, g::msg_sender);
+        throw(0);
+    }
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) {
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    g::msg_value = msg_value;
+    g::msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    g::query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+    op_handler::get_ism(op, in_msg_body);
+    op_handler::manage_routers(op, in_msg_body);
+    op_handler::handle(op, in_msg_body);
+    op_handler::transfer_remote(op, in_msg_body);
+    throw(error::unknown_op);
+}

@@ -1,5 +1,9 @@
 use derive_new::new;
+use hyperlane_core::{ChainCommunicationError, ChainResult};
 use serde::{Deserialize, Serialize};
+use tonlib_core::cell::ArcCell;
+
+use crate::{error::HyperlaneTonError, ConversionUtils};
 
 #[derive(Deserialize, Debug, Default)]
 pub struct RunGetMethodResponse {
@@ -14,6 +18,28 @@ pub struct StackItem {
     pub r#type: String,
     pub value: StackValue,
 }
+
+impl StackItem {
+    pub fn as_cell(&self) -> ChainResult<ArcCell> {
+        if self.r#type != "cell" {
+            return Err(ChainCommunicationError::from(
+                HyperlaneTonError::ParsingError(format!(
+                    "Unexpected stack item type: {:?}",
+                    self.r#type
+                )),
+            ));
+        }
+
+        let boc = ConversionUtils::extract_boc_from_stack_item(&self)?;
+        ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse root cell: {:?}",
+                e
+            )))
+        })
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, new)]
 #[serde(untagged)]
 pub enum StackValue {

@@ -12,7 +12,7 @@ export async function run(provider: NetworkProvider) {
       Address.parse('EQAvcktAoqx6DwAdQLVuL6wmwUQPQK9MdIyuq4TzXkKNdCYH'),
     ),
   );
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const sampleWallet = new ethers.Wallet(process.env.VALIDATOR_KEY!);
 
   const storageLocations = await validatorAnnounce.getAnnouncedStorageLocations(
     buildValidators({

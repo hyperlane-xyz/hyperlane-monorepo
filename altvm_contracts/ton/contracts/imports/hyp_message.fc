@@ -1,0 +1,46 @@
+builder hyperlane::message::build(
+    int version,
+    int nonce,
+    int local_domain,
+    slice sender,
+    int dest_domain,
+    int recipient_addr,
+    cell message
+) inline {
+    (_, int parsed_addr) = parse_std_addr(sender);
+    return begin_cell()
+        .store_uint(version, 8)
+        .store_uint(nonce, 32)
+        .store_uint(local_domain, 32)
+        .store_uint(parsed_addr, 256)
+        .store_uint(dest_domain, 32)
+        .store_uint(recipient_addr, 256)
+        .store_ref(message);
+}
+
+(int, int, int, int, int, int, cell) hyperlane::message::unpack(slice hyp_msg) inline {
+    int version = hyp_msg~load_uint(8);
+    int nonce = hyp_msg~load_uint(32);
+    int origin_domain = hyp_msg~load_uint(32);
+    int sender = hyp_msg~load_uint(256);
+    int dest_domain = hyp_msg~load_uint(32);
+    int recipient = hyp_msg~load_uint(256);
+    cell body = hyp_msg~load_ref();
+
+    return (version, nonce, origin_domain, sender, dest_domain, recipient, body);
+}
+
+int message::unpack::sender_addr(slice message) inline {
+    message~skip_bits(8 + 32 + 32);
+    return message~load_uint(256);
+}
+
+int message::unpack::recipient(slice message) inline {
+    message~skip_bits(8 + 32 + 32 + 256 + 32);
+    return message~load_uint(256);
+}
+
+int message::unpack::dest_domain(slice message) inline {
+    message~skip_bits(8 + 32 + 32 + 256);
+    return message~load_uint(32);
+}

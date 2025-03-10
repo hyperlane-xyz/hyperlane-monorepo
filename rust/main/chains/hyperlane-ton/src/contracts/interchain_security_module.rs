@@ -37,7 +37,7 @@ pub struct TonInterchainSecurityModule {
     pub workchain: i32, // -1 or 0
 }
 impl TonInterchainSecurityModule {
-    const VERIFY: u32 = 0x3b3cca17;
+    const VERIFY: u32 = 0x7b00ad2c;
     pub fn new(locator: ContractLocator, conf: TonConnectionConf, signer: TonSigner) -> Self {
         let ism_address = ConversionUtils::h256_to_ton_address(&locator.address, 0);
         let provider = TonProvider::new(reqwest::Client::new(), conf, locator.domain.clone());
@@ -77,10 +77,11 @@ impl HyperlaneChain for TonInterchainSecurityModule {
 #[async_trait]
 impl InterchainSecurityModule for TonInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let function_name = "get_module_type".to_string();
+        let function_name = "get_module_type";
+        let ism_hex = self.ism_address.to_hex();
         let response = self
             .provider
-            .run_get_method(self.ism_address.to_hex(), function_name, None)
+            .run_get_method(&ism_hex, function_name, None)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -138,14 +139,11 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         })?;
 
         let query_id = 1;
-        let block_number = 1;
-
         let msg = crate::contracts::mailbox::build_message(
             TonInterchainSecurityModule::VERIFY,
             ArcCell::new(message_cell),
             ArcCell::new(metadata_cell),
             query_id,
-            block_number,
         )
         .map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(

@@ -1,6 +1,7 @@
 ;; mailbox events
 const int event::dispatch = "event::dispatch"c;
 const int event::handle = "event::handle"c;
+const int event::token_transfer = "event::token_transfer"c;
 const int event::post_dispatch = "event::post_dispatch"c;
 const int event::quote_dispatch = "event::quote_dispatch"c;
 ;; igp events

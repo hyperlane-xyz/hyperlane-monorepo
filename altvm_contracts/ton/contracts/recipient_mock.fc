@@ -34,12 +34,11 @@ global slice g::ism_addr;
     int query_id = in_msg_body~load_uint(64);
 
     load_globals();
-    if (op == op::get_ism) {
+    if (op == op::recipient::get_ism) {
+        
         cell body = begin_cell()
-            .store_uint(op::process, 32)
+            .store_uint(op::recipient::get_ism::answer, 32)
             .store_uint(query_id, 64)
-            .store_uint(op::process::verify, 32)
-            .store_int(true, 1)
             .store_slice(g::ism_addr)
             .store_slice(in_msg_body)
             .end_cell();
@@ -49,15 +48,17 @@ global slice g::ism_addr;
         return store_globals();
     }
 
-    if (op == op::handle) {
+    if (op == op::recipient::handle) {
         int origin_domain = in_msg_body~load_uint(32);
         int sender = in_msg_body~load_uint(256);
+        slice relayer_addr = in_msg_body~load_msg_addr();
         cell message_body = in_msg_body~load_ref();
         builder data = begin_cell()
             .store_uint(origin_domain, 32)
             .store_uint(sender, 256)
             .store_ref(message_body);
         send_event(event::handle, data);
+        send_change(relayer_addr, op, query_id, send_mode::carry_remaining_value);
         return store_globals();
     }
     throw(error::unknown_op);

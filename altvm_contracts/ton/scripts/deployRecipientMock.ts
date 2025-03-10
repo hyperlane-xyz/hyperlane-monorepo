@@ -2,10 +2,13 @@ import { NetworkProvider, compile } from '@ton/blueprint';
 import { Address, toNano } from '@ton/core';
 import * as fs from 'fs';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { RecipientMock } from '../wrappers/RecipientMock';
 
+import { loadDeployedContracts } from './loadDeployedContracts';
+
 export async function run(provider: NetworkProvider) {
+  const domain = Number(process.env.ORIGIN_DOMAIN!);
+  let deployedContracts = loadDeployedContracts(domain);
   if (deployedContracts.multisigIsmAddress == '') {
     console.error('Aborted: deploy ism at first');
     return;
@@ -33,5 +36,5 @@ export async function run(provider: NetworkProvider) {
     merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress,
   };
 
-  fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));
+  fs.writeFileSync(`./deployedContracts_${domain}.json`, JSON.stringify(data));
 }

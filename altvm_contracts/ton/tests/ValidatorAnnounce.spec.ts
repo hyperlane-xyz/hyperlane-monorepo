@@ -53,7 +53,7 @@ describe('ValidatorAnnounce', () => {
   let validatorAnnounce: SandboxContract<ValidatorAnnounce>;
   let mailbox: SandboxContract<TreasuryContract>;
   const localDomain = 777001;
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const sampleWallet = ethers.Wallet.createRandom();
   const storageLocation =
     'file:///var/folders/4q/kppyz8nn003cb1vzh6q96_g40000gn/T/.tmpYgGeTq/checkpoint';
   const storageLocationSlice = beginCell()
@@ -71,10 +71,10 @@ describe('ValidatorAnnounce', () => {
   };
 
   const generateLocations = (count: number) => {
-    let storageLocations = [];
-    let storageLocationSlices = [];
+    const storageLocations = [];
+    const storageLocationSlices = [];
     for (let i = 0; i < count; i++) {
-      let storageLocation =
+      const storageLocation =
         'file:///var/folders/4q/kppyz8nn003cb1vzh6q96_g40000gn/T/.tmpYgGeTq/checkpoint' +
         i.toString();
 

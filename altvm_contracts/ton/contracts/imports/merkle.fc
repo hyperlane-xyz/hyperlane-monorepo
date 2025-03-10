@@ -1,4 +1,54 @@
+
+const int TREE_DEPTH = 32;
+const int MAX_LEAVES = 4294967295;
 const int KEY_LEN = 8;
+
+(int, cell) insert_into_tree(int node, int count, cell tree) impure inline {
+    throw_unless(
+        error::merkle_tree_full,
+        count < MAX_LEAVES
+    );
+    count += 1;
+    int size = count;
+    int i = 0;
+    repeat(TREE_DEPTH) {
+        if ((size & 1) == 1) {
+            tree~udict_set_builder(KEY_LEN, i, begin_cell().store_uint(node, 256));
+            return (count, tree);
+        }
+        (slice s, _) = tree.udict_get?(KEY_LEN, i);
+        node = keccak256_builder(
+            begin_cell()
+                .store_slice(s)
+                .store_uint(node, 256)
+        );
+        size /= 2;
+        i += 1;
+    }
+    return (count, tree);
+}
+
+int root_w_ctx(cell zeroes, int count, cell tree) impure inline {
+    int index = count;
+    int i = 0;
+    int current = 0;
+    repeat(TREE_DEPTH) {
+        int iht_bit = (index >> i) & 1;
+        (slice next, _) = tree.udict_get?(KEY_LEN, i);
+        if (iht_bit == 1) {
+            current = keccak256_builder(
+                begin_cell().store_slice(next).store_uint(current, 256)
+            );
+        } else {
+            (slice zero, _) = zeroes.udict_get?(KEY_LEN, i);
+            current = keccak256_builder(
+                begin_cell().store_uint(current, 256).store_slice(zero)
+            );
+        }
+        i += 1;
+    }
+    return current;
+}
 
 const slice Z_0 = "0000000000000000000000000000000000000000000000000000000000000000"s;
 const slice Z_1 = "ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5"s;

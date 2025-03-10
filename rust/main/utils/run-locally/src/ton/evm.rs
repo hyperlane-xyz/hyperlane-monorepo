@@ -1,6 +1,6 @@
 use log::info;
 use macro_rules_attribute::apply;
-use std::{env, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 use tempfile::tempdir;
 
 use crate::{
@@ -87,39 +87,4 @@ pub fn launch_evm_validator(
         .spawn(make_static(format!("EVM-VL{}", metrics_port % 2 + 1)), None);
 
     validator
-}
-
-#[apply(as_task)]
-#[allow(clippy::let_and_return)]
-pub fn launch_evm_ton_scraper(
-    agent_config_path: String,
-    chains: Vec<String>,
-    metrics: u32,
-    debug: bool,
-) -> AgentHandles {
-    let bin = concat_path("../../target/debug", "scraper");
-
-    info!(
-        "Current working directory: {:?}",
-        env::current_dir().unwrap()
-    );
-    info!("CHAINSTOSCRAPE env variable: {}", chains.join(","));
-
-    let scraper = Program::default()
-        .bin(bin)
-        .working_dir("../../")
-        .env("CONFIG_FILES", resolve_abs_path(agent_config_path))
-        .env("RUST_BACKTRACE", "1")
-        .hyp_env("CHAINSTOSCRAPE", chains.join(","))
-        .hyp_env("arbitrumsepolia", "1")
-        .hyp_env("tontest1", "1")
-        .hyp_env(
-            "DB",
-            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-        )
-        .hyp_env("TRACING_LEVEL", if debug { "info" } else { "warn" })
-        .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("EVM_SCR", None);
-
-    scraper
 }

@@ -121,9 +121,13 @@ pub struct Message {
 pub struct MessageContent {
     pub hash: String,
     pub body: String,
-    pub decoded: Option<String>,
+    pub decoded: Option<DecodedMessage>,
 }
-
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DecodedMessage {
+    pub r#type: String,
+    pub comment: Option<String>,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccountState {
     pub hash: String,

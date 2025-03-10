@@ -15,38 +15,21 @@ import { Mailbox } from '../wrappers/Mailbox';
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
-import { Errors, OpCodes, ProcessOpCodes } from '../wrappers/utils/constants';
+import { multisigMetadataToCell } from '../wrappers/utils/builders';
+import { Errors, OpCodes, answer } from '../wrappers/utils/constants';
 import {
-  THookMetadata,
+  HookMetadata,
+  HypMessage,
   TMailboxContractConfig,
-  TMessage,
-  TMultisigMetadata,
 } from '../wrappers/utils/types';
 
 import { makeRandomBigint } from './utils/generators';
 import { parseHandleLog } from './utils/parsers';
 import { messageId } from './utils/signing';
 
-const buildMessage = (
-  recipient: Buffer,
-  sender: Buffer,
-  version: number = 1,
-  destinationDomain: number = 0,
-) => {
-  return {
-    version,
-    nonce: 0,
-    origin: 0,
-    sender: sender,
-    destinationDomain,
-    recipient: recipient,
-    body: beginCell().storeUint(123, 32).endCell(),
-  };
-};
-
 const expectHandleLog = (
   externals: BlockchainTransaction[],
-  message: TMessage,
+  message: HypMessage,
   src: Address,
 ) => {
   expect(externals).toHaveLength(1);
@@ -66,15 +49,15 @@ describe('Mailbox', () => {
   let defaultHookCode: Cell;
   let defaultIsmCode: Cell;
   let recipientCode: Cell;
+  let deliveryCode: Cell;
 
-  let hyperlaneMessage: TMessage;
-  let hookMetadata: THookMetadata;
+  let hyperlaneMessage: HypMessage;
+  let hookMetadata: HookMetadata;
   let dispatchBody: {
     destDomain: number;
     recipientAddr: Buffer;
-    requiredValue: bigint;
-    message: Cell;
-    hookMetadata: THookMetadata;
+    messageBody: Cell;
+    hookMetadata: Cell;
     queryId?: number | undefined;
   };
 
@@ -84,6 +67,7 @@ describe('Mailbox', () => {
     defaultHookCode = await compile('MerkleHookMock');
     defaultIsmCode = await compile('MockIsm');
     recipientCode = await compile('RecipientMock');
+    deliveryCode = await compile('Delivery');
   });
 
   let blockchain: Blockchain;
@@ -145,17 +129,27 @@ describe('Mailbox', () => {
         recipientCode,
       ),
     );
-
+    const requests = Dictionary.empty(
+      Mailbox.DeliveryKey,
+      Mailbox.DeliveryValue,
+    );
+    requests.set(100n, {
+      message: new HypMessage(),
+      metadata: new HookMetadata(),
+      initiator: deployer.address,
+      ism: new Address(0, Buffer.alloc(32)),
+    });
     const initConfig: TMailboxContractConfig = {
-      version: 1,
-      localDomain: 0,
+      version: Mailbox.version,
+      localDomain: 1,
       nonce: 0,
       latestDispatchedId: 0n,
       defaultIsm: initialDefaultIsm.address,
       defaultHookAddr: initialDefaultHook.address,
       requiredHookAddr: initialRequiredHook.address,
       owner: deployer.address,
-      deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
+      deliveryCode,
+      processRequests: requests,
     };
     mailbox = blockchain.openContract(
       Mailbox.createFromConfig(initConfig, code),
@@ -217,13 +211,15 @@ describe('Mailbox', () => {
       success: true,
     });
 
-    hyperlaneMessage = buildMessage(recipient.address.hash, Buffer.alloc(32));
-    hookMetadata = {
+    hyperlaneMessage = new HypMessage()
+      .overrideRecipient(recipient.address.hash)
+      .overrideBody(beginCell().storeUint(123, 32).endCell());
+    hookMetadata = HookMetadata.fromObj({
       variant: 0,
       msgValue: toNano('1'),
       gasLimit: 100000000n,
-      refundAddress: deployer.address,
-    };
+      refundAddress: deployer.address.hash,
+    });
   });
 
   it('should dispatch message and send log message', async () => {
@@ -232,22 +228,21 @@ describe('Mailbox', () => {
       ethersWallet.address.slice(2).padStart(64, '0'),
       'hex',
     );
-    hyperlaneMessage = buildMessage(addr, deployer.address.hash);
-    const requiredValue = await initialRequiredHook.getQuoteDispatch(
-      0,
-      hookMetadata,
-    );
+    hyperlaneMessage = new HypMessage()
+      .overrideOrigin(1)
+      .overrideDest(0)
+      .overrideRecipient(addr)
+      .overrideSender(deployer.address.hash);
     const id = messageId(hyperlaneMessage);
     dispatchBody = {
       destDomain: 0,
       recipientAddr: addr,
-      requiredValue: requiredValue,
-      message: beginCell().storeUint(123, 32).endCell(),
-      hookMetadata,
+      messageBody: beginCell().storeUint(123, 32).endCell(),
+      hookMetadata: hookMetadata.toCell(),
     };
     const res = await mailbox.sendDispatch(
       deployer.getSender(),
-      toNano('1'),
+      toNano(0.6),
       dispatchBody,
     );
     expect(res.transactions).toHaveTransaction({
@@ -258,21 +253,42 @@ describe('Mailbox', () => {
     });
 
     expect(res.transactions).toHaveTransaction({
+      from: initialRequiredHook.address,
+      to: mailbox.address,
+      success: true,
+      op: answer(OpCodes.POST_DISPATCH),
+    });
+
+    expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
       to: initialDefaultHook.address,
       success: true,
       op: OpCodes.POST_DISPATCH,
     });
 
+    expect(res.transactions).toHaveTransaction({
+      from: initialDefaultHook.address,
+      to: mailbox.address,
+      op: answer(OpCodes.POST_DISPATCH),
+      success: true,
+    });
+
+    expect(res.transactions).toHaveTransaction({
+      from: mailbox.address,
+      to: deployer.address,
+      success: true,
+    });
+
     expect(res.externals).toHaveLength(3);
+
     expect(res.externals[0].info.src.toString()).toStrictEqual(
-      mailbox.address.toString(),
-    );
-    expect(res.externals[1].info.src.toString()).toStrictEqual(
       initialRequiredHook.address.toString(),
     );
-    expect(res.externals[2].info.src.toString()).toStrictEqual(
+    expect(res.externals[1].info.src.toString()).toStrictEqual(
       initialDefaultHook.address.toString(),
+    );
+    expect(res.externals[2].info.src.toString()).toStrictEqual(
+      mailbox.address.toString(),
     );
 
     const logBody = res.externals[0].body;
@@ -280,16 +296,15 @@ describe('Mailbox', () => {
   });
 
   it('should process incoming message', async () => {
-    const metadata: TMultisigMetadata = {
+    const metadata = multisigMetadataToCell({
       originMerkleHook: Buffer.alloc(32),
       root: Buffer.alloc(32),
       index: 0n,
       signatures: [{ r: 0n, s: 0n, v: 0n }],
-    };
+    });
     const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
-      blockNumber: 0,
       metadata,
-      message: hyperlaneMessage,
+      message: hyperlaneMessage.toCell(),
     });
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
@@ -306,7 +321,7 @@ describe('Mailbox', () => {
       from: recipient.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.PROCESS,
+      op: answer(OpCodes.GET_ISM),
     });
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
@@ -318,13 +333,19 @@ describe('Mailbox', () => {
       from: initialDefaultIsm.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.PROCESS,
+      op: answer(OpCodes.VERIFY),
     });
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
       to: recipient.address,
       success: true,
       op: OpCodes.HANDLE,
+    });
+    expect(res.transactions).toHaveTransaction({
+      from: recipient.address,
+      to: deployer.address,
+      success: true,
+      op: answer(OpCodes.HANDLE),
     });
     const externals = res.transactions.filter((transaction: any) => {
       return transaction.externals.length === 1;
@@ -406,20 +427,15 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong mailbox version', async () => {
-    hyperlaneMessage = buildMessage(
-      recipient.address.hash,
-      Buffer.alloc(32),
-      2,
-    );
+    hyperlaneMessage = new HypMessage(2).overrideSender(recipient.address.hash);
     const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
-      blockNumber: 0,
-      metadata: {
+      metadata: multisigMetadataToCell({
         originMerkleHook: Buffer.alloc(32),
         root: Buffer.alloc(32),
         index: 0n,
         signatures: [{ r: 0n, s: 0n, v: 0n }],
-      },
-      message: hyperlaneMessage,
+      }),
+      message: hyperlaneMessage.toCell(),
     });
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
@@ -430,21 +446,17 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong dest domain', async () => {
-    hyperlaneMessage = buildMessage(
-      recipient.address.hash,
-      Buffer.alloc(32),
-      1,
-      1,
-    );
+    hyperlaneMessage = new HypMessage()
+      .overrideDest(2)
+      .overrideSender(recipient.address.hash);
     const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
-      blockNumber: 0,
-      metadata: {
+      metadata: multisigMetadataToCell({
         originMerkleHook: Buffer.alloc(32),
         root: Buffer.alloc(32),
         index: 0n,
         signatures: [{ r: 0n, s: 0n, v: 0n }],
-      },
-      message: hyperlaneMessage,
+      }),
+      message: hyperlaneMessage.toCell(),
     });
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
@@ -455,18 +467,18 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong sender on verify', async () => {
-    const res = await mailbox.sendProcessWSubOp(
+    const res = await mailbox.sendGetIsmAnswer(
       deployer.getSender(),
       toNano('0.1'),
       {
-        subOp: ProcessOpCodes.VERIFY,
-        metadata: {
+        queryId: 100,
+        metadata: multisigMetadataToCell({
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
           index: 0n,
           signatures: [{ r: 0n, s: 0n, v: 0n }],
-        },
-        message: hyperlaneMessage,
+        }),
+        message: hyperlaneMessage.toCell(),
       },
     );
     expect(res.transactions).toHaveTransaction({
@@ -478,18 +490,18 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong sender on deliver message', async () => {
-    const res = await mailbox.sendProcessWSubOp(
+    const res = await mailbox.sendIsmVerifyAnswer(
       deployer.getSender(),
       toNano('0.1'),
       {
-        subOp: ProcessOpCodes.DELIVER_MESSAGE,
-        metadata: {
+        queryId: 100,
+        metadata: multisigMetadataToCell({
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
           index: 0n,
           signatures: [{ r: 0n, s: 0n, v: 0n }],
-        },
-        message: hyperlaneMessage,
+        }),
+        message: hyperlaneMessage.toCell(),
       },
     );
     expect(res.transactions).toHaveTransaction({
@@ -523,18 +535,11 @@ describe('Mailbox', () => {
 
   it('should return local domain', async () => {
     const localDomain = await mailbox.getLocalDomain();
-    expect(localDomain).toStrictEqual(0);
+    expect(localDomain).toStrictEqual(1);
   });
 
   it('should return latest dispatched id', async () => {
     const latestDispatchedId = await mailbox.getLatestDispatchedId();
-    expect(latestDispatchedId).toStrictEqual(0);
-  });
-
-  it('should return deliveries', async () => {
-    const deliveries = await mailbox.getDeliveries();
-    expect(deliveries).toStrictEqual(
-      Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
-    );
+    expect(latestDispatchedId).toStrictEqual(0n);
   });
 });

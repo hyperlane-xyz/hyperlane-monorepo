@@ -2,31 +2,31 @@ import { Builder, Cell, Dictionary, beginCell } from '@ton/core';
 
 import { writeCellsToBuffer } from './convert';
 import {
-  THookMetadata,
-  TMessage,
+  HookMetadata,
+  HypMessage,
   TMultisigMetadata,
   TSignature,
 } from './types';
 
-export const buildMessageCell = (message: TMessage) => {
-  return beginCell()
-    .storeUint(message.version, 8)
-    .storeUint(message.nonce, 32)
-    .storeUint(message.origin, 32)
-    .storeBuffer(message.sender)
-    .storeUint(message.destinationDomain, 32)
-    .storeBuffer(message.recipient)
-    .storeRef(message.body)
-    .endCell();
+export const readMessageCell = (cell: Cell) => {
+  const slice = cell.beginParse();
+  return HypMessage.fromAny({
+    version: slice.loadUint(8),
+    nonce: slice.loadUint(32),
+    origin: slice.loadUint(32),
+    sender: slice.loadBuffer(32),
+    destination: slice.loadUint(32),
+    recipient: slice.loadBuffer(32),
+    body: slice.loadRef(),
+  });
 };
 
-export const buildHookMetadataCell = (metadata: THookMetadata) => {
-  return beginCell()
-    .storeUint(metadata.variant, 16)
-    .storeUint(metadata.msgValue, 256)
-    .storeUint(metadata.gasLimit, 256)
-    .storeAddress(metadata.refundAddress)
-    .endCell();
+export const readHookMetadataCell = (cell: Cell): HookMetadata => {
+  const slice = cell.beginParse();
+  return new HookMetadata(slice.loadUint(16))
+    .overrideValue(slice.loadUintBig(256))
+    .overrideGasLimit(slice.loadUintBig(256))
+    .overrideRefundAddr(slice.loadBuffer(32));
 };
 
 export const buildSignatureCell = (signature: TSignature) => {
@@ -38,7 +38,7 @@ export const buildSignatureCell = (signature: TSignature) => {
 };
 
 export const buildValidatorsDict = (validators: bigint[]) => {
-  let validatorsDict = Dictionary.empty(
+  const validatorsDict = Dictionary.empty(
     Dictionary.Keys.BigUint(32),
     Dictionary.Values.BigUint(256),
   );
@@ -50,8 +50,8 @@ export const buildValidatorsDict = (validators: bigint[]) => {
   return validatorsDict;
 };
 
-export const buildMetadataCell = (metadata: TMultisigMetadata) => {
-  let signatures = Dictionary.empty(
+export const multisigMetadataToCell = (metadata: TMultisigMetadata) => {
+  const signatures = Dictionary.empty(
     Dictionary.Keys.BigUint(32),
     Dictionary.Values.Buffer(65),
   );
@@ -64,7 +64,8 @@ export const buildMetadataCell = (metadata: TMultisigMetadata) => {
     .storeBuffer(metadata.originMerkleHook, 32)
     .storeBuffer(metadata.root, 32)
     .storeUint(metadata.index, 32)
-    .storeDict(signatures);
+    .storeDict(signatures)
+    .endCell();
 };
 
 export const buildValidators = (opts: {
@@ -85,4 +86,14 @@ export const buildValidators = (opts: {
   }
 
   return { builder: opts.builder, validators: opts.validators };
+};
+
+export const buildTokenMessage = (
+  tokenRecipient: Buffer,
+  tokenAmount: bigint,
+) => {
+  return beginCell()
+    .storeBuffer(tokenRecipient, 32)
+    .storeUint(tokenAmount, 256)
+    .endCell();
 };

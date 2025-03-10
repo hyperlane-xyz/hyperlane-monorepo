@@ -2,17 +2,18 @@ import { NetworkProvider, compile } from '@ton/blueprint';
 import { Address, Dictionary, toNano } from '@ton/core';
 import * as fs from 'fs';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { makeRandomBigint } from '../tests/utils/generators';
 import {
   InterchainGasPaymaster,
   InterchainGasPaymasterConfig,
 } from '../wrappers/InterchainGasPaymaster';
-import { buildHookMetadataCell } from '../wrappers/utils/builders';
-import { THookMetadata } from '../wrappers/utils/types';
+import { HookMetadata } from '../wrappers/utils/types';
+
+import { loadDeployedContracts } from './loadDeployedContracts';
 
 export async function run(provider: NetworkProvider) {
-  console.log('domain', Number(process.env.DOMAIN!));
+  const domain = Number(process.env.ORIGIN_DOMAIN!);
+  console.log('domain', domain);
   console.log('version', Number(process.env.MAILBOX_VERSION!));
   const intialGasConfig = {
     gasOracle: 0n,
@@ -23,25 +24,26 @@ export async function run(provider: NetworkProvider) {
 
   console.log('ton address:', process.env.TON_ADDRESS!);
 
+  const deployedContracts = loadDeployedContracts(domain);
   const dictDestGasConfig = Dictionary.empty(
     InterchainGasPaymaster.GasConfigKey,
     InterchainGasPaymaster.GasConfigValue,
   );
   dictDestGasConfig.set(0, intialGasConfig);
 
-  const hookMetadata: THookMetadata = {
+  const hookMetadata = HookMetadata.fromObj({
     variant: Number(process.env.MAILBOX_VERSION),
     msgValue: 1000n,
     gasLimit: 50000n,
-    refundAddress: Address.parse(process.env.TON_ADDRESS!),
-  };
+    refundAddress: Address.parse(process.env.TON_ADDRESS!).hash,
+  });
 
   const config: InterchainGasPaymasterConfig = {
     owner: Address.parse(process.env.TON_ADDRESS!),
     beneficiary: Address.parse(process.env.TON_ADDRESS!),
     hookType: 0,
     destGasConfig: dictDestGasConfig,
-    hookMetadata: buildHookMetadataCell(hookMetadata),
+    hookMetadata: hookMetadata.toCell(),
   };
   const interchainGasPaymaster = provider.open(
     InterchainGasPaymaster.createFromConfig(
@@ -63,5 +65,5 @@ export async function run(provider: NetworkProvider) {
     merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress,
   };
 
-  fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));
+  fs.writeFileSync(`./deployedContracts_${domain}.json`, JSON.stringify(data));
 }

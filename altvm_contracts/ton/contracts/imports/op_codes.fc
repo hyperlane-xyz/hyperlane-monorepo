@@ -1,25 +1,52 @@
-const int op::dispatch = "op::dispatch"c;
-const int op::process = "op::process"c;
-const int op::handle = "op::handle"c;
-const int op::quote_dispatch = "op::quote_dispatch"c;
+const int ANSWER_BIT = 0x80000000;
+
+;; mailbox
+const int op::mailbox::dispatch = "op::mailbox::dispatch"c & (~ ANSWER_BIT);
+const int op::mailbox::dispatch::answer = op::mailbox::dispatch | ANSWER_BIT;
+const int op::mailbox::process = "op::mailbox::process"c & (~ ANSWER_BIT);
+const int op::mailbox::process::answer = op::mailbox::process | ANSWER_BIT;
 const int op::set_default_ism = "op::set_default_ism"c;
-const int op::set_default_hook = "op::set_default_hook"c;
 const int op::set_required_hook = "op::set_required_hook"c;
-const int op::post_dispatch = "op::post_dispatch"c;
-const int op::set_beneficiary = "op::set_beneficiary"c;
-const int op::set_protocol_fee = "op::set_protocol_fee"c;
-const int op::collect_protocol_fee = "op::collect_protocol_fee"c;
-const int op::verify = "op::verify"c;
+const int op::set_default_hook = "op::set_default_hook"c;
+const int op::set_authorized_hook = "op::set_authorized_hook"c;
+
+;; recipient
+const int op::recipient::handle = "op::recipient::handle"c & (~ ANSWER_BIT); 
+const int op::recipient::handle::answer = op::recipient::handle | ANSWER_BIT; 
+const int op::recipient::get_ism = "op::recipient::get_ism"c & (~ ANSWER_BIT);
+const int op::recipient::get_ism::answer = op::recipient::get_ism | ANSWER_BIT;
 const int op::set_ism = "op::set_ism"c;
 const int op::remove_ism = "op::remove_ism"c;
-const int op::set_authorized_hook = "op::set_authorized_hook"c;
+
+;; validator announce
 const int op::announce = "op::announce"c;
-const int op::transfer_remote = "op::transfer_remote"c;
-const int op::get_ism = "op::get_ism"c;
-const int op::process::init = "op::process::init"c;
-const int op::process::verify = "sub_op == op::process::verify"c;
-const int op::process::deliver_message = "op::process::deliver_message"c;
-const int op::claim = "op::claim"c;
-const int op::transfer_ownership = "op::transfer_ownership"c;
-const int op::set_dest_gas_config = "op::set_dest_gas_config"c;
+
+;; multisig ism
+const int op::ism::verify = "op::ism::verify"c & (~ ANSWER_BIT);
+const int op::ism::verify::answer = op::ism::verify | ANSWER_BIT;
 const int op::set_validators_and_threshold = "op::set_validators_and_threshold"c;
+
+;; hooks
+const int op::hook::quote_dispatch = "op::quote_dispatch"c & (~ ANSWER_BIT);
+const int op::hook::post_dispatch = "op::hook::post_dispatch"c & (~ ANSWER_BIT);
+const int op::hook::post_dispatch::answer = op::hook::post_dispatch | ANSWER_BIT;
+const int op::set_beneficiary = "op::set_beneficiary"c;
+const int op::transfer_ownership = "op::transfer_ownership"c;
+const int op::merkle_test = "op::merkle_test"c;
+
+;; protocol fee hook
+const int op::set_protocol_fee = "op::set_protocol_fee"c;
+const int op::collect_protocol_fee = "op::collect_protocol_fee"c;
+
+;; interchain gas paymaster
+const int op::set_dest_gas_config = "op::set_dest_gas_config"c;
+const int op::claim = "op::claim"c;
+
+;; Token Router
+
+const int op::transfer_remote = "op::transfer_remote"c & (~ ANSWER_BIT);
+const int op::set_router = "op:set_router"c;
+
+;; Delivery
+const int op::delivery::initialize = "op::delivery::initialize"c & (~ ANSWER_BIT);
+const int op::delivery::initialize::answer = op::delivery::initialize | ANSWER_BIT;

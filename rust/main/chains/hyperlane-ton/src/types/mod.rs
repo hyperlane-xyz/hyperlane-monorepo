@@ -1,5 +1,6 @@
 pub mod account_state;
 pub mod block_response;
+pub mod jetton_wallet_response;
 pub mod message;
 pub mod run_get_method;
 pub mod t_metadata;

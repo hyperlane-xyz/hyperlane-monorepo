@@ -2,34 +2,51 @@ import { NetworkProvider, compile } from '@ton/blueprint';
 import { Address, Cell, Dictionary, toNano } from '@ton/core';
 import * as fs from 'fs';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { Mailbox } from '../wrappers/Mailbox';
-import { TDelivery, TMailboxContractConfig } from '../wrappers/utils/types';
+import {
+  TMailboxContractConfig,
+  TProcessRequest,
+} from '../wrappers/utils/types';
+
+import { loadDeployedContracts } from './loadDeployedContracts';
 
 export async function run(provider: NetworkProvider) {
+  const domain = Number(process.env.ORIGIN_DOMAIN!);
+  const deployedContracts = loadDeployedContracts(domain);
   if (
     deployedContracts.multisigIsmAddress === '' ||
     deployedContracts.interchainGasPaymasterAddress === '' ||
     deployedContracts.merkleTreeHookAddress === ''
   ) {
-    console.error('Aborted: deploy ism and igp contracts at first');
+    console.error('Aborted: deploy ism and hook contracts at first');
     return;
   }
+  const version = Number(process.env.MAILBOX_VERSION!);
 
-  console.log('domain', Number(process.env.DOMAIN!));
-  console.log('version', Number(process.env.MAILBOX_VERSION!));
+  console.log('domain', domain);
+  console.log('version', version);
+
+  const deliveryCode = await compile('Delivery');
 
   const config: TMailboxContractConfig = {
-    version: Number(process.env.MAILBOX_VERSION!),
-    localDomain: Number(process.env.DOMAIN!),
+    version,
+    localDomain: domain,
     nonce: 0,
     latestDispatchedId: 0n,
     defaultIsm: Address.parse(deployedContracts.multisigIsmAddress),
-    defaultHookAddr: Address.parse(deployedContracts.merkleTreeHookAddress),
+    defaultHookAddr: deployedContracts.merkleTreeHookAddress
+      ? Address.parse(deployedContracts.merkleTreeHookAddress)
+      : Address.parse(
+          '0:0000000000000000000000000000000000000000000000000000000000000000',
+        ),
     requiredHookAddr: Address.parse(
       deployedContracts.interchainGasPaymasterAddress,
     ),
-    deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
+    deliveryCode,
+    processRequests: Dictionary.empty(
+      Mailbox.DeliveryKey,
+      Mailbox.DeliveryValue,
+    ),
     owner: Address.parse(process.env.MAILBOX_OWNER_ADDRESS!),
   };
 
@@ -51,5 +68,5 @@ export async function run(provider: NetworkProvider) {
     merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress,
   };
 
-  fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));
+  fs.writeFileSync(`./deployedContracts_${domain}.json`, JSON.stringify(data));
 }

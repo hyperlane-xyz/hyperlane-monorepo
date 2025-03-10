@@ -1,5 +1,4 @@
 use std::{
-    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     string::ToString,
@@ -8,17 +7,21 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use tonlib_core::TonAddress;
-use tracing::{info, warn};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256, H512, U256,
+    SequenceAwareIndexer, H256, U256,
 };
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, ConversionUtils,
+    client::provider::TonProvider,
+    constants::LIMIT,
+    error::HyperlaneTonError,
+    message::Message,
+    signer::signer::TonSigner,
+    utils::{log_meta::create_ton_log_meta, pagination::paginate_logs},
+    ConversionUtils,
 };
 
 #[derive(Clone)]
@@ -68,72 +71,32 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        info!("fetch_logs_in_range in GasPaymster start");
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
+        let (start_utime, end_utime) = self.provider.get_utime_range(range).await?;
 
-        let timestamps = self
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
+        let igp_address = self.igp_address.to_string();
+        let igp_address_h256 = ConversionUtils::ton_address_to_h256(&self.igp_address);
 
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            HyperlaneTonError::ParsingError("Failed to get start_utime".to_string())
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            HyperlaneTonError::ParsingError("Failed to get end_utime".to_string())
-        })?;
+        let parse_fn = |message: Message| {
+            parse_igp_events(&message.message_content.body)
+                .ok()
+                .map(|hyperlane_message| {
+                    (
+                        Indexed::from(hyperlane_message),
+                        create_ton_log_meta(igp_address_h256),
+                    )
+                })
+        };
 
-        let message_response = self
-            .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.igp_address.to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
-            )
-            .await
-            .map_err(|e| {
-                HyperlaneTonError::ApiRequestFailed(format!("Failed to fetch messages: {:?}", e))
-            })?;
-
-        let events = message_response
-            .messages
-            .iter()
-            .filter_map(
-                |message| match parse_igp_events(&message.message_content.body) {
-                    Ok(event) => Some((
-                        Indexed::new(event),
-                        LogMeta {
-                            address: ConversionUtils::ton_address_to_h256(&self.igp_address),
-                            block_number: 0,
-                            block_hash: H256::zero(),
-                            transaction_id: H512::zero(),
-                            transaction_index: 0,
-                            log_index: U256::zero(),
-                        },
-                    )),
-                    Err(e) => {
-                        warn!(
-                            "Failed to parse interchain gas payment for message: {:?}, error: {:?}",
-                            message, e
-                        );
-                        None
-                    }
-                },
-            )
-            .collect();
-
-        Ok(events)
+        paginate_logs(
+            &self.provider,
+            &igp_address,
+            start_utime,
+            end_utime,
+            LIMIT as u32,
+            0,
+            parse_fn,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

@@ -1,0 +1,17 @@
+
+cell serialize_dispatch_body(
+    int query_id,
+    int destination,
+    int recipient,
+    cell hyp_message_body,
+    cell hook_metadata
+) inline {
+    return begin_cell()
+        .store_uint(op::mailbox::dispatch, 32)
+        .store_uint(query_id, 64)
+        .store_uint(destination, 32)
+        .store_uint(recipient, 256)
+        .store_ref(hyp_message_body)
+        .store_maybe_ref(hook_metadata)
+        .end_cell();
+}

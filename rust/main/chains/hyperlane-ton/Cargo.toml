@@ -29,4 +29,5 @@ tracing-subscriber = {workspace = true, features = ["fmt"]}
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] }
 
-
+[features]
+test-utils = []

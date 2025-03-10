@@ -4,6 +4,10 @@
 #include "imports/send_mode.fc";
 #include "imports/ton_msg.fc";
 #include "imports/events.fc";
+#include "imports/reserve_mode.fc";
+#include "imports/signing_utils.fc";
+#include "imports/metadata.fc";
+#include "imports/hyp_message.fc";
 
 global slice g::owner;
 global slice g::beneficiary;
@@ -12,7 +16,7 @@ global cell g::dest_gas_config;
 global cell g::hook_metadata;
 
 const int TOKEN_EXCHANGE_RATE_SCALE = 10000000000;
-const int MINIMAL_BALANCE = 500000000;
+const int MINIMAL_BALANCE = 100000000;
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
@@ -44,12 +48,6 @@ const int MINIMAL_BALANCE = 500000000;
     return (0, 0);
 }
 
-int metadata::unpack::gas_limit(cell c) inline {
-    slice ms = c.begin_parse();
-    ms~skip_bits(16 + 256);
-    return ms~load_uint(256);
-}
-
 int quote_gas_payment(
     int dest_domain,
     int gas_limit
@@ -66,29 +64,15 @@ int quote_gas_payment(
 
 int get_gas_limit(cell hook_metadata) inline {
     cell meta = null?(hook_metadata) ? g::hook_metadata : hook_metadata;
-    return meta.metadata::unpack::gas_limit();
+    return meta.begin_parse().metadata::unpack::gas_limit();
 }
 
-() pay_for_gas(
+int pay_for_gas(
     int message_id,
-    int value,
     int dest_domain,
-    int gas_limit,
-    slice refund_addr
+    int gas_limit
 ) impure inline {
     int required_payment = quote_gas_payment(dest_domain, gas_limit);
-    throw_unless(
-        error::insufficient_gas_payment,
-        value >= required_payment
-    );
-
-    int overpayment = value - required_payment;
-
-    if (overpayment > 0) {
-        builder msg = build_message(refund_addr, overpayment, false, null(), null());
-        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::ignore_errors);
-    }
-
     builder gas_data = begin_cell()
         .store_uint(message_id, 256)
         .store_ref(begin_cell()
@@ -97,8 +81,31 @@ int get_gas_limit(cell hook_metadata) inline {
             .store_uint(required_payment, 256)
             .end_cell()
         );
-    
     send_event(event::gas_payment, gas_data);
+    return required_payment;
+}
+
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    slice s = msg_body;
+    slice hyp_message = s~load_ref_slice();
+    cell hook_metadata = s~load_maybe_ref();
+    int message_id = build_message_id(hyp_message);
+    int dest_domain = message::unpack::dest_domain(hyp_message);
+
+    int gas_limit = get_gas_limit(hook_metadata);
+    int required_payment = pay_for_gas(
+        message_id,
+        dest_domain,
+        gas_limit
+    );
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
+        query_id,
+        required_payment,
+        msg_sender,
+        msg_body
+    );
+    validate_msg_value(msg_value, required_payment);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -117,19 +124,12 @@ int get_gas_limit(cell hook_metadata) inline {
 
     load_globals();
 
-    if (op == op::post_dispatch) {
-        int message_id = in_msg_body~load_uint(256);
-        int dest_domain = in_msg_body~load_uint(32);
-        slice refund_addr = in_msg_body~load_msg_addr();
-        cell hook_metadata = in_msg_body~load_ref();
-
-        int gas_limit = get_gas_limit(hook_metadata);
-        pay_for_gas(
-            message_id,
+    if (op == op::hook::post_dispatch) {
+        post_dispatch(
+            query_id,
+            in_msg_body,
             msg_value,
-            dest_domain,
-            gas_limit,
-            refund_addr
+            msg_sender
         );
         return ();
     }
@@ -146,9 +146,9 @@ int get_gas_limit(cell hook_metadata) inline {
         throw_unless(
             error::unauthorized_sender,
             equal_slices(msg_sender, g::owner));
-        raw_reserve(storagefee() + MINIMAL_BALANCE, 2);
+        raw_reserve(MINIMAL_BALANCE, reserve_mode::at_most_this_amount);
         send_change(g::beneficiary, op, query_id, send_mode::carry_remaining_balance);
-        return store_globals();
+        return ();
     }
 
     if(op == op::set_dest_gas_config) {
@@ -159,7 +159,6 @@ int get_gas_limit(cell hook_metadata) inline {
         cell gas_config = in_msg_body~load_ref();
 
         g::dest_gas_config~udict_set_ref(32, dest_domain, gas_config);
-        
         return store_globals();
     }
 
@@ -207,4 +206,8 @@ int get_hook_type() method_id {
 slice get_owner() method_id {
     load_globals();
     return g::owner;
+}
+
+int get_test() method_id {
+    return 15;
 }

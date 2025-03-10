@@ -77,7 +77,7 @@ tuple split_message(slice message) inline {
 }
 
 
-int message_id(slice msg) inline {
+int build_message_id(slice msg) inline {
     tuple t = split_message(msg);
     return digest_keccak(t);
 }

@@ -10,12 +10,14 @@ use tonlib_core::{
     },
     TonAddress, TonHash,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, TxnInfo, TxnReceiptInfo, H160, H256,
+    H512, U256,
 };
 
+use crate::transaction::Transaction;
 use crate::{
     error::HyperlaneTonError,
     run_get_method::{StackItem, StackValue},
@@ -221,7 +223,7 @@ impl ConversionUtils {
     }
     /// Parses the first address from a BOC (Bag of Cells) encoded as a Base64 string.
     /// This function decodes the BOC, extracts the root cell, and retrieves the address stored in it.
-    pub async fn parse_address_from_boc(boc: &str) -> Result<TonAddress, TonCellError> {
+    pub fn parse_address_from_boc(boc: &str) -> Result<TonAddress, TonCellError> {
         let cell = Self::parse_root_cell_from_boc(boc)?;
         let mut parser = cell.parser();
         let address = parser.load_address()?;
@@ -391,6 +393,97 @@ impl ConversionUtils {
             ))
         })
     }
+
+    pub fn parse_transaction(transaction: &Transaction) -> Result<TxnInfo, HyperlaneTonError> {
+        let decoded_hash = general_purpose::STANDARD
+            .decode(&transaction.hash)
+            .map_err(|err| {
+                warn!("Failed to decode base64 transaction hash: {:?}", err);
+                HyperlaneTonError::ParsingError(format!(
+                    "Invalid base64 encoding for transaction hash: {:?}",
+                    err
+                ))
+            })?;
+
+        let txn_hash = if decoded_hash.len() == 32 {
+            H512::from_slice(
+                &[0u8; 32]
+                    .iter()
+                    .chain(decoded_hash.iter())
+                    .cloned()
+                    .collect::<Vec<u8>>(),
+            )
+        } else {
+            warn!(
+                "Unexpected hash length: expected 32 bytes, got {}",
+                decoded_hash.len()
+            );
+            return Err(HyperlaneTonError::ParsingError(
+                "Decoded transaction hash has unexpected length".to_string(),
+            ));
+        };
+
+        let gas_limit =
+            U256::from_dec_str(&transaction.description.compute_ph.gas_limit).unwrap_or_default();
+
+        let nonce = transaction.lt.parse::<u64>().unwrap_or(0);
+
+        let sender_hex = transaction.account.strip_prefix("0:").ok_or_else(|| {
+            warn!(
+                "Sender address does not start with '0:': {:?}",
+                transaction.account
+            );
+            HyperlaneTonError::ParsingError("Sender address is invalid".to_string())
+        })?;
+
+        let sender =
+            H256::from_slice(&hex::decode(sender_hex).map_err(|_| {
+                HyperlaneTonError::ParsingError("Failed to decode sender".to_string())
+            })?);
+
+        let recipient = transaction.in_msg.as_ref().and_then(|msg| {
+            if let Some(dest) = msg.destination.strip_prefix("0:") {
+                match hex::decode(dest) {
+                    Ok(decoded) if decoded.len() == 32 => Some(H256::from_slice(&decoded)),
+                    Ok(_) => {
+                        warn!("Recipient address has unexpected length: {:?}", dest);
+                        None
+                    }
+                    Err(e) => {
+                        warn!("Failed to decode recipient address '{}': {:?}", dest, e);
+                        None
+                    }
+                }
+            } else {
+                warn!("Recipient address format is invalid: {:?}", msg.destination);
+                None
+            }
+        });
+
+        let gas_used =
+            U256::from_dec_str(&transaction.description.compute_ph.gas_used).unwrap_or_default();
+
+        let receipt = Some(TxnReceiptInfo {
+            gas_used,
+            cumulative_gas_used: U256::zero(),
+            effective_gas_price: None,
+        });
+
+        let txn_info = TxnInfo {
+            hash: txn_hash,
+            gas_limit,
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            gas_price: None,
+            nonce,
+            sender,
+            recipient,
+            receipt,
+            raw_input_data: None,
+        };
+
+        Ok(txn_info)
+    }
 }
 
 #[cfg(test)]
@@ -403,6 +496,18 @@ mod tests {
     use super::ConversionUtils;
     use crate::run_get_method::{StackItem, StackValue};
 
+    #[test]
+    fn test_parse_address_from_boc() {
+        let address = ConversionUtils::parse_address_from_boc(
+            "te6cckEBAQEAJAAAQ4AK6ETsEZndZnPkJ4gUxnX2otydTPtek+fiTAQfLC3C0JAaOf4x",
+        )
+        .expect("failed");
+
+        assert_eq!(
+            address.to_base64_std(),
+            "EQBXQidgjM7rM58hPECmM6+1FuTqZ9r0nz8SYCD5YW4WhHCM".to_string()
+        );
+    }
     #[test]
     fn test_base64_to_h512_valid() {
         let hash_str = "emUQnddCZvrUNaMmy0eYGzRtHAVsdniV0x7EBpK6ON4=";

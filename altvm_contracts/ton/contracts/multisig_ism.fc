@@ -88,12 +88,12 @@ int digest(
         return store_globals();
     }
 
-    if (op == op::verify) {
+    if (op == op::ism::verify) {
         slice body = in_msg_body;
         cell message = in_msg_body~load_ref();
         cell metadata = in_msg_body~load_ref();
         slice message_slice = message.begin_parse();
-        int id = message_id(message_slice);
+        int id = build_message_id(message_slice);
         
         message_slice~skip_bits(8 + 32); ;; skip bits to origin domain
         int origin_domain = message_slice~load_uint(32);
@@ -132,22 +132,13 @@ int digest(
             }
         } until (~ sig_found?);
 
-        builder body = begin_cell();
-        if (sig_count >= g::threshold) {
-            body.store_uint(op::process, 32)
-                .store_uint(query_id, 64)
-                .store_uint(op::process::deliver_message, 32)
-                .store_int(true, 1)
-                .store_slice(in_msg_body);
-        } else {
-            body.store_uint(op::process, 32)
-                .store_uint(query_id, 64)
-                .store_uint(op::process::deliver_message, 32)
-                .store_int(false, 1)
-                .store_slice(in_msg_body);
-        }
+        builder body = begin_cell()
+            .store_uint(op::ism::verify::answer, 32)
+            .store_uint(query_id, 64)
+            .store_int(sig_count >= g::threshold, 1)
+            .store_slice(body);
 
-        builder msg = build_message(msg_sender, 0, true, null(), body.end_cell());
+        builder msg = build_message(msg_sender, 0, false, null(), body.end_cell());
         send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
         return store_globals();
     }

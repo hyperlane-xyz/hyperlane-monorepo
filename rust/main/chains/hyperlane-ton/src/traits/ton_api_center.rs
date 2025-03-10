@@ -7,6 +7,7 @@ use crate::{
     types::{
         account_state::AccountStateResponse,
         block_response::BlockResponse,
+        jetton_wallet_response::GetJettonWalletsResponse,
         message::{MessageResponse, SendMessageResponse},
         run_get_method::RunGetMethodResponse,
         transaction::TransactionResponse,
@@ -65,8 +66,8 @@ pub trait TonApiCenter {
 
     async fn run_get_method(
         &self,
-        address: String,
-        method: String,
+        address: &str,
+        method: &str,
         stack: Option<Vec<StackItem>>,
     ) -> ChainResult<RunGetMethodResponse>;
 
@@ -98,4 +99,19 @@ pub trait TonApiCenter {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> ChainResult<BlockResponse>;
+}
+
+#[cfg(feature = "test-utils")]
+#[async_trait]
+pub trait TonApiCenterTestUtils {
+    async fn get_jetton_wallets(
+        &self,
+        address: Option<Vec<String>>,
+        owner_address: Option<Vec<String>>,
+        jetton_address: Option<Vec<String>>,
+        exclude_zero_balance: Option<bool>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> ChainResult<GetJettonWalletsResponse>;
 }

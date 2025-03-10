@@ -7,9 +7,12 @@ import * as dotenv from 'dotenv';
 import * as ethers from 'ethers';
 
 import { MultisigIsm } from '../wrappers/MultisigIsm';
-import { buildValidatorsDict } from '../wrappers/utils/builders';
-import { Errors, OpCodes } from '../wrappers/utils/constants';
-import { TMultisigMetadata } from '../wrappers/utils/types';
+import {
+  buildValidatorsDict,
+  multisigMetadataToCell,
+} from '../wrappers/utils/builders';
+import { Errors, OpCodes, answer } from '../wrappers/utils/constants';
+import { HypMessage, TMultisigMetadata } from '../wrappers/utils/types';
 
 import { messageId, toEthSignedMessageHash } from './utils/signing';
 
@@ -19,18 +22,15 @@ const buildSignedMessage = (
   recipient: Address,
   wallet: ethers.Wallet,
   origin: number = 0,
-  destinationDomain: number = 0,
+  destination: number = 0,
   signature?: { v: number; r: string; s: string },
 ) => {
-  const messageToSign = {
-    version: 1,
-    nonce: 0,
+  const messageToSign = HypMessage.fromAny({
     origin,
     sender: Buffer.from(wallet.address.slice(2).padStart(64, '0'), 'hex'),
-    destinationDomain,
+    destination,
     recipient: recipient.hash,
-    body: beginCell().storeUint(123, 32).endCell(),
-  };
+  });
   const id = messageId(messageToSign);
 
   const originMerkleHook = randomBytes(32);
@@ -50,7 +50,6 @@ const buildSignedMessage = (
       [domainHash, root, index, id],
     ),
   );
-
   const ethSignedMessage = toEthSignedMessageHash(BigInt(digest));
 
   if (!signature) {
@@ -70,14 +69,9 @@ const buildSignedMessage = (
     ],
   };
 
-  const message = {
-    id,
-    ...messageToSign,
-  };
-
   return {
-    message,
-    metadata,
+    message: messageToSign.toCell(),
+    metadata: multisigMetadataToCell(metadata),
   };
 };
 
@@ -92,7 +86,7 @@ describe('MultisigIsm', () => {
   let deployer: SandboxContract<TreasuryContract>;
   let fraud: SandboxContract<TreasuryContract>;
   let multisigIsm: SandboxContract<MultisigIsm>;
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const sampleWallet = ethers.Wallet.createRandom();
   const validator = ethers.Wallet.createRandom();
   beforeEach(async () => {
     blockchain = await Blockchain.create();
@@ -166,10 +160,11 @@ describe('MultisigIsm', () => {
   });
 
   it('should verify', async () => {
+    const signedMessage = buildSignedMessage(multisigIsm.address, sampleWallet);
     const res = await multisigIsm.sendVerify(
       deployer.getSender(),
       toNano('0.1'),
-      buildSignedMessage(multisigIsm.address, sampleWallet),
+      signedMessage,
     );
 
     expect(res.transactions).toHaveTransaction({
@@ -177,6 +172,20 @@ describe('MultisigIsm', () => {
       to: multisigIsm.address,
       success: true,
       op: OpCodes.VERIFY,
+    });
+
+    expect(res.transactions).toHaveTransaction({
+      from: multisigIsm.address,
+      to: deployer.address,
+      success: true,
+      op: answer(OpCodes.VERIFY),
+      body: beginCell()
+        .storeUint(answer(OpCodes.VERIFY), 32)
+        .storeUint(0, 64)
+        .storeUint(1, 1)
+        .storeRef(signedMessage.message)
+        .storeRef(signedMessage.metadata)
+        .endCell(),
     });
   });
 

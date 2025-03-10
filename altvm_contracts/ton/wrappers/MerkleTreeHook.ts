@@ -10,18 +10,18 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import { buildHookMetadataCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
-import { THookMetadata } from './utils/types';
 
 export type MerkleTreeHookConfig = {
   index: number;
+  mailboxAddr: Address;
   tree?: Dictionary<number, bigint>;
 };
 
 export function merkleTreeHookConfigToCell(config: MerkleTreeHookConfig): Cell {
   return beginCell()
     .storeUint(config.index, 256)
+    .storeAddress(config.mailboxAddr)
     .storeDict(
       config.tree ??
         Dictionary.empty(
@@ -65,10 +65,8 @@ export class MerkleTreeHook implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      messageId: bigint;
-      destDomain: number;
-      refundAddr: Address;
-      hookMetadata: THookMetadata;
+      message: Cell;
+      hookMetadata: Cell;
       queryId?: number;
     },
   ) {
@@ -78,10 +76,8 @@ export class MerkleTreeHook implements Contract {
       body: beginCell()
         .storeUint(OpCodes.POST_DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeUint(opts.messageId, 256)
-        .storeUint(opts.destDomain, 32)
-        .storeAddress(opts.refundAddr)
-        .storeRef(buildHookMetadataCell(opts.hookMetadata))
+        .storeRef(opts.message)
+        .storeMaybeRef(opts.hookMetadata)
         .endCell(),
     });
   }

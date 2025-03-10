@@ -31411,6 +31411,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"prando@npm:^6.0.1":
+  version: 6.0.1
+  resolution: "prando@npm:6.0.1"
+  checksum: 10/a384b454207bf75de3253086725e99c9b8e78ea58914a06a796411aa0f91e38e5bed8a844506144baa2a1ba2e72e7cff92b4018513690fcaf30c0a55883f4890
+  languageName: node
+  linkType: hard
+
 "preact@npm:^10.16.0, preact@npm:^10.24.2":
   version: 10.24.3
   resolution: "preact@npm:10.24.3"
