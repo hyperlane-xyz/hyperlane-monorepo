@@ -55,13 +55,31 @@ impl<'a> OperationWithId<'a> {
 }
 
 pub async fn format_queue(queue: OperationPriorityQueue) -> String {
-    let res: Result<Vec<Value>, _> = queue
+    let mut sorted_operations: Vec<_> = queue
         .lock()
         .await
         .iter()
-        .map(|reverse| serde_json::to_value(OperationWithId::new(&reverse.0)))
+        .map(|reverse| {
+            (
+                reverse.0.get_retries(),
+                serde_json::to_value(OperationWithId::new(&reverse.0)),
+            )
+        })
         .collect();
-    match res.and_then(|v| serde_json::to_string_pretty(&v)) {
+    // reverse sort because we want higher retry count in the front
+    sorted_operations.sort_by(|a, b| a.0.cmp(&b.0).reverse());
+
+    let mut res = Vec::with_capacity(sorted_operations.len());
+    for (_, op_json_res) in sorted_operations {
+        match op_json_res {
+            Ok(op_json) => res.push(op_json),
+            Err(err) => {
+                return format!("Error formatting queue: {}", err);
+            }
+        }
+    }
+
+    match serde_json::to_string_pretty(&res) {
         Ok(s) => s,
         Err(e) => format!("Error formatting queue: {}", e),
     }
@@ -131,13 +149,15 @@ mod tests {
             MockPendingOperation::new(1, DUMMY_DOMAIN.into())
                 .with_id(id_1)
                 .with_sender_address(sender_address)
-                .with_recipient_address(recipient_address),
+                .with_recipient_address(recipient_address)
+                .with_retry_count(1),
         ) as QueueOperation;
         let dummy_operation_2 = Box::new(
             MockPendingOperation::new(2, DUMMY_DOMAIN.into())
                 .with_id(id_2)
                 .with_sender_address(sender_address)
-                .with_recipient_address(recipient_address),
+                .with_recipient_address(recipient_address)
+                .with_retry_count(1),
         ) as QueueOperation;
 
         // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
@@ -153,6 +173,7 @@ mod tests {
       "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 1,
       "seconds_to_next_attempt": 1,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
@@ -168,7 +189,85 @@ mod tests {
       "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 1,
       "seconds_to_next_attempt": 2,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "type": "MockPendingOperation"
+    }
+  }
+]"#;
+        op_queue.lock().await.push(Reverse(dummy_operation_1));
+        op_queue.lock().await.push(Reverse(dummy_operation_2));
+
+        // Send a GET request to the server
+        let response = reqwest::get(format!(
+            "http://{}{}?destination_domain={}",
+            addr, LIST_OPERATIONS_API_BASE, DUMMY_DOMAIN as u32
+        ))
+        .await
+        .unwrap();
+
+        // Check that the response status code is OK
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response_text = response.text().await.unwrap();
+        assert_eq!(response_text, expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_sorted_by_retry_count() {
+        let (addr, op_queue) = setup_test_server();
+        let id_1 = "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b";
+        let id_2 = "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914";
+        let sender_address = "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
+        let recipient_address =
+            "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
+        let dummy_operation_1 = Box::new(
+            MockPendingOperation::new(1, DUMMY_DOMAIN.into())
+                .with_id(id_1)
+                .with_sender_address(sender_address)
+                .with_recipient_address(recipient_address)
+                .with_retry_count(1),
+        ) as QueueOperation;
+        let dummy_operation_2 = Box::new(
+            MockPendingOperation::new(2, DUMMY_DOMAIN.into())
+                .with_id(id_2)
+                .with_sender_address(sender_address)
+                .with_recipient_address(recipient_address)
+                .with_retry_count(4),
+        ) as QueueOperation;
+
+        // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
+        // missing on `PendingMessage` because it's derived, hence the need to hence the need to have it explicitly serialized alongside the operation.
+        let expected_response = r#"[
+  {
+    "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+    "operation": {
+      "destination_domain": {
+        "Known": "Arbitrum"
+      },
+      "destination_domain_id": 42161,
+      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 4,
+      "seconds_to_next_attempt": 2,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "type": "MockPendingOperation"
+    }
+  },
+  {
+    "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+    "operation": {
+      "destination_domain": {
+        "Known": "Arbitrum"
+      },
+      "destination_domain_id": 42161,
+      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "retry_count": 1,
+      "seconds_to_next_attempt": 1,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
     }
