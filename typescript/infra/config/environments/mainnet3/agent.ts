@@ -117,6 +117,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     injective: true,
     ink: true,
     kaia: true,
@@ -143,6 +144,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -251,6 +253,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     injective: true,
     ink: true,
     kaia: true,
@@ -277,6 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -385,6 +389,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     ink: true,
     injective: true,
     kaia: true,
@@ -411,6 +416,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -532,6 +538,13 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Workaround due to InfinityVM being gasless.
+      { originDomain: getDomainId('infinityvm') },
+    ],
+  },
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',

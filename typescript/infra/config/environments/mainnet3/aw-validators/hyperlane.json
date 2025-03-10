@@ -445,5 +445,11 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "infinityvm": {
+    "validators": ["0xeed503e0bd8fae0ad606361492db8711eaf0b935"]
+  },
+  "plume": {
+    "validators": ["0x63c9b5ea28710d956a51f0f746ee8df81215663f"]
   }
 }
