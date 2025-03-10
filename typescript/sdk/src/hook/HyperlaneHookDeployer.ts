@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  addBufferToGasLimit,
   addressToBytes32,
   deepEquals,
   rootLogger,
@@ -364,9 +365,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         },
         'Setting routing hooks',
       );
+      const estimatedGas = await routingHook.estimateGas.setHooks(
+        routingConfigs,
+      );
       return this.multiProvider.handleTx(
         chain,
-        routingHook.setHooks(routingConfigs, overrides),
+        routingHook.setHooks(routingConfigs, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        }),
       );
     });
 
