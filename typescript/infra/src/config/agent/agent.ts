@@ -122,8 +122,16 @@ export type CosmosKeyConfig = {
   type: AgentSignerKeyType.Cosmos;
   prefix: string;
 };
-export type KeyConfig = AwsKeyConfig | HexKeyConfig | CosmosKeyConfig;
-
+export type StarknetKeyConfig = {
+  type: AgentSignerKeyType.Starknet;
+  address: string;
+  key: string;
+};
+export type KeyConfig =
+  | AwsKeyConfig
+  | HexKeyConfig
+  | CosmosKeyConfig
+  | StarknetKeyConfig;
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -235,6 +243,23 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
     // For Ethereum and Sealevel, use a hex key
+    case ProtocolType.Starknet: {
+      if (metadata.name === 'starknetsepolia') {
+        console.log('starknetSEPOLIA', metadata);
+        return {
+          type: AgentSignerKeyType.Starknet,
+          address: 'VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV',
+          key: 'PRIVATE_KEY',
+        };
+      } else {
+        console.log('paradexsepolia', metadata);
+        return {
+          type: AgentSignerKeyType.Starknet,
+          address: 'QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd',
+          key: 'PRIVATE_KEY',
+        };
+      }
+    }
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:

@@ -65,6 +65,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
@@ -75,6 +76,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -107,6 +109,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
@@ -117,6 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -149,6 +153,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: false,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
@@ -159,6 +164,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: false,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: false,
@@ -194,7 +200,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
   // Default policy is OnChainFeeQuoting
   {
-    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    type: GasPaymentEnforcementPolicyType.None,
   },
 ];
 
@@ -274,7 +280,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c57bfe-20250307-120826',
+      tag: 'a3b9e8e-20250306-173951',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -298,12 +304,12 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c0c967-20241218-173053',
+      tag: 'a1470b1-20250307-144309',
     },
-    whitelist: [...releaseCandidateHelloworldMatchingList],
+    // whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
+    transactionGasLimit: 25_000_000_000_000,
     resources: relayerResources,
   },
   validators: {
