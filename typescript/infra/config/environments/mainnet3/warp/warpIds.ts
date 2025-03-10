@@ -81,4 +81,5 @@ export enum WarpRouteIds {
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
   BaseCeloFraxtalInkLiskModeOptimismSoneiumSuperseedUnichainWorldchainUSDT = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
   BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
+  BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
 }
