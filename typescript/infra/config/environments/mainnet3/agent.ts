@@ -541,8 +541,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
-      // Workaround due to InfinityVM being gasless.
-      { originDomain: getDomainId('infinityvm') },
+      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
+      {
+        originDomain: getDomainId('infinityvm'),
+        destinationDomain: getDomainId('solanamainnet'),
+      },
     ],
   },
   {
@@ -553,6 +556,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
+      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
+      // outside of Solana are ignored.
+      { originDomain: getDomainId('infinityvm') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
