@@ -137,26 +137,10 @@ export async function runWarpRouteDeploy({
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
-  console.log('warpRouteConfig', warpRouteConfig);
-
-  warpRouteConfig.sepolia.interchainSecurityModule = {
-    type: IsmType.ROUTING,
-    domains: {
-      starknetsepolia: {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        validators: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
-        threshold: 1,
-      },
-      paradexsepolia: {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        validators: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
-        threshold: 1,
-      },
-    },
-    owner: '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943',
-  };
-
+  warpRouteConfig.paradexsepolia.interchainSecurityModule = undefined;
   warpRouteConfig.starknetsepolia.interchainSecurityModule = undefined;
+
+  console.log('warpRouteConfig', warpRouteConfig);
   // warpRouteConfig.starknetsepolia.interchainSecurityModule =
   //   '0x04b96481bd6b1c5fec5d41b0c17581a56ef212c4fb2a7248309992a962de5649';
 
