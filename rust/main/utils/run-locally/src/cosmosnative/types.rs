@@ -50,7 +50,7 @@ pub struct AgentConfig {
     pub protocol: String,
     pub chain_id: String,
     pub rpc_urls: Vec<AgentUrl>,
-    pub api_urls: Vec<AgentUrl>,
+    pub grpc_urls: Vec<AgentUrl>,
     pub bech32_prefix: String,
     pub index: AgentConfigIndex,
     pub gas_price: RawCosmosAmount,
@@ -68,6 +68,7 @@ pub struct AgentConfigOut {
 pub struct Contracts {
     pub(crate) mailbox: String,
     pub(crate) igp: String,
+    pub(crate) merkle_tree_hook: String,
     pub(crate) tokens: Vec<String>,
 }
 
@@ -95,8 +96,8 @@ impl AgentConfig {
             rpc_urls: vec![AgentUrl {
                 http: format!("http://{}", node.chain.rpc_addr.replace("tcp://", "")),
             }],
-            api_urls: vec![AgentUrl {
-                http: format!("http://{}", node.chain.api_addr.replace("tcp://", "")),
+            grpc_urls: vec![AgentUrl {
+                http: format!("http://{}", node.chain.grpc_addr.replace("tcp://", "")),
             }],
             bech32_prefix: PREFIX.to_string(),
             gas_price: RawCosmosAmount {

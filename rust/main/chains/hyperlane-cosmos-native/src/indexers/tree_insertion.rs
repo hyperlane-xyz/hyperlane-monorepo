@@ -1,25 +1,19 @@
 use std::ops::RangeInclusive;
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
-use ::futures::future;
-use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::{tx::Raw, Any, Tx};
-use once_cell::sync::Lazy;
-use prost::Message;
+use hex::ToHex;
+use hyperlane_cosmos_rs::hyperlane::core::post_dispatch::v1::InsertedIntoTree;
+use prost::Name;
 use tendermint::abci::EventAttribute;
-use tokio::{sync::futures, task::JoinHandle};
-use tracing::{instrument, warn};
+use tonic::async_trait;
+use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, utils, ChainCommunicationError, ChainResult, ContractLocator,
-    Decode, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    ChainCommunicationError, ChainResult, ContractLocator, Indexed, Indexer, LogMeta,
     MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{
-    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError, Signer,
-};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
 
 use super::{EventIndexer, ParsedEvent};
 
@@ -38,10 +32,7 @@ impl CosmosNativeTreeInsertionIndexer {
             CosmosNativeProvider::new(locator.domain.clone(), conf, locator.clone(), None)?;
         let provider = Arc::new(provider);
         Ok(CosmosNativeTreeInsertionIndexer {
-            indexer: EventIndexer::new(
-                "hyperlane.core.post_dispatch.v1.InsertedIntoTree".to_string(),
-                provider.clone(),
-            ),
+            indexer: EventIndexer::new(InsertedIntoTree::full_name(), provider.clone()),
             provider,
             address: locator.address,
         })
@@ -116,11 +107,17 @@ impl Indexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<MerkleTreeInsertion>::get_finalized_block_number(&self).await?;
-        let sequence = self
+        let merkle_tree = self
             .provider
-            .rest()
-            .leaf_count_at_height(self.address, tip)
+            .grpc()
+            .merkle_tree_hook(self.address.encode_hex(), Some(tip))
             .await?;
-        Ok((Some(sequence), tip))
+        match merkle_tree.merkle_tree_hook {
+            Some(merkle_tree) if merkle_tree.merkle_tree.is_some() => {
+                let sequence = merkle_tree.merkle_tree.unwrap().count;
+                Ok((Some(sequence), tip))
+            }
+            _ => Ok((None, tip)),
+        }
     }
 }

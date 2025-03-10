@@ -1,8 +1,7 @@
 mod cosmos;
-mod rest;
+mod grpc;
 mod rpc;
 
 pub use cosmos::CosmosNativeProvider;
-pub(crate) use cosmos::{MsgAnnounceValidator, MsgProcessMessage, MsgRemoteTransfer};
-pub use rest::*;
+pub use grpc::*;
 pub use rpc::*;

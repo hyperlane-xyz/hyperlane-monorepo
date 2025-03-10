@@ -1,4 +1,3 @@
-
 [package]
 name = "hyperlane-cosmos-native"
 documentation = { workspace = true }
@@ -18,8 +17,6 @@ derive-new = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 http = { workspace = true }
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
-hyperlane-cosmwasm-interface = { workspace = true }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 itertools = { workspace = true }
@@ -36,8 +33,20 @@ time = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-tonic = { workspace = true, features = ["transport", "tls", "tls-roots"] }
+tonic = { workspace = true, features = [
+    "transport",
+    "tls",
+    "tls-roots",
+    "tls-native-roots",
+] }
+tower.workspace = true
+pin-project.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
 prost = "0.13.4"
+
+hyperlane-cosmos-rs = { path = "../../../../../hyperlane-cosmos-rust/" }
+hyperlane-metric = { path = "../../hyperlane-metric" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-cosmwasm-interface = { workspace = true }

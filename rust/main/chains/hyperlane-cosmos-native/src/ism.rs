@@ -1,5 +1,11 @@
 use std::str::FromStr;
 
+use cosmrs::Any;
+use hex::ToHex;
+use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
+    MerkleRootMultisigIsm, NoopIsm,
+};
+use prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -8,7 +14,7 @@ use hyperlane_core::{
     MultisigIsm, ReorgPeriod, H160, H256, U256,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, Signer, ISM};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, Signer};
 
 /// Cosmos Native ISM
 #[derive(Debug)]
@@ -35,11 +41,14 @@ impl CosmosNativeIsm {
         })
     }
 
-    async fn get_ism(&self) -> ChainResult<ISM> {
-        self.provider
-            .rest()
-            .ism(self.address.clone(), ReorgPeriod::None)
-            .await
+    async fn get_ism(&self) -> ChainResult<Any> {
+        let ism = self.provider.grpc().ism(self.address.encode_hex()).await?;
+        ism.ism.ok_or_else(|| {
+            ChainCommunicationError::from_other_str(&format!(
+                "Empty ism response for: {:?}",
+                self.address
+            ))
+        })
     }
 }
 
@@ -70,9 +79,13 @@ impl InterchainSecurityModule for CosmosNativeIsm {
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
         let ism = self.get_ism().await?;
-        match ism {
-            ISM::MultiSigISM { .. } => Ok(ModuleType::MerkleRootMultisig),
-            ISM::NoOpISM { .. } => Ok(ModuleType::Null),
+        match ism.type_url.as_str() {
+            t if t == MerkleRootMultisigIsm::type_url() => Ok(ModuleType::MerkleRootMultisig),
+            t if t == NoopIsm::type_url() => Ok(ModuleType::Null),
+            other => Err(ChainCommunicationError::from_other_str(&format!(
+                "Unknown ISM type: {}",
+                other
+            ))),
         }
     }
 
@@ -98,22 +111,18 @@ impl MultisigIsm for CosmosNativeIsm {
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
         let ism = self.get_ism().await?;
-
-        match ism {
-            ISM::MultiSigISM {
-                type_url,
-                id,
-                owner,
-                validators,
-                threshold,
-            } => {
-                let validators = validators
+        match ism.type_url.as_str() {
+            t if t == MerkleRootMultisigIsm::type_url() => {
+                let ism = MerkleRootMultisigIsm::decode(ism.value.as_slice())
+                    .map_err(HyperlaneCosmosError::from)?;
+                let validators = ism
+                    .validators
                     .iter()
                     .map(|v| H160::from_str(v).map(H256::from))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok((validators, threshold as u8))
+                Ok((validators, ism.threshold as u8))
             }
-            e => Err(ChainCommunicationError::from_other_str(&format!(
+            _ => Err(ChainCommunicationError::from_other_str(&format!(
                 "ISM {:?} not a multi sig ism",
                 self.address
             ))),

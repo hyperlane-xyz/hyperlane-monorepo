@@ -2,7 +2,9 @@ use std::hash::Hash;
 
 use async_trait::async_trait;
 use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any};
-use prost::Message;
+use hex::ToHex;
+use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::MsgAnnounceValidator;
+use prost::{Message, Name};
 
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
@@ -10,10 +12,7 @@ use hyperlane_core::{
     TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 
-use crate::{
-    signers::Signer, ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError,
-    MsgAnnounceValidator,
-};
+use crate::{signers::Signer, ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
 
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
 #[derive(Debug)]
@@ -69,15 +68,20 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
+        let validators = validators
+            .iter()
+            .map(|v| H160::from(*v))
+            .map(|v| v.encode_hex())
+            .collect::<Vec<String>>();
         let mut validator_locations = vec![];
         for validator in validators {
             let locations = self
                 .provider
-                .rest()
-                .validator_storage_locations(self.address.clone(), validator.clone())
+                .grpc()
+                .announced_storage_locations(self.address.encode_hex(), validator.clone())
                 .await;
             if let Ok(locations) = locations {
-                validator_locations.push(locations);
+                validator_locations.push(locations.storage_locations);
             } else {
                 validator_locations.push(vec![])
             }
@@ -91,15 +95,15 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
             .as_ref()
             .map_or("".to_string(), |signer| signer.address.clone());
         let announce = MsgAnnounceValidator {
-            validator: hex::encode(announcement.value.validator.as_bytes()),
+            validator: announcement.value.validator.encode_hex(),
             storage_location: announcement.value.storage_location.clone(),
             signature: hex::encode(announcement.signature.to_vec()),
-            mailbox_id: hex::encode(announcement.value.mailbox_address.clone()),
+            mailbox_id: announcement.value.mailbox_address.encode_hex(),
             creator: signer,
         };
 
         let any_msg = Any {
-            type_url: "/hyperlane.core.interchain_security.v1.MsgAnnounceValidator".to_string(),
+            type_url: MsgAnnounceValidator::type_url(),
             value: announce.encode_to_vec(),
         };
 

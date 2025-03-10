@@ -167,8 +167,8 @@ pub fn build_cosmos_native_connection_conf(
     operation_batch: OperationBatchConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let apis =
-        parse_base_and_override_urls(chain, "apiUrls", "customApiUrls", "http", &mut local_err);
+    let grpcs =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -244,7 +244,7 @@ pub fn build_cosmos_native_connection_conf(
         Some(ChainConnectionConf::CosmosNative(
             h_cosmos_native::ConnectionConf::new(
                 rpcs.to_owned(),
-                apis,
+                grpcs,
                 chain_id.unwrap().to_string(),
                 prefix.unwrap().to_string(),
                 canonical_asset.unwrap(),

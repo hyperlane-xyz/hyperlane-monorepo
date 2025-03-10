@@ -4729,9 +4729,12 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
+ "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-metric",
  "itertools 0.12.1",
  "once_cell",
+ "pin-project",
  "prost 0.13.4",
  "protobuf",
  "reqwest",
@@ -4746,9 +4749,21 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
+ "tower 0.4.13",
  "tracing",
  "tracing-futures",
  "url",
+]
+
+[[package]]
+name = "hyperlane-cosmos-rs"
+version = "0.26.1"
+dependencies = [
+ "cosmrs",
+ "prost 0.13.4",
+ "serde",
+ "tendermint-proto",
+ "tonic 0.12.3",
 ]
 
 [[package]]

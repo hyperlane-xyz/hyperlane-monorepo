@@ -1,28 +1,19 @@
 use std::ops::RangeInclusive;
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
-use ::futures::future;
-use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::{tx::Raw, Any, Tx};
-use itertools::Itertools;
-use once_cell::sync::Lazy;
-use prost::Message;
+use hyperlane_cosmos_rs::hyperlane::core::post_dispatch::v1::GasPayment;
+use prost::Name;
 use tendermint::abci::EventAttribute;
-use tokio::{sync::futures, task::JoinHandle};
-use tracing::{instrument, warn};
+use tonic::async_trait;
+use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, utils, ChainCommunicationError, ChainResult, ContractLocator,
-    Decode, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256, H512, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
-use crate::{
-    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError,
-    MsgProcessMessage, Signer,
-};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
 
 use super::{EventIndexer, ParsedEvent};
 
@@ -43,10 +34,7 @@ impl CosmosNativeGasPaymaster {
         let provider =
             CosmosNativeProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
         Ok(CosmosNativeGasPaymaster {
-            indexer: EventIndexer::new(
-                "hyperlane.core.v1.post_dispatch.GasPayment".to_string(),
-                Arc::new(provider),
-            ),
+            indexer: EventIndexer::new(GasPayment::full_name(), Arc::new(provider)),
             address: locator.address.clone(),
             domain: locator.domain.clone(),
             provider: CosmosNativeProvider::new(locator.domain.clone(), conf, locator, None)?,

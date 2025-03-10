@@ -61,13 +61,15 @@ fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
     let account = "0x0000000000000000000000004200dacc2961e425f687ecF7571b5FF32B6Fe808";
     node1.chain.remote_transfer(
         KEY_CHAIN_VALIDATOR.0,
-        "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2",
+        &node1.contracts.tokens[0],
+        &node2.domain.to_string(),
         account,
         1000000u32,
     );
     node2.chain.remote_transfer(
         KEY_CHAIN_VALIDATOR.0,
-        "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2",
+        &node1.contracts.tokens[0],
+        &node1.domain.to_string(),
         account,
         1000000u32,
     );
@@ -213,7 +215,7 @@ fn install_sim_app() -> PathBuf {
         .arg("output", BINARY_NAME)
         .flag("location")
         .cmd(uri)
-        .flag("silent")
+        // .flag("silent")
         .working_dir(dir_path)
         .run()
         .join();
@@ -230,7 +232,9 @@ fn install_sim_app() -> PathBuf {
 
 #[allow(dead_code)]
 fn run_locally() {
-    let hypd = install_sim_app().as_path().to_str().unwrap().to_string();
+    // TODO: store all the created processes directly to not have lost children on crash
+    // let hypd = install_sim_app().as_path().to_str().unwrap().to_string();
+    let hypd = "/Users/jamin/Desktop/code/kyve/hyperlane-cosmos/build/hypd";
 
     log!("Building rust...");
     Program::new("cargo")
@@ -253,9 +257,12 @@ fn run_locally() {
         .map(|i| {
             let node_dir = tempdir().unwrap().path().to_str().unwrap().to_string();
             let mut node = SimApp::new(hypd.to_owned(), node_dir, i);
-            node.init(domain_start + i);
+            node.init();
             let handle = node.start();
-            let contracts = node.deploy(&format!("{}", domain_start + (i + 1) % node_count));
+            let contracts = node.deploy(
+                &format!("{}", domain_start + i),
+                &format!("{}", domain_start + (i + 1) % node_count),
+            );
             Deployment {
                 chain: node,
                 domain: domain_start + i,
@@ -285,6 +292,8 @@ fn run_locally() {
             .map(|v| (v.name.clone(), AgentConfig::new(v)))
             .collect::<BTreeMap<String, AgentConfig>>(),
     };
+
+    println!("{:#?}", agent_config_out);
 
     let agent_config_path = concat_path(&config_dir, "config.json");
     fs::write(

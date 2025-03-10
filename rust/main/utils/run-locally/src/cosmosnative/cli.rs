@@ -1,9 +1,9 @@
-use std::{fs, path::PathBuf, thread::sleep, time::Duration};
+use std::{thread::sleep, time::Duration};
 
 use crate::{
     log,
     program::Program,
-    utils::{concat_path, AgentHandles, TaskHandle},
+    utils::{AgentHandles, TaskHandle},
 };
 
 use super::{
@@ -20,20 +20,9 @@ pub struct SimApp {
     pub(crate) addr: String,
     pub(crate) p2p_addr: String,
     pub(crate) rpc_addr: String,
-    pub(crate) api_addr: String,
+    pub(crate) grpc_addr: String,
     pub(crate) pprof_addr: String,
-}
-
-pub(crate) fn modify_json<T: serde::de::DeserializeOwned + serde::Serialize>(
-    file: impl Into<PathBuf>,
-    modifier: Box<dyn Fn(&mut T)>,
-) {
-    let path = file.into();
-    let mut config: T = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-    modifier(&mut config);
-
-    fs::write(path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+    pub(crate) api_addr: String,
 }
 
 /// Sim app
@@ -41,7 +30,7 @@ pub(crate) fn modify_json<T: serde::de::DeserializeOwned + serde::Serialize>(
 /// the sim app is a light cosmos chain that implemenets the hyperlane cosmos module
 impl SimApp {
     pub fn new(bin: String, home: String, port_offset: u32) -> Self {
-        let port_base = 26657 + port_offset * 5; // we increment by 5 ports as we need 5 unique ports per chain
+        let port_base = 26657 + port_offset * 6; // we increment by 5 ports as we need 5 unique ports per chain
         let addr_base = "tcp://127.0.0.1";
 
         let mut next_port = port_base;
@@ -54,6 +43,8 @@ impl SimApp {
         let addr = get_next_addr();
         let p2p_addr = get_next_addr();
         let rpc_addr = get_next_addr();
+        let grpc_addr = get_next_addr().replace("tcp://", "");
+        // this is not necessary for the agents, however, it is really nice to have access to the rest queries for debug purposes
         let api_addr = get_next_addr();
         let pprof_addr = get_next_addr().replace("tcp://", "");
 
@@ -64,6 +55,7 @@ impl SimApp {
             rpc_addr,
             p2p_addr,
             pprof_addr,
+            grpc_addr,
             api_addr,
         };
     }
@@ -72,17 +64,8 @@ impl SimApp {
         Program::new(self.bin.clone()).arg("home", self.home.clone())
     }
 
-    pub fn init(&self, domain: u32) {
+    pub fn init(&self) {
         self.cli().cmd("init-sample-chain").run().join();
-
-        // set the local domain
-        let client_config_path = concat_path(&self.home, "config/genesis.json");
-        modify_json::<serde_json::Value>(
-            client_config_path,
-            Box::new(move |config| {
-                config["app_state"]["hyperlane"]["params"]["domain"] = serde_json::json!(domain);
-            }),
-        );
     }
 
     pub fn start(&mut self) -> AgentHandles {
@@ -92,9 +75,10 @@ impl SimApp {
             .arg("address", &self.addr) // default is tcp://0.0.0.0:26658
             .arg("p2p.laddr", &self.p2p_addr) // default is tcp://0.0.0.0:26655
             .arg("rpc.laddr", &self.rpc_addr) // default is tcp://0.0.0.0:26657
-            .cmd("--grpc.enable=false") // disable grpc
+            .cmd("--grpc.enable=true") // disable grpc
             .flag("api.enable") // enable api
             .arg("api.address", &self.api_addr)
+            .arg("grpc.address", &self.grpc_addr)
             .arg("rpc.pprof_laddr", &self.pprof_addr) // default is localhost:6060
             .arg("log_level", "panic")
             .spawn("SIMAPP", None);
@@ -120,16 +104,24 @@ impl SimApp {
         sleep(Duration::from_secs(1)); // wait for the block to mined
     }
 
-    pub fn remote_transfer(&self, from: &str, warp_route: &str, recipient: &str, amount: u32) {
+    pub fn remote_transfer(
+        &self,
+        from: &str,
+        token_id: &str,
+        remote_domain: &str,
+        recipient: &str,
+        amount: u32,
+    ) {
         Program::new(self.bin.clone())
             .cmd("tx")
             .cmd("hyperlane-transfer")
             .cmd("transfer")
-            .cmd(warp_route)
+            .cmd(token_id)
+            .cmd(remote_domain)
             .cmd(recipient)
             .cmd(&format!("{amount}"))
             .arg("gas-limit", "800000")
-            .arg("max-hyperlane-fee", "1000000")
+            .arg("max-hyperlane-fee", "1000000uhyp") // this is a sdk.Coin, it needs the denom
             .arg("from", from)
             .arg("chain-id", CHAIN_ID)
             .arg("fees", format!("80000{}", DENOM))
@@ -143,22 +135,25 @@ impl SimApp {
         sleep(Duration::from_secs(1)); // wait for the block to mined
     }
 
-    pub fn deploy(&self, destination_domain: &str) -> Contracts {
+    pub fn deploy(&self, local_domain: &str, destination_domain: &str) -> Contracts {
         log!("deploying hyperlane for domain: {} ...", destination_domain);
 
+        // TODO: parse tx response and get created ids from that
+
         // create interchain gas paymaster
-        // the igp address expected to be: 0xd7194459d45619d04a5a0f9e78dc9594a0f37fd6da8382fe12ddda6f2f46d647
+        // the igp address expected to be: 0x726f757465725f706f73745f6469737061746368000000040000000000000000
         // TODO: test against the tx result to see if everything was created correctly
-        self.tx(vec!["hyperlane", "igp", "create-igp", DENOM]);
+        self.tx(vec!["hyperlane", "hooks", "igp", "create", DENOM]);
 
         // set the interchain gas config -> this determines the interchain gaspayments
         // cmd is following: igp-address remote-domain exchange-rate gas-price and gas-overhead
         // this config requires a payment of at least 0.200001uhyp
         self.tx(vec![
             "hyperlane",
+            "hooks",
             "igp",
             "set-destination-gas-config",
-            "0xd7194459d45619d04a5a0f9e78dc9594a0f37fd6da8382fe12ddda6f2f46d647",
+            "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
             destination_domain,
             "10000000000", //1e10
             "1",
@@ -166,55 +161,92 @@ impl SimApp {
         ]);
 
         // create ism
-        // cmd is following: validator addresses threshold
-        // expected ism address: 0x934b867052ca9c65e33362112f35fb548f8732c2fe45f07b9c591b38e865def0
+        // cmd is following: validator-addresses threshold
+        // expected ism address: 0x726f757465725f69736d00000000000000000000000000040000000000000000
         let address = "0xb05b6a0aa112b61a7aa16c19cac27d970692995e"; // TODO: convert KEY_VALIDATOR to eth address
         self.tx(vec![
             "hyperlane",
             "ism",
-            "create-multisig-ism",
+            "create-merkle-root-multisig",
             &address,
             "1",
         ]);
 
         // create mailbox
-        // cmd is following: default-ism default-igp
-        // expected mailbox address: 0x8ba32dc5efa59ba35e2cf6f541dfacbbf49c95891e5afc2c9ca36142de8fb880
+        // cmd is following: default-ism local-domain
+        // expected mailbox address: 0x68797065726c616e650000000000000000000000000000000000000000000000
         self.tx(vec![
             "hyperlane",
             "mailbox",
-            "create-mailbox",
-            "0x934b867052ca9c65e33362112f35fb548f8732c2fe45f07b9c591b38e865def0",
-            "0xd7194459d45619d04a5a0f9e78dc9594a0f37fd6da8382fe12ddda6f2f46d647",
+            "create",
+            "0x726f757465725f69736d00000000000000000000000000040000000000000000",
+            local_domain,
         ]);
 
+        // create merkle_tree_hook
+        // cmd is following: mailbox-address
+        // expected merkle_tree_hook address: 0x726f757465725f706f73745f6469737061746368000000030000000000000001
+        self.tx(vec![
+            "hyperlane",
+            "hooks",
+            "merkle",
+            "create",
+            "0x68797065726c616e650000000000000000000000000000000000000000000000",
+        ]);
+
+        // set mailbox to use the hooks
+        // cmd is following: mailbox-id --required-hook [id] --default-hook [id]
+        Program::new(self.bin.clone())
+            .cmd("tx")
+            .cmd("hyperlane")
+            .cmd("mailbox")
+            .cmd("set")
+            .cmd("0x68797065726c616e650000000000000000000000000000000000000000000000")
+            .arg(
+                "required-hook",
+                "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
+            )
+            .arg(
+                "default-hook",
+                "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
+            )
+            .arg("from", KEY_CHAIN_VALIDATOR.0)
+            .arg("chain-id", CHAIN_ID)
+            .arg("fees", format!("80000{}", DENOM))
+            .arg("node", &self.rpc_addr)
+            .arg("home", &self.home)
+            .arg("keyring-backend", "test")
+            .flag("yes")
+            .run()
+            .join();
+        sleep(Duration::from_secs(1)); // wait for the block to mined
+
         // create warp route
-        // cmd is following: origin-mailbox denom receiver-domain receiver-contract
-        // expected address: 0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2
+        // expected address: 0x726f757465725f61707000000000000000000000000000010000000000000000
         self.tx(vec![
             "hyperlane-transfer",
             "create-collateral-token",
-            "0x8ba32dc5efa59ba35e2cf6f541dfacbbf49c95891e5afc2c9ca36142de8fb880",
+            "0x68797065726c616e650000000000000000000000000000000000000000000000",
             DENOM,
         ]);
 
         // enroll the remote domain to this token
-        // cmd is following: token-id receiver-domain receiver-contract
+        // cmd is following: token-id receiver-domain receiver-contract gas
         self.tx(vec![
             "hyperlane-transfer",
             "enroll-remote-router",
-            "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2",
+            "0x726f757465725f61707000000000000000000000000000010000000000000000",
             destination_domain,
-            "0xb32677d8121a50c7b960b8561ead86278a7d75ec786807983e1eebfcbc2d9cfc",
+            "0x726f757465725f61707000000000000000000000000000020000000000000001",
+            "50000",
         ]);
 
         // create warp route
-        // cmd is following: origin-mailbox denom receiver-domain receiver-contract
-        // expected address: 0xb32677d8121a50c7b960b8561ead86278a7d75ec786807983e1eebfcbc2d9cfc
+        // expected address: 0x726f757465725f61707000000000000000000000000000020000000000000001
         self.tx(vec![
             "hyperlane-transfer",
             "create-synthetic-token",
-            "0x8ba32dc5efa59ba35e2cf6f541dfacbbf49c95891e5afc2c9ca36142de8fb880",
+            "0x68797065726c616e650000000000000000000000000000000000000000000000",
         ]);
 
         // enroll the remote domain to this token
@@ -222,17 +254,21 @@ impl SimApp {
         self.tx(vec![
             "hyperlane-transfer",
             "enroll-remote-router",
-            "0xb32677d8121a50c7b960b8561ead86278a7d75ec786807983e1eebfcbc2d9cfc",
+            "0x726f757465725f61707000000000000000000000000000020000000000000001",
             destination_domain,
-            "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2",
+            "0x726f757465725f61707000000000000000000000000000010000000000000000",
+            "50000",
         ]);
 
         Contracts {
-            mailbox: "0x8ba32dc5efa59ba35e2cf6f541dfacbbf49c95891e5afc2c9ca36142de8fb880"
+            mailbox: "0x68797065726c616e650000000000000000000000000000000000000000000000"
                 .to_owned(),
-            igp: "0xd7194459d45619d04a5a0f9e78dc9594a0f37fd6da8382fe12ddda6f2f46d647".to_owned(),
+            merkle_tree_hook: "0x726f757465725f706f73745f6469737061746368000000030000000000000001"
+                .to_owned(),
+            igp: "0x726f757465725f706f73745f6469737061746368000000040000000000000000".to_owned(),
             tokens: vec![
-                "0x820e1a4aa659041704df5567a73778be57615a84041680218d18894bec1695b2".to_owned(),
+                "0x726f757465725f61707000000000000000000000000000010000000000000000".to_owned(),
+                "0x726f757465725f61707000000000000000000000000000020000000000000001".to_owned(),
             ],
         }
     }

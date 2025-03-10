@@ -2107,6 +2107,53 @@
         "from": 86008
       }
     },
+    "cosmostestnative1": {
+      "bech32Prefix": "hyp",
+      "blockExplorers": [],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 5,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "uhyp",
+      "chainId": "hyperlane-local",
+      "contractAddressBytes": 20,
+      "displayName": "KYVEAlpha",
+      "domainId": 75898670,
+      "gasPrice": {
+        "amount": "0.2",
+        "denom": "uhyp"
+      },
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000002",
+      "name": "cosmostestnative1",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "uyhp",
+        "name": "HYP",
+        "symbol": "HYP"
+      },
+      "protocol": "cosmosnative",
+      "grpcUrls": [
+        {
+          "http": "http://localhost:9090"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:26657"
+        }
+      ],
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "technicalStack": "other",
+      "signer": {
+        "key": "0x33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51",
+        "type": "cosmosKey",
+        "prefix": "hyp"
+      },
+      "isTestnet": true
+    },
     "kyvealpha": {
       "bech32Prefix": "kyve",
       "blockExplorers": [],

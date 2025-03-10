@@ -36,7 +36,7 @@ use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
 
-use super::{cosmos::CosmosFallbackProvider, MsgRemoteTransfer};
+use super::cosmos::CosmosFallbackProvider;
 
 #[derive(Debug, Clone)]
 struct CosmosHttpClient {

@@ -14,6 +14,7 @@ use cosmrs::{
     AccountId, Any, Coin, Tx,
 };
 use derive_new::new;
+use hyperlane_cosmos_rs::hyperlane::{core::v1::MsgProcessMessage, warp::v1::MsgRemoteTransfer};
 use itertools::Itertools;
 use prost::Message;
 use reqwest::Error;
@@ -34,15 +35,16 @@ use hyperlane_core::{
     utils::{self, to_atto},
     AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
     ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, TxnInfo, TxnReceiptInfo,
-    H256, H512, U256,
+    HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, ReorgPeriod, TxnInfo,
+    TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::{
-    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
+    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, GrpcProvider,
+    HyperlaneCosmosError, Signer,
 };
 
-use super::{rest::RestProvider, RpcProvider};
+use super::RpcProvider;
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos-native`
 #[derive(new, Clone)]
@@ -67,54 +69,15 @@ where
     }
 }
 
-// structs for encoding and decoding transactions with protofbuf
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub(crate) struct MsgProcessMessage {
-    #[prost(string, tag = "1")]
-    pub mailbox_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub relayer: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub metadata: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub message: ::prost::alloc::string::String,
-}
-
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub(crate) struct MsgAnnounceValidator {
-    #[prost(string, tag = "1")]
-    pub validator: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub storage_location: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub signature: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub mailbox_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub creator: ::prost::alloc::string::String,
-}
-
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub(crate) struct MsgRemoteTransfer {
-    #[prost(string, tag = "1")]
-    pub sender: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub token_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub recipient: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub amount: ::prost::alloc::string::String,
-}
-
 /// Cosmos Native Provider
 ///
 /// implements the HyperlaneProvider trait
 #[derive(Debug, Clone)]
 pub struct CosmosNativeProvider {
     conf: ConnectionConf,
-    rest: RestProvider,
     rpc: RpcProvider,
     domain: HyperlaneDomain,
+    grpc: GrpcProvider,
 }
 
 impl CosmosNativeProvider {
@@ -127,13 +90,13 @@ impl CosmosNativeProvider {
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
         let rpc = RpcProvider::new(conf.clone(), signer)?;
-        let rest = RestProvider::new(conf.get_api_urls().iter().map(|url| url.to_string()));
+        let grpc = GrpcProvider::new(conf.clone())?;
 
         Ok(CosmosNativeProvider {
             domain,
             conf,
             rpc,
-            rest,
+            grpc,
         })
     }
 
@@ -144,11 +107,22 @@ impl CosmosNativeProvider {
         &self.rpc
     }
 
-    /// Rest Provider
+    /// gRPC Provider
     ///
     /// This is used for the Module Communication and querying the module state. Like mailboxes, isms etc.
-    pub fn rest(&self) -> &RestProvider {
-        &self.rest
+    pub fn grpc(&self) -> &GrpcProvider {
+        &self.grpc
+    }
+
+    /// todo
+    pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<u32> {
+        let height = self.rpc.get_block_number().await? as u32;
+        match reorg {
+            ReorgPeriod::None => return Ok(height),
+            ReorgPeriod::Blocks(blocks) if blocks.get() >= height => Ok(1), // height has to be at least 1 -> block 0 does not exist in cosmos
+            ReorgPeriod::Blocks(blocks) => Ok(height - blocks.get()),
+            ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(reorg.clone())),
+        }
     }
 
     fn check_msg_process(tx: &Tx) -> ChainResult<Option<H256>> {

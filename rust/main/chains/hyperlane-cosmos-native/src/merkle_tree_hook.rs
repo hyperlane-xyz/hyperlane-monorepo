@@ -2,6 +2,11 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use base64::Engine;
+use futures::future::ok;
+use hex::ToHex;
+use hyperlane_cosmos_rs::hyperlane::core::post_dispatch::v1::{
+    TreeResponse, WrappedMerkleTreeHookResponse,
+};
 use itertools::Itertools;
 use tracing::instrument;
 
@@ -44,6 +49,26 @@ impl CosmosMerkleTreeHook {
             provider,
         })
     }
+
+    async fn get_merkle_tree(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<(WrappedMerkleTreeHookResponse, TreeResponse)> {
+        let height = self.provider.reorg_to_height(reorg_period).await?;
+        let hook = self
+            .provider
+            .grpc()
+            .merkle_tree_hook(self.address.encode_hex(), Some(height))
+            .await?;
+        let hook = hook
+            .merkle_tree_hook
+            .ok_or_else(|| ChainCommunicationError::from_other_str("Missing merkle_tree_hook"))?;
+        let tree = hook
+            .clone()
+            .merkle_tree
+            .ok_or_else(|| ChainCommunicationError::from_other_str("Missing merkle_tree"))?;
+        Ok((hook, tree))
+    }
 }
 
 impl HyperlaneContract for CosmosMerkleTreeHook {
@@ -67,31 +92,13 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let hook = self
-            .provider
-            .rest()
-            .merkle_tree_hook(self.address, reorg_period.clone())
-            .await?;
-
-        let branch = hook
-            .merkle_tree
+        let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
+        let branch = tree
             .leafs
             .iter()
-            .map(|hash| {
-                let result = base64::prelude::BASE64_STANDARD.decode(hash);
-                match result {
-                    Ok(vec) => Ok(H256::from_slice(&vec)),
-                    Err(e) => Err(e),
-                }
-            })
-            .filter_map(|hash| hash.ok())
+            .map(|hash| H256::from_slice(&hash))
             .collect_vec();
 
-        if branch.len() < hook.merkle_tree.leafs.len() {
-            return Err(ChainCommunicationError::CustomError(
-                "Failed to parse incremental merkle tree".to_string(),
-            ));
-        }
         let branch = branch.as_slice();
         let branch: [H256; 32] = match branch.try_into() {
             Ok(ba) => ba,
@@ -103,37 +110,24 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         };
         Ok(IncrementalMerkle {
             branch,
-            count: hook.merkle_tree.count,
+            count: tree.count as usize,
         })
     }
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let result = self
-            .provider
-            .rest()
-            .merkle_tree_hook(self.address, reorg_period.clone())
-            .await?;
-
-        Ok(result.merkle_tree.count as u32)
+        let (_, tree) = self.get_merkle_tree(reorg_period).await?;
+        Ok(tree.count as u32)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        let response = self
-            .provider
-            .rest()
-            .merkle_tree_hook(self.address, reorg_period.clone())
-            .await?;
-        let root = base64::prelude::BASE64_STANDARD
-            .decode(response.merkle_tree.root)
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
-        let root = H256::from_slice(&root);
-
-        let index = if response.merkle_tree.count == 0 {
+        let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
+        let root = H256::from_slice(&tree.root);
+        let index = if tree.count == 0 {
             0
         } else {
-            response.merkle_tree.count as u32 - 1
+            tree.count as u32 - 1
         };
 
         Ok(Checkpoint {

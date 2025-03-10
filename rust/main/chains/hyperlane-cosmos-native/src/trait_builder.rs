@@ -10,8 +10,8 @@ use hyperlane_core::{
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /// API urls to connect to
-    api_urls: Vec<Url>,
+    /// gRPC urls to connect to
+    grpc_urls: Vec<Url>,
     /// The RPC url to connect to
     rpc_urls: Vec<Url>,
     /// The chain ID
@@ -120,9 +120,9 @@ impl ConnectionConf {
         self.contract_address_bytes
     }
 
-    /// Get api urls
-    pub fn get_api_urls(&self) -> Vec<Url> {
-        self.api_urls.clone()
+    /// Get gRPC urls
+    pub fn get_grpc_urls(&self) -> Vec<Url> {
+        self.grpc_urls.clone()
     }
 
     /// Returns the gas multiplier from the config. Used to estimate txn costs more reliable
@@ -134,7 +134,7 @@ impl ConnectionConf {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         rpc_urls: Vec<Url>,
-        api_urls: Vec<Url>,
+        grpc_urls: Vec<Url>,
         chain_id: String,
         bech32_prefix: String,
         canonical_asset: String,
@@ -145,7 +145,7 @@ impl ConnectionConf {
         native_token: NativeToken,
     ) -> Self {
         Self {
-            api_urls,
+            grpc_urls,
             rpc_urls,
             chain_id,
             bech32_prefix,

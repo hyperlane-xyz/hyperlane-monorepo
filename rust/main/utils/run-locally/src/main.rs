@@ -62,7 +62,8 @@ mod cosmos;
 #[cfg(feature = "sealevel")]
 mod sealevel;
 
-#[cfg(feature = "cosmosnative")]
+// #[cfg(feature = "cosmosnative")]
+// mod cosmosnative;
 mod cosmosnative;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {

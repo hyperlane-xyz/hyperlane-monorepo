@@ -1,6 +1,7 @@
 use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any, Tx};
 use hex::ToHex;
-use prost::Message;
+use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
+use prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -9,9 +10,7 @@ use hyperlane_core::{
     RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::{
-    ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, MsgProcessMessage, Signer,
-};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, Signer};
 
 /// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
@@ -50,6 +49,7 @@ impl CosmosNativeMailbox {
             .signer
             .as_ref()
             .map_or("".to_string(), |signer| signer.address.clone());
+        //TODO: we might want to use the message service for this?
         let process = MsgProcessMessage {
             mailbox_id: "0x".to_string() + &mailbox_id,
             metadata,
@@ -57,7 +57,7 @@ impl CosmosNativeMailbox {
             relayer: signer,
         };
         Any {
-            type_url: "/hyperlane.core.v1.MsgProcessMessage".to_string(),
+            type_url: MsgProcessMessage::type_url(),
             value: process.encode_to_vec(),
         }
     }
@@ -89,34 +89,53 @@ impl Mailbox for CosmosNativeMailbox {
     /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        self.provider
-            .rest()
-            .mailbox_nonce(self.address, reorg_period.clone())
-            .await
+        let height = self.provider.reorg_to_height(reorg_period).await?;
+        let mailbox = self
+            .provider
+            .grpc()
+            .mailbox(self.address.encode_hex(), Some(height))
+            .await?;
+        match mailbox.mailbox {
+            Some(mailbox) => Ok(mailbox.message_sent),
+            None => todo!(),
+        }
     }
 
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        self.provider
-            .rest()
-            .delivered(self.address.clone(), id)
-            .await
+        let delivered = self
+            .provider
+            .grpc()
+            .delivered(self.address.encode_hex(), id.encode_hex())
+            .await?;
+        Ok(delivered.delivered)
     }
 
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256> {
         let mailbox = self
             .provider
-            .rest()
-            .mailbox(self.address, ReorgPeriod::None)
+            .grpc()
+            .mailbox(self.address.encode_hex(), None)
             .await?;
-        let default_ism: H256 = mailbox.default_ism.parse()?;
-        return Ok(default_ism);
+        match mailbox.mailbox {
+            Some(mailbox) => {
+                let ism: H256 = mailbox.default_ism.parse()?;
+                Ok(ism)
+            }
+            None => todo!(),
+        }
     }
 
     /// Get the recipient ism address
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        self.provider.rest().recipient_ism(recipient).await
+        let recipient = self
+            .provider
+            .grpc()
+            .recipient_ism(recipient.encode_hex())
+            .await?;
+        let recipient: H256 = recipient.ism_id.parse()?;
+        Ok(recipient)
     }
 
     /// Process a message with a proof against the provided signed checkpoint

@@ -1,25 +1,20 @@
 use std::ops::RangeInclusive;
 use std::{io::Cursor, sync::Arc};
 
-use ::futures::future;
-use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::{tx::Raw, Any, Tx};
-use once_cell::sync::Lazy;
-use prost::Message;
+use hex::ToHex;
+use hyperlane_cosmos_rs::hyperlane::core::v1::Dispatch;
+use prost::Name;
 use tendermint::abci::EventAttribute;
-use tokio::{sync::futures, task::JoinHandle};
-use tracing::{instrument, warn};
+use tonic::async_trait;
+use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, utils, ChainCommunicationError, ChainResult, ContractLocator,
-    Decode, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, ContractLocator, Decode, HyperlaneMessage, Indexed,
+    Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{
-    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError,
-    MsgProcessMessage, Signer,
+    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError, Signer,
 };
 
 use super::{EventIndexer, ParsedEvent};
@@ -40,7 +35,7 @@ impl CosmosNativeDispatchIndexer {
         let provider = Arc::new(provider);
 
         Ok(CosmosNativeDispatchIndexer {
-            indexer: EventIndexer::new("hyperlane.core.v1.Dispatch".to_string(), provider.clone()),
+            indexer: EventIndexer::new(Dispatch::full_name(), provider.clone()),
             provider,
             address: locator.address,
         })
@@ -112,12 +107,15 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
-        let sequence = self
+        println!("{:#?}", tip);
+        let mailbox = self
             .provider
-            .rest()
-            .nonce_at_height(self.address, tip)
+            .grpc()
+            .mailbox(self.address.encode_hex(), Some(tip))
             .await?;
-
-        Ok((Some(sequence), tip))
+        match mailbox.mailbox {
+            Some(mailbox) => Ok((Some(mailbox.message_sent), tip)),
+            _ => Ok((None, tip)),
+        }
     }
 }

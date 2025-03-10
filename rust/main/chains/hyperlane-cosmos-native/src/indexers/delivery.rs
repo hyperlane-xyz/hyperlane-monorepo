@@ -1,26 +1,18 @@
 use std::ops::RangeInclusive;
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
-use ::futures::future;
-use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::{tx::Raw, Any, Tx};
-use once_cell::sync::Lazy;
-use prost::Message;
+use hyperlane_cosmos_rs::hyperlane::core::v1::Process;
+use prost::Name;
 use tendermint::abci::EventAttribute;
-use tokio::{sync::futures, task::JoinHandle};
-use tracing::{instrument, warn};
+use tonic::async_trait;
+use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, utils, ChainCommunicationError, ChainResult, ContractLocator,
-    Decode, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    ChainCommunicationError, ChainResult, ContractLocator, Indexed, Indexer, LogMeta,
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{
-    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError,
-    MsgProcessMessage, Signer,
-};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
 
 use super::{EventIndexer, ParsedEvent};
 
@@ -35,7 +27,7 @@ impl CosmosNativeDeliveryIndexer {
     pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let provider = CosmosNativeProvider::new(locator.domain.clone(), conf, locator, None)?;
         Ok(CosmosNativeDeliveryIndexer {
-            indexer: EventIndexer::new("hyperlane.core.v1.Process".to_string(), Arc::new(provider)),
+            indexer: EventIndexer::new(Process::full_name(), Arc::new(provider)),
         })
     }
 
