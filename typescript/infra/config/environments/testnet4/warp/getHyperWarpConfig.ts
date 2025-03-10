@@ -51,7 +51,7 @@ const stakedWarpRouteConfig = objMap(
     if (chain === 'sepolia') {
       return {
         type: TokenType.collateral,
-        token: '0xa324825e5da89f05ce99dc5a7e9b5c7bb7aa8316', // symbiotic tokenized vault
+        token: '0xF56179944D867469612D138c74F1dE979D3faC72', // symbiotic tokenized vault
         ...config,
       };
     } else {
