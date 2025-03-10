@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::abi::{AbiEncode, Detokenize};
+use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
@@ -316,6 +316,7 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
+        with_gas_estimate_buffer: bool,
     ) -> ChainResult<ContractCall<M, ()>> {
         let mut tx = self.contract.process(
             metadata.to_vec().into(),
@@ -324,18 +325,13 @@ where
         if let Some(gas_estimate) = tx_gas_estimate {
             tx = tx.gas(gas_estimate);
         }
-        self.add_gas_overrides(tx).await
-    }
 
-    async fn add_gas_overrides<D: Detokenize>(
-        &self,
-        tx: ContractCall<M, D>,
-    ) -> ChainResult<ContractCall<M, D>> {
         fill_tx_gas_params(
             tx,
             self.provider.clone(),
             &self.conn.transaction_overrides.clone(),
             &self.domain,
+            with_gas_estimate_buffer,
         )
         .await
     }
@@ -431,6 +427,7 @@ impl<M: Middleware + 'static> SubmittableBatch<M> {
             self.provider,
             &self.transaction_overrides,
             &self.domain,
+            true,
         )
         .await?;
         let outcome = report_tx(call_with_gas_overrides).await?;
@@ -504,7 +501,7 @@ where
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self
-            .process_contract_call(message, metadata, tx_gas_limit)
+            .process_contract_call(message, metadata, tx_gas_limit, true)
             .await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
@@ -529,6 +526,7 @@ where
                     &batch_item.data,
                     &batch_item.submission_data.metadata,
                     Some(batch_item.submission_data.gas_limit),
+                    true,
                 )
                 .await
             })
@@ -548,7 +546,12 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let contract_call = self.process_contract_call(message, metadata, None).await?;
+        // this function is used to get an accurate gas estimate for the transaction
+        // rather than a gas amount that will guarantee inclusion, so we use `false`
+        // for the `with_gas_estimate_buffer` arg in `process_contract_call`
+        let contract_call = self
+            .process_contract_call(message, metadata, None, false)
+            .await?;
         let gas_limit = contract_call
             .tx
             .gas()
@@ -705,13 +708,10 @@ mod test {
             .await
             .unwrap();
 
-        // The TxCostEstimate's gas limit includes a buffer
-        let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain).unwrap();
-
         assert_eq!(
             tx_cost_estimate,
             TxCostEstimate {
-                gas_limit: estimated_gas_limit,
+                gas_limit,
                 gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: Some(l2_gas_limit),
             },
