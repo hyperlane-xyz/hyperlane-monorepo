@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/cli": patch
+'@hyperlane-xyz/cli': patch
 ---
 
 Only relay specified message ID
