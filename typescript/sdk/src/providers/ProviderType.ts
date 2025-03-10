@@ -134,7 +134,6 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
-// TODO: add hyperlane sdk client type here
 export interface CosmosModuleProvider
   extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
   type: ProviderType.CosmosModule;
@@ -281,9 +280,16 @@ export interface CosmJsWasmTransactionReceipt
   receipt: DeliverTxResponse;
 }
 
+export interface CosmosModuleTransactionReceipt
+  extends TypedTransactionReceiptBase<DeliverTxResponse> {
+  type: ProviderType.CosmosModule;
+  receipt: DeliverTxResponse;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
-  | CosmJsWasmTransactionReceipt;
+  | CosmJsWasmTransactionReceipt
+  | CosmosModuleTransactionReceipt;
