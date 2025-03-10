@@ -53,7 +53,7 @@ import {
   withWarpRouteIdNoChoices,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
-import { withRegistryUrls } from '../github-utils.js';
+import { withregistryUris } from '../github-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
@@ -67,7 +67,7 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUrls(
+  return withregistryUris(
     withWarpRouteIdNoChoices(withModule(getCheckBaseArgs())),
   );
 }
@@ -82,7 +82,7 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
-  registryUrls?: string[],
+  registryUris?: string[],
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -207,10 +207,10 @@ export async function getGovernor(
       multiProvider,
       envConfig,
       warpRouteId,
-      registryUrls,
+      registryUris,
     );
-    const warpAddresses = registryUrls
-      ? await getWarpAddressesFromMergedRegistry(warpRouteId, registryUrls)
+    const warpAddresses = registryUris
+      ? await getWarpAddressesFromMergedRegistry(warpRouteId, registryUris)
       : getWarpAddresses(warpRouteId);
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)

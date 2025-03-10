@@ -116,9 +116,9 @@ export function getWarpAddresses(
 
 export async function getWarpCoreConfigFromMergedRegistry(
   warpRouteId: string,
-  registryUrls: string[],
+  registryUris: string[],
 ): Promise<WarpCoreConfig> {
-  const registry = getMergedRegistry(registryUrls, true);
+  const registry = getMergedRegistry(registryUris, true);
   const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
 
   if (!warpRouteConfig) {
@@ -131,11 +131,11 @@ export async function getWarpCoreConfigFromMergedRegistry(
 
 export async function getWarpAddressesFromMergedRegistry(
   warpRouteId: string,
-  registryUrls: string[],
+  registryUris: string[],
 ): Promise<ChainMap<ChainAddresses>> {
   const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
     warpRouteId,
-    registryUrls,
+    registryUris,
   );
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
