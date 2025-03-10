@@ -118,7 +118,7 @@ export async function getWarpCoreConfigFromMergedRegistry(
   warpRouteId: string,
   registryUris: string[],
 ): Promise<WarpCoreConfig> {
-  const registry = getMergedRegistry(registryUris, true);
+  const registry = getMergedRegistry({ registryUris, enableProxy: true });
   const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
 
   if (!warpRouteConfig) {
