@@ -7,7 +7,7 @@ use eyre::Result;
 
 use futures_util::future::try_join_all;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},

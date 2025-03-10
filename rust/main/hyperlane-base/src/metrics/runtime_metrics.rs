@@ -5,7 +5,7 @@ use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use prometheus::IntCounter;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tokio_metrics::{TaskMetrics, TaskMonitor};
-use tracing::{info_span, instrument::Instrumented, Instrument};
+use tracing::{info_span, Instrument};
 
 use super::CoreMetrics;
 

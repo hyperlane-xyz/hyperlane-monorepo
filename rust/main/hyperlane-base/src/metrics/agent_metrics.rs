@@ -15,7 +15,7 @@ use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tracing::info_span;
-use tracing::{debug, instrument::Instrumented, trace, warn, Instrument};
+use tracing::{debug, trace, warn, Instrument};
 
 use crate::settings::ChainConf;
 use crate::CoreMetrics;
