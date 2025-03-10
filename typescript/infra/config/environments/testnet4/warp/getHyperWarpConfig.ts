@@ -1,11 +1,13 @@
-import {
-  HypTokenRouterConfig,
-  TokenMetadata,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { ETHEREUM_DEPLOYER_ADDRESS } from '../owners.js';
+
+const tokenConfig = {
+  name: 'Vyper Token',
+  symbol: 'VYPER',
+  decimals: 18,
+};
 
 const mailboxes = {
   sepolia: '0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766',
@@ -23,22 +25,42 @@ const initialSupply = {
 
 const warpRouteConfig = objMap(
   initialSupply,
-  (chain, amount): HypTokenRouterConfig => {
-    const tokenConfig: TokenMetadata = {
-      // use VYPER as the token name and symbol for obfuscation
-      name: 'Vyper Token',
-      symbol: 'VYPER',
-      decimals: 18,
-      totalSupply: amount,
-    };
-
-    return {
-      type: TokenType.synthetic,
-      owner: ETHEREUM_DEPLOYER_ADDRESS,
-      mailbox: mailboxes[chain],
-      ...tokenConfig,
-    };
-  },
+  (chain, amount): HypTokenRouterConfig => ({
+    type: TokenType.synthetic,
+    owner: ETHEREUM_DEPLOYER_ADDRESS,
+    mailbox: mailboxes[chain],
+    totalSupply: amount,
+    ...tokenConfig,
+  }),
 );
 
 console.log(JSON.stringify(warpRouteConfig));
+
+const stakedWarpRouteConfig = objMap(
+  mailboxes,
+  (chain, mailbox): HypTokenRouterConfig => {
+    const config = {
+      owner: ETHEREUM_DEPLOYER_ADDRESS,
+      mailbox,
+      name: `Staked ${tokenConfig.name}`,
+      symbol: `st${tokenConfig.symbol}`,
+      decimals: tokenConfig.decimals,
+    };
+
+    if (chain === 'sepolia') {
+      return {
+        type: TokenType.collateral,
+        token: '0xa324825e5da89f05ce99dc5a7e9b5c7bb7aa8316',
+        ...config,
+      };
+    } else {
+      return {
+        type: TokenType.synthetic,
+        totalSupply: 0,
+        ...config,
+      };
+    }
+  },
+);
+
+console.log(JSON.stringify(stakedWarpRouteConfig));
