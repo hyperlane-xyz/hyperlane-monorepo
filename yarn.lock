@@ -7311,7 +7311,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cli@npm:8.8.1, @hyperlane-xyz/cli@workspace:typescript/cli":
+"@hyperlane-xyz/cli@workspace:typescript/cli":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
@@ -7475,7 +7475,6 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/cli": "npm:8.8.1"
     "@hyperlane-xyz/helloworld": "npm:8.8.1"
     "@hyperlane-xyz/registry": "npm:10.12.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
