@@ -7311,7 +7311,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cli@npm:8.8.1, @hyperlane-xyz/cli@workspace:typescript/cli":
+"@hyperlane-xyz/cli@workspace:typescript/cli":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
@@ -7320,7 +7320,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:10.11.0"
+    "@hyperlane-xyz/registry": "npm:10.12.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@hyperlane-xyz/utils": "npm:8.8.1"
     "@inquirer/core": "npm:9.0.10"
@@ -7425,7 +7425,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:5.11.6"
-    "@hyperlane-xyz/registry": "npm:10.11.0"
+    "@hyperlane-xyz/registry": "npm:10.12.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7475,9 +7475,8 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/cli": "npm:8.8.1"
     "@hyperlane-xyz/helloworld": "npm:8.8.1"
-    "@hyperlane-xyz/registry": "npm:10.11.0"
+    "@hyperlane-xyz/registry": "npm:10.12.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@hyperlane-xyz/utils": "npm:8.8.1"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7540,13 +7539,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:10.11.0":
-  version: 10.11.0
-  resolution: "@hyperlane-xyz/registry@npm:10.11.0"
+"@hyperlane-xyz/registry@npm:10.12.0":
+  version: 10.12.0
+  resolution: "@hyperlane-xyz/registry@npm:10.12.0"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/48e95820875e7326d7f8e99975d0946839a7b47e158d3cc9708bd5c1dbdbde377804de7a2a582e591789695be2b47486e9005357c79ff3b89b09ae319c44e45f
+  checksum: 10/8d82aa7a5d7ddf858a5b1de12dcd1303c4f9867d472d014e6f7a50cbd769977d61a8477a5a2e305e5e25df05a9b5a21aecae4680209d7080a5f6616b2700de25
   languageName: node
   linkType: hard
 
@@ -7645,7 +7644,7 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/registry": "npm:10.11.0"
+    "@hyperlane-xyz/registry": "npm:10.12.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@hyperlane-xyz/utils": "npm:8.8.1"
     "@interchain-ui/react": "npm:^1.23.28"
