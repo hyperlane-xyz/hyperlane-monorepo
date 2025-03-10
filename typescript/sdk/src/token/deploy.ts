@@ -36,6 +36,7 @@ import {
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
 } from './types.js';
 
 abstract class TokenDeployer<
@@ -64,7 +65,7 @@ abstract class TokenDeployer<
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const scale = config.scale ?? 1;
 
-    if (isCollateralTokenConfig(config)) {
+    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
       return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
       return [scale, config.mailbox];
@@ -92,7 +93,11 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (isCollateralTokenConfig(config) || isNativeTokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isNativeTokenConfig(config)
+    ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
@@ -125,7 +130,7 @@ abstract class TokenDeployer<
         }
       }
 
-      if (isCollateralTokenConfig(config)) {
+      if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
         const provider = multiProvider.getProvider(chain);
 
         if (config.isNft) {

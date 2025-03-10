@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use num_traits::cast::FromPrimitive;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use tracing::warn;
 
 use hyperlane_core::{
@@ -10,20 +10,23 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainSecurityModule {
-    payer: Option<Keypair>,
+    payer: Option<SealevelKeypair>,
     program_id: Pubkey,
     provider: SealevelProvider,
 }
 
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
+    pub fn new(
+        provider: SealevelProvider,
+        locator: ContractLocator,
+        payer: Option<SealevelKeypair>,
+    ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             payer,

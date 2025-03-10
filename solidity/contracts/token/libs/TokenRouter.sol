@@ -174,6 +174,22 @@ abstract contract TokenRouter is GasRouter {
     function balanceOf(address account) external virtual returns (uint256);
 
     /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destinationDomain The domain of the router.
+     * @return _gasPayment Payment computed by the registered InterchainGasPaymaster.
+     */
+    function quoteGasPayment(
+        uint32 _destinationDomain
+    ) external view override returns (uint256) {
+        return
+            _GasRouter_quoteDispatch(
+                _destinationDomain,
+                TokenMessage.format(bytes32(0), type(uint256).max, bytes("")),
+                address(hook)
+            );
+    }
+
+    /**
      * @dev Mints tokens to recipient when router receives transfer message.
      * @dev Emits `ReceivedTransferRemote` event on the destination chain.
      * @param _origin The identifier of the origin chain.

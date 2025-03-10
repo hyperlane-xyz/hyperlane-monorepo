@@ -13,6 +13,7 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -27,7 +28,7 @@ import {
 } from './environments/test/chains.js';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
 
-const DEFAULT_REGISTRY_URI = join(
+export const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../../../',
   'hyperlane-registry',

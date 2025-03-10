@@ -63,7 +63,7 @@ async function main() {
   ]);
 
   const chainResultEntries = await Promise.all(
-    pendingTxs.map(async ({ chain, fullTxHash }) => {
+    pendingTxs.map(async ({ chain, nonce, fullTxHash }) => {
       rootLogger.info(`Reading tx ${fullTxHash} on ${chain}`);
       const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
       const tx: AnnotatedEV5Transaction = {
@@ -75,7 +75,7 @@ async function main() {
       try {
         const results = await reader.read(chain, tx);
         rootLogger.info(`Finished reading tx ${fullTxHash} on ${chain}`);
-        return [`${chain}-${fullTxHash}`, results];
+        return [`${chain}-${nonce}-${fullTxHash}`, results];
       } catch (err) {
         rootLogger.error('Error reading transaction', err, chain, tx);
         process.exit(1);
