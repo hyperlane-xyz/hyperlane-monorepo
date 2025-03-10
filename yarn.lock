@@ -7320,7 +7320,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:10.9.0"
+    "@hyperlane-xyz/registry": "npm:10.11.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@hyperlane-xyz/utils": "npm:8.8.1"
     "@inquirer/core": "npm:9.0.10"
@@ -7425,7 +7425,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:5.11.6"
-    "@hyperlane-xyz/registry": "npm:10.9.0"
+    "@hyperlane-xyz/registry": "npm:10.11.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7477,7 +7477,7 @@ __metadata:
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/cli": "npm:8.8.1"
     "@hyperlane-xyz/helloworld": "npm:8.8.1"
-    "@hyperlane-xyz/registry": "npm:10.9.0"
+    "@hyperlane-xyz/registry": "npm:10.11.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@hyperlane-xyz/utils": "npm:8.8.1"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7540,13 +7540,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:10.9.0":
-  version: 10.9.0
-  resolution: "@hyperlane-xyz/registry@npm:10.9.0"
+"@hyperlane-xyz/registry@npm:10.11.0":
+  version: 10.11.0
+  resolution: "@hyperlane-xyz/registry@npm:10.11.0"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/f2ed52a4260f282501e9e066b4942b2c5cce58381a808758640b654e2c0708073b9e5e013b9df543dd1cc5a4b0dbcc8d0da8bf830be5b0762a287be0fc7cc2e4
+  checksum: 10/48e95820875e7326d7f8e99975d0946839a7b47e158d3cc9708bd5c1dbdbde377804de7a2a582e591789695be2b47486e9005357c79ff3b89b09ae319c44e45f
   languageName: node
   linkType: hard
 
@@ -7645,7 +7645,7 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/registry": "npm:10.9.0"
+    "@hyperlane-xyz/registry": "npm:10.11.0"
     "@hyperlane-xyz/sdk": "npm:8.8.1"
     "@hyperlane-xyz/utils": "npm:8.8.1"
     "@interchain-ui/react": "npm:^1.23.28"

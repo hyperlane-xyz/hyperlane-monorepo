@@ -21,6 +21,7 @@ import { getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC } from './environ
 import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBscEthereumMantleModePolygonScrollZeronetworkUSDTWarpConfig.js';
 import { getArbitrumEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumSolanaTreasureSMOLWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getBaseEthereumLumiaprismETHWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumLumiaprismETHWarpConfig.js';
 import {
   getTRUMPWarpConfig,
   getTrumpchainTRUMPWarpConfig,
@@ -108,6 +109,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
+  [WarpRouteIds.BaseEthereumLumiaprismETH]:
+    getBaseEthereumLumiaprismETHWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
