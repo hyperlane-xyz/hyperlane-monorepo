@@ -282,7 +282,7 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
                         origin_db: Arc::new(dbs.get(origin).unwrap().clone()),
-                        metadata_builder: Arc::new(Box::new(metadata_builder)),
+                        metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),

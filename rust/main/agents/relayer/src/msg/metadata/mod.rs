@@ -11,5 +11,5 @@ pub(crate) use base::{
     AppContextClassifier, IsmAwareAppContextClassifier, Metadata, MetadataBuildError,
     MetadataBuilder,
 };
-pub(crate) use base_builder::{BaseMetadataBuilder, BaseMetadataBuilderTrait};
+pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata};
 pub(crate) use message_builder::MessageMetadataBuilder;

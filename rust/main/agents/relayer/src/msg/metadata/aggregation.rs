@@ -121,14 +121,24 @@ impl AggregationIsmMetadataBuilder {
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
     #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self
             .base_builder()
             .build_aggregation_ism(ism_address)
             .await
-            .context(CTX)?;
-        let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
+            .context(CTX)
+            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+        let (ism_addresses, threshold) = ism
+            .modules_and_threshold(message)
+            .await
+            .context(CTX)
+            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
@@ -137,9 +147,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         .await;
 
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
-        for sub_module in sub_modules_and_metas.iter().flatten() {
-            if !sub_module.metadata.ok() {
-                return Ok(sub_module.metadata.clone());
+        for sub_module_res in sub_modules_and_metas.iter() {
+            if let Err(MetadataBuildError::Refused(s)) = sub_module_res {
+                return Err(MetadataBuildError::Refused(s.to_string()));
             }
         }
 
@@ -151,26 +161,23 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .zip(ism_addresses.iter())
             .enumerate()
             .partition_map(|(index, (result, ism_address))| match result {
-                Ok(sub_module_and_meta) => match sub_module_and_meta.metadata {
-                    Metadata::Found(metadata) => Either::Left(IsmAndMetadata::new(
-                        sub_module_and_meta.ism,
-                        index,
-                        metadata,
-                    )),
-                    _ => Either::Right((*ism_address, Some(sub_module_and_meta.module_type))),
-                },
+                Ok(sub_module_and_meta) => Either::Left(IsmAndMetadata::new(
+                    sub_module_and_meta.ism,
+                    index,
+                    sub_module_and_meta.metadata.to_vec(),
+                )),
                 Err(_) => Either::Right((*ism_address, None)),
             });
         let maybe_aggregation_metadata =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
-                .map_or(
-                    Metadata::Failed(MetadataBuildError::CouldNotFetch),
-                    |mut metas| {
-                        Metadata::Found(Self::format_metadata(&mut metas, ism_addresses.len()))
-                    },
-                );
-        Ok(maybe_aggregation_metadata)
+                .map_or(Err(MetadataBuildError::CouldNotFetch), |mut metas| {
+                    Ok(Metadata::new(Self::format_metadata(
+                        &mut metas,
+                        ism_addresses.len(),
+                    )))
+                });
+        maybe_aggregation_metadata
     }
 }
 

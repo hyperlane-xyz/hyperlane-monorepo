@@ -9,7 +9,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
 };
 
-use crate::msg::metadata::{BaseMetadataBuilderTrait, IsmAwareAppContextClassifier};
+use crate::msg::metadata::{BuildsBaseMetadata, IsmAwareAppContextClassifier};
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 
@@ -44,7 +44,7 @@ impl MockBaseMetadataBuilder {
 }
 
 #[async_trait::async_trait]
-impl BaseMetadataBuilderTrait for MockBaseMetadataBuilder {
+impl BuildsBaseMetadata for MockBaseMetadataBuilder {
     fn origin_domain(&self) -> &HyperlaneDomain {
         self.responses
             .origin_domain

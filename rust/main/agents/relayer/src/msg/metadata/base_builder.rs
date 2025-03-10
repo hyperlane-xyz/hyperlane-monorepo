@@ -50,7 +50,7 @@ impl Debug for BaseMetadataBuilder {
 }
 
 #[async_trait::async_trait]
-pub trait BaseMetadataBuilderTrait: Send + Sync + Debug {
+pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
@@ -73,7 +73,7 @@ pub trait BaseMetadataBuilderTrait: Send + Sync + Debug {
 }
 
 #[async_trait::async_trait]
-impl BaseMetadataBuilderTrait for BaseMetadataBuilder {
+impl BuildsBaseMetadata for BaseMetadataBuilder {
     fn origin_domain(&self) -> &HyperlaneDomain {
         &self.origin_domain
     }

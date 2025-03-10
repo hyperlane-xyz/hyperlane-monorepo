@@ -26,7 +26,7 @@ use crate::msg::metadata::MetadataBuildError;
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BaseMetadataBuilderTrait, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -43,7 +43,7 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
 pub const ISM_MAX_DEPTH: u32 = 13;
-pub const ISM_MAX_COUNT: u32 = 1000;
+pub const ISM_MAX_COUNT: u32 = 100;
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -54,7 +54,7 @@ pub struct MessageContext {
     pub origin_db: Arc<dyn HyperlaneDb>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
-    pub metadata_builder: Arc<Box<dyn BaseMetadataBuilderTrait>>,
+    pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
     pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -275,23 +275,21 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let metadata = match message_metadata_builder
+        let metadata_bytes = match message_metadata_builder
             .build(ism_address, &self.message)
             .await
         {
-            Ok(metadata) => metadata,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-            }
-        };
-
-        let metadata_bytes = match metadata {
-            Metadata::Found(metadata_bytes) => {
+            Ok(metadata) => {
+                let metadata_bytes = metadata.to_vec();
                 self.metadata = Some(metadata_bytes.clone());
                 metadata_bytes
             }
-            Metadata::Failed(err) => {
+            Err(err) => {
                 match err {
+                    MetadataBuildError::FailedToBuild => {
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
                     MetadataBuildError::CouldNotFetch => {
                         return self
                             .on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);

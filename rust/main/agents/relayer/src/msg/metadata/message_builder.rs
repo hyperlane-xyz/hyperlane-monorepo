@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 use tracing::instrument;
 
 use crate::msg::{
-    metadata::base_builder::BaseMetadataBuilderTrait,
+    metadata::base_builder::BuildsBaseMetadata,
     pending_message::{ISM_MAX_COUNT, ISM_MAX_DEPTH},
 };
 
@@ -28,7 +28,7 @@ use super::{
 /// Builds metadata for a message.
 #[derive(Debug, Clone)]
 pub struct MessageMetadataBuilder {
-    pub base: Arc<Box<dyn BaseMetadataBuilderTrait>>,
+    pub base: Arc<dyn BuildsBaseMetadata>,
     pub app_context: Option<String>,
     /// current ISM depth.
     /// ISMs can be structured recursively. We keep track of the depth
@@ -58,7 +58,11 @@ pub struct MessageMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
     #[instrument(err, skip(self, message), fields(destination_domain=self.base_builder().destination_domain().name()))]
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<Metadata, MetadataBuildError> {
         build_message_metadata(self.clone(), ism_address, message)
             .await
             .map(|res| res.metadata)
@@ -67,7 +71,7 @@ impl MetadataBuilder for MessageMetadataBuilder {
 
 impl MessageMetadataBuilder {
     pub async fn new(
-        base: Arc<Box<dyn BaseMetadataBuilderTrait>>,
+        base: Arc<dyn BuildsBaseMetadata>,
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<Self> {
@@ -83,7 +87,7 @@ impl MessageMetadataBuilder {
         })
     }
 
-    pub fn base_builder(&self) -> &Arc<Box<dyn BaseMetadataBuilderTrait>> {
+    pub fn base_builder(&self) -> &Arc<dyn BuildsBaseMetadata> {
         &self.base
     }
 }
@@ -93,38 +97,31 @@ pub async fn build_message_metadata(
     mut message_builder: MessageMetadataBuilder,
     ism_address: H256,
     message: &HyperlaneMessage,
-) -> Result<IsmWithMetadataAndType> {
+) -> Result<IsmWithMetadataAndType, MetadataBuildError> {
     let ism: Box<dyn InterchainSecurityModule> = message_builder
         .base_builder()
         .build_ism(ism_address)
         .await
-        .context("When building ISM")?;
+        .context("When building ISM")
+        .map_err(|_| MetadataBuildError::FailedToBuild)?;
 
     let module_type = ism
         .module_type()
         .await
-        .context("When fetching module type")?;
+        .context("When fetching module type")
+        .map_err(|_| MetadataBuildError::FailedToBuild)?;
 
-    // throw error if we've reached max depth or max ism count
+    // check if max depth is reached
+    if message_builder.depth >= ISM_MAX_DEPTH {
+        return Err(MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH));
+    }
+    message_builder.depth = message_builder.depth.saturating_add(1);
     {
-        if message_builder.depth >= ISM_MAX_DEPTH {
-            return Ok(IsmWithMetadataAndType {
-                ism,
-                metadata: Metadata::Failed(MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH)),
-                module_type,
-            });
-        }
+        // check if max ism count is reached
         let mut ism_count = message_builder.ism_count.lock().await;
         if *ism_count >= ISM_MAX_COUNT {
-            return Ok(IsmWithMetadataAndType {
-                ism,
-                metadata: Metadata::Failed(MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT)),
-                module_type,
-            });
+            return Err(MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
         }
-
-        // update depth and ism count
-        message_builder.depth = message_builder.depth.saturating_add(1);
         *ism_count = ism_count.saturating_add(1);
     }
 
@@ -141,10 +138,7 @@ pub async fn build_message_metadata(
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type).into()),
     };
-    let metadata = metadata_builder
-        .build(ism_address, message)
-        .await
-        .context("When building metadata")?;
+    let metadata = metadata_builder.build(ism_address, message).await?;
 
     Ok(IsmWithMetadataAndType {
         ism,
@@ -166,7 +160,7 @@ mod test {
         msg::{
             metadata::{
                 base::MetadataBuildError, message_builder::build_message_metadata,
-                IsmAwareAppContextClassifier, Metadata,
+                IsmAwareAppContextClassifier,
             },
             pending_message::{ISM_MAX_COUNT, ISM_MAX_DEPTH},
         },
@@ -245,21 +239,19 @@ mod test {
         let message = HyperlaneMessage::default();
 
         let mut message_builder =
-            MessageMetadataBuilder::new(Arc::new(Box::new(base_builder)), ism_address, &message)
+            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
                 .await
                 .expect("Failed to build MessageMetadataBuilder");
 
         message_builder.depth = ISM_MAX_DEPTH;
 
-        let res = build_message_metadata(message_builder, ism_address, &message)
-            .await
-            .expect("Metadata building failed");
+        let res = build_message_metadata(message_builder, ism_address, &message).await;
 
-        match res.metadata {
-            Metadata::Found(_) => {
+        match res {
+            Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
-            Metadata::Failed(err) => {
+            Err(err) => {
                 assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH));
             }
         }
@@ -274,21 +266,19 @@ mod test {
         let message = HyperlaneMessage::default();
 
         let message_builder =
-            MessageMetadataBuilder::new(Arc::new(Box::new(base_builder)), ism_address, &message)
+            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
                 .await
                 .expect("Failed to build MessageMetadataBuilder");
 
         *message_builder.ism_count.lock().await = ISM_MAX_COUNT;
 
-        let res = build_message_metadata(message_builder, ism_address, &message)
-            .await
-            .expect("Metadata building failed");
+        let res = build_message_metadata(message_builder, ism_address, &message).await;
 
-        match res.metadata {
-            Metadata::Found(_) => {
+        match res {
+            Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
-            Metadata::Failed(err) => {
+            Err(err) => {
                 assert_eq!(err, MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
             }
         }
@@ -306,20 +296,18 @@ mod test {
         let message = HyperlaneMessage::default();
 
         let mut message_builder =
-            MessageMetadataBuilder::new(Arc::new(Box::new(base_builder)), ism_address, &message)
+            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
                 .await
                 .expect("Failed to build MessageMetadataBuilder");
         message_builder.depth = ISM_MAX_DEPTH - 2;
 
-        let res = build_message_metadata(message_builder, ism_address, &message)
-            .await
-            .expect("Metadata building failed");
+        let res = build_message_metadata(message_builder, ism_address, &message).await;
 
-        match res.metadata {
-            Metadata::Found(_) => {
+        match res {
+            Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
-            Metadata::Failed(err) => {
+            Err(err) => {
                 assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH));
             }
         }
@@ -337,21 +325,19 @@ mod test {
         let message = HyperlaneMessage::default();
 
         let message_builder =
-            MessageMetadataBuilder::new(Arc::new(Box::new(base_builder)), ism_address, &message)
+            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
                 .await
                 .expect("Failed to build MessageMetadataBuilder");
 
         *message_builder.ism_count.lock().await = ISM_MAX_COUNT - 10;
 
-        let res = build_message_metadata(message_builder, ism_address, &message)
-            .await
-            .expect("Metadata building failed");
+        let res = build_message_metadata(message_builder, ism_address, &message).await;
 
-        match res.metadata {
-            Metadata::Found(_) => {
+        match res {
+            Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
-            Metadata::Failed(err) => {
+            Err(err) => {
                 assert_eq!(err, MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
             }
         }
@@ -409,20 +395,18 @@ mod test {
         let message = HyperlaneMessage::default();
 
         let message_builder =
-            MessageMetadataBuilder::new(Arc::new(Box::new(base_builder)), ism_address, &message)
+            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
                 .await
                 .expect("Failed to build MessageMetadataBuilder");
 
         *message_builder.ism_count.lock().await = ISM_MAX_COUNT - 4;
-        let res = build_message_metadata(message_builder, ism_address, &message)
-            .await
-            .expect("Metadata building failed");
+        let res = build_message_metadata(message_builder, ism_address, &message).await;
 
-        match res.metadata {
-            Metadata::Found(_) => {
+        match res {
+            Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
-            Metadata::Failed(err) => {
+            Err(err) => {
                 assert_eq!(err, MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
             }
         }

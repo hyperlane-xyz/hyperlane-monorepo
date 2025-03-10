@@ -6,7 +6,7 @@ use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
-use super::{MessageMetadataBuilder, Metadata, MetadataBuilder};
+use super::{MessageMetadataBuilder, Metadata, MetadataBuildError, MetadataBuilder};
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct RoutingIsmMetadataBuilder {
@@ -17,14 +17,23 @@ pub struct RoutingIsmMetadataBuilder {
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
     #[instrument(err, skip(self, message), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self
             .base_builder()
             .build_routing_ism(ism_address)
             .await
-            .context(CTX)?;
-        let module = ism.route(message).await.context(CTX)?;
-        self.base.build(module, message).await.context(CTX)
+            .context(CTX)
+            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+        let module = ism
+            .route(message)
+            .await
+            .context(CTX)
+            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+        self.base.build(module, message).await
     }
 }

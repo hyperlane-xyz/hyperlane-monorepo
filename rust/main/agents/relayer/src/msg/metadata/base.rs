@@ -7,15 +7,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::settings::matching_list::MatchingList;
 use derive_new::new;
 use eyre::Result;
+use tokio::sync::RwLock;
+
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256};
 
-use tokio::sync::RwLock;
+use crate::settings::matching_list::MatchingList;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum MetadataBuildError {
+    #[error("Some external error causing the build to fail")]
+    FailedToBuild,
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.
     /// Provides the reason for the refusal.
@@ -32,26 +35,23 @@ pub enum MetadataBuildError {
     MaxIsmCountReached(u32),
 }
 
-#[derive(Clone, Debug)]
-pub enum Metadata {
-    /// Able to fetch metadata
-    Found(Vec<u8>),
-    Failed(MetadataBuildError),
-}
+#[derive(Clone, Debug, new)]
+pub struct Metadata(Vec<u8>);
 
 impl Metadata {
-    pub fn ok(&self) -> bool {
-        match self {
-            Self::Found(_) => true,
-            Self::Failed(_) => false,
-        }
+    pub fn to_vec(self) -> Vec<u8> {
+        self.0
     }
 }
 
 #[async_trait::async_trait]
 pub trait MetadataBuilder: Send + Sync {
     /// Given a message, build it's ISM metadata
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata>;
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<Metadata, MetadataBuildError>;
 }
 
 #[derive(Debug)]
