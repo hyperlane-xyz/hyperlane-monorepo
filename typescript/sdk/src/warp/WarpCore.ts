@@ -489,13 +489,25 @@ export class WarpCore {
     let destinationBalance: bigint;
 
     const adapter = destinationToken.getAdapter(this.multiProvider);
-    if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
-      destinationBalance = await (
-        adapter as IHypXERC20Adapter<unknown>
-      ).getMintLimit();
+    if (MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as IHypXERC20Adapter<unknown>;
+      destinationBalance = await adapter.getMintLimit();
+
+      if (
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+      ) {
+        const bufferCap = await adapter.getMintMaxLimit();
+        const max = bufferCap / 2n;
+        if (destinationBalance > max) {
+          this.logger.debug(
+            `Mint limit ${destinationBalance} exceeds max ${max}, using max`,
+          );
+          destinationBalance = max;
+        }
+      }
     } else {
       destinationBalance = await adapter.getBalance(
         destinationToken.addressOrDenom,
@@ -773,7 +785,19 @@ export class WarpCore {
       originTokenAmount,
       destination,
     });
-    if (!valid) return { amount: 'Insufficient collateral on destination' };
+
+    if (!valid) {
+      const destinationName = this.multiProvider.getChainName(destination);
+      const destinationToken =
+        originTokenAmount.token.getConnectionForChain(destinationName)?.token;
+      if (
+        destinationToken &&
+        MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
+      ) {
+        return { amount: 'Rate limit exceeded on destination' };
+      }
+      return { amount: 'Insufficient collateral on destination' };
+    }
 
     return null;
   }
