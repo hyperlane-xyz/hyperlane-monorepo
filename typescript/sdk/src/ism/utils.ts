@@ -1,8 +1,6 @@
 import { ethers } from 'ethers';
 
 import {
-  AmountRoutingIsm__factory,
-  CCIPIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
@@ -24,7 +22,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -254,38 +251,6 @@ export async function moduleMatchesConfig(
       matches = eqAddress(expectedAddress, module.address);
       break;
     }
-    case IsmType.AMOUNT_ROUTING: {
-      const amountRoutingIsm = AmountRoutingIsm__factory.connect(
-        moduleAddress,
-        provider,
-      );
-
-      const [lowerIsmAddress, upperIsmAddress, threshold] = await Promise.all([
-        amountRoutingIsm.lower(),
-        amountRoutingIsm.upper(),
-        amountRoutingIsm.threshold(),
-      ]);
-
-      const subModuleMatchesConfig = await Promise.all(
-        [
-          [lowerIsmAddress, config.lowerIsm],
-          [upperIsmAddress, config.upperIsm],
-        ].map(([ismAddress, ismConfig]) =>
-          moduleMatchesConfig(
-            chain,
-            ismAddress as string,
-            ismConfig,
-            multiProvider,
-            contracts,
-            mailbox,
-          ),
-        ),
-      );
-      matches &&= threshold.eq(config.threshold);
-      matches &&= subModuleMatchesConfig.every(Boolean);
-
-      break;
-    }
     case IsmType.FALLBACK_ROUTING:
     case IsmType.ROUTING: {
       // A RoutingIsm matches if:
@@ -396,19 +361,6 @@ export async function moduleMatchesConfig(
       matches &&= eqAddress(relayer, config.relayer);
       break;
     }
-    case IsmType.CCIP: {
-      const ccipIsm = CCIPIsm__factory.connect(moduleAddress, provider);
-      const type = await ccipIsm.moduleType();
-      matches &&= type === ModuleType.NULL;
-
-      // Check that the origin chain selector matches the config
-      const originCcipChainSelector = await ccipIsm.ccipOrigin();
-      const chainName = getChainNameFromCCIPSelector(
-        originCcipChainSelector.toString(),
-      );
-      matches &&= chainName === config.originChain;
-      break;
-    }
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
@@ -455,11 +407,7 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
-  // The ICA_ROUTING and AMOUNT_ROUTING ISMs are immutable routing ISMs.
-  if (
-    config.type === IsmType.ICA_ROUTING ||
-    config.type === IsmType.AMOUNT_ROUTING
-  ) {
+  if (config.type === IsmType.ICA_ROUTING) {
     return {
       domainsToEnroll: [],
       domainsToUnenroll: [],

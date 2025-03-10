@@ -90,7 +90,17 @@ abstract contract AbstractMessageIdAuthHook is
 
         _sendMessageId(metadata, message);
 
-        _refund(metadata, message, address(this).balance);
+        uint256 _overpayment = msg.value - _quoteDispatch(metadata, message);
+        if (_overpayment > 0) {
+            address _refundAddress = metadata.refundAddress(
+                message.sender().bytes32ToAddress()
+            );
+            require(
+                _refundAddress != address(0),
+                "AbstractPostDispatchHook: no refund address"
+            );
+            payable(_refundAddress).sendValue(_overpayment);
+        }
     }
 
     /**

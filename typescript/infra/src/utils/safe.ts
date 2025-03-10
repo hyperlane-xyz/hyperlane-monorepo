@@ -32,12 +32,12 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   const safeSdk: Safe.default = await retryAsync(
     () => getSafe(chain, multiProvider, safeAddress),
     5,
     1000,
   );
+  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 

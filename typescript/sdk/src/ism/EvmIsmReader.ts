@@ -2,9 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AbstractRoutingIsm__factory,
-  AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
-  CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
@@ -23,7 +21,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
@@ -151,14 +148,17 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       owner = await defaultFallbackIsmInstance.owner();
     } catch {
       this.logger.debug(
-        'Error accessing owner property, implying that this is not a DefaultFallbackRoutingIsm.',
+        'Error accessing owner property, implying this is an ICA routing ISM.',
         address,
       );
     }
 
-    // If the current ISM does not have an owner then it is either an ICA Router or Amount Router
+    // If the current ISM does not have an owner then it is an ICA Router
     if (!owner) {
-      return this.deriveNonOwnableRoutingConfig(address);
+      return {
+        type: IsmType.ICA_ROUTING,
+        address,
+      };
     }
 
     const domainIds = this.messageContext
@@ -198,32 +198,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       type: ismType,
       domains,
     };
-  }
-
-  private async deriveNonOwnableRoutingConfig(
-    address: Address,
-  ): Promise<WithAddress<RoutingIsmConfig>> {
-    const ism = AmountRoutingIsm__factory.connect(address, this.provider);
-
-    try {
-      const [lowerIsm, upperIsm, threshold] = await Promise.all([
-        ism.lower(),
-        ism.upper(),
-        ism.threshold(),
-      ]);
-      return {
-        type: IsmType.AMOUNT_ROUTING,
-        address,
-        lowerIsm: await this.deriveIsmConfig(lowerIsm),
-        upperIsm: await this.deriveIsmConfig(upperIsm),
-        threshold: threshold.toNumber(),
-      };
-    } catch {
-      return {
-        type: IsmType.ICA_ROUTING,
-        address,
-      };
-    }
   }
 
   async deriveAggregationConfig(
@@ -334,26 +308,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
-        address,
-      );
-    }
-
-    // if it has ccipOrigin property --> CCIP
-    const ccipIsm = CCIPIsm__factory.connect(address, this.provider);
-    try {
-      const ccipOrigin = await ccipIsm.ccipOrigin();
-      const originChain = getChainNameFromCCIPSelector(ccipOrigin.toString());
-      if (!originChain) {
-        throw new Error('Unknown CCIP origin chain');
-      }
-      return {
-        address,
-        type: IsmType.CCIP,
-        originChain,
-      };
-    } catch {
-      this.logger.debug(
-        'Error accessing "ccipOrigin" property, implying this is not a CCIP ISM.',
         address,
       );
     }

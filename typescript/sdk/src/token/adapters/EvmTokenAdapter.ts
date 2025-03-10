@@ -12,8 +12,6 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IXERC20,
-  IXERC20VS,
-  IXERC20VS__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -33,12 +31,9 @@ import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
-  IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   ITokenAdapter,
-  IXERC20VSAdapter,
   InterchainGasQuote,
-  RateLimitMidPoint,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -326,68 +321,12 @@ export class EvmHypCollateralFiatAdapter
   }
 }
 
-abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
+// Interacts with HypXERC20Lockbox contracts
+export class EvmHypXERC20LockboxAdapter
   extends EvmHypCollateralAdapter
   implements IHypXERC20Adapter<PopulatedTransaction>
 {
-  public readonly hypXERC20: HypXERC20;
-
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-    this.hypXERC20 = HypXERC20__factory.connect(
-      addresses.token,
-      this.getProvider(),
-    );
-  }
-
-  protected abstract connectXERC20(xerc20Addr: Address): X;
-
-  async getXERC20(): Promise<X> {
-    const xerc20Addr = await this.hypXERC20.wrappedToken();
-    return this.connectXERC20(xerc20Addr);
-  }
-
-  override async getBridgedSupply(): Promise<bigint> {
-    const xerc20 = await this.getXERC20();
-    // Both IXERC20 and IXERC20VS have totalSupply, name, etc. if they extend ERC20
-    const totalSupply = await xerc20.totalSupply();
-    return totalSupply.toBigInt();
-  }
-
-  async getMintLimit(): Promise<bigint> {
-    const xerc20 = await this.getXERC20();
-    const limit = await xerc20.mintingCurrentLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getMintMaxLimit(): Promise<bigint> {
-    const xerc20 = await this.getXERC20();
-    const limit = await xerc20.mintingMaxLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getBurnLimit(): Promise<bigint> {
-    const xerc20 = await this.getXERC20();
-    const limit = await xerc20.burningCurrentLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-
-  async getBurnMaxLimit(): Promise<bigint> {
-    const xerc20 = await this.getXERC20();
-    const limit = await xerc20.burningMaxLimitOf(this.contract.address);
-    return limit.toBigInt();
-  }
-}
-
-abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
-  extends EvmHypCollateralAdapter
-  implements IHypXERC20Adapter<PopulatedTransaction>
-{
-  protected readonly hypXERC20Lockbox: HypXERC20Lockbox;
+  hypXERC20Lockbox: HypXERC20Lockbox;
 
   constructor(
     public readonly chainName: ChainName,
@@ -412,157 +351,98 @@ abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
     return this.getBalance(lockboxAddress);
   }
 
-  async getXERC20(): Promise<X> {
-    const xERC20Addr = await this.hypXERC20Lockbox.xERC20();
-    return this.connectXERC20(xERC20Addr);
-  }
-
-  protected abstract connectXERC20(xERC20Addr: Address): X;
-
   async getMintLimit(): Promise<bigint> {
-    const xERC20 = await this.getXERC20();
+    const xERC20 = await this.getXErc20();
     const limit = await xERC20.mintingCurrentLimitOf(this.contract.address);
     return limit.toBigInt();
   }
 
   async getMintMaxLimit(): Promise<bigint> {
-    const xERC20 = await this.getXERC20();
+    const xERC20 = await this.getXErc20();
     const limit = await xERC20.mintingMaxLimitOf(this.contract.address);
     return limit.toBigInt();
   }
 
   async getBurnLimit(): Promise<bigint> {
-    const xERC20 = await this.getXERC20();
+    const xERC20 = await this.getXErc20();
     const limit = await xERC20.burningCurrentLimitOf(this.contract.address);
     return limit.toBigInt();
   }
 
   async getBurnMaxLimit(): Promise<bigint> {
-    const xERC20 = await this.getXERC20();
+    const xERC20 = await this.getXErc20();
     const limit = await xERC20.burningMaxLimitOf(this.contract.address);
     return limit.toBigInt();
   }
-}
 
-// Interacts with HypXERC20Lockbox contracts
-export class EvmHypXERC20LockboxAdapter extends BaseEvmHypXERC20LockboxAdapter<IXERC20> {
-  protected connectXERC20(xERC20Addr: Address): IXERC20 {
-    return IXERC20__factory.connect(xERC20Addr, this.getProvider());
-  }
-}
+  async getXErc20(): Promise<IXERC20> {
+    const xERC20 = await this.hypXERC20Lockbox.xERC20();
 
-export class EvmHypVSXERC20LockboxAdapter
-  extends BaseEvmHypXERC20LockboxAdapter<IXERC20VS>
-  implements IHypVSXERC20Adapter<PopulatedTransaction>
-{
-  protected connectXERC20(xERC20Addr: Address): IXERC20VS {
-    return IXERC20VS__factory.connect(xERC20Addr, this.getProvider());
-  }
-
-  // If you need to expose rate-limiting calls or other VS-specific logic:
-  async getRateLimits(): Promise<RateLimitMidPoint> {
-    const xERC20 = await this.getXERC20();
-    const rateLimits = await xERC20.rateLimits(this.contract.address);
-
-    return {
-      rateLimitPerSecond: BigInt(rateLimits.rateLimitPerSecond.toString()),
-      bufferCap: BigInt(rateLimits.bufferCap.toString()),
-      lastBufferUsedTime: Number(rateLimits.lastBufferUsedTime),
-      bufferStored: BigInt(rateLimits.bufferStored.toString()),
-      midPoint: BigInt(rateLimits.midPoint.toString()),
-    };
-  }
-  async populateSetBufferCapTx(
-    newBufferCap: bigint,
-  ): Promise<PopulatedTransaction> {
-    const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setBufferCap(
-      this.addresses.token,
-      newBufferCap,
-    );
-  }
-
-  async populateSetRateLimitPerSecondTx(
-    newRateLimitPerSecond: bigint,
-  ): Promise<PopulatedTransaction> {
-    const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setRateLimitPerSecond(
-      this.addresses.token,
-      newRateLimitPerSecond,
-    );
-  }
-
-  async populateAddBridgeTx(
-    bufferCap: bigint,
-    rateLimitPerSecond: bigint,
-  ): Promise<PopulatedTransaction> {
-    const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.addBridge({
-      bufferCap,
-      rateLimitPerSecond,
-      bridge: this.addresses.token,
-    });
+    return IXERC20__factory.connect(xERC20, this.getProvider());
   }
 }
 
 // Interacts with HypXERC20 contracts
-export class EvmHypXERC20Adapter extends BaseEvmHypXERC20Adapter<IXERC20> {
-  protected connectXERC20(xerc20Addr: string): IXERC20 {
-    return IXERC20__factory.connect(xerc20Addr, this.getProvider());
-  }
-}
-
-export class EvmHypVSXERC20Adapter
-  extends BaseEvmHypXERC20Adapter<IXERC20VS>
-  implements IHypVSXERC20Adapter<PopulatedTransaction>
+export class EvmHypXERC20Adapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
 {
-  protected connectXERC20(xerc20Addr: string): IXERC20VS {
-    return IXERC20VS__factory.connect(xerc20Addr, this.getProvider());
-  }
+  hypXERC20: HypXERC20;
 
-  async getRateLimits(): Promise<RateLimitMidPoint> {
-    const xERC20 = await this.getXERC20();
-    const rateLimits = await xERC20.rateLimits(this.contract.address);
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
 
-    return {
-      rateLimitPerSecond: BigInt(rateLimits.rateLimitPerSecond.toString()),
-      bufferCap: BigInt(rateLimits.bufferCap.toString()),
-      lastBufferUsedTime: Number(rateLimits.lastBufferUsedTime),
-      bufferStored: BigInt(rateLimits.bufferStored.toString()),
-      midPoint: BigInt(rateLimits.midPoint.toString()),
-    };
-  }
-
-  async populateSetBufferCapTx(
-    newBufferCap: bigint,
-  ): Promise<PopulatedTransaction> {
-    const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setBufferCap(
-      this.addresses.token,
-      newBufferCap,
+    this.hypXERC20 = HypXERC20__factory.connect(
+      addresses.token,
+      this.getProvider(),
     );
   }
 
-  async populateSetRateLimitPerSecondTx(
-    newRateLimitPerSecond: bigint,
-  ): Promise<PopulatedTransaction> {
-    const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setRateLimitPerSecond(
-      this.addresses.token,
-      newRateLimitPerSecond,
-    );
-  }
-
-  async populateAddBridgeTx(
-    bufferCap: bigint,
-    rateLimitPerSecond: bigint,
-  ): Promise<PopulatedTransaction> {
-    const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.addBridge({
-      bufferCap,
-      rateLimitPerSecond,
-      bridge: this.addresses.token,
+  /**
+   * Note this may be inaccurate, as this returns the total supply
+   * of the xERC20 contract, which may be used by other bridges.
+   * However this is the best we can do with a simple view call.
+   */
+  override async getBridgedSupply(): Promise<bigint> {
+    const xerc20TokenAddress = await this.hypXERC20.wrappedToken();
+    const xerc20 = new EvmTokenAdapter(this.chainName, this.multiProvider, {
+      token: xerc20TokenAddress,
     });
+    return xerc20.getTotalSupply();
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.mintingCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getMintMaxLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.mintingMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getBurnLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.burningCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getBurnMaxLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.burningMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getXErc20(): Promise<IXERC20> {
+    const xERC20 = await this.hypXERC20.wrappedToken();
+
+    return IXERC20__factory.connect(xERC20, this.getProvider());
   }
 }
 
@@ -598,76 +478,5 @@ export class EvmHypNativeAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
-  }
-}
-
-export class EvmXERC20VSAdapter
-  extends EvmTokenAdapter
-  implements IXERC20VSAdapter<PopulatedTransaction>
-{
-  xERC20VS: IXERC20VS;
-
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-
-    this.xERC20VS = IXERC20VS__factory.connect(
-      addresses.token,
-      this.getProvider(),
-    );
-  }
-
-  async getRateLimits(bridge: Address): Promise<RateLimitMidPoint> {
-    const result = await this.xERC20VS.rateLimits(bridge);
-
-    const rateLimits: RateLimitMidPoint = {
-      rateLimitPerSecond: BigInt(result.rateLimitPerSecond.toString()),
-      bufferCap: BigInt(result.bufferCap.toString()),
-      lastBufferUsedTime: Number(result.lastBufferUsedTime),
-      bufferStored: BigInt(result.bufferStored.toString()),
-      midPoint: BigInt(result.midPoint.toString()),
-    };
-
-    return rateLimits;
-  }
-
-  // remove bridge
-  async populateRemoveBridgeTx(bridge: Address): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.removeBridge(bridge);
-  }
-
-  async populateSetBufferCapTx(
-    bridge: Address,
-    newBufferCap: bigint,
-  ): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.setBufferCap(
-      bridge,
-      newBufferCap.toString(),
-    );
-  }
-
-  async populateSetRateLimitPerSecondTx(
-    bridge: Address,
-    newRateLimitPerSecond: bigint,
-  ): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.setRateLimitPerSecond(
-      bridge,
-      newRateLimitPerSecond.toString(),
-    );
-  }
-
-  async populateAddBridgeTx(
-    bufferCap: bigint,
-    rateLimitPerSecond: bigint,
-    bridge: Address,
-  ): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.addBridge({
-      bufferCap: bufferCap.toString(),
-      rateLimitPerSecond: rateLimitPerSecond.toString(),
-      bridge,
-    });
   }
 }

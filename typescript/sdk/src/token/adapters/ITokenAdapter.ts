@@ -21,14 +21,6 @@ export interface InterchainGasQuote {
   amount: bigint;
 }
 
-export interface RateLimitMidPoint {
-  rateLimitPerSecond: bigint;
-  bufferCap: bigint;
-  lastBufferUsedTime: number;
-  bufferStored: bigint;
-  midPoint: bigint;
-}
-
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
   getTotalSupply(): Promise<bigint | undefined>;
@@ -62,33 +54,4 @@ export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
 
   getBurnLimit(): Promise<bigint>;
   getBurnMaxLimit(): Promise<bigint>;
-}
-
-export interface IHypVSXERC20Adapter<Tx> {
-  getRateLimits(): Promise<RateLimitMidPoint>;
-
-  populateSetBufferCapTx(newBufferCap: bigint): Promise<Tx>;
-  populateSetRateLimitPerSecondTx(newRateLimitPerSecond: bigint): Promise<Tx>;
-
-  populateAddBridgeTx(
-    bufferCap: bigint,
-    rateLimitPerSecond: bigint,
-  ): Promise<Tx>;
-}
-
-export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
-  getRateLimits(bridge: Address): Promise<RateLimitMidPoint>;
-
-  populateSetBufferCapTx(bridge: Address, newBufferCap: bigint): Promise<Tx>;
-
-  populateSetRateLimitPerSecondTx(
-    bridge: Address,
-    newRateLimitPerSecond: bigint,
-  ): Promise<Tx>;
-
-  populateAddBridgeTx(
-    bufferCap: bigint,
-    rateLimitPerSecond: bigint,
-    bridge: Address,
-  ): Promise<Tx>;
 }

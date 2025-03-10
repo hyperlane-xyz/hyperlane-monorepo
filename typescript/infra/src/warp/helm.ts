@@ -12,7 +12,11 @@ import {
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
-import { getRegistry, getWarpCoreConfig } from '../../config/registry.js';
+import {
+  getChainAddresses,
+  getRegistry,
+  getWarpCoreConfig,
+} from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HelmManager, removeHelmRelease } from '../../src/utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../../src/utils/utils.js';

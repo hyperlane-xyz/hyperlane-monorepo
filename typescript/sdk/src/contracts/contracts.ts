@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { Contract, constants } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -11,6 +11,7 @@ import {
   objFilter,
   objMap,
   pick,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -238,13 +239,21 @@ export function connectContractsMap<F extends HyperlaneFactories>(
   );
 }
 
-// NOTE: does not perform any onchain checks
-export function filterOwnableContracts(contracts: HyperlaneContracts<any>): {
-  [key: string]: Ownable;
-} {
+export async function filterOwnableContracts(
+  contracts: HyperlaneContracts<any>,
+): Promise<{ [key: string]: Ownable }> {
+  const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {
+    try {
+      await contract.owner();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+  const isOwnableContracts = await promiseObjAll(objMap(contracts, isOwnable));
   return objFilter(
     contracts,
-    (_, contract): contract is Ownable => 'owner' in contract.functions,
+    (name, contract): contract is Ownable => isOwnableContracts[name],
   );
 }
 

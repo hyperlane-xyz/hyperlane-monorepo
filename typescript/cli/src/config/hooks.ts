@@ -1,6 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { ethers } from 'ethers';
+import { z } from 'zod';
 
 import {
   ChainGasOracleParams,
@@ -9,9 +10,8 @@ import {
   ChainName,
   CoinGeckoTokenPriceGetter,
   HookConfig,
+  HookConfigSchema,
   HookType,
-  HooksConfig,
-  HooksConfigMapSchema,
   IgpHookConfig,
   MultiProtocolProvider,
   getGasPrice,
@@ -36,6 +36,15 @@ import { detectAndConfirmOrPrompt, inputWithInfo } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';
 
+// TODO: deprecate in favor of CoreConfigSchema
+const HooksConfigSchema = z.object({
+  default: HookConfigSchema,
+  required: HookConfigSchema,
+});
+export type HooksConfig = z.infer<typeof HooksConfigSchema>;
+const HooksConfigMapSchema = z.record(HooksConfigSchema);
+export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
+
 const MAX_PROTOCOL_FEE_DEFAULT: string = toWei('0.1');
 const PROTOCOL_FEE_DEFAULT: string = toWei('0');
 
@@ -54,9 +63,7 @@ export function presetHookConfigs(owner: Address): HooksConfig {
   };
 }
 
-export function readHooksConfigMap(
-  filePath: string,
-): ChainMap<HooksConfig> | undefined {
+export function readHooksConfigMap(filePath: string) {
   const config = readYamlOrJson(filePath);
   if (!config) {
     logRed(`No hook config found at ${filePath}`);
@@ -123,15 +130,14 @@ export async function createHookConfig({
   }
 }
 
-export const createMerkleTreeConfig: (...arg: []) => Promise<HookConfig> =
-  callWithConfigCreationLogs(async (): Promise<HookConfig> => {
+export const createMerkleTreeConfig = callWithConfigCreationLogs(
+  async (): Promise<HookConfig> => {
     return { type: HookType.MERKLE_TREE };
-  }, HookType.MERKLE_TREE);
+  },
+  HookType.MERKLE_TREE,
+);
 
-export const createProtocolFeeConfig: (
-  context: CommandContext,
-  advanced?: boolean,
-) => Promise<HookConfig> = callWithConfigCreationLogs(
+export const createProtocolFeeConfig = callWithConfigCreationLogs(
   async (
     context: CommandContext,
     advanced: boolean = false,
@@ -347,10 +353,7 @@ async function getIgpTokenPrices(
   return prices;
 }
 
-export const createAggregationConfig: (
-  context: CommandContext,
-  advanced?: boolean,
-) => Promise<HookConfig> = callWithConfigCreationLogs(
+export const createAggregationConfig = callWithConfigCreationLogs(
   async (
     context: CommandContext,
     advanced: boolean = false,
@@ -379,10 +382,7 @@ export const createAggregationConfig: (
   HookType.AGGREGATION,
 );
 
-export const createRoutingConfig: (
-  context: CommandContext,
-  advanced?: boolean,
-) => Promise<HookConfig> = callWithConfigCreationLogs(
+export const createRoutingConfig = callWithConfigCreationLogs(
   async (
     context: CommandContext,
     advanced: boolean = false,

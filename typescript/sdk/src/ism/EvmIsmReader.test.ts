@@ -2,8 +2,6 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import {
-  CCIPIsm,
-  CCIPIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
   IMultisigIsm,
@@ -138,9 +136,6 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(TrustedRelayerIsm__factory, 'connect')
       .returns(mockContract as unknown as TrustedRelayerIsm);
-    sandbox
-      .stub(CCIPIsm__factory, 'connect')
-      .returns(mockContract as unknown as CCIPIsm);
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);

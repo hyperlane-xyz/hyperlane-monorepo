@@ -1,7 +1,6 @@
+import { ethers } from 'ethers';
+
 import {
-  AmountRoutingHook,
-  CCIPHook,
-  CCIPHook__factory,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -12,7 +11,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   deepEquals,
   rootLogger,
@@ -32,8 +30,6 @@ import { ChainMap, ChainName } from '../types.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
-  AmountRoutingHookConfig,
-  CCIPHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -81,10 +77,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     let hook: DeployedHook;
-    if (
-      config.type === HookType.MERKLE_TREE ||
-      config.type === HookType.MAILBOX_DEFAULT
-    ) {
+    if (config.type === HookType.MERKLE_TREE) {
       const mailbox = coreAddresses.mailbox;
       if (!mailbox) {
         throw new Error(`Mailbox address is required for ${config.type}`);
@@ -114,10 +107,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       await this.transferOwnershipOfContracts(chain, config, {
         [HookType.PAUSABLE]: hook,
       });
-    } else if (config.type === HookType.AMOUNT_ROUTING) {
-      hook = await this.deployAmountRoutingHook(chain, config);
-    } else if (config.type === HookType.CCIP) {
-      hook = await this.deployCCIPHook(chain, config);
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -125,25 +114,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     const deployedContracts = { [config.type]: hook } as any; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
-  }
-
-  async deployCCIPHook(
-    chain: ChainName,
-    config: CCIPHookConfig,
-  ): Promise<CCIPHook> {
-    const hook = this.ismFactory.ccipContractCache.getHook(
-      chain,
-      config.destinationChain,
-    );
-    if (!hook) {
-      this.logger.error(
-        `CCIP Hook not found for ${chain} -> ${config.destinationChain}`,
-      );
-      throw new Error(
-        `CCIP Hook not found for ${chain} -> ${config.destinationChain}`,
-      );
-    }
-    return CCIPHook__factory.connect(hook, this.multiProvider.getSigner(chain));
   }
 
   async deployProtocolFee(
@@ -272,7 +242,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         opstackIsm.address,
       );
       return hook;
-    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
+    } else if (
+      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
+    ) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,
@@ -401,37 +373,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     await this.transferOwnershipOfContracts(chain, config, {
       [config.type]: routingHook,
     });
-
-    return routingHook;
-  }
-
-  protected async deployAmountRoutingHook(
-    chain: ChainName,
-    config: AmountRoutingHookConfig,
-  ): Promise<AmountRoutingHook> {
-    const hooks = [];
-    for (const hookConfig of [config.lowerHook, config.upperHook]) {
-      if (typeof hookConfig === 'string') {
-        hooks.push(hookConfig);
-        continue;
-      }
-
-      const contracts = await this.deployContracts(
-        chain,
-        hookConfig.type,
-        this.core[chain],
-      );
-      hooks.push(contracts[hookConfig.type].address);
-    }
-
-    const [lowerHook, upperHook] = hooks;
-
-    // deploy routing hook
-    const routingHook = await this.deployContract(
-      chain,
-      HookType.AMOUNT_ROUTING,
-      [lowerHook, upperHook, config.threshold],
-    );
 
     return routingHook;
   }
