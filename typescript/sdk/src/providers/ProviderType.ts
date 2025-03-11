@@ -15,7 +15,6 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
-import { HyperlaneModuleClient } from 'hyperlane-cosmos-sdk';
 import type {
   GetContractReturnType,
   PublicClient,
@@ -23,6 +22,7 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
+import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {

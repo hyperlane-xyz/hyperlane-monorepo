@@ -1,0 +1,45 @@
+{
+  "name": "@hyperlane-xyz/cosmos-sdk",
+  "version": "1.0.0",
+  "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "client",
+    "types"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "cosmos",
+    "blockchain",
+    "sdk"
+  ],
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "format": "prettier --write .",
+    "lint": "eslint . --ignore-path ../../.eslintignore --ext ts --ext tsx --ext js --ext jsx",
+    "lint:fix": "eslint --fix . --ignore-path ../../.eslintignore --ext ts --ext tsx --ext js --ext jsx",
+    "clean": "rm -rf ./dist ./cache"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "eslint": "^9.19.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "tslib": "^2.8.1",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.23.0"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.2.3",
+    "@cosmjs/stargate": "^0.32.0",
+    "axios": "^1.7.9",
+    "long": "^5.2.4",
+    "protobufjs": "^7.4.0"
+  }
+}

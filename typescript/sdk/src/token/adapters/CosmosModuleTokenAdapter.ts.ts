@@ -1,5 +1,4 @@
-import { MsgRemoteTransferEncodeObject } from 'hyperlane-cosmos-sdk';
-
+import { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosModuleAdapter } from '../../app/MultiProtocolApp.js';

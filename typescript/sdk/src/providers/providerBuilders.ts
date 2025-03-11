@@ -2,9 +2,9 @@ import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
-import { HyperlaneModuleClient } from 'hyperlane-cosmos-sdk';
 import { createPublicClient, http } from 'viem';
 
+import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
