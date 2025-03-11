@@ -199,7 +199,7 @@ async function getSealevelBurnProm(
       burn[chain] = formatBalanceThreshold(parseFloat(series.value[1]));
     } else if (series.histogram) {
       rootLogger.warn(
-        `Unexpected histogram data found for "${chain} in Prometheus, skipping.`,
+        `Unexpected histogram data found for "${chain}" in Prometheus, skipping.`,
       );
     }
   }
