@@ -212,6 +212,10 @@ export function withWarpRouteIdNoChoices<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withWarpRouteIdNoChoicesRequired<T>(args: Argv<T>) {
+  return withWarpRouteIdNoChoices(args).demandOption('warpRouteId');
+}
+
 export function withDryRun<T>(args: Argv<T>) {
   return args
     .describe('dryRun', 'Dry run')
