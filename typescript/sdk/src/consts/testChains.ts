@@ -74,6 +74,22 @@ export const test4: ChainMetadata = {
   name: 'test4',
 };
 
+export const testXERC20: ChainMetadata = {
+  ...test1,
+  chainId: 9913374,
+  domainId: 9913374,
+  displayName: 'Test XERC20',
+  name: 'testxerc20',
+};
+
+export const testVSXERC20: ChainMetadata = {
+  ...test1,
+  chainId: 9913375,
+  domainId: 9913375,
+  displayName: 'Test VSXERC20',
+  name: 'testvsxerc20',
+};
+
 export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
@@ -123,6 +139,8 @@ export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   ...testChainMetadata,
   testcosmos: testCosmosChain,
   testsealevel: testSealevelChain,
+  testxerc20: testXERC20,
+  testvsxerc20: testVSXERC20,
 };
 
 export const multiProtocolTestChains: Array<ChainName> = Object.keys(

@@ -17,6 +17,9 @@ tokens:
       - {
           token: sealevel|testsealevel|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678,
         }
+      - {
+          token: ethereum|testxerc20|0x9876543210987654321098765432109876543211,
+        }
   # test2 HypSynthetic token
   - chainName: test2
     standard: EvmHypSynthetic
@@ -28,6 +31,28 @@ tokens:
       - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
       - {
           token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab,
+        }
+  # test3 EvmHypXERC20 token
+  - chainName: testxerc20
+    standard: EvmHypXERC20
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543211'
+    connections:
+      - {
+          token: ethereum|testvsxerc20|0x9876543210987654321098765432109876543212,
+        }
+  # test4 EvmHypVSXERC20
+  - chainName: testvsxerc20
+    standard: EvmHypVSXERC20
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543212'
+    connections:
+      - {
+          token: ethereum|testxerc20|0x9876543210987654321098765432109876543211,
         }
   # testsealevel HypSynthetic
   - chainName: testsealevel

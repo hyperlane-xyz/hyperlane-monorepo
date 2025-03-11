@@ -8,6 +8,8 @@ import {
   test2,
   testCosmosChain,
   testSealevelChain,
+  testVSXERC20,
+  testXERC20,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
@@ -31,6 +33,8 @@ describe('WarpCore', () => {
   let warpCore: WarpCore;
   let evmHypNative: Token;
   let evmHypSynthetic: Token;
+  let evmHypXERC20: Token;
+  let evmHypVSXERC20: Token;
   let sealevelHypSynthetic: Token;
   let cwHypCollateral: Token;
   let cw20: Token;
@@ -57,6 +61,8 @@ describe('WarpCore', () => {
     [
       evmHypNative,
       evmHypSynthetic,
+      evmHypXERC20,
+      evmHypVSXERC20,
       sealevelHypSynthetic,
       cwHypCollateral,
       cw20,
@@ -180,6 +186,8 @@ describe('WarpCore', () => {
     await testCollateral(evmHypNative, testCosmosChain.name, false);
     await testCollateral(evmHypNative, testSealevelChain.name, true);
     await testCollateral(cwHypCollateral, test1.name, false);
+    await testCollateral(evmHypXERC20, testVSXERC20.name, false);
+    await testCollateral(evmHypVSXERC20, testXERC20.name, false);
 
     stubs.forEach((s) => s.restore());
   });
@@ -195,6 +203,9 @@ describe('WarpCore', () => {
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getMintLimit: () => Promise.resolve(MOCK_BALANCE),
+        getMintMaxLimit: () => Promise.resolve(MOCK_BALANCE),
       } as any),
     );
 
@@ -245,6 +256,25 @@ describe('WarpCore', () => {
       sender: MOCK_ADDRESS,
     });
     expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
+
+    const validXERC20Result = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: testXERC20.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(validXERC20Result).to.be.null;
+
+    const invalidRateLimit = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+      destination: testXERC20.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+
+    expect(Object.values(invalidRateLimit || {})[0]).to.equal(
+      'Rate limit exceeded on destination',
+    );
 
     balanceStubs.forEach((s) => s.restore());
     quoteStubs.forEach((s) => s.restore());
