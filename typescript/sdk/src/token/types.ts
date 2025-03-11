@@ -143,6 +143,10 @@ const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
   }),
 );
 
+export type HypTokenRouterConfigMailboxOptional = z.infer<
+  typeof HypTokenRouterConfigMailboxOptionalSchema
+>;
+
 export const WarpRouteDeployConfigSchema = z
   .record(HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
@@ -274,7 +278,7 @@ function isCollateralRebasePairedCorrectly(
 type CCIPContractExistsMap = ChainMap<Set<ChainName>>;
 
 function getCCIPConfigMaps(
-  warpRouteDeployConfig: Record<string, HypTokenRouterConfig>,
+  warpRouteDeployConfig: Record<string, HypTokenRouterConfigMailboxOptional>,
 ): {
   ccipHookMap: CCIPContractExistsMap;
   ccipIsmMap: CCIPContractExistsMap;

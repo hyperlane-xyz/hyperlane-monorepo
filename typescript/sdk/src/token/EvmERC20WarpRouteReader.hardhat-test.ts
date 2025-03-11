@@ -177,7 +177,7 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.XERC20,
         token: xerc20Token.address,
@@ -228,7 +228,7 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.XERC20Lockbox,
         token: xerc20Lockbox.address,
