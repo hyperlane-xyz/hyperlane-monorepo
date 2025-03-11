@@ -233,13 +233,20 @@ export interface CosmJsWasmTransaction
   transaction: ExecuteInstruction;
 }
 
+export interface CosmosModuleTransaction
+  extends TypedTransactionBase<CmTransaction> {
+  type: ProviderType.CosmosModule;
+  transaction: CmTransaction;
+}
+
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
   | ViemTransaction
   | SolanaWeb3Transaction
   | CosmJsTransaction
-  | CosmJsWasmTransaction;
+  | CosmJsWasmTransaction
+  | CosmosModuleTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type

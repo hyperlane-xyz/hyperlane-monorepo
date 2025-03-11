@@ -15,6 +15,8 @@ import {
   CosmJsTransaction,
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
+  CosmosModuleProvider,
+  CosmosModuleTransaction,
   EthersV5Provider,
   EthersV5Transaction,
   ProviderType,
@@ -222,6 +224,34 @@ export async function estimateTransactionFeeCosmJsWasm({
   });
 }
 
+export async function estimateTransactionFeeCosmosModule({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  sender,
+  memo,
+}: {
+  transaction: CosmosModuleTransaction;
+  provider: CosmosModuleProvider;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  memo?: string;
+}): Promise<TransactionFeeEstimate> {
+  const client = await provider.provider;
+  const gasUnits = await client.simulate(
+    sender,
+    [transaction.transaction],
+    memo,
+  );
+  const gasPrice = parseFloat(estimatedGasPrice.toString());
+
+  return {
+    gasUnits,
+    gasPrice,
+    fee: Math.floor(gasUnits * gasPrice),
+  };
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -279,6 +309,20 @@ export function estimateTransactionFee({
       estimatedGasPrice,
       sender,
       senderPubKey,
+    });
+  } else if (
+    transaction.type === ProviderType.CosmosModule &&
+    provider.type === ProviderType.CosmosModule
+  ) {
+    const { transactionOverrides } = chainMetadata;
+    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
+    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
+
+    return estimateTransactionFeeCosmosModule({
+      transaction,
+      provider,
+      estimatedGasPrice,
+      sender,
     });
   } else {
     throw new Error(
