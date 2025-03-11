@@ -59,14 +59,16 @@ export function useAccounts(
   const solAccountInfo = useSolanaAccount(multiProvider);
   const cosmAccountInfo = useCosmosAccount(multiProvider);
   const starknetAccountInfo = useStarknetAccount(multiProvider);
-
   // Filtered ready accounts
   const readyAccounts = useMemo(
     () =>
-      [evmAccountInfo, solAccountInfo, cosmAccountInfo].filter(
-        (a) => a.isReady,
-      ),
-    [evmAccountInfo, solAccountInfo, cosmAccountInfo],
+      [
+        evmAccountInfo,
+        solAccountInfo,
+        cosmAccountInfo,
+        starknetAccountInfo,
+      ].filter((a) => a.isReady),
+    [evmAccountInfo, solAccountInfo, cosmAccountInfo, starknetAccountInfo],
   );
 
   // Check if any of the ready accounts are blacklisted
@@ -92,8 +94,8 @@ export function useAccounts(
       evmAccountInfo,
       solAccountInfo,
       cosmAccountInfo,
-      starknetAccountInfo,
       readyAccounts,
+      starknetAccountInfo,
     ],
   );
 }
@@ -245,7 +247,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
       },
       readyChains,
     }),
-    [evmChain, solChain, cosmChain, starknetChain, readyChains],
+    [evmChain, solChain, cosmChain, readyChains, starknetChain],
   );
 }
 

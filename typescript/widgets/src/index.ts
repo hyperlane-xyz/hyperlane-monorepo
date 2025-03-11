@@ -131,6 +131,15 @@ export {
   useSolanaTransactionFns,
   useSolanaWalletDetails,
 } from './walletIntegrations/solana.js';
+export {
+  getStarknetChains,
+  useStarknetAccount,
+  useStarknetActiveChain,
+  useStarknetConnectFn,
+  useStarknetDisconnectFn,
+  useStarknetTransactionFns,
+  useStarknetWalletDetails,
+} from './walletIntegrations/starknet.js';
 export type {
   AccountInfo,
   ActiveChainInfo,
