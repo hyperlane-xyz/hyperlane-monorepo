@@ -257,13 +257,13 @@ describe('WarpCore', () => {
     });
     expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
 
-    const validXERC20Result = await warpCore.validateTransfer({
+    const validXERC20TokenResult = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
       destination: testXERC20.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(validXERC20Result).to.be.null;
+    expect(validXERC20TokenResult).to.be.null;
 
     const invalidRateLimit = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
@@ -273,6 +273,17 @@ describe('WarpCore', () => {
     });
 
     expect(Object.values(invalidRateLimit || {})[0]).to.equal(
+      'Rate limit exceeded on destination',
+    );
+
+    const invalidVSXERC20TokenRateLimit = await warpCore.validateTransfer({
+      originTokenAmount: evmHypXERC20.amount(BIG_TRANSFER_AMOUNT),
+      destination: testVSXERC20.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+
+    expect(Object.values(invalidVSXERC20TokenRateLimit || {})[0]).to.equal(
       'Rate limit exceeded on destination',
     );
 
