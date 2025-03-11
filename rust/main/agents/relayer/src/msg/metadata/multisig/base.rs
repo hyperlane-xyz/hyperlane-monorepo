@@ -15,7 +15,7 @@ use tracing::{debug, info};
 
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
-use crate::msg::metadata::{Metadata, MetadataBuilder};
+use crate::msg::metadata::{MessageMetadataBuildParams, Metadata, MetadataBuilder};
 
 #[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
@@ -98,6 +98,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self

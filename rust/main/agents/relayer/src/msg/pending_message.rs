@@ -22,7 +22,7 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use crate::msg::metadata::MetadataBuildError;
+use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -275,8 +275,10 @@ impl PendingOperation for PendingMessage {
             }
         };
 
+        let params = MessageMetadataBuildParams::default();
+
         let metadata_bytes = match message_metadata_builder
-            .build(ism_address, &self.message)
+            .build(ism_address, &self.message, params)
             .await
         {
             Ok(metadata) => {

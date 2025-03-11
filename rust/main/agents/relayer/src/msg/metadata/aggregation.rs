@@ -11,7 +11,7 @@ use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H25
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
-use super::{MessageMetadataBuilder, Metadata, MetadataBuilder};
+use super::{MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -125,6 +125,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self
@@ -142,7 +143,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
-            message_builder::build_message_metadata(self.base.clone(), *ism_address, message)
+            message_builder::build_message_metadata(
+                self.base.clone(),
+                *ism_address,
+                message,
+                params.clone(),
+            )
         }))
         .await;
 

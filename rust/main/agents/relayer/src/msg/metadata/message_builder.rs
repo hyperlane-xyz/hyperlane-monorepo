@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use eyre::{Context, Result};
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
 
-use tokio::sync::Mutex;
 use tracing::instrument;
 
 use crate::msg::{
@@ -17,7 +16,7 @@ use crate::msg::{
 
 use super::{
     aggregation::AggregationIsmMetadataBuilder,
-    base::{IsmWithMetadataAndType, MetadataBuildError},
+    base::{IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
@@ -30,15 +29,8 @@ use super::{
 pub struct MessageMetadataBuilder {
     pub base: Arc<dyn BuildsBaseMetadata>,
     pub app_context: Option<String>,
-    /// current ISM depth.
-    /// ISMs can be structured recursively. We keep track of the depth
-    /// of the recursion to avoid infinite loops.
-    pub depth: u32,
-    /// current ISM count.
-    /// ISM count is Arc<Mutex<>> because it will be shared between
-    /// threads as the "linked-list" of ISMs becomes a "tree" of ISMs
-    /// due to aggregation ISMs, etc.
-    pub ism_count: Arc<Mutex<u32>>,
+    pub max_ism_depth: u32,
+    pub max_ism_count: u32,
 }
 
 /// This is the entry point for recursively building ISM metadata.
@@ -57,13 +49,14 @@ pub struct MessageMetadataBuilder {
 ///                 MessageMetadataBuilder
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
-    #[instrument(err, skip(self, message), fields(destination_domain=self.base_builder().destination_domain().name()))]
+    #[instrument(err, skip(self, message, params), fields(destination_domain=self.base_builder().destination_domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        build_message_metadata(self.clone(), ism_address, message)
+        build_message_metadata(self.clone(), ism_address, message, params)
             .await
             .map(|res| res.metadata)
     }
@@ -82,8 +75,8 @@ impl MessageMetadataBuilder {
         Ok(Self {
             base,
             app_context,
-            depth: 0,
-            ism_count: Arc::new(Mutex::new(0)),
+            max_ism_depth: ISM_MAX_DEPTH,
+            max_ism_count: ISM_MAX_COUNT,
         })
     }
 
@@ -94,9 +87,10 @@ impl MessageMetadataBuilder {
 
 /// Builds metadata for a message.
 pub async fn build_message_metadata(
-    mut message_builder: MessageMetadataBuilder,
+    message_builder: MessageMetadataBuilder,
     ism_address: H256,
     message: &HyperlaneMessage,
+    mut params: MessageMetadataBuildParams,
 ) -> Result<IsmWithMetadataAndType, MetadataBuildError> {
     let ism: Box<dyn InterchainSecurityModule> = message_builder
         .base_builder()
@@ -112,15 +106,19 @@ pub async fn build_message_metadata(
         .map_err(|_| MetadataBuildError::FailedToBuild)?;
 
     // check if max depth is reached
-    if message_builder.depth >= ISM_MAX_DEPTH {
-        return Err(MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH));
+    if params.ism_depth >= message_builder.max_ism_depth {
+        return Err(MetadataBuildError::MaxIsmDepthExceeded(
+            message_builder.max_ism_depth,
+        ));
     }
-    message_builder.depth = message_builder.depth.saturating_add(1);
+    params.ism_depth = params.ism_depth.saturating_add(1);
     {
         // check if max ism count is reached
-        let mut ism_count = message_builder.ism_count.lock().await;
-        if *ism_count >= ISM_MAX_COUNT {
-            return Err(MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
+        let mut ism_count = params.ism_count.lock().await;
+        if *ism_count >= message_builder.max_ism_count {
+            return Err(MetadataBuildError::MaxIsmCountReached(
+                message_builder.max_ism_count,
+            ));
         }
         *ism_count = ism_count.saturating_add(1);
     }
@@ -138,7 +136,7 @@ pub async fn build_message_metadata(
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type).into()),
     };
-    let metadata = metadata_builder.build(ism_address, message).await?;
+    let metadata = metadata_builder.build(ism_address, message, params).await?;
 
     Ok(IsmWithMetadataAndType {
         ism,
@@ -152,17 +150,15 @@ mod test {
     use std::sync::Arc;
 
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256,
+        ChainResult, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType,
+        H256,
     };
     use hyperlane_test::mocks::MockMailboxContract;
 
     use crate::{
-        msg::{
-            metadata::{
-                base::MetadataBuildError, message_builder::build_message_metadata,
-                IsmAwareAppContextClassifier,
-            },
-            pending_message::{ISM_MAX_COUNT, ISM_MAX_DEPTH},
+        msg::metadata::{
+            base::MetadataBuildError, message_builder::build_message_metadata,
+            IsmAwareAppContextClassifier, MessageMetadataBuildParams,
         },
         settings::matching_list::{Filter, ListElement, MatchingList},
         test_utils::{
@@ -200,165 +196,43 @@ mod test {
         base_builder
     }
 
-    fn insert_mock_routing_ism(base_builder: &MockBaseMetadataBuilder) {
-        let mock_ism = MockInterchainSecurityModule::default();
-        mock_ism
-            .responses
-            .module_type
-            .lock()
-            .unwrap()
-            .push_back(Ok(ModuleType::Routing));
-        base_builder
-            .responses
-            .build_ism
-            .lock()
-            .unwrap()
-            .push_back(Ok(Box::new(mock_ism)));
+    fn insert_mock_routing_isms(
+        base_builder: &MockBaseMetadataBuilder,
+        addresses: &[(H256, H256)],
+    ) {
+        for (ism_address, route_address) in addresses {
+            let mock_ism = MockInterchainSecurityModule::default();
+            mock_ism
+                .responses
+                .module_type
+                .lock()
+                .unwrap()
+                .push_back(Ok(ModuleType::Routing));
+            base_builder
+                .responses
+                .push_build_ism_response(*ism_address, Ok(Box::new(mock_ism)));
 
-        let routing_ism = MockRoutingIsm::default();
-        routing_ism
-            .responses
-            .route
-            .lock()
-            .unwrap()
-            .push_back(Ok(H256::zero()));
-        base_builder
-            .responses
-            .build_routing_ism
-            .lock()
-            .unwrap()
-            .push_back(Ok(Box::new(routing_ism)));
-    }
-
-    #[tokio::test]
-    async fn depth_already_reached() {
-        let base_builder = build_mock_base_builder();
-        insert_mock_routing_ism(&base_builder);
-
-        let ism_address = H256::zero();
-        let message = HyperlaneMessage::default();
-
-        let mut message_builder =
-            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
-                .await
-                .expect("Failed to build MessageMetadataBuilder");
-
-        message_builder.depth = ISM_MAX_DEPTH;
-
-        let res = build_message_metadata(message_builder, ism_address, &message).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH));
-            }
+            let routing_ism = MockRoutingIsm::default();
+            routing_ism
+                .responses
+                .route
+                .lock()
+                .unwrap()
+                .push_back(Ok(*route_address));
+            base_builder
+                .responses
+                .build_routing_ism
+                .lock()
+                .unwrap()
+                .push_back(Ok(Box::new(routing_ism)));
         }
     }
 
-    #[tokio::test]
-    async fn ism_count_already_reached() {
-        let base_builder = build_mock_base_builder();
-        insert_mock_routing_ism(&base_builder);
-
-        let ism_address = H256::zero();
-        let message = HyperlaneMessage::default();
-
-        let message_builder =
-            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
-                .await
-                .expect("Failed to build MessageMetadataBuilder");
-
-        *message_builder.ism_count.lock().await = ISM_MAX_COUNT;
-
-        let res = build_message_metadata(message_builder, ism_address, &message).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn max_depth_reached() {
-        let base_builder = build_mock_base_builder();
-
-        for _ in 0..3 {
-            insert_mock_routing_ism(&base_builder);
-        }
-
-        let ism_address = H256::zero();
-        let message = HyperlaneMessage::default();
-
-        let mut message_builder =
-            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
-                .await
-                .expect("Failed to build MessageMetadataBuilder");
-        message_builder.depth = ISM_MAX_DEPTH - 2;
-
-        let res = build_message_metadata(message_builder, ism_address, &message).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(ISM_MAX_DEPTH));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn max_ism_count_reached() {
-        let base_builder = build_mock_base_builder();
-
-        for _ in 0..11 {
-            insert_mock_routing_ism(&base_builder);
-        }
-
-        let ism_address = H256::zero();
-        let message = HyperlaneMessage::default();
-
-        let message_builder =
-            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
-                .await
-                .expect("Failed to build MessageMetadataBuilder");
-
-        *message_builder.ism_count.lock().await = ISM_MAX_COUNT - 10;
-
-        let res = build_message_metadata(message_builder, ism_address, &message).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn max_ism_count_reached_with_aggregate() {
-        let base_builder = build_mock_base_builder();
-
-        // push aggregation ISMs
-        //
-        // R = Routing (9)
-        // Agg = Aggregation
-        //
-        //           Agg
-        //     /      |      \
-        //    R       R       R
-        //    |       |       |
-        //    R       R       R
-        //
-        {
+    fn insert_mock_aggregation_isms(
+        base_builder: &MockBaseMetadataBuilder,
+        addresses: Vec<(H256, Vec<H256>, u8)>,
+    ) {
+        for (ism_address, aggregation_addresses, threshold) in addresses {
             let mock_ism = MockInterchainSecurityModule::default();
             mock_ism
                 .responses
@@ -368,46 +242,220 @@ mod test {
                 .push_back(Ok(ModuleType::Aggregation));
             base_builder
                 .responses
-                .build_ism
-                .lock()
-                .unwrap()
-                .push_back(Ok(Box::new(mock_ism)));
+                .push_build_ism_response(ism_address, Ok(Box::new(mock_ism)));
 
-            let aggregation_ism = MockAggregationIsm::default();
-            aggregation_ism
+            let agg_ism = MockAggregationIsm::default();
+            agg_ism
                 .responses
                 .modules_and_threshold
                 .lock()
                 .unwrap()
-                .push_back(Ok((vec![H256::zero(), H256::zero(), H256::zero()], 2)));
+                .push_back(Ok((aggregation_addresses, threshold)));
             base_builder
                 .responses
                 .build_aggregation_ism
                 .lock()
                 .unwrap()
-                .push_back(Ok(Box::new(aggregation_ism)));
+                .push_back(Ok(Box::new(agg_ism)));
         }
-        for _ in 0..6 {
-            insert_mock_routing_ism(&base_builder);
-        }
+    }
+
+    #[tokio::test]
+    async fn depth_already_reached() {
+        let base_builder = build_mock_base_builder();
+        insert_mock_routing_isms(&base_builder, &[(H256::zero(), H256::from_low_u64_be(10))]);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
-
-        let message_builder =
-            MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
-                .await
-                .expect("Failed to build MessageMetadataBuilder");
-
-        *message_builder.ism_count.lock().await = ISM_MAX_COUNT - 4;
-        let res = build_message_metadata(message_builder, ism_address, &message).await;
+        let message_builder = {
+            let mut builder =
+                MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
+                    .await
+                    .expect("Failed to build MessageMetadataBuilder");
+            builder.max_ism_depth = 0;
+            builder
+        };
+        let params = MessageMetadataBuildParams::default();
+        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
 
         match res {
             Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
             Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(ISM_MAX_COUNT));
+                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn ism_count_already_reached() {
+        let base_builder = build_mock_base_builder();
+        insert_mock_routing_ism(&base_builder, H256::zero(), Ok(H256::zero()));
+
+        let ism_address = H256::zero();
+        let message = HyperlaneMessage::default();
+
+        let message_builder = {
+            let mut builder =
+                MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
+                    .await
+                    .expect("Failed to build MessageMetadataBuilder");
+            builder.max_ism_count = 0;
+            builder
+        };
+
+        let params = MessageMetadataBuildParams::default();
+        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
+
+        match res {
+            Ok(_) => {
+                panic!("Metadata found when it should have failed");
+            }
+            Err(err) => {
+                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn max_depth_reached() {
+        let base_builder = build_mock_base_builder();
+
+        insert_mock_aggregation_isms(
+            &base_builder,
+            vec![
+                (
+                    H256::from_low_u64_be(0),
+                    vec![
+                        H256::from_low_u64_be(100),
+                        H256::from_low_u64_be(200),
+                        H256::from_low_u64_be(300),
+                    ],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(100),
+                    vec![H256::from_low_u64_be(110), H256::from_low_u64_be(120)],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(200),
+                    vec![H256::from_low_u64_be(210), H256::from_low_u64_be(220)],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(300),
+                    vec![H256::from_low_u64_be(310), H256::from_low_u64_be(320)],
+                    2,
+                ),
+            ],
+        );
+
+        insert_mock_routing_isms(
+            &base_builder,
+            &[
+                (H256::from_low_u64_be(110), H256::from_low_u64_be(1100)),
+                (H256::from_low_u64_be(120), H256::from_low_u64_be(1200)),
+                (H256::from_low_u64_be(210), H256::from_low_u64_be(2100)),
+                (H256::from_low_u64_be(220), H256::from_low_u64_be(2200)),
+                (H256::from_low_u64_be(310), H256::from_low_u64_be(3100)),
+                (H256::from_low_u64_be(320), H256::from_low_u64_be(3200)),
+            ],
+        );
+
+        let ism_address = H256::zero();
+        let message = HyperlaneMessage::default();
+
+        let message_builder = {
+            let mut builder =
+                MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
+                    .await
+                    .expect("Failed to build MessageMetadataBuilder");
+            builder.max_ism_depth = 2;
+            builder
+        };
+
+        let params = MessageMetadataBuildParams::default();
+        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
+
+        match res {
+            Ok(_) => {
+                panic!("Metadata found when it should have failed");
+            }
+            Err(err) => {
+                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(2));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn max_ism_count_reached() {
+        let base_builder = build_mock_base_builder();
+
+        insert_mock_aggregation_isms(
+            &base_builder,
+            vec![
+                (
+                    H256::from_low_u64_be(0),
+                    vec![
+                        H256::from_low_u64_be(100),
+                        H256::from_low_u64_be(200),
+                        H256::from_low_u64_be(300),
+                    ],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(100),
+                    vec![H256::from_low_u64_be(110), H256::from_low_u64_be(120)],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(200),
+                    vec![H256::from_low_u64_be(210), H256::from_low_u64_be(220)],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(300),
+                    vec![H256::from_low_u64_be(310), H256::from_low_u64_be(320)],
+                    2,
+                ),
+            ],
+        );
+
+        insert_mock_routing_isms(
+            &base_builder,
+            &[
+                (H256::from_low_u64_be(110), H256::from_low_u64_be(1100)),
+                (H256::from_low_u64_be(120), H256::from_low_u64_be(1200)),
+                (H256::from_low_u64_be(210), H256::from_low_u64_be(2100)),
+                (H256::from_low_u64_be(220), H256::from_low_u64_be(2200)),
+                (H256::from_low_u64_be(310), H256::from_low_u64_be(3100)),
+                (H256::from_low_u64_be(320), H256::from_low_u64_be(3200)),
+            ],
+        );
+
+        let ism_address = H256::zero();
+        let message = HyperlaneMessage::default();
+
+        let message_builder = {
+            let mut builder =
+                MessageMetadataBuilder::new(Arc::new(base_builder), ism_address, &message)
+                    .await
+                    .expect("Failed to build MessageMetadataBuilder");
+            builder.max_ism_count = 5;
+            builder
+        };
+
+        let params = MessageMetadataBuildParams::default();
+        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
+
+        match res {
+            Ok(_) => {
+                panic!("Metadata found when it should have failed");
+            }
+            Err(err) => {
+                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(5));
             }
         }
     }

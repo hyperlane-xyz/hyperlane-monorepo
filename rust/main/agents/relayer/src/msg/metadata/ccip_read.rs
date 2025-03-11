@@ -15,7 +15,9 @@ use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage,
 use hyperlane_ethereum::OffchainLookup;
 
 use super::{
-    base::MetadataBuildError, message_builder::MessageMetadataBuilder, Metadata, MetadataBuilder,
+    base::{MessageMetadataBuildParams, MetadataBuildError},
+    message_builder::MessageMetadataBuilder,
+    Metadata, MetadataBuilder,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -30,11 +32,12 @@ pub struct CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self, message))]
+    #[instrument(err, skip(self, message, _params))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self

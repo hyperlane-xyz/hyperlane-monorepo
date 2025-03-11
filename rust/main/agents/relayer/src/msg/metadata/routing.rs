@@ -6,7 +6,10 @@ use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
-use super::{MessageMetadataBuilder, Metadata, MetadataBuildError, MetadataBuilder};
+use super::{
+    base::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuildError,
+    MetadataBuilder,
+};
 
 #[derive(Clone, Debug, new, Deref)]
 pub struct RoutingIsmMetadataBuilder {
@@ -21,6 +24,7 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self
@@ -34,6 +38,6 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
             .await
             .context(CTX)
             .map_err(|_| MetadataBuildError::FailedToBuild)?;
-        self.base.build(module, message).await
+        self.base.build(module, message, params).await
     }
 }

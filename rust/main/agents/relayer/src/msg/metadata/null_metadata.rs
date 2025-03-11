@@ -4,7 +4,7 @@ use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
-use super::{Metadata, MetadataBuildError, MetadataBuilder};
+use super::{MessageMetadataBuildParams, Metadata, MetadataBuildError, MetadataBuilder};
 
 #[derive(Clone, Debug, new)]
 pub struct NullMetadataBuilder {}
@@ -17,6 +17,7 @@ impl MetadataBuilder for NullMetadataBuilder {
         &self,
         _ism_address: H256,
         _message: &HyperlaneMessage,
+        _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         Ok(Metadata::new(vec![]))
     }

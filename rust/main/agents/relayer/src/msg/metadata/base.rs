@@ -9,7 +9,7 @@ use std::{
 
 use derive_new::new;
 use eyre::Result;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256};
 
@@ -51,7 +51,20 @@ pub trait MetadataBuilder: Send + Sync {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError>;
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MessageMetadataBuildParams {
+    /// current ISM depth.
+    /// ISMs can be structured recursively. We keep track of the depth
+    /// of the recursion to avoid infinite loops.
+    pub ism_depth: u32,
+    /// current ISM count.
+    /// ISM count is Arc<Mutex<>> because it will be shared between
+    /// threads
+    pub ism_count: Arc<Mutex<u32>>,
 }
 
 #[derive(Debug)]

@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -21,13 +21,29 @@ pub struct MockBaseMetadataBuilderResponses {
     pub get_proof: ResponseList<eyre::Result<Proof>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
-    pub build_ism: ResponseList<eyre::Result<Box<dyn InterchainSecurityModule>>>,
+    pub build_ism:
+        Arc<Mutex<HashMap<H256, VecDeque<eyre::Result<Box<dyn InterchainSecurityModule>>>>>>,
     pub build_routing_ism: ResponseList<eyre::Result<Box<dyn RoutingIsm>>>,
     pub build_multisig_ism: ResponseList<eyre::Result<Box<dyn MultisigIsm>>>,
     pub build_aggregation_ism: ResponseList<eyre::Result<Box<dyn AggregationIsm>>>,
     pub build_ccip_read_ism: ResponseList<eyre::Result<Box<dyn CcipReadIsm>>>,
     pub build_checkpoint_syncer:
         ResponseList<Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>>,
+}
+
+impl MockBaseMetadataBuilderResponses {
+    pub fn push_build_ism_response(
+        &self,
+        address: H256,
+        ism: eyre::Result<Box<dyn InterchainSecurityModule>>,
+    ) {
+        self.build_ism
+            .lock()
+            .unwrap()
+            .entry(address)
+            .or_default()
+            .push_back(ism);
+    }
 }
 
 #[derive(Debug, Default)]
@@ -91,11 +107,13 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .pop_front()
             .expect("No mock get_merkle_leaf_id_by_message_id response set")
     }
-    async fn build_ism(&self, _address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
+    async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {
         self.responses
             .build_ism
             .lock()
             .unwrap()
+            .get_mut(&address)
+            .expect("No mock build_ism response set")
             .pop_front()
             .expect("No mock build_ism response set")
     }
@@ -168,10 +186,7 @@ mod tests {
                 .push_back(Ok(ModuleType::Routing));
             base_builder
                 .responses
-                .build_ism
-                .lock()
-                .unwrap()
-                .push_back(Ok(Box::new(mock_ism)));
+                .push_build_ism_response(H256::zero(), Ok(Box::new(mock_ism)));
         }
         {
             let mock_ism = MockInterchainSecurityModule::default();
@@ -183,10 +198,7 @@ mod tests {
                 .push_back(Ok(ModuleType::Aggregation));
             base_builder
                 .responses
-                .build_ism
-                .lock()
-                .unwrap()
-                .push_back(Ok(Box::new(mock_ism)));
+                .push_build_ism_response(H256::from_low_u64_be(10), Ok(Box::new(mock_ism)));
         }
 
         let ism = base_builder
@@ -198,7 +210,7 @@ mod tests {
         assert_eq!(module_type, ModuleType::Routing);
 
         let ism = base_builder
-            .build_ism(H256::zero())
+            .build_ism(H256::from_low_u64_be(10))
             .await
             .expect("No response");
         let module_type = ism.module_type().await.expect("No response");
