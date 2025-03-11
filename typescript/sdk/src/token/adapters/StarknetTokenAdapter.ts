@@ -122,15 +122,20 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getDomains(): Promise<Domain[]> {
-    return [];
+    return this.contract.domains();
   }
 
-  async getRouterAddress(_domain: Domain): Promise<Buffer> {
-    return Buffer.from(this.addresses.warpRouter);
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    const routerAddresses = await this.contract.routers(domain);
+    return Buffer.from(routerAddresses);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    return [];
+    const domains = await this.getDomains();
+    const routers: Buffer[] = await Promise.all(
+      domains.map((d) => this.getRouterAddress(d)),
+    );
+    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
