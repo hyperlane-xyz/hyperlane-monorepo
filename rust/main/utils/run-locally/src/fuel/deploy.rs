@@ -43,7 +43,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = DomainRoutingISMConfigurables::default()
         .with_EXPECTED_OWNER(wallet_bits)
@@ -55,7 +56,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = FallbackDomainRoutingHookConfigurables::default()
         .with_EXPECTED_OWNER(wallet_bits)
@@ -67,7 +69,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = GasOracleConfigurables::default()
         .with_EXPECTED_OWNER(wallet_bits)
@@ -79,7 +82,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = GasPaymasterConfigurables::default()
         .with_EXPECTED_OWNER(wallet_bits)
@@ -91,7 +95,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = MailboxConfigurables::default()
         .with_LOCAL_DOMAIN(origin_domain)
@@ -105,7 +110,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = MessageIdMultisigISMConfigurables::default()
         .with_THRESHOLD(1)
@@ -119,7 +125,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = PausableISMConfigurables::default()
         .with_EXPECTED_OWNER(wallet_bits)
@@ -131,7 +138,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = MerkleTreeHookConfigurables::default()
         .with_EXPECTED_INITIALIZER(wallet_bits)
@@ -143,7 +151,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let msg_recipient_test_id = Contract::load_from(
         "./src/fuel/fuel-contracts/msg-recipient-test.bin",
@@ -152,7 +161,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     let configurables = ValidatorAnnounceConfigurables::default()
         .with_LOCAL_DOMAIN(origin_domain)
@@ -167,7 +177,8 @@ pub async fn deploy_fuel_hyperlane(
     .unwrap()
     .deploy(&wallet, TxPolicies::default())
     .await
-    .unwrap();
+    .unwrap()
+    .contract_id;
 
     log!("Fuel contracts deployed on {:?} ✅", origin_domain);
     log!("Initializing contracts...");

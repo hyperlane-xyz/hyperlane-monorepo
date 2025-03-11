@@ -53,9 +53,10 @@ pub const EVM_VALIDATOR_PKS: [&str; 2] = [
 ];
 
 pub async fn launch_fuel_node(port: u16) -> eyre::Result<FuelService> {
-    let mut node_config = NodeConfig::default();
-    node_config.addr = SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), port);
-
+    let node_config = NodeConfig {
+        addr: SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), port),
+        ..Default::default()
+    };
     Ok(FuelService::start(
         node_config,
         ChainConfig::local_testnet(),
@@ -356,7 +357,7 @@ async fn stop_fuel_nodes(nodes: Vec<FuelNetwork>) {
     .await;
 }
 
-pub async fn dispatch(nodes: &Vec<FuelNetwork>) -> u32 {
+pub async fn dispatch(nodes: &[FuelNetwork]) -> u32 {
     let mut dispatched_messages = 0;
     for node in nodes.iter() {
         let targets = nodes

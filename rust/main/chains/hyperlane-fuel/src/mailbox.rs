@@ -224,6 +224,7 @@ impl Mailbox for FuelMailbox {
 
         // Extract transaction success from the receipts
         let success = call_res
+            .tx_status
             .receipts
             .iter()
             .filter_map(|r| match r {
@@ -244,7 +245,7 @@ impl Mailbox for FuelMailbox {
         Ok(TxOutcome {
             transaction_id: tx_id,
             executed: success,
-            gas_used: call_res.gas_used.into(),
+            gas_used: call_res.tx_status.total_gas.into(),
             gas_price: gas_price.into(),
         })
     }
@@ -293,7 +294,9 @@ impl Mailbox for FuelMailbox {
             })?;
 
         Ok(TxCostEstimate {
-            gas_limit: ((simulate_call.gas_used as f64 * GAS_ESTIMATE_MULTIPLIER) as u64).into(),
+            gas_limit: ((simulate_call.tx_status.total_gas as f64 * GAS_ESTIMATE_MULTIPLIER)
+                as u64)
+                .into(),
             gas_price: gas_price.into(),
             l2_gas_limit: None,
         })

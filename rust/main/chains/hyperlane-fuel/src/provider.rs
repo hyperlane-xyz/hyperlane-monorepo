@@ -181,7 +181,13 @@ impl HyperlaneProvider for FuelProvider {
 
     /// Get the base asset balance of an address
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let base = self.provider.base_asset_id();
+        let params = self.provider.consensus_parameters().await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to get consensus parameters: {}",
+                e
+            ))
+        })?;
+        let base = params.base_asset_id();
         let address_bytes = hex::decode(&address)?;
         let address = *Address::from_bytes_ref_checked(address_bytes.as_slice()).ok_or(
             ChainCommunicationError::CustomError(format!("Invalid address: {}", address)),

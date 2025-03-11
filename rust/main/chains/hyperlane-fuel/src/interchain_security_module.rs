@@ -118,6 +118,6 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
                     .as_str(),
                 )
             })
-            .map(|res| Some(U256::from(res.gas_used)))
+            .map(|res| Some(U256::from(res.tx_status.total_gas)))
     }
 }

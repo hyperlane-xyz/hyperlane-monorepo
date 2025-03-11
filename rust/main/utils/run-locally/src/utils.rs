@@ -149,7 +149,7 @@ pub fn get_matching_lines<'a>(
 }
 #[cfg(feature = "fuel")]
 pub fn fuel_to_hex_addr(addr: &fuels::types::bech32::Bech32ContractId) -> String {
-    format!("0x{}", fuels::types::ContractId::from(addr).to_string())
+    format!("0x{}", fuels::types::ContractId::from(addr))
 }
 
 #[cfg(feature = "cosmos")]

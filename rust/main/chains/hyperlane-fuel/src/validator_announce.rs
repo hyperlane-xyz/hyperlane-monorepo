@@ -106,6 +106,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
 
         // Extract transaction success from the receipts
         let success = call_res
+            .tx_status
             .receipts
             .iter()
             .filter_map(|r| match r {
@@ -118,7 +119,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
         Ok(TxOutcome {
             transaction_id: tx_id,
             executed: success,
-            gas_used: call_res.gas_used.into(),
+            gas_used: call_res.tx_status.total_gas.into(),
             gas_price: gas_price.into(),
         })
     }
@@ -143,7 +144,10 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
                     trace!("Failed to get signer balance: {:?}", err);
                     return None;
                 }
-                Some(U256::from(simulation.gas_used).saturating_sub(signer_balance.unwrap()))
+                Some(
+                    U256::from(simulation.tx_status.total_gas)
+                        .saturating_sub(signer_balance.unwrap()),
+                )
             }
             Err(err) => {
                 trace!("Failed to simulate validator announcement: {:?}", err);

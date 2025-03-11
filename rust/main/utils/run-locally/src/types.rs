@@ -146,10 +146,7 @@ impl AgentConfig {
             protocol: "fuel".to_string(),
             chain_id: format!("fuel-test-{}", network_index),
             rpc_urls: vec![AgentUrl {
-                http: format!(
-                    "http://{}/v1/graphql",
-                    network.config.node.bound_address().to_string()
-                ),
+                http: format!("http://{}/v1/graphql", network.config.node.bound_address()),
             }],
             grpc_urls: vec![],
             bech32_prefix: "fuel".to_string(),
