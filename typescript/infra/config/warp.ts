@@ -36,6 +36,7 @@ import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/conf
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
+import { getEthereumLineaTurtle } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtle.js';
 import {
   getEthereumSuperseedCBBTCWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
@@ -115,6 +116,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
   [WarpRouteIds.BaseEthereumLumiaprismETH]:
     getBaseEthereumLumiaprismETHWarpConfig,
+  [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtle,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
