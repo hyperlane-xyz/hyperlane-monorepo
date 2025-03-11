@@ -30,6 +30,14 @@ import {
   useSolanaWalletDetails,
 } from './solana.js';
 import {
+  useStarknetAccount,
+  useStarknetActiveChain,
+  useStarknetConnectFn,
+  useStarknetDisconnectFn,
+  useStarknetTransactionFns,
+  useStarknetWalletDetails,
+} from './starknet.js';
+import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
@@ -50,6 +58,7 @@ export function useAccounts(
   const evmAccountInfo = useEthereumAccount(multiProvider);
   const solAccountInfo = useSolanaAccount(multiProvider);
   const cosmAccountInfo = useCosmosAccount(multiProvider);
+  const starknetAccountInfo = useStarknetAccount(multiProvider);
 
   // Filtered ready accounts
   const readyAccounts = useMemo(
@@ -75,10 +84,17 @@ export function useAccounts(
         [ProtocolType.Ethereum]: evmAccountInfo,
         [ProtocolType.Sealevel]: solAccountInfo,
         [ProtocolType.Cosmos]: cosmAccountInfo,
+        [ProtocolType.Starknet]: starknetAccountInfo,
       },
       readyAccounts,
     }),
-    [evmAccountInfo, solAccountInfo, cosmAccountInfo, readyAccounts],
+    [
+      evmAccountInfo,
+      solAccountInfo,
+      cosmAccountInfo,
+      starknetAccountInfo,
+      readyAccounts,
+    ],
   );
 }
 
@@ -132,14 +148,16 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
   const evmWallet = useEthereumWalletDetails();
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
+  const starknetWallet = useStarknetWalletDetails();
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: evmWallet,
       [ProtocolType.Sealevel]: solWallet,
       [ProtocolType.Cosmos]: cosmosWallet,
+      [ProtocolType.Starknet]: starknetWallet,
     }),
-    [evmWallet, solWallet, cosmosWallet],
+    [evmWallet, solWallet, cosmosWallet, starknetWallet],
   );
 }
 
@@ -147,14 +165,16 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
   const onConnectEthereum = useEthereumConnectFn();
   const onConnectSolana = useSolanaConnectFn();
   const onConnectCosmos = useCosmosConnectFn();
+  const onConnectStarknet = useStarknetConnectFn();
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: onConnectEthereum,
       [ProtocolType.Sealevel]: onConnectSolana,
       [ProtocolType.Cosmos]: onConnectCosmos,
+      [ProtocolType.Starknet]: onConnectStarknet,
     }),
-    [onConnectEthereum, onConnectSolana, onConnectCosmos],
+    [onConnectEthereum, onConnectSolana, onConnectCosmos, onConnectStarknet],
   );
 }
 
@@ -162,6 +182,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
   const disconnectEvm = useEthereumDisconnectFn();
   const disconnectSol = useSolanaDisconnectFn();
   const disconnectCosmos = useCosmosDisconnectFn();
+  const disconnectStarknet = useStarknetDisconnectFn();
 
   const onClickDisconnect =
     (env: ProtocolType, disconnectFn?: () => Promise<void> | void) =>
@@ -188,8 +209,12 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Cosmos,
         disconnectCosmos,
       ),
+      [ProtocolType.Starknet]: onClickDisconnect(
+        ProtocolType.Starknet,
+        disconnectStarknet,
+      ),
     }),
-    [disconnectEvm, disconnectSol, disconnectCosmos],
+    [disconnectEvm, disconnectSol, disconnectCosmos, disconnectStarknet],
   );
 }
 
@@ -200,10 +225,14 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
   const evmChain = useEthereumActiveChain(multiProvider);
   const solChain = useSolanaActiveChain(multiProvider);
   const cosmChain = useCosmosActiveChain(multiProvider);
+  const starknetChain = useStarknetActiveChain(multiProvider);
 
   const readyChains = useMemo(
-    () => [evmChain, solChain, cosmChain].filter((c) => !!c.chainDisplayName),
-    [evmChain, solChain, cosmChain],
+    () =>
+      [evmChain, solChain, cosmChain, starknetChain].filter(
+        (c) => !!c.chainDisplayName,
+      ),
+    [evmChain, solChain, cosmChain, starknetChain],
   );
 
   return useMemo(
@@ -212,10 +241,11 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Ethereum]: evmChain,
         [ProtocolType.Sealevel]: solChain,
         [ProtocolType.Cosmos]: cosmChain,
+        [ProtocolType.Starknet]: starknetChain,
       },
       readyChains,
     }),
-    [evmChain, solChain, cosmChain, readyChains],
+    [evmChain, solChain, cosmChain, starknetChain, readyChains],
   );
 }
 
@@ -228,6 +258,10 @@ export function useTransactionFns(
     useSolanaTransactionFns(multiProvider);
   const { switchNetwork: onSwitchCosmNetwork, sendTransaction: onSendCosmTx } =
     useCosmosTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchStarknetNetwork,
+    sendTransaction: onSendStarknetTx,
+  } = useStarknetTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
@@ -243,6 +277,10 @@ export function useTransactionFns(
         sendTransaction: onSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
+      [ProtocolType.Starknet]: {
+        sendTransaction: onSendStarknetTx,
+        switchNetwork: onSwitchStarknetNetwork,
+      },
     }),
     [
       onSendEvmTx,
@@ -251,6 +289,8 @@ export function useTransactionFns(
       onSwitchSolNetwork,
       onSendCosmTx,
       onSwitchCosmNetwork,
+      onSendStarknetTx,
+      onSwitchStarknetNetwork,
     ],
   );
 }

@@ -1,0 +1,186 @@
+warning: unused config key `build.exclude` in `/Users/kunalarora/dev/hype/monorepo/rust/main/.cargo/config.toml`
+warning: virtual workspace defaulting to `resolver = "1"` despite one or more workspace members being on edition 2021 which implies `resolver = "2"`
+note: to keep the current resolver, specify `workspace.resolver = "1"` in the workspace root's manifest
+note: to use the edition 2021 resolver, specify `workspace.resolver = "2"` in the workspace root's manifest
+note: for more details see https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
+warning: /Users/kunalarora/dev/hype/monorepo/rust/main/hyperlane-core/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/interchain-security-module-interface/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/ism/multisig-ism-message-id/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/validator-announce/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/main/chains/hyperlane-starknet/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/main/applications/hyperlane-application/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/account-utils/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/serializable-account-meta/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/multisig-ism/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/mailbox/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/libraries/message-recipient-interface/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/sealevel/programs/hyperlane-sealevel-igp/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/main/applications/hyperlane-warp-route/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: /Users/kunalarora/dev/hype/monorepo/rust/main/applications/hyperlane-operation-verifier/Cargo.toml: the cargo feature `workspace-inheritance` has been stabilized in the 1.64 release and is no longer necessary to be listed in the manifest
+  See https://doc.rust-lang.org/cargo/reference/unstable.html#workspace-inheritance for more information about using this feature.
+warning: lint `where_clauses_object_safety` has been removed: converted into hard error, see PR #125380 <https://github.com/rust-lang/rust/pull/125380> for more information
+ --> hyperlane-core/src/lib.rs:7:11
+  |
+7 | #![forbid(where_clauses_object_safety)]
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(renamed_and_removed_lints)]` on by default
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:52:5
+   |
+52 | /     construct_fixed_hash! {
+53 | |         /// 128-bit hash type.
+54 | |         #[derive(BorshSerialize, BorshDeserialize)]
+55 | |         pub struct H128(16);
+56 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: `#[warn(unexpected_cfgs)]` on by default
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:58:5
+   |
+58 | /     construct_fixed_hash! {
+59 | |         /// 160-bit hash type.
+60 | |         #[derive(BorshSerialize, BorshDeserialize)]
+61 | |         pub struct H160(20);
+62 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:64:5
+   |
+64 | /     construct_fixed_hash! {
+65 | |         /// 256-bit hash type.
+66 | |         #[derive(BorshSerialize, BorshDeserialize)]
+67 | |         pub struct H256(32);
+68 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition value: `dev`
+  --> hyperlane-core/src/types/primitive_types.rs:70:5
+   |
+70 | /     construct_fixed_hash! {
+71 | |         /// 512-bit hash type.
+72 | |         #[derive(BorshSerialize, BorshDeserialize)]
+73 | |         pub struct H512(64);
+74 | |     }
+   | |_____^
+   |
+   = note: expected values for `feature` are: `agent`, `async`, `default`, `ethers`, `float`, `futures`, `solana`, `strum`, `strum_macros`, `test-utils`, and `tokio`
+   = help: consider adding `dev` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: this warning originates in the macro `construct_fixed_hash` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `hyperlane-core` (lib) generated 5 warnings
+warning: creating a shared reference to mutable static is discouraged
+   --> utils/abigen/src/lib.rs:177:34
+    |
+177 |     if let Some(path) = unsafe { PATH.as_ref() } {
+    |                                  ^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html>
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+    = note: `#[warn(static_mut_refs)]` on by default
+
+warning: creating a shared reference to mutable static is discouraged
+   --> utils/abigen/src/lib.rs:184:13
+    |
+184 |             PATH.as_ref().unwrap()
+    |             ^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html>
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+
+warning: creating a shared reference to mutable static is discouraged
+   --> utils/abigen/src/lib.rs:190:13
+    |
+190 |             PATH.as_ref().unwrap()
+    |             ^^^^^^^^^^^^^ shared reference to mutable static
+    |
+    = note: for more information, see <https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html>
+    = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+
+warning: `abigen` (lib) generated 3 warnings
+warning: `hyperlane-core` (lib) generated 5 warnings (5 duplicates)
+warning: elided lifetime has a name
+   --> chains/hyperlane-ethereum/src/rpc_clients/fallback.rs:232:90
+    |
+228 |     fn populate_unordered_future<'a>(
+    |                                  -- lifetime `'a` declared here
+...
+232 |     ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + '_> {
+    |                                                                                          ^^ this elided lifetime gets resolved as `'a`
+    |
+    = note: `#[warn(elided_named_lifetimes)]` on by default
+
+warning: lint `where_clauses_object_safety` has been removed: converted into hard error, see PR #125380 <https://github.com/rust-lang/rust/pull/125380> for more information
+ --> hyperlane-test/src/lib.rs:6:11
+  |
+6 | #![forbid(where_clauses_object_safety)]
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(renamed_and_removed_lints)]` on by default
+
+warning: `hyperlane-ethereum` (lib) generated 1 warning
+warning: `hyperlane-test` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 1.90s
+     Running `target/release/validator --db /tmp/validator/ --originChainName starknetsepolia --checkpointSyncer.type localStorage --checkpointSyncer.path /tmp/hyperlane-validator-signatures-starknetsepolia --validator.key 0xf8137bb9e50e184b7cc17c7d873eb29005f751d0c181c1dc16a427f0fb93f3e1 --chains.starknetsepolia.signer.type starkKey --chains.starknetsepolia.signer.key 8mnuYW2m5Xq7c5Y2xshssG7SAXgCcyWU2j5AHzyj68u --chains.starknetsepolia.signer.address VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV --nocapture`
+Validator starting up...
+Agent validator starting up with version b8bedfde04296102b6dffbc398553ec6eab74a55
+  [2m2025-03-06T16:54:45.647742Z[0m [32m INFO[0m [1;32mhyperlane_base::db::rocks[0m[32m: [32mOpening existing db, [1;32mpath[0m[32m: /private/tmp/validator[0m
+    [2;3mat[0m hyperlane-base/src/db/rocks/mod.rs:51
+    [2;3min[0m hyperlane_base::db::rocks::[1mfrom_path[0m [2;3mwith[0m [1mdb_path[0m: "/tmp/validator/"
+
+  [2m2025-03-06T16:54:45.656841Z[0m [32m INFO[0m [1;32mvalidator::server::eigen_node[0m[32m: [32mServing the EigenNodeAPI routes...[0m
+    [2;3mat[0m agents/validator/src/server/eigen_node.rs:68
+
+  [2m2025-03-06T16:54:45.657228Z[0m [32m INFO[0m [1;32mhyperlane_base::server::base_server[0m[32m: [32mstarting server on 0.0.0.0, [1;32mport[0m[32m: 9090[0m
+    [2;3mat[0m hyperlane-base/src/server/base_server.rs:31
+
+  [2m2025-03-06T16:54:45.658432Z[0m [32m INFO[0m [1;32mvalidator::validator[0m[32m: [32mChecking for validator announcement[0m
+    [2;3mat[0m agents/validator/src/validator.rs:349
+
+  [2m2025-03-06T16:54:45.977415Z[0m [32m INFO[0m [1;32mvalidator::validator[0m[32m: [32mValidator has announced signature storage location, [1;32mlocations[0m[32m: ["file:///tmp/hyperlane-validator-signatures-starknetsepolia"], [1;32mannouncement_location[0m[32m: "file:///tmp/hyperlane-validator-signatures-starknetsepolia"[0m
+    [2;3mat[0m agents/validator/src/validator.rs:357
+
+  [2m2025-03-06T16:54:46.620163Z[0m [32m INFO[0m [1;32mvalidator::validator[0m[32m: [32mWaiting for first message in merkle tree hook[0m
+    [2;3mat[0m agents/validator/src/validator.rs:200
+
+  [2m2025-03-06T16:54:52.057786Z[0m [32m INFO[0m [1;32mvalidator::validator[0m[32m: [32mWaiting for first message in merkle tree hook[0m
+    [2;3mat[0m agents/validator/src/validator.rs:200
+
+  [2m2025-03-06T16:54:57.637000Z[0m [32m INFO[0m [1;32mvalidator::validator[0m[32m: [32mWaiting for first message in merkle tree hook[0m
+    [2;3mat[0m agents/validator/src/validator.rs:200
+
+  [2m2025-03-06T16:55:03.109935Z[0m [32m INFO[0m [1;32mvalidator::validator[0m[32m: [32mWaiting for first message in merkle tree hook[0m
+    [2;3mat[0m agents/validator/src/validator.rs:200
+
