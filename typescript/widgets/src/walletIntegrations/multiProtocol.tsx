@@ -94,8 +94,8 @@ export function useAccounts(
       evmAccountInfo,
       solAccountInfo,
       cosmAccountInfo,
-      readyAccounts,
       starknetAccountInfo,
+      readyAccounts,
     ],
   );
 }
