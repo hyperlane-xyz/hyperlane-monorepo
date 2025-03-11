@@ -75,12 +75,10 @@ export class CosmosModuleCoreAdapter
     await pollAsync(
       async () => {
         this.logger.debug(`Checking if message ${messageId} was processed`);
-        const { delivered } = await provider
-          .getHyperlaneQueryClient()!
-          .core.Delivered({
-            id: this.addresses.mailbox,
-            message_id: messageId,
-          });
+        const { delivered } = await provider.query.core.Delivered({
+          id: this.addresses.mailbox,
+          message_id: messageId,
+        });
 
         if (!delivered) {
           throw new Error(`Message ${messageId} not yet processed`);

@@ -47,9 +47,7 @@ export class CosmosModuleHypSyntheticAdapter
   async getTotalSupply(): Promise<bigint | undefined> {
     const provider = await this.getProvider();
     const denom = await this.getTokenDenom();
-    const supply = await provider
-      .getHyperlaneQueryClient()!
-      .bank.supplyOf(denom);
+    const supply = await provider.query.bank.supplyOf(denom);
     return BigInt(supply.amount);
   }
 
@@ -100,18 +98,18 @@ export class CosmosModuleHypSyntheticAdapter
 
   async getDomains(): Promise<Domain[]> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider
-      .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenId });
+    const remoteRouters = await provider.query.warp.RemoteRouters({
+      id: this.tokenId,
+    });
 
     return remoteRouters.remote_routers.map((router) => router.receiver_domain);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider
-      .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenId });
+    const remoteRouters = await provider.query.warp.RemoteRouters({
+      id: this.tokenId,
+    });
 
     const router = remoteRouters.remote_routers.find(
       (router) => router.receiver_domain === domain,
@@ -126,9 +124,9 @@ export class CosmosModuleHypSyntheticAdapter
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider
-      .getHyperlaneQueryClient()!
-      .warp.RemoteRouters({ id: this.tokenId });
+    const remoteRouters = await provider.query.warp.RemoteRouters({
+      id: this.tokenId,
+    });
 
     return remoteRouters.remote_routers.map((router) => ({
       domain: router.receiver_domain,
@@ -138,9 +136,9 @@ export class CosmosModuleHypSyntheticAdapter
 
   async getBridgedSupply(): Promise<bigint | undefined> {
     const provider = await this.getProvider();
-    const { bridged_supply } = await provider
-      .getHyperlaneQueryClient()!
-      .warp.BridgedSupply({ id: this.tokenId });
+    const { bridged_supply } = await provider.query.warp.BridgedSupply({
+      id: this.tokenId,
+    });
 
     if (!bridged_supply) {
       return undefined;
@@ -154,12 +152,10 @@ export class CosmosModuleHypSyntheticAdapter
     _sender?: Address,
   ): Promise<InterchainGasQuote> {
     const provider = await this.getProvider();
-    const { gas_payment } = await provider
-      .getHyperlaneQueryClient()!
-      .warp.QuoteRemoteTransfer({
-        id: this.tokenId,
-        destination_domain: destination.toString(),
-      });
+    const { gas_payment } = await provider.query.warp.QuoteRemoteTransfer({
+      id: this.tokenId,
+      destination_domain: destination.toString(),
+    });
 
     return {
       addressOrDenom: this.tokenId,
@@ -185,9 +181,7 @@ export class CosmosModuleHypSyntheticAdapter
 export class CosmosModuleHypCollateralAdapter extends CosmosModuleHypSyntheticAdapter {
   protected async getTokenDenom(): Promise<string> {
     const provider = await this.getProvider();
-    const { token } = await provider
-      .getHyperlaneQueryClient()!
-      .warp.Token({ id: this.tokenId });
+    const { token } = await provider.query.warp.Token({ id: this.tokenId });
 
     return token?.origin_denom ?? '';
   }
