@@ -185,6 +185,4 @@ export class CosmosModuleHypCollateralAdapter extends CosmosModuleHypSyntheticAd
 
     return token?.origin_denom ?? '';
   }
-
-  // TODO: can we take bridged supply for both synthetic and collateral?
 }
