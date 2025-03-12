@@ -17,8 +17,8 @@ contract PausableIsm is
 {
     uint8 public constant override moduleType = uint8(Types.NULL);
 
-    constructor(address owner) Ownable() Pausable() {
-        _transferOwnership(owner);
+    constructor(address initialOwner) Ownable() Pausable() {
+        _transferOwnership(initialOwner);
     }
 
     /**
