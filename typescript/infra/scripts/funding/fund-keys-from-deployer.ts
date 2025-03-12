@@ -24,6 +24,7 @@ import {
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {
   ContextAndRoles,
@@ -80,8 +81,8 @@ const walletBalanceGauge = getWalletBalanceGauge(
   Object.keys(constMetricLabels),
 );
 
-// Min delta is 50% of the desired balance
-const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
+// Min delta is 60% of the desired balance
+const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 // Don't send the full amount over to RC keys
@@ -395,6 +396,9 @@ class ContextFunder {
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
+    const chainsToFund = supportedChainNames.filter(
+      (chain) => !chainsToSkip.includes(chain),
+    );
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -405,7 +409,7 @@ class ContextFunder {
       }
       fundableRoleKeys[role] = roleAddress;
 
-      for (const chain of supportedChainNames) {
+      for (const chain of chainsToFund) {
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],

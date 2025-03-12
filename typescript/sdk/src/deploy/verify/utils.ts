@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
+import { tryGetContractDeploymentTransaction } from '../../block-explorer/etherscan.js';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
@@ -215,7 +216,7 @@ async function getConstructorArgsFromExplorer({
     },
     body: JSON.stringify({
       method: 'eth_getTransactionByHash',
-      params: [creationTx],
+      params: [creationTx.txHash],
       id: 1,
       jsonrpc: '2.0',
     }),
@@ -238,15 +239,31 @@ export async function getEtherscanConstructorArgs({
   const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
     multiProvider.getExplorerApi(chainName);
 
-  // Truncate the deployment bytecode
-  const creationTxResp = await getConstructorArgsFromExplorer({
-    chainName,
-    blockExplorerApiKey,
-    blockExplorerApiUrl,
-    contractAddress,
-    multiProvider,
+  const creationTx = await tryGetContractDeploymentTransaction(
+    { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey },
+    { contractAddress },
+  );
+
+  // Fetch deployment bytecode (includes constructor args)
+  assert(creationTx, 'Contract creation transaction not found!');
+  const metadata = multiProvider.getChainMetadata(chainName);
+  const rpcUrl = metadata.rpcUrls[0].http;
+
+  const creationTxResp = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      method: 'eth_getTransactionByHash',
+      params: [creationTx.txHash],
+      id: 1,
+      jsonrpc: '2.0',
+    }),
   });
-  const creationInput: string = creationTxResp.result.input;
+
+  // Truncate the deployment bytecode
+  const creationInput: string = (await creationTxResp.json()).result.input;
   return creationInput.substring(bytecode.length);
 }
 

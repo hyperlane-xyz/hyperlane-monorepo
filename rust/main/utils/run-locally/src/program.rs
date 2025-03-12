@@ -130,6 +130,7 @@ impl Program {
     }
 
     /// Assumes an arg in the format of `--$ARG1 $ARG2 $ARG3`, args should exclude quoting, equal sign, and the leading hyphens.
+    #[allow(dead_code)]
     pub fn arg3(
         self,
         arg1: impl AsRef<str>,
@@ -171,6 +172,7 @@ impl Program {
 
     /// Remember some arbitrary data until either this program args goes out of scope or until the
     /// agent/child process exits. This is useful for preventing something from dropping.
+    #[allow(dead_code)]
     pub fn remember(mut self, data: impl ArbitraryData) -> Self {
         self.arbitrary_data.push(Arc::new(data));
         self
@@ -183,6 +185,9 @@ impl Program {
                 .unwrap(),
         );
         if let Some(wd) = &self.working_dir {
+            if !wd.exists() {
+                panic!("Working directory does not exist: {:?}", wd.as_path());
+            }
             cmd.current_dir(wd.as_path());
         }
         for (k, v) in self.env.iter() {
