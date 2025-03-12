@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Enable usage of CCIP Hooks and ISMs in warp routes.
+Make mailbox optional on warp deploy config

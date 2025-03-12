@@ -75,12 +75,13 @@ export enum WarpRouteIds {
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
   ArbitrumEthereumSolanaTreasureSMOL = 'SMOL/arbitrum-ethereum-solanamainnet-treasure',
-  SuperTokenStaging = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain-staging',
+  // TODO: uncomment after merging the staging route to registry
+  // this has been commented out as it leads to check-warp-deploy cron job failing
+  // SuperTokenStaging = 'USDTSTAGING/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
   SuperUSDT = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
   BaseSolanaCDX = 'CDX/base-solanamainnet',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
-  BaseCeloFraxtalInkLiskModeOptimismSoneiumSuperseedUnichainWorldchainUSDT = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
   BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
 }
