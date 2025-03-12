@@ -795,11 +795,11 @@ export class WarpCore {
       return null;
     }
 
-    let destinationBalance: bigint;
+    let destinationMintLimit: bigint;
     const adapter = destinationToken.getAdapter(
       this.multiProvider,
     ) as IHypXERC20Adapter<unknown>;
-    destinationBalance = await adapter.getMintLimit();
+    destinationMintLimit = await adapter.getMintLimit();
 
     if (
       destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
@@ -807,21 +807,21 @@ export class WarpCore {
     ) {
       const bufferCap = await adapter.getMintMaxLimit();
       const max = bufferCap / 2n;
-      if (destinationBalance > max) {
+      if (destinationMintLimit > max) {
         this.logger.debug(
-          `Mint limit ${destinationBalance} exceeds max ${max}, using max`,
+          `Mint limit ${destinationMintLimit} exceeds max ${max}, using max`,
         );
-        destinationBalance = max;
+        destinationMintLimit = max;
       }
     }
 
-    const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
+    const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(
       destinationToken.decimals,
       originToken.decimals,
-      destinationBalance.toString(),
+      destinationMintLimit.toString(),
     );
 
-    const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
+    const isSufficient = BigInt(destinationMintLimitInOriginDecimals) >= amount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
         isSufficient ? 'sufficient' : 'INSUFFICIENT'

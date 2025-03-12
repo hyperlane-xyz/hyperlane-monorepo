@@ -24,8 +24,10 @@ import { WarpTxCategory } from './types.js';
 const MOCK_LOCAL_QUOTE = { gasUnits: 2_000n, gasPrice: 100, fee: 200_000n };
 const MOCK_INTERCHAIN_QUOTE = { amount: 20_000n };
 const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
+const MEDIUM_TRANSFER_AMOUNT = BigInt('15000000000000000000'); // 15 units @ 18 deicmals
 const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
+const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 
 describe('WarpCore', () => {
@@ -204,8 +206,8 @@ describe('WarpCore', () => {
         populateTransferRemoteTx: () => Promise.resolve({}),
         getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
         getBalance: () => Promise.resolve(MOCK_BALANCE),
-        getMintLimit: () => Promise.resolve(MOCK_BALANCE),
-        getMintMaxLimit: () => Promise.resolve(MOCK_BALANCE),
+        getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
       } as any),
     );
 
@@ -271,7 +273,6 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-
     expect(Object.values(invalidRateLimit || {})[0]).to.equal(
       'Rate limit exceeded on destination',
     );
@@ -282,9 +283,18 @@ describe('WarpCore', () => {
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-
     expect(Object.values(invalidVSXERC20TokenRateLimit || {})[0]).to.equal(
       'Rate limit exceeded on destination',
+    );
+
+    const invalidCollateralForVSXERC20Token = await warpCore.validateTransfer({
+      originTokenAmount: evmHypXERC20.amount(MEDIUM_TRANSFER_AMOUNT),
+      destination: testVSXERC20.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(Object.values(invalidCollateralForVSXERC20Token || {})[0]).to.equal(
+      'Insufficient collateral on destination',
     );
 
     balanceStubs.forEach((s) => s.restore());
