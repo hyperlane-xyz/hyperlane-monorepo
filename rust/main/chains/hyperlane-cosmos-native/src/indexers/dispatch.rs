@@ -14,7 +14,8 @@ use hyperlane_core::{
 };
 
 use crate::{
-    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError, Signer,
+    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider,
+    Signer,
 };
 
 use super::{EventIndexer, ParsedEvent};
@@ -22,27 +23,31 @@ use super::{EventIndexer, ParsedEvent};
 /// Dispatch indexer to check if a new hyperlane message was dispatched
 #[derive(Debug, Clone)]
 pub struct CosmosNativeDispatchIndexer {
-    indexer: EventIndexer,
-    provider: Arc<CosmosNativeProvider>,
+    provider: CosmosNativeProvider,
     address: H256,
 }
 
 impl CosmosNativeDispatchIndexer {
     ///  New Dispatch Indexer
-    pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
-        let provider =
-            CosmosNativeProvider::new(locator.domain.clone(), conf, locator.clone(), None)?;
-        let provider = Arc::new(provider);
-
+    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(CosmosNativeDispatchIndexer {
-            indexer: EventIndexer::new(Dispatch::full_name(), provider.clone()),
             provider,
             address: locator.address,
         })
     }
+}
+
+impl EventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
+    fn target_type() -> String {
+        Dispatch::full_name()
+    }
+
+    fn provider(&self) -> &RpcProvider {
+        self.provider.rpc()
+    }
 
     #[instrument(err)]
-    fn dispatch_parser(attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
+    fn parse(&self, attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
         let mut message: Option<HyperlaneMessage> = None;
         let mut contract_address: Option<H256> = None;
 
@@ -82,22 +87,18 @@ impl Indexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        self.indexer
-            .fetch_logs_in_range(range, Self::dispatch_parser)
-            .await
+        EventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        EventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        self.indexer
-            .fetch_logs_by_tx_hash(tx_hash, Self::dispatch_parser)
-            .await
+        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
@@ -106,8 +107,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     #[instrument(err, skip(self), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.get_finalized_block_number().await?;
-        println!("{:#?}", tip);
+        let tip = EventIndexer::get_finalized_block_number(self).await?;
         let mailbox = self
             .provider
             .grpc()

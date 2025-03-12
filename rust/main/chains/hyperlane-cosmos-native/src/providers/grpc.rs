@@ -21,7 +21,9 @@ use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
 
+use crate::prometheus::metrics_channel::MetricsChannel;
 use crate::{ConnectionConf, HyperlaneCosmosError};
 
 /// Grpc Provider
@@ -32,7 +34,7 @@ pub struct GrpcProvider {
 
 #[derive(Debug, Clone)]
 struct CosmosGrpcClient {
-    channel: Channel,
+    channel: MetricsChannel<Channel>,
 }
 
 #[async_trait]
@@ -56,15 +58,26 @@ impl BlockNumberGetter for CosmosGrpcClient {
     }
 }
 impl GrpcProvider {
-    /// todo
-    pub fn new(conf: ConnectionConf) -> ChainResult<Self> {
+    /// New GrpcProvider
+    pub fn new(
+        conf: ConnectionConf,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
+    ) -> ChainResult<Self> {
         let clients = conf
             .get_grpc_urls()
             .iter()
-            .map(|url| Endpoint::new(url.to_string()))
-            .map_ok(|endpoint| {
-                let channel = endpoint.connect_lazy();
-                CosmosGrpcClient { channel }
+            .map(|url| {
+                let metrics_config = PrometheusConfig::from_url(&url, chain.clone());
+                Endpoint::new(url.to_string())
+                    .map(|e| {
+                        let metrics_channel =
+                            MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config);
+                        CosmosGrpcClient {
+                            channel: metrics_channel,
+                        }
+                    })
+                    .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect::<Result<Vec<CosmosGrpcClient>, _>>()
             .map_err(HyperlaneCosmosError::from)?;
@@ -86,7 +99,7 @@ impl GrpcProvider {
         request
     }
 
-    /// todo
+    /// Mailbox struct at given height
     pub async fn mailbox(
         &self,
         id: String,
@@ -110,7 +123,9 @@ impl GrpcProvider {
             .await
     }
 
-    /// todo
+    /// All of the storage locations of a validator
+    ///
+    /// Note: a validators storage locations are depended on the mailbox
     pub async fn announced_storage_locations(
         &self,
         mailbox: String,
@@ -137,7 +152,10 @@ impl GrpcProvider {
             .await
     }
 
-    /// todo
+    /// ISM for a given recipient
+    ///
+    /// Recipient is a 32 byte long hex address
+    /// Mailbox independed query as one application (recipient) can only ever register on one mailbox
     pub async fn recipient_ism(&self, recipient: String) -> ChainResult<RecipientIsmResponse> {
         self.fallback
             .call(|client| {
@@ -156,7 +174,9 @@ impl GrpcProvider {
             .await
     }
 
-    /// todo
+    /// merkle tree hook
+    ///
+    /// also contains the current root of the branches
     pub async fn merkle_tree_hook(
         &self,
         id: String,
@@ -183,7 +203,7 @@ impl GrpcProvider {
             .await
     }
 
-    /// todo
+    /// checks if a message has been delievered to the given mailbox
     pub async fn delivered(
         &self,
         mailbox_id: String,
@@ -210,7 +230,12 @@ impl GrpcProvider {
             .await
     }
 
-    /// todo
+    /// ism for a given id
+    ///
+    /// Note: this query will only ever work for the core ISMs that are directly supported by the cosmos module
+    /// because the cosmos module forces extensions to be stored in external keepers (Cosmos SDK specific).
+    /// As a result, extensions have to provide custom queries for their types, meaning if we want to support a custom ISM at some point - that is not provided by the default hyperlane cosmos module -
+    /// we'd have to query a custom endpoint for the ISMs as well.
     pub async fn ism(&self, id: String) -> ChainResult<QueryIsmResponse> {
         self.fallback
             .call(|client| {

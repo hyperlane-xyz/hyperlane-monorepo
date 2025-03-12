@@ -90,7 +90,7 @@ impl AgentConfig {
             mailbox: node.contracts.mailbox.clone(),
             interchain_gas_paymaster: node.contracts.igp.clone(),
             validator_announce: node.contracts.mailbox.clone(),
-            merkle_tree_hook: node.contracts.mailbox.clone(),
+            merkle_tree_hook: node.contracts.merkle_tree_hook.clone(),
             protocol: "cosmosnative".to_owned(),
             chain_id: CHAIN_ID.to_owned(),
             rpc_urls: vec![AgentUrl {

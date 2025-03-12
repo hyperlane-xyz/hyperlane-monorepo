@@ -1,3 +1,6 @@
+use std::future::Future;
+use std::time::Instant;
+
 use cosmrs::{
     crypto::PublicKey,
     proto::cosmos::{
@@ -20,7 +23,7 @@ use tendermint_rpc::{
         broadcast::{tx_commit, tx_sync},
         tx::Response as TxResponse,
     },
-    Client,
+    Client, Error,
 };
 use tonic::async_trait;
 use tracing::{debug, warn};
@@ -31,6 +34,7 @@ use hyperlane_core::{
     utils::to_atto,
     AccountAddressType, ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
 };
+use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
@@ -41,6 +45,8 @@ use super::cosmos::CosmosFallbackProvider;
 #[derive(Debug, Clone)]
 struct CosmosHttpClient {
     client: HttpClient,
+    metrics: PrometheusClientMetrics,
+    metrics_config: PrometheusConfig,
 }
 
 /// RPC Provider for Cosmos
@@ -69,7 +75,12 @@ impl BlockNumberGetter for CosmosHttpClient {
 
 impl RpcProvider {
     /// Returns a new Rpc Provider
-    pub fn new(conf: ConnectionConf, signer: Option<Signer>) -> ChainResult<Self> {
+    pub fn new(
+        conf: ConnectionConf,
+        signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
+    ) -> ChainResult<Self> {
         let clients = conf
             .get_rpc_urls()
             .iter()
@@ -86,7 +97,14 @@ impl RpcProvider {
                             .build()
                             .map_err(ChainCommunicationError::from_other)
                     })
-                    .map(|client| CosmosHttpClient { client })
+                    .map(|client| {
+                        let metrics_config = PrometheusConfig::from_url(url, chain.clone());
+                        CosmosHttpClient {
+                            client,
+                            metrics_config,
+                            metrics: metrics.clone(),
+                        }
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -102,6 +120,26 @@ impl RpcProvider {
         })
     }
 
+    // moslty copy pasted from `hyperlane-cosmos/src/providers/rpc/client.rs`
+    async fn track_metric_call<F, Fut, T>(
+        client: &CosmosHttpClient,
+        method: &str,
+        call: F,
+    ) -> ChainResult<T>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<T, Error>>,
+    {
+        let start = Instant::now();
+        let res = call().await;
+
+        client
+            .metrics
+            .increment_metrics(&client.metrics_config, method, start, res.is_ok());
+
+        res.map_err(|e| ChainCommunicationError::from(HyperlaneCosmosError::from(e)))
+    }
+
     /// Get the transaction by hash
     pub async fn get_tx(&self, hash: &H512) -> ChainResult<TxResponse> {
         let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
@@ -109,17 +147,18 @@ impl RpcProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.tx(tendermint_hash, false).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
+        let response = self
+            .provider
+            .call(|client| {
+                let future = async move {
+                    Self::track_metric_call(&client, "get_tx", || {
+                        client.client.tx(tendermint_hash, false)
+                    })
+                    .await
+                };
+                Box::pin(future)
+            })
+            .await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
         if received_hash != hash {
@@ -134,56 +173,52 @@ impl RpcProvider {
 
     /// Get the block by height
     pub async fn get_block(&self, height: u32) -> ChainResult<BlockResponse> {
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.block(height).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
-        Ok(response)
+        self.provider
+            .call(|client| {
+                let future = async move {
+                    Self::track_metric_call(&client, "get_block", || client.client.block(height))
+                        .await
+                };
+                Box::pin(future)
+            })
+            .await
     }
 
     /// Get the block results by height
     pub async fn get_block_results(&self, height: u32) -> ChainResult<BlockResultsResponse> {
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.block_results(height).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
-        Ok(response)
+        self.provider
+            .call(|client| {
+                let future = async move {
+                    Self::track_metric_call(&client, "block_results", || {
+                        client.client.block_results(height)
+                    })
+                    .await
+                };
+                Box::pin(future)
+            })
+            .await
     }
 
+    /// abci query is low level function that only gets called by higher level ones like 'get_balance'
+    /// it performs raw state queries on the cosmos sdk
     async fn abci_query<T, R>(&self, path: &str, request: T) -> ChainResult<R>
     where
-        T: Message,
+        T: Message + ::prost::Name,
         R: Message + std::default::Default,
     {
         let bytes = request.encode_to_vec();
         let response = self
             .provider
             .call(|client| {
-                let bytes = bytes.clone();
                 let path = path.to_owned();
+                let bytes = bytes.clone();
                 let future = async move {
-                    let query = client
-                        .client
-                        .abci_query(Some(path), bytes, None, false)
-                        .await
-                        .map_err(|e| ChainCommunicationError::from(HyperlaneCosmosError::from(e)));
-                    query
+                    Self::track_metric_call(&client, T::NAME, || {
+                        client
+                            .client
+                            .abci_query(Some(path.to_owned()), bytes.clone(), None, false)
+                    })
+                    .await
                 };
                 Box::pin(future)
             })
@@ -221,7 +256,7 @@ impl RpcProvider {
     }
 
     /// Gets a signer, or returns an error if one is not available.
-    fn get_signer(&self) -> ChainResult<&Signer> {
+    pub fn get_signer(&self) -> ChainResult<&Signer> {
         self.signer
             .as_ref()
             .ok_or(ChainCommunicationError::SignerUnavailable)

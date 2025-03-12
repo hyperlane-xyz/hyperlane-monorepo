@@ -30,10 +30,7 @@ pub struct CosmosNativeIsm {
 /// The Cosmos Interchain Security Module Implementation.
 impl CosmosNativeIsm {
     /// Creates a new Cosmos Interchain Security Module.
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
-        let provider =
-            CosmosNativeProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
-
+    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,

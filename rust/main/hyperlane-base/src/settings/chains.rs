@@ -18,7 +18,7 @@ use hyperlane_cosmos::{
     self as h_cosmos, delivery_indexer, dispatch_indexer, rpc::CosmosWasmRpcProvider,
     CosmosProvider, Signer,
 };
-use hyperlane_cosmos_native as h_cosmos_native;
+use hyperlane_cosmos_native::{self as h_cosmos_native, CosmosNativeProvider};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
@@ -229,10 +229,11 @@ impl ChainConf {
                 h_cosmos::application::CosmosApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            ChainConnectionConf::CosmosNative(_) => Err(eyre!(
-                "Cosmos Native does not support application operation verifier yet"
-            ))
-            .context(ctx),
+            // applicatino verification is the same for cosmos native and cw
+            ChainConnectionConf::CosmosNative(_) => Ok(Box::new(
+                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
         };
 
         result.context(ctx)
@@ -260,13 +261,8 @@ impl ChainConf {
                 let provider = build_cosmos_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
-            ChainConnectionConf::CosmosNative(connection_conf) => {
-                let provider = h_cosmos_native::CosmosNativeProvider::new(
-                    locator.domain.clone(),
-                    connection_conf.clone(),
-                    locator.clone(),
-                    None,
-                )?;
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -317,13 +313,10 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let signer = self.cosmos_native_signer().await.context(ctx)?;
-                h_cosmos_native::CosmosNativeMailbox::new(
-                    conf.clone(),
-                    locator.clone(),
-                    signer.clone(),
-                )
-                .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                .map_err(Into::into)
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, signer)?;
+                h_cosmos_native::CosmosNativeMailbox::new(provider, locator.clone())
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
             }
         }
         .context(ctx)
@@ -362,12 +355,8 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
-                let signer = self.cosmos_native_signer().await.context(ctx)?;
-                let hook = h_cosmos_native::CosmosMerkleTreeHook::new(
-                    conf.clone(),
-                    locator.clone(),
-                    signer,
-                )?;
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let hook = h_cosmos_native::CosmosMerkleTreeHook::new(provider, locator.clone())?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -436,9 +425,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_cosmos_native::CosmosNativeDispatchIndexer::new(
-                    conf.clone(),
-                    locator,
+                    provider, locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
@@ -498,9 +487,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_cosmos_native::CosmosNativeDeliveryIndexer::new(
-                    conf.clone(),
-                    locator,
+                    provider, locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
@@ -547,9 +536,9 @@ impl ChainConf {
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_cosmos_native::CosmosNativeGasPaymaster::new(
-                    conf.clone(),
-                    locator,
+                    provider, conf, locator,
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
@@ -613,8 +602,10 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_cosmos_native::CosmosNativeGasPaymaster::new(
-                    conf.clone(),
+                    provider,
+                    conf,
                     locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
@@ -684,9 +675,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_cosmos_native::CosmosNativeTreeInsertionIndexer::new(
-                    conf.clone(),
-                    locator,
+                    provider, locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
@@ -728,10 +719,10 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let signer = self.cosmos_native_signer().await.context(ctx)?;
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, signer)?;
                 let va = Box::new(h_cosmos_native::CosmosNativeValidatorAnnounce::new(
-                    conf.clone(),
+                    provider,
                     locator.clone(),
-                    signer,
                 )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
@@ -782,7 +773,8 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
-                let ism = Box::new(h_cosmos_native::CosmosNativeIsm::new(conf, locator)?);
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let ism = Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
         }
@@ -824,8 +816,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let ism: Box<hyperlane_cosmos_native::CosmosNativeIsm> =
-                    Box::new(h_cosmos_native::CosmosNativeIsm::new(conf, locator)?);
+                    Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
         }
@@ -1149,6 +1142,24 @@ fn build_cosmos_wasm_provider(
         event_type,
         reorg_period,
         client_metrics,
+        middleware_metrics.chain.clone(),
+    )
+}
+
+fn build_cosmos_native_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_cosmos_native::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<hyperlane_cosmos_native::Signer>,
+) -> ChainResult<CosmosNativeProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    CosmosNativeProvider::new(
+        connection_conf,
+        locator,
+        signer,
+        metrics,
         middleware_metrics.chain.clone(),
     )
 }

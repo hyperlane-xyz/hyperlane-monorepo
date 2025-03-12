@@ -13,35 +13,38 @@ use hyperlane_core::{
     MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
 use super::{EventIndexer, ParsedEvent};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
 pub struct CosmosNativeTreeInsertionIndexer {
-    indexer: EventIndexer,
-    provider: Arc<CosmosNativeProvider>,
+    provider: CosmosNativeProvider,
     address: H256,
 }
 
 impl CosmosNativeTreeInsertionIndexer {
     ///  New Tree Insertion Indexer
-    pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
-        let provider =
-            CosmosNativeProvider::new(locator.domain.clone(), conf, locator.clone(), None)?;
-        let provider = Arc::new(provider);
+    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(CosmosNativeTreeInsertionIndexer {
-            indexer: EventIndexer::new(InsertedIntoTree::full_name(), provider.clone()),
             provider,
             address: locator.address,
         })
     }
+}
+
+impl EventIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
+    fn target_type() -> String {
+        InsertedIntoTree::full_name()
+    }
+
+    fn provider(&self) -> &RpcProvider {
+        self.provider.rpc()
+    }
 
     #[instrument(err)]
-    fn tree_insertion_parser(
-        attrs: &Vec<EventAttribute>,
-    ) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
+    fn parse(&self, attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
         let mut message_id: Option<H256> = None;
         let mut leaf_index: Option<u32> = None;
         let mut contract_address: Option<H256> = None;
@@ -84,29 +87,25 @@ impl Indexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        self.indexer
-            .fetch_logs_in_range(range, Self::tree_insertion_parser)
-            .await
+        EventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        EventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        self.indexer
-            .fetch_logs_by_tx_hash(tx_hash, Self::tree_insertion_parser)
-            .await
+        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<MerkleTreeInsertion>::get_finalized_block_number(&self).await?;
+        let tip = EventIndexer::get_finalized_block_number(self).await?;
         let merkle_tree = self
             .provider
             .grpc()
@@ -114,8 +113,8 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionInde
             .await?;
         match merkle_tree.merkle_tree_hook {
             Some(merkle_tree) if merkle_tree.merkle_tree.is_some() => {
-                let sequence = merkle_tree.merkle_tree.unwrap().count;
-                Ok((Some(sequence), tip))
+                let count = merkle_tree.merkle_tree.unwrap().count;
+                Ok((Some(count), tip))
             }
             _ => Ok((None, tip)),
         }

@@ -13,37 +13,75 @@ use hyperlane_core::{
     InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
+use crate::{
+    ConnectionConf, CosmosNativeProvider, EventIndexer, HyperlaneCosmosError, RpcProvider,
+};
 
-use super::{EventIndexer, ParsedEvent};
+use super::ParsedEvent;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
 pub struct CosmosNativeGasPaymaster {
-    indexer: EventIndexer,
     address: H256,
     domain: HyperlaneDomain,
     provider: CosmosNativeProvider,
+    native_token: String,
 }
 
 impl InterchainGasPaymaster for CosmosNativeGasPaymaster {}
 
 impl CosmosNativeGasPaymaster {
     ///  Gas Payment Indexer
-    pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
-        let provider =
-            CosmosNativeProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
+    pub fn new(
+        provider: CosmosNativeProvider,
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+    ) -> ChainResult<Self> {
         Ok(CosmosNativeGasPaymaster {
-            indexer: EventIndexer::new(GasPayment::full_name(), Arc::new(provider)),
             address: locator.address.clone(),
             domain: locator.domain.clone(),
-            provider: CosmosNativeProvider::new(locator.domain.clone(), conf, locator, None)?,
+            native_token: conf.get_native_token().denom.clone(),
+            provider,
         })
     }
 
+    /// parses a cosmos sdk.Coin in a string representation '{amoun}{denom}'
+    /// only returns the amount if it matches the native token in the config
+    fn parse_gas_payment(&self, coin: &str) -> ChainResult<U256> {
+        // Convert the coin to a u256 by taking everything before the first non-numeric character
+        match coin.find(|c: char| !c.is_numeric()) {
+            Some(first_non_numeric) => {
+                let amount = U256::from_dec_str(&coin[..first_non_numeric])?;
+                let denom = &coin[first_non_numeric..];
+                if denom == self.native_token {
+                    Ok(amount)
+                } else {
+                    Err(ChainCommunicationError::from_other_str(&format!(
+                        "invalid gas payment: {coin} expected denom: {}",
+                        self.native_token
+                    )))
+                }
+            }
+            None => Err(ChainCommunicationError::from_other_str(&format!(
+                "invalid coin: {coin}"
+            ))),
+        }
+    }
+}
+
+impl EventIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
+    fn target_type() -> String {
+        GasPayment::full_name()
+    }
+
+    fn provider(&self) -> &RpcProvider {
+        self.provider.rpc()
+    }
+
     #[instrument(err)]
-    fn gas_payment_parser(
-        attrs: &Vec<EventAttribute>,
+    fn parse<'a>(
+        &self,
+        attrs: &'a Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
         let mut message_id: Option<H256> = None;
         let mut igp_id: Option<H256> = None;
@@ -61,7 +99,7 @@ impl CosmosNativeGasPaymaster {
                 "igp_id" => igp_id = Some(value.parse()?),
                 "message_id" => message_id = Some(value.parse()?),
                 "gas_amount" => gas_amount = Some(U256::from_dec_str(&value)?),
-                "payment" => payment = Some(U256::from_dec_str(&value)?),
+                "payment" => payment = Some(self.parse_gas_payment(&value)?),
                 "destination" => destination = Some(value.parse()?),
                 _ => continue,
             }
@@ -115,9 +153,7 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let result = self
-            .indexer
-            .fetch_logs_in_range(range, Self::gas_payment_parser)
+        let result = EventIndexer::fetch_logs_in_range(self, range)
             .await
             .map(|logs| {
                 logs.into_iter()
@@ -128,16 +164,14 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        EventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let result = self
-            .indexer
-            .fetch_logs_by_tx_hash(tx_hash, Self::gas_payment_parser)
+        let result = EventIndexer::fetch_logs_by_tx_hash(self, tx_hash)
             .await
             .map(|logs| {
                 let result = logs
@@ -153,7 +187,7 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.get_finalized_block_number().await?;
+        let tip = EventIndexer::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
 }

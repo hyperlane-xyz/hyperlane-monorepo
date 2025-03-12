@@ -9,7 +9,7 @@ use std::{
 };
 
 use cli::SimApp;
-use constants::{BINARY_NAME, KEY_CHAIN_VALIDATOR, KEY_VALIDATOR, PREFIX};
+use constants::{BINARY_NAME, KEY_CHAIN_VALIDATOR, KEY_RELAYER, KEY_VALIDATOR, PREFIX};
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use tempfile::tempdir;
@@ -73,16 +73,26 @@ fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
         account,
         1000000u32,
     );
+    node1.chain.remote_transfer(
+        KEY_CHAIN_VALIDATOR.0,
+        &node1.contracts.tokens[0],
+        &node2.domain.to_string(),
+        account,
+        1000000u32,
+    );
+    node2.chain.remote_transfer(
+        KEY_CHAIN_VALIDATOR.0,
+        &node1.contracts.tokens[0],
+        &node1.domain.to_string(),
+        account,
+        1000000u32,
+    );
 
-    return 2;
+    return 4;
 }
 
 #[apply(as_task)]
-fn launch_cosmos_validator(
-    agent_config: AgentConfig,
-    agent_config_path: PathBuf,
-    debug: bool,
-) -> AgentHandles {
+fn launch_cosmos_validator(agent_config: AgentConfig, agent_config_path: PathBuf) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
     let validator_base_db = concat_path(&validator_base, "db");
@@ -111,7 +121,6 @@ fn launch_cosmos_validator(
         .hyp_env("DEFAULTSIGNER_KEY", KEY_VALIDATOR.1)
         .hyp_env("DEFAULTSIGNER_TYPE", "cosmosKey")
         .hyp_env("DEFAULTSIGNER_PREFIX", PREFIX)
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL", None);
 
     validator
@@ -122,7 +131,6 @@ fn launch_cosmos_relayer(
     agent_config_path: String,
     relay_chains: Vec<String>,
     metrics: u32,
-    debug: bool,
 ) -> AgentHandles {
     let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
     let relayer_base = tempdir().unwrap();
@@ -135,10 +143,9 @@ fn launch_cosmos_relayer(
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
-        .hyp_env("DEFAULTSIGNER_KEY", KEY_VALIDATOR.1)
+        .hyp_env("DEFAULTSIGNER_KEY", KEY_RELAYER.1)
         .hyp_env("DEFAULTSIGNER_TYPE", "cosmosKey")
         .hyp_env("DEFAULTSIGNER_PREFIX", PREFIX)
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env(
             "GASPAYMENTENFORCEMENT",
             r#"[{
@@ -153,12 +160,10 @@ fn launch_cosmos_relayer(
 }
 
 #[apply(as_task)]
-#[allow(clippy::let_and_return)] // TODO: `rustc` 1.80.1 clippy issue
 fn launch_cosmos_scraper(
     agent_config_path: String,
     chains: Vec<String>,
     metrics: u32,
-    debug: bool,
 ) -> AgentHandles {
     let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
 
@@ -172,7 +177,6 @@ fn launch_cosmos_scraper(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("SCR", None);
 
@@ -205,7 +209,8 @@ fn install_sim_app() -> PathBuf {
 
     let release_name = format!("{BINARY_NAME}_{target}");
     log!("Downloading Sim App {}", release_name);
-    // TODO: point to official releases on github, right now we only have this private preview binary of a simulation app    let uri = format!(
+    // TODO: point to official releases on github, right now we only have this private preview binary of a simulation app
+    // once there are actual releases on the github, we can use them
     let uri = format!(
         "https://files.kyve.network/hyperlane/nightly/{}",
         release_name
@@ -293,8 +298,6 @@ fn run_locally() {
             .collect::<BTreeMap<String, AgentConfig>>(),
     };
 
-    println!("{:#?}", agent_config_out);
-
     let agent_config_path = concat_path(&config_dir, "config.json");
     fs::write(
         &agent_config_path,
@@ -319,25 +322,21 @@ fn run_locally() {
         .run()
         .join();
 
-    let debug = true;
-
     let hpl_val = agent_config_out
         .chains
         .clone()
         .into_values()
-        .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
+        .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone()))
         .collect::<Vec<_>>();
 
     let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
     let path = agent_config_path.to_str().unwrap();
 
-    let hpl_rly_metrics_port = metrics_port_start + node_count + 5u32;
-    let hpl_rly =
-        launch_cosmos_relayer(path.to_owned(), chains.clone(), hpl_rly_metrics_port, debug);
+    let hpl_rly_metrics_port = metrics_port_start + node_count;
+    let hpl_rly = launch_cosmos_relayer(path.to_owned(), chains.clone(), hpl_rly_metrics_port);
 
     let hpl_scr_metrics_port = hpl_rly_metrics_port + 1u32;
-    let hpl_scr =
-        launch_cosmos_scraper(path.to_owned(), chains.clone(), hpl_scr_metrics_port, debug);
+    let hpl_scr = launch_cosmos_scraper(path.to_owned(), chains.clone(), hpl_scr_metrics_port);
 
     // give things a chance to fully start.
     sleep(Duration::from_secs(20));

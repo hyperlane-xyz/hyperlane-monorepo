@@ -5,9 +5,10 @@ use prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
-    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, ContractLocator,
+    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Mailbox, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 
 use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, Signer};
@@ -18,37 +19,30 @@ pub struct CosmosNativeMailbox {
     provider: CosmosNativeProvider,
     domain: HyperlaneDomain,
     address: H256,
-    signer: Option<Signer>,
 }
 
 impl CosmosNativeMailbox {
     /// new cosmos native mailbox instance
     pub fn new(
-        conf: ConnectionConf,
+        provider: CosmosNativeProvider,
         locator: ContractLocator,
-        signer: Option<Signer>,
     ) -> ChainResult<CosmosNativeMailbox> {
         Ok(CosmosNativeMailbox {
-            provider: CosmosNativeProvider::new(
-                locator.domain.clone(),
-                conf.clone(),
-                locator.clone(),
-                signer.clone(),
-            )?,
-            signer,
+            provider,
             address: locator.address.clone(),
             domain: locator.domain.clone(),
         })
     }
 
-    fn encode_hyperlane_message(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Any {
+    fn encode_hyperlane_message(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Any> {
         let mailbox_id: String = self.address.encode_hex();
         let message = hex::encode(RawHyperlaneMessage::from(message));
         let metadata = hex::encode(metadata);
-        let signer = self
-            .signer
-            .as_ref()
-            .map_or("".to_string(), |signer| signer.address.clone());
+        let signer = self.provider.rpc().get_signer()?.address.clone();
         //TODO: we might want to use the message service for this?
         let process = MsgProcessMessage {
             mailbox_id: "0x".to_string() + &mailbox_id,
@@ -56,27 +50,27 @@ impl CosmosNativeMailbox {
             message,
             relayer: signer,
         };
-        Any {
+        Ok(Any {
             type_url: MsgProcessMessage::type_url(),
             value: process.encode_to_vec(),
-        }
+        })
     }
 }
 
 impl HyperlaneChain for CosmosNativeMailbox {
-    #[doc = " Return the domain"]
+    /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
-    #[doc = " A provider for the chain"]
+    /// A provider for the chain
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.provider.clone())
     }
 }
 
 impl HyperlaneContract for CosmosNativeMailbox {
-    #[doc = " Return the address of this contract."]
+    /// Return the address of this contract
     fn address(&self) -> H256 {
         self.address
     }
@@ -97,7 +91,7 @@ impl Mailbox for CosmosNativeMailbox {
             .await?;
         match mailbox.mailbox {
             Some(mailbox) => Ok(mailbox.message_sent),
-            None => todo!(),
+            None => Ok(0u32),
         }
     }
 
@@ -123,7 +117,7 @@ impl Mailbox for CosmosNativeMailbox {
                 let ism: H256 = mailbox.default_ism.parse()?;
                 Ok(ism)
             }
-            None => todo!(),
+            None => Err(ChainCommunicationError::from_other_str("no default ism")),
         }
     }
 
@@ -145,7 +139,7 @@ impl Mailbox for CosmosNativeMailbox {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let any_encoded = self.encode_hyperlane_message(message, metadata);
+        let any_encoded = self.encode_hyperlane_message(message, metadata)?;
         let gas_limit = match tx_gas_limit {
             Some(gas) => Some(gas.as_u64()),
             None => None,
@@ -178,7 +172,7 @@ impl Mailbox for CosmosNativeMailbox {
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
         let hex_string = hex::encode(metadata);
-        let any_encoded = self.encode_hyperlane_message(message, metadata);
+        let any_encoded = self.encode_hyperlane_message(message, metadata)?;
         let gas_limit = self.provider.rpc().estimate_gas(vec![any_encoded]).await?;
 
         Ok(TxCostEstimate {

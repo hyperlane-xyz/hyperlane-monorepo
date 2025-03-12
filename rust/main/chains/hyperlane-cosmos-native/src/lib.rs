@@ -12,6 +12,7 @@ mod ism;
 mod libs;
 mod mailbox;
 mod merkle_tree_hook;
+mod prometheus;
 mod providers;
 mod signers;
 mod trait_builder;

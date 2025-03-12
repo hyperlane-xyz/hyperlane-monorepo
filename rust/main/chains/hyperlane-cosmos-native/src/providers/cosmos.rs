@@ -38,6 +38,7 @@ use hyperlane_core::{
     HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, ReorgPeriod, TxnInfo,
     TxnReceiptInfo, H256, H512, U256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, GrpcProvider,
@@ -83,18 +84,19 @@ pub struct CosmosNativeProvider {
 impl CosmosNativeProvider {
     /// Create a new Cosmos Provider instance
     pub fn new(
-        domain: HyperlaneDomain,
-        conf: ConnectionConf,
-        locator: ContractLocator,
+        conf: &ConnectionConf,
+        locator: &ContractLocator,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
-        let rpc = RpcProvider::new(conf.clone(), signer)?;
-        let grpc = GrpcProvider::new(conf.clone())?;
+        let rpc = RpcProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
+        let grpc = GrpcProvider::new(conf.clone(), metrics, chain)?;
 
         Ok(CosmosNativeProvider {
-            domain,
-            conf,
+            domain: locator.domain.clone(),
+            conf: conf.clone(),
             rpc,
             grpc,
         })

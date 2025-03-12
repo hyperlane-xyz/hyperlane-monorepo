@@ -31,18 +31,7 @@ pub struct CosmosMerkleTreeHook {
 
 impl CosmosMerkleTreeHook {
     /// create new Cosmos MerkleTreeHook agent
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosNativeProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
@@ -117,18 +106,14 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let (_, tree) = self.get_merkle_tree(reorg_period).await?;
-        Ok(tree.count as u32)
+        Ok(tree.count)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
         let root = H256::from_slice(&tree.root);
-        let index = if tree.count == 0 {
-            0
-        } else {
-            tree.count as u32 - 1
-        };
+        let index = if tree.count == 0 { 0 } else { tree.count - 1 };
 
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address,

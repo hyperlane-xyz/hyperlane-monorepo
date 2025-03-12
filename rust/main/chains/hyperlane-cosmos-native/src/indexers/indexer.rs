@@ -11,14 +11,15 @@ use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::{self, Response as BlockResultsResponse};
 use tendermint_rpc::endpoint::tx;
 use tokio::task::JoinHandle;
+use tonic::async_trait;
 use tracing::{debug, error, event, trace, warn, Level};
 
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, HyperlaneProvider,
-    Indexed, LogMeta, H256, H512, U256,
+    Indexed, Indexer, LogMeta, H256, H512, U256,
 };
 
-use crate::{error, CosmosNativeProvider};
+use crate::{error, CosmosNativeProvider, RpcProvider};
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -41,74 +42,58 @@ impl<T: PartialEq> ParsedEvent<T> {
         self.event
     }
 }
-/// Event indexer
-///
-/// Indexes all events of a specified event type.
-#[derive(Debug, Clone)]
-pub struct EventIndexer {
-    target_type: String,
-    provider: Arc<CosmosNativeProvider>,
-}
 
-/// Parsing function
-///
-/// This function is used to parse the event attributes into a ParsedEvent.
-pub type Parser<T> = for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>;
+#[async_trait]
+/// todo
+pub trait EventIndexer<T: PartialEq + Send + Sync + 'static>: Indexer<T>
+where
+    Self: Clone + Send + Sync + 'static,
+    Indexed<T>: From<T>,
+{
+    /// Target event to index
+    fn target_type() -> String;
 
-impl EventIndexer {
-    /// Create a new EventIndexer.
-    pub fn new(target_type: String, provider: Arc<CosmosNativeProvider>) -> EventIndexer {
-        EventIndexer {
-            target_type,
-            provider,
-        }
-    }
+    /// Cosmos provider
+    fn provider<'a>(&'a self) -> &'a RpcProvider;
+
+    /// parses the event attributes to the target type
+    fn parse<'a>(&self, attributes: &'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>;
 
     /// Current block height
     ///
     /// used by the indexer struct
-    pub async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let result = self.provider.rpc().get_block_number().await?;
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        let result = self.provider().get_block_number().await?;
         Ok(result as u32)
     }
 
-    pub(crate) async fn fetch_logs_by_tx_hash<T>(
+    /// Fetch list of logs between blocks `from` and `to`, inclusive.
+    async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
-        parser: Parser<T>,
-    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>
-    where
-        T: PartialEq + 'static,
-        Indexed<T>: From<T>,
-    {
-        let tx_response = self.provider.rpc().get_tx(&tx_hash).await?;
-        let block_height = tx_response.height;
-        let block = self
-            .provider
-            .get_block_by_height(block_height.into())
-            .await?;
+    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        let tx_response = self.provider().get_tx(&tx_hash).await?;
+        let block_height = tx_response.height.value() as u32;
+        let block = self.provider().get_block(block_height).await?;
+        let hash = H256::from_slice(block.block_id.hash.as_bytes());
 
         let result: Vec<_> = self
-            .handle_tx(tx_response, block.hash, parser)
+            .handle_tx(tx_response, hash)
             .map(|(value, logs)| (value.into(), logs))
             .collect();
         Ok(result)
     }
 
-    pub(crate) async fn fetch_logs_in_range<T>(
+    /// Fetch list of logs emitted in a transaction with the given hash.
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
-        parser: Parser<T>,
-    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>
-    where
-        T: PartialEq + Debug + 'static + Send + Sync,
-        Indexed<T>: From<T>,
-    {
+    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         let futures: Vec<_> = range
             .map(|block_height| {
                 let clone = self.clone();
                 tokio::spawn(async move {
-                    let logs = Self::get_logs_in_block(&clone, block_height, parser).await;
+                    let logs = Self::get_logs_in_block(&clone, block_height).await;
                     (logs, block_height)
                 })
             })
@@ -135,31 +120,21 @@ impl EventIndexer {
         Ok(result)
     }
 
-    async fn get_logs_in_block<T>(
-        &self,
-        block_height: u32,
-        parser: Parser<T>,
-    ) -> ChainResult<Vec<(T, LogMeta)>>
-    where
-        T: PartialEq + Debug + 'static,
-    {
-        let block = self.provider.rpc().get_block(block_height).await?;
-        let block_results = self.provider.rpc().get_block_results(block_height).await?;
-        let result = self.handle_txs(block, block_results, parser);
+    /// Fetches all of the block txs and parses them
+    async fn get_logs_in_block(&self, block_height: u32) -> ChainResult<Vec<(T, LogMeta)>> {
+        let block = self.provider().get_block(block_height).await?;
+        let block_results = self.provider().get_block_results(block_height).await?;
+        let result = self.handle_txs(block, block_results);
         Ok(result)
     }
 
-    // Iterate through all txs, filter out failed txs, find target events
-    // in successful txs, and parse them.
-    fn handle_txs<T>(
+    /// Iterate through all txs, filter out failed txs, find target events
+    /// in successful txs, and parse them.
+    fn handle_txs(
         &self,
         block: BlockResponse,
         block_results: BlockResultsResponse,
-        parser: Parser<T>,
-    ) -> Vec<(T, LogMeta)>
-    where
-        T: PartialEq + Debug + 'static,
-    {
+    ) -> Vec<(T, LogMeta)> {
         let Some(tx_results) = block_results.txs_results else {
             return vec![];
         };
@@ -199,23 +174,19 @@ impl EventIndexer {
 
                 let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
-                Some(self.handle_tx(tx_response, block_hash, parser))
+                Some(self.handle_tx(tx_response, block_hash))
             })
             .flatten()
             .collect()
     }
 
-    // Iter through all events in the tx, looking for any target events
-    // made by the contract we are indexing.
-    fn handle_tx<T>(
-        &self,
+    /// Iter through all events in the tx, looking for any target events
+    /// made by the contract we are indexing.
+    fn handle_tx<'a>(
+        &'a self,
         tx: tx::Response,
         block_hash: H256,
-        parser: Parser<T>,
-    ) -> impl Iterator<Item = (T, LogMeta)> + '_
-    where
-        T: PartialEq + 'static,
-    {
+    ) -> impl Iterator<Item = (T, LogMeta)> + 'a {
         let tx_events = tx.tx_result.events;
         let tx_hash = tx.hash;
         let tx_index = tx.index;
@@ -223,11 +194,11 @@ impl EventIndexer {
 
         tx_events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
 
-            if event.kind.as_str() != self.target_type {
+            if event.kind.as_str() != Self::target_type() {
                 return None;
             }
 
-            parser(&event.attributes)
+            self.parse(&event.attributes)
                 .map_err(|err| {
                     trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
                 })

@@ -12,27 +12,34 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
+use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
 use super::{EventIndexer, ParsedEvent};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
 pub struct CosmosNativeDeliveryIndexer {
-    indexer: EventIndexer,
+    provider: CosmosNativeProvider,
 }
 
 impl CosmosNativeDeliveryIndexer {
     ///  New Delivery Indexer
-    pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
-        let provider = CosmosNativeProvider::new(locator.domain.clone(), conf, locator, None)?;
-        Ok(CosmosNativeDeliveryIndexer {
-            indexer: EventIndexer::new(Process::full_name(), Arc::new(provider)),
-        })
+    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
+        Ok(CosmosNativeDeliveryIndexer { provider })
+    }
+}
+
+impl EventIndexer<H256> for CosmosNativeDeliveryIndexer {
+    fn target_type() -> String {
+        Process::full_name()
+    }
+
+    fn provider(&self) -> &RpcProvider {
+        self.provider.rpc()
     }
 
     #[instrument(err)]
-    fn delivery_parser(attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<H256>> {
+    fn parse(&self, attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<H256>> {
         let mut message_id: Option<H256> = None;
         let mut contract_address: Option<H256> = None;
 
@@ -70,29 +77,25 @@ impl Indexer<H256> for CosmosNativeDeliveryIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        self.indexer
-            .fetch_logs_in_range(range, Self::delivery_parser)
-            .await
+        EventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        EventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        self.indexer
-            .fetch_logs_by_tx_hash(tx_hash, Self::delivery_parser)
-            .await
+        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<H256> for CosmosNativeDeliveryIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.get_finalized_block_number().await?;
+        let tip = EventIndexer::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
 }

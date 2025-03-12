@@ -20,28 +20,15 @@ pub struct CosmosNativeValidatorAnnounce {
     domain: HyperlaneDomain,
     address: H256,
     provider: CosmosNativeProvider,
-    signer: Option<Signer>,
 }
 
 impl CosmosNativeValidatorAnnounce {
     /// create a new instance of CosmosValidatorAnnounce
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosNativeProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer.clone(),
-        )?;
-
+    pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
             provider,
-            signer,
         })
     }
 }
@@ -90,10 +77,7 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let signer = self
-            .signer
-            .as_ref()
-            .map_or("".to_string(), |signer| signer.address.clone());
+        let signer = self.provider.rpc().get_signer()?.address.to_owned();
         let announce = MsgAnnounceValidator {
             validator: announcement.value.validator.encode_hex(),
             storage_location: announcement.value.storage_location.clone(),
