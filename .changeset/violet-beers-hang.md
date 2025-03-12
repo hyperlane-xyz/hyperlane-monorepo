@@ -13,21 +13,18 @@ Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
 If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
 
 ### `HypNativeScaled` Usage
-
 ```diff
 - HypNativeScaled(scale, mailbox)
 + HypNative(scale, mailbox)
 ```
 
 ### `HypERC20` Usage
-
 ```diff
 - HypERC20(decimals, mailbox)
 + HypERC20(decimals, scale, mailbox)
 ```
 
 ### `HypERC20Collateral` Usage
-
 ```diff
 - HypERC20Collateral(erc20, mailbox)
 + HypERC20Collateral(erc20, scale, mailbox)
