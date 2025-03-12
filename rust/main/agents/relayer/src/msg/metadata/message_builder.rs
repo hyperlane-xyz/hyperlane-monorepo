@@ -138,11 +138,7 @@ pub async fn build_message_metadata(
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;
 
-    Ok(IsmWithMetadataAndType {
-        ism,
-        metadata,
-        module_type,
-    })
+    Ok(IsmWithMetadataAndType { ism, metadata })
 }
 
 #[cfg(test)]
@@ -150,8 +146,7 @@ mod test {
     use std::sync::Arc;
 
     use hyperlane_core::{
-        ChainResult, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType,
-        H256,
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256,
     };
     use hyperlane_test::mocks::MockMailboxContract;
 
@@ -354,7 +349,7 @@ mod test {
     #[tokio::test]
     async fn ism_count_already_reached() {
         let base_builder = build_mock_base_builder();
-        insert_mock_routing_ism(&base_builder, H256::zero(), Ok(H256::zero()));
+        insert_mock_routing_isms(&base_builder, &[(H256::zero(), H256::zero())]);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();

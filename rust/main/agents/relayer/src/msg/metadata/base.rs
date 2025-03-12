@@ -71,7 +71,6 @@ pub struct MessageMetadataBuildParams {
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
     pub metadata: Metadata,
-    pub module_type: ModuleType,
 }
 
 /// Allows fetching the default ISM, caching the value for a period of time
