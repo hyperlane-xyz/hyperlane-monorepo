@@ -60,8 +60,21 @@ export const safes: ChainMap<Address> = {
   fusemainnet: '0x29a526227CB864C90Cf078d03872da913B473139',
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
-  zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // Q5, 2024 batch
+  berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // HyperEVM
+  hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // zksync chains
+  zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  zksync: '0x9C81aA0cC233e9BddeA426F5d395Ab5B65135450',
+  zklink: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  treasure: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  sophon: '0x3D1baf8cA4935f416671640B1Aa9E17E005986eE',
 };
 
 export const icaOwnerChain = 'ethereum';
@@ -202,6 +215,25 @@ export const icas: Partial<
   nero: '0xbBdb1682B2922C282b56DD716C29db5EFbdb5632',
   torus: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   xpla: '0x24832680dF0468967F413be1C83acfE24154F88D',
+
+  // Feb 3, 2025 batch
+  // ----------------------------------------------------------
+  glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
+  matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
+  unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
+  trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
+
+  // Q5, 2024 batch
+  // ----------------------------------------------------------
+  // berachain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
+
+  // Feb 17, 2025 batch
+  // ----------------------------------------------------------
+  bouncebit: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
+  arcadia: '0xD2344a364b6Dc6B2Fe0f7D836fa344d83056cbaD',
+  ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
+  story: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
+  subtensor: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';

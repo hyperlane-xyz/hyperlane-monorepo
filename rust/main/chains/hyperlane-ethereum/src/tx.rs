@@ -104,7 +104,7 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
         // Timed out
         Err(x) => {
             error!(?tx_hash, error = ?x, "waiting for receipt timed out");
-            Err(ChainCommunicationError::TransactionTimeout())
+            Err(ChainCommunicationError::TransactionTimeout)
         }
     }
 }
