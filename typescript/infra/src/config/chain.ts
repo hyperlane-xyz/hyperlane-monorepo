@@ -27,10 +27,13 @@ export const chainsToSkip: ChainName[] = [
   'zklink',
   'treasure',
   'abstract',
+  'sophon',
 
   // testnets
   'abstracttestnet',
   'treasuretopaz',
+  // Down as of Feb 24, 2025
+  'alfajores',
 
   // Oct 16 batch
   'lumia',

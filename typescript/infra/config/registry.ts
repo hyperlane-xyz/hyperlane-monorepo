@@ -3,7 +3,6 @@ import { fileURLToPath } from 'url';
 
 import {
   ChainAddresses,
-  GithubRegistry,
   MergedRegistry,
   PartialRegistry,
   warpConfigToWarpAddresses,
@@ -14,6 +13,7 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -28,13 +28,11 @@ import {
 } from './environments/test/chains.js';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
 
-const DEFAULT_REGISTRY_URI = join(
+export const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../../../',
   'hyperlane-registry',
 );
-
-const REGISTRY_PROXY = 'https://proxy.hyperlane.xyz';
 
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
@@ -62,13 +60,6 @@ export function getRegistry(): FileSystemRegistry {
     });
   }
   return registry;
-}
-
-export function getGithubRegistry(): GithubRegistry {
-  return new GithubRegistry({
-    proxyUrl: REGISTRY_PROXY,
-    logger: rootLogger.child({ module: 'infra-registry' }),
-  });
 }
 
 export function getChains(): ChainName[] {

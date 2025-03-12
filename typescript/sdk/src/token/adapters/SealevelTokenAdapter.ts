@@ -555,10 +555,18 @@ export abstract class SealevelHypTokenAdapter
 
   /**
    * Fetches the median prioritization fee for transfers of the collateralAddress token.
-   * @returns The median prioritization fee in micro-lamports
+   * @returns The median prioritization fee in micro-lamports, defaults to `0` when chain is not solanamainnet
    */
   async getMedianPriorityFee(): Promise<number | undefined> {
     this.logger.debug('Fetching priority fee history for token transfer');
+
+    // Currently only transactions done in solana requires a priority
+    if (this.chainName !== 'solanamainnet') {
+      this.logger.debug(
+        `Chain ${this.chainName} does not need priority fee, defaulting to 0`,
+      );
+      return 0;
+    }
 
     const collateralAddress = this.addresses.token;
     const fees = await this.getProvider().getRecentPrioritizationFees({

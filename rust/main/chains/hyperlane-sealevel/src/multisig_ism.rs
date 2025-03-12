@@ -10,7 +10,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -28,11 +28,10 @@ pub struct SealevelMultisigIsm {
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(
-        conf: &ConnectionConf,
+        provider: SealevelProvider,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         Self {
