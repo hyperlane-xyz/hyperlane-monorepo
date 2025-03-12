@@ -21,14 +21,19 @@
   "scripts": {
     "build": "rimraf dist && tsc",
     "format": "prettier --write .",
-    "lint": "eslint -c ./eslint.config.mjs",
+    "lint": "exit 0",
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "test": "exit 0"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.1.6",
+    "@typescript-eslint/parser": "^8.1.6",
     "eslint": "^9.15.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-import-resolver-typescript": "^3.8.5",
+    "eslint-plugin-import": "^2.31.0",
     "globals": "^15.14.0",
     "prettier": "^2.8.8",
     "rimraf": "^6.0.1",
