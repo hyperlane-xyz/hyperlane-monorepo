@@ -45,6 +45,7 @@ import {
   attachContractsMap,
   connectContractsMap,
   expandWarpDeployConfig,
+  extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
   getTokenConnectionId,
   hypERC20factories,
@@ -310,29 +311,13 @@ async function createWarpIsm({
     `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
   );
 
-  const {
-    mailbox,
-    domainRoutingIsmFactory,
-    staticAggregationHookFactory,
-    staticAggregationIsmFactory,
-    staticMerkleRootMultisigIsmFactory,
-    staticMessageIdMultisigIsmFactory,
-    staticMerkleRootWeightedMultisigIsmFactory,
-    staticMessageIdWeightedMultisigIsmFactory,
-  } = chainAddresses;
+  const { mailbox } = chainAddresses;
+
   const evmIsmModule = await EvmIsmModule.create({
     chain,
     mailbox,
     multiProvider: context.multiProvider,
-    proxyFactoryFactories: {
-      domainRoutingIsmFactory,
-      staticAggregationHookFactory,
-      staticAggregationIsmFactory,
-      staticMerkleRootMultisigIsmFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
-    },
+    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
     config: interchainSecurityModule,
     contractVerifier,
   });
@@ -365,25 +350,7 @@ async function createWarpHook({
 
   logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
 
-  const {
-    mailbox,
-    domainRoutingIsmFactory,
-    staticAggregationHookFactory,
-    staticAggregationIsmFactory,
-    staticMerkleRootMultisigIsmFactory,
-    staticMessageIdMultisigIsmFactory,
-    staticMerkleRootWeightedMultisigIsmFactory,
-    staticMessageIdWeightedMultisigIsmFactory,
-  } = chainAddresses;
-  const proxyFactoryFactories = {
-    domainRoutingIsmFactory,
-    staticAggregationHookFactory,
-    staticAggregationIsmFactory,
-    staticMerkleRootMultisigIsmFactory,
-    staticMessageIdMultisigIsmFactory,
-    staticMerkleRootWeightedMultisigIsmFactory,
-    staticMessageIdWeightedMultisigIsmFactory,
-  };
+  const { mailbox } = chainAddresses;
 
   // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
   const proxyAdminAddress: Address =
@@ -405,7 +372,7 @@ async function createWarpHook({
     },
     config: hook,
     contractVerifier,
-    proxyFactoryFactories,
+    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
   });
   logGreen(`Finished creating ${hook.type} Hook for token on ${chain} chain.`);
   const { deployedHook } = evmHookModule.serialize();
@@ -679,16 +646,6 @@ async function updateExistingWarpRoute(
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
 
-        const {
-          domainRoutingIsmFactory,
-          staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory,
-          staticAggregationIsmFactory,
-          staticAggregationHookFactory,
-          staticMerkleRootWeightedMultisigIsmFactory,
-          staticMessageIdWeightedMultisigIsmFactory,
-        } = registryAddresses[chain];
-
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
@@ -696,13 +653,7 @@ async function updateExistingWarpRoute(
             chain,
             addresses: {
               deployedTokenRoute,
-              staticMerkleRootMultisigIsmFactory,
-              staticMessageIdMultisigIsmFactory,
-              staticAggregationIsmFactory,
-              staticAggregationHookFactory,
-              domainRoutingIsmFactory,
-              staticMerkleRootWeightedMultisigIsmFactory,
-              staticMessageIdWeightedMultisigIsmFactory,
+              ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
             },
           },
           contractVerifier,
