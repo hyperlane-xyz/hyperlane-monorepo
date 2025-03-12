@@ -260,6 +260,69 @@ mod test {
         }
     }
 
+    /// 0x0
+    ///  |
+    ///  +---> 0x100
+    ///  |       |
+    ///  |       +----> 0x110 -> 0x1100
+    ///  |       |
+    ///  |       +----> 0x120 -> 0x1200
+    ///  |
+    ///  +---> 0x200
+    ///  |       |
+    ///  |       +----> 0x210 -> 0x2100
+    ///  |       |
+    ///  |       +----> 0x220 -> 0x2200
+    ///  |
+    ///  +---> 0x300
+    ///          |
+    ///          +----> 0x310 -> 0x3100
+    ///          |
+    ///          +----> 0x320 -> 0x3200
+    fn insert_ism_test_data_001(base_builder: &MockBaseMetadataBuilder) {
+        insert_mock_aggregation_isms(
+            base_builder,
+            vec![
+                (
+                    H256::from_low_u64_be(0),
+                    vec![
+                        H256::from_low_u64_be(100),
+                        H256::from_low_u64_be(200),
+                        H256::from_low_u64_be(300),
+                    ],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(100),
+                    vec![H256::from_low_u64_be(110), H256::from_low_u64_be(120)],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(200),
+                    vec![H256::from_low_u64_be(210), H256::from_low_u64_be(220)],
+                    2,
+                ),
+                (
+                    H256::from_low_u64_be(300),
+                    vec![H256::from_low_u64_be(310), H256::from_low_u64_be(320)],
+                    2,
+                ),
+            ],
+        );
+
+        insert_mock_routing_isms(
+            base_builder,
+            &[
+                (H256::from_low_u64_be(110), H256::from_low_u64_be(1100)),
+                (H256::from_low_u64_be(120), H256::from_low_u64_be(1200)),
+                (H256::from_low_u64_be(210), H256::from_low_u64_be(2100)),
+                (H256::from_low_u64_be(220), H256::from_low_u64_be(2200)),
+                (H256::from_low_u64_be(310), H256::from_low_u64_be(3100)),
+                (H256::from_low_u64_be(320), H256::from_low_u64_be(3200)),
+            ],
+        );
+    }
+
     #[tokio::test]
     async fn depth_already_reached() {
         let base_builder = build_mock_base_builder();
@@ -321,48 +384,7 @@ mod test {
     #[tokio::test]
     async fn max_depth_reached() {
         let base_builder = build_mock_base_builder();
-
-        insert_mock_aggregation_isms(
-            &base_builder,
-            vec![
-                (
-                    H256::from_low_u64_be(0),
-                    vec![
-                        H256::from_low_u64_be(100),
-                        H256::from_low_u64_be(200),
-                        H256::from_low_u64_be(300),
-                    ],
-                    2,
-                ),
-                (
-                    H256::from_low_u64_be(100),
-                    vec![H256::from_low_u64_be(110), H256::from_low_u64_be(120)],
-                    2,
-                ),
-                (
-                    H256::from_low_u64_be(200),
-                    vec![H256::from_low_u64_be(210), H256::from_low_u64_be(220)],
-                    2,
-                ),
-                (
-                    H256::from_low_u64_be(300),
-                    vec![H256::from_low_u64_be(310), H256::from_low_u64_be(320)],
-                    2,
-                ),
-            ],
-        );
-
-        insert_mock_routing_isms(
-            &base_builder,
-            &[
-                (H256::from_low_u64_be(110), H256::from_low_u64_be(1100)),
-                (H256::from_low_u64_be(120), H256::from_low_u64_be(1200)),
-                (H256::from_low_u64_be(210), H256::from_low_u64_be(2100)),
-                (H256::from_low_u64_be(220), H256::from_low_u64_be(2200)),
-                (H256::from_low_u64_be(310), H256::from_low_u64_be(3100)),
-                (H256::from_low_u64_be(320), H256::from_low_u64_be(3200)),
-            ],
-        );
+        insert_ism_test_data_001(&base_builder);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
@@ -392,48 +414,7 @@ mod test {
     #[tokio::test]
     async fn max_ism_count_reached() {
         let base_builder = build_mock_base_builder();
-
-        insert_mock_aggregation_isms(
-            &base_builder,
-            vec![
-                (
-                    H256::from_low_u64_be(0),
-                    vec![
-                        H256::from_low_u64_be(100),
-                        H256::from_low_u64_be(200),
-                        H256::from_low_u64_be(300),
-                    ],
-                    2,
-                ),
-                (
-                    H256::from_low_u64_be(100),
-                    vec![H256::from_low_u64_be(110), H256::from_low_u64_be(120)],
-                    2,
-                ),
-                (
-                    H256::from_low_u64_be(200),
-                    vec![H256::from_low_u64_be(210), H256::from_low_u64_be(220)],
-                    2,
-                ),
-                (
-                    H256::from_low_u64_be(300),
-                    vec![H256::from_low_u64_be(310), H256::from_low_u64_be(320)],
-                    2,
-                ),
-            ],
-        );
-
-        insert_mock_routing_isms(
-            &base_builder,
-            &[
-                (H256::from_low_u64_be(110), H256::from_low_u64_be(1100)),
-                (H256::from_low_u64_be(120), H256::from_low_u64_be(1200)),
-                (H256::from_low_u64_be(210), H256::from_low_u64_be(2100)),
-                (H256::from_low_u64_be(220), H256::from_low_u64_be(2200)),
-                (H256::from_low_u64_be(310), H256::from_low_u64_be(3100)),
-                (H256::from_low_u64_be(320), H256::from_low_u64_be(3200)),
-            ],
-        );
+        insert_ism_test_data_001(&base_builder);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
