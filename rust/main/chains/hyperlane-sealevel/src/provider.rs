@@ -165,7 +165,7 @@ impl HyperlaneProvider for SealevelProvider {
 
         Self::validate_transaction(hash, txn)?;
         let sender = Self::sender(hash, txn)?;
-        let recipient = self.recipient_provider.recipient(hash, txn_with_meta)?;
+        let recipient = self.recipient_provider.recipient(hash, txn)?;
         let meta = Self::meta(txn_with_meta)?;
         let gas_used = Self::gas(meta)?;
         let fee = self.fee(meta)?;

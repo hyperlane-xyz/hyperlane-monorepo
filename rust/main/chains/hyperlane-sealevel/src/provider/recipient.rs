@@ -1,29 +1,11 @@
-use std::collections::HashSet;
-
-use lazy_static::lazy_static;
 use solana_sdk::pubkey::Pubkey;
-use solana_transaction_status::{
-    EncodedTransactionWithStatusMeta, UiInstruction, UiParsedInstruction,
-};
+use solana_transaction_status::{UiInstruction, UiParsedInstruction, UiTransaction};
 
 use hyperlane_core::{ChainResult, H256, H512};
 
 use crate::error::HyperlaneSealevelError;
-use crate::provider::transaction::{inner_instructions, instructions, txn};
+use crate::provider::transaction::instructions;
 use crate::utils::decode_pubkey;
-
-lazy_static! {
-    static ref NATIVE_PROGRAMS: HashSet<String> = HashSet::from([
-        solana_sdk::bpf_loader_upgradeable::ID.to_string(),
-        solana_sdk::compute_budget::ID.to_string(),
-        solana_sdk::config::program::ID.to_string(),
-        solana_sdk::ed25519_program::ID.to_string(),
-        solana_sdk::secp256k1_program::ID.to_string(),
-        solana_sdk::stake::program::ID.to_string(),
-        solana_sdk::system_program::ID.to_string(),
-        solana_sdk::vote::program::ID.to_string(),
-    ]);
-}
 
 #[derive(Clone, Debug)]
 pub(crate) struct RecipientProvider {
@@ -38,19 +20,11 @@ impl RecipientProvider {
         }
     }
 
-    pub(crate) fn recipient(
-        &self,
-        hash: &H512,
-        txn_with_meta: &EncodedTransactionWithStatusMeta,
-    ) -> ChainResult<H256> {
-        let txn = txn(txn_with_meta)?;
-        let empty_binding = Vec::new();
-        let instructions = instructions(txn)?;
-        let mut inner_instructions = inner_instructions(txn_with_meta, &empty_binding)?;
-        inner_instructions.extend(instructions);
+    pub(crate) fn recipient(&self, hash: &H512, transaction: &UiTransaction) -> ChainResult<H256> {
+        let instructions = instructions(transaction)?;
 
-        let programs = inner_instructions
-            .into_iter()
+        let programs = instructions
+            .iter()
             .filter_map(|ii| {
                 if let UiInstruction::Parsed(iii) = ii {
                     Some(iii)
@@ -58,12 +32,12 @@ impl RecipientProvider {
                     None
                 }
             })
-            .map(|ii| match ii {
-                UiParsedInstruction::Parsed(iii) => &iii.program_id,
-                UiParsedInstruction::PartiallyDecoded(iii) => &iii.program_id,
+            .filter_map(|ii| match ii {
+                UiParsedInstruction::Parsed(_) => None, // only native programs are fully parsed
+                UiParsedInstruction::PartiallyDecoded(iii) => Some(iii),
             })
-            .filter(|program_id| !NATIVE_PROGRAMS.contains(*program_id))
-            .filter(|program_id| self.program_id == **program_id)
+            .filter(|program| program.accounts.contains(&self.program_id))
+            .map(|program| &program.program_id)
             .collect::<Vec<&String>>();
 
         let program_id = programs
