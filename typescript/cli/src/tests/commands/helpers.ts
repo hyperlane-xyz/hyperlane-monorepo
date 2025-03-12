@@ -15,7 +15,7 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, sleep } from '@hyperlane-xyz/utils';
+import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
@@ -338,9 +338,7 @@ export async function sendWarpRouteMessageRoundTrip(
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command
 // in the current env
 export function localTestRunCmdPrefix() {
-  return !process.env.IS_CI
-    ? ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run']
-    : [];
+  return inCIMode() ? [] : ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run'];
 }
 
 export async function hyperlaneSendMessage(
