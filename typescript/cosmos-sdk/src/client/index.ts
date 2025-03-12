@@ -20,12 +20,13 @@ import {
   setupBankExtension,
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
+
 import {
   MsgAnnounceValidator,
   MsgCreateMerkleRootMultisigIsm,
   MsgCreateMessageIdMultisigIsm,
   MsgCreateNoopIsm,
-} from 'src/types/hyperlane/core/interchain_security/v1/tx';
+} from '../types/hyperlane/core/interchain_security/v1/tx';
 import {
   MsgClaim,
   MsgCreateIgp,
@@ -34,12 +35,12 @@ import {
   MsgPayForGas,
   MsgSetDestinationGasConfig,
   MsgSetIgpOwner,
-} from 'src/types/hyperlane/core/post_dispatch/v1/tx';
+} from '../types/hyperlane/core/post_dispatch/v1/tx';
 import {
   MsgCreateMailbox,
   MsgProcessMessage,
   MsgSetMailbox,
-} from 'src/types/hyperlane/core/v1/tx';
+} from '../types/hyperlane/core/v1/tx';
 import {
   MsgCreateCollateralToken,
   MsgCreateSyntheticToken,
@@ -47,7 +48,7 @@ import {
   MsgRemoteTransfer,
   MsgSetToken,
   MsgUnrollRemoteRouter,
-} from 'src/types/hyperlane/warp/v1/tx';
+} from '../types/hyperlane/warp/v1/tx';
 
 import { createCoreAminoConverter } from './hyperlane/core/aminomessages';
 import {

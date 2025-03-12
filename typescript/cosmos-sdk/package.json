@@ -2,11 +2,12 @@
   "name": "@hyperlane-xyz/cosmos-sdk",
   "version": "1.0.0",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
-  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "types": "dist/index.d.ts",
   "files": [
-    "client",
-    "types"
+    "/dist"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
@@ -21,7 +22,8 @@
     "build": "rimraf dist && tsc",
     "format": "prettier --write .",
     "lint": "eslint -c ./eslint.config.mjs",
-    "clean": "rm -rf ./dist ./cache"
+    "clean": "rm -rf ./dist ./cache",
+    "test": "exit 0"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",

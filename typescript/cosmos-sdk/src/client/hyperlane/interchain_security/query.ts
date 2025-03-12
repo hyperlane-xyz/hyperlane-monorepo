@@ -1,12 +1,7 @@
 import { QueryClient, createProtobufRpcClient } from '@cosmjs/stargate';
-import { PageResponse } from 'src/types/cosmos/base/query/v1beta1/pagination';
-import { Any } from 'src/types/google/protobuf/any';
-import {
-  MerkleRootMultisigISM,
-  MessageIdMultisigISM,
-  NoopISM,
-} from 'src/types/hyperlane/core/interchain_security/v1/types';
 
+import { PageResponse } from '../../../types/cosmos/base/query/v1beta1/pagination';
+import { Any } from '../../../types/google/protobuf/any';
 import {
   QueryAnnouncedStorageLocationsRequest,
   QueryAnnouncedStorageLocationsResponse,
@@ -16,6 +11,11 @@ import {
   QueryLatestAnnouncedStorageLocationRequest,
   QueryLatestAnnouncedStorageLocationResponse,
 } from '../../../types/hyperlane/core/interchain_security/v1/query';
+import {
+  MerkleRootMultisigISM,
+  MessageIdMultisigISM,
+  NoopISM,
+} from '../../../types/hyperlane/core/interchain_security/v1/types';
 
 type ISM = NoopISM | MerkleRootMultisigISM | MessageIdMultisigISM;
 
