@@ -1,3 +1,7 @@
+export { MUTABLE_ISM_TYPE } from './ism/types.js';
+
+export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+
 export { HyperlaneApp } from './app/HyperlaneApp.js';
 export {
   AdapterClassType,
@@ -156,6 +160,10 @@ export {
   FallbackRoutingHookConfigSchema,
   HookConfig,
   HookConfigSchema,
+  HooksConfig,
+  HooksConfigSchema,
+  HooksConfigMapSchema,
+  HooksConfigMap,
   HookType,
   IgpHookConfig,
   IgpSchema,
@@ -373,7 +381,11 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
-export { randomAddress } from './test/testUtils.js';
+export {
+  randomAddress,
+  randomHookConfig,
+  randomIsmConfig,
+} from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
@@ -481,6 +493,7 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,
@@ -497,15 +510,19 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
+  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmHypVSXERC20LockboxAdapter,
+  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
   IHypXERC20Adapter,
+  IHypVSXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
@@ -529,6 +546,10 @@ export {
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
+export {
+  expandWarpDeployConfig,
+  getRouterAddressesFromWarpCoreConfig,
+} from './token/configUtils.js';
 export {
   hypERC20contracts,
   HypERC20Factories,
@@ -576,6 +597,7 @@ export {
   HypTokenRouterConfigSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
+  isXERC20TokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
@@ -589,8 +611,12 @@ export {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
+  XERC20TokenMetadata,
+  XERC20LimitConfig,
 } from './token/types.js';
 export {
   ChainMap,
@@ -646,3 +672,11 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export {
+  getChainNameFromCCIPSelector,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+  getCCIPChains,
+  CCIPContractCache,
+} from './ccip/utils.js';
+export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
