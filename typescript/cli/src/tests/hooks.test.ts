@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { HookType } from '@hyperlane-xyz/sdk';
+import { HookType, HooksConfigMap } from '@hyperlane-xyz/sdk';
 
-import { HooksConfigMap, readHooksConfigMap } from '../config/hooks.js';
+import { readHooksConfigMap } from '../config/hooks.js';
 
 describe('readHooksConfigMap', () => {
   it('parses and validates example correctly', () => {

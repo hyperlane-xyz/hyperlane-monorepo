@@ -21,7 +21,7 @@ pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
 pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
 
 /// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.13";
+pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.24";
 pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =

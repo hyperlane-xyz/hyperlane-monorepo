@@ -54,12 +54,10 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
   });
 
-  it('should require mailbox address', () => {
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
-
+  it('should not require mailbox address', () => {
     //@ts-ignore
     delete config.arbitrum.mailbox;
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
   });
 
   it('should throw if collateral type and token is empty', async () => {

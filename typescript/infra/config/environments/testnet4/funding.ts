@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '7f53c0a-20250208-195222',
+    tag: 'd71759e-20250306-192730',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -32,9 +32,9 @@ export const keyFunderConfig: KeyFunderConfig<
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
     basesepolia: '0.1',
-    berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
+    carrchaintestnet: '0.1',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
@@ -46,6 +46,7 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
+    infinityvmmonza: '0',
     inksepolia: '0.1',
     monadtestnet: '0.1',
     odysseytestnet: '0.1',
@@ -57,6 +58,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sepolia: '5',
     // no funding for SVM chains
     solanatestnet: '0',
+    somniatestnet: '10',
     soneiumtestnet: '0.1',
     sonicblaze: '0.1',
     // no funding for SVM chains
@@ -92,8 +94,6 @@ export const keyFunderConfig: KeyFunderConfig<
   igpClaimThresholdPerChain: {
     alfajores: '1',
     arbitrumsepolia: '0.05',
-    // never claim on berachain berabartio testnet
-    berabartio: '1000.0',
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',
