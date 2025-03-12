@@ -24,6 +24,7 @@ fn test() {
 
     // then
     assert!(recipient.is_ok());
+    assert_eq!(recipient.unwrap(), mailbox_address);
 }
 
 fn read_json(path: &str) -> String {
