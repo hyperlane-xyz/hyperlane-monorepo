@@ -136,9 +136,10 @@ async function getConfigFromMergedRegistry(
   _routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
+  registryUris: string[],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const registry = getRegistry({
-    registryUris: [DEFAULT_REGISTRY_URI],
+    registryUris,
     enableProxy: true,
   });
   const warpRoute = await registry.getWarpDeployConfig(warpRouteId);
@@ -176,6 +177,7 @@ export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
   warpRouteId: string,
+  registryUris = [DEFAULT_REGISTRY_URI],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
@@ -212,5 +214,6 @@ export async function getWarpConfig(
     routerConfigWithoutOwner,
     abacusWorksEnvOwnerConfig,
     warpRouteId,
+    registryUris,
   );
 }
