@@ -1,5 +1,3 @@
-import { GeneratedType } from '@cosmjs/proto-signing';
-
 import {
   MsgAnnounceValidator,
   MsgCreateMerkleRootMultisigIsm,

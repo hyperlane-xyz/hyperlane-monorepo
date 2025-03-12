@@ -178,8 +178,9 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
 
     // register all the custom tx types
     for (const typeUrl in REGISTRY) {
-      const type = REGISTRY[typeUrl];
-      this.registry.register(typeUrl, type);
+      if (REGISTRY[typeUrl]) {
+        this.registry.register(typeUrl, REGISTRY[typeUrl]);
+      }
     }
 
     this.account = account;

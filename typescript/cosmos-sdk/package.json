@@ -20,8 +20,7 @@
   "scripts": {
     "build": "rimraf dist && tsc",
     "format": "prettier --write .",
-    "lint": "eslint . --ignore-path ../../.eslintignore --ext ts --ext tsx --ext js --ext jsx",
-    "lint:fix": "eslint --fix . --ignore-path ../../.eslintignore --ext ts --ext tsx --ext js --ext jsx",
+    "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache"
   },
   "devDependencies": {
