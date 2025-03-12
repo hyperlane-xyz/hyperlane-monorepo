@@ -36,7 +36,7 @@ import {
 import {
   CosmosModuleHypCollateralAdapter,
   CosmosModuleHypSyntheticAdapter,
-} from './adapters/CosmosModuleTokenAdapter.ts.js';
+} from './adapters/CosmosModuleTokenAdapter.js';
 import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
