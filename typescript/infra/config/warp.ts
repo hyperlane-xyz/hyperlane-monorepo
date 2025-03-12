@@ -110,7 +110,9 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
-  [WarpRouteIds.SuperTokenStaging]: getSuperTokenStagingWarpConfig,
+  // TODO: uncomment after merging the staging route to registry
+  // this has been commented out as it leads to check-warp-deploy cron job failing
+  // [WarpRouteIds.SuperTokenStaging]: getSuperTokenStagingWarpConfig,
   [WarpRouteIds.SuperUSDT]: getSuperTokenProductionWarpConfig,
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
   [WarpRouteIds.BaseEthereumLumiaprismETH]:
