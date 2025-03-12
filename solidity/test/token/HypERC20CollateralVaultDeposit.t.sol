@@ -39,6 +39,7 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
 
         HypERC4626OwnerCollateral implementation = new HypERC4626OwnerCollateral(
                 vault,
+                SCALE,
                 address(localMailbox)
             );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -233,7 +234,12 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
     function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata()
         public
     {
-        remoteToken = new HypERC4626(18, address(remoteMailbox), ORIGIN);
+        remoteToken = new HypERC4626(
+            DECIMALS,
+            SCALE,
+            address(remoteMailbox),
+            ORIGIN
+        );
         _enrollRemoteTokenRouter();
         vm.prank(ALICE);
 
