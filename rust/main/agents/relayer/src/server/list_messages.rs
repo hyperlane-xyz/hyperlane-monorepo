@@ -5,7 +5,6 @@ use axum::{
 use derive_new::new;
 use hyperlane_core::{QueueOperation, H256};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::msg::op_queue::OperationPriorityQueue;
