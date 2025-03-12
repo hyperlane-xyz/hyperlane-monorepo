@@ -146,7 +146,7 @@ mod test {
     use std::sync::Arc;
 
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256,
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256, U256,
     };
     use hyperlane_test::mocks::MockMailboxContract;
 
@@ -189,6 +189,21 @@ mod test {
         );
         base_builder.responses.app_context_classifier = Some(app_context_classifier);
         base_builder
+    }
+
+    fn insert_null_isms(base_builder: &MockBaseMetadataBuilder, addresses: &[H256]) {
+        for ism_address in addresses {
+            let mock_ism = MockInterchainSecurityModule::default();
+            mock_ism
+                .responses
+                .module_type
+                .lock()
+                .unwrap()
+                .push_back(Ok(ModuleType::Null));
+            base_builder
+                .responses
+                .push_build_ism_response(*ism_address, Ok(Box::new(mock_ism)));
+        }
     }
 
     fn insert_mock_routing_isms(
@@ -235,6 +250,12 @@ mod test {
                 .lock()
                 .unwrap()
                 .push_back(Ok(ModuleType::Aggregation));
+            mock_ism
+                .responses
+                .dry_run_verify
+                .lock()
+                .unwrap()
+                .push_back(Ok(Some(U256::zero())));
             base_builder
                 .responses
                 .push_build_ism_response(ism_address, Ok(Box::new(mock_ism)));
@@ -316,12 +337,24 @@ mod test {
                 (H256::from_low_u64_be(320), H256::from_low_u64_be(3200)),
             ],
         );
+
+        insert_null_isms(
+            base_builder,
+            &[
+                H256::from_low_u64_be(1100),
+                H256::from_low_u64_be(1200),
+                H256::from_low_u64_be(2100),
+                H256::from_low_u64_be(2200),
+                H256::from_low_u64_be(3100),
+                H256::from_low_u64_be(3200),
+            ],
+        );
     }
 
     #[tokio::test]
     async fn depth_already_reached() {
         let base_builder = build_mock_base_builder();
-        insert_mock_routing_isms(&base_builder, &[(H256::zero(), H256::from_low_u64_be(10))]);
+        insert_null_isms(&base_builder, &[H256::zero()]);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
@@ -349,7 +382,7 @@ mod test {
     #[tokio::test]
     async fn ism_count_already_reached() {
         let base_builder = build_mock_base_builder();
-        insert_mock_routing_isms(&base_builder, &[(H256::zero(), H256::zero())]);
+        insert_null_isms(&base_builder, &[H256::zero()]);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
