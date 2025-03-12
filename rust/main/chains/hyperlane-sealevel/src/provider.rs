@@ -3,8 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{
-    option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
-    UiTransaction, UiTransactionStatusMeta,
+    option_serializer::OptionSerializer, EncodedTransactionWithStatusMeta, UiTransaction,
+    UiTransactionStatusMeta,
 };
 use tracing::warn;
 
@@ -15,20 +15,21 @@ use hyperlane_core::{
 };
 
 use crate::error::HyperlaneSealevelError;
-use crate::provider::message_parser::parsed_message;
 use crate::provider::recipient::RecipientProvider;
+use crate::provider::transaction::{parsed_message, txn};
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelRpcClient};
 
-mod message_parser;
 mod recipient;
+mod transaction;
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SealevelProvider {
     rpc_client: Arc<SealevelRpcClient>,
     domain: HyperlaneDomain,
     native_token: NativeToken,
+    recipient_provider: RecipientProvider,
 }
 
 impl SealevelProvider {
@@ -36,13 +37,16 @@ impl SealevelProvider {
     pub fn new(
         rpc_client: Arc<SealevelRpcClient>,
         domain: HyperlaneDomain,
+        contract_address: H256,
         conf: &ConnectionConf,
     ) -> Self {
         let native_token = conf.native_token.clone();
+        let recipient_provider = RecipientProvider::new(contract_address);
         Self {
             rpc_client,
             domain,
             native_token,
+            recipient_provider,
         }
     }
 
@@ -134,11 +138,7 @@ impl HyperlaneChain for SealevelProvider {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(SealevelProvider {
-            domain: self.domain.clone(),
-            rpc_client: self.rpc_client.clone(),
-            native_token: self.native_token.clone(),
-        })
+        Box::new(self.clone())
     }
 }
 
@@ -161,16 +161,11 @@ impl HyperlaneProvider for SealevelProvider {
         let txn_confirmed = self.rpc_client.get_transaction(&signature).await?;
         let txn_with_meta = &txn_confirmed.transaction;
 
-        let txn = match &txn_with_meta.transaction {
-            EncodedTransaction::Json(t) => t,
-            t => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedTransactionEncoding(Box::new(t.clone())),
-            ))?,
-        };
+        let txn = txn(txn_with_meta)?;
 
         Self::validate_transaction(hash, txn)?;
         let sender = Self::sender(hash, txn)?;
-        let recipient = RecipientProvider::recipient(hash, txn)?;
+        let recipient = self.recipient_provider.recipient(hash, txn_with_meta)?;
         let meta = Self::meta(txn_with_meta)?;
         let gas_used = Self::gas(meta)?;
         let fee = self.fee(meta)?;

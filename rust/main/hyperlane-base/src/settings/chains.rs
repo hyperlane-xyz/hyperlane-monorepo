@@ -25,8 +25,8 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
-    self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
-    SealevelRpcClient, TransactionSubmitter,
+    self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelRpcClient,
+    TransactionSubmitter,
 };
 
 use crate::{
@@ -215,8 +215,12 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
 
-                let provider =
-                    h_sealevel::SealevelProvider::new(rpc_client, locator.domain.clone(), conf);
+                let provider = h_sealevel::SealevelProvider::new(
+                    rpc_client,
+                    locator.domain.clone(),
+                    locator.address.clone(),
+                    conf,
+                );
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
@@ -236,7 +240,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
-        let locator = self.locator(H256::zero());
+        let locator = self.locator(self.addresses.mailbox);
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
@@ -988,8 +992,13 @@ fn build_sealevel_provider(
     rpc_client: Arc<SealevelRpcClient>,
     locator: &ContractLocator,
     conf: &h_sealevel::ConnectionConf,
-) -> SealevelProvider {
-    SealevelProvider::new(rpc_client, locator.domain.clone(), conf)
+) -> h_sealevel::SealevelProvider {
+    h_sealevel::SealevelProvider::new(
+        rpc_client,
+        locator.domain.clone(),
+        locator.address.clone(),
+        conf,
+    )
 }
 
 fn build_sealevel_tx_submitter(

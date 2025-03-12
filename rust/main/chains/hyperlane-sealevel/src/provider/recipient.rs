@@ -1,12 +1,15 @@
 use std::collections::HashSet;
 
 use lazy_static::lazy_static;
-use solana_transaction_status::{UiInstruction, UiParsedInstruction, UiTransaction};
+use solana_sdk::pubkey::Pubkey;
+use solana_transaction_status::{
+    EncodedTransactionWithStatusMeta, UiInstruction, UiParsedInstruction,
+};
 
 use hyperlane_core::{ChainResult, H256, H512};
 
 use crate::error::HyperlaneSealevelError;
-use crate::provider::message_parser::parsed_message;
+use crate::provider::transaction::{inner_instructions, instructions, txn};
 use crate::utils::decode_pubkey;
 
 lazy_static! {
@@ -22,15 +25,31 @@ lazy_static! {
     ]);
 }
 
-pub(crate) struct RecipientProvider {}
+#[derive(Clone, Debug)]
+pub(crate) struct RecipientProvider {
+    program_id: String,
+}
 
 impl RecipientProvider {
-    pub(crate) fn recipient(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
-        let message = parsed_message(txn)?;
+    pub(crate) fn new(contract_address: H256) -> Self {
+        let program_id = Pubkey::from(<[u8; 32]>::from(contract_address));
+        Self {
+            program_id: program_id.to_string(),
+        }
+    }
 
-        let programs = message
-            .instructions
-            .iter()
+    pub(crate) fn recipient(
+        &self,
+        hash: &H512,
+        txn_with_meta: &EncodedTransactionWithStatusMeta,
+    ) -> ChainResult<H256> {
+        let txn = txn(txn_with_meta)?;
+        let mut instructions = instructions(txn)?;
+        let inner_instructions = inner_instructions(txn_with_meta)?;
+        instructions.extend(inner_instructions);
+
+        let programs = instructions
+            .into_iter()
             .filter_map(|ii| {
                 if let UiInstruction::Parsed(iii) = ii {
                     Some(iii)
@@ -39,11 +58,16 @@ impl RecipientProvider {
                 }
             })
             .map(|ii| match ii {
-                UiParsedInstruction::Parsed(iii) => &iii.program_id,
-                UiParsedInstruction::PartiallyDecoded(iii) => &iii.program_id,
+                UiParsedInstruction::Parsed(iii) => iii.program_id,
+                UiParsedInstruction::PartiallyDecoded(iii) => iii.program_id,
             })
-            .filter(|program_id| !NATIVE_PROGRAMS.contains(*program_id))
-            .collect::<Vec<&String>>();
+            .collect::<Vec<String>>();
+
+        let programs = programs
+            .into_iter()
+            .filter(|program_id| !NATIVE_PROGRAMS.contains(program_id))
+            .filter(|program_id| self.program_id == **program_id)
+            .collect::<Vec<String>>();
 
         if programs.len() > 1 {
             Err(HyperlaneSealevelError::TooManyNonNativePrograms(Box::new(
@@ -60,3 +84,6 @@ impl RecipientProvider {
         Ok(recipient)
     }
 }
+
+#[cfg(test)]
+mod tests;
