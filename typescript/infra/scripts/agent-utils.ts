@@ -201,14 +201,14 @@ export function withOutputFile<T>(args: Argv<T>) {
     .alias('o', 'outFile');
 }
 
-export function withWarpRouteId<T>(args: Argv<T>) {
+export function withKnownWarpRouteId<T>(args: Argv<T>) {
   return args
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
     .choices('warpRouteId', Object.values(WarpRouteIds));
 }
 
-export function withWarpRouteIdNoChoices<T>(args: Argv<T>) {
+export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
