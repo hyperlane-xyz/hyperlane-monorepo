@@ -39,8 +39,8 @@ pub enum MetadataBuildError {
 pub struct Metadata(Vec<u8>);
 
 impl Metadata {
-    pub fn to_vec(self) -> Vec<u8> {
-        self.0
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.clone()
     }
 }
 

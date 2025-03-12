@@ -61,9 +61,8 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
                     let hex_val = hex_decode(&matching[0][2..])
                         .map_err(|_| MetadataBuildError::FailedToBuild)?;
-                    let lookup_res = OffchainLookup::decode(hex_val)
-                        .map_err(|_| MetadataBuildError::FailedToBuild)?;
-                    lookup_res
+                    OffchainLookup::decode(hex_val)
+                        .map_err(|_| MetadataBuildError::FailedToBuild)?
                 } else {
                     info!(?raw_error, "unable to parse custom error out of revert");
                     return Err(MetadataBuildError::CouldNotFetch);
