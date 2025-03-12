@@ -219,8 +219,8 @@ export function withDryRun<T>(args: Argv<T>) {
     .default('dryRun', false);
 }
 
-export function withWarpRouteIdRequired<T>(args: Argv<T>) {
-  return withWarpRouteId(args).demandOption('warpRouteId');
+export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
