@@ -48,9 +48,9 @@ import {
   withContext,
   withFork,
   withGovern,
-  withKnownWarpRouteId,
   withModule,
   withPushMetrics,
+  withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { withRegistryUris } from '../github-utils.js';
@@ -67,7 +67,7 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withKnownWarpRouteId(withModule(getCheckBaseArgs())));
+  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
 }
 
 export async function getGovernor(
