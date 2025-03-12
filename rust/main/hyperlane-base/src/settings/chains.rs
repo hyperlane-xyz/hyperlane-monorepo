@@ -215,12 +215,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
 
-                let provider = h_sealevel::SealevelProvider::new(
-                    rpc_client,
-                    locator.domain.clone(),
-                    locator.address.clone(),
-                    conf,
-                );
+                let provider = build_sealevel_provider(rpc_client, &locator, conf);
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
