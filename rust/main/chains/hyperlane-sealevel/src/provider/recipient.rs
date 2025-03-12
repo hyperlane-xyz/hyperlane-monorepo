@@ -66,12 +66,6 @@ impl RecipientProvider {
             .filter(|program_id| self.program_id == **program_id)
             .collect::<Vec<&String>>();
 
-        if programs.len() > 1 {
-            Err(HyperlaneSealevelError::TooManyNonNativePrograms(Box::new(
-                *hash,
-            )))?;
-        }
-
         let program_id = programs
             .first()
             .ok_or(HyperlaneSealevelError::NoNonNativePrograms(Box::new(*hash)))?;
