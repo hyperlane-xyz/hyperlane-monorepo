@@ -44,11 +44,12 @@ impl RecipientProvider {
         txn_with_meta: &EncodedTransactionWithStatusMeta,
     ) -> ChainResult<H256> {
         let txn = txn(txn_with_meta)?;
-        let mut instructions = instructions(txn)?;
-        let inner_instructions = inner_instructions(txn_with_meta)?;
-        instructions.extend(inner_instructions);
+        let instructions = instructions(txn)?;
+        let empty_binding = Vec::new();
+        let mut inner_instructions = inner_instructions(txn_with_meta, &empty_binding)?;
+        inner_instructions.extend(instructions);
 
-        let programs = instructions
+        let programs = inner_instructions
             .into_iter()
             .filter_map(|ii| {
                 if let UiInstruction::Parsed(iii) = ii {
@@ -58,16 +59,12 @@ impl RecipientProvider {
                 }
             })
             .map(|ii| match ii {
-                UiParsedInstruction::Parsed(iii) => iii.program_id,
-                UiParsedInstruction::PartiallyDecoded(iii) => iii.program_id,
+                UiParsedInstruction::Parsed(iii) => &iii.program_id,
+                UiParsedInstruction::PartiallyDecoded(iii) => &iii.program_id,
             })
-            .collect::<Vec<String>>();
-
-        let programs = programs
-            .into_iter()
-            .filter(|program_id| !NATIVE_PROGRAMS.contains(program_id))
+            .filter(|program_id| !NATIVE_PROGRAMS.contains(*program_id))
             .filter(|program_id| self.program_id == **program_id)
-            .collect::<Vec<String>>();
+            .collect::<Vec<&String>>();
 
         if programs.len() > 1 {
             Err(HyperlaneSealevelError::TooManyNonNativePrograms(Box::new(
