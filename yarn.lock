@@ -5231,7 +5231,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cosmjs/stargate@npm:^0.32.0, @cosmjs/stargate@npm:^0.32.3, @cosmjs/stargate@npm:^0.32.4":
+"@cosmjs/stargate@npm:^0.32.3, @cosmjs/stargate@npm:^0.32.4":
   version: 0.32.4
   resolution: "@cosmjs/stargate@npm:0.32.4"
   dependencies:
@@ -7822,7 +7822,7 @@ __metadata:
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
   dependencies:
     "@bufbuild/protobuf": "npm:^2.2.3"
-    "@cosmjs/stargate": "npm:^0.32.0"
+    "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.19.0"
     axios: "npm:^1.7.9"
     eslint: "npm:^9.19.0"

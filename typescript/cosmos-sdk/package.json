@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.3",
-    "@cosmjs/stargate": "^0.32.0",
+    "@cosmjs/stargate": "^0.32.4",
     "axios": "^1.7.9",
     "long": "^5.2.4",
     "protobufjs": "^7.4.0"
