@@ -44,8 +44,8 @@ impl RecipientProvider {
         txn_with_meta: &EncodedTransactionWithStatusMeta,
     ) -> ChainResult<H256> {
         let txn = txn(txn_with_meta)?;
-        let instructions = instructions(txn)?;
         let empty_binding = Vec::new();
+        let instructions = instructions(txn)?;
         let mut inner_instructions = inner_instructions(txn_with_meta, &empty_binding)?;
         inner_instructions.extend(instructions);
 
