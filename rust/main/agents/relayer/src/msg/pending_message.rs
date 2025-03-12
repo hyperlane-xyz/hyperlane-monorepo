@@ -9,6 +9,10 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use prometheus::{IntCounter, IntGauge};
+use serde::Serialize;
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
+
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -16,9 +20,7 @@ use hyperlane_core::{
     PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
     TxOutcome, H256, U256,
 };
-use prometheus::{IntCounter, IntGauge};
-use serde::Serialize;
-use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -56,6 +58,8 @@ pub struct MessageContext {
     /// destination.
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
+    /// Application operation verifier
+    pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
 }
 
 /// A message that the submitter can and should try to submit.
@@ -304,7 +308,11 @@ impl PendingOperation for PendingMessage {
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorEstimatingGas);
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                return self.on_reprepare(Some(err), reason);
             }
         };
 
@@ -374,7 +382,11 @@ impl PendingOperation for PendingMessage {
                 .await
                 .is_err()
             {
-                return self.on_reprepare::<String>(None, ReprepareReason::ErrorEstimatingGas);
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                return self.on_reprepare::<String>(None, reason);
             }
         }
 
@@ -722,6 +734,24 @@ impl PendingMessage {
                 chrono::Duration::weeks(10).num_seconds() as u64
             }
         }))
+    }
+
+    async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
+        use ReprepareReason::ApplicationReport;
+
+        match self
+            .ctx
+            .application_operation_verifier
+            .as_ref()?
+            .verify(&self.app_context, &self.message)
+            .await
+        {
+            Some(r) => {
+                debug!(original = ?reason, report = ?r, app = ?self.app_context, message = ?self.message, "Clarifying reprepare reason with application report");
+                Some(ApplicationReport(r.into()))
+            }
+            None => None,
+        }
     }
 }
 

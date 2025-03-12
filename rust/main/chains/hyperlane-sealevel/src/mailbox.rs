@@ -40,7 +40,6 @@ use hyperlane_core::{
     ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
-use crate::tx_submitter::TransactionSubmitter;
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
     priority_fee::PriorityFeeOracle,
@@ -51,6 +50,7 @@ use crate::{
     },
     SealevelKeypair,
 };
+use crate::{tx_submitter::TransactionSubmitter, utils::sanitize_dynamic_accounts};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -90,11 +90,12 @@ pub struct SealevelMailbox {
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
+        provider: SealevelProvider,
+        tx_submitter: Box<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
-        locator: ContractLocator,
+        locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
         let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &program_id);
@@ -111,9 +112,7 @@ impl SealevelMailbox {
             outbox,
             payer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
-            tx_submitter: conf
-                .transaction_submitter
-                .create_submitter(provider.rpc().url()),
+            tx_submitter,
             provider,
         })
     }
@@ -205,7 +204,7 @@ impl SealevelMailbox {
     ) -> ChainResult<Vec<AccountMeta>> {
         let instruction =
             hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
-        self.get_account_metas_with_instruction_bytes(
+        self.get_non_signer_account_metas_with_instruction_bytes(
             recipient_program_id,
             &instruction
                 .encode()
@@ -226,7 +225,7 @@ impl SealevelMailbox {
                 metadata,
                 message,
             });
-        self.get_account_metas_with_instruction_bytes(
+        self.get_non_signer_account_metas_with_instruction_bytes(
             ism,
             &instruction
                 .encode()
@@ -249,7 +248,7 @@ impl SealevelMailbox {
         });
 
         let mut account_metas = self
-            .get_account_metas_with_instruction_bytes(
+            .get_non_signer_account_metas_with_instruction_bytes(
                 recipient_program_id,
                 &instruction
                     .encode()
@@ -270,7 +269,7 @@ impl SealevelMailbox {
         Ok(account_metas)
     }
 
-    async fn get_account_metas_with_instruction_bytes(
+    async fn get_non_signer_account_metas_with_instruction_bytes(
         &self,
         program_id: Pubkey,
         instruction_data: &[u8],
@@ -284,7 +283,10 @@ impl SealevelMailbox {
             vec![AccountMeta::new(account_metas_pda_key, false)],
         );
 
-        self.get_account_metas(instruction).await
+        let account_metas = self.get_account_metas(instruction).await?;
+
+        // Ensure dynamically provided account metas are safe to prevent theft from the payer.
+        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
     async fn get_process_instruction(
@@ -572,12 +574,15 @@ pub struct SealevelMailboxIndexer {
 impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
+        provider: SealevelProvider,
+        tx_submitter: Box<dyn TransactionSubmitter>,
+        locator: &ContractLocator,
         conf: &ConnectionConf,
-        locator: ContractLocator,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
+        let mailbox = SealevelMailbox::new(provider, tx_submitter, conf, locator, None)?;
+
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
-        let mailbox = SealevelMailbox::new(conf, locator, None)?;
 
         let dispatch_message_log_meta_composer = LogMetaComposer::new(
             mailbox.program_id,
