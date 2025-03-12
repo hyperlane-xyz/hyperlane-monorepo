@@ -72,6 +72,7 @@ export enum Modules {
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CCIP = 'ccip',
 }
 
 export const REGISTRY_MODULES = [
@@ -82,6 +83,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CCIP,
 ];
 
 export function getArgs() {
@@ -206,6 +208,13 @@ export function withWarpRouteId<T>(args: Argv<T>) {
     .choices('warpRouteId', Object.values(WarpRouteIds));
 }
 
+export function withDryRun<T>(args: Argv<T>) {
+  return args
+    .describe('dryRun', 'Dry run')
+    .boolean('dryRun')
+    .default('dryRun', false);
+}
+
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
   return withWarpRouteId(args).demandOption('warpRouteId');
 }
@@ -319,6 +328,13 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .string('rpcUrls')
     .demandOption('rpcUrls')
     .alias('r', 'rpcUrls');
+}
+
+export function withSkipReview<T>(args: Argv<T>) {
+  return args
+    .describe('skipReview', 'Skip review')
+    .boolean('skipReview')
+    .default('skipReview', false);
 }
 
 // Interactively gets a single warp route ID

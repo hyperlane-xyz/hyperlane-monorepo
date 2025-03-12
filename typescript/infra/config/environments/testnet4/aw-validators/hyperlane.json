@@ -5,13 +5,6 @@
   "alephzeroevmtestnet": {
     "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
   },
-  "alfajores": {
-    "validators": [
-      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
-      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
-      "0x86485dcec5f7bb8478dd251676372d054dea6653"
-    ]
-  },
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
@@ -20,9 +13,6 @@
   },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
-  },
-  "berabartio": {
-    "validators": ["0x541dd3cb282cf869d72883557badae245b63e1fd"]
   },
   "bsctestnet": {
     "validators": [
@@ -33,6 +23,12 @@
   },
   "camptestnet": {
     "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
+  },
+  "carrchaintestnet": {
+    "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
+  },
+  "chronicleyellowstone": {
+    "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
   },
   "citreatestnet": {
     "validators": ["0x60d7380a41eb95c49be18f141efd2fde5e3dba20"]
@@ -62,8 +58,14 @@
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
+  "infinityvmmonza": {
+    "validators": ["0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"]
+  },
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
+  },
+  "monadtestnet": {
+    "validators": ["0x734628f55694d2a5f4de3e755ccb40ecd72b16d9"]
   },
   "odysseytestnet": {
     "validators": ["0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"]
@@ -94,6 +96,9 @@
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
   },
+  "somniatestnet": {
+    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
+  },
   "sonicblaze": {
     "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
   },
@@ -103,6 +108,9 @@
   "suavetoliman": {
     "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
   },
+  "subtensortestnet": {
+    "validators": ["0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"]
+  },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   },
@@ -111,5 +119,8 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "weavevmtestnet": {
+    "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
   }
 }

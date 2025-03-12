@@ -6,9 +6,10 @@ export const testnet4SupportedChainNames = [
   'arbitrumsepolia',
   'arcadiatestnet2',
   'basesepolia',
-  'berabartio',
   'bsctestnet',
   'camptestnet',
+  'carrchaintestnet',
+  'chronicleyellowstone',
   'citreatestnet',
   'connextsepolia',
   'ecotestnet',
@@ -18,7 +19,9 @@ export const testnet4SupportedChainNames = [
   'fuji',
   'holesky',
   'hyperliquidevmtestnet',
+  'infinityvmmonza',
   'inksepolia',
+  'monadtestnet',
   'odysseytestnet',
   'optimismsepolia',
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -27,13 +30,16 @@ export const testnet4SupportedChainNames = [
   'scrollsepolia',
   'sepolia',
   'solanatestnet',
+  'somniatestnet',
   'soneiumtestnet',
   'sonicblaze',
   'sonicsvmtestnet',
   'suavetoliman',
+  'subtensortestnet',
   'superpositiontestnet',
   'treasuretopaz',
   'unichaintestnet',
+  'weavevmtestnet',
 ] as const;
 
 export const supportedChainNames = [...testnet4SupportedChainNames];

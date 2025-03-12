@@ -153,11 +153,8 @@ export async function createWarpRouteDeployConfig({
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
 
-    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
-      context,
-      chain,
-      owner,
-    );
+    const proxyAdmin: DeployedOwnableConfig | undefined =
+      await setProxyAdminConfig(context, chain);
 
     const excludeStaticIsms =
       context.multiProvider.getChainMetadata(chain).technicalStack ===
@@ -165,21 +162,18 @@ export async function createWarpRouteDeployConfig({
 
     /**
      * The logic from the cli is as follows:
+     *  --yes flag is provided: set ism to undefined (default ISM config)
      *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
-     *  --yes flag is provided: the default ISM config will be used (Trusted ISM + Default fallback ISM)
      *  -- no flag is provided: the user must choose if the default ISM config should be used:
      *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
-     *    - no: the default fallback ISM will be used
+     *    - no: keep ism as undefined (default ISM config)
      */
-    let interchainSecurityModule: IsmConfig;
-    if (advanced) {
+    let interchainSecurityModule: IsmConfig | undefined;
+    if (context.skipConfirmation) {
+      interchainSecurityModule = undefined;
+    } else if (advanced) {
       interchainSecurityModule = await createAdvancedIsmConfig(
         context,
-        excludeStaticIsms,
-      );
-    } else if (context.skipConfirmation) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(
-        owner,
         excludeStaticIsms,
       );
     } else if (

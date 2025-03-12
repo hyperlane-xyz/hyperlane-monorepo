@@ -1555,5 +1555,88 @@ export const validatorChainConfig = (
         'sonicsvm',
       ),
     },
+
+    berachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('berachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0190915c55d9c7555e6d2cb838f04d18b5e2260e'],
+        },
+        'berachain',
+      ),
+    },
+
+    bouncebit: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bouncebit'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xaf38612d1e79ec67320d21c5f7e92419427cd154'],
+        },
+        'bouncebit',
+      ),
+    },
+    arcadia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('arcadia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe16ee9618f138cc2dcf9f9a95462099a8bf33a38'],
+        },
+        'arcadia',
+      ),
+    },
+    ronin: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('ronin'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa3e11929317e4a871c3d47445ea7bb8c4976fd8a'],
+        },
+        'ronin',
+      ),
+    },
+    sophon: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sophon'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b'],
+        },
+        'sophon',
+      ),
+    },
+    story: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('story'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x501eda013378c60557d763df98d617b6ba55447a'],
+        },
+        'story',
+      ),
+    },
+    subtensor: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('subtensor'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd5f8196d7060b85bea491f0b52a671e05f3d10a2'],
+        },
+        'subtensor',
+      ),
+    },
+
+    hyperevm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('hyperevm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x01be14a9eceeca36c9c1d46c056ca8c87f77c26f'],
+        },
+        'hyperevm',
+      ),
+    },
   };
 };

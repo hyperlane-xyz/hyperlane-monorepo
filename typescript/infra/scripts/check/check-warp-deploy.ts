@@ -3,6 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
+import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getWarpAddresses } from '../../config/registry.js';
 import { warpConfigGetterMap } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
@@ -35,9 +36,20 @@ async function main() {
 
   const failedWarpRoutesChecks: string[] = [];
 
-  let warpIdsToCheck = Object.keys(warpConfigGetterMap);
+  const routesToSkip: string[] = [
+    WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
+  ];
+
+  let warpIdsToCheck: string[];
   if (interactive) {
     warpIdsToCheck = await getWarpRouteIdsInteractive();
+  } else {
+    console.log(chalk.yellow('Skipping the following warp routes:'));
+    routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
+
+    warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
+      (warpRouteId) => !routesToSkip.includes(warpRouteId),
+    );
   }
 
   // Determine which chains have warp configs
