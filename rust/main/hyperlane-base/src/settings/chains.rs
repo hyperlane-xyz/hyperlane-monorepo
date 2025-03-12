@@ -988,12 +988,7 @@ fn build_sealevel_provider(
     locator: &ContractLocator,
     conf: &h_sealevel::ConnectionConf,
 ) -> h_sealevel::SealevelProvider {
-    h_sealevel::SealevelProvider::new(
-        rpc_client,
-        locator.domain.clone(),
-        locator.address.clone(),
-        conf,
-    )
+    h_sealevel::SealevelProvider::new(rpc_client, locator.domain.clone(), locator.address, conf)
 }
 
 fn build_sealevel_tx_submitter(

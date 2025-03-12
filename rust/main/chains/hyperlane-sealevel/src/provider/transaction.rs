@@ -42,7 +42,7 @@ pub(crate) fn inner_instructions<'a>(
             OptionSerializer::None | OptionSerializer::Skip => empty,
         })
         .unwrap_or(empty)
-        .into_iter()
+        .iter()
         .flat_map(|i| &i.instructions)
         .collect::<Vec<&UiInstruction>>();
 
