@@ -6,16 +6,16 @@ import {
   sortArraysInConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  FormatObjectFormatter,
   ObjectDiff,
+  TransformObjectTransformer,
   diffObjMerge,
-  formatObj,
+  transformObj,
 } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
-const formatter: FormatObjectFormatter = (
+const formatter: TransformObjectTransformer = (
   obj: any,
   propPath: ReadonlyArray<string>,
 ) => {
@@ -29,29 +29,20 @@ const formatter: FormatObjectFormatter = (
     (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
     parentKey === 'ownerOverrides'
   ) {
-    return {
-      formattedValue: obj,
-      shouldInclude: false,
-    };
+    return undefined;
   }
 
   if (typeof obj === 'string') {
-    return {
-      formattedValue: obj.toLowerCase(),
-      shouldInclude: true,
-    };
+    return obj.toLowerCase();
   }
 
-  return {
-    formattedValue: obj,
-    shouldInclude: true,
-  };
+  return obj;
 };
 
 export function formatConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
-  return sortArraysInConfig(formatObj(obj, formatter));
+  return sortArraysInConfig(transformObj(obj, formatter));
 }
 
 const KEYS_TO_IGNORE = ['totalSupply'];

@@ -338,81 +338,66 @@ export function mustGet<T>(obj: Record<string, T>, key: string): T {
   return value;
 }
 
-type FormatObjResult = {
-  // The value after it has been transformed
-  formattedValue: any;
-
-  // Whether the formatted value should be included or not in the final object
-  shouldInclude: boolean;
-};
-
-export type FormatObjectFormatter = (
+export type TransformObjectTransformer = (
   obj: any,
   propPath: ReadonlyArray<string>,
-) => FormatObjResult;
+) => any;
 
 /**
  * Recursively applies `formatter` to the provided object
  *
  * @param obj
- * @param formatter a function that takes an object and formats it, if the `shouldInclude` property in the return value is set to false, the current value won't be included in the final result
+ * @param transformer a function that takes an object and formats it, if the `shouldInclude` property in the return value is set to false, the current value won't be included in the final result
  * @param maxDepth the maximum depth that can be reached when going through nested fields of a property
  *
  * @throws if `maxDepth` is reached in an object property
  */
-export function formatObj(
+export function transformObj(
   obj: any,
-  formatter: FormatObjectFormatter,
+  transformer: TransformObjectTransformer,
   maxDepth = 15,
 ): any {
-  const { formattedValue, shouldInclude } = internalFormatObj(
-    obj,
-    formatter,
-    [],
-    maxDepth,
-  );
-
-  return shouldInclude ? formattedValue : undefined;
+  return internalTransformObj(obj, transformer, [], maxDepth);
 }
 
-function internalFormatObj(
+function internalTransformObj(
   obj: any,
-  formatter: FormatObjectFormatter,
+  transformer: TransformObjectTransformer,
   propPath: Array<string>,
   maxDepth: number,
-): FormatObjResult {
+): any {
   if (propPath.length > maxDepth) {
-    throw new Error(`formatObj went too deep. Max depth is ${maxDepth}`);
+    throw new Error(`transformObj went too deep. Max depth is ${maxDepth}`);
   }
 
   if (Array.isArray(obj)) {
-    return {
-      formattedValue: obj
-        .map((obj) =>
-          internalFormatObj(obj, formatter, [...propPath], maxDepth),
-        )
-        .filter((obj) => obj.shouldInclude)
-        .map((obj) => obj.formattedValue),
-      shouldInclude: true,
-    };
+    return obj.map((obj) =>
+      internalTransformObj(obj, transformer, [...propPath], maxDepth),
+    );
   } else if (isObject(obj)) {
-    const newObj = Object.entries(obj).reduce((formattedObj, [key, value]) => {
-      const { formattedValue, shouldInclude } = internalFormatObj(
-        value,
-        formatter,
-        [...propPath, key],
-        maxDepth,
-      );
+    const newObj = Object.entries(obj).reduce(
+      (transformedObj, [key, value]) => {
+        const transformedValueValue = internalTransformObj(
+          value,
+          transformer,
+          [...propPath, key],
+          maxDepth,
+        );
 
-      if (shouldInclude) {
-        formattedObj[key] = formattedValue;
-      }
+        if (
+          transformedValueValue !== undefined &&
+          transformedValueValue !== null
+        ) {
+          transformedObj[key] = transformedValueValue;
+        }
 
-      return formattedObj;
-    }, {} as any);
+        return transformedObj;
+      },
+      {} as any,
+    );
 
-    return formatter(newObj, propPath);
+    return transformer(newObj, propPath);
   }
 
-  return formatter(obj, propPath);
+  return transformer(obj, propPath);
 }

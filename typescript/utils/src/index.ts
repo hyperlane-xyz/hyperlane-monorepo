@@ -128,8 +128,8 @@ export {
   pick,
   promiseObjAll,
   stringifyObject,
-  formatObj,
-  FormatObjectFormatter,
+  transformObj,
+  TransformObjectTransformer,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
