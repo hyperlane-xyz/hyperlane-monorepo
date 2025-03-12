@@ -14,7 +14,6 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
-  CosmosModuleProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
   TypedProvider,
@@ -66,14 +65,6 @@ export class BaseCosmosAdapter extends BaseAppAdapter {
 
   public getProvider(): CosmJsProvider['provider'] {
     return this.multiProvider.getCosmJsProvider(this.chainName);
-  }
-}
-
-export class BaseCosmosModuleAdapter extends BaseAppAdapter {
-  public readonly protocol: ProtocolType = ProtocolType.CosmosModule;
-
-  public getProvider(): CosmosModuleProvider['provider'] {
-    return this.multiProvider.getCosmosModuleProvider(this.chainName);
   }
 }
 

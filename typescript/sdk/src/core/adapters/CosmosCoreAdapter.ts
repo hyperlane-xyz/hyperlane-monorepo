@@ -7,7 +7,7 @@ import {
   pollAsync,
 } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
+import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
@@ -21,8 +21,8 @@ const MESSAGE_DISPATCH_EVENT_TYPE = 'dispatch';
 const MESSAGE_ATTRIBUTE_KEY = 'message';
 const MESSAGE_DESTINATION_ATTRIBUTE_KEY = 'destination';
 
-export class CosmosModuleCoreAdapter
-  extends BaseCosmWasmAdapter
+export class CosmosCoreAdapter
+  extends BaseCosmosAdapter
   implements ICoreAdapter
 {
   constructor(
@@ -36,9 +36,9 @@ export class CosmosModuleCoreAdapter
   extractMessageIds(
     sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
-    if (sourceTx.type !== ProviderType.CosmosModule) {
+    if (sourceTx.type !== ProviderType.CosmJs) {
       throw new Error(
-        `Unsupported provider type for CosmosModuleCoreAdapter ${sourceTx.type}`,
+        `Unsupported provider type for CosmosCoreAdapter ${sourceTx.type}`,
       );
     }
     const dispatchEvents = sourceTx.receipt.events.filter(
@@ -68,9 +68,7 @@ export class CosmosModuleCoreAdapter
     delayMs?: number,
     maxAttempts?: number,
   ): Promise<boolean> {
-    const provider = await this.multiProvider.getCosmosModuleProvider(
-      destination,
-    );
+    const provider = await this.multiProvider.getCosmJsProvider(destination);
 
     await pollAsync(
       async () => {

@@ -19,7 +19,6 @@ import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
-  CosmosModuleProvider,
   EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
@@ -203,15 +202,6 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
       chainNameOrId,
       ProviderType.CosmJsWasm,
-    );
-  }
-
-  getCosmosModuleProvider(
-    chainNameOrId: ChainNameOrId,
-  ): CosmosModuleProvider['provider'] {
-    return this.getSpecificProvider<CosmosModuleProvider['provider']>(
-      chainNameOrId,
-      ProviderType.CosmosModule,
     );
   }
 

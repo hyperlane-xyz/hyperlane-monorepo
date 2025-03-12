@@ -25,8 +25,7 @@ export async function isRpcHealthy(
     return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
   else if (
     provider.type === ProviderType.CosmJsWasm ||
-    provider.type === ProviderType.CosmJs ||
-    provider.type === ProviderType.CosmosModule
+    provider.type === ProviderType.CosmJs
   )
     return isCosmJsProviderHealthy(provider.provider, metadata);
   else

@@ -1,11 +1,7 @@
-import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
-import { wasmTypes } from '@cosmjs/cosmwasm-stargate';
 import { toUtf8 } from '@cosmjs/encoding';
-import { Uint53 } from '@cosmjs/math';
-import { Registry } from '@cosmjs/proto-signing';
-import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
+import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -15,8 +11,6 @@ import {
   CosmJsTransaction,
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
-  CosmosModuleProvider,
-  CosmosModuleTransaction,
   EthersV5Provider,
   EthersV5Transaction,
   ProviderType,
@@ -139,100 +133,15 @@ export async function estimateTransactionFeeSolanaWeb3({
   };
 }
 
-// This is based on a reverse-engineered version of the
-// SigningStargateClient's simulate function. It cannot be
-// used here because it requires access to the private key.
-// https://github.com/cosmos/cosmjs/issues/1568
 export async function estimateTransactionFeeCosmJs({
   transaction,
   provider,
   estimatedGasPrice,
   sender,
-  senderPubKey,
   memo,
 }: {
   transaction: CosmJsTransaction;
   provider: CosmJsProvider;
-  estimatedGasPrice: Numberish;
-  sender: Address;
-  // Unfortunately the sender pub key is required for this simulation.
-  // For accounts that have sent a tx, the pub key could be fetched via
-  // a StargateClient getAccount call. However that will fail for addresses
-  // that have not yet sent a tx on the queried chain.
-  // Related: https://github.com/cosmos/cosmjs/issues/889
-  senderPubKey: HexString;
-  memo?: string;
-}): Promise<TransactionFeeEstimate> {
-  const stargateClient = await provider.provider;
-  const message = transaction.transaction;
-  const registry = new Registry([...defaultRegistryTypes, ...wasmTypes]);
-  const encodedMsg = registry.encodeAsAny(message);
-  const encodedPubkey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
-  const { sequence } = await stargateClient.getSequence(sender);
-  const { gasInfo } = await stargateClient
-    // @ts-ignore force access to protected method
-    .forceGetQueryClient()
-    .tx.simulate([encodedMsg], memo, encodedPubkey, sequence);
-  assert(gasInfo, 'Gas estimation failed');
-  const gasUnits = Uint53.fromString(gasInfo.gasUsed.toString()).toNumber();
-
-  const gasPrice = parseFloat(estimatedGasPrice.toString());
-
-  return {
-    gasUnits,
-    gasPrice,
-    fee: Math.floor(gasUnits * gasPrice),
-  };
-}
-
-export async function estimateTransactionFeeCosmJsWasm({
-  transaction,
-  provider,
-  estimatedGasPrice,
-  sender,
-  senderPubKey,
-  memo,
-}: {
-  transaction: CosmJsWasmTransaction;
-  provider: CosmJsWasmProvider;
-  estimatedGasPrice: Numberish;
-  sender: Address;
-  senderPubKey: HexString;
-  memo?: string;
-}): Promise<TransactionFeeEstimate> {
-  const message = {
-    typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-    value: MsgExecuteContract.fromPartial({
-      sender,
-      contract: transaction.transaction.contractAddress,
-      msg: toUtf8(JSON.stringify(transaction.transaction.msg)),
-      funds: [...(transaction.transaction.funds || [])],
-    }),
-  };
-  const wasmClient = await provider.provider;
-  // @ts-ignore access a private field here to extract client URL
-  const url: string = wasmClient.cometClient.client.url;
-  const stargateClient = StargateClient.connect(url);
-
-  return estimateTransactionFeeCosmJs({
-    transaction: { type: ProviderType.CosmJs, transaction: message },
-    provider: { type: ProviderType.CosmJs, provider: stargateClient },
-    estimatedGasPrice,
-    sender,
-    senderPubKey,
-    memo,
-  });
-}
-
-export async function estimateTransactionFeeCosmosModule({
-  transaction,
-  provider,
-  estimatedGasPrice,
-  sender,
-  memo,
-}: {
-  transaction: CosmosModuleTransaction;
-  provider: CosmosModuleProvider;
   estimatedGasPrice: Numberish;
   sender: Address;
   memo?: string;
@@ -250,6 +159,42 @@ export async function estimateTransactionFeeCosmosModule({
     gasPrice,
     fee: Math.floor(gasUnits * gasPrice),
   };
+}
+
+export async function estimateTransactionFeeCosmJsWasm({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  sender,
+  memo,
+}: {
+  transaction: CosmJsWasmTransaction;
+  provider: CosmJsWasmProvider;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  memo?: string;
+}): Promise<TransactionFeeEstimate> {
+  const message = {
+    typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
+    value: MsgExecuteContract.fromPartial({
+      sender,
+      contract: transaction.transaction.contractAddress,
+      msg: toUtf8(JSON.stringify(transaction.transaction.msg)),
+      funds: [...(transaction.transaction.funds || [])],
+    }),
+  };
+  const wasmClient = await provider.provider;
+  // @ts-ignore access a private field here to extract client URL
+  const url: string = wasmClient.cometClient.client.url;
+  const stargateClient = HyperlaneModuleClient.connect(url);
+
+  return estimateTransactionFeeCosmJs({
+    transaction: { type: ProviderType.CosmJs, transaction: message },
+    provider: { type: ProviderType.CosmJs, provider: stargateClient },
+    estimatedGasPrice,
+    sender,
+    memo,
+  });
 }
 
 export function estimateTransactionFee({
@@ -293,7 +238,6 @@ export function estimateTransactionFee({
       provider,
       estimatedGasPrice,
       sender,
-      senderPubKey,
     });
   } else if (
     transaction.type === ProviderType.CosmJsWasm &&
@@ -304,21 +248,6 @@ export function estimateTransactionFee({
     assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
     assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
     return estimateTransactionFeeCosmJsWasm({
-      transaction,
-      provider,
-      estimatedGasPrice,
-      sender,
-      senderPubKey,
-    });
-  } else if (
-    transaction.type === ProviderType.CosmosModule &&
-    provider.type === ProviderType.CosmosModule
-  ) {
-    const { transactionOverrides } = chainMetadata;
-    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
-    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
-
-    return estimateTransactionFeeCosmosModule({
       transaction,
       provider,
       estimatedGasPrice,

@@ -4,7 +4,7 @@ import type {
   ExecuteInstruction,
 } from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
-import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
+import type { DeliverTxResponse } from '@cosmjs/stargate';
 import type {
   Connection,
   Transaction as SolTransaction,
@@ -32,7 +32,6 @@ export enum ProviderType {
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
-  CosmosModule = 'cosmos-module',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -42,7 +41,6 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
-  [ProtocolType.CosmosModule]: ProviderType.CosmosModule,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -61,17 +59,10 @@ type ProtocolTypesMapping = {
     receipt: SolanaWeb3TransactionReceipt;
   };
   [ProtocolType.Cosmos]: {
-    transaction: CosmJsWasmTransaction;
-    provider: CosmJsWasmProvider;
-    contract: CosmJsWasmContract;
-    receipt: CosmJsWasmTransactionReceipt;
-  };
-  // TODO
-  [ProtocolType.CosmosModule]: {
-    transaction: CosmJsWasmTransaction;
-    provider: CosmJsWasmProvider;
-    contract: CosmJsWasmContract;
-    receipt: CosmJsWasmTransactionReceipt;
+    transaction: CosmJsTransaction;
+    provider: CosmJsProvider;
+    contract: never;
+    receipt: CosmJsTransactionReceipt;
   };
 };
 
@@ -123,9 +114,9 @@ export interface SolanaWeb3Provider extends TypedProviderBase<Connection> {
 }
 
 export interface CosmJsProvider
-  extends TypedProviderBase<Promise<StargateClient>> {
+  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
   type: ProviderType.CosmJs;
-  provider: Promise<StargateClient>;
+  provider: Promise<HyperlaneModuleClient>;
 }
 
 export interface CosmJsWasmProvider
@@ -134,20 +125,13 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
-export interface CosmosModuleProvider
-  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
-  type: ProviderType.CosmosModule;
-  provider: Promise<HyperlaneModuleClient>;
-}
-
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
   | ViemProvider
   | SolanaWeb3Provider
   | CosmJsProvider
-  | CosmJsWasmProvider
-  | CosmosModuleProvider;
+  | CosmJsWasmProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -233,20 +217,13 @@ export interface CosmJsWasmTransaction
   transaction: ExecuteInstruction;
 }
 
-export interface CosmosModuleTransaction
-  extends TypedTransactionBase<CmTransaction> {
-  type: ProviderType.CosmosModule;
-  transaction: CmTransaction;
-}
-
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
   | ViemTransaction
   | SolanaWeb3Transaction
   | CosmJsTransaction
-  | CosmJsWasmTransaction
-  | CosmosModuleTransaction;
+  | CosmJsWasmTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -287,16 +264,9 @@ export interface CosmJsWasmTransactionReceipt
   receipt: DeliverTxResponse;
 }
 
-export interface CosmosModuleTransactionReceipt
-  extends TypedTransactionReceiptBase<DeliverTxResponse> {
-  type: ProviderType.CosmosModule;
-  receipt: DeliverTxResponse;
-}
-
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
-  | CosmJsWasmTransactionReceipt
-  | CosmosModuleTransactionReceipt;
+  | CosmJsWasmTransactionReceipt;

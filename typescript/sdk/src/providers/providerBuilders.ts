@@ -1,5 +1,4 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
-import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
@@ -12,7 +11,6 @@ import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
-  CosmosModuleProvider,
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
@@ -96,7 +94,7 @@ export function defaultCosmJsProviderBuilder(
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmJs,
-    provider: StargateClient.connect(rpcUrls[0].http),
+    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
   };
 }
 
@@ -108,17 +106,6 @@ export function defaultCosmJsWasmProviderBuilder(
   return {
     type: ProviderType.CosmJsWasm,
     provider: CosmWasmClient.connect(rpcUrls[0].http),
-  };
-}
-
-export function defaultCosmosModuleProviderBuilder(
-  rpcUrls: RpcUrl[],
-  _network: number | string,
-): CosmosModuleProvider {
-  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
-  return {
-    type: ProviderType.CosmosModule,
-    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
   };
 }
 
@@ -141,7 +128,6 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
-  [ProviderType.CosmosModule]: defaultCosmosModuleProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -150,6 +136,5 @@ export const protocolToDefaultProviderBuilder: Record<
 > = {
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
-  [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
-  [ProtocolType.CosmosModule]: defaultCosmosModuleProviderBuilder,
+  [ProtocolType.Cosmos]: defaultCosmJsProviderBuilder,
 };
