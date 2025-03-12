@@ -12,7 +12,7 @@ import { WarpRouteMonitorHelmManager } from '../../../src/warp/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
-  withWarpRouteIdNoChoicesRequired,
+  withWarpRouteIdRequired,
 } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
@@ -23,7 +23,7 @@ const LOG_AMOUNT = 5;
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteIdNoChoicesRequired(
+  const { environment, warpRouteId } = await withWarpRouteIdRequired(
     getArgs(),
   ).parse();
 

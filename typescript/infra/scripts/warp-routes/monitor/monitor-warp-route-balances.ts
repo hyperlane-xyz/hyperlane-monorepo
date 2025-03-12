@@ -33,7 +33,7 @@ import { startMetricsServer } from '../../../src/utils/metrics.js';
 import {
   getArgs,
   getWarpRouteIdInteractive,
-  withWarpRouteIdNoChoices,
+  withKnownWarpRouteId,
 } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
@@ -57,7 +57,7 @@ async function main() {
     checkFrequency,
     environment,
     warpRouteId: warpRouteIdArg,
-  } = await withWarpRouteIdNoChoices(getArgs())
+  } = await withKnownWarpRouteId(getArgs())
     .describe('checkFrequency', 'frequency to check balances in ms')
     .demandOption('checkFrequency')
     .alias('v', 'checkFrequency') // v as in Greek letter nu

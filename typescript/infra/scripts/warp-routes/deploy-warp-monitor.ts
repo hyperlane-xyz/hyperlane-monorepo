@@ -18,7 +18,7 @@ import {
   getAgentConfig,
   getArgs,
   getWarpRouteIdsInteractive,
-  withWarpRouteIdNoChoices,
+  withKnownWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -42,7 +42,7 @@ async function validateRegistryCommit(commit: string) {
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteIdNoChoices(getArgs())
+  const { environment, warpRouteId } = await withKnownWarpRouteId(getArgs())
     .argv;
   const envConfig = getEnvironmentConfig(environment);
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
