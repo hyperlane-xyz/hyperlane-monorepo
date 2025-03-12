@@ -221,15 +221,6 @@ async function executeDeploy(
     warpDeployConfig,
     context: { multiProvider, isDryRun, dryRunChain },
   } = params;
-  const deployer = warpDeployConfig.isNft
-    ? new HypERC721Deployer(multiProvider, undefined, contractVerifier)
-    : new HypERC20Deployer(multiProvider, undefined, contractVerifier); // TODO: replace with EvmERC20WarpModule
-
-  const config: WarpRouteDeployConfigMailboxRequired =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
-
 
   const contractVerifier = new ContractVerifier(
     multiProvider,
@@ -237,11 +228,12 @@ async function executeDeploy(
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
+
   const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider, undefined, contractVerifier)
     : new HypERC20Deployer(multiProvider, undefined, contractVerifier); // TODO: replace with EvmERC20WarpModule
 
-  const config: WarpRouteDeployConfig =
+  const config: WarpRouteDeployConfigMailboxRequired =
     isDryRun && dryRunChain
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
       : warpDeployConfig;
