@@ -49,6 +49,14 @@ export function getStarknetHypNativeContract(
   return new Contract(abi, address, signer);
 }
 
+export function getStarknetEtherContract(
+  address: string,
+  signer?: Account | Provider,
+): Contract {
+  const { abi } = getCompiledContract('Ether', ContractType.TOKEN);
+  return new Contract(abi, address, signer);
+}
+
 const DISPATCH_EVENT = 'contracts::mailbox::mailbox::Dispatch';
 
 export function parseStarknetDispatchedMessages(

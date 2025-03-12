@@ -13,6 +13,7 @@ import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import {
+  getStarknetEtherContract,
   getStarknetHypERC20CollateralContract,
   getStarknetHypERC20Contract,
 } from '../../utils/starknet.js';
@@ -225,7 +226,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     const nativeAddress =
       multiProvider.getChainMetadata(chainName)?.nativeToken?.denom;
     assert(nativeAddress, `Native address not found for chain ${chainName}`);
-    this.nativeContract = getStarknetHypERC20Contract(
+    this.nativeContract = getStarknetEtherContract(
       nativeAddress ??
         PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!.denom,
       multiProvider.getStarknetProvider(chainName),
