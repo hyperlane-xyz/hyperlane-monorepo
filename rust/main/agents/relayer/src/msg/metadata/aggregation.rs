@@ -174,16 +174,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 )),
                 Err(_) => Either::Right((*ism_address, None)),
             });
-        let maybe_aggregation_metadata =
-            Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
-                .await
-                .map_or(Err(MetadataBuildError::CouldNotFetch), |mut metas| {
-                    Ok(Metadata::new(Self::format_metadata(
-                        &mut metas,
-                        ism_addresses.len(),
-                    )))
-                });
-        maybe_aggregation_metadata
+        Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
+            .await
+            .map_or(Err(MetadataBuildError::CouldNotFetch), |mut metas| {
+                Ok(Metadata::new(Self::format_metadata(
+                    &mut metas,
+                    ism_addresses.len(),
+                )))
+            })
     }
 }
 
