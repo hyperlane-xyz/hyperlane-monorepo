@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use url::Url;
 
 use hyperlane_core::config::OperationBatchConfig;
@@ -73,7 +74,9 @@ fn provider(address: &str) -> WasmGrpcProvider {
             denom: "untrn".to_owned(),
             amount: Default::default(),
         },
-        locator,
+        &locator,
+        None,
+        PrometheusClientMetrics::default(),
         None,
     )
     .unwrap()

@@ -10,6 +10,9 @@ use tracing::{instrument, warn};
 
 #[async_trait]
 pub trait ProcessorExt: Send + Debug {
+    /// The name of this processor
+    fn name(&self) -> String;
+
     /// The domain this processor is getting messages from.
     fn domain(&self) -> &HyperlaneDomain;
 
@@ -27,9 +30,13 @@ pub struct Processor {
 impl Processor {
     pub fn spawn(self) -> JoinHandle<()> {
         let task_monitor = self.task_monitor.clone();
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            self.main_loop().await
-        }))
+        let name = self.ticker.name();
+        let instrumented =
+            TaskMonitor::instrument(&task_monitor, async move { self.main_loop().await });
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(instrumented)
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     #[instrument(ret, skip(self), level = "info", fields(domain=%self.ticker.domain()))]
