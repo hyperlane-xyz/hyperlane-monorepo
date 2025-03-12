@@ -10,7 +10,7 @@ const turtleOwners = {
   linea: '0x2e0355922EF3a5b77d29287C808aEafB4e7f25B2',
 };
 
-export const getEthereumLineaTurtle = async (
+export const getEthereumLineaTurtleWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ethereum: HypTokenRouterConfig = {
