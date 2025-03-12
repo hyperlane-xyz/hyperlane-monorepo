@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use rstest::rstest;
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, EncodedTransactionWithStatusMeta,
 };
@@ -10,13 +11,22 @@ use hyperlane_core::H512;
 use crate::provider::recipient::RecipientProvider;
 use crate::utils::decode_h256;
 
-#[test]
-fn test() {
+#[rstest]
+#[case(
+    "solana_complex_transaction_including_token_transfer.json",
+    "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi"
+)]
+#[case(
+    "eclipse_complex_transaction_including_token_transfer.json",
+    "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y"
+)]
+fn test_identify_recipient_in_complex_transaction(
+    #[case] transaction_file: &str,
+    #[case] mailbox: &str,
+) {
     // given
-    let transaction = transaction(&read_json(
-        "multistep_transaction_including_token_transfer.json",
-    ));
-    let mailbox_address = decode_h256("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y").unwrap();
+    let transaction = transaction(&read_json(transaction_file));
+    let mailbox_address = decode_h256(mailbox).unwrap();
     let provider = RecipientProvider::new(mailbox_address);
 
     // when
