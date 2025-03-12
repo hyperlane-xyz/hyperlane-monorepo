@@ -34,29 +34,29 @@ var __awaiter =
   };
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.SigningHyperlaneModuleClient = exports.HyperlaneModuleClient = void 0;
-const stargate_1 = require('@cosmjs/stargate');
-const math_1 = require('@cosmjs/math');
-const tendermint_rpc_1 = require('@cosmjs/tendermint-rpc');
-const query_1 = require('./hyperlane/warp/query');
-const query_2 = require('./hyperlane/core/query');
-const registry_1 = require('./registry');
-const aminomessages_1 = require('./hyperlane/core/aminomessages');
-const aminomessages_2 = require('./hyperlane/warp/aminomessages');
-const aminomessages_3 = require('./hyperlane/interchain_security/aminomessages');
-const aminomessages_4 = require('./hyperlane/post_dispatch/aminomessages');
 const amino_1 = require('@cosmjs/amino');
-const query_3 = require('./hyperlane/interchain_security/query');
-const query_4 = require('./hyperlane/post_dispatch/query');
+const math_1 = require('@cosmjs/math');
+const stargate_1 = require('@cosmjs/stargate');
+const tendermint_rpc_1 = require('@cosmjs/tendermint-rpc');
+const aminomessages_1 = require('./hyperlane/core/aminomessages');
+const query_1 = require('./hyperlane/core/query');
+const aminomessages_2 = require('./hyperlane/interchain_security/aminomessages');
+const query_2 = require('./hyperlane/interchain_security/query');
+const aminomessages_3 = require('./hyperlane/post_dispatch/aminomessages');
+const query_3 = require('./hyperlane/post_dispatch/query');
+const aminomessages_4 = require('./hyperlane/warp/aminomessages');
+const query_4 = require('./hyperlane/warp/query');
+const registry_1 = require('./registry');
 class HyperlaneModuleClient extends stargate_1.StargateClient {
   constructor(cometClient, options) {
     super(cometClient, options);
     this.query = stargate_1.QueryClient.withExtensions(
       cometClient,
       stargate_1.setupBankExtension,
-      query_2.setupCoreExtension,
-      query_3.setupInterchainSecurityExtension,
-      query_4.setupPostDispatchExtension,
-      query_1.setupWarpExtension,
+      query_1.setupCoreExtension,
+      query_2.setupInterchainSecurityExtension,
+      query_3.setupPostDispatchExtension,
+      query_4.setupWarpExtension,
     );
   }
   static connect(endpoint_1) {
@@ -108,11 +108,11 @@ class SigningHyperlaneModuleClient extends stargate_1.SigningStargateClient {
                   Object.assign({}, options.aminoTypes),
                   (0, aminomessages_1.createCoreAminoConverter)(),
                 ),
-                (0, aminomessages_3.createInterchainSecurityAminoConverter)(),
+                (0, aminomessages_2.createInterchainSecurityAminoConverter)(),
               ),
-              (0, aminomessages_4.createPostDispatchAminoConverter)(),
+              (0, aminomessages_3.createPostDispatchAminoConverter)(),
             ),
-            (0, aminomessages_2.createWarpAminoConverter)(),
+            (0, aminomessages_4.createWarpAminoConverter)(),
           ),
         ),
       }),
@@ -121,10 +121,10 @@ class SigningHyperlaneModuleClient extends stargate_1.SigningStargateClient {
     this.query = stargate_1.QueryClient.withExtensions(
       cometClient,
       stargate_1.setupBankExtension,
-      query_2.setupCoreExtension,
-      query_3.setupInterchainSecurityExtension,
-      query_4.setupPostDispatchExtension,
-      query_1.setupWarpExtension,
+      query_1.setupCoreExtension,
+      query_2.setupInterchainSecurityExtension,
+      query_3.setupPostDispatchExtension,
+      query_4.setupWarpExtension,
     );
     // register all the custom tx types
     for (const typeUrl in registry_1.REGISTRY) {

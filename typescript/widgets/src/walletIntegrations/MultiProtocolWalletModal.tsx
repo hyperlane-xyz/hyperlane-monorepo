@@ -57,6 +57,15 @@ export function MultiProtocolWalletModal({
             Cosmos
           </ProtocolButton>
         )}
+        {includesProtocol(ProtocolType.CosmosModule) && (
+          <ProtocolButton
+            protocol={ProtocolType.CosmosModule}
+            onClick={onClickProtocol}
+            subTitle="an Cosmos Module"
+          >
+            Cosmos Module
+          </ProtocolButton>
+        )}
       </div>
     </Modal>
   );

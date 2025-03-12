@@ -14,6 +14,14 @@ import {
   useCosmosWalletDetails,
 } from './cosmos.js';
 import {
+  useCosmosModuleAccount,
+  useCosmosModuleActiveChain,
+  useCosmosModuleConnectFn,
+  useCosmosModuleDisconnectFn,
+  useCosmosModuleTransactionFns,
+  useCosmosModuleWalletDetails,
+} from './cosmosModule.js';
+import {
   useEthereumAccount,
   useEthereumActiveChain,
   useEthereumConnectFn,
@@ -50,14 +58,18 @@ export function useAccounts(
   const evmAccountInfo = useEthereumAccount(multiProvider);
   const solAccountInfo = useSolanaAccount(multiProvider);
   const cosmAccountInfo = useCosmosAccount(multiProvider);
+  const cosmosModuleAccountInfo = useCosmosModuleAccount(multiProvider);
 
   // Filtered ready accounts
   const readyAccounts = useMemo(
     () =>
-      [evmAccountInfo, solAccountInfo, cosmAccountInfo].filter(
-        (a) => a.isReady,
-      ),
-    [evmAccountInfo, solAccountInfo, cosmAccountInfo],
+      [
+        evmAccountInfo,
+        solAccountInfo,
+        cosmAccountInfo,
+        cosmosModuleAccountInfo,
+      ].filter((a) => a.isReady),
+    [evmAccountInfo, solAccountInfo, cosmAccountInfo, cosmosModuleAccountInfo],
   );
 
   // Check if any of the ready accounts are blacklisted
@@ -75,10 +87,17 @@ export function useAccounts(
         [ProtocolType.Ethereum]: evmAccountInfo,
         [ProtocolType.Sealevel]: solAccountInfo,
         [ProtocolType.Cosmos]: cosmAccountInfo,
+        [ProtocolType.CosmosModule]: cosmosModuleAccountInfo,
       },
       readyAccounts,
     }),
-    [evmAccountInfo, solAccountInfo, cosmAccountInfo, readyAccounts],
+    [
+      evmAccountInfo,
+      solAccountInfo,
+      cosmAccountInfo,
+      cosmosModuleAccountInfo,
+      readyAccounts,
+    ],
   );
 }
 
@@ -108,7 +127,10 @@ export function getAccountAddressForChain(
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
   const account = accounts[protocol];
-  if (protocol === ProtocolType.Cosmos) {
+  if (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosModule
+  ) {
     return account?.addresses.find((a) => a.chainName === chainName)?.address;
   } else {
     // Use first because only cosmos has the notion of per-chain addresses
@@ -132,14 +154,16 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
   const evmWallet = useEthereumWalletDetails();
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
+  const cosmosModuleWallet = useCosmosModuleWalletDetails();
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: evmWallet,
       [ProtocolType.Sealevel]: solWallet,
       [ProtocolType.Cosmos]: cosmosWallet,
+      [ProtocolType.CosmosModule]: cosmosModuleWallet,
     }),
-    [evmWallet, solWallet, cosmosWallet],
+    [evmWallet, solWallet, cosmosWallet, cosmosModuleWallet],
   );
 }
 
@@ -147,14 +171,21 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
   const onConnectEthereum = useEthereumConnectFn();
   const onConnectSolana = useSolanaConnectFn();
   const onConnectCosmos = useCosmosConnectFn();
+  const onConnectCosmosModule = useCosmosModuleConnectFn();
 
   return useMemo(
     () => ({
       [ProtocolType.Ethereum]: onConnectEthereum,
       [ProtocolType.Sealevel]: onConnectSolana,
       [ProtocolType.Cosmos]: onConnectCosmos,
+      [ProtocolType.CosmosModule]: onConnectCosmosModule,
     }),
-    [onConnectEthereum, onConnectSolana, onConnectCosmos],
+    [
+      onConnectEthereum,
+      onConnectSolana,
+      onConnectCosmos,
+      onConnectCosmosModule,
+    ],
   );
 }
 
@@ -162,6 +193,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
   const disconnectEvm = useEthereumDisconnectFn();
   const disconnectSol = useSolanaDisconnectFn();
   const disconnectCosmos = useCosmosDisconnectFn();
+  const disconnectCosmosModule = useCosmosModuleDisconnectFn();
 
   const onClickDisconnect =
     (env: ProtocolType, disconnectFn?: () => Promise<void> | void) =>
@@ -188,8 +220,12 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Cosmos,
         disconnectCosmos,
       ),
+      [ProtocolType.CosmosModule]: onClickDisconnect(
+        ProtocolType.CosmosModule,
+        disconnectCosmosModule,
+      ),
     }),
-    [disconnectEvm, disconnectSol, disconnectCosmos],
+    [disconnectEvm, disconnectSol, disconnectCosmos, disconnectCosmosModule],
   );
 }
 
@@ -200,10 +236,14 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
   const evmChain = useEthereumActiveChain(multiProvider);
   const solChain = useSolanaActiveChain(multiProvider);
   const cosmChain = useCosmosActiveChain(multiProvider);
+  const cosmosModuleChain = useCosmosModuleActiveChain(multiProvider);
 
   const readyChains = useMemo(
-    () => [evmChain, solChain, cosmChain].filter((c) => !!c.chainDisplayName),
-    [evmChain, solChain, cosmChain],
+    () =>
+      [evmChain, solChain, cosmChain, cosmosModuleChain].filter(
+        (c) => !!c.chainDisplayName,
+      ),
+    [evmChain, solChain, cosmChain, cosmosModuleChain],
   );
 
   return useMemo(
@@ -212,10 +252,11 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Ethereum]: evmChain,
         [ProtocolType.Sealevel]: solChain,
         [ProtocolType.Cosmos]: cosmChain,
+        [ProtocolType.CosmosModule]: cosmosModuleChain,
       },
       readyChains,
     }),
-    [evmChain, solChain, cosmChain, readyChains],
+    [evmChain, solChain, cosmChain, cosmosModuleChain, readyChains],
   );
 }
 
@@ -228,6 +269,10 @@ export function useTransactionFns(
     useSolanaTransactionFns(multiProvider);
   const { switchNetwork: onSwitchCosmNetwork, sendTransaction: onSendCosmTx } =
     useCosmosTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchCosmosModuleNetwork,
+    sendTransaction: onSendCosmosModuleTx,
+  } = useCosmosModuleTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
@@ -243,6 +288,10 @@ export function useTransactionFns(
         sendTransaction: onSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
+      [ProtocolType.CosmosModule]: {
+        sendTransaction: onSendCosmosModuleTx,
+        switchNetwork: onSwitchCosmosModuleNetwork,
+      },
     }),
     [
       onSendEvmTx,
@@ -251,6 +300,8 @@ export function useTransactionFns(
       onSwitchSolNetwork,
       onSendCosmTx,
       onSwitchCosmNetwork,
+      onSendCosmosModuleTx,
+      onSwitchCosmosModuleNetwork,
     ],
   );
 }

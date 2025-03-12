@@ -36,8 +36,8 @@ Object.defineProperty(exports, '__esModule', { value: true });
 exports.decodeIsm = void 0;
 exports.setupInterchainSecurityExtension = setupInterchainSecurityExtension;
 const stargate_1 = require('@cosmjs/stargate');
-const query_1 = require('../../../types/hyperlane/core/interchain_security/v1/query');
 const types_1 = require('src/types/hyperlane/core/interchain_security/v1/types');
+const query_1 = require('../../../types/hyperlane/core/interchain_security/v1/query');
 const decodeIsm = (ism) => {
   switch (ism === null || ism === void 0 ? void 0 : ism.type_url) {
     case '/hyperlane.core.interchain_security.v1.NoopISM':
