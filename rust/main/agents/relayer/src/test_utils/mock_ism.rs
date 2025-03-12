@@ -17,9 +17,28 @@ pub struct MockInterchainSecurityModuleResponses {
     pub domain: Option<HyperlaneDomain>,
 }
 
-#[derive(Debug, Default)]
 pub struct MockInterchainSecurityModule {
     pub responses: MockInterchainSecurityModuleResponses,
+    pub address: H256,
+}
+
+impl std::fmt::Debug for MockInterchainSecurityModule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MockInterchainSecurityModule {{ address: {} }}",
+            self.address
+        )
+    }
+}
+
+impl MockInterchainSecurityModule {
+    pub fn new(address: H256) -> Self {
+        Self {
+            responses: MockInterchainSecurityModuleResponses::default(),
+            address,
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -45,7 +64,10 @@ impl InterchainSecurityModule for MockInterchainSecurityModule {
             .lock()
             .unwrap()
             .pop_front()
-            .expect("No mock dry_run_verify response set")
+            .expect(&format!(
+                "No mock dry_run_verify response set {}",
+                self.address
+            ))
     }
 }
 
@@ -76,7 +98,7 @@ mod tests {
     /// Just to test mock structs work
     #[tokio::test]
     async fn test_mock_works() {
-        let mock_ism = MockInterchainSecurityModule::default();
+        let mock_ism = MockInterchainSecurityModule::new(H256::zero());
         mock_ism
             .responses
             .module_type

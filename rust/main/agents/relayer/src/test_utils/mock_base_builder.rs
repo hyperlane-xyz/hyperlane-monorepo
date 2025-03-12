@@ -177,7 +177,7 @@ mod tests {
     async fn test_mock_works() {
         let base_builder = MockBaseMetadataBuilder::default();
         {
-            let mock_ism = MockInterchainSecurityModule::default();
+            let mock_ism = MockInterchainSecurityModule::new(H256::zero());
             mock_ism
                 .responses
                 .module_type
@@ -189,7 +189,7 @@ mod tests {
                 .push_build_ism_response(H256::zero(), Ok(Box::new(mock_ism)));
         }
         {
-            let mock_ism = MockInterchainSecurityModule::default();
+            let mock_ism = MockInterchainSecurityModule::new(H256::zero());
             mock_ism
                 .responses
                 .module_type

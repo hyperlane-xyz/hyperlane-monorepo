@@ -193,13 +193,19 @@ mod test {
 
     fn insert_null_isms(base_builder: &MockBaseMetadataBuilder, addresses: &[H256]) {
         for ism_address in addresses {
-            let mock_ism = MockInterchainSecurityModule::default();
+            let mock_ism = MockInterchainSecurityModule::new(*ism_address);
             mock_ism
                 .responses
                 .module_type
                 .lock()
                 .unwrap()
                 .push_back(Ok(ModuleType::Null));
+            mock_ism
+                .responses
+                .dry_run_verify
+                .lock()
+                .unwrap()
+                .push_back(Ok(Some(U256::zero())));
             base_builder
                 .responses
                 .push_build_ism_response(*ism_address, Ok(Box::new(mock_ism)));
@@ -211,13 +217,19 @@ mod test {
         addresses: &[(H256, H256)],
     ) {
         for (ism_address, route_address) in addresses {
-            let mock_ism = MockInterchainSecurityModule::default();
+            let mock_ism = MockInterchainSecurityModule::new(*ism_address);
             mock_ism
                 .responses
                 .module_type
                 .lock()
                 .unwrap()
                 .push_back(Ok(ModuleType::Routing));
+            mock_ism
+                .responses
+                .dry_run_verify
+                .lock()
+                .unwrap()
+                .push_back(Ok(Some(U256::zero())));
             base_builder
                 .responses
                 .push_build_ism_response(*ism_address, Ok(Box::new(mock_ism)));
@@ -243,7 +255,7 @@ mod test {
         addresses: Vec<(H256, Vec<H256>, u8)>,
     ) {
         for (ism_address, aggregation_addresses, threshold) in addresses {
-            let mock_ism = MockInterchainSecurityModule::default();
+            let mock_ism = MockInterchainSecurityModule::new(ism_address);
             mock_ism
                 .responses
                 .module_type
@@ -434,7 +446,7 @@ mod test {
                 panic!("Metadata found when it should have failed");
             }
             Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(2));
+                assert_eq!(err, MetadataBuildError::CouldNotFetch);
             }
         }
     }
@@ -457,14 +469,16 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
+        let res =
+            build_message_metadata(message_builder, ism_address, &message, params.clone()).await;
 
         match res {
             Ok(_) => {
                 panic!("Metadata found when it should have failed");
             }
             Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(5));
+                assert_eq!(err, MetadataBuildError::CouldNotFetch);
+                assert_eq!(*(params.ism_count.lock().await), 5);
             }
         }
     }
