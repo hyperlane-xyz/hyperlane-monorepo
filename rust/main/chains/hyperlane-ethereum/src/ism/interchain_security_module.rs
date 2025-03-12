@@ -2,6 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -123,7 +124,7 @@ where
                 metadata.to_owned().into(),
                 RawHyperlaneMessage::from(message).to_vec().into(),
             )
-            .from(H160::random()); // We generate a random from address to ensure compatibility with zksync
+            .from(H160::from_str("0x69BE704F62F7CbC1a30E35E0153D89e2b0A6Aa55").unwrap()); // We use a random from address to ensure compatibility with zksync
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
         if verifies {
             Ok(Some(gas_estimate.into()))
