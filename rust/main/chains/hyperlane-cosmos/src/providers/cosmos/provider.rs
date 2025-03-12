@@ -263,7 +263,7 @@ impl CosmosProvider {
         })?;
         let proto: proto::cosmwasm::wasm::v1::MsgExecuteContract =
             any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
-        let msg = MsgExecuteContract::try_from(proto)?;
+        let msg = MsgExecuteContract::try_from(proto).map_err(Box::new)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
         Ok(contract)
@@ -283,7 +283,7 @@ impl CosmosProvider {
                 HyperlaneCosmosError::ParsingFailed(msg.to_owned())
             })?;
 
-        let account_id = AccountId::from_str(&packet_data.receiver)?;
+        let account_id = AccountId::from_str(&packet_data.receiver).map_err(Box::new)?;
         let address = H256::try_from(CosmosAccountId::new(&account_id))?;
 
         Ok(address)
