@@ -9,7 +9,7 @@ use hyperlane_sealevel_validator_announce::{
 use solana_sdk::pubkey::Pubkey;
 use tracing::{info, instrument, warn};
 
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelProvider, SealevelRpcClient};
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
@@ -21,8 +21,7 @@ pub struct SealevelValidatorAnnounce {
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
+    pub fn new(provider: SealevelProvider, locator: &ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,

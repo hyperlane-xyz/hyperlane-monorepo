@@ -4,9 +4,10 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainStatus,
   mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import {
   SearchMenu,
@@ -64,6 +65,10 @@ export interface ChainSearchMenuProps {
   showAddChainButton?: boolean;
   // Field by which data will be sorted by default
   defaultSortField?: DefaultSortField;
+  /**
+   * Allow chains to be shown as disabled. Defaults to `false`
+   */
+  shouldDisableChains?: boolean;
 }
 
 export function ChainSearchMenu({
@@ -76,6 +81,7 @@ export function ChainSearchMenu({
   showAddChainButton,
   showAddChainMenu,
   defaultSortField,
+  shouldDisableChains = false,
 }: ChainSearchMenuProps) {
   const [drilldownChain, setDrilldownChain] = useState<ChainName | undefined>(
     showChainDetails,
@@ -88,11 +94,22 @@ export function ChainSearchMenu({
       chainMetadata,
       overrideChainMetadata,
     );
-    return { mergedMetadata, listData: Object.values(mergedMetadata) };
-  }, [chainMetadata, overrideChainMetadata]);
+    const disabledChainMetadata = getDisabledChains(
+      mergedMetadata,
+      shouldDisableChains,
+    );
+    return {
+      mergedMetadata: disabledChainMetadata,
+      listData: Object.values(disabledChainMetadata),
+    };
+  }, [chainMetadata, overrideChainMetadata, shouldDisableChains]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
-    useCustomizedListItems(customListItemField, defaultSortField);
+    useCustomizedListItems(
+      customListItemField,
+      shouldDisableChains,
+      defaultSortField,
+    );
 
   if (drilldownChain && mergedMetadata[drilldownChain]) {
     const isLocalOverrideChain = !chainMetadata[drilldownChain];
@@ -225,12 +242,14 @@ function chainSearch({
   sort,
   filter,
   customListItemField,
+  shouldDisableChains,
 }: {
   data: ChainMetadata[];
   query: string;
   sort: SortState<ChainSortByOption>;
   filter: ChainFilterState;
   customListItemField?: CustomListItemField;
+  shouldDisableChains?: boolean;
 }) {
   const queryFormatted = query.trim().toLowerCase();
   return (
@@ -257,6 +276,14 @@ function chainSearch({
       })
       // Sort options
       .sort((c1, c2) => {
+        if (shouldDisableChains) {
+          // If one chain is disabled and the other is not, place the disabled chain at the bottom
+          const c1Disabled = c1.availability?.status === ChainStatus.Disabled;
+          const c2Disabled = c2.availability?.status === ChainStatus.Disabled;
+          if (c1Disabled && !c2Disabled) return 1;
+          if (!c1Disabled && c2Disabled) return -1;
+        }
+
         // Special case handling for if the chains are being sorted by the
         // custom field provided to ChainSearchMenu
         if (customListItemField && sort.sortBy === customListItemField.header) {
@@ -290,6 +317,7 @@ function chainSearch({
  */
 function useCustomizedListItems(
   customListItemField,
+  shouldDisableChains: boolean,
   defaultSortField?: DefaultSortField,
 ) {
   // Create closure of ChainListItem but with customField pre-bound
@@ -303,8 +331,8 @@ function useCustomizedListItems(
   // Bind the custom field to the search function
   const searchFn = useCallback(
     (args: Parameters<typeof chainSearch>[0]) =>
-      chainSearch({ ...args, customListItemField }),
-    [customListItemField],
+      chainSearch({ ...args, shouldDisableChains, customListItemField }),
+    [customListItemField, shouldDisableChains],
   );
 
   // Merge the custom field into the sort options if a custom field exists
@@ -332,4 +360,19 @@ function useCustomizedListItems(
   ) as SortState<ChainSortByOption> | undefined;
 
   return { ListComponent, searchFn, sortOptions, defaultSortState };
+}
+
+function getDisabledChains(
+  chainMetadata: ChainMap<ChainMetadata>,
+  shouldDisableChains: boolean,
+) {
+  if (!shouldDisableChains) return chainMetadata;
+
+  return objMap(chainMetadata, (_, chain) => {
+    if (chain.availability?.status === ChainStatus.Disabled) {
+      return { ...chain, disabled: true };
+    }
+
+    return chain;
+  });
 }

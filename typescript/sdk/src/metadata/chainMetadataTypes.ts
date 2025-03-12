@@ -35,6 +35,23 @@ export enum ChainTechnicalStack {
   Other = 'other',
 }
 
+export enum ChainStatus {
+  Live = 'live',
+  Disabled = 'disabled',
+}
+
+export enum ChainDisabledReason {
+  // chain is having issues with the RPC url
+  BadRpc = 'badrpc',
+  // chain is not being used anymore
+  Deprecated = 'deprecated',
+  // chain is not public or launched yet
+  Private = 'private',
+  // chain is not available due to upgrades or maintenance
+  Unavailable = 'unavailable',
+  Other = 'other',
+}
+
 // A type that also allows for literal values of the enum
 export type ExplorerFamilyValue = `${ExplorerFamily}`;
 
@@ -112,6 +129,26 @@ export const NativeTokenSchema = z.object({
   denom: z.string().optional(),
 });
 
+export const DisabledChainSchema = z.object({
+  status: z
+    .literal(ChainStatus.Disabled)
+    .describe(
+      'The status that represents the chain availability. See ChainStatus for valid values.',
+    ),
+  reasons: z
+    .array(z.nativeEnum(ChainDisabledReason))
+    .min(1)
+    .describe('List of reasons explaining why the chain is disabled.'),
+});
+
+export const EnabledChainSchema = z.object({
+  status: z
+    .literal(ChainStatus.Live)
+    .describe(
+      'The status that represents the chain availability. See ChainStatus for valid values.',
+    ),
+});
+
 export type NativeToken = z.infer<typeof NativeTokenSchema>;
 
 /**
@@ -119,6 +156,13 @@ export type NativeToken = z.infer<typeof NativeTokenSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
+  availability: z
+    .union([DisabledChainSchema, EnabledChainSchema])
+    .optional()
+    .describe(
+      'Specifies if the chain is available and the reasons why it is disabled.',
+    ),
+
   bech32Prefix: z
     .string()
     .optional()
