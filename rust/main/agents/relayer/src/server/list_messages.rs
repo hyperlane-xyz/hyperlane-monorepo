@@ -66,8 +66,7 @@ pub async fn format_queue(queue: OperationPriorityQueue) -> String {
             )
         })
         .collect();
-    // reverse sort because we want higher retry count in the front
-    sorted_operations.sort_by(|a, b| a.0.cmp(&b.0).reverse());
+    sorted_operations.sort_by(|a, b| a.0.cmp(&b.0));
 
     let mut res = Vec::with_capacity(sorted_operations.len());
     for (_, op_json_res) in sorted_operations {
@@ -99,18 +98,26 @@ impl ListOperationsApi {
 
 #[cfg(test)]
 mod tests {
+    use axum::http::StatusCode;
+    use std::{cmp::Reverse, net::SocketAddr, sync::Arc};
+    use tokio::sync::{self, Mutex};
+
+    use hyperlane_core::KnownHyperlaneDomain;
+
     use crate::msg::op_queue::{
         test::{dummy_metrics_and_label, MockPendingOperation},
         OpQueue,
     };
 
     use super::*;
-    use axum::http::StatusCode;
-    use hyperlane_core::KnownHyperlaneDomain;
-    use std::{cmp::Reverse, net::SocketAddr, sync::Arc};
-    use tokio::sync::{self, Mutex};
 
     const DUMMY_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
+    const MESSAGE_ID_1: &str = "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b";
+    const MESSAGE_ID_2: &str = "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914";
+    const SENDER_ADDRESS_1: &str =
+        "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
+    const RECIPIENT_ADDRESS_1: &str =
+        "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
 
     fn setup_test_server() -> (SocketAddr, OperationPriorityQueue) {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
@@ -137,28 +144,31 @@ mod tests {
         (addr, op_queue.queue.clone())
     }
 
+    fn generate_dummy_operation_1(retry_count: u32) -> QueueOperation {
+        Box::new(
+            MockPendingOperation::new(1, DUMMY_DOMAIN.into())
+                .with_id(MESSAGE_ID_1)
+                .with_sender_address(SENDER_ADDRESS_1)
+                .with_recipient_address(RECIPIENT_ADDRESS_1)
+                .with_retry_count(retry_count),
+        ) as QueueOperation
+    }
+
+    fn generate_dummy_operation_2(retry_count: u32) -> QueueOperation {
+        Box::new(
+            MockPendingOperation::new(2, DUMMY_DOMAIN.into())
+                .with_id(MESSAGE_ID_2)
+                .with_sender_address(SENDER_ADDRESS_1)
+                .with_recipient_address(RECIPIENT_ADDRESS_1)
+                .with_retry_count(retry_count),
+        ) as QueueOperation
+    }
+
     #[tokio::test]
     async fn test_message_id_retry() {
         let (addr, op_queue) = setup_test_server();
-        let id_1 = "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b";
-        let id_2 = "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914";
-        let sender_address = "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
-        let recipient_address =
-            "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
-        let dummy_operation_1 = Box::new(
-            MockPendingOperation::new(1, DUMMY_DOMAIN.into())
-                .with_id(id_1)
-                .with_sender_address(sender_address)
-                .with_recipient_address(recipient_address)
-                .with_retry_count(1),
-        ) as QueueOperation;
-        let dummy_operation_2 = Box::new(
-            MockPendingOperation::new(2, DUMMY_DOMAIN.into())
-                .with_id(id_2)
-                .with_sender_address(sender_address)
-                .with_recipient_address(recipient_address)
-                .with_retry_count(1),
-        ) as QueueOperation;
+        let dummy_operation_1 = generate_dummy_operation_1(1);
+        let dummy_operation_2 = generate_dummy_operation_2(2);
 
         // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
         // missing on `PendingMessage` because it's derived, hence the need to hence the need to have it explicitly serialized alongside the operation.
@@ -189,7 +199,7 @@ mod tests {
       "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 1,
+      "retry_count": 2,
       "seconds_to_next_attempt": 2,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
@@ -217,25 +227,8 @@ mod tests {
     #[tokio::test]
     async fn test_sorted_by_retry_count() {
         let (addr, op_queue) = setup_test_server();
-        let id_1 = "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b";
-        let id_2 = "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914";
-        let sender_address = "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
-        let recipient_address =
-            "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
-        let dummy_operation_1 = Box::new(
-            MockPendingOperation::new(1, DUMMY_DOMAIN.into())
-                .with_id(id_1)
-                .with_sender_address(sender_address)
-                .with_recipient_address(recipient_address)
-                .with_retry_count(1),
-        ) as QueueOperation;
-        let dummy_operation_2 = Box::new(
-            MockPendingOperation::new(2, DUMMY_DOMAIN.into())
-                .with_id(id_2)
-                .with_sender_address(sender_address)
-                .with_recipient_address(recipient_address)
-                .with_retry_count(4),
-        ) as QueueOperation;
+        let dummy_operation_1 = generate_dummy_operation_1(4);
+        let dummy_operation_2 = generate_dummy_operation_2(1);
 
         // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
         // missing on `PendingMessage` because it's derived, hence the need to hence the need to have it explicitly serialized alongside the operation.
@@ -250,7 +243,7 @@ mod tests {
       "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 4,
+      "retry_count": 1,
       "seconds_to_next_attempt": 2,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
@@ -266,7 +259,7 @@ mod tests {
       "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 1,
+      "retry_count": 4,
       "seconds_to_next_attempt": 1,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
