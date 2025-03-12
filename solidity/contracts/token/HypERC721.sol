@@ -12,6 +12,9 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
  * @author Abacus Works
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
+    /**
+     * @param _mailbox Address of the mailbox contract that will process and handle remote transfers for this token.
+     */
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
     /**
