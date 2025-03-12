@@ -16,6 +16,7 @@ export const tokens = {
     PNDR: '0x73624d2dEF952C77a1f3B5AD995eef53E49639EC',
     rstETH: '0x7a4EffD87C2f3C55CA251080b1343b605f327E3a',
     WSTETH: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
+    FORM: '0xE7deE4823EE18F1347F1Cf7997f70B94eFDe2E1F',
   },
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
@@ -63,6 +64,9 @@ export const tokens = {
   },
   zeronetwork: {
     USDC: '0x6a6394F47DD0BAF794808F2749C09bd4Ee874E70',
+  },
+  mint: {
+    MINT: '0x8511138208529fe1b9a37b863c7EEE3Fe234b7Ab',
   },
 };
 
