@@ -71,9 +71,6 @@ pub enum HyperlaneCosmosError {
     /// Parsing attempt failed
     #[error("Parsing attempt failed. (Errors: {0:?})")]
     ParsingAttemptsFailed(Vec<HyperlaneCosmosError>),
-    /// Reqwest Error
-    #[error("{0}")]
-    ReqwestError(reqwest::Error),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
@@ -85,11 +82,5 @@ impl From<HyperlaneCosmosError> for ChainCommunicationError {
 impl From<PublicKeyError> for HyperlaneCosmosError {
     fn from(value: PublicKeyError) -> Self {
         HyperlaneCosmosError::PublicKeyError(value.to_string())
-    }
-}
-
-impl From<reqwest::Error> for HyperlaneCosmosError {
-    fn from(value: reqwest::Error) -> Self {
-        HyperlaneCosmosError::ReqwestError(value)
     }
 }

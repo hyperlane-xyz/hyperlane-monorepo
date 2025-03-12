@@ -1,8 +1,7 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use hyperlane_cosmos_rs::hyperlane::core::v1::Process;
-use prost::Name;
+use hyperlane_cosmos_rs::{hyperlane::core::v1::Process, prost::Name};
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
@@ -20,12 +19,16 @@ use super::{EventIndexer, ParsedEvent};
 #[derive(Debug, Clone)]
 pub struct CosmosNativeDeliveryIndexer {
     provider: CosmosNativeProvider,
+    address: H256,
 }
 
 impl CosmosNativeDeliveryIndexer {
     ///  New Delivery Indexer
     pub fn new(provider: CosmosNativeProvider, locator: ContractLocator) -> ChainResult<Self> {
-        Ok(CosmosNativeDeliveryIndexer { provider })
+        Ok(CosmosNativeDeliveryIndexer {
+            provider,
+            address: locator.address,
+        })
     }
 }
 
@@ -66,6 +69,10 @@ impl EventIndexer<H256> for CosmosNativeDeliveryIndexer {
             .ok_or_else(|| ChainCommunicationError::from_other_str("missing message_id"))?;
 
         Ok(ParsedEvent::new(contract_address, message_id))
+    }
+
+    fn address(&self) -> &H256 {
+        &self.address
     }
 }
 

@@ -2,8 +2,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use hex::ToHex;
-use hyperlane_cosmos_rs::hyperlane::core::post_dispatch::v1::InsertedIntoTree;
-use prost::Name;
+use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::InsertedIntoTree, prost::Name};
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
@@ -59,7 +58,7 @@ impl EventIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
                 "message_id" => {
                     message_id = Some(value.parse()?);
                 }
-                "mailbox_id" => {
+                "merkle_tree_hook_id" => {
                     contract_address = Some(value.parse()?);
                 }
                 "index" => leaf_index = Some(value.parse()?),
@@ -76,6 +75,10 @@ impl EventIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
         let insertion = MerkleTreeInsertion::new(leaf_index, message_id);
 
         Ok(ParsedEvent::new(contract_address, insertion))
+    }
+
+    fn address(&self) -> &H256 {
+        &self.address
     }
 }
 

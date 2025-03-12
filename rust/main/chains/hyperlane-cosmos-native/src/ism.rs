@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use cosmrs::Any;
 use hex::ToHex;
-use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
-    MerkleRootMultisigIsm, NoopIsm,
+use hyperlane_cosmos_rs::{
+    hyperlane::core::interchain_security::v1::{MerkleRootMultisigIsm, NoopIsm},
+    prost::{Message, Name},
 };
-use prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{

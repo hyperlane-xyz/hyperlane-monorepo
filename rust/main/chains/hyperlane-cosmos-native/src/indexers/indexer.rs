@@ -59,6 +59,9 @@ where
     /// parses the event attributes to the target type
     fn parse<'a>(&self, attributes: &'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>;
 
+    /// address for the given module that will be indexed
+    fn address(&self) -> &H256;
+
     /// Current block height
     ///
     /// used by the indexer struct
@@ -79,6 +82,8 @@ where
 
         let result: Vec<_> = self
             .handle_tx(tx_response, hash)
+            // only return logs for the given address
+            .filter(|(_, log)| log.address == *self.address())
             .map(|(value, logs)| (value.into(), logs))
             .collect();
         Ok(result)
@@ -115,6 +120,7 @@ where
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
+            .filter(|(_, log)| log.address == *self.address())
             .map(|(log, meta)| (log.into(), meta))
             .collect();
         Ok(result)

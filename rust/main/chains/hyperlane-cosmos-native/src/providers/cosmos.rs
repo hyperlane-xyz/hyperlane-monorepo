@@ -14,10 +14,11 @@ use cosmrs::{
     AccountId, Any, Coin, Tx,
 };
 use derive_new::new;
-use hyperlane_cosmos_rs::hyperlane::{core::v1::MsgProcessMessage, warp::v1::MsgRemoteTransfer};
+use hyperlane_cosmos_rs::{
+    hyperlane::{core::v1::MsgProcessMessage, warp::v1::MsgRemoteTransfer},
+    prost::{Message, Name},
+};
 use itertools::Itertools;
-use prost::Message;
-use reqwest::Error;
 use serde::{de::DeserializeOwned, Deserialize};
 use tendermint::{hash::Algorithm, Hash};
 use tendermint_rpc::{
@@ -133,7 +134,7 @@ impl CosmosNativeProvider {
             .body
             .messages
             .iter()
-            .filter(|a| a.type_url == "/hyperlane.core.v1.MsgProcessMessage")
+            .filter(|a| a.type_url == MsgProcessMessage::type_url())
             .cloned()
             .collect();
 
@@ -170,7 +171,7 @@ impl CosmosNativeProvider {
             .body
             .messages
             .iter()
-            .filter(|a| a.type_url == "/hyperlane.warp.v1.MsgRemoteTransfer")
+            .filter(|a| a.type_url == MsgRemoteTransfer::type_url())
             .cloned()
             .collect();
 

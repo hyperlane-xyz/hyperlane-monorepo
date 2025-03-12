@@ -30,7 +30,7 @@ pub struct SimApp {
 /// the sim app is a light cosmos chain that implemenets the hyperlane cosmos module
 impl SimApp {
     pub fn new(bin: String, home: String, port_offset: u32) -> Self {
-        let port_base = 26657 + port_offset * 6; // we increment by 5 ports as we need 5 unique ports per chain
+        let port_base = 26657 + port_offset * 6; // we increment by 6 ports as we need 6 unique ports per chain
         let addr_base = "tcp://127.0.0.1";
 
         let mut next_port = port_base;
@@ -75,7 +75,7 @@ impl SimApp {
             .arg("address", &self.addr) // default is tcp://0.0.0.0:26658
             .arg("p2p.laddr", &self.p2p_addr) // default is tcp://0.0.0.0:26655
             .arg("rpc.laddr", &self.rpc_addr) // default is tcp://0.0.0.0:26657
-            .cmd("--grpc.enable=true") // disable grpc
+            .cmd("--grpc.enable=true") // enable grpc
             .flag("api.enable") // enable api
             .arg("api.address", &self.api_addr)
             .arg("grpc.address", &self.grpc_addr)
@@ -250,7 +250,7 @@ impl SimApp {
         ]);
 
         // enroll the remote domain to this token
-        // cmd is following: token-id receiver-domain receiver-contract
+        // cmd is following: token-id receiver-domain receiver-contract gas
         self.tx(vec![
             "hyperlane-transfer",
             "enroll-remote-router",

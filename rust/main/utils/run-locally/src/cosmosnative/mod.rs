@@ -238,8 +238,7 @@ fn install_sim_app() -> PathBuf {
 #[allow(dead_code)]
 fn run_locally() {
     // TODO: store all the created processes directly to not have lost children on crash
-    // let hypd = install_sim_app().as_path().to_str().unwrap().to_string();
-    let hypd = "/Users/jamin/Desktop/code/kyve/hyperlane-cosmos/build/hypd";
+    let hypd = install_sim_app().as_path().to_str().unwrap().to_string();
 
     log!("Building rust...");
     Program::new("cargo")

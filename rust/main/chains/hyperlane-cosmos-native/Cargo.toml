@@ -32,7 +32,6 @@ tendermint-rpc = { workspace = true }
 time = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
 tonic = { workspace = true, features = [
     "transport",
     "tls",
@@ -44,9 +43,8 @@ pin-project.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
-prost = "0.13.4"
+hyperlane-cosmos-rs = "0.1.0"
 
-hyperlane-cosmos-rs = { path = "../../../../../hyperlane-cosmos-rust/" }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-cosmwasm-interface = { workspace = true }

@@ -12,8 +12,7 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SequenceNumber, SignDoc, SignerInfo, SignerPublicKey},
     AccountId, Any, Coin, Tx,
 };
-use itertools::Itertools;
-use prost::Message;
+use hyperlane_cosmos_rs::prost::Message;
 use tendermint::{hash::Algorithm, Hash};
 use tendermint_rpc::{
     client::CompatMode,
@@ -203,7 +202,7 @@ impl RpcProvider {
     /// it performs raw state queries on the cosmos sdk
     async fn abci_query<T, R>(&self, path: &str, request: T) -> ChainResult<R>
     where
-        T: Message + ::prost::Name,
+        T: Message + hyperlane_cosmos_rs::prost::Name,
         R: Message + std::default::Default,
     {
         let bytes = request.encode_to_vec();

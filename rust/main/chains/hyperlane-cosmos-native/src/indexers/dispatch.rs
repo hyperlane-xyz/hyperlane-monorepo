@@ -3,7 +3,7 @@ use std::{io::Cursor, sync::Arc};
 
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::Dispatch;
-use prost::Name;
+use hyperlane_cosmos_rs::prost::Name;
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
@@ -76,6 +76,10 @@ impl EventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
             message.ok_or_else(|| ChainCommunicationError::from_other_str("missing message"))?;
 
         Ok(ParsedEvent::new(contract_address, message))
+    }
+
+    fn address(&self) -> &H256 {
+        &self.address
     }
 }
 

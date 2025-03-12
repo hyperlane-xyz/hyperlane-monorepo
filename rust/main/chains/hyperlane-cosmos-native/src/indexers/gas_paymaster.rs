@@ -1,8 +1,7 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use hyperlane_cosmos_rs::hyperlane::core::post_dispatch::v1::GasPayment;
-use prost::Name;
+use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::GasPayment, prost::Name};
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
@@ -126,6 +125,10 @@ impl EventIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
             },
         ))
     }
+
+    fn address(&self) -> &H256 {
+        &self.address
+    }
 }
 
 impl HyperlaneChain for CosmosNativeGasPaymaster {
@@ -153,14 +156,7 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let result = EventIndexer::fetch_logs_in_range(self, range)
-            .await
-            .map(|logs| {
-                logs.into_iter()
-                    .filter(|payment| payment.1.address == self.address)
-                    .collect()
-            });
-        result
+        EventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -171,16 +167,7 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let result = EventIndexer::fetch_logs_by_tx_hash(self, tx_hash)
-            .await
-            .map(|logs| {
-                let result = logs
-                    .into_iter()
-                    .filter(|payment| payment.1.address == self.address)
-                    .collect();
-                result
-            });
-        result
+        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 

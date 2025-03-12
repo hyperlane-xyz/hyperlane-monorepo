@@ -4735,9 +4735,7 @@ dependencies = [
  "itertools 0.12.1",
  "once_cell",
  "pin-project",
- "prost 0.13.4",
  "protobuf",
- "reqwest",
  "ripemd",
  "serde",
  "serde_json",
@@ -4749,7 +4747,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "url",
@@ -4757,7 +4755,9 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-cosmos-rs"
-version = "0.26.1"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70f5515337ccb250ea3b367df5acaa9537f9e96d9a2deae4efb0e836ce0e8089"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",

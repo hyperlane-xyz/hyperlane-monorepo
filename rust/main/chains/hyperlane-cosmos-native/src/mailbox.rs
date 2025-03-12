@@ -1,7 +1,7 @@
 use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any, Tx};
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
-use prost::{Message, Name};
+use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -43,7 +43,6 @@ impl CosmosNativeMailbox {
         let message = hex::encode(RawHyperlaneMessage::from(message));
         let metadata = hex::encode(metadata);
         let signer = self.provider.rpc().get_signer()?.address.clone();
-        //TODO: we might want to use the message service for this?
         let process = MsgProcessMessage {
             mailbox_id: "0x".to_string() + &mailbox_id,
             metadata,
