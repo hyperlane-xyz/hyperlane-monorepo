@@ -55,7 +55,7 @@ export class StarknetERC20WarpModule {
       const deployerAccountAddress = this.account[chain].address;
       const ismAddress = await this.getStarknetDeploymentISMAddress({
         ismConfig: interchainSecurityModule,
-        mailbox: mailbox,
+        mailbox: mailbox!,
         chain,
         deployer,
       });
@@ -65,7 +65,7 @@ export class StarknetERC20WarpModule {
             'HypErc20',
             {
               decimals: tokenMetadata.decimals,
-              mailbox: mailbox,
+              mailbox: mailbox!,
               total_supply: tokenMetadata.totalSupply,
               name: [byteArray.byteArrayFromString(tokenMetadata.name)],
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
@@ -82,7 +82,7 @@ export class StarknetERC20WarpModule {
           const tokenAddress = await deployer.deployContract(
             'HypNative',
             {
-              mailbox: mailbox,
+              mailbox: mailbox!,
               native_token:
                 '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
               hook: getChecksumAddress(0),
@@ -107,7 +107,7 @@ export class StarknetERC20WarpModule {
           const tokenAddress = await deployer.deployContract(
             'HypErc20Collateral',
             {
-              mailbox: mailbox,
+              mailbox: mailbox!,
               // @ts-ignore
               erc20: rest.token,
               owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
