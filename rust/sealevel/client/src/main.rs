@@ -320,7 +320,6 @@ struct TokenTransferRemote {
     // Note this is the keypair for normal account not the derived associated token account or delegate.
     sender: String,
     amount: u64,
-    // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination_domain: u32,
     recipient: String,
     #[arg(value_enum)]

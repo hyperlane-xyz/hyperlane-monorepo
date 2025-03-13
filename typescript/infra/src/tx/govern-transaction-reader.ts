@@ -154,6 +154,11 @@ export class GovernTransactionReader {
       return this.readOwnableTransaction(chain, tx);
     }
 
+    // If it's a native token transfer (no data, only value)
+    if (this.isNativeTokenTransfer(tx)) {
+      return this.readNativeTokenTransfer(chain, tx);
+    }
+
     const insight = '⚠️ Unknown transaction type';
     // If we get here, it's an unknown transaction
     this.errors.push({
@@ -165,6 +170,23 @@ export class GovernTransactionReader {
     return {
       chain,
       insight,
+      tx,
+    };
+  }
+
+  private isNativeTokenTransfer(tx: AnnotatedEV5Transaction): boolean {
+    return !tx.data && !!tx.value && !!tx.to;
+  }
+
+  private async readNativeTokenTransfer(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    const { symbol } = await this.multiProvider.getNativeToken(chain);
+    const numTokens = ethers.utils.formatEther(tx.value ?? BigNumber.from(0));
+    return {
+      chain,
+      insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
       tx,
     };
   }
@@ -202,8 +224,16 @@ export class GovernTransactionReader {
         'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
       ].name
     ) {
-      const [target, value, data, eta, executor, delay] = decoded.args;
-      insight = `Schedule ${target} to be executed at ${eta} with ${value} ${data}. Executor: ${executor}, Delay: ${delay}`;
+      const [target, value, data, _predecessor, _salt, delay] = decoded.args;
+      const inner = await this.read(chain, {
+        to: target,
+        data,
+        value,
+      });
+
+      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+
+      insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
     }
 
     if (

@@ -43,6 +43,8 @@ import {
   EnvironmentConfig,
   assertEnvironment,
 } from '../src/config/environment.js';
+import { BalanceThresholdType } from '../src/config/funding/balances.js';
+import { AlertType } from '../src/config/funding/grafanaAlerts.js';
 import { Role } from '../src/roles.js';
 import {
   assertContext,
@@ -70,6 +72,7 @@ export enum Modules {
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CCIP = 'ccip',
 }
 
 export const REGISTRY_MODULES = [
@@ -80,6 +83,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CCIP,
 ];
 
 export function getArgs() {
@@ -88,6 +92,12 @@ export function getArgs() {
     .coerce('environment', assertEnvironment)
     .demandOption('environment')
     .alias('e', 'environment');
+}
+
+export function withBalanceThresholdConfig<T>(args: Argv<T>) {
+  return args
+    .describe('balanceThresholdConfig', 'balance threshold config')
+    .choices('balanceThresholdConfig', Object.values(BalanceThresholdType));
 }
 
 export function withFork<T>(args: Argv<T>) {
@@ -155,6 +165,13 @@ export function withChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
+export function withWrite<T>(args: Argv<T>) {
+  return args
+    .describe('write', 'Write output to file')
+    .boolean('write')
+    .default('write', false);
+}
+
 export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args
@@ -184,6 +201,13 @@ export function withOutputFile<T>(args: Argv<T>) {
     .alias('o', 'outFile');
 }
 
+export function withKnownWarpRouteId<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteId', 'warp route id')
+    .string('warpRouteId')
+    .choices('warpRouteId', Object.values(WarpRouteIds));
+}
+
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
@@ -192,12 +216,40 @@ export function withWarpRouteIdRequired<T>(args: Argv<T>) {
   return withWarpRouteId(args).demandOption('warpRouteId');
 }
 
+export function withDryRun<T>(args: Argv<T>) {
+  return args
+    .describe('dryRun', 'Dry run')
+    .boolean('dryRun')
+    .default('dryRun', false);
+}
+
+export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withKnownWarpRouteId(args).demandOption('warpRouteId');
+}
+
 export function withProtocol<T>(args: Argv<T>) {
   return args
     .describe('protocol', 'protocol type')
     .default('protocol', ProtocolType.Ethereum)
     .choices('protocol', Object.values(ProtocolType))
     .demandOption('protocol');
+}
+
+export function withAlertType<T>(args: Argv<T>) {
+  return args
+    .describe('alertType', 'alert type')
+    .choices('alertType', Object.values(AlertType));
+}
+
+export function withAlertTypeRequired<T>(args: Argv<T>) {
+  return withAlertType(args).demandOption('alertType');
+}
+
+export function withConfirmAllChoices<T>(args: Argv<T>) {
+  return args
+    .describe('all', 'Confirm all choices')
+    .boolean('all')
+    .default('all', false);
 }
 
 export function withAgentRole<T>(args: Argv<T>) {
@@ -286,11 +338,20 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .alias('r', 'rpcUrls');
 }
 
+export function withSkipReview<T>(args: Argv<T>) {
+  return args
+    .describe('skipReview', 'Skip review')
+    .boolean('skipReview')
+    .default('skipReview', false);
+}
+
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
   return select({
     message: 'Select Warp Route ID',
     choices,

@@ -5,8 +5,9 @@
 use account_utils::{create_pda_account, verify_rent_exempt, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_token_lib::{
-    accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
+    accounts::HyperlaneToken, processor::HyperlaneSealevelTokenPlugin,
 };
+use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::SerializableAccountMeta;
 #[cfg(not(target_arch = "sbf"))]
 use solana_program::program_pack::Pack as _;

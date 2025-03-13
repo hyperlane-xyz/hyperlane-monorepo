@@ -11,6 +11,7 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
+chrono.workspace = true
 config.workspace = true
 console-subscriber.workspace = true
 convert_case.workspace = true
@@ -44,15 +45,18 @@ tokio-metrics.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
+uuid.workspace = true
 
+hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "agent",
     "async",
 ] }
-hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 
 [dev-dependencies]
+axum = { workspace = true, features = ["macros"] }
 once_cell.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true

@@ -32,7 +32,7 @@
     "node": ">=16"
   },
   "dependencies": {
-    "starknet": "6.11.0"
+    "starknet": "6.23.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
