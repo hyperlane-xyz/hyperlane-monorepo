@@ -33,8 +33,14 @@ impl RecipientProvider {
                 }
             })
             .filter_map(|ii| match ii {
-                UiParsedInstruction::Parsed(_) => None, // only native programs are fully parsed
-                UiParsedInstruction::PartiallyDecoded(iii) => Some(iii),
+                UiParsedInstruction::Parsed(iii) => {
+                    println!("parsed: {:?}", iii);
+                    None
+                } // only native programs are fully parsed
+                UiParsedInstruction::PartiallyDecoded(iii) => {
+                    println!("decoded: {:?}", iii);
+                    Some(iii)
+                }
             })
             .filter(|program| program.accounts.contains(&self.program_id))
             .map(|program| &program.program_id)
