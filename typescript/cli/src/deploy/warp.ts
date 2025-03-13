@@ -319,11 +319,9 @@ async function createWarpIsm({
     `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
   );
 
-  const { mailbox } = chainAddresses;
-
   const evmIsmModule = await EvmIsmModule.create({
     chain,
-    mailbox,
+    mailbox: chainAddresses.mailbox,
     multiProvider: context.multiProvider,
     proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
     config: interchainSecurityModule,
@@ -361,8 +359,6 @@ async function createWarpHook({
 
   logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
 
-  const { mailbox } = chainAddresses;
-
   // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
   const proxyAdminAddress: Address =
     warpConfig.proxyAdmin?.address ??
@@ -378,7 +374,7 @@ async function createWarpHook({
     chain,
     multiProvider: context.multiProvider,
     coreAddresses: {
-      mailbox,
+      mailbox: chainAddresses.mailbox,
       proxyAdmin: proxyAdminAddress,
     },
     config: hook,
