@@ -37,11 +37,11 @@ impl SealevelProvider {
     pub fn new(
         rpc_client: Arc<SealevelRpcClient>,
         domain: HyperlaneDomain,
-        contract_address: H256,
+        contract_addresses: &Vec<H256>,
         conf: &ConnectionConf,
     ) -> Self {
         let native_token = conf.native_token.clone();
-        let recipient_provider = RecipientProvider::new(contract_address);
+        let recipient_provider = RecipientProvider::new(contract_addresses);
         Self {
             rpc_client,
             domain,

@@ -215,7 +215,8 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
 
-                let provider = build_sealevel_provider(rpc_client, &locator, conf);
+                let provider =
+                    build_sealevel_provider(rpc_client, locator.domain.clone(), &vec![], conf);
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
@@ -235,7 +236,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
-        let locator = self.locator(self.addresses.mailbox);
+        let locator = self.locator(H256::zero());
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
@@ -244,7 +245,15 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = build_sealevel_provider(rpc_client, &locator, conf);
+                let provider = build_sealevel_provider(
+                    rpc_client,
+                    locator.domain.clone(),
+                    &vec![
+                        self.addresses.mailbox,
+                        self.addresses.interchain_gas_paymaster,
+                    ],
+                    conf,
+                );
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Cosmos(conf) => {
@@ -985,10 +994,11 @@ fn build_sealevel_rpc_client(
 /// Helper to build a sealevel provider
 fn build_sealevel_provider(
     rpc_client: Arc<SealevelRpcClient>,
-    locator: &ContractLocator,
+    domain: HyperlaneDomain,
+    contract_addresses: &Vec<H256>,
     conf: &h_sealevel::ConnectionConf,
 ) -> h_sealevel::SealevelProvider {
-    h_sealevel::SealevelProvider::new(rpc_client, locator.domain.clone(), locator.address, conf)
+    h_sealevel::SealevelProvider::new(rpc_client, domain, contract_addresses, conf)
 }
 
 fn build_sealevel_tx_submitter(

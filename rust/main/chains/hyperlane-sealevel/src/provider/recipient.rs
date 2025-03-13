@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{UiInstruction, UiParsedInstruction, UiTransaction};
 
@@ -9,15 +11,17 @@ use crate::utils::decode_pubkey;
 
 #[derive(Clone, Debug)]
 pub(crate) struct RecipientProvider {
-    program_id: String,
+    programs: HashSet<String>,
 }
 
 impl RecipientProvider {
-    pub(crate) fn new(contract_address: H256) -> Self {
-        let program_id = Pubkey::from(<[u8; 32]>::from(contract_address));
-        Self {
-            program_id: program_id.to_string(),
-        }
+    pub(crate) fn new(contract_addresses: &Vec<H256>) -> Self {
+        let programs = contract_addresses
+            .iter()
+            .map(|address| Pubkey::from(<[u8; 32]>::from(address.clone())))
+            .map(|address| address.to_string())
+            .collect();
+        Self { programs }
     }
 
     pub(crate) fn recipient(&self, hash: &H512, transaction: &UiTransaction) -> ChainResult<H256> {
@@ -42,7 +46,13 @@ impl RecipientProvider {
                     Some(iii)
                 }
             })
-            .filter(|program| program.accounts.contains(&self.program_id))
+            .filter(|program| {
+                self.programs.contains(&program.program_id)
+                    || program
+                        .accounts
+                        .iter()
+                        .any(|account| self.programs.contains(account))
+            })
             .map(|program| &program.program_id)
             .collect::<Vec<&String>>();
 

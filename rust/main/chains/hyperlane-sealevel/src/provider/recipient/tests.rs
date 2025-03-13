@@ -30,7 +30,7 @@ fn test_identify_recipient_in_complex_transaction(
     let json = read_json(transaction_file);
     let transaction = transaction(&json);
     let mailbox_address = decode_h256(mailbox).unwrap();
-    let provider = RecipientProvider::new(mailbox_address);
+    let provider = RecipientProvider::new(&vec![mailbox_address]);
 
     let warp_route_address = decode_h256(warp_route).unwrap();
 

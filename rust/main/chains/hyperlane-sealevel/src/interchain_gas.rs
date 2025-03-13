@@ -44,7 +44,7 @@ impl SealevelInterchainGasPaymaster {
         let provider = SealevelProvider::new(
             rpc_client,
             igp_account_locator.domain.clone(),
-            igp_account_locator.address,
+            &vec![],
             conf,
         );
         let program_id =
