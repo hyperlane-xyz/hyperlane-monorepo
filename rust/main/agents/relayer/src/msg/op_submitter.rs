@@ -32,10 +32,16 @@ use hyperlane_core::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::settings::matching_list::MatchingList;
+use crate::server::MessageRetryRequest;
 
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
+
+/// This is needed for logic where we need to allocate
+/// based on how many queues exist in each OpSubmitter.
+/// This value needs to be manually updated if we ever
+/// update the number of queues an OpSubmitter has.
+pub const SUBMITTER_QUEUE_COUNT: usize = 3;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -89,7 +95,7 @@ pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<QueueOperation>,
+    rx: Option<mpsc::UnboundedReceiver<QueueOperation>>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
@@ -105,7 +111,7 @@ impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
-        retry_op_transmitter: Sender<MatchingList>,
+        retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
@@ -128,7 +134,8 @@ impl SerialSubmitter {
 
         Self {
             domain,
-            rx,
+            // Using Options so that method which needs it can take from struct
+            rx: Some(rx),
             metrics,
             max_batch_size,
             task_monitor,
@@ -145,70 +152,104 @@ impl SerialSubmitter {
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
         let task_monitor = self.task_monitor.clone();
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            self.run().await
-        }))
-        .instrument(span)
+        let name = Self::task_name("", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(&task_monitor, async move {
+                self.run().await
+            }))
+            .expect("spawning tokio task from Builder is infallible")
+            .instrument(span)
     }
 
-    async fn run(self) {
-        let Self {
-            domain,
-            metrics,
-            rx: rx_prepare,
-            max_batch_size,
-            task_monitor,
-            prepare_queue,
-            submit_queue,
-            confirm_queue,
-        } = self;
+    async fn run(mut self) {
+        let rx_prepare = self.rx.take().expect("rx should be initialised");
 
         let tasks = [
-            tokio::spawn(TaskMonitor::instrument(
-                &task_monitor,
-                receive_task(domain.clone(), rx_prepare, prepare_queue.clone()),
-            )),
-            tokio::spawn(TaskMonitor::instrument(
-                &task_monitor,
-                prepare_task(
-                    domain.clone(),
-                    prepare_queue.clone(),
-                    submit_queue.clone(),
-                    confirm_queue.clone(),
-                    max_batch_size,
-                    metrics.clone(),
-                ),
-            )),
-            tokio::spawn(TaskMonitor::instrument(
-                &task_monitor,
-                submit_task(
-                    domain.clone(),
-                    prepare_queue.clone(),
-                    submit_queue,
-                    confirm_queue.clone(),
-                    max_batch_size,
-                    metrics.clone(),
-                ),
-            )),
-            tokio::spawn(TaskMonitor::instrument(
-                &task_monitor,
-                confirm_task(
-                    domain.clone(),
-                    prepare_queue,
-                    confirm_queue,
-                    max_batch_size,
-                    metrics,
-                ),
-            )),
+            self.create_receive_task(rx_prepare),
+            self.create_prepare_task(),
+            self.create_submit_task(),
+            self.create_confirm_task(),
         ];
 
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(
                 error=?err,
-                ?domain,
+                domain=?self.domain,
                 "SerialSubmitter task panicked for domain"
             );
         }
+    }
+
+    fn create_receive_task(
+        &self,
+        rx_prepare: mpsc::UnboundedReceiver<QueueOperation>,
+    ) -> JoinHandle<()> {
+        let name = Self::task_name("receive::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                receive_task(self.domain.clone(), rx_prepare, self.prepare_queue.clone()),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_prepare_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("prepare::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                prepare_task(
+                    self.domain.clone(),
+                    self.prepare_queue.clone(),
+                    self.submit_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
+                    self.metrics.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_submit_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("submit::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                submit_task(
+                    self.domain.clone(),
+                    self.prepare_queue.clone(),
+                    self.submit_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
+                    self.metrics.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_confirm_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("confirm::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                confirm_task(
+                    self.domain.clone(),
+                    self.prepare_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
+                    self.metrics.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn task_name(prefix: &str, domain: &HyperlaneDomain) -> String {
+        format!("op_submitter::{}{}", prefix, domain.name())
     }
 }
 
@@ -224,14 +265,8 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        let status = op.retrieve_status_from_db().unwrap_or_else(|| {
-            trace!(
-                ?op,
-                "No status found for message, defaulting to FirstPrepareAttempt"
-            );
-            PendingOperationStatus::FirstPrepareAttempt
-        });
-        prepare_queue.push(op, Some(status)).await;
+        let op_status = op.status();
+        prepare_queue.push(op, Some(op_status)).await;
     }
 }
 

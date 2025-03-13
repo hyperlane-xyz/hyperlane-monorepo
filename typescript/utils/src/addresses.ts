@@ -34,6 +34,9 @@ const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
 const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 
+export const ZERO_ADDRESS_HEX_32 =
+  '0x0000000000000000000000000000000000000000000000000000000000000000';
+
 export function isAddressEvm(address: Address) {
   return EVM_ADDRESS_REGEX.test(address);
 }

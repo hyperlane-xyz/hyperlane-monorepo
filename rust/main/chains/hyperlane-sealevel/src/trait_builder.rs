@@ -1,8 +1,10 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use serde::Serialize;
 use url::Url;
 
 use crate::{
+    client_builder::SealevelRpcClientBuilder,
     priority_fee::{ConstantPriorityFeeOracle, HeliusPriorityFeeOracle, PriorityFeeOracle},
     tx_submitter::{JitoTransactionSubmitter, RpcTransactionSubmitter, TransactionSubmitter},
 };
@@ -115,19 +117,38 @@ impl Default for TransactionSubmitterConfig {
 
 impl TransactionSubmitterConfig {
     /// Create a new transaction submitter from the configuration
-    pub fn create_submitter(&self, default_rpc_url: String) -> Box<dyn TransactionSubmitter> {
+    pub fn create_submitter(
+        &self,
+        default_rpc_url: String,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
+    ) -> Box<dyn TransactionSubmitter> {
         match self {
-            TransactionSubmitterConfig::Rpc { url } => Box::new(RpcTransactionSubmitter::new(
-                url.clone().unwrap_or(default_rpc_url),
-            )),
+            TransactionSubmitterConfig::Rpc { url } => {
+                let rpc_url = url.clone().unwrap_or(default_rpc_url);
+                let rpc_url = Url::parse(&rpc_url).unwrap();
+                // now that we know what the RPC URL is, we
+                // can create a metrics config that has the correct
+                // node info
+                let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
+                    .with_prometheus_metrics(metrics, chain)
+                    .build();
+                Box::new(RpcTransactionSubmitter::new(rpc_client))
+            }
             TransactionSubmitterConfig::Jito { url } => {
                 // Default to a bundle-only URL (i.e. revert protected)
-                Box::new(JitoTransactionSubmitter::new(url.clone().unwrap_or_else(
-                    || {
-                        "https://mainnet.block-engine.jito.wtf/api/v1/transactions?bundleOnly=true"
-                            .to_string()
-                    },
-                )))
+                let rpc_url = url.clone().unwrap_or_else(|| {
+                    "https://mainnet.block-engine.jito.wtf/api/v1/transactions?bundleOnly=true"
+                        .to_string()
+                });
+                let rpc_url = Url::parse(&rpc_url).unwrap();
+                // now that we know what the RPC URL is, we
+                // can create a metrics config that has the correct
+                // node info
+                let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
+                    .with_prometheus_metrics(metrics, chain)
+                    .build();
+                Box::new(JitoTransactionSubmitter::new(rpc_client))
             }
         }
     }

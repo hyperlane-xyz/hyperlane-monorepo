@@ -46,10 +46,12 @@ export {
   padBytesToLength,
   shortenAddress,
   strip0x,
+  ZERO_ADDRESS_HEX_32,
 } from './addresses.js';
 export {
   addBufferToGasLimit,
   convertDecimals,
+  convertDecimalsToIntegerString,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,

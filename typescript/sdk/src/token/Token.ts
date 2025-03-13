@@ -59,6 +59,7 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs
@@ -72,12 +73,15 @@ export class Token implements IToken {
     this.protocol = TOKEN_STANDARD_TO_PROTOCOL[this.standard];
   }
 
+  /**
+   * Creates a Token for the native currency on the given chain.
+   * Will use the default native token for the given protocol if
+   * nothing specific is set in the ChainMetadata.
+   */
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    const { protocol, name: chainName, nativeToken, logoURI } = chainMetadata;
-    assert(
-      nativeToken,
-      `ChainMetadata for ${chainMetadata.name} missing nativeToken`,
-    );
+    const { protocol, name: chainName, logoURI } = chainMetadata;
+    const nativeToken =
+      chainMetadata.nativeToken || PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[protocol];
 
     return new Token({
       chainName,

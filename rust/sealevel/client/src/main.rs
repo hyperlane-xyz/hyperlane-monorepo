@@ -320,7 +320,6 @@ struct TokenTransferRemote {
     // Note this is the keypair for normal account not the derived associated token account or delegate.
     sender: String,
     amount: u64,
-    // #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination_domain: u32,
     recipient: String,
     #[arg(value_enum)]
@@ -404,6 +403,7 @@ enum IgpSubCmd {
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+    Configure(ConfigureIgpArgs),
 }
 
 #[derive(Args)]
@@ -425,11 +425,7 @@ struct InitIgpAccountArgs {
     #[arg(long)]
     chain: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
-    #[arg(long)]
     context: Option<String>,
-    #[arg(long)]
-    gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
     account_salt: Option<String>, // optional salt for deterministic account creation
 }
@@ -443,13 +439,9 @@ struct InitOverheadIgpAccountArgs {
     #[arg(long)]
     chain: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
-    #[arg(long)]
     inner_igp_account: Pubkey,
     #[arg(long)]
     context: Option<String>,
-    #[arg(long)]
-    overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     account_salt: Option<String>, // optional salt for deterministic account creation
 }
@@ -553,6 +545,20 @@ enum GasOverheadSubCmd {
 struct SetGasOverheadArgs {
     #[arg(long)]
     gas_overhead: u64,
+}
+
+#[derive(Args)]
+struct ConfigureIgpArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    gas_oracle_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    account_salt: Option<H256>,
 }
 
 #[derive(Args)]

@@ -30,9 +30,16 @@ COPY solidity ./solidity
 
 RUN yarn build
 
+# Baked-in registry version
+# keep for back-compat until we update all usage of the monorepo image (e.g. key-funder)
 ENV REGISTRY_URI="/hyperlane-registry"
 ARG REGISTRY_COMMIT="main"
 RUN git clone https://github.com/hyperlane-xyz/hyperlane-registry.git "$REGISTRY_URI" \
     && cd "$REGISTRY_URI" \
     && git fetch origin "$REGISTRY_COMMIT" \
     && git checkout "$REGISTRY_COMMIT"
+
+# Add entrypoint script that allows overriding the registry commit
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]

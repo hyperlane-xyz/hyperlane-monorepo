@@ -6,6 +6,16 @@ import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
 import { log, logGreen } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
+const KEYS_TO_IGNORE = ['totalSupply'];
+
+function sanitizeConfig(obj: any): any {
+  // Remove keys from obj
+  const filteredObj = Object.fromEntries(
+    Object.entries(obj).filter(([key]) => !KEYS_TO_IGNORE.includes(key)),
+  );
+  return normalizeConfig(filteredObj);
+}
+
 export async function runWarpRouteCheck({
   warpRouteConfig,
   onChainWarpConfig,
@@ -17,8 +27,8 @@ export async function runWarpRouteCheck({
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
       const { mergedObject, isInvalid } = diffObjMerge(
-        normalizeConfig(onChainWarpConfig[chain]),
-        normalizeConfig(warpRouteConfig[chain]),
+        sanitizeConfig(onChainWarpConfig[chain]),
+        sanitizeConfig(warpRouteConfig[chain]),
       );
 
       if (isInvalid) {
