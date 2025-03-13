@@ -5,7 +5,7 @@ use std::{fmt::Debug, time::Instant};
 use derive_builder::Builder;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::utils::url_to_host_info;
@@ -58,6 +58,7 @@ impl PrometheusClientMetrics {
     ) {
         let labels = hashmap! {
             "provider_node" => config.node_host(),
+            "connection" => config.connection_type.as_str(),
             "chain" => config.chain_name(),
             "method" => method,
             "status" => if success { "success" } else { "failure" },
@@ -98,11 +99,29 @@ pub struct NodeInfo {
     pub host: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientConnectionType {
+    #[default]
+    Rpc,
+    Grpc,
+}
+
+impl ClientConnectionType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Grpc => "grpc",
+            Self::Rpc => "rpc",
+        }
+    }
+}
+
 /// Configuration for the prometheus JsonRpcClioent. This can be loaded via
 /// serde.
 #[derive(Default, Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct PrometheusConfig {
+    pub connection_type: ClientConnectionType,
     /// Information about what node this client is connecting to.
     pub node: Option<NodeInfo>,
 
@@ -111,8 +130,13 @@ pub struct PrometheusConfig {
 }
 
 impl PrometheusConfig {
-    pub fn from_url(url: &Url, chain: Option<ChainInfo>) -> Self {
+    pub fn from_url(
+        url: &Url,
+        connection_type: ClientConnectionType,
+        chain: Option<ChainInfo>,
+    ) -> Self {
         Self {
+            connection_type,
             node: Some(NodeInfo {
                 host: url_to_host_info(url),
             }),
