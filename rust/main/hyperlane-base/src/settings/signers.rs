@@ -6,11 +6,7 @@ use eyre::{bail, Context, Report};
 use fuels::accounts::{
     kms::{
         aws_config::{defaults, BehaviorVersion, Region as FuelAwsRegion},
-        aws_sdk_kms::{
-            // config::Credentials,
-            // types::{KeySpec, KeyUsageType},
-            Client,
-        },
+        aws_sdk_kms::Client,
         AwsKmsSigner, KmsWallet,
     },
     ViewOnlyAccount,
