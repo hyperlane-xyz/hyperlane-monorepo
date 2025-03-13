@@ -27,6 +27,13 @@ interface AlertConfig {
     header: string;
     footer: string;
   };
+  // higher number means the alert will be written first via the Grafana API
+  // if there are any errors, the subsequent alerts will be skipped
+  // given that we will be increasing thresholds in the main, this will reduce the risk of thresholds being out of sync in case of errors e.g.
+  // 1. LowUrgency - write succeeds
+  // 2. LowUrgencyEng - write fails (due to API error for example)
+  // 3. HighUrgencyEng - write skipped (If this was not skipped, it could have increased HighUrgencyEng thresholds above LowUrgencyEng)
+  writePriority: number;
 }
 
 export enum WalletName {
@@ -57,6 +64,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
       footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
     },
+    writePriority:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyKeyFunderBalance
+      ].dailyRelayerBurnMultiplier,
   },
   [AlertType.LowUrgencyEngKeyFunderBalance]: {
     walletName: WalletName.KeyFunder,
@@ -73,6 +84,11 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
       footer: LOW_URGENCY_ENG_KEY_FUNDER_FOOTER,
     },
+    // reusing multiplier for writePriority as the descending order is LowUrgencyKeyFunderBalance -> LowUrgencyEngKeyFunderBalance -> HighUrgencyRelayerBalance, see AlertConfig interface definition for a full explanation
+    writePriority:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyEngKeyFunderBalance
+      ].dailyRelayerBurnMultiplier,
   },
   [AlertType.HighUrgencyRelayerBalance]: {
     walletName: WalletName.Relayer,
@@ -89,6 +105,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       header: HIGH_URGENCY_RELAYER_HEADER,
       footer: HIGH_URGENCY_RELAYER_FOOTER,
     },
+    writePriority:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.HighUrgencyRelayerBalance
+      ].dailyRelayerBurnMultiplier,
   },
 };
 
