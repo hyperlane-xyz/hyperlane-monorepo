@@ -12,16 +12,11 @@ const bundleWhitelist = new Set([
   '@hyperlane-xyz/registry',
   '@hyperlane-xyz/sdk',
   '@hyperlane-xyz/utils',
+  '@hyperlane-xyz/core',
 ]);
 
 // These packages won't play nice if bundled as commonjs modules
-const esmWhitelist = new Set([
-  'chalk',
-  'latest-version',
-  '@hyperlane-xyz/registry',
-  '@hyperlane-xyz/sdk',
-  '@hyperlane-xyz/utils',
-]);
+const esmWhitelist = new Set(['chalk', 'latest-version']);
 
 export default {
   entry: './dist/cli.js',
