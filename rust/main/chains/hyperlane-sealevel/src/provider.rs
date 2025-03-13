@@ -1,7 +1,11 @@
+/// Fallback provider
+pub mod fallback;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use hyperlane_core::rpc_clients::BlockNumberGetter;
 use lazy_static::lazy_static;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{
@@ -35,7 +39,7 @@ lazy_static! {
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SealevelProvider {
     rpc_client: Arc<SealevelRpcClient>,
     domain: HyperlaneDomain,
@@ -274,5 +278,12 @@ impl HyperlaneProvider for SealevelProvider {
             min_gas_price: None,
         };
         Ok(Some(chain_info))
+    }
+}
+
+#[async_trait]
+impl BlockNumberGetter for SealevelProvider {
+    async fn get_block_number(&self) -> ChainResult<u64> {
+        self.rpc_client.get_block_height().await
     }
 }

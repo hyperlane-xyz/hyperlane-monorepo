@@ -6,11 +6,11 @@ use eyre::{eyre, Context, Report, Result};
 
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
-    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
-    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
-    SequenceAwareIndexer, ValidatorAnnounce, H256,
+    config::OperationBatchConfig, rpc_clients::FallbackProvider, AggregationIsm, CcipReadIsm,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneMessage, HyperlaneProvider, IndexMode, InterchainGasPaymaster, InterchainGasPayment,
+    InterchainSecurityModule, Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm,
+    ReorgPeriod, RoutingIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -23,10 +23,10 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::prometheus_metric::ChainInfo;
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusConfig};
 use hyperlane_sealevel::{
-    self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
-    SealevelRpcClient, TransactionSubmitter,
+    self as h_sealevel, client_builder::SealevelRpcClientBuilder,
+    fallback::SealevelFallbackProvider, SealevelProvider, SealevelRpcClient, TransactionSubmitter,
 };
 
 use crate::{
@@ -721,8 +721,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-                let provider = build_sealevel_provider(rpc_client, &locator, conf);
+                let provider = build_sealevel_provider(self, &locator, conf, metrics);
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
                     provider,
                     locator,
@@ -976,7 +975,7 @@ fn build_sealevel_rpc_client(
     metrics: &CoreMetrics,
 ) -> SealevelRpcClient {
     let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_client_url = connection_conf.url.clone();
+    let rpc_client_url = connection_conf.rpc_urls[0].clone();
     let client_metrics = metrics.client_metrics();
     SealevelRpcClientBuilder::new(rpc_client_url)
         .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
@@ -985,11 +984,27 @@ fn build_sealevel_rpc_client(
 
 /// Helper to build a sealevel provider
 fn build_sealevel_provider(
-    rpc_client: Arc<SealevelRpcClient>,
+    chain_conf: &ChainConf,
     locator: &ContractLocator,
     conf: &h_sealevel::ConnectionConf,
-) -> SealevelProvider {
-    SealevelProvider::new(rpc_client, locator.domain.clone(), conf)
+    metrics: &CoreMetrics,
+) -> SealevelFallbackProvider {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let client_metrics = metrics.client_metrics();
+
+    let providers: Vec<_> = conf
+        .rpc_urls
+        .iter()
+        .map(|rpc_url| {
+            SealevelRpcClientBuilder::new(rpc_url.clone())
+                .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
+                .build()
+        })
+        .map(|rpc_client| SealevelProvider::new(Arc::new(rpc_client), locator.domain.clone(), conf))
+        .collect();
+    let fallback = FallbackProvider::new(providers);
+    let provider = SealevelFallbackProvider::new(fallback);
+    provider
 }
 
 fn build_sealevel_tx_submitter(
@@ -998,7 +1013,7 @@ fn build_sealevel_tx_submitter(
     metrics: &CoreMetrics,
 ) -> Box<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_client_url = connection_conf.url.clone();
+    let rpc_client_url = connection_conf.rpc_urls[0].clone();
     let client_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(
         rpc_client_url.to_string(),

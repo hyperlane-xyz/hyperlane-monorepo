@@ -12,8 +12,8 @@ use crate::{
 /// Sealevel connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /// Fully qualified string to connect to
-    pub url: Url,
+    /// The RPC url to connect to
+    pub rpc_urls: Vec<Url>,
     /// Operation batching configuration
     pub operation_batch: OperationBatchConfig,
     /// Native token and its denomination

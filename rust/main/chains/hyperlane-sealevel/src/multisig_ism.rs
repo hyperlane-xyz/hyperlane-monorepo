@@ -10,7 +10,9 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
+use crate::{
+    fallback::SealevelFallbackProvider, SealevelKeypair, SealevelProvider, SealevelRpcClient,
+};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -22,13 +24,13 @@ pub struct SealevelMultisigIsm {
     payer: Option<SealevelKeypair>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
-    provider: SealevelProvider,
+    provider: SealevelFallbackProvider,
 }
 
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(
-        provider: SealevelProvider,
+        provider: SealevelFallbackProvider,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {

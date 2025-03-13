@@ -48,6 +48,13 @@ pub struct SealevelTxCostEstimate {
 /// Wrapper struct around Solana's RpcClient
 pub struct SealevelRpcClient(RpcClient);
 
+impl Clone for SealevelRpcClient {
+    fn clone(&self) -> Self {
+        let rpc_client = RpcClient::new(self.url());
+        Self(rpc_client)
+    }
+}
+
 impl SealevelRpcClient {
     /// The max amount of compute units for a transaction.
     const MAX_COMPUTE_UNITS: u32 = 1_400_000;
@@ -63,6 +70,11 @@ impl SealevelRpcClient {
     /// constructor with an rpc client
     pub fn from_rpc_client(rpc_client: RpcClient) -> Self {
         Self(rpc_client)
+    }
+
+    /// Get Url
+    pub fn url(&self) -> String {
+        self.0.url()
     }
 
     /// confirm transaction with given commitment
@@ -151,6 +163,16 @@ impl SealevelRpcClient {
         };
         self.0
             .get_block_with_config(slot, config)
+            .await
+            .map_err(Box::new)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
+    }
+
+    /// get block_height
+    pub async fn get_block_height(&self) -> ChainResult<u64> {
+        self.0
+            .get_block_height()
             .await
             .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
@@ -555,11 +577,6 @@ impl SealevelRpcClient {
         };
 
         Ok(tx)
-    }
-
-    /// Get Url
-    pub fn url(&self) -> String {
-        self.0.url()
     }
 }
 
