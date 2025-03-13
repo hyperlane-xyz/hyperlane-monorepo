@@ -379,16 +379,12 @@ mod test {
             builder
         };
         let params = MessageMetadataBuildParams::default();
-        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
-            }
-        }
+        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
+            .await
+            .err()
+            .expect("Metadata found when it should have failed");
+        assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
+        assert_eq!(*(params.ism_count.lock().await), 0);
     }
 
     #[tokio::test]
@@ -409,16 +405,12 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
-            }
-        }
+        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
+            .await
+            .err()
+            .expect("Metadata found when it should have failed");
+        assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
+        assert_eq!(*(params.ism_count.lock().await), 0);
     }
 
     #[tokio::test]
@@ -439,16 +431,12 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let res = build_message_metadata(message_builder, ism_address, &message, params).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
-            }
-        }
+        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
+            .await
+            .err()
+            .expect("Metadata found when it should have failed");
+        assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
+        assert!(*(params.ism_count.lock().await) <= 4);
     }
 
     #[tokio::test]
@@ -469,17 +457,11 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let res =
-            build_message_metadata(message_builder, ism_address, &message, params.clone()).await;
-
-        match res {
-            Ok(_) => {
-                panic!("Metadata found when it should have failed");
-            }
-            Err(err) => {
-                assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
-                assert_eq!(*(params.ism_count.lock().await), 5);
-            }
-        }
+        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
+            .await
+            .err()
+            .expect("Metadata found when it should have failed");
+        assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
+        assert_eq!(*(params.ism_count.lock().await), 5);
     }
 }
