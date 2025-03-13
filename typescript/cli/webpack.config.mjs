@@ -16,7 +16,7 @@ const bundleWhitelist = new Set([
 ]);
 
 // These packages won't play nice if bundled as commonjs modules
-const esmWhitelist = new Set(['chalk', 'latest-version']);
+const esmWhitelist = new Set(['chalk', 'latest-version', 'lodash-es']);
 
 export default {
   entry: './dist/cli.js',
