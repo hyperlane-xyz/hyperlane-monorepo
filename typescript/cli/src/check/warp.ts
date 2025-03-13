@@ -4,45 +4,19 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
   sortArraysInConfig,
+  transformWarpDeployConfigToCheck,
 } from '@hyperlane-xyz/sdk';
-import {
-  ObjectDiff,
-  TransformObjectTransformer,
-  diffObjMerge,
-  transformObj,
-} from '@hyperlane-xyz/utils';
+import { ObjectDiff, diffObjMerge, transformObj } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
-const formatter: TransformObjectTransformer = (
-  obj: any,
-  propPath: ReadonlyArray<string>,
-) => {
-  // Needed to check if we are currently inside the remoteRouters object
-  const maybeRemoteRoutersKey = propPath[propPath.length - 3];
-  const parentKey = propPath[propPath.length - 1];
-
-  // Remove the address and ownerOverrides fields if we are not inside the
-  // remoteRouters property
-  if (
-    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
-    parentKey === 'ownerOverrides'
-  ) {
-    return undefined;
-  }
-
-  if (typeof obj === 'string') {
-    return obj.toLowerCase();
-  }
-
-  return obj;
-};
-
 export function formatConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
-  return sortArraysInConfig(transformObj(obj, formatter));
+  return sortArraysInConfig(
+    transformObj(obj, transformWarpDeployConfigToCheck),
+  );
 }
 
 const KEYS_TO_IGNORE = ['totalSupply'];

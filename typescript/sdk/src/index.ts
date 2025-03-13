@@ -13,10 +13,10 @@ export {
 export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
 export { S3Validator } from './aws/validator.js';
 export {
-  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
-  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
   getProtocolExchangeRateDecimals,
   getProtocolExchangeRateScale,
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export {
@@ -133,10 +133,10 @@ export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker.js';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
-  StorageGasOracleConfig,
-  StorageGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
+  StorageGasOracleConfig,
+  StorageGasOracleConfigSchema,
 } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
@@ -161,9 +161,9 @@ export {
   HookConfig,
   HookConfigSchema,
   HooksConfig,
-  HooksConfigSchema,
-  HooksConfigMapSchema,
   HooksConfigMap,
+  HooksConfigMapSchema,
+  HooksConfigSchema,
   HookType,
   IgpHookConfig,
   IgpSchema,
@@ -255,8 +255,8 @@ export {
   ChainStatus,
   ChainTechnicalStack,
   DisabledChainSchema,
-  EthJsonRpcBlockParameterTag,
   EnabledChainSchema,
+  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ExplorerFamilyValue,
   getChainIdNumber,
@@ -429,6 +429,14 @@ export {
   EV5InterchainAccountTxTransformerPropsSchema,
 } from './providers/transactions/transformer/ethersV5/types.js';
 
+export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export {
+  CCIPContractCache,
+  getCCIPChains,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+  getChainNameFromCCIPSelector,
+} from './ccip/utils.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -493,7 +501,6 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
-export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,
@@ -510,19 +517,19 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
-  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypVSXERC20Adapter,
+  EvmHypVSXERC20LockboxAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
-  EvmHypVSXERC20LockboxAdapter,
-  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
+  EvmXERC20VSAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
-  IHypXERC20Adapter,
   IHypVSXERC20Adapter,
+  IHypXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
@@ -549,6 +556,7 @@ export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  transformWarpDeployConfigToCheck,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
@@ -597,11 +605,11 @@ export {
   HypTokenRouterConfigSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
-  isXERC20TokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
@@ -613,9 +621,10 @@ export {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20TokenMetadata,
   XERC20LimitConfig,
+  XERC20TokenMetadata,
 } from './token/types.js';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   ChainMap,
   ChainName,
@@ -674,11 +683,3 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
-export {
-  getChainNameFromCCIPSelector,
-  getCCIPChainSelector,
-  getCCIPRouterAddress,
-  getCCIPChains,
-  CCIPContractCache,
-} from './ccip/utils.js';
-export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';

@@ -1,6 +1,10 @@
 import { zeroAddress } from 'viem';
 
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  TransformObjectTransformer,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -90,3 +94,27 @@ export async function expandWarpDeployConfig(
     };
   });
 }
+
+export const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => {
+  // Needed to check if we are currently inside the remoteRouters object
+  const maybeRemoteRoutersKey = propPath[propPath.length - 3];
+  const parentKey = propPath[propPath.length - 1];
+
+  // Remove the address and ownerOverrides fields if we are not inside the
+  // remoteRouters property
+  if (
+    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
+    parentKey === 'ownerOverrides'
+  ) {
+    return undefined;
+  }
+
+  if (typeof obj === 'string') {
+    return obj.toLowerCase();
+  }
+
+  return obj;
+};
