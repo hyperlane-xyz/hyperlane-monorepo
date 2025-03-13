@@ -446,7 +446,7 @@ mod test {
                 panic!("Metadata found when it should have failed");
             }
             Err(err) => {
-                assert_eq!(err, MetadataBuildError::CouldNotFetch);
+                assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
             }
         }
     }
@@ -477,7 +477,7 @@ mod test {
                 panic!("Metadata found when it should have failed");
             }
             Err(err) => {
-                assert_eq!(err, MetadataBuildError::CouldNotFetch);
+                assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
                 assert_eq!(*(params.ism_count.lock().await), 5);
             }
         }

@@ -94,7 +94,7 @@ impl AggregationIsmMetadataBuilder {
         message: &HyperlaneMessage,
         threshold: usize,
         err_isms: Vec<(H256, Option<ModuleType>)>,
-    ) -> Option<Vec<SubModuleMetadata>> {
+    ) -> Result<Vec<SubModuleMetadata>, MetadataBuildError> {
         let gas_cost_results: Vec<_> = join_all(
             sub_modules
                 .iter()
@@ -111,9 +111,11 @@ impl AggregationIsmMetadataBuilder {
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
             info!(?err_isms, %metas_and_gas_count, %threshold, message_id=?message.id(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
-            return None;
+            return Err(MetadataBuildError::AggregationThresholdNotMet(
+                threshold as u32,
+            ));
         }
-        Some(Self::n_cheapest_metas(metas_and_gas, threshold))
+        Ok(Self::n_cheapest_metas(metas_and_gas, threshold))
     }
 }
 
@@ -174,14 +176,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 )),
                 Err(_) => Either::Right((*ism_address, None)),
             });
-        Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
-            .await
-            .map_or(Err(MetadataBuildError::CouldNotFetch), |mut metas| {
-                Ok(Metadata::new(Self::format_metadata(
-                    &mut metas,
-                    ism_addresses.len(),
-                )))
-            })
+
+        let mut valid_metas =
+            Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules).await?;
+
+        let metadata = Metadata::new(Self::format_metadata(&mut valid_metas, ism_addresses.len()));
+        Ok(metadata)
     }
 }
 

@@ -318,6 +318,11 @@ impl PendingOperation for PendingMessage {
                         return self
                             .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
                     }
+                    MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                        warn!(threshold, "Aggregation threshold not met");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
                 }
             }
         };
