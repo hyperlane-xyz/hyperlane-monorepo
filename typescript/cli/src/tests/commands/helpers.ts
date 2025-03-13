@@ -5,6 +5,10 @@ import {
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+  XERC20LockboxTest,
+  XERC20LockboxTest__factory,
+  XERC20VSTest,
+  XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
@@ -19,6 +23,7 @@ import {
 import { Address, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
+import { CommandContext } from '../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
@@ -249,7 +254,14 @@ export async function extendWarpConfig(params: {
  */
 export async function setupIncompleteWarpRouteExtension(
   chain2Addresses: ChainAddresses,
-) {
+): Promise<{
+  chain2DomainId: string;
+  chain3DomainId: string;
+  warpConfigPath: string;
+  configToExtend: HypTokenRouterConfig;
+  context: CommandContext;
+  combinedWarpCorePath: string;
+}> {
   const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
   const chain2DomainId = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
@@ -402,6 +414,67 @@ export async function deploy4626Vault(
   await vault.deployed();
 
   return vault;
+}
+
+export async function deployXERC20VSToken(
+  privateKey: string,
+  chain: string,
+  decimals = 18,
+  symbol = 'TOKEN',
+): Promise<XERC20VSTest> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  // Future works: make signer compatible with protocol/chain stack
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const token = await new XERC20VSTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(
+    'token',
+    symbol.toLocaleUpperCase(),
+    '100000000000000000000',
+    decimals,
+  );
+  await token.deployed();
+
+  return token;
+}
+
+export async function deployXERC20LockboxToken(
+  privateKey: string,
+  chain: string,
+  token: ERC20Test,
+): Promise<XERC20LockboxTest> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  // Future works: make signer compatible with protocol/chain stack
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
+    await Promise.all([
+      token.symbol(),
+      token.name(),
+      token.decimals(),
+      token.totalSupply(),
+    ]);
+
+  const lockboxToken = await new XERC20LockboxTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(
+    tokenName,
+    tokenSymbol.toLocaleUpperCase(),
+    tokenTotalSupply,
+    tokenDecimals,
+  );
+  await lockboxToken.deployed();
+
+  return lockboxToken;
 }
 
 /**

@@ -1,3 +1,6 @@
+import { zeroAddress } from 'viem';
+
+import { WarpRouteDeployConfigMailboxRequired } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -85,6 +88,8 @@ export async function expandWarpDeployConfig(
       ...derivedTokenMetadata,
       remoteRouters,
       destinationGas,
+      hook: zeroAddress,
+      interchainSecurityModule: zeroAddress,
       proxyAdmin: { owner: config.owner },
 
       // User-specified config takes precedence
@@ -98,11 +103,14 @@ export async function expandWarpDeployConfig(
  * for the warp apply process.
  */
 export function splitWarpCoreAndExtendedConfigs(
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreChains: string[],
-): [WarpRouteDeployConfig, WarpRouteDeployConfig] {
+): [
+  WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequired,
+] {
   return Object.entries(warpDeployConfig).reduce<
-    [WarpRouteDeployConfig, WarpRouteDeployConfig]
+    [WarpRouteDeployConfigMailboxRequired, WarpRouteDeployConfigMailboxRequired]
   >(
     ([existing, extended], [chain, config]) => {
       if (warpCoreChains.includes(chain)) {

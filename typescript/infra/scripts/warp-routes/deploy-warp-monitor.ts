@@ -18,7 +18,7 @@ import {
   getAgentConfig,
   getArgs,
   getWarpRouteIdsInteractive,
-  withWarpRouteId,
+  withKnownWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -42,7 +42,10 @@ async function validateRegistryCommit(commit: string) {
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const { environment, warpRouteId } = await withKnownWarpRouteId(getArgs())
+    .argv;
+  const envConfig = getEnvironmentConfig(environment);
+  const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
 
   let warpRouteIds;
   if (warpRouteId) {
@@ -67,6 +70,7 @@ async function main() {
       agentConfig.environmentChainNames,
       registryCommit,
     );
+    await helmManager.runPreflightChecks(multiProtocolProvider);
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 

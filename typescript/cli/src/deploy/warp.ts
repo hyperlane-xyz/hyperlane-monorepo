@@ -8,6 +8,7 @@ import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
+  CCIPContractCache,
   ChainMap,
   ChainName,
   ChainSubmissionStrategy,
@@ -40,7 +41,7 @@ import {
   TxSubmitterType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   attachContractsMap,
   connectContractsMap,
@@ -51,6 +52,7 @@ import {
   hypERC20factories,
   isCollateralTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -84,7 +86,7 @@ import {
 
 interface DeployParams {
   context: WriteCommandContext;
-  warpDeployConfig: WarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }
 
 interface WarpApplyParams extends DeployParams {
@@ -189,7 +191,7 @@ async function executeDeploy(
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
-  const config: WarpRouteDeployConfig =
+  const config: WarpRouteDeployConfigMailboxRequired =
     isDryRun && dryRunChain
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
       : warpDeployConfig;
@@ -234,20 +236,23 @@ async function writeDeploymentArtifacts(
 }
 
 async function resolveWarpIsmAndHook(
-  warpConfig: WarpRouteDeployConfig,
+  warpConfig: WarpRouteDeployConfigMailboxRequired,
   context: WriteCommandContext,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier?: ContractVerifier,
-): Promise<WarpRouteDeployConfig> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
-      const chainAddresses = await context.registry.getChainAddresses(chain);
+      const registryAddresses = await context.registry.getAddresses();
+      const ccipContractCache = new CCIPContractCache(registryAddresses);
+      const chainAddresses = registryAddresses[chain];
 
       if (!chainAddresses) {
         throw `Registry factory addresses not found for ${chain}.`;
       }
 
       config.interchainSecurityModule = await createWarpIsm({
+        ccipContractCache,
         chain,
         chainAddresses,
         context,
@@ -257,6 +262,7 @@ async function resolveWarpIsmAndHook(
       }); // TODO write test
 
       config.hook = await createWarpHook({
+        ccipContractCache,
         chain,
         chainAddresses,
         context,
@@ -275,12 +281,14 @@ async function resolveWarpIsmAndHook(
  * @returns The deployed ism address
  */
 async function createWarpIsm({
+  ccipContractCache,
   chain,
   chainAddresses,
   context,
   contractVerifier,
   warpConfig,
 }: {
+  ccipContractCache: CCIPContractCache;
   chain: string;
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
@@ -319,6 +327,7 @@ async function createWarpIsm({
     multiProvider: context.multiProvider,
     proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
     config: interchainSecurityModule,
+    ccipContractCache,
     contractVerifier,
   });
   const { deployedIsm } = evmIsmModule.serialize();
@@ -326,12 +335,14 @@ async function createWarpIsm({
 }
 
 async function createWarpHook({
+  ccipContractCache,
   chain,
   chainAddresses,
   context,
   contractVerifier,
   warpConfig,
 }: {
+  ccipContractCache: CCIPContractCache;
   chain: string;
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
@@ -371,6 +382,7 @@ async function createWarpHook({
       proxyAdmin: proxyAdminAddress,
     },
     config: hook,
+    ccipContractCache,
     contractVerifier,
     proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
   });
@@ -419,7 +431,7 @@ async function getWarpCoreConfig(
  */
 function generateTokenConfigs(
   warpCoreConfig: WarpCoreConfig,
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: HyperlaneContractsMap<TokenFactories>,
   symbol: string,
   name: string,
@@ -427,9 +439,10 @@ function generateTokenConfigs(
 ): void {
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
-    const collateralAddressOrDenom = isCollateralTokenConfig(config)
-      ? config.token // gets set in the above deriveTokenMetadata()
-      : undefined;
+    const collateralAddressOrDenom =
+      isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
+        ? config.token // gets set in the above deriveTokenMetadata()
+        : undefined;
 
     warpCoreConfig.tokens.push({
       chainName,
@@ -521,8 +534,8 @@ export async function runWarpRouteApply(
 async function deployWarpExtensionContracts(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
-  existingConfigs: WarpRouteDeployConfig,
-  initialExtendedConfigs: WarpRouteDeployConfig,
+  existingConfigs: WarpRouteDeployConfigMailboxRequired,
+  initialExtendedConfigs: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
 ) {
   // Deploy new contracts with derived metadata
@@ -615,13 +628,14 @@ export async function extendWarpRoute(
 async function updateExistingWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
 ) {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
+  const ccipContractCache = new CCIPContractCache(registryAddresses);
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -645,21 +659,27 @@ async function updateExistingWarpRoute(
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
+        const configWithMailbox = {
+          ...config,
+          mailbox: registryAddresses[chain].mailbox,
+        };
 
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
-            config,
+            config: configWithMailbox,
             chain,
             addresses: {
               deployedTokenRoute,
               ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
             },
           },
+          ccipContractCache,
           contractVerifier,
         );
-
-        transactions.push(...(await evmERC20WarpModule.update(config)));
+        transactions.push(
+          ...(await evmERC20WarpModule.update(configWithMailbox)),
+        );
       });
     }),
   );
@@ -686,13 +706,14 @@ export function readChainSubmissionStrategy(
  */
 async function deriveMetadataFromExisting(
   multiProvider: MultiProvider,
-  existingConfigs: WarpRouteDeployConfig,
-  extendedConfigs: WarpRouteDeployConfig,
-): Promise<WarpRouteDeployConfig> {
+  existingConfigs: WarpRouteDeployConfigMailboxRequired,
+  extendedConfigs: WarpRouteDeployConfigMailboxRequired,
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const existingTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     existingConfigs,
   );
+
   return objMap(extendedConfigs, (_chain, extendedConfig) => {
     return {
       ...existingTokenMetadata,
@@ -706,7 +727,7 @@ async function deriveMetadataFromExisting(
  */
 function mergeAllRouters(
   multiProvider: MultiProvider,
-  existingConfigs: WarpRouteDeployConfig,
+  existingConfigs: WarpRouteDeployConfigMailboxRequired,
   deployedContractsMap: HyperlaneContractsMap<
     HypERC20Factories | HypERC721Factories
   >,
@@ -727,7 +748,9 @@ function mergeAllRouters(
   } as HyperlaneContractsMap<HypERC20Factories>;
 }
 
-function displayWarpDeployPlan(deployConfig: WarpRouteDeployConfig) {
+function displayWarpDeployPlan(
+  deployConfig: WarpRouteDeployConfigMailboxRequired,
+) {
   logBlue('\nWarp Route Deployment Plan');
   logGray('==========================');
   log(`📋 Token Standard: ${deployConfig.isNft ? 'ERC721' : 'ERC20'}`);
@@ -754,7 +777,9 @@ type IsmDisplayConfig =
   | PausableIsmConfig // type, owner, paused, ownerOverrides
   | TrustedRelayerIsmConfig; // type, relayer
 
-function transformDeployConfigForDisplay(deployConfig: WarpRouteDeployConfig) {
+function transformDeployConfigForDisplay(
+  deployConfig: WarpRouteDeployConfigMailboxRequired,
+) {
   const transformedIsmConfigs: Record<ChainName, any[]> = {};
   const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
     if (config.interchainSecurityModule)

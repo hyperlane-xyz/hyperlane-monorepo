@@ -41,13 +41,13 @@ import {
   readWarpConfig,
 } from '../commands/warp.js';
 
-describe('hyperlane warp apply e2e tests', async function () {
+describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
-
   let chain2Addresses: ChainAddresses = {};
 
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+
     chain2Addresses = await deployOrUseExistingCore(
       CHAIN_NAME_3,
       CORE_CONFIG_PATH,

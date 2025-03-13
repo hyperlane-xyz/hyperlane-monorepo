@@ -272,8 +272,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     morph: true,
     nero: true,
-    // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
-    neutron: false,
+    neutron: true,
     oortmainnet: true,
     optimism: true,
     orderly: true,
@@ -610,8 +609,8 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
-    cpu: '14000m',
-    memory: '28G',
+    cpu: '20000m',
+    memory: '55G',
   },
 };
 
@@ -681,6 +680,9 @@ const blacklistedMessageIds = [
   '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
   '0xad52d640ed71b4363731a78becc8ad1d4aa8549a290c554e48281196478ade83',
   '0x984994d247edd9967182ba91b236a4e10223ef66e3b96259f06f2b7c7fbd8176',
+
+  // oUSDT dest with zero'd out limits
+  '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -697,7 +699,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '247418e-20250221-141007',
+      tag: 'cc3af7d-20250304-172021',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -717,7 +719,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '328011a-20250218-173927',
+      tag: 'e8851ae-20250227-210423',
     },
     resources: scraperResources,
   },
@@ -732,7 +734,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '247418e-20250221-141007',
+      tag: 'cc3af7d-20250304-172021',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -766,7 +768,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '247418e-20250221-141007',
+      tag: 'cc3af7d-20250304-172021',
     },
     blacklist,
     gasPaymentEnforcement,
