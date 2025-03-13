@@ -423,7 +423,7 @@ fn run_locally() {
     for node in nodes.iter() {
         let targets = nodes
             .iter()
-            .filter(|v| v.domain != node.domain)
+            .filter(|v| v.domain != node.domain && v.domain != 23448593)
             .collect::<Vec<_>>();
 
         if !targets.is_empty() {

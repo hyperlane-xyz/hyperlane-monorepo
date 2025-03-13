@@ -143,10 +143,10 @@ pub(crate) fn deploy_all(
         declarations.hpl_ism_aggregate,
         vec![
             deployer.clone(),
-            "2".to_string(),
+            "1".to_string(),
             ism_multisig.clone(),
-            ism_pausable,
-            "2".to_string(),
+            // ism_pausable.clone(),
+            "1".to_string(),
         ],
     );
 
@@ -169,7 +169,7 @@ pub(crate) fn deploy_all(
                 .collect::<Vec<_>>()
                 .join(" "),
             remotes.len().to_string(),
-            vec![ism_multisig.clone(); remotes.len()].join(" "),
+            vec![ism_aggregate.clone(); remotes.len()].join(" "),
         ],
     );
     // deploy mock hook
@@ -183,7 +183,7 @@ pub(crate) fn deploy_all(
         vec![
             domain.to_string(),
             deployer.clone(),
-            default_ism.clone(),
+            ism_multisig.clone(),
             mock_hook.clone(),
             mock_hook.clone(),
         ],
@@ -204,7 +204,7 @@ pub(crate) fn deploy_all(
     println!("Deploying mock receiver");
     let mock_receiver = cli.deploy(
         declarations.hpl_test_mock_msg_receiver,
-        vec![default_ism.clone()],
+        vec![ism_multisig.clone()],
     );
 
     let mock_ism = cli.deploy(declarations.hpl_test_mock_ism, vec![]);

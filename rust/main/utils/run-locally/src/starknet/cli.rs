@@ -69,6 +69,7 @@ impl StarknetCLI {
             .arg("keystore-password", self.keystore_password.clone())
             .arg("account", self.account_path.clone())
             .arg("rpc", self.rpc_addr.clone())
+            .arg("salt", "1".to_string()) // Always use salt 1, this makes the deploy deterministic
             .run_with_output()
             .join();
 
