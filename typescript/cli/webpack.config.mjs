@@ -16,7 +16,7 @@ const bundleWhitelist = new Set([
 ]);
 
 // These packages won't play nice if bundled as commonjs modules
-const esmWhitelist = new Set(['chalk', 'latest-version', 'lodash-es']);
+// const esmWhitelist = new Set(['chalk', 'latest-version', 'lodash-es']);
 
 export default {
   entry: './dist/cli.js',
@@ -44,18 +44,18 @@ export default {
   },
   externals: [
     ({ request }, callback) => {
-      // Install as an external ES module if in esm whitelist.
-      if (esmWhitelist.has(request)) {
-        return callback(null, `module ${request}`);
-      }
-
       // Bundle relative paths and whitelisted modules.
       if (!request || request.startsWith('.') || bundleWhitelist.has(request)) {
         return callback();
       }
 
+      // // Install as an external ES module if in esm whitelist.
+      // if (esmWhitelist.has(request)) {
+      //   return callback(null, `module ${request}`);
+      // }
+
       // All other packages will be installed when installing the package
-      callback(null, 'commonjs ' + request);
+      callback(null, `module ${request}`);
     },
   ],
   plugins: [
