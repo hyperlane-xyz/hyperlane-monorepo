@@ -158,11 +158,11 @@ where
         receipts
             .into_iter()
             .enumerate()
-            // .filter(|(_, receipt)| {
-            //     receipt.id().map_or(false, |id| {
-            //         *id == ContractId::from(self.contract_address.clone())
-            //     })
-            // })
+            .filter(|(_, receipt)| {
+                receipt.id().map_or(false, |id| {
+                    *id == ContractId::from(self.contract_address.clone())
+                })
+            })
             .filter_map(|(index, receipt)| {
                 self.decode_log(receipt)
                     .map(|decoded_log| (decoded_log.transform::<T>(), index))
