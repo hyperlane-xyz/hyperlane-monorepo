@@ -10,7 +10,6 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-fuels.workspace = true
 futures.workspace = true
 serde.workspace = true
 thiserror.workspace = true
@@ -20,6 +19,7 @@ hex.workspace = true
 url.workspace = true
 tokio.workspace = true
 cynic.workspace = true
+fuels.workspace = true
 fuel-core-client.workspace = true
 fuel-core-types.workspace = true
 derive_more = { workspace = true, features = ["into", "from"] }

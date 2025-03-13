@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
-use fuels::{accounts::wallet::WalletUnlocked, types::bech32::Bech32ContractId};
+use fuels::types::bech32::Bech32ContractId;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -14,13 +14,14 @@ use crate::{
         GasPaymentEvent, InterchainGasPaymaster as InterchainGasPaymasterContract,
     },
     conversions::*,
+    wallet::FuelWallets,
     ConnectionConf, FuelIndexer, FuelProvider,
 };
 
 /// A reference to an IGP contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelInterchainGasPaymaster {
-    contract: InterchainGasPaymasterContract<WalletUnlocked>,
+    contract: InterchainGasPaymasterContract<FuelWallets>,
     domain: HyperlaneDomain,
     provider: FuelProvider,
 }
@@ -30,7 +31,7 @@ impl FuelInterchainGasPaymaster {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 
@@ -78,7 +79,7 @@ impl FuelInterchainGasPaymasterIndexer {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        wallet: WalletUnlocked,
+        wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let indexer = FuelIndexer::new(conf, locator, wallet).await;
         Ok(Self { indexer })

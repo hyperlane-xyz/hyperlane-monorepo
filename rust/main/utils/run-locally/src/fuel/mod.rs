@@ -396,7 +396,7 @@ pub async fn dispatch(nodes: &[FuelNetwork]) -> u32 {
                 .dispatch(
                     target.config.domain,
                     recipient,
-                    msg_body,
+                    msg_body.clone(),
                     Bytes(vec![]),
                     ContractId::default(),
                 )

@@ -3,12 +3,11 @@ use crate::{
         InsertedIntoTreeEvent, MerkleTreeHook as MerkleTreeHookContract,
     },
     conversions::*,
+    wallet::FuelWallets,
     ConnectionConf, FuelIndexer, FuelProvider,
 };
 use async_trait::async_trait;
-use fuels::{
-    accounts::wallet::WalletUnlocked, programs::calls::Execution, types::bech32::Bech32ContractId,
-};
+use fuels::{programs::calls::Execution, types::bech32::Bech32ContractId};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
@@ -20,7 +19,7 @@ use std::ops::RangeInclusive;
 /// A reference to a MerkleTreeHook contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelMerkleTreeHook {
-    contract: MerkleTreeHookContract<WalletUnlocked>,
+    contract: MerkleTreeHookContract<FuelWallets>,
     domain: HyperlaneDomain,
     provider: FuelProvider,
 }
@@ -30,7 +29,7 @@ impl FuelMerkleTreeHook {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 
@@ -150,7 +149,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
 #[derive(Debug)]
 pub struct FuelMerkleTreeHookIndexer {
     indexer: FuelIndexer<InsertedIntoTreeEvent>,
-    contract: MerkleTreeHookContract<WalletUnlocked>,
+    contract: MerkleTreeHookContract<FuelWallets>,
 }
 
 impl FuelMerkleTreeHookIndexer {
@@ -158,7 +157,7 @@ impl FuelMerkleTreeHookIndexer {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        wallet: WalletUnlocked,
+        wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let contract = MerkleTreeHookContract::new(
             Bech32ContractId::from_h256(&locator.address),

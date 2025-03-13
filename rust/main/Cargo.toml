@@ -66,8 +66,9 @@ dhat = "0.3.3"
 ed25519-dalek = "~1.0"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
-fuels = { git = "https://github.com/FuelLabs/fuels-rs", rev = "b8e74cb1ccf00ff86ec1af8d9fb0ff55e3cfd494", features = [
+fuels = { git = "https://github.com/FuelLabs/fuels-rs", rev = "b97b69eff880363c647af4f76e8c524a7e539180", features = [
   "coin-cache",
+  "accounts-aws-kms-signer",
 ] }
 fuels-code-gen = "0.70.4"
 fuel-core-client = "0.41.9"

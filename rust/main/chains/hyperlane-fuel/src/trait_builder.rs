@@ -1,6 +1,7 @@
 use fuels::{client::FuelClient, prelude::Provider};
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, ChainResult};
 use url::Url;
+
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, ChainResult};
 
 /// Fuel connection configuration
 #[derive(Debug, Clone)]

@@ -1,7 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData, ops::RangeInclusive};
 
 use fuels::{
-    accounts::wallet::WalletUnlocked,
     core::codec::LogDecoder,
     tx::Receipt,
     types::{bech32::Bech32ContractId, ContractId},
@@ -20,7 +19,7 @@ use query::{
     FuelGraphQLClient,
 };
 
-use crate::{conversions::*, ConnectionConf, FuelProvider};
+use crate::{conversions::*, wallet::FuelWallets, ConnectionConf, FuelProvider};
 
 /// A Fuel Indexer supporting a specific event type.
 /// The generic `E` is the type of the event this indexer will be filtering and parsing.
@@ -64,7 +63,7 @@ where
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        wallet: WalletUnlocked,
+        wallet: FuelWallets,
     ) -> Self {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
         let contract_address = Bech32ContractId::from_h256(&locator.address);
@@ -159,6 +158,11 @@ where
         receipts
             .into_iter()
             .enumerate()
+            // .filter(|(_, receipt)| {
+            //     receipt.id().map_or(false, |id| {
+            //         *id == ContractId::from(self.contract_address.clone())
+            //     })
+            // })
             .filter_map(|(index, receipt)| {
                 self.decode_log(receipt)
                     .map(|decoded_log| (decoded_log.transform::<T>(), index))

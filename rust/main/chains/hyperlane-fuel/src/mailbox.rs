@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use fuels::{
-    prelude::{Bech32ContractId, WalletUnlocked},
+    prelude::Bech32ContractId,
     programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
     types::{transaction::TxPolicies, transaction_builders::VariableOutputPolicy, Bytes},
@@ -22,13 +22,14 @@ use hyperlane_core::{
 use crate::{
     contracts::mailbox::{DispatchEvent, Mailbox as FuelMailboxContract, ProcessIdEvent},
     conversions::*,
+    wallet::FuelWallets,
     ConnectionConf, FuelIndexer, FuelProvider,
 };
 
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.3;
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
-    contract: FuelMailboxContract<WalletUnlocked>,
+    contract: FuelMailboxContract<FuelWallets>,
     provider: FuelProvider,
     domain: HyperlaneDomain,
 }
@@ -38,7 +39,7 @@ impl FuelMailbox {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 
@@ -315,7 +316,7 @@ impl Mailbox for FuelMailbox {
 #[derive(Debug)]
 pub struct FuelDispatchIndexer {
     indexer: FuelIndexer<DispatchEvent>,
-    contract: FuelMailboxContract<WalletUnlocked>,
+    contract: FuelMailboxContract<FuelWallets>,
 }
 
 impl FuelDispatchIndexer {
@@ -323,7 +324,7 @@ impl FuelDispatchIndexer {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        wallet: WalletUnlocked,
+        wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let contract = FuelMailboxContract::new(
             Bech32ContractId::from_h256(&locator.address),
@@ -389,7 +390,7 @@ impl FuelDeliveryIndexer {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        wallet: WalletUnlocked,
+        wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let indexer = FuelIndexer::new(conf, locator, wallet).await;
         Ok(Self { indexer })

@@ -23,6 +23,8 @@ mod provider;
 mod routing_ism;
 mod trait_builder;
 mod validator_announce;
+/// Support for different Fuel wallets.
+pub mod wallet;
 
 /// Safe default imports of commonly used traits/types.
 pub mod prelude {

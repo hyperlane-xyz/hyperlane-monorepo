@@ -1,25 +1,27 @@
-use crate::{
-    contracts::validator_announce::ValidatorAnnounce as FuelVAContract, conversions::*,
-    ConnectionConf, FuelProvider,
-};
 use async_trait::async_trait;
 use fuels::{
-    prelude::WalletUnlocked,
+    accounts::ViewOnlyAccount,
     programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
     types::{bech32::Bech32ContractId, Address, Bits256, Bytes},
 };
+use tracing::trace;
+
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
     ValidatorAnnounce, H256, H512, U256,
 };
-use tracing::trace;
+
+use crate::{
+    contracts::validator_announce::ValidatorAnnounce as FuelVAContract, conversions::*,
+    wallet::FuelWallets, ConnectionConf, FuelProvider,
+};
 
 /// A reference to a ValidatorAnnounce contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelValidatorAnnounce {
-    contract: FuelVAContract<WalletUnlocked>,
+    contract: FuelVAContract<FuelWallets>,
     domain: HyperlaneDomain,
     provider: FuelProvider,
 }
@@ -29,7 +31,7 @@ impl FuelValidatorAnnounce {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 

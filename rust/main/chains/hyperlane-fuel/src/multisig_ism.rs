@@ -1,10 +1,9 @@
 use crate::{
-    contracts::multisig_ism::MultisigISM as MultisigIsmContract, conversions::*, ConnectionConf,
-    FuelProvider,
+    contracts::multisig_ism::MultisigISM as MultisigIsmContract, conversions::*,
+    wallet::FuelWallets, ConnectionConf, FuelProvider,
 };
 use async_trait::async_trait;
 use fuels::{
-    accounts::wallet::WalletUnlocked,
     programs::calls::Execution,
     types::{bech32::Bech32ContractId, Bytes},
 };
@@ -16,7 +15,7 @@ use hyperlane_core::{
 /// A reference to a MultisigIsm contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelMultisigIsm {
-    contract: MultisigIsmContract<WalletUnlocked>,
+    contract: MultisigIsmContract<FuelWallets>,
     domain: HyperlaneDomain,
     provider: FuelProvider,
 }
@@ -26,7 +25,7 @@ impl FuelMultisigIsm {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 

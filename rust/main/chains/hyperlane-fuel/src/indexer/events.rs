@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use fuels::{
-    accounts::wallet::WalletUnlocked,
     core::{
         codec::LogDecoder,
         traits::{Parameterize, Tokenizable},
@@ -21,6 +20,7 @@ use crate::{
         merkle_tree_hook::{InsertedIntoTreeEvent, MerkleTreeHook as FuelMerkleTreeHookContract},
     },
     conversions::*,
+    wallet::FuelWallets,
 };
 
 /// Trait combination for Events which are supported by the Fuel Indexer
@@ -88,29 +88,29 @@ impl<S> EventDataTransformer for S {
 /// Trait for getting decoders from different contracts depending on the event type
 pub trait HasLogDecoder {
     /// Get the log decoder for a specific contract
-    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder;
+    fn log_decoder(contract_address: Bech32ContractId, wallet: FuelWallets) -> LogDecoder;
 }
 
 impl HasLogDecoder for DispatchEvent {
-    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: FuelWallets) -> LogDecoder {
         FuelMailboxContract::new(contract_address, wallet).log_decoder()
     }
 }
 
 impl HasLogDecoder for GasPaymentEvent {
-    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: FuelWallets) -> LogDecoder {
         FuelIgpContract::new(contract_address, wallet).log_decoder()
     }
 }
 
 impl HasLogDecoder for InsertedIntoTreeEvent {
-    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: FuelWallets) -> LogDecoder {
         FuelMerkleTreeHookContract::new(contract_address, wallet).log_decoder()
     }
 }
 
 impl HasLogDecoder for ProcessIdEvent {
-    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: FuelWallets) -> LogDecoder {
         FuelMailboxContract::new(contract_address, wallet).log_decoder()
     }
 }

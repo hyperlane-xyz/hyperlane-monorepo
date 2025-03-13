@@ -1,10 +1,9 @@
 use crate::{
     contracts::interchain_security_module::InterchainSecurityModule as InterchainSecurityModuleContract,
-    conversions::*, ConnectionConf, FuelProvider,
+    conversions::*, wallet::FuelWallets, ConnectionConf, FuelProvider,
 };
 use async_trait::async_trait;
 use fuels::{
-    accounts::wallet::WalletUnlocked,
     programs::calls::Execution,
     types::{bech32::Bech32ContractId, Bytes},
 };
@@ -17,7 +16,7 @@ use hyperlane_core::{
 /// A reference to an ISM contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelInterchainSecurityModule {
-    contract: InterchainSecurityModuleContract<WalletUnlocked>,
+    contract: InterchainSecurityModuleContract<FuelWallets>,
     domain: HyperlaneDomain,
     provider: FuelProvider,
 }
@@ -27,7 +26,7 @@ impl FuelInterchainSecurityModule {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 

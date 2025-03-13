@@ -1,10 +1,9 @@
 use crate::{
     contracts::aggregation_ism::AggregationISM as AggregationIsmContract, conversions::*,
-    ConnectionConf, FuelProvider,
+    wallet::FuelWallets, ConnectionConf, FuelProvider,
 };
 use async_trait::async_trait;
 use fuels::{
-    accounts::wallet::WalletUnlocked,
     programs::calls::{ContractDependency, Execution},
     types::{bech32::Bech32ContractId, Bytes},
 };
@@ -16,7 +15,7 @@ use hyperlane_core::{
 /// A reference to a AggregationIsm contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelAggregationIsm {
-    contract: AggregationIsmContract<WalletUnlocked>,
+    contract: AggregationIsmContract<FuelWallets>,
     domain: HyperlaneDomain,
     provider: FuelProvider,
 }
@@ -26,7 +25,7 @@ impl FuelAggregationIsm {
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
-        mut wallet: WalletUnlocked,
+        mut wallet: FuelWallets,
     ) -> ChainResult<Self> {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
 

@@ -48,6 +48,7 @@ zip = "2.2.3"
 vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
+default = ["fuel"]
 cosmos = []
 fuel = []
 sealevel = []
