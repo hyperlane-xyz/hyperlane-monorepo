@@ -15,9 +15,6 @@ const bundleWhitelist = new Set([
   '@hyperlane-xyz/core',
 ]);
 
-// These packages won't play nice if bundled as commonjs modules
-// const esmWhitelist = new Set(['chalk', 'latest-version', 'lodash-es']);
-
 export default {
   entry: './dist/cli.js',
   target: 'node',
@@ -49,20 +46,13 @@ export default {
         return callback();
       }
 
-      // // Install as an external ES module if in esm whitelist.
-      // if (esmWhitelist.has(request)) {
-      //   return callback(null, `module ${request}`);
-      // }
-
-      // All other packages will be installed when installing the package
+      // Install as an external ES module by default.
       callback(null, `module ${request}`);
     },
   ],
   plugins: [
     new webpack.BannerPlugin({
-      banner: `#!/usr/bin/env node
-import { createRequire } from 'module';
-globalThis.require = createRequire(import.meta.url);`,
+      banner: `#!/usr/bin/env node`,
       raw: true,
       entryOnly: true,
     }),
