@@ -67,6 +67,7 @@ export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
 export { PROTOCOL_TO_LOGO } from './logos/protocols.js';
 export { SolanaLogo } from './logos/Solana.js';
+export { StarknetLogo } from './logos/Starknet.js';
 export { WalletConnectLogo } from './logos/WalletConnect.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
 export {
