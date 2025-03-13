@@ -84,4 +84,6 @@ export enum WarpRouteIds {
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
   BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
+  BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
+  BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
 }
