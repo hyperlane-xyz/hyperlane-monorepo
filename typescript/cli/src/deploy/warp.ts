@@ -1253,7 +1253,7 @@ async function executeStarknetDeployments({
   multiProvider,
 }: {
   starknetSigners: ChainMap<StarknetAccount>;
-  warpRouteConfig: WarpRouteDeployConfig;
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired;
   multiProvider: MultiProvider;
 }): Promise<ChainMap<string>> {
   validateStarknetWarpConfig(warpRouteConfig);
@@ -1416,7 +1416,7 @@ interface EnrollRoutersParams {
   evmAddresses: ChainMap<Address>;
   starknetAddresses: ChainMap<Address>;
   context: WriteCommandContext;
-  warpRouteConfig: WarpRouteDeployConfig;
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired;
   deployments: WarpCoreConfig;
   multiProvider: MultiProvider;
   starknetSigners: ChainMap<StarknetAccount>;
