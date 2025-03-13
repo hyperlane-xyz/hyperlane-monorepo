@@ -11,13 +11,14 @@ use url::Url;
 use crate::utils::url_to_host_info;
 
 /// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
+pub const REQUEST_COUNT_LABELS: &[&str] =
+    &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
 /// Expected label names for the metric.
 pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
-    &["provider_node", "chain", "method", "status"];
+    &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
