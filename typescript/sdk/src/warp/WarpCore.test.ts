@@ -10,6 +10,7 @@ import {
   testSealevelChain,
   testVSXERC20,
   testXERC20,
+  testXERC20Lockbox,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
@@ -37,6 +38,7 @@ describe('WarpCore', () => {
   let evmHypSynthetic: Token;
   let evmHypXERC20: Token;
   let evmHypVSXERC20: Token;
+  let evmHypXERC20Lockbox: Token;
   let sealevelHypSynthetic: Token;
   let cwHypCollateral: Token;
   let cw20: Token;
@@ -65,6 +67,7 @@ describe('WarpCore', () => {
       evmHypSynthetic,
       evmHypXERC20,
       evmHypVSXERC20,
+      evmHypXERC20Lockbox,
       sealevelHypSynthetic,
       cwHypCollateral,
       cw20,
@@ -188,8 +191,10 @@ describe('WarpCore', () => {
     await testCollateral(evmHypNative, testCosmosChain.name, false);
     await testCollateral(evmHypNative, testSealevelChain.name, true);
     await testCollateral(cwHypCollateral, test1.name, false);
-    await testCollateral(evmHypXERC20, testVSXERC20.name, false);
-    await testCollateral(evmHypVSXERC20, testXERC20.name, false);
+    await testCollateral(evmHypXERC20, testVSXERC20.name, true);
+    await testCollateral(evmHypVSXERC20, testXERC20.name, true);
+    await testCollateral(evmHypXERC20Lockbox, testXERC20.name, true);
+    await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
 
     stubs.forEach((s) => s.restore());
   });
@@ -277,25 +282,27 @@ describe('WarpCore', () => {
       'Rate limit exceeded on destination',
     );
 
-    const invalidVSXERC20TokenRateLimit = await warpCore.validateTransfer({
+    const invalidXERC20LockboxTokenRateLimit = await warpCore.validateTransfer({
       originTokenAmount: evmHypXERC20.amount(BIG_TRANSFER_AMOUNT),
-      destination: testVSXERC20.name,
+      destination: testXERC20Lockbox.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
-    expect(Object.values(invalidVSXERC20TokenRateLimit || {})[0]).to.equal(
+    expect(Object.values(invalidXERC20LockboxTokenRateLimit || {})[0]).to.equal(
       'Rate limit exceeded on destination',
     );
 
-    const invalidCollateralForVSXERC20Token = await warpCore.validateTransfer({
-      originTokenAmount: evmHypXERC20.amount(MEDIUM_TRANSFER_AMOUNT),
-      destination: testVSXERC20.name,
-      recipient: MOCK_ADDRESS,
-      sender: MOCK_ADDRESS,
-    });
-    expect(Object.values(invalidCollateralForVSXERC20Token || {})[0]).to.equal(
-      'Insufficient collateral on destination',
+    const invalidCollateralXERC20LockboxToken = await warpCore.validateTransfer(
+      {
+        originTokenAmount: evmHypXERC20.amount(MEDIUM_TRANSFER_AMOUNT),
+        destination: testXERC20Lockbox.name,
+        recipient: MOCK_ADDRESS,
+        sender: MOCK_ADDRESS,
+      },
     );
+    expect(
+      Object.values(invalidCollateralXERC20LockboxToken || {})[0],
+    ).to.equal('Insufficient collateral on destination');
 
     balanceStubs.forEach((s) => s.restore());
     quoteStubs.forEach((s) => s.restore());
