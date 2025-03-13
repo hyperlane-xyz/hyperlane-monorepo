@@ -38,7 +38,7 @@ export function getCompiledContract(
     }
 
     return contract.contract_class;
-  } catch (error) {
+  } catch (_error) {
     throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.FILE_NOT_FOUND, {
       name,
       type: contractType,
@@ -65,7 +65,7 @@ export function getCompiledContractCasm(
     }
 
     return contract.compiled_contract_class;
-  } catch (error) {
+  } catch (_error) {
     throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.FILE_NOT_FOUND, {
       name,
       type: contractType,

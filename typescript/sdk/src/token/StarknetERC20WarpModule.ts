@@ -20,14 +20,14 @@ import { ChainMap } from '../types.js';
 
 import { HypERC20Deployer } from './deploy.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
-import { WarpRouteDeployConfig } from './types.js';
+import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
 export class StarknetERC20WarpModule {
   protected logger = rootLogger.child({ module: 'StarknetERC20WarpModule' });
 
   constructor(
     protected readonly account: ChainMap<Account>,
-    protected readonly config: WarpRouteDeployConfig,
+    protected readonly config: WarpRouteDeployConfigMailboxRequired,
     protected readonly multiProvider: MultiProvider,
   ) {}
 
@@ -57,7 +57,7 @@ export class StarknetERC20WarpModule {
       const deployerAccountAddress = this.account[chain].address;
       const ismAddress = await this.getStarknetDeploymentISMAddress({
         ismConfig: interchainSecurityModule,
-        mailbox: mailbox,
+        mailbox: mailbox!,
         chain,
         deployer,
       });
@@ -67,7 +67,7 @@ export class StarknetERC20WarpModule {
             'HypErc20',
             {
               decimals: tokenMetadata.decimals,
-              mailbox: mailbox,
+              mailbox: mailbox!,
               total_supply: tokenMetadata.totalSupply,
               name: [byteArray.byteArrayFromString(tokenMetadata.name)],
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
@@ -102,7 +102,7 @@ export class StarknetERC20WarpModule {
           const tokenAddress = await deployer.deployContract(
             'HypErc20Collateral',
             {
-              mailbox: mailbox,
+              mailbox: mailbox!,
               // @ts-ignore
               erc20: rest.token,
               owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
