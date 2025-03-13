@@ -201,11 +201,19 @@ export function withOutputFile<T>(args: Argv<T>) {
     .alias('o', 'outFile');
 }
 
-export function withWarpRouteId<T>(args: Argv<T>) {
+export function withKnownWarpRouteId<T>(args: Argv<T>) {
   return args
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
     .choices('warpRouteId', Object.values(WarpRouteIds));
+}
+
+export function withWarpRouteId<T>(args: Argv<T>) {
+  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
+export function withWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withDryRun<T>(args: Argv<T>) {
@@ -215,8 +223,8 @@ export function withDryRun<T>(args: Argv<T>) {
     .default('dryRun', false);
 }
 
-export function withWarpRouteIdRequired<T>(args: Argv<T>) {
-  return withWarpRouteId(args).demandOption('warpRouteId');
+export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -339,9 +347,11 @@ export function withSkipReview<T>(args: Argv<T>) {
 
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
   return select({
     message: 'Select Warp Route ID',
     choices,

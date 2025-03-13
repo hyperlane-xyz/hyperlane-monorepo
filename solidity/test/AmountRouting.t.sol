@@ -25,6 +25,8 @@ contract AmountRoutingTest is Test {
 
     uint8 internal constant DECIMALS = 18;
 
+    uint256 internal constant SCALE = 1;
+
     TestIsm internal lowerIsm;
     TestIsm internal upperIsm;
 
@@ -66,7 +68,11 @@ contract AmountRoutingTest is Test {
         MockMailbox remoteMailbox = new MockMailbox(remoteDomain);
         remoteMailbox.addRemoteMailbox(localDomain, localMailbox);
 
-        HypERC20 localWarpRoute = new HypERC20(DECIMALS, address(localMailbox));
+        HypERC20 localWarpRoute = new HypERC20(
+            DECIMALS,
+            SCALE,
+            address(localMailbox)
+        );
         localWarpRoute.initialize(
             0,
             "",
@@ -77,6 +83,7 @@ contract AmountRoutingTest is Test {
         );
         HypERC20 remoteWarpRoute = new HypERC20(
             DECIMALS,
+            SCALE,
             address(remoteMailbox)
         );
         remoteWarpRoute.initialize(
