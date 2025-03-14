@@ -745,7 +745,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f5174e6-20250310-182921',
+      tag: 'af7146e-20250314-172005',
     },
     resources: scraperResources,
   },
