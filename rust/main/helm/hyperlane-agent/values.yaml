@@ -82,6 +82,7 @@ hyperlane:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
     podLabels: {}
+    attachServiceAccount: false
     storage:
       size: 10Gi
       snapshot:
@@ -105,6 +106,7 @@ hyperlane:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
     podLabels: {}
+    attachServiceAccount: false
     storage:
       size: 10Gi
       snapshot:
