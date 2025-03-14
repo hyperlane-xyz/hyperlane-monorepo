@@ -1,12 +1,15 @@
-use fuels::{client::FuelClient, prelude::Provider};
-use hyperlane_core::{ChainCommunicationError, ChainResult};
+use fuels::prelude::Provider;
 use url::Url;
+
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, ChainResult};
 
 /// Fuel connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     pub url: Url,
+    /// Config for batching messages
+    pub operation_batch: OperationBatchConfig,
 }
 
 /// An error type when parsing a connection configuration.
@@ -28,11 +31,6 @@ impl From<FuelNewConnectionError> for ChainCommunicationError {
     fn from(err: FuelNewConnectionError) -> Self {
         ChainCommunicationError::from_other(err)
     }
-}
-
-/// Create a new Fuel client
-pub fn make_client(conf: &ConnectionConf) -> ChainResult<FuelClient> {
-    FuelClient::new(&conf.url).map_err(|e| FuelNewConnectionError(e).into())
 }
 
 /// Create a new fuel provider and connection

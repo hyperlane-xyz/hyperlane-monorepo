@@ -3,7 +3,16 @@ use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
+use fuels::accounts::signers::{
+    kms::aws::{
+        aws_config::{defaults, BehaviorVersion, Region as FuelAwsRegion},
+        aws_sdk_kms::Client,
+        AwsKmsSigner,
+    },
+    private_key::PrivateKeySigner,
+};
 use hyperlane_core::{AccountAddressType, H256};
+use hyperlane_fuel::wallet::FuelSigners;
 use hyperlane_sealevel::Keypair;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
@@ -100,23 +109,32 @@ impl ChainSigner for hyperlane_ethereum::Signers {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
+impl BuildableWithSignerConf for FuelSigners {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            let key = fuels::crypto::SecretKey::try_from(key.as_bytes())
-                .context("Invalid fuel signer key")?;
-            Ok(fuels::prelude::WalletUnlocked::new_from_private_key(
-                key, None,
-            ))
-        } else {
-            bail!(format!("{conf:?} key is not supported by fuel"));
-        }
+        Ok(match conf {
+            SignerConf::HexKey { key } => {
+                let private_key = fuels::crypto::SecretKey::try_from(key.as_bytes())
+                    .context("Invalid fuel signer key")?;
+                FuelSigners::PrivateKey(PrivateKeySigner::new(private_key))
+            }
+            SignerConf::Aws { id, region } => {
+                let region = FuelAwsRegion::new(region.name().to_owned());
+                let config = defaults(BehaviorVersion::latest())
+                    .region(region)
+                    .load()
+                    .await;
+                let client = Client::new(&config);
+
+                FuelSigners::AwsKms(AwsKmsSigner::new(id, &client).await?)
+            }
+            _ => bail!(format!("{conf:?} key is not supported by fuel")),
+        })
     }
 }
 
-impl ChainSigner for fuels::prelude::WalletUnlocked {
+impl ChainSigner for FuelSigners {
     fn address_string(&self) -> String {
-        self.address().to_string()
+        fuels::types::Address::from(self.address()).to_string()
     }
 }
 

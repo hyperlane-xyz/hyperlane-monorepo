@@ -18,24 +18,25 @@ mod deploy;
 mod link;
 mod rpc;
 mod source;
-mod termination_invariants;
 mod types;
 mod utils;
 
 use rpc::*;
-use termination_invariants::*;
-use types::*;
+pub use types::*;
 use utils::*;
 
 use crate::cosmos::link::link_networks;
+use crate::invariants::base_termination_invariants_met;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
+use crate::types::{AgentConfig, AgentConfigOut, HyperlaneStack};
 use crate::utils::{
     as_task, concat_path, get_workspace_path, stop_child, AgentHandles, TaskHandle,
 };
 use crate::AGENT_BIN_PATH;
-use cli::{OsmosisCLI, OsmosisEndpoint};
+pub use cli::OsmosisCLI;
+use cli::OsmosisEndpoint;
 
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
@@ -203,23 +204,6 @@ impl From<(CosmosResp, Deployments, String, u32, u32)> for CosmosNetwork {
             metrics_port: v.3,
             domain: v.4,
         }
-    }
-}
-pub struct CosmosHyperlaneStack {
-    pub validators: Vec<AgentHandles>,
-    pub relayer: AgentHandles,
-    pub scraper: AgentHandles,
-    pub postgres: AgentHandles,
-}
-
-impl Drop for CosmosHyperlaneStack {
-    fn drop(&mut self) {
-        for v in &mut self.validators {
-            stop_child(&mut v.1);
-        }
-        stop_child(&mut self.relayer.1);
-        stop_child(&mut self.scraper.1);
-        stop_child(&mut self.postgres.1);
     }
 }
 
@@ -483,7 +467,7 @@ fn run_locally() {
             .map(|v| {
                 (
                     format!("cosmostest{}", v.domain),
-                    AgentConfig::new(osmosisd.clone(), validator, v),
+                    AgentConfig::cosmos(osmosisd.clone(), validator, v),
                 )
             })
             .collect::<BTreeMap<String, AgentConfig>>(),
@@ -540,7 +524,7 @@ fn run_locally() {
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(&osmosisd, linker, &nodes);
 
-    let _stack = CosmosHyperlaneStack {
+    let _stack = HyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
         scraper: hpl_scr.join(),
@@ -553,7 +537,7 @@ fn run_locally() {
     let mut failure_occurred = false;
     loop {
         // look for the end condition.
-        if termination_invariants_met(
+        if base_termination_invariants_met(
             hpl_rly_metrics_port,
             hpl_scr_metrics_port,
             dispatched_messages,

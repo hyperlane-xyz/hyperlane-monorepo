@@ -437,6 +437,59 @@
       "interchainAccountRouter": "0x2C6dD6768E669EDB7b53f26067C1C4534862c3de",
       "timelockController": "0x0000000000000000000000000000000000000000"
     },
+    "fueltestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://app-testnet.fuel.network/",
+          "family": "other",
+          "name": "Fuel Testnet Explorer",
+          "url": "https://app-testnet.fuel.network/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 0
+      },
+      "chainId": 1717982312,
+      "deployer": {
+        "name": "Simply Staking",
+        "url": "https://simplystaking.com/"
+      },
+      "isTestnet": true,
+      "displayName": "FuelTestnet",
+      "domainId": 1717982312,
+      "gasCurrencyCoinGeckoId": "fuel-2",
+      "name": "fueltestnet",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "Ethereum",
+        "symbol": "ETH"
+      },
+      "protocol": "fuel",
+      "rpcUrls": [
+        {
+          "http": "https://testnet.fuel.network/v1/graphql"
+        }
+      ],
+      "mailbox": "0xb0d20266f540e5693634e86f93d237ac6713ab4cf93570f2ad61c7d7b442816f",
+      "recipient": "0x32dd5f9effc89b3d9030f7142d017b44d5a2347e8229b9aa2060131a10d44508",
+      "interchainSecurityModule": "0x8b80a52659c4a7e710d6d387eb2218b7c29ec8189a2d157fab65de378326fac0",
+      "merkleTreeHook": "0x98b5f949112dd4654dc5924e212936fff06f5c69a931042c7bab546a036d5ac5",
+      "storageGasOracle": "0x23e3703017b1b333c3a855ee17ee64093fc9e32458515949778890c0c6bc4c64",
+      "interchainGasPaymaster": "0xeb7405943f4b0f36d93135b95562f3d510eaefb01b30334d747876da77dfc532",
+      "pausableHook": "0xaedd0de54a9a0679d6a259a551a0fd94480cdcb06bb10c10eea206edbe09de06",
+      "pausableIsm": "0xf9a76c20fca4f37a2e859ac64c9f42b0d2736bd140aff9cc27e173c27ea9aaf0",
+      "protocolFee": "0x0354e45b0cf4fb75acb47f25e71d945784c6396ef55cf62a7f2ebd011a4dd49a",
+      "domainRoutingIsm": "0x0ead70dc630e8d4fca8a3b697932eac1bca89fac26199df8fbc94fbd7859d340",
+      "fallbackRoutingHook": "0x3e68f0d38374d488e5ae459b28179102bb1e81835c9efbf4cff13e0fce308923",
+      "testRecipient": "0x32dd5f9effc89b3d9030f7142d017b44d5a2347e8229b9aa2060131a10d44508",
+      "validatorAnnounce": "0x0fb94e1289e08219ae3e31aa8307a18f1c6c4fffd38790ad83a8e7bd0661f0c4",
+      "index": {
+        "from": 24983964,
+        "chunk": 10
+      }
+    },
     "fuji": {
       "aggregationHook": "0x8E9b4006171c6B75111823e7545Ee5400CEce0B3",
       "blockExplorers": [
