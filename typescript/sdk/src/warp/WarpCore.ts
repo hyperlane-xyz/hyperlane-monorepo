@@ -772,6 +772,22 @@ export class WarpCore {
     return null;
   }
 
+  protected getMintTokenStandardAdapter(
+    token: IToken,
+  ): IHypXERC20Adapter<unknown> | null {
+    switch (token.standard) {
+      case TokenStandard.EvmHypXERC20:
+      case TokenStandard.EvmHypXERC20Lockbox:
+      case TokenStandard.EvmHypVSXERC20:
+      case TokenStandard.EvmHypVSXERC20Lockbox:
+        return token.getAdapter(
+          this.multiProvider,
+        ) as IHypXERC20Adapter<unknown>;
+      default:
+        return null;
+    }
+  }
+
   /**
    * Ensure the sender has sufficient balances for minting
    */
@@ -785,17 +801,14 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    if (!MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
+    const adapter = this.getMintTokenStandardAdapter(destinationToken);
+    if (!adapter) {
       this.logger.debug(
         `${destinationToken.symbol} does not have rate limit constraint, skipping`,
       );
       return null;
     }
-
     let destinationMintLimit: bigint;
-    const adapter = destinationToken.getAdapter(
-      this.multiProvider,
-    ) as IHypXERC20Adapter<unknown>;
     destinationMintLimit = await adapter.getMintLimit();
 
     if (
