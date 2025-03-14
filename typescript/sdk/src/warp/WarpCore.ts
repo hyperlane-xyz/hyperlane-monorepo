@@ -22,7 +22,6 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
-  MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
@@ -476,43 +475,17 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    if (
-      !TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard) &&
-      !MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
-    ) {
+    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
       this.logger.debug(
         `${destinationToken.symbol} is not collateralized, skipping`,
       );
       return true;
     }
 
-    let destinationBalance: bigint;
-
     const adapter = destinationToken.getAdapter(this.multiProvider);
-    if (MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
-      const adapter = destinationToken.getAdapter(
-        this.multiProvider,
-      ) as IHypXERC20Adapter<unknown>;
-      destinationBalance = await adapter.getMintLimit();
-
-      if (
-        destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
-        destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
-      ) {
-        const bufferCap = await adapter.getMintMaxLimit();
-        const max = bufferCap / 2n;
-        if (destinationBalance > max) {
-          this.logger.debug(
-            `Mint limit ${destinationBalance} exceeds max ${max}, using max`,
-          );
-          destinationBalance = max;
-        }
-      }
-    } else {
-      destinationBalance = await adapter.getBalance(
-        destinationToken.addressOrDenom,
-      );
-    }
+    const destinationBalance: bigint = await adapter.getBalance(
+      destinationToken.addressOrDenom,
+    );
 
     const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
       destinationToken.decimals,
@@ -585,6 +558,12 @@ export class WarpCore {
       recipient,
     );
     if (amountError) return amountError;
+
+    const destinationRateLimitError = await this.validateDestinationRateLimit(
+      originTokenAmount,
+      destination,
+    );
+    if (destinationRateLimitError) return destinationRateLimitError;
 
     const destinationCollateralError = await this.validateDestinationCollateral(
       originTokenAmount,
@@ -787,18 +766,77 @@ export class WarpCore {
     });
 
     if (!valid) {
-      const destinationName = this.multiProvider.getChainName(destination);
-      const destinationToken =
-        originTokenAmount.token.getConnectionForChain(destinationName)?.token;
-      if (
-        destinationToken &&
-        MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
-      ) {
-        return { amount: 'Rate limit exceeded on destination' };
-      }
       return { amount: 'Insufficient collateral on destination' };
     }
+    return null;
+  }
 
+  protected getMintTokenStandardAdapter(
+    token: IToken,
+  ): IHypXERC20Adapter<unknown> | null {
+    switch (token.standard) {
+      case TokenStandard.EvmHypXERC20:
+      case TokenStandard.EvmHypXERC20Lockbox:
+      case TokenStandard.EvmHypVSXERC20:
+      case TokenStandard.EvmHypVSXERC20Lockbox:
+        return token.getAdapter(
+          this.multiProvider,
+        ) as IHypXERC20Adapter<unknown>;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for minting
+   */
+  protected async validateDestinationRateLimit(
+    originTokenAmount: TokenAmount,
+    destination: ChainNameOrId,
+  ): Promise<Record<string, string> | null> {
+    const { token: originToken, amount } = originTokenAmount;
+    const destinationName = this.multiProvider.getChainName(destination);
+    const destinationToken =
+      originToken.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
+
+    const adapter = this.getMintTokenStandardAdapter(destinationToken);
+    if (!adapter) {
+      this.logger.debug(
+        `${destinationToken.symbol} does not have rate limit constraint, skipping`,
+      );
+      return null;
+    }
+    let destinationMintLimit: bigint;
+    destinationMintLimit = await adapter.getMintLimit();
+
+    if (
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+    ) {
+      const bufferCap = await adapter.getMintMaxLimit();
+      const max = bufferCap / 2n;
+      if (destinationMintLimit > max) {
+        this.logger.debug(
+          `Mint limit ${destinationMintLimit} exceeds max ${max}, using max`,
+        );
+        destinationMintLimit = max;
+      }
+    }
+
+    const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(
+      destinationToken.decimals,
+      originToken.decimals,
+      destinationMintLimit.toString(),
+    );
+
+    const isSufficient = BigInt(destinationMintLimitInOriginDecimals) >= amount;
+    this.logger.debug(
+      `${originTokenAmount.token.symbol} to ${destination} has ${
+        isSufficient ? 'sufficient' : 'INSUFFICIENT'
+      } rate limits`,
+    );
+    if (!isSufficient) return { amount: 'Rate limit exceeded on destination' };
     return null;
   }
 
