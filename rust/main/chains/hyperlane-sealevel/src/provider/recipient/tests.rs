@@ -2,7 +2,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use rstest::rstest;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransaction};
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, UiInstruction, UiMessage, UiParsedInstruction,
+    UiParsedMessage, UiPartiallyDecodedInstruction, UiTransaction,
+};
 
 use hyperlane_core::H512;
 
@@ -42,6 +45,24 @@ fn test_identify_recipient_in_complex_transaction(
     assert_eq!(recipient.unwrap(), warp_route_address);
 }
 
+#[test]
+fn test_identify_recipient_in_igp_transaction() {
+    // given
+    let transaction = transaction_with_igp();
+    let igp_master = "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp";
+    let igp_master_address = decode_h256(igp_master).unwrap();
+    let provider = RecipientProvider::new(&vec![igp_master_address]);
+
+    let igp_address = decode_h256("GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U").unwrap();
+
+    // when
+    let recipient = provider.recipient(&H512::zero(), &transaction);
+
+    // then
+    assert!(recipient.is_ok());
+    assert_eq!(recipient.unwrap(), igp_address);
+}
+
 fn read_json(path: &str) -> String {
     let relative = PathBuf::new().join("src/provider/recipient/").join(path);
     let absolute = fs::canonicalize(relative).expect("cannot find path");
@@ -52,4 +73,29 @@ fn transaction(json: &str) -> UiTransaction {
     let transaction =
         serde_json::from_str::<EncodedConfirmedTransactionWithStatusMeta>(json).unwrap();
     txn(&transaction.transaction).unwrap().clone()
+}
+
+fn transaction_with_igp() -> UiTransaction {
+    UiTransaction {
+        signatures: vec!["3XHQhCbhcLrDq7vqtdDSMZxQ2PEuk3Wz3JoahMYL332Tq1VA8oRh2X1NCSArG2M7Wq2ZnG6BWwGxQMoEVhvD8wLd".to_string(), "3N6s1P1KkmkHohH5LHmpWS8ZvTwtp8yCUnpnMv8jGP3Z9a2DioLXzzSNNwfvVitRFCBHoKTzz64FQsG1aWK13iNk".to_string()],
+        message: UiMessage::Parsed(
+            UiParsedMessage {
+                account_keys: vec![],
+                recent_blockhash: "".to_string(),
+                instructions: vec![
+                    UiInstruction::Parsed(UiParsedInstruction::PartiallyDecoded(UiPartiallyDecodedInstruction {
+                        program_id: "ComputeBudget111111111111111111111111111111".to_string(),
+                        accounts: vec![],
+                        data: "K1FDJ7".to_string(),
+                    })),
+                    UiInstruction::Parsed(UiParsedInstruction::PartiallyDecoded(UiPartiallyDecodedInstruction {
+                        program_id: "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U".to_string(),
+                        accounts: vec!["11111111111111111111111111111111".to_string(), "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty".to_string(), "HBB1MxTeuRGb3C4bfXLQbu9z2Pn2LTXVQX53Hy7uyeof".to_string(), "APrjTrTeUqyQgg7n52YrQkULUa4AniaVKkxhgTXNugSg".to_string(), "GV2Qj26E43X9zLhaR9jgs44yZnmf1UPqJNyd435ca7L1".to_string(), "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp".to_string(), "EBEZGxTABcfHgPH1vZZc9BnFWHjne4nzqApZZxGTCgsn".to_string()],
+                        data: "6bsyHSvcBqJsshiyP1v8RNvNsiwPqsLr4LMEv8TQ2GVeoJM6uYWXFFujxHdts".to_string(),
+                    }))
+                ],
+                address_table_lookups: None,
+            }
+        ),
+    }
 }
