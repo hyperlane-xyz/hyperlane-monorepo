@@ -36,6 +36,17 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   return overhead;
 }
 
+function getOracleConfigWithOverrides(chain: ChainName) {
+  const oracleConfig = storageGasOracleConfig[chain];
+  if (chain === 'infinityvm') {
+    // For InfinityVM, override all remote chain gas configs to use 0 gas
+    for (const remoteConfig of Object.values(oracleConfig)) {
+      remoteConfig.gasPrice = '0';
+    }
+  }
+  return oracleConfig;
+}
+
 const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
@@ -63,6 +74,6 @@ export const igp: ChainMap<IgpConfig> = objMap(
         getOverheadWithOverrides(local, remote),
       ]),
     ),
-    oracleConfig: storageGasOracleConfig[local],
+    oracleConfig: getOracleConfigWithOverrides(local),
   }),
 );

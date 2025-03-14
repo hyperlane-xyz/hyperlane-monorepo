@@ -306,11 +306,12 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-
-        await this.multiProvider.sendTransaction(
-          chain,
-          setIsm(contract, targetIsm),
-        );
+        const populatedTx = await setIsm(contract, targetIsm);
+        const estimatedGas = await this.multiProvider
+          .getSigner(chain)
+          .estimateGas(populatedTx);
+        populatedTx.gasLimit = addBufferToGasLimit(estimatedGas);
+        await this.multiProvider.sendTransaction(chain, populatedTx);
 
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
