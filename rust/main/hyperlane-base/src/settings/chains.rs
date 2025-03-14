@@ -245,6 +245,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
+                println!("addresses: {:?}", self.addresses);
                 let provider = build_sealevel_provider(
                     rpc_client,
                     locator.domain.clone(),
