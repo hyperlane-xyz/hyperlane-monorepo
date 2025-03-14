@@ -1,5 +1,18 @@
 # @hyperlane-xyz/helloworld
 
+## 8.10.0
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [88970a78c]
+- Updated dependencies [88970a78c]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [88970a78c]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@8.10.0
+  - @hyperlane-xyz/core@6.0.0
+
 ## 8.9.0
 
 ### Patch Changes

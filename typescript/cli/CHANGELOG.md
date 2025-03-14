@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 8.10.0
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@8.10.0
+  - @hyperlane-xyz/utils@8.10.0
+
 ## 8.9.0
 
 ### Minor Changes
