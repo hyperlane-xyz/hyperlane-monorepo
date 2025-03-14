@@ -9,6 +9,7 @@ import {
   ChainMap,
   ChainName,
   EvmERC20WarpRouteReader,
+  HypTokenRouterConfig,
   MultiProvider,
   TokenStandard,
   WarpCoreConfig,
@@ -31,7 +32,7 @@ export async function runWarpRouteRead({
   warp?: string;
   address?: string;
   symbol?: string;
-}): Promise<Record<ChainName, any>> {
+}): Promise<Record<ChainName, HypTokenRouterConfig>> {
   const { multiProvider } = context;
 
   // Get addresses map either from warpCoreConfig or direct input

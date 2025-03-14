@@ -1,5 +1,18 @@
 # @hyperlane-xyz/utils
 
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 3518f8901: Add ZERO_ADDRESS_HEX_32 constant.
+
+## 8.8.1
+
+## 8.8.0
+
+## 8.7.0
+
 ## 8.6.1
 
 ## 8.6.0
