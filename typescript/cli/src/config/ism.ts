@@ -10,6 +10,7 @@ import {
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
   TrustedRelayerIsmConfig,
+  isStaticIsm,
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
@@ -89,6 +90,7 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
 
 export async function createAdvancedIsmConfig(
   context: CommandContext,
+  excludeStaticIsms: boolean = false,
 ): Promise<IsmConfig> {
   logBlue('Creating a new advanced ISM config');
   logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
@@ -98,12 +100,12 @@ export async function createAdvancedIsmConfig(
 
   const moduleType = await select({
     message: 'Select ISM type',
-    choices: Object.entries(ISM_TYPE_DESCRIPTIONS).map(
-      ([value, description]) => ({
+    choices: Object.entries(ISM_TYPE_DESCRIPTIONS)
+      .filter(([value]) => !excludeStaticIsms || !isStaticIsm(value as IsmType))
+      .map(([value, description]) => ({
         value,
         description,
-      }),
-    ),
+      })),
     pageSize: 10,
   });
 
