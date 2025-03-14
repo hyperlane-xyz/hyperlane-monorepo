@@ -1,5 +1,5 @@
 {{- if .Values.hyperlane.relayer.enabled }}
-BapiVersion: apps/v1
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ include "agent-common.fullname" . }}-relayer
