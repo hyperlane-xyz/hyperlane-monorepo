@@ -7,6 +7,8 @@
     "noImplicitAny": false,
     "rootDir": "./src",
     "outDir": "./dist",
+    "moduleResolution": "bundler",
+    "module": "ES2015"
   },
   "include": ["./src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.stories.tsx"],

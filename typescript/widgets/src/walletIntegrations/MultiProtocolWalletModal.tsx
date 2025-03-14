@@ -57,6 +57,15 @@ export function MultiProtocolWalletModal({
             Cosmos
           </ProtocolButton>
         )}
+        {includesProtocol(ProtocolType.Starknet) && (
+          <ProtocolButton
+            protocol={ProtocolType.Starknet}
+            onClick={onClickProtocol}
+            subTitle="a Starknet"
+          >
+            Starknet
+          </ProtocolButton>
+        )}
       </div>
     </Modal>
   );
