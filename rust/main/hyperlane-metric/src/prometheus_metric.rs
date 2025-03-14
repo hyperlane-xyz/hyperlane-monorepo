@@ -4,11 +4,16 @@ use std::{fmt::Debug, time::Instant};
 
 use derive_builder::Builder;
 use maplit::hashmap;
-use prometheus::{CounterVec, IntCounterVec};
+use prometheus::{CounterVec, IntCounterVec, IntGaugeVec};
 use serde::Deserialize;
 use url::Url;
 
 use crate::utils::url_to_host_info;
+
+/// Expected label names for the metric.
+pub const PROVIDER_COUNT_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const PROVIDER_COUNT_HELP: &str = "Total number of provider instances made by this client";
 
 /// Expected label names for the metric.
 pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
@@ -24,6 +29,12 @@ pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent m
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
+    /// Total number of providers being created.
+    /// - `chain`: chain name (or chain id if the name is unknown) of the chain
+    ///   the request was made on.
+    #[builder(setter(into, strip_option), default)]
+    pub provider_count: Option<IntGaugeVec>,
+
     /// Total number of requests made to this client.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
     ///   `quicknode.pro`, or `localhost:8545`.
@@ -48,6 +59,23 @@ pub struct PrometheusClientMetrics {
 }
 
 impl PrometheusClientMetrics {
+    pub fn increment_provider_instance(&self, chain: &str) {
+        let labels = hashmap! {
+            "chain" => chain,
+        };
+        if let Some(counter) = &self.provider_count {
+            counter.with(&labels).inc();
+        }
+    }
+    pub fn decrement_provider_instance(&self, chain: &str) {
+        let labels = hashmap! {
+            "chain" => chain,
+        };
+        if let Some(counter) = &self.provider_count {
+            counter.with(&labels).dec();
+        }
+    }
+
     /// Update prometheus metrics
     pub fn increment_metrics(
         &self,
@@ -119,6 +147,14 @@ impl PrometheusConfig {
             chain,
         }
     }
+
+    pub fn chain_name(chain_info: &Option<ChainInfo>) -> &str {
+        chain_info
+            .as_ref()
+            .and_then(|c| c.name.as_ref())
+            .map(|n| n.as_str())
+            .unwrap_or("unknown")
+    }
 }
 
 /// Helper functions for displaying node and chain information
@@ -139,10 +175,6 @@ impl PrometheusConfigExt for PrometheusConfig {
             .unwrap_or("unknown")
     }
     fn chain_name(&self) -> &str {
-        self.chain
-            .as_ref()
-            .and_then(|c| c.name.as_ref())
-            .map(|n| n.as_str())
-            .unwrap_or("unknown")
+        PrometheusConfig::chain_name(&self.chain)
     }
 }
