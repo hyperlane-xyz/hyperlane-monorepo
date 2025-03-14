@@ -41,8 +41,6 @@ impl RecipientProvider {
     }
 
     pub(crate) fn recipient(&self, hash: &H512, transaction: &UiTransaction) -> ChainResult<H256> {
-        println!("programs: {:?}", self.programs);
-        println!("uitransaction: {:?}", transaction);
         let instructions = instructions(transaction)?;
 
         let decoded = instructions
@@ -55,14 +53,8 @@ impl RecipientProvider {
                 }
             })
             .filter_map(|ii| match ii {
-                UiParsedInstruction::Parsed(iii) => {
-                    println!("parsed: {:?}", iii);
-                    None
-                } // only native programs are fully parsed
-                UiParsedInstruction::PartiallyDecoded(iii) => {
-                    println!("decoded: {:?}", iii);
-                    Some(iii)
-                }
+                UiParsedInstruction::Parsed(_) => None, // only native programs are fully parsed
+                UiParsedInstruction::PartiallyDecoded(iii) => Some(iii),
             })
             .collect::<Vec<&UiPartiallyDecodedInstruction>>();
 
