@@ -15,10 +15,10 @@ pub(crate) struct RecipientProvider {
 }
 
 impl RecipientProvider {
-    pub(crate) fn new(contract_addresses: &Vec<H256>) -> Self {
+    pub(crate) fn new(contract_addresses: &[H256]) -> Self {
         let programs = contract_addresses
             .iter()
-            .map(|address| Pubkey::from(<[u8; 32]>::from(address.clone())))
+            .map(|address| Pubkey::from(<[u8; 32]>::from(*address)))
             .map(|address| address.to_string())
             .collect();
         Self { programs }
