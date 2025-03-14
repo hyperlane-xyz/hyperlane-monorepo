@@ -142,7 +142,7 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         println!("HILL message: {:?}", message);
         println!("HILL self.contract: {:?}", self.contract);
 
-        let tx = self.contract.verify(
+        let _tx = self.contract.verify(
             &StarknetBytes {
                 size: metadata.len() as u32,
                 data: to_packed_bytes(metadata),
@@ -150,13 +150,13 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
             message,
         );
 
-        println!("HILL tx: {:?}", tx);
+        // println!("HILL tx: {:?}", tx);
 
-        let response = tx
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
-        println!("HILL response: {:?}", response);
+        // let response = tx
+        //     .call()
+        //     .await
+        //     .map_err(Into::<HyperlaneStarknetError>::into)?;
+        // println!("HILL response: {:?}", response);
 
         // We can't simulate the `verify` call in Starknet because
         // it's not marked as an entrypoint. So we just use the query interface

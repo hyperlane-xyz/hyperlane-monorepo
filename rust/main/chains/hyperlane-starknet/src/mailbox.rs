@@ -124,7 +124,7 @@ impl StarknetMailbox {
 
         println!(
             "SAQUON process call: metadata {:?} and message {:?}",
-            &to_mailbox_bytes(metadata),
+            metadata,
             StarknetMessage::from(message)
         );
 

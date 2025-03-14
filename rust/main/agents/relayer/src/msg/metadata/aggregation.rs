@@ -45,12 +45,17 @@ impl IsmAndMetadata {
 
 impl AggregationIsmMetadataBuilder {
     fn format_metadata(metadatas: &mut [SubModuleMetadata], ism_count: usize) -> Vec<u8> {
+        println!(
+            "HILLBILLY format_metadata multisigMetadata: {:?}",
+            metadatas
+        );
         // See test solidity implementation of this fn at:
         // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/test/isms/AggregationIsm.t.sol#L35
         fn encode_byte_index(i: usize) -> [u8; 4] {
             (i as u32).to_be_bytes()
         }
         let range_tuples_size = METADATA_RANGE_SIZE * 2 * ism_count;
+        println!("HILLBILLY range_tuples_size: {:?}", range_tuples_size);
         //  Format of metadata:
         //  [????:????] Metadata start/end uint32 ranges, packed as uint64
         //  [????:????] ISM metadata, packed encoding
@@ -65,6 +70,10 @@ impl AggregationIsmMetadataBuilder {
             // The new tuple starts at the end of the previous ones.
             // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
             let encoded_range_start = METADATA_RANGE_SIZE * 2 * (*index);
+            println!(
+                "HILLBILLY encoded_range_start: {:?}, range_start: {:?}, range_end: {:?}",
+                encoded_range_start, range_start, range_end
+            );
             // Overwrite the 0-initialized buffer
             buffer.splice(
                 encoded_range_start..(encoded_range_start + METADATA_RANGE_SIZE * 2),
@@ -162,10 +171,13 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 },
                 Err(_) => Either::Right((*ism_address, None)),
             });
+        println!("HILLBILLY ok_sub_modules: {:?}", ok_sub_modules);
         let maybe_aggregation_metadata =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
                 .map_or(Metadata::CouldNotFetch, |mut metas| {
+                    println!("HILLBILLY metas: {:?}", metas);
+                    // metas[0].metadata = to_mailbox_bytes(&metas[0].metadata);
                     Metadata::Found(Self::format_metadata(&mut metas, ism_addresses.len()))
                 });
         Ok(maybe_aggregation_metadata)
