@@ -146,7 +146,7 @@ impl Drop for CosmosRpcClient {
 
 impl Clone for CosmosRpcClient {
     fn clone(&self) -> Self {
-        // decrement provider metric count
+        // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
         self.metrics.increment_provider_instance(chain_name);
         Self {
