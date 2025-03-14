@@ -21,7 +21,10 @@ use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
-use hyperlane_fuel::{self as h_fuel, wallet::FuelWallets};
+use hyperlane_fuel::{
+    self as h_fuel,
+    wallet::{FuelSigners, FuelWallets},
+};
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelProvider,
@@ -917,7 +920,7 @@ impl ChainConf {
             let chain_signer: Box<dyn ChainSigner> = match &self.connection {
                 ChainConnectionConf::Ethereum(_) => Box::new(conf.build::<h_eth::Signers>().await?),
                 ChainConnectionConf::Fuel(_) => {
-                    Box::new(conf.build::<h_fuel::wallet::FuelWallets>().await?)
+                    Box::new(conf.build::<h_fuel::wallet::FuelSigners>().await?)
                 }
                 ChainConnectionConf::Sealevel(_) => {
                     Box::new(conf.build::<h_sealevel::Keypair>().await?)
@@ -935,7 +938,7 @@ impl ChainConf {
     }
 
     async fn fuel_signer(&self) -> Result<FuelWallets> {
-        let mut wallet: FuelWallets = self
+        let signer: FuelSigners = self
             .signer()
             .await?
             .ok_or_else(|| eyre!("Fuel requires a signer to construct contract instances"))?;
@@ -949,10 +952,10 @@ impl ChainConf {
             }
         };
 
-        let provider = h_fuel::make_provider(connection_conf).await?;
-        wallet.set_provider(provider);
-
-        Ok(wallet)
+        Ok(FuelWallets::new(
+            signer,
+            h_fuel::make_provider(connection_conf).await?,
+        ))
     }
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {

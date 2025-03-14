@@ -1,7 +1,7 @@
 use deploy::deploy_fuel_hyperlane;
 use ethers::types::H160;
 use fuels::{
-    accounts::wallet::WalletUnlocked,
+    accounts::{signers::private_key::PrivateKeySigner, wallet::Wallet},
     crypto::SecretKey,
     prelude::{FuelService, Provider},
     programs::calls::{CallParameters, Execution},
@@ -195,9 +195,9 @@ async fn run_locally() -> eyre::Result<()> {
         let provider = Provider::from(config.node.bound_address()).await.unwrap();
         assert!(provider.healthy().await.unwrap());
 
-        let wallet = WalletUnlocked::new_from_private_key(
-            SecretKey::from_str(FUEL_WALLET_PKS[i]).unwrap(),
-            Some(provider),
+        let wallet = Wallet::new(
+            PrivateKeySigner::new(SecretKey::from_str(FUEL_WALLET_PKS[i]).unwrap()),
+            provider,
         );
         let (target_domain, name, validator_addr) = match config.domain {
             13373 => (

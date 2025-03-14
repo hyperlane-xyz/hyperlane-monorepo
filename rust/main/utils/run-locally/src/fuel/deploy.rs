@@ -1,6 +1,10 @@
 use ethers::types::H160;
 use fuels::{
-    accounts::wallet::WalletUnlocked,
+    accounts::{
+        signers::private_key::PrivateKeySigner,
+        wallet::{Unlocked, Wallet},
+        ViewOnlyAccount,
+    },
     programs::contract::{Contract, LoadConfiguration},
     types::{transaction::TxPolicies, Bits256, ContractId, EvmAddress, Identity, Salt},
 };
@@ -9,11 +13,11 @@ use rand::{thread_rng, Rng};
 use crate::{fuel::abis::*, log};
 
 pub struct FuelDeployments {
-    pub gas_paymaster: GasPaymaster<WalletUnlocked>,
-    pub mailbox: Mailbox<WalletUnlocked>,
-    pub merkle_tree_hook: MerkleTreeHook<WalletUnlocked>,
-    pub msg_recipient_test: MsgRecipientTest<WalletUnlocked>,
-    pub validator_announce: ValidatorAnnounce<WalletUnlocked>,
+    pub gas_paymaster: GasPaymaster<Wallet<Unlocked<PrivateKeySigner>>>,
+    pub mailbox: Mailbox<Wallet<Unlocked<PrivateKeySigner>>>,
+    pub merkle_tree_hook: MerkleTreeHook<Wallet<Unlocked<PrivateKeySigner>>>,
+    pub msg_recipient_test: MsgRecipientTest<Wallet<Unlocked<PrivateKeySigner>>>,
+    pub validator_announce: ValidatorAnnounce<Wallet<Unlocked<PrivateKeySigner>>>,
 }
 
 /// Ensures random deployment addresses each run
@@ -26,7 +30,7 @@ fn get_deployment_config() -> LoadConfiguration {
 }
 
 pub async fn deploy_fuel_hyperlane(
-    wallet: WalletUnlocked,
+    wallet: Wallet<Unlocked<PrivateKeySigner>>,
     origin_domain: u32,
     target_domain: u32,
     validator_addr: H160,

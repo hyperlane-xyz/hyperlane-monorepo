@@ -1,8 +1,7 @@
-use crate::{make_client, make_provider, prelude::FuelIntoH256, ConnectionConf};
+use crate::{make_provider, prelude::FuelIntoH256, ConnectionConf};
 
 use async_trait::async_trait;
 use fuels::{
-    client::FuelClient,
     prelude::Provider,
     types::{Address, BlockHeight, ContractId},
 };
@@ -17,20 +16,13 @@ use hyperlane_core::{
 pub struct FuelProvider {
     domain: HyperlaneDomain,
     provider: Provider,
-    client: FuelClient,
 }
 
 impl FuelProvider {
     /// Create a new fuel provider
     pub async fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         let provider = make_provider(conf).await.unwrap();
-        let client = make_client(conf).unwrap();
-
-        Self {
-            domain,
-            provider,
-            client,
-        }
+        Self { domain, provider }
     }
 
     /// Get the inner provider
@@ -168,10 +160,12 @@ impl HyperlaneProvider for FuelProvider {
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        let contract_res = self.client.contract(&ContractId::from(address.0)).await;
-
-        match contract_res {
-            Ok(contract) => Ok(contract.is_some()),
+        match self
+            .provider
+            .contract_exists(&ContractId::from(address.0).into())
+            .await
+        {
+            Ok(is_contract) => Ok(is_contract),
             Err(e) => Err(ChainCommunicationError::CustomError(format!(
                 "Failed to query contract: {}",
                 e
