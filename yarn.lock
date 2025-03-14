@@ -7742,7 +7742,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-sdk@npm:^1.0.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
+"@hyperlane-xyz/cosmos-sdk@npm:1.0.0, @hyperlane-xyz/cosmos-sdk@npm:^1.0.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
   dependencies:
@@ -8009,6 +8009,7 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
+    "@hyperlane-xyz/cosmos-sdk": "npm:1.0.0"
     "@hyperlane-xyz/registry": "npm:10.12.0"
     "@hyperlane-xyz/sdk": "npm:8.9.0"
     "@hyperlane-xyz/utils": "npm:8.9.0"

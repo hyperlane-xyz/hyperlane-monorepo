@@ -12,7 +12,7 @@ import { RemoteRouter } from '../../../types/hyperlane/warp/v1/types';
 
 /** A high level transaction of the coin module */
 export interface AminoMsgCreateCollateralToken extends AminoMsg {
-  readonly type: 'hyperlane/MsgCreateCollateralToken';
+  readonly type: '/hyperlane.warp.v1.MsgCreateCollateralToken';
   readonly value: {
     readonly owner: string;
     readonly origin_mailbox: string;
@@ -21,7 +21,7 @@ export interface AminoMsgCreateCollateralToken extends AminoMsg {
 }
 
 export interface AminoMsgCreateSyntheticToken extends AminoMsg {
-  readonly type: 'hyperlane/MsgCreateSyntheticToken';
+  readonly type: '/hyperlane.warp.v1.MsgCreateSyntheticToken';
   readonly value: {
     readonly owner: string;
     readonly origin_mailbox: string;
@@ -29,7 +29,7 @@ export interface AminoMsgCreateSyntheticToken extends AminoMsg {
 }
 
 export interface AminoMsgEnrollRemoteRouter extends AminoMsg {
-  readonly type: 'hyperlane/MsgEnrollRemoteRouter';
+  readonly type: '/hyperlane.warp.v1.MsgEnrollRemoteRouter';
   readonly value: {
     readonly owner: string;
     readonly token_id: string;
@@ -38,7 +38,7 @@ export interface AminoMsgEnrollRemoteRouter extends AminoMsg {
 }
 
 export interface AminoMsgRemoteTransfer extends AminoMsg {
-  readonly type: 'hyperlane/MsgRemoteTransfer';
+  readonly type: '/hyperlane.warp.v1.MsgRemoteTransfer';
   readonly value: {
     readonly sender: string;
     readonly token_id: string;
@@ -53,7 +53,7 @@ export interface AminoMsgRemoteTransfer extends AminoMsg {
 }
 
 export interface AminoMsgSetToken extends AminoMsg {
-  readonly type: 'hyperlane/MsgSetToken';
+  readonly type: '/hyperlane.warp.v1.MsgSetToken';
   readonly value: {
     readonly owner: string;
     readonly token_id: string;
@@ -63,7 +63,7 @@ export interface AminoMsgSetToken extends AminoMsg {
 }
 
 export interface AminoMsgUnrollRemoteRouter extends AminoMsg {
-  readonly type: 'hyperlane/MsgUnrollRemoteRouter';
+  readonly type: '/hyperlane.warp.v1.MsgUnrollRemoteRouter';
   readonly value: {
     readonly owner: string;
     readonly token_id: string;
@@ -74,7 +74,7 @@ export interface AminoMsgUnrollRemoteRouter extends AminoMsg {
 export const createWarpAminoConverter = () => {
   return {
     '/hyperlane.warp.v1.MsgCreateCollateralToken': {
-      aminoType: 'hyperlane/MsgCreateCollateralToken',
+      aminoType: '/hyperlane.warp.v1.MsgCreateCollateralToken',
       toAmino: (
         msg: MsgCreateCollateralToken,
       ): AminoMsgCreateCollateralToken['value'] => ({
@@ -91,7 +91,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgCreateSyntheticToken': {
-      aminoType: 'hyperlane/MsgCreateSyntheticToken',
+      aminoType: '/hyperlane.warp.v1.MsgCreateSyntheticToken',
       toAmino: (
         msg: MsgCreateSyntheticToken,
       ): AminoMsgCreateSyntheticToken['value'] => ({
@@ -106,7 +106,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgEnrollRemoteRouter': {
-      aminoType: 'hyperlane/MsgEnrollRemoteRouter',
+      aminoType: '/hyperlane.warp.v1.MsgEnrollRemoteRouter',
       toAmino: (
         msg: MsgEnrollRemoteRouter,
       ): AminoMsgEnrollRemoteRouter['value'] => ({
@@ -123,7 +123,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgRemoteTransfer': {
-      aminoType: 'hyperlane/MsgRemoteTransfer',
+      aminoType: '/hyperlane.warp.v1.MsgRemoteTransfer',
       toAmino: (msg: MsgRemoteTransfer): AminoMsgRemoteTransfer['value'] => ({
         sender: msg.sender,
         token_id: msg.token_id,
@@ -148,7 +148,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgSetToken': {
-      aminoType: 'hyperlane/MsgSetToken',
+      aminoType: '/hyperlane.warp.v1.MsgSetToken',
       toAmino: (msg: MsgSetToken): AminoMsgSetToken['value'] => ({
         owner: msg.owner,
         token_id: msg.token_id,
@@ -163,7 +163,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgUnrollRemoteRouter': {
-      aminoType: 'hyperlane/MsgUnrollRemoteRouter',
+      aminoType: '/hyperlane.warp.v1.MsgUnrollRemoteRouter',
       toAmino: (
         msg: MsgUnrollRemoteRouter,
       ): AminoMsgUnrollRemoteRouter['value'] => ({

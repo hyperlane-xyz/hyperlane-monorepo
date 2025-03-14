@@ -8,7 +8,7 @@ import {
 } from '../../../types/hyperlane/core/interchain_security/v1/tx';
 
 export interface AminoMsgAnnounceValidator extends AminoMsg {
-  readonly type: 'hyperlane/MsgAnnounceValidator';
+  readonly type: '/hyperlane.core.v1.MsgAnnounceValidator';
   readonly value: {
     readonly validator: string;
     readonly storage_location: string;
@@ -19,7 +19,7 @@ export interface AminoMsgAnnounceValidator extends AminoMsg {
 }
 
 export interface AminoMsgCreateMerkleRootMultisigIsm extends AminoMsg {
-  readonly type: 'hyperlane/MsgCreateMerkleRootMultisigIsm';
+  readonly type: '/hyperlane.core.v1.MsgCreateMerkleRootMultisigIsm';
   readonly value: {
     readonly creator: string;
     readonly validators: string[];
@@ -28,7 +28,7 @@ export interface AminoMsgCreateMerkleRootMultisigIsm extends AminoMsg {
 }
 
 export interface AminoMsgCreateMessageIdMultisigIsm extends AminoMsg {
-  readonly type: 'hyperlane/MsgCreateMessageIdMultisigIsm';
+  readonly type: '/hyperlane.core.v1.MsgCreateMessageIdMultisigIsm';
   readonly value: {
     readonly creator: string;
     readonly validators: string[];
@@ -37,7 +37,7 @@ export interface AminoMsgCreateMessageIdMultisigIsm extends AminoMsg {
 }
 
 export interface AminoMsgCreateNoopIsm extends AminoMsg {
-  readonly type: 'hyperlane/MsgCreateNoopIsm';
+  readonly type: '/hyperlane.core.v1.MsgCreateNoopIsm';
   readonly value: {
     readonly creator: string;
   };
@@ -46,7 +46,7 @@ export interface AminoMsgCreateNoopIsm extends AminoMsg {
 export const createInterchainSecurityAminoConverter = () => {
   return {
     '/hyperlane.core.v1.MsgAnnounceValidator': {
-      aminoType: 'hyperlane/MsgAnnounceValidator',
+      aminoType: '/hyperlane.core.v1.MsgAnnounceValidator',
       toAmino: (
         msg: MsgAnnounceValidator,
       ): AminoMsgAnnounceValidator['value'] => ({
@@ -67,7 +67,7 @@ export const createInterchainSecurityAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgCreateMerkleRootMultisigIsm': {
-      aminoType: 'hyperlane/MsgCreateMerkleRootMultisigIsm',
+      aminoType: '/hyperlane.core.v1.MsgCreateMerkleRootMultisigIsm',
       toAmino: (
         msg: MsgCreateMerkleRootMultisigIsm,
       ): AminoMsgCreateMerkleRootMultisigIsm['value'] => ({
@@ -84,7 +84,7 @@ export const createInterchainSecurityAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgCreateMessageIdMultisigIsm': {
-      aminoType: 'hyperlane/MsgCreateMessageIdMultisigIsm',
+      aminoType: '/hyperlane.core.v1.MsgCreateMessageIdMultisigIsm',
       toAmino: (
         msg: MsgCreateMessageIdMultisigIsm,
       ): AminoMsgCreateMessageIdMultisigIsm['value'] => ({
@@ -101,7 +101,7 @@ export const createInterchainSecurityAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgCreateNoopIsm': {
-      aminoType: 'hyperlane/MsgCreateNoopIsm',
+      aminoType: '/hyperlane.core.v1.MsgCreateNoopIsm',
       toAmino: (msg: MsgCreateNoopIsm): AminoMsgCreateNoopIsm['value'] => ({
         creator: msg.creator,
       }),

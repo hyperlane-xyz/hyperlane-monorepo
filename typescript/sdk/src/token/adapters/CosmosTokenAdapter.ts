@@ -1,11 +1,18 @@
 import { MsgSendEncodeObject, MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
-import { Address, Domain, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  ProtocolType,
+  addressToBytes32,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
 import { TokenMetadata } from '../types.js';
 
 import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
@@ -107,7 +114,9 @@ export class CosmHypCollateralAdapter
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
   ) {
-    super(chainName, multiProvider, addresses, { denom: '' });
+    super(chainName, multiProvider, addresses, {
+      denom: PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Cosmos].denom!,
+    });
     this.tokenId = addresses.token;
   }
 
@@ -224,7 +233,7 @@ export class CosmHypCollateralAdapter
       typeUrl: '/hyperlane.warp.v1.MsgRemoteTransfer',
       value: {
         sender: params.fromAccountOwner,
-        recipient: params.recipient,
+        recipient: addressToBytes32(params.recipient, ProtocolType.Cosmos),
         amount: params.weiAmountOrId.toString(),
         token_id: this.tokenId,
         destination_domain: params.destination,

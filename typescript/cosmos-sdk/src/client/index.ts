@@ -9,6 +9,7 @@ import {
   AminoTypes,
   BankExtension,
   DeliverTxResponse,
+  GasPrice,
   HttpEndpoint,
   QueryClient,
   SigningStargateClient,
@@ -159,6 +160,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
   ) {
     super(cometClient, signer, {
       ...options,
+      gasPrice: GasPrice.fromString('0.01uhyp'), // TODO: remove later
       aminoTypes: new AminoTypes({
         ...options.aminoTypes,
         ...createCoreAminoConverter(),

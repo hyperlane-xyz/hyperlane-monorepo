@@ -9,6 +9,7 @@
   "dependencies": {
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
+    "@hyperlane-xyz/cosmos-sdk": "1.0.0",
     "@hyperlane-xyz/sdk": "8.9.0",
     "@hyperlane-xyz/utils": "8.9.0",
     "@interchain-ui/react": "^1.23.28",

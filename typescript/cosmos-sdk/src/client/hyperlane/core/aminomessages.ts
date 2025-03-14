@@ -7,7 +7,7 @@ import {
 } from '../../../types/hyperlane/core/v1/tx';
 
 export interface AminoMsgCreateMailbox extends AminoMsg {
-  readonly type: 'hyperlane/MsgCreateMailbox';
+  readonly type: '/hyperlane.core.v1.MsgCreateMailbox';
   readonly value: {
     readonly owner: string;
     readonly default_ism: string;
@@ -18,7 +18,7 @@ export interface AminoMsgCreateMailbox extends AminoMsg {
 }
 
 export interface AminoMsgSetMailbox extends AminoMsg {
-  readonly type: 'hyperlane/MsgSetMailbox';
+  readonly type: '/hyperlane.core.v1.MsgSetMailbox';
   readonly value: {
     readonly owner: string;
     readonly mailbox_id: string;
@@ -30,7 +30,7 @@ export interface AminoMsgSetMailbox extends AminoMsg {
 }
 
 export interface AminoMsgProcessMessage extends AminoMsg {
-  readonly type: 'hyperlane/MsgProcessMessage';
+  readonly type: '/hyperlane.core.v1.MsgProcessMessage';
   readonly value: {
     readonly mailbox_id: string;
     readonly relayer: string;
@@ -42,7 +42,7 @@ export interface AminoMsgProcessMessage extends AminoMsg {
 export const createCoreAminoConverter = () => {
   return {
     '/hyperlane.core.v1.MsgCreateMailbox': {
-      aminoType: 'hyperlane/MsgCreateMailbox',
+      aminoType: '/hyperlane.core.v1.MsgCreateMailbox',
       toAmino: (msg: MsgCreateMailbox): AminoMsgCreateMailbox['value'] => ({
         owner: msg.owner,
         local_domain: msg.local_domain,
@@ -59,7 +59,7 @@ export const createCoreAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgSetMailbox': {
-      aminoType: 'hyperlane/MsgSetMailbox',
+      aminoType: '/hyperlane.core.v1.MsgSetMailbox',
       toAmino: (msg: MsgSetMailbox): AminoMsgSetMailbox['value'] => ({
         owner: msg.owner,
         mailbox_id: msg.mailbox_id,
@@ -78,7 +78,7 @@ export const createCoreAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgProcessMessage': {
-      aminoType: 'hyperlane/MsgProcessMessage',
+      aminoType: '/hyperlane.core.v1.MsgProcessMessage',
       toAmino: (msg: MsgProcessMessage): AminoMsgProcessMessage['value'] => ({
         mailbox_id: msg.mailbox_id,
         relayer: msg.relayer,

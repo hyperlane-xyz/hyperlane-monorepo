@@ -7,6 +7,7 @@ import type {
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
+import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -134,8 +135,11 @@ export function useCosmosTransactionFns(
         await onSwitchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
-      const { getSigningCosmWasmClient, getSigningStargateClient } =
-        chainContext;
+      const {
+        getSigningCosmWasmClient,
+        getOfflineSignerDirect,
+        getRpcEndpoint,
+      } = chainContext;
       let result: ExecuteResult | DeliverTxResponse;
       let txDetails: IndexedTx | null;
       if (tx.type === ProviderType.CosmJsWasm) {
@@ -147,7 +151,12 @@ export function useCosmosTransactionFns(
         );
         txDetails = await client.getTx(result.transactionHash);
       } else if (tx.type === ProviderType.CosmJs) {
-        const client = await getSigningStargateClient();
+        const rpcEndpoint = await getRpcEndpoint();
+        const signer = getOfflineSignerDirect(); // TODO: why does getOfflinerSigner return amino signing??
+        const client = await SigningHyperlaneModuleClient.connectWithSigner(
+          rpcEndpoint,
+          signer,
+        );
         // The fee param of 'auto' here stopped working for Neutron-based IBC transfers
         // It seems the signAndBroadcast method uses a default fee multiplier of 1.4
         // https://github.com/cosmos/cosmjs/blob/e819a1fc0e99a3e5320d8d6667a08d3b92e5e836/packages/stargate/src/signingstargateclient.ts#L115
