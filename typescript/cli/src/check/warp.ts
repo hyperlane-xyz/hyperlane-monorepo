@@ -1,32 +1,10 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import {
-  HypTokenRouterConfig,
-  WarpRouteDeployConfig,
-  sortArraysInConfig,
-  transformWarpDeployConfigToCheck,
-} from '@hyperlane-xyz/sdk';
-import { ObjectDiff, diffObjMerge, transformObj } from '@hyperlane-xyz/utils';
+import { WarpRouteDeployConfig, formatConfigToCheck } from '@hyperlane-xyz/sdk';
+import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
-
-export function formatConfigToCheck(
-  obj: HypTokenRouterConfig,
-): HypTokenRouterConfig {
-  return sortArraysInConfig(
-    transformObj(obj, transformWarpDeployConfigToCheck),
-  );
-}
-
-const KEYS_TO_IGNORE = ['totalSupply'];
-
-function sanitizeConfig(obj: any): any {
-  // Remove keys from obj
-  return Object.fromEntries(
-    Object.entries(obj).filter(([key]) => !KEYS_TO_IGNORE.includes(key)),
-  );
-}
 
 export async function runWarpRouteCheck({
   warpRouteConfig,
@@ -39,8 +17,8 @@ export async function runWarpRouteCheck({
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
       const { mergedObject, isInvalid } = diffObjMerge(
-        sanitizeConfig(formatConfigToCheck(onChainWarpConfig[chain])),
-        sanitizeConfig(formatConfigToCheck(warpRouteConfig[chain])),
+        formatConfigToCheck(onChainWarpConfig[chain]),
+        formatConfigToCheck(warpRouteConfig[chain]),
       );
 
       if (isInvalid) {
