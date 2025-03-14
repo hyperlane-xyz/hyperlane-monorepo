@@ -7,6 +7,7 @@ import {
   ProtocolType,
   addressToBytes32,
   assert,
+  isAddressCosmos,
 } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
@@ -53,8 +54,16 @@ export class CosmNativeTokenAdapter
   async getBalance(address: string): Promise<bigint> {
     const provider = await this.getProvider();
     const denom = await this.getDenom();
-    const coin = await provider.getBalance(address, denom);
-    return BigInt(coin.amount);
+
+    if (isAddressCosmos(address)) {
+      const coin = await provider.getBalance(address, denom);
+      return BigInt(coin.amount);
+    } else {
+      const { bridged_supply } = await provider.query.warp.BridgedSupply({
+        id: address,
+      });
+      return BigInt(bridged_supply?.amount ?? '0');
+    }
   }
 
   getMetadata(): Promise<TokenMetadata> {

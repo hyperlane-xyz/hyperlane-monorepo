@@ -4,6 +4,7 @@ import {
   AccountData,
   EncodeObject,
   OfflineSigner,
+  Registry,
 } from '@cosmjs/proto-signing';
 import {
   AminoTypes,
@@ -18,6 +19,7 @@ import {
   StargateClientOptions,
   StdFee,
   assertIsDeliverTxSuccess,
+  defaultRegistryTypes,
   setupBankExtension,
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
@@ -103,7 +105,8 @@ export type HyperlaneQueryClient = QueryClient &
   PostDispatchExtension;
 
 export class HyperlaneModuleClient extends StargateClient {
-  public query: HyperlaneQueryClient;
+  readonly query: HyperlaneQueryClient;
+  public registry: Registry;
 
   protected constructor(
     cometClient: CometClient,
@@ -119,6 +122,14 @@ export class HyperlaneModuleClient extends StargateClient {
       setupPostDispatchExtension,
       setupWarpExtension,
     );
+
+    // register all the custom tx types
+    this.registry = new Registry([...defaultRegistryTypes]);
+    for (const typeUrl in REGISTRY) {
+      if (REGISTRY[typeUrl]) {
+        this.registry.register(typeUrl, REGISTRY[typeUrl]);
+      }
+    }
   }
 
   static async connect(
@@ -129,6 +140,7 @@ export class HyperlaneModuleClient extends StargateClient {
     return new HyperlaneModuleClient(client, options);
   }
 
+  // TODO: fix
   public async simulate(
     signerAddress: string,
     messages: readonly EncodeObject[],
