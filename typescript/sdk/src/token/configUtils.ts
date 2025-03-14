@@ -4,16 +4,18 @@ import {
   Address,
   TransformObjectTransformer,
   objMap,
+  transformObj,
 } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { WarpRouteDeployConfig } from './types.js';
+import { HypTokenRouterConfig, WarpRouteDeployConfig } from './types.js';
 
 /**
  * Gets gas configuration for a chain
@@ -95,7 +97,7 @@ export async function expandWarpDeployConfig(
   });
 }
 
-export const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
+const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
   obj: any,
   propPath: ReadonlyArray<string>,
 ) => {
@@ -112,9 +114,29 @@ export const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
     return undefined;
   }
 
-  if (typeof obj === 'string') {
+  if (typeof obj === 'string' && parentKey !== 'type') {
     return obj.toLowerCase();
   }
 
   return obj;
 };
+
+type HypTokenRouterConfigKey = keyof HypTokenRouterConfig;
+const KEYS_TO_IGNORE: HypTokenRouterConfigKey[] = ['totalSupply'];
+
+function sanitizeConfig(obj: HypTokenRouterConfig): any {
+  // Remove keys from obj
+  return Object.fromEntries(
+    Object.entries(obj).filter(
+      ([key]) => !KEYS_TO_IGNORE.includes(key as HypTokenRouterConfigKey),
+    ),
+  );
+}
+
+export function formatConfigToCheck(
+  obj: HypTokenRouterConfig,
+): HypTokenRouterConfig {
+  return sanitizeConfig(
+    sortArraysInConfig(transformObj(obj, transformWarpDeployConfigToCheck)),
+  );
+}

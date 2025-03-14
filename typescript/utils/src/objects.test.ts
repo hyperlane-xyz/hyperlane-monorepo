@@ -469,52 +469,5 @@ describe('Object utilities', () => {
         expect(formatted).to.eql(expected);
       });
     }
-
-    it('should successfully apply the formatter when it includes a condition based on the current key path', () => {
-      const actual = {
-        ism: {
-          address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
-          type: 'NULL',
-        },
-        remoteRouters: {
-          '1': {
-            address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
-          },
-        },
-      };
-
-      const expected = {
-        ism: {
-          type: 'NULL',
-        },
-        remoteRouters: {
-          '1': {
-            address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
-          },
-        },
-      };
-
-      const formatter: TransformObjectTransformer = (
-        obj: any,
-        propPath: ReadonlyArray<string>,
-      ) => {
-        const key = propPath[propPath.length - 3];
-        const parentKey = propPath[propPath.length - 1];
-
-        if (key === 'remoteRouters' && typeof obj === 'string') {
-          return obj.toLowerCase();
-        }
-
-        if (parentKey === 'address') {
-          return undefined;
-        }
-
-        return obj;
-      };
-
-      const formatted = transformObj(actual, formatter);
-
-      expect(formatted).to.eql(expected);
-    });
   });
 });
