@@ -25,6 +25,7 @@ impl RecipientProvider {
     }
 
     pub(crate) fn recipient(&self, hash: &H512, transaction: &UiTransaction) -> ChainResult<H256> {
+        println!("programs: {:?}", self.programs);
         println!("uitransaction: {:?}", transaction);
         let instructions = instructions(transaction)?;
 
