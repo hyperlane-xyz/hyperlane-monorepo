@@ -20,6 +20,31 @@ interface IOptimismPortal {
         bytes data;
     }
 
+    /// @notice Struct representing the elements that are hashed together to generate an output root
+    ///         which itself represents a snapshot of the L2 state.
+    /// @custom:field version                  Version of the output root.
+    /// @custom:field stateRoot                Root of the state trie at the block of this output.
+    /// @custom:field messagePasserStorageRoot Root of the message passer storage trie.
+    /// @custom:field latestBlockhash          Hash of the block this output was generated from.
+    struct OutputRootProof {
+        bytes32 version;
+        bytes32 stateRoot;
+        bytes32 messagePasserStorageRoot;
+        bytes32 latestBlockhash;
+    }
+
+    /// @notice Proves a withdrawal transaction.
+    /// @param _tx               Withdrawal transaction to finalize.
+    /// @param _disputeGameIndex Index of the dispute game to prove the withdrawal against.
+    /// @param _outputRootProof  Inclusion proof of the L2ToL1MessagePasser contract's storage root.
+    /// @param _withdrawalProof  Inclusion proof of the withdrawal in L2ToL1MessagePasser contract.
+    function proveWithdrawalTransaction(
+        WithdrawalTransaction memory _tx,
+        uint256 _disputeGameIndex,
+        OutputRootProof memory _outputRootProof,
+        bytes[] memory _withdrawalProof
+    ) external;
+
     /// @notice Finalizes a withdrawal transaction.
     /// @param _tx Withdrawal transaction to finalize.
     function finalizeWithdrawalTransaction(
