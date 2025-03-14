@@ -1,11 +1,9 @@
 import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
-import { wasmTypes } from '@cosmjs/cosmwasm-stargate';
 import { toUtf8 } from '@cosmjs/encoding';
 import { Uint53 } from '@cosmjs/math';
-import { Registry } from '@cosmjs/proto-signing';
-import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
+import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -161,13 +159,12 @@ export async function estimateTransactionFeeCosmJs({
   senderPubKey: HexString;
   memo?: string;
 }): Promise<TransactionFeeEstimate> {
-  const stargateClient = await provider.provider;
+  const hyperlaneModuleClient = await provider.provider;
   const message = transaction.transaction;
-  const registry = new Registry([...defaultRegistryTypes, ...wasmTypes]);
-  const encodedMsg = registry.encodeAsAny(message);
+  const encodedMsg = hyperlaneModuleClient.registry.encodeAsAny(message);
   const encodedPubkey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
-  const { sequence } = await stargateClient.getSequence(sender);
-  const { gasInfo } = await stargateClient
+  const { sequence } = await hyperlaneModuleClient.getSequence(sender);
+  const { gasInfo } = await hyperlaneModuleClient
     // @ts-ignore force access to protected method
     .forceGetQueryClient()
     .tx.simulate([encodedMsg], memo, encodedPubkey, sequence);
@@ -210,7 +207,7 @@ export async function estimateTransactionFeeCosmJsWasm({
   const wasmClient = await provider.provider;
   // @ts-ignore access a private field here to extract client URL
   const url: string = wasmClient.cometClient.client.url;
-  const stargateClient = StargateClient.connect(url);
+  const stargateClient = HyperlaneModuleClient.connect(url);
 
   return estimateTransactionFeeCosmJs({
     transaction: { type: ProviderType.CosmJs, transaction: message },

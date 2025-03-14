@@ -34,6 +34,8 @@ export enum TokenStandard {
   CosmosIcs20 = 'CosmosIcs20',
   CosmosIcs721 = 'CosmosIcs721',
   CosmosNative = 'CosmosNative',
+  CosmosHypCollateral = 'CosmosHypCollateral',
+  CosmosHypSynthetic = 'CosmosHypSynthetic',
   CosmosIbc = 'CosmosIbc',
 
   // CosmWasm
@@ -73,6 +75,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CosmosIcs20: ProtocolType.Cosmos,
   CosmosIcs721: ProtocolType.Cosmos,
   CosmosNative: ProtocolType.Cosmos,
+  CosmosHypCollateral: ProtocolType.Cosmos,
+  CosmosHypSynthetic: ProtocolType.Cosmos,
   CosmosIbc: ProtocolType.Cosmos,
 
   // CosmWasm
@@ -104,6 +108,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
+  TokenStandard.CosmosHypCollateral,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypNative,
 ];
@@ -131,6 +136,8 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
+  TokenStandard.CosmosHypCollateral,
+  TokenStandard.CosmosHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
