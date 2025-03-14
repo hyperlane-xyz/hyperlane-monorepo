@@ -10,7 +10,6 @@ import {
   AminoTypes,
   BankExtension,
   DeliverTxResponse,
-  GasPrice,
   HttpEndpoint,
   QueryClient,
   SigningStargateClient,
@@ -123,8 +122,8 @@ export class HyperlaneModuleClient extends StargateClient {
       setupWarpExtension,
     );
 
-    // register all the custom tx types
     this.registry = new Registry([...defaultRegistryTypes]);
+    // register all the custom tx types
     for (const typeUrl in REGISTRY) {
       if (REGISTRY[typeUrl]) {
         this.registry.register(typeUrl, REGISTRY[typeUrl]);
@@ -172,7 +171,6 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
   ) {
     super(cometClient, signer, {
       ...options,
-      gasPrice: GasPrice.fromString('0.01uhyp'), // TODO: remove later
       aminoTypes: new AminoTypes({
         ...options.aminoTypes,
         ...createCoreAminoConverter(),

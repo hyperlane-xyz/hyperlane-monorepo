@@ -8004,6 +8004,7 @@ __metadata:
   dependencies:
     "@chakra-ui/react": "npm:^2.8.2"
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
+    "@cosmjs/stargate": "npm:^0.32.4"
     "@cosmos-kit/react": "npm:^2.18.0"
     "@emotion/react": "npm:^11.13.3"
     "@emotion/styled": "npm:^11.13.0"
