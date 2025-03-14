@@ -68,22 +68,20 @@ impl RecipientProvider {
 
         let program_id = decoded
             .iter()
-            .filter(|program| {
+            .find(|program| {
                 self.programs.contains(&program.program_id)
                     || program
                         .accounts
                         .iter()
                         .any(|account| self.programs.contains(account))
             })
-            .next()
             .map(|program| program.program_id.clone());
 
         let program_id = match program_id {
             Some(p) => p,
             None => decoded
                 .iter()
-                .filter(|ii| !NATIVE_PROGRAMS.contains(&ii.program_id))
-                .next()
+                .find(|ii| !NATIVE_PROGRAMS.contains(&ii.program_id))
                 .map(|i| i.program_id.clone())
                 .ok_or(HyperlaneSealevelError::NoNonNativePrograms(Box::new(*hash)))?,
         };
