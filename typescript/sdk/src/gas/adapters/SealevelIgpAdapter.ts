@@ -1,7 +1,10 @@
 import {
+  AccountMeta,
+  ComputeBudgetProgram,
   Message,
   PublicKey,
   SystemProgram,
+  Transaction,
   TransactionInstruction,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -10,6 +13,7 @@ import { deserializeUnchecked, serialize } from 'borsh';
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import {
@@ -19,6 +23,8 @@ import {
 
 import {
   SealeveIgpInstruction,
+  SealevelIgpData,
+  SealevelIgpDataSchema,
   SealevelIgpQuoteGasPaymentInstruction,
   SealevelIgpQuoteGasPaymentResponse,
   SealevelIgpQuoteGasPaymentResponseSchema,
@@ -157,6 +163,71 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
       programId: this.programId,
       igpAccount: this.igp,
     };
+  }
+
+  async getAccountInfo(): Promise<SealevelIgpData> {
+    const address = this.addresses.igp;
+    const connection = this.getProvider();
+
+    const accountInfo = await connection.getAccountInfo(new PublicKey(address));
+    assert(accountInfo, `No account info found for ${address}}`);
+
+    const accountData = deserializeUnchecked(
+      SealevelIgpDataSchema,
+      SealevelAccountDataWrapper,
+      accountInfo.data,
+    );
+    return accountData.data as SealevelIgpData;
+  }
+
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/processor.rs#L536-L581
+  getClaimInstructionKeyList(beneficiary: PublicKey): Array<AccountMeta> {
+    return [
+      // 0. [executable] The system program.
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      // 1. [writeable] The IGP account.
+      { pubkey: this.igp, isSigner: false, isWritable: true },
+      // 2. [writeable] The IGP beneficiary.
+      { pubkey: beneficiary, isSigner: false, isWritable: true },
+    ];
+  }
+
+  /**
+   * Constructs a Transaction for .
+   * @param {PublicKey} beneficiary - The IGP's configured beneficiary.
+   * @returns {Promise<TransactionInstruction>} The claim instruction.
+   */
+  async populateClaimTx(beneficiary: PublicKey): Promise<Transaction> {
+    const igpData = await this.getAccountInfo();
+
+    // check if the passed in beneficiary is same as stored beneficiary
+    if (!igpData.beneficiary_pub_key.equals(beneficiary)) {
+      throw new Error('Beneficiary account mismatch');
+    }
+
+    const keys = this.getClaimInstructionKeyList(beneficiary);
+    const data = Buffer.from([SealeveIgpInstruction.Claim]);
+
+    const claimIgpInstruction = new TransactionInstruction({
+      keys,
+      programId: this.programId,
+      data: data,
+    });
+
+    // Set priority fee if available in config
+    const priorityFee = SEALEVEL_PRIORITY_FEES[this.chainName];
+    const setPriorityFeeInstruction = priorityFee
+      ? ComputeBudgetProgram.setComputeUnitPrice({
+          microLamports: priorityFee,
+        })
+      : undefined;
+
+    const transaction = new Transaction();
+    if (setPriorityFeeInstruction) {
+      transaction.add(setPriorityFeeInstruction);
+    }
+    transaction.add(claimIgpInstruction);
+    return transaction;
   }
 }
 
