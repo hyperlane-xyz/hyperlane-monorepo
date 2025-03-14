@@ -12,6 +12,7 @@ import {
   MUTABLE_HOOK_TYPE,
   MUTABLE_ISM_TYPE,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   randomAddress,
   randomHookConfig,
@@ -19,7 +20,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, deepCopy, randomInt } from '@hyperlane-xyz/utils';
 
-import { writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -33,9 +34,11 @@ import {
   deployToken,
   deployXERC20LockboxToken,
   deployXERC20VSToken,
+  getCombinedWarpRoutePath,
   handlePrompts,
 } from '../commands/helpers.js';
 import {
+  hyperlaneWarpApply,
   hyperlaneWarpCheck,
   hyperlaneWarpCheckRaw,
   hyperlaneWarpDeploy,
@@ -233,6 +236,44 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+
+    it(`should find differences in the remoteRouters config between the local and on chain config`, async function () {
+      const warpDeployConfig = await deployAndExportWarpRoute();
+
+      const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+      ]);
+
+      // Unenroll CHAIN 2 from CHAIN 3
+      warpDeployConfig[CHAIN_NAME_3].remoteRouters = {};
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+      await hyperlaneWarpApply(
+        WARP_DEPLOY_OUTPUT_PATH,
+        WARP_CORE_CONFIG_PATH_2_3,
+      );
+
+      // Reset the config to the original state to trigger the inconsistency
+      warpDeployConfig[CHAIN_NAME_3].remoteRouters = undefined;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+
+      const warpCore: WarpCoreConfig = readYamlOrJson(
+        WARP_CORE_CONFIG_PATH_2_3,
+      );
+      const expectedActualText = `ACTUAL: ""\n`;
+      const expectedDiffText = `      EXPECTED:
+        address: "${warpCore.tokens[0].addressOrDenom!.toLowerCase()}"`;
+
+      const output = await hyperlaneWarpCheck(
+        WARP_DEPLOY_OUTPUT_PATH,
+        tokenSymbol,
+      ).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.includes(expectedDiffText);
+      expect(output.text()).to.includes(expectedActualText);
     });
 
     describe('check extra lockboxes', () => {

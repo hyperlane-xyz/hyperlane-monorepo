@@ -337,3 +337,67 @@ export function mustGet<T>(obj: Record<string, T>, key: string): T {
   }
   return value;
 }
+
+export type TransformObjectTransformer = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => any;
+
+/**
+ * Recursively applies `formatter` to the provided object
+ *
+ * @param obj
+ * @param transformer a function that takes an object and formats it, if the `shouldInclude` property in the return value is set to false, the current value won't be included in the final result
+ * @param maxDepth the maximum depth that can be reached when going through nested fields of a property
+ *
+ * @throws if `maxDepth` is reached in an object property
+ */
+export function transformObj(
+  obj: any,
+  transformer: TransformObjectTransformer,
+  maxDepth = 15,
+): any {
+  return internalTransformObj(obj, transformer, [], maxDepth);
+}
+
+function internalTransformObj(
+  obj: any,
+  transformer: TransformObjectTransformer,
+  propPath: Array<string>,
+  maxDepth: number,
+): any {
+  if (propPath.length > maxDepth) {
+    throw new Error(`transformObj went too deep. Max depth is ${maxDepth}`);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((obj) =>
+      internalTransformObj(obj, transformer, [...propPath], maxDepth),
+    );
+  } else if (isObject(obj)) {
+    const newObj = Object.entries(obj).reduce(
+      (transformedObj, [key, value]) => {
+        const transformedValueValue = internalTransformObj(
+          value,
+          transformer,
+          [...propPath, key],
+          maxDepth,
+        );
+
+        if (
+          transformedValueValue !== undefined &&
+          transformedValueValue !== null
+        ) {
+          transformedObj[key] = transformedValueValue;
+        }
+
+        return transformedObj;
+      },
+      {} as any,
+    );
+
+    return transformer(newObj, propPath);
+  }
+
+  return transformer(obj, propPath);
+}
