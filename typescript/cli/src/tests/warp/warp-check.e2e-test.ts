@@ -246,8 +246,6 @@ describe('hyperlane warp check e2e tests', async function () {
         CHAIN_NAME_3,
       ]);
 
-      console.log(warpDeployConfig);
-
       // Unenroll CHAIN 2 from CHAIN 3
       warpDeployConfig[CHAIN_NAME_3].remoteRouters = {};
 

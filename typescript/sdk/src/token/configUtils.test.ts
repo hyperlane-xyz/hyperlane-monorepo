@@ -4,10 +4,10 @@ import { expect } from 'chai';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
-import { formatConfigToCheck } from './configUtils.js';
+import { transformConfigToCheck } from './configUtils.js';
 
 describe('configUtils', () => {
-  describe(formatConfigToCheck.name, () => {
+  describe(transformConfigToCheck.name, () => {
     const ADDRESS = '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359';
 
     const testCases: Array<{
@@ -100,7 +100,7 @@ describe('configUtils', () => {
 
     for (const { msg, input, expected } of testCases) {
       it(msg, () => {
-        const tranformedObj = formatConfigToCheck(input);
+        const tranformedObj = transformConfigToCheck(input);
 
         expect(tranformedObj).to.eql(expected);
       });

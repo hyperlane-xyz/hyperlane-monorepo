@@ -133,7 +133,11 @@ function sanitizeConfig(obj: HypTokenRouterConfig): any {
   );
 }
 
-export function formatConfigToCheck(
+/**
+ * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
+ * field where they are not required for the config comparison
+ */
+export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
   return sanitizeConfig(

@@ -1,6 +1,9 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { WarpRouteDeployConfig, formatConfigToCheck } from '@hyperlane-xyz/sdk';
+import {
+  WarpRouteDeployConfig,
+  transformConfigToCheck,
+} from '@hyperlane-xyz/sdk';
 import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
@@ -17,8 +20,8 @@ export async function runWarpRouteCheck({
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
       const { mergedObject, isInvalid } = diffObjMerge(
-        formatConfigToCheck(onChainWarpConfig[chain]),
-        formatConfigToCheck(warpRouteConfig[chain]),
+        transformConfigToCheck(onChainWarpConfig[chain]),
+        transformConfigToCheck(warpRouteConfig[chain]),
       );
 
       if (isInvalid) {
