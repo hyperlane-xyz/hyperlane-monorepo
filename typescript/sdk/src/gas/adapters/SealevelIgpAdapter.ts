@@ -1,5 +1,6 @@
 import {
   AccountMeta,
+  ComputeBudgetProgram,
   Message,
   PublicKey,
   SystemProgram,
@@ -12,6 +13,7 @@ import { deserializeUnchecked, serialize } from 'borsh';
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import {
@@ -192,7 +194,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
 
   /**
    * Constructs a Transaction for .
-   * @param {PublicKey} beneficiary - The IGP’s configured beneficiary.
+   * @param {PublicKey} beneficiary - The IGP's configured beneficiary.
    * @returns {Promise<TransactionInstruction>} The claim instruction.
    */
   async populateClaimTx(beneficiary: PublicKey): Promise<Transaction> {
@@ -204,7 +206,6 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     }
 
     const keys = this.getClaimInstructionKeyList(beneficiary);
-
     const data = Buffer.from([SealeveIgpInstruction.Claim]);
 
     const claimIgpInstruction = new TransactionInstruction({
@@ -213,7 +214,20 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
       data: data,
     });
 
-    return new Transaction().add(claimIgpInstruction);
+    // Set priority fee if available in config
+    const priorityFee = SEALEVEL_PRIORITY_FEES[this.chainName];
+    const setPriorityFeeInstruction = priorityFee
+      ? ComputeBudgetProgram.setComputeUnitPrice({
+          microLamports: priorityFee,
+        })
+      : undefined;
+
+    const transaction = new Transaction();
+    if (setPriorityFeeInstruction) {
+      transaction.add(setPriorityFeeInstruction);
+    }
+    transaction.add(claimIgpInstruction);
+    return transaction;
   }
 }
 
