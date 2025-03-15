@@ -36,6 +36,7 @@ const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_"
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
+pub const SUBMITTED_CHECKPOINT_PREFIX: &str = "submitted_checkpoint";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -659,7 +660,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
 }
 
 impl HyperlaneRocksDB {
-    fn store_value_by_key<K: Encode, V: Encode>(
+    pub fn store_value_by_key<K: Encode, V: Encode>(
         &self,
         prefix: impl AsRef<[u8]>,
         key: &K,
@@ -668,7 +669,7 @@ impl HyperlaneRocksDB {
         self.store_encodable(prefix, key.to_vec(), value)
     }
 
-    fn retrieve_value_by_key<K: Encode, V: Decode>(
+    pub fn retrieve_value_by_key<K: Encode, V: Decode>(
         &self,
         prefix: impl AsRef<[u8]>,
         key: &K,

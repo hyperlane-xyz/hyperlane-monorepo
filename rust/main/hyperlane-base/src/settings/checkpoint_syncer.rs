@@ -1,6 +1,6 @@
 use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
-    GCS_USER_SECRET,
+    db::HyperlaneRocksDB, CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage,
+    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 use core::str::FromStr;
 use eyre::{eyre, Context, Report, Result};
@@ -125,8 +125,9 @@ impl CheckpointSyncerConf {
     pub async fn build_and_validate(
         &self,
         latest_index_gauge: Option<IntGauge>,
+        db: HyperlaneRocksDB,
     ) -> Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError> {
-        let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
+        let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge, db).await?;
 
         match syncer.reorg_status().await {
             Ok(Some(reorg_event)) => {
@@ -147,6 +148,7 @@ impl CheckpointSyncerConf {
     async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,
+        db: HyperlaneRocksDB,
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
@@ -161,6 +163,7 @@ impl CheckpointSyncerConf {
                 folder.clone(),
                 region.clone(),
                 latest_index_gauge,
+                db,
             )),
             CheckpointSyncerConf::Gcs {
                 bucket,

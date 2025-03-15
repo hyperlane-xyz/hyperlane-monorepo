@@ -1,5 +1,6 @@
 use std::{fmt, sync::OnceLock, time::Duration};
 
+use crate::db::{DbError, HyperlaneRocksDB, SUBMITTED_CHECKPOINT_PREFIX};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
@@ -12,11 +13,64 @@ use rusoto_core::{
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
+use tracing::{error, info};
 
 use crate::types::utils;
 use crate::{
     settings::aws_credentials::AwsChainCredentialsProvider, AgentMetadata, CheckpointSyncer,
 };
+
+pub struct CheckpointDbKey {
+    wrapped: String,
+}
+
+impl hyperlane_core::Encode for CheckpointDbKey {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let bytes = self.wrapped.as_bytes();
+        writer.write_all(bytes)?;
+        Ok(bytes.len())
+    }
+}
+
+pub struct DbSignedCheckpointWithMessageId {
+    wrapped: SignedCheckpointWithMessageId,
+}
+
+impl hyperlane_core::Encode for DbSignedCheckpointWithMessageId {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let json_encoded = serde_json::to_vec(&self.wrapped)?;
+        let bytes: &[u8] = json_encoded.as_slice();
+
+        writer.write_all(bytes)?;
+        Ok(bytes.len())
+    }
+}
+
+impl hyperlane_core::Decode for DbSignedCheckpointWithMessageId {
+    fn read_from<R>(reader: &mut R) -> Result<Self, hyperlane_core::HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let decode_result: Result<SignedCheckpointWithMessageId, _> =
+            serde_json::from_reader(reader);
+        match decode_result {
+            Ok(wrapped) => {
+                return Ok(Self { wrapped });
+            }
+            Err(e) => {
+                error!("unable to decode json from checkpoint database: {}", e);
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "unable to decode json").into())
+            }
+        }
+    }
+}
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
@@ -40,6 +94,8 @@ pub struct S3Storage {
     anonymous_client: OnceLock<S3Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
+
+    database: HyperlaneRocksDB,
 }
 
 impl fmt::Debug for S3Storage {
@@ -149,6 +205,53 @@ impl S3Storage {
     fn reorg_flag_key() -> String {
         "reorg_flag.json".to_owned()
     }
+
+    fn make_db_key_for_checkpoint(self, index: u32) -> CheckpointDbKey {
+        let raw = format!(
+            "{}-{}-{}-{}",
+            self.region.name(),
+            self.bucket.clone(),
+            self.folder.unwrap_or_default(),
+            index
+        );
+        CheckpointDbKey { wrapped: raw }
+    }
+
+    fn check_in_cache(self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
+        let db_key = self.clone().make_db_key_for_checkpoint(index);
+        let db_result: Result<Option<DbSignedCheckpointWithMessageId>, DbError> = self
+            .database
+            .retrieve_value_by_key(SUBMITTED_CHECKPOINT_PREFIX, &db_key);
+
+        match db_result {
+            Ok(value) => match value {
+                Some(cache_value) => Ok(Some(cache_value.wrapped)),
+                None => Ok(None),
+            },
+            Err(e) => {
+                error!("unable to read from cache db: {}", e);
+                Err(e.into())
+            }
+        }
+    }
+
+    fn try_add_to_cache(self, index: u32, checkpoint: &SignedCheckpointWithMessageId) {
+        let db_key = self.clone().make_db_key_for_checkpoint(index);
+        let db_value = DbSignedCheckpointWithMessageId {
+            wrapped: checkpoint.clone(),
+        };
+
+        let cache_result =
+            self.database
+                .store_value_by_key(SUBMITTED_CHECKPOINT_PREFIX, &db_key, &db_value);
+
+        match cache_result {
+            Ok(_) => {}
+            Err(e) => {
+                error!("unable to write checkpoint to checkpoint db: {}", e);
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -178,11 +281,24 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
+        // Try to fetch from cache
+        if let Ok(Some(checkpoint)) = self.clone().check_in_cache(index) {
+            return Ok(Some(checkpoint));
+        }
+
+        let fetch_result: Result<Option<SignedCheckpointWithMessageId>> = self
+            .anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
-            .map_err(Into::into)
+            .map_err(Into::into);
+
+        // Cache value
+        if let Ok(Some(ref checkpoint)) = &fetch_result {
+            self.clone().try_add_to_cache(index, checkpoint)
+        }
+
+        fetch_result
     }
 
     async fn write_checkpoint(
@@ -195,6 +311,11 @@ impl CheckpointSyncer for S3Storage {
             &serialized_checkpoint,
         )
         .await?;
+
+        // Cache value
+        self.clone()
+            .try_add_to_cache(signed_checkpoint.value.index, signed_checkpoint);
+
         Ok(())
     }
 

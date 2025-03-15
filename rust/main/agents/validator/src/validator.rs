@@ -84,7 +84,7 @@ impl BaseAgent for Validator {
         // a fatal startup error.
         let checkpoint_syncer = settings
             .checkpoint_syncer
-            .build_and_validate(None)
+            .build_and_validate(None, msg_db.clone())
             .await
             .expect("Failed to build checkpoint syncer")
             .into();
