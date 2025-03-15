@@ -44,7 +44,7 @@ use super::TryFromWithMetrics;
 ///     }
 /// }
 /// ```
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainConf>,

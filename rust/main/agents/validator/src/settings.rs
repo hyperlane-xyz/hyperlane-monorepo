@@ -22,13 +22,22 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Settings for `Validator`
-#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+#[derive(Clone, Debug, AsRef, AsMut, Deref, DerefMut)]
 pub struct ValidatorSettings {
     #[as_ref]
     #[as_mut]
     #[deref]
     #[deref_mut]
     base: Settings,
+    pub validators: Vec<ChainValidatorSettings>,
+}
+
+#[derive(Clone, Debug, AsRef, AsMut, Deref, DerefMut)]
+pub struct ChainValidatorSettings {
+    #[as_ref]
+    #[as_mut]
+    #[deref]
+    #[deref_mut]
 
     /// Database path
     pub db: PathBuf,
@@ -60,29 +69,15 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let origin_chain_name = p
-            .chain(&mut err)
-            .get_key("originChainName")
-            .parse_string()
-            .end();
-
-        let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
-
+        // Parse the base config
+        // NOTE: Hyperlane mainline filters to a specific origin chain on their mainline repo,
+        // but since this fork supports multiple origin chains, we pass None as the filter.
         let base: Option<Settings> = p
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
-                origin_chain_name_set.as_ref(),
+                None,
                 "Expected valid base agent configuration",
             )
             .take_config_err(&mut err);
-
-        let origin_chain = if let (Some(base), Some(origin_chain_name)) = (&base, origin_chain_name)
-        {
-            base.lookup_domain(origin_chain_name)
-                .context("Missing configuration for the origin chain")
-                .take_err(&mut err, || cwp + "origin_chain_name")
-        } else {
-            None
-        };
 
         let validator = p
             .chain(&mut err)
@@ -93,15 +88,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             )
             .end();
 
-        let db = p
-            .chain(&mut err)
-            .get_opt_key("db")
-            .parse_from_str("Expected db file path")
-            .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap()
-                    .join(format!("validator_db_{}", origin_chain_name.unwrap_or("")))
-            });
+        // Parse root db path
+        // When creating validator configs, a /<chain> will be automatically appended
+        let db_root_path = p.chain(&mut err).get_key("db").parse_string().end();
 
         let checkpoint_syncer = p
             .chain(&mut err)
@@ -109,6 +98,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .and_then(parse_checkpoint_syncer)
             .end();
 
+        // Do not set interval, it is automatically computed.
         let interval = p
             .chain(&mut err)
             .get_opt_key("interval")
@@ -116,37 +106,90 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .map(Duration::from_secs)
             .unwrap_or(Duration::from_secs(5));
 
-        cfg_unwrap_all!(cwp, err: [origin_chain_name]);
-
-        let reorg_period = p
+        // Get active chains
+        let origin_chain_names = p
             .chain(&mut err)
-            .get_key("chains")
-            .get_key(origin_chain_name)
-            .get_opt_key("blocks")
-            .get_opt_key("reorgPeriod")
-            .parse_value("Invalid reorgPeriod")
-            .unwrap_or(ReorgPeriod::from_blocks(1));
+            .get_key("originchainnames")
+            .into_array_iter()
+            .map(|items| {
+                let parsed = items.map(|v| {
+                    let origin_chain = v.chain(&mut err).parse_string().end().unwrap();
 
-        cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
+                    origin_chain.to_owned()
+                });
+                let collected = parsed.collect::<Vec<String>>();
 
-        let mut base: Settings = base;
-        // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
-        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
-            if let Some(origin) = base.chains.get_mut(origin_chain.name()) {
-                origin.signer.get_or_insert_with(|| validator.clone());
-            }
+                collected
+            })
+            .unwrap();
+
+        cfg_unwrap_all!(cwp, err: [base, validator, checkpoint_syncer, db_root_path]);
+
+        // Build a validator config for each validator
+        let mut validators: Vec<ChainValidatorSettings> = vec![];
+        for origin_chain_name in origin_chain_names {
+            let validator: Result<ChainValidatorSettings, ConfigParsingError> = parse_validator(
+                &base,
+                cwp,
+                db_root_path,
+                checkpoint_syncer.clone(),
+                validator.clone(),
+                origin_chain_name.as_str(),
+                interval,
+            );
+            validators.push(validator.unwrap());
         }
 
         err.into_result(Self {
-            base,
-            db,
-            origin_chain,
-            validator,
-            checkpoint_syncer,
-            reorg_period,
-            interval,
+            base: base,
+            validators,
         })
     }
+}
+
+fn parse_validator(
+    base: &Settings,
+    cwp: &ConfigPath,
+    db_root_path: &str,
+    mut checkpoint_syncer: CheckpointSyncerConf,
+    validator: SignerConf,
+    origin_chain_name: &str,
+    interval: Duration,
+) -> Result<ChainValidatorSettings, ConfigParsingError> {
+    let mut err: ConfigParsingError = ConfigParsingError::default();
+    let origin_chain = base
+        .lookup_domain(origin_chain_name)
+        .context("Missing configuration for the origin chain")
+        .take_err(&mut err, || cwp + "origin_chain_name");
+
+    cfg_unwrap_all!(cwp, err: [origin_chain]);
+
+    // Automatically append the origin chain name to both the db path and the s3 checkpoint syncer
+    let subfolder = format!("{}", origin_chain_name);
+    let db_path = format!("{}/{}", db_root_path, subfolder);
+
+    if let CheckpointSyncerConf::S3 { folder, .. } = &mut checkpoint_syncer {
+        match folder {
+            Some(ref mut existing_folder) => existing_folder.push_str(&subfolder),
+            None => *folder = Some(subfolder),
+        }
+    }
+
+    // Automatically set interval to be one block
+    let chain_config = base.chains.get(origin_chain_name);
+    cfg_unwrap_all!(cwp, err: [chain_config]);
+
+    // Get chain config, which is needed to find the reorg period
+    let reorg_period = chain_config.reorg_period.clone();
+
+    err.into_result(ChainValidatorSettings {
+        db: db_path.into(),
+        origin_chain,
+        validator,
+        checkpoint_syncer,
+        reorg_period,
+        interval,
+    })
 }
 
 /// Expects ValidatorAgentConfig.checkpointSyncer
