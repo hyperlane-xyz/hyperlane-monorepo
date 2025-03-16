@@ -22,6 +22,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
+  MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
@@ -771,22 +772,6 @@ export class WarpCore {
     return null;
   }
 
-  protected getMintTokenStandardAdapter(
-    token: IToken,
-  ): IHypXERC20Adapter<unknown> | null {
-    switch (token.standard) {
-      case TokenStandard.EvmHypXERC20:
-      case TokenStandard.EvmHypXERC20Lockbox:
-      case TokenStandard.EvmHypVSXERC20:
-      case TokenStandard.EvmHypVSXERC20Lockbox:
-        return token.getAdapter(
-          this.multiProvider,
-        ) as IHypXERC20Adapter<unknown>;
-      default:
-        return null;
-    }
-  }
-
   /**
    * Ensure the sender has sufficient balances for minting
    */
@@ -800,27 +785,37 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    const adapter = this.getMintTokenStandardAdapter(destinationToken);
-    if (!adapter) {
+    if (!MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
       this.logger.debug(
         `${destinationToken.symbol} does not have rate limit constraint, skipping`,
       );
       return null;
     }
-    let destinationMintLimit: bigint;
-    destinationMintLimit = await adapter.getMintLimit();
 
+    let destinationMintLimit: bigint = 0n;
     if (
       destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
     ) {
-      const bufferCap = await adapter.getMintMaxLimit();
-      const max = bufferCap / 2n;
-      if (destinationMintLimit > max) {
-        this.logger.debug(
-          `Mint limit ${destinationMintLimit} exceeds max ${max}, using max`,
-        );
-        destinationMintLimit = max;
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as IHypXERC20Adapter<unknown>;
+      destinationMintLimit = await adapter.getMintLimit();
+
+      if (
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+      ) {
+        const bufferCap = await adapter.getMintMaxLimit();
+        const max = bufferCap / 2n;
+        if (destinationMintLimit > max) {
+          this.logger.debug(
+            `Mint limit ${destinationMintLimit} exceeds max ${max}, using max`,
+          );
+          destinationMintLimit = max;
+        }
       }
     }
 
