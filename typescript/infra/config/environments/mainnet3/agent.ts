@@ -117,6 +117,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     injective: true,
     ink: true,
     kaia: true,
@@ -143,6 +144,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -251,6 +253,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     injective: true,
     ink: true,
     kaia: true,
@@ -277,6 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -385,6 +389,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     ink: true,
     injective: true,
     kaia: true,
@@ -411,6 +416,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -533,6 +539,16 @@ const contextBase = {
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
+      {
+        originDomain: getDomainId('infinityvm'),
+        destinationDomain: getDomainId('solanamainnet'),
+      },
+    ],
+  },
+  {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
@@ -540,6 +556,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
+      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
+      // outside of Solana are ignored.
+      { originDomain: getDomainId('infinityvm') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -686,9 +705,16 @@ const blacklistedMessageIds = [
 ];
 
 // Blacklist matching list intended to be used by all contexts.
-const blacklist: MatchingList = blacklistedMessageIds.map((messageId) => ({
-  messageId,
-}));
+const blacklist: MatchingList = [
+  {
+    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
+    // A temporary measure to prevent some wasted effort on our relayer.
+    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
+  },
+  ...blacklistedMessageIds.map((messageId) => ({
+    messageId,
+  })),
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -709,7 +735,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '328011a-20250218-173927',
+      tag: 'f5174e6-20250310-182921',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -719,7 +745,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e8851ae-20250227-210423',
+      tag: 'f5174e6-20250310-182921',
     },
     resources: scraperResources,
   },
@@ -734,7 +760,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cc3af7d-20250304-172021',
+      tag: 'f5174e6-20250310-182921',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
