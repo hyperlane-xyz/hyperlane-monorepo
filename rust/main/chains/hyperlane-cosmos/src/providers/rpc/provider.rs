@@ -102,7 +102,7 @@ impl CosmosWasmRpcProvider {
             .iter()
             .map(|url| {
                 let metrics_config = PrometheusConfig::from_url(url, chain.clone());
-                CosmosRpcClient::new(url, metrics.clone(), metrics_config)
+                CosmosRpcClient::from_url(url, metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut builder = FallbackProvider::builder();
