@@ -1,5 +1,6 @@
 import search from '@inquirer/search';
 
+import { warpRouteConfigToId } from '@hyperlane-xyz/registry';
 import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
 import {
@@ -87,11 +88,7 @@ export async function getWarpConfigs({
       context.registry,
       symbol,
     );
-
-    const routeIds = await getWarpRouteIds(context);
-    const routeId = routeIds.find((id) =>
-      id.toUpperCase().includes(symbol.toUpperCase()),
-    );
+    const routeId = warpRouteConfigToId(warpCoreConfig);
     if (!routeId) {
       throw new Error(`No matching warp route ID found for symbol ${symbol}`);
     }
