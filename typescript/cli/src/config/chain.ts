@@ -1,5 +1,10 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { ethers } from 'ethers';
+import { keccak256 } from 'ethers/lib/utils.js';
+import {
+  Provider as StarknetProvider,
+  provider as starknetProvider,
+} from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -10,12 +15,21 @@ import {
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { indentYamlOrJson, readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
+
+// Add constants at the top of the file
+const SUPPORTED_PROTOCOLS = [
+  ProtocolType.Ethereum,
+  ProtocolType.Starknet,
+] as const;
+
+// Add type for supported protocols
+type SupportedProtocol = (typeof SUPPORTED_PROTOCOLS)[number];
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
@@ -49,16 +63,25 @@ export async function createChainConfig({
 }) {
   logBlue('Creating a new chain config');
 
+  const protocol = (await select({
+    message: 'Select the chain protocol type:',
+    choices: SUPPORTED_PROTOCOLS.map((value) => ({ value })),
+    pageSize: SUPPORTED_PROTOCOLS.length,
+  })) as SupportedProtocol;
+
+  assert(
+    SUPPORTED_PROTOCOLS.includes(protocol),
+    `Protocol type ${protocol} not supported. Supported protocols: ${SUPPORTED_PROTOCOLS.join(
+      ', ',
+    )}`,
+  );
+
   const rpcUrl = await detectAndConfirmOrPrompt(
-    async () => {
-      await new ethers.providers.JsonRpcProvider().getNetwork();
-      return ethers.providers.JsonRpcProvider.defaultUrl();
-    },
+    createProtocolDefaultProviderDetector(protocol),
     'Enter http or https',
     'rpc url',
     'JSON RPC provider',
   );
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
   const name = await input({
     message: 'Enter chain name (one word, lower case)',
@@ -70,17 +93,14 @@ export async function createChainConfig({
     default: name[0].toUpperCase() + name.slice(1),
   });
 
-  const chainId = parseInt(
+  const chainId = formatChainIdBasedOnProtocol(
     await detectAndConfirmOrPrompt(
-      async () => {
-        const network = await provider.getNetwork();
-        return network.chainId.toString();
-      },
-      'Enter a (number)',
+      createProtocolChainIdDetector(protocol, rpcUrl),
+      protocol === ProtocolType.Starknet ? 'Enter a (hex)' : 'Enter a (number)',
       'chain id',
       'JSON RPC provider',
     ),
-    10,
+    protocol,
   );
 
   const isTestnet = await confirm({
@@ -88,37 +108,43 @@ export async function createChainConfig({
       'Is this chain a testnet (a chain used for testing & development)?',
   });
 
-  const technicalStack = (await select({
-    choices: Object.entries(ChainTechnicalStack).map(([_, value]) => ({
-      value,
-    })),
-    message: 'Select the chain technical stack',
-    pageSize: 10,
-  })) as ChainTechnicalStack;
+  let technicalStack: ChainTechnicalStack | undefined;
+  let arbitrumNitroMetadata: Pick<ChainMetadata, 'index'> = {};
 
-  const arbitrumNitroMetadata: Pick<ChainMetadata, 'index'> = {};
-  if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
-    const indexFrom = await detectAndConfirmOrPrompt(
-      async () => {
-        return (await provider.getBlockNumber()).toString();
-      },
-      `Enter`,
-      'starting block number for indexing',
-      'JSON RPC provider',
-    );
+  if (protocol === ProtocolType.Ethereum) {
+    technicalStack = (await select({
+      choices: Object.entries(ChainTechnicalStack).map(([_, value]) => ({
+        value,
+      })),
+      message: 'Select the chain technical stack',
+      pageSize: 10,
+    })) as ChainTechnicalStack;
 
-    arbitrumNitroMetadata.index = {
-      from: parseInt(indexFrom),
-    };
+    if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      const indexFrom = await detectAndConfirmOrPrompt(
+        async () => {
+          return (await provider.getBlockNumber()).toString();
+        },
+        `Enter`,
+        'starting block number for indexing',
+        'JSON RPC provider',
+      );
+
+      arbitrumNitroMetadata.index = {
+        from: parseInt(indexFrom),
+      };
+    }
   }
 
   const metadata: ChainMetadata = {
     name,
     displayName,
     chainId,
-    domainId: chainId,
-    protocol: ProtocolType.Ethereum,
-    technicalStack,
+    domainId:
+      typeof chainId === 'string' ? stringChainIdToDomainId(chainId) : chainId,
+    protocol: protocol,
+    ...(technicalStack && { technicalStack }),
     rpcUrls: [{ http: rpcUrl }],
     isTestnet,
     ...arbitrumNitroMetadata,
@@ -268,12 +294,16 @@ async function addGasConfig(metadata: ChainMetadata): Promise<void> {
 }
 
 async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
-  const wantNativeConfig = await confirm({
-    default: false,
-    message:
-      'Do you want to set native token properties for this chain config (defaults to ETH)',
-  });
-  let symbol, name, decimals;
+  const isStarknet = metadata.protocol === ProtocolType.Starknet;
+  const wantNativeConfig =
+    isStarknet ||
+    (await confirm({
+      default: false,
+      message:
+        'Do you want to set native token properties for this chain config (defaults to ETH)',
+    }));
+
+  let symbol, name, decimals, denom;
   if (wantNativeConfig) {
     symbol = await input({
       message: "Enter the native token's symbol:",
@@ -284,11 +314,68 @@ async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
     decimals = await input({
       message: "Enter the native token's decimals:",
     });
+
+    if (isStarknet) {
+      denom = await input({
+        message: "Enter the native token's address:",
+        validate: (value) => isAddressStarknet(value),
+      });
+    }
   }
 
   metadata.nativeToken = {
     symbol: symbol ?? 'ETH',
     name: name ?? 'Ether',
     decimals: decimals ? parseInt(decimals, 10) : 18,
+    ...(denom && { denom }), // Only include denom if it was provided
   };
+}
+
+// Update function signature
+function createProtocolDefaultProviderDetector(protocol: SupportedProtocol) {
+  switch (protocol) {
+    case ProtocolType.Ethereum:
+      return async () => {
+        return ethers.providers.JsonRpcProvider.defaultUrl();
+      };
+    case ProtocolType.Starknet:
+      return async () => {
+        return starknetProvider.getDefaultNodeUrl();
+      };
+  }
+}
+
+// Add return type annotations
+function createProtocolChainIdDetector(
+  protocol: SupportedProtocol,
+  rpcUrl: string,
+) {
+  return async () => {
+    switch (protocol) {
+      case ProtocolType.Ethereum: {
+        const network = await new ethers.providers.JsonRpcProvider(
+          rpcUrl,
+        ).getNetwork();
+        return network.chainId.toString();
+      }
+      case ProtocolType.Starknet:
+        return new StarknetProvider({ nodeUrl: rpcUrl }).getChainId();
+    }
+  };
+}
+
+function formatChainIdBasedOnProtocol(chainId: string, protocol: ProtocolType) {
+  if (protocol === ProtocolType.Starknet) return chainId;
+  return parseInt(chainId, 10);
+}
+
+/**
+ * Converts a string chain ID to a numeric domain ID using keccak256
+ * @param chainId The chain ID string to convert
+ * @returns A numeric domain ID derived from the first 4 bytes of the hash
+ */
+function stringChainIdToDomainId(chainId: string): number {
+  const hash = keccak256(chainId);
+  // keccak256 should never return null for a string input
+  return parseInt(hash.slice(2, 10), 16); // Take first 4 bytes after '0x'
 }
