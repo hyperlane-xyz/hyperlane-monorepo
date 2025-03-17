@@ -81,8 +81,8 @@ const walletBalanceGauge = getWalletBalanceGauge(
   Object.keys(constMetricLabels),
 );
 
-// Min delta is 50% of the desired balance
-const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
+// Min delta is 60% of the desired balance
+const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 // Don't send the full amount over to RC keys
