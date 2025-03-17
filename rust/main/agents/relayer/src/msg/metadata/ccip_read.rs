@@ -94,15 +94,11 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                     .json(&body)
                     .send()
                     .await
-                    .map_err(|_| {
-                        MetadataBuildError::FailedToBuild(
-                            "Failed to fetch json metadata from url".into(),
-                        )
-                    })?
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
             } else {
-                reqwest::get(interpolated_url).await.map_err(|_| {
-                    MetadataBuildError::FailedToBuild("Failed to fetch metadata from url".into())
-                })?
+                reqwest::get(interpolated_url)
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
             };
 
             let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
