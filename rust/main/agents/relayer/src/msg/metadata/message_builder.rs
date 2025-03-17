@@ -317,7 +317,7 @@ mod test {
     ///          +----> 0x310 -> 0x3100
     ///          |
     ///          +----> 0x320 -> 0x3200
-    fn insert_ism_test_data_001(base_builder: &MockBaseMetadataBuilder) {
+    fn insert_ism_test_data(base_builder: &MockBaseMetadataBuilder) {
         insert_mock_aggregation_isms(
             base_builder,
             vec![
@@ -426,7 +426,7 @@ mod test {
     #[tokio::test]
     async fn max_depth_reached() {
         let base_builder = build_mock_base_builder();
-        insert_ism_test_data_001(&base_builder);
+        insert_ism_test_data(&base_builder);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
@@ -452,7 +452,7 @@ mod test {
     #[tokio::test]
     async fn max_ism_count_reached() {
         let base_builder = build_mock_base_builder();
-        insert_ism_test_data_001(&base_builder);
+        insert_ism_test_data(&base_builder);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
