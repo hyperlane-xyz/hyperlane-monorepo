@@ -9,10 +9,11 @@ import {
   MsgUnrollRemoteRouter,
 } from '../../../types/hyperlane/warp/v1/tx';
 import { RemoteRouter } from '../../../types/hyperlane/warp/v1/types';
+import { isNotEmpty } from '../../../utils';
 
 /** A high level transaction of the coin module */
 export interface AminoMsgCreateCollateralToken extends AminoMsg {
-  readonly type: '/hyperlane.warp.v1.MsgCreateCollateralToken';
+  readonly type: 'hyperlane/warp/v1/MsgCreateCollateralToken';
   readonly value: {
     readonly owner: string;
     readonly origin_mailbox: string;
@@ -21,7 +22,7 @@ export interface AminoMsgCreateCollateralToken extends AminoMsg {
 }
 
 export interface AminoMsgCreateSyntheticToken extends AminoMsg {
-  readonly type: '/hyperlane.warp.v1.MsgCreateSyntheticToken';
+  readonly type: 'hyperlane/warp/v1/MsgCreateSyntheticToken';
   readonly value: {
     readonly owner: string;
     readonly origin_mailbox: string;
@@ -29,7 +30,7 @@ export interface AminoMsgCreateSyntheticToken extends AminoMsg {
 }
 
 export interface AminoMsgEnrollRemoteRouter extends AminoMsg {
-  readonly type: '/hyperlane.warp.v1.MsgEnrollRemoteRouter';
+  readonly type: 'hyperlane/warp/v1/MsgEnrollRemoteRouter';
   readonly value: {
     readonly owner: string;
     readonly token_id: string;
@@ -38,22 +39,22 @@ export interface AminoMsgEnrollRemoteRouter extends AminoMsg {
 }
 
 export interface AminoMsgRemoteTransfer extends AminoMsg {
-  readonly type: '/hyperlane.warp.v1.MsgRemoteTransfer';
+  readonly type: 'hyperlane/warp/v1/MsgRemoteTransfer';
   readonly value: {
     readonly sender: string;
     readonly token_id: string;
     readonly destination_domain: number;
     readonly recipient: string;
     readonly amount: string;
-    readonly custom_hook_id: string;
-    readonly gas_limit: string;
-    readonly max_fee: Coin;
-    readonly custom_hook_metadata: string;
+    readonly custom_hook_id?: string;
+    readonly gas_limit?: string;
+    readonly max_fee?: Coin;
+    readonly custom_hook_metadata?: string;
   };
 }
 
 export interface AminoMsgSetToken extends AminoMsg {
-  readonly type: '/hyperlane.warp.v1.MsgSetToken';
+  readonly type: 'hyperlane/warp/v1/MsgSetToken';
   readonly value: {
     readonly owner: string;
     readonly token_id: string;
@@ -63,7 +64,7 @@ export interface AminoMsgSetToken extends AminoMsg {
 }
 
 export interface AminoMsgUnrollRemoteRouter extends AminoMsg {
-  readonly type: '/hyperlane.warp.v1.MsgUnrollRemoteRouter';
+  readonly type: 'hyperlane/warp/v1/MsgUnrollRemoteRouter';
   readonly value: {
     readonly owner: string;
     readonly token_id: string;
@@ -74,7 +75,7 @@ export interface AminoMsgUnrollRemoteRouter extends AminoMsg {
 export const createWarpAminoConverter = () => {
   return {
     '/hyperlane.warp.v1.MsgCreateCollateralToken': {
-      aminoType: '/hyperlane.warp.v1.MsgCreateCollateralToken',
+      aminoType: 'hyperlane/warp/v1/MsgCreateCollateralToken',
       toAmino: (
         msg: MsgCreateCollateralToken,
       ): AminoMsgCreateCollateralToken['value'] => ({
@@ -91,7 +92,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgCreateSyntheticToken': {
-      aminoType: '/hyperlane.warp.v1.MsgCreateSyntheticToken',
+      aminoType: 'hyperlane/warp/v1/MsgCreateSyntheticToken',
       toAmino: (
         msg: MsgCreateSyntheticToken,
       ): AminoMsgCreateSyntheticToken['value'] => ({
@@ -106,7 +107,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgEnrollRemoteRouter': {
-      aminoType: '/hyperlane.warp.v1.MsgEnrollRemoteRouter',
+      aminoType: 'hyperlane/warp/v1/MsgEnrollRemoteRouter',
       toAmino: (
         msg: MsgEnrollRemoteRouter,
       ): AminoMsgEnrollRemoteRouter['value'] => ({
@@ -123,17 +124,25 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgRemoteTransfer': {
-      aminoType: '/hyperlane.warp.v1.MsgRemoteTransfer',
+      aminoType: 'hyperlane/warp/v1/MsgRemoteTransfer',
       toAmino: (msg: MsgRemoteTransfer): AminoMsgRemoteTransfer['value'] => ({
         sender: msg.sender,
         token_id: msg.token_id,
         destination_domain: msg.destination_domain,
         recipient: msg.recipient,
         amount: msg.amount,
-        custom_hook_id: msg.custom_hook_id,
-        gas_limit: msg.gas_limit,
-        max_fee: msg.max_fee!,
-        custom_hook_metadata: msg.custom_hook_metadata,
+        ...(isNotEmpty(msg.custom_hook_id) && {
+          custom_hook_id: msg.custom_hook_id,
+        }),
+        ...(isNotEmpty(msg.gas_limit) && {
+          gas_limit: msg.gas_limit,
+        }),
+        ...(!!msg.max_fee && {
+          max_fee: msg.max_fee,
+        }),
+        ...(isNotEmpty(msg.custom_hook_metadata) && {
+          custom_hook_metadata: msg.custom_hook_metadata,
+        }),
       }),
       fromAmino: (msg: AminoMsgRemoteTransfer['value']): MsgRemoteTransfer => ({
         sender: msg.sender,
@@ -141,14 +150,14 @@ export const createWarpAminoConverter = () => {
         destination_domain: msg.destination_domain,
         recipient: msg.recipient,
         amount: msg.amount,
-        custom_hook_id: msg.custom_hook_id,
-        gas_limit: msg.gas_limit,
+        custom_hook_id: msg.custom_hook_id || '',
+        gas_limit: msg.gas_limit || '',
         max_fee: msg.max_fee,
-        custom_hook_metadata: msg.custom_hook_metadata,
+        custom_hook_metadata: msg.custom_hook_metadata || '',
       }),
     },
     '/hyperlane.warp.v1.MsgSetToken': {
-      aminoType: '/hyperlane.warp.v1.MsgSetToken',
+      aminoType: 'hyperlane/warp/v1/MsgSetToken',
       toAmino: (msg: MsgSetToken): AminoMsgSetToken['value'] => ({
         owner: msg.owner,
         token_id: msg.token_id,
@@ -163,7 +172,7 @@ export const createWarpAminoConverter = () => {
       }),
     },
     '/hyperlane.warp.v1.MsgUnrollRemoteRouter': {
-      aminoType: '/hyperlane.warp.v1.MsgUnrollRemoteRouter',
+      aminoType: 'hyperlane/warp/v1/MsgUnrollRemoteRouter',
       toAmino: (
         msg: MsgUnrollRemoteRouter,
       ): AminoMsgUnrollRemoteRouter['value'] => ({

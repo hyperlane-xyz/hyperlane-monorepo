@@ -12,7 +12,7 @@ import {
 import { DestinationGasConfig } from '../../../types/hyperlane/core/post_dispatch/v1/types';
 
 export interface AminoMsgClaim extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgClaim';
+  readonly type: 'hyperlane/v1/MsgClaim';
   readonly value: {
     readonly sender: string;
     readonly igp_id: string;
@@ -20,7 +20,7 @@ export interface AminoMsgClaim extends AminoMsg {
 }
 
 export interface AminoMsgCreateIgp extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgCreateIgp';
+  readonly type: 'hyperlane/v1/MsgCreateInterchainGasPaymaster';
   readonly value: {
     readonly owner: string;
     readonly denom: string;
@@ -28,7 +28,7 @@ export interface AminoMsgCreateIgp extends AminoMsg {
 }
 
 export interface AminoMsgCreateMerkleTreeHook extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgCreateMerkleTreeHook';
+  readonly type: 'hyperlane/v1/MsgCreateMerkleTreeHook';
   readonly value: {
     readonly owner: string;
     readonly mailbox_id: string;
@@ -36,14 +36,14 @@ export interface AminoMsgCreateMerkleTreeHook extends AminoMsg {
 }
 
 export interface AminoMsgCreateNoopHook extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgCreateNoopHook';
+  readonly type: 'hyperlane/v1/MsgCreateMerkleTreeHook';
   readonly value: {
     readonly owner: string;
   };
 }
 
 export interface AminoMsgPayForGas extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgPayForGas';
+  readonly type: 'hyperlane/v1/MsgPayForGas';
   readonly value: {
     readonly sender: string;
     readonly igp_id: string;
@@ -55,7 +55,7 @@ export interface AminoMsgPayForGas extends AminoMsg {
 }
 
 export interface AminoMsgSetDestinationGasConfig extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgSetDestinationGasConfig';
+  readonly type: 'hyperlane/v1/MsgSetDestinationGasConfig';
   readonly value: {
     readonly owner: string;
     readonly igp_id: string;
@@ -64,7 +64,7 @@ export interface AminoMsgSetDestinationGasConfig extends AminoMsg {
 }
 
 export interface AminoMsgSetIgpOwner extends AminoMsg {
-  readonly type: '/hyperlane.core.v1.MsgSetIgpOwner';
+  readonly type: 'hyperlane/v1/MsgSetIgpOwner';
   readonly value: {
     readonly owner: string;
     readonly igp_id: string;
@@ -75,7 +75,7 @@ export interface AminoMsgSetIgpOwner extends AminoMsg {
 export const createPostDispatchAminoConverter = () => {
   return {
     '/hyperlane.core.v1.MsgClaim': {
-      aminoType: '/hyperlane.core.v1.MsgClaim',
+      aminoType: 'hyperlane/v1/MsgClaim',
       toAmino: (msg: MsgClaim): AminoMsgClaim['value'] => ({
         sender: msg.sender,
         igp_id: msg.igp_id,
@@ -86,7 +86,7 @@ export const createPostDispatchAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgCreateIgp': {
-      aminoType: '/hyperlane.core.v1.MsgCreateIgp',
+      aminoType: 'hyperlane/v1/MsgCreateInterchainGasPaymaster',
       toAmino: (msg: MsgCreateIgp): AminoMsgCreateIgp['value'] => ({
         owner: msg.owner,
         denom: msg.denom,
@@ -97,7 +97,7 @@ export const createPostDispatchAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgCreateMerkleTreeHook': {
-      aminoType: '/hyperlane.core.v1.MsgCreateMerkleTreeHook',
+      aminoType: 'hyperlane/v1/MsgCreateMerkleTreeHook',
       toAmino: (
         msg: MsgCreateMerkleTreeHook,
       ): AminoMsgCreateMerkleTreeHook['value'] => ({
@@ -112,7 +112,7 @@ export const createPostDispatchAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgCreateNoopHook': {
-      aminoType: '/hyperlane.core.v1.MsgCreateNoopHook',
+      aminoType: 'hyperlane/v1/MsgCreateMerkleTreeHook',
       toAmino: (msg: MsgCreateNoopHook): AminoMsgCreateNoopHook['value'] => ({
         owner: msg.owner,
       }),
@@ -121,7 +121,7 @@ export const createPostDispatchAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgPayForGas': {
-      aminoType: '/hyperlane.core.v1.MsgPayForGas',
+      aminoType: 'hyperlane/v1/MsgPayForGas',
       toAmino: (msg: MsgPayForGas): AminoMsgPayForGas['value'] => ({
         sender: msg.sender,
         igp_id: msg.igp_id,
@@ -140,7 +140,7 @@ export const createPostDispatchAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgSetDestinationGasConfig': {
-      aminoType: '/hyperlane.core.v1.MsgSetDestinationGasConfig',
+      aminoType: 'hyperlane/v1/MsgSetDestinationGasConfig',
       toAmino: (
         msg: MsgSetDestinationGasConfig,
       ): AminoMsgSetDestinationGasConfig['value'] => ({
@@ -157,7 +157,7 @@ export const createPostDispatchAminoConverter = () => {
       }),
     },
     '/hyperlane.core.v1.MsgSetIgpOwner': {
-      aminoType: '/hyperlane.core.v1.MsgSetIgpOwner',
+      aminoType: 'hyperlane/v1/MsgSetIgpOwner',
       toAmino: (msg: MsgSetIgpOwner): AminoMsgSetIgpOwner['value'] => ({
         owner: msg.owner,
         igp_id: msg.igp_id,
