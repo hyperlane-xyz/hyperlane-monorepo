@@ -107,6 +107,12 @@ pub async fn build_message_metadata(
 
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {
+        tracing::error!(
+            ism_address = ?ism_address,
+            message_id = ?message.id(),
+            ism_depth = message_builder.max_ism_depth,
+            "Max ISM depth reached"
+        );
         return Err(MetadataBuildError::MaxIsmDepthExceeded(
             message_builder.max_ism_depth,
         ));
@@ -116,6 +122,12 @@ pub async fn build_message_metadata(
         // check if max ism count is reached
         let mut ism_count = params.ism_count.lock().await;
         if *ism_count >= message_builder.max_ism_count {
+            tracing::error!(
+                ism_address = ?ism_address,
+                message_id = ?message.id(),
+                ism_count = message_builder.max_ism_count,
+                "Max ISM count reached"
+            );
             return Err(MetadataBuildError::MaxIsmCountReached(
                 message_builder.max_ism_count,
             ));

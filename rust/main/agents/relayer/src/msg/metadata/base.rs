@@ -62,10 +62,11 @@ pub struct MessageMetadataBuildParams {
     /// current ISM depth.
     /// ISMs can be structured recursively. We keep track of the depth
     /// of the recursion to avoid infinite loops.
+    /// This value is local to each recursion when doing a .clone()
     pub ism_depth: u32,
     /// current ISM count.
-    /// ISM count is Arc<Mutex<>> because it will be shared between
-    /// threads
+    /// This value is global and is shared when doing a .clone()
+    /// in order to track all recursion branches
     pub ism_count: Arc<Mutex<u32>>,
 }
 
