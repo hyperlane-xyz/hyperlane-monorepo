@@ -347,7 +347,7 @@ export type TransformObjectTransformer = (
  * Recursively applies `formatter` to the provided object
  *
  * @param obj
- * @param transformer a function that takes an object and formats it, if the `shouldInclude` property in the return value is set to false, the current value won't be included in the final result
+ * @param transformer a user defined function that takes an object and transforms it.
  * @param maxDepth the maximum depth that can be reached when going through nested fields of a property
  *
  * @throws if `maxDepth` is reached in an object property
@@ -375,28 +375,21 @@ function internalTransformObj(
       internalTransformObj(obj, transformer, [...propPath], maxDepth),
     );
   } else if (isObject(obj)) {
-    const newObj = Object.entries(obj).reduce(
-      (transformedObj, [key, value]) => {
-        const transformedValueValue = internalTransformObj(
-          value,
-          transformer,
-          [...propPath, key],
-          maxDepth,
-        );
+    const newObj = Object.entries(obj)
+      .map(([key, value]) => {
+        return [
+          key,
+          internalTransformObj(
+            value,
+            transformer,
+            [...propPath, key],
+            maxDepth,
+          ),
+        ];
+      })
+      .filter(([_key, value]) => value !== undefined && value !== null);
 
-        if (
-          transformedValueValue !== undefined &&
-          transformedValueValue !== null
-        ) {
-          transformedObj[key] = transformedValueValue;
-        }
-
-        return transformedObj;
-      },
-      {} as any,
-    );
-
-    return transformer(newObj, propPath);
+    return transformer(Object.fromEntries(newObj), propPath);
   }
 
   return transformer(obj, propPath);
