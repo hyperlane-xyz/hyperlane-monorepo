@@ -101,6 +101,7 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
     TokenType.synthetic,
     TokenType.syntheticUri,
     TokenType.fastSynthetic,
+    TokenType.hyperToken,
   ]),
 });
 export type SyntheticTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;

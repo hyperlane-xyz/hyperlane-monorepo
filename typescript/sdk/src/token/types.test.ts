@@ -23,6 +23,7 @@ const NON_COLLATERAL_TYPES = [
   TokenType.synthetic,
   TokenType.syntheticUri,
   TokenType.fastSynthetic,
+  TokenType.hyperToken,
 ];
 
 describe('WarpRouteDeployConfigSchema refine', () => {
