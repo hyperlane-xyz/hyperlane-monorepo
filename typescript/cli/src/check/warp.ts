@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   transformConfigToCheck,
 } from '@hyperlane-xyz/sdk';
 import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
@@ -13,8 +13,8 @@ export async function runWarpRouteCheck({
   warpRouteConfig,
   onChainWarpConfig,
 }: {
-  warpRouteConfig: WarpRouteDeployConfig;
-  onChainWarpConfig: WarpRouteDeployConfig;
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired;
+  onChainWarpConfig: WarpRouteDeployConfigMailboxRequired;
 }): Promise<void> {
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(

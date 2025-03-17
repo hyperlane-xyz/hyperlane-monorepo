@@ -15,7 +15,11 @@ import { WarpCoreConfig } from '../warp/types.js';
 
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { HypTokenRouterConfig, WarpRouteDeployConfig } from './types.js';
+import {
+  HypTokenRouterConfig,
+  WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
 
 /**
  * Gets gas configuration for a chain
@@ -66,9 +70,9 @@ export function getRouterAddressesFromWarpCoreConfig(
 
 export async function expandWarpDeployConfig(
   multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   deployedRoutersAddresses: ChainMap<Address>,
-): Promise<WarpRouteDeployConfig> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
