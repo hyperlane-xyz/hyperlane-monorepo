@@ -5,7 +5,7 @@ use std::{fmt::Debug, time::Instant};
 use derive_builder::Builder;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec, IntGaugeVec};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::utils::url_to_host_info;
@@ -16,13 +16,14 @@ pub const PROVIDER_COUNT_LABELS: &[&str] = &["chain"];
 pub const PROVIDER_COUNT_HELP: &str = "Total number of provider instances made by this client";
 
 /// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
+pub const REQUEST_COUNT_LABELS: &[&str] =
+    &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
 /// Expected label names for the metric.
 pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
-    &["provider_node", "chain", "method", "status"];
+    &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
@@ -86,6 +87,7 @@ impl PrometheusClientMetrics {
     ) {
         let labels = hashmap! {
             "provider_node" => config.node_host(),
+            "connection" => config.connection_type.as_str(),
             "chain" => config.chain_name(),
             "method" => method,
             "status" => if success { "success" } else { "failure" },
@@ -126,11 +128,29 @@ pub struct NodeInfo {
     pub host: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientConnectionType {
+    #[default]
+    Rpc,
+    Grpc,
+}
+
+impl ClientConnectionType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Grpc => "grpc",
+            Self::Rpc => "rpc",
+        }
+    }
+}
+
 /// Configuration for the prometheus JsonRpcClioent. This can be loaded via
 /// serde.
 #[derive(Default, Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct PrometheusConfig {
+    pub connection_type: ClientConnectionType,
     /// Information about what node this client is connecting to.
     pub node: Option<NodeInfo>,
 
@@ -139,8 +159,13 @@ pub struct PrometheusConfig {
 }
 
 impl PrometheusConfig {
-    pub fn from_url(url: &Url, chain: Option<ChainInfo>) -> Self {
+    pub fn from_url(
+        url: &Url,
+        connection_type: ClientConnectionType,
+        chain: Option<ChainInfo>,
+    ) -> Self {
         Self {
+            connection_type,
             node: Some(NodeInfo {
                 host: url_to_host_info(url),
             }),

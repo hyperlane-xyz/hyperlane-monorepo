@@ -705,9 +705,16 @@ const blacklistedMessageIds = [
 ];
 
 // Blacklist matching list intended to be used by all contexts.
-const blacklist: MatchingList = blacklistedMessageIds.map((messageId) => ({
-  messageId,
-}));
+const blacklist: MatchingList = [
+  {
+    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
+    // A temporary measure to prevent some wasted effort on our relayer.
+    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
+  },
+  ...blacklistedMessageIds.map((messageId) => ({
+    messageId,
+  })),
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -738,7 +745,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f5174e6-20250310-182921',
+      tag: 'af7146e-20250314-172005',
     },
     resources: scraperResources,
   },
