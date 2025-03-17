@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../../config/registry.js';
 import { InfraS3Validator } from '../../src/agents/aws/validator.js';
@@ -132,12 +132,15 @@ async function main() {
       console.log(
         `[${chain}] Announcing ${address} checkpoints at ${location}`,
       );
-      await validatorAnnounce.announce(
+      const estimatedGas = await validatorAnnounce.estimateGas.announce(
         address,
         location,
         signature,
-        multiProvider.getTransactionOverrides(chain),
       );
+      await validatorAnnounce.announce(address, location, signature, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...multiProvider.getTransactionOverrides(chain),
+      });
     } else {
       console.log(
         `[${chain}] Already announced ${address} checkpoints at ${location}`,

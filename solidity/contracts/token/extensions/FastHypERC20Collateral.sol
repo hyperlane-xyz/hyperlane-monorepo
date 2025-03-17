@@ -21,8 +21,9 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
      */
     constructor(
         address erc20,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(erc20, _mailbox) {}
+    ) HypERC20Collateral(erc20, _scale, _mailbox) {}
 
     /**
      * @dev delegates transfer logic to `_transferTo`.
