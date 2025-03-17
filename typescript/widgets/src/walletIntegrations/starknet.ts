@@ -104,11 +104,10 @@ export function useStarknetTransactionFns(
 ): ChainTransactionFns {
   const { chain } = useNetwork();
   const { account } = useAccount();
-  // TODO: error handling
+
   const { sendAsync } = useSendTransaction({});
   const { switchChainAsync } = useSwitchChain({});
 
-  // TODO: Check chainId type whether number or 0x...
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const chainId = multiProvider.getChainMetadata(chainName).chainId;
@@ -116,7 +115,7 @@ export function useStarknetTransactionFns(
         chainId: chainId.toString(),
       });
     },
-    [chain, multiProvider],
+    [chain, multiProvider, switchChainAsync],
   );
 
   const onSendTx = useCallback(
@@ -166,7 +165,7 @@ export function useStarknetTransactionFns(
         throw error;
       }
     },
-    [onSwitchNetwork, account],
+    [account, multiProvider, onSwitchNetwork, sendAsync],
   );
 
   return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
