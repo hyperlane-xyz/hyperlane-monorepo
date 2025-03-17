@@ -116,7 +116,7 @@ impl SealevelApplicationOperationVerifier {
 
     async fn minimum_balance(&self) -> Option<U256> {
         self.provider
-            .rpc()
+            .rpc_client()
             // We assume that account will contain no data
             .get_minimum_balance_for_rent_exemption(0)
             .await
@@ -129,7 +129,7 @@ impl SealevelApplicationOperationVerifier {
 
         match self
             .provider
-            .rpc()
+            .rpc_client()
             .get_account_option_with_finalized_commitment(&pubkey)
             .await
         {

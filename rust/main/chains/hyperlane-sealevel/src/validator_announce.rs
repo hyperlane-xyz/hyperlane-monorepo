@@ -9,19 +9,19 @@ use hyperlane_sealevel_validator_announce::{
 use solana_sdk::pubkey::Pubkey;
 use tracing::{info, instrument, warn};
 
-use crate::{SealevelProvider, SealevelRpcClient};
+use crate::fallback::SealevelFallbackProvider;
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelValidatorAnnounce {
+    provider: SealevelFallbackProvider,
     program_id: Pubkey,
     domain: HyperlaneDomain,
-    provider: SealevelProvider,
 }
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
-    pub fn new(provider: SealevelProvider, locator: &ContractLocator) -> Self {
+    pub fn new(provider: SealevelFallbackProvider, locator: &ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,
@@ -30,8 +30,8 @@ impl SealevelValidatorAnnounce {
         }
     }
 
-    fn rpc(&self) -> &SealevelRpcClient {
-        self.provider.rpc()
+    fn get_provider(&self) -> &SealevelFallbackProvider {
+        &self.provider
     }
 }
 
@@ -75,7 +75,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // Get all validator storage location accounts.
         // If an account doesn't exist, it will be returned as None.
         let accounts = self
-            .rpc()
+            .get_provider()
             .get_multiple_accounts_with_finalized_commitment(&account_pubkeys)
             .await?;
 

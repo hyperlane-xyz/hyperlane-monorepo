@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
@@ -40,6 +42,7 @@ const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 const PRIORITY_FEE_MULTIPLIER_NUMERATOR: u64 = 110;
 const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
 
+/// Transaction cost estimate
 pub struct SealevelTxCostEstimate {
     compute_units: u32,
     compute_unit_price_micro_lamports: u64,
@@ -414,8 +417,8 @@ impl SealevelRpcClient {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: &Arc<TransactionSubmitter>,
+        priority_fee_oracle: &Arc<PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
@@ -497,8 +500,8 @@ impl SealevelRpcClient {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: &Arc<TransactionSubmitter>,
+        priority_fee_oracle: &Arc<PriorityFeeOracle>,
     ) -> ChainResult<Transaction> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -542,7 +545,7 @@ impl SealevelRpcClient {
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
+        tx_submitter: &Arc<TransactionSubmitter>,
         sign: bool,
     ) -> ChainResult<Transaction> {
         let instructions = vec![

@@ -10,20 +10,20 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
+use crate::{fallback::SealevelFallbackProvider, SealevelKeypair};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainSecurityModule {
     payer: Option<SealevelKeypair>,
     program_id: Pubkey,
-    provider: SealevelProvider,
+    provider: SealevelFallbackProvider,
 }
 
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(
-        provider: SealevelProvider,
+        provider: SealevelFallbackProvider,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
@@ -35,8 +35,8 @@ impl SealevelInterchainSecurityModule {
         }
     }
 
-    fn rpc(&self) -> &SealevelRpcClient {
-        self.provider.rpc()
+    fn get_provider(&self) -> &SealevelFallbackProvider {
+        &self.provider
     }
 }
 
@@ -67,14 +67,13 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
             vec![],
         );
 
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         let module = self
-            .rpc()
-            .simulate_instruction::<SimulationReturnData<u32>>(
-                self.payer
-                    .as_ref()
-                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-                instruction,
-            )
+            .get_provider()
+            .simulate_instruction::<SimulationReturnData<u32>>(payer.clone(), instruction)
             .await?
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str("No return data was returned from the ISM")

@@ -1,19 +1,17 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use serde::Serialize;
 use url::Url;
 
 use crate::{
-    client_builder::SealevelRpcClientBuilder,
-    priority_fee::{ConstantPriorityFeeOracle, HeliusPriorityFeeOracle, PriorityFeeOracle},
-    tx_submitter::{JitoTransactionSubmitter, RpcTransactionSubmitter, TransactionSubmitter},
+    priority_fee::{HeliusPriorityFeeOracle, PriorityFeeOracle},
+    tx_submitter::config::TransactionSubmitterConfig,
 };
 
 /// Sealevel connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// The RPC url to connect to
-    pub rpc_urls: Vec<Url>,
+    pub urls: Vec<Url>,
     /// Operation batching configuration
     pub operation_batch: OperationBatchConfig,
     /// Native token and its denomination
@@ -52,14 +50,12 @@ impl Default for PriorityFeeOracleConfig {
 
 impl PriorityFeeOracleConfig {
     /// Create a new priority fee oracle from the configuration
-    pub fn create_oracle(&self) -> Box<dyn PriorityFeeOracle> {
+    pub fn create_oracle(&self) -> PriorityFeeOracle {
         match self {
-            PriorityFeeOracleConfig::Constant(fee) => {
-                Box::new(ConstantPriorityFeeOracle::new(*fee))
-            }
-            PriorityFeeOracleConfig::Helius(config) => {
-                Box::new(HeliusPriorityFeeOracle::new(config.clone()))
-            }
+            PriorityFeeOracleConfig::Constant(fee) => PriorityFeeOracle::Constant { fee: *fee },
+            PriorityFeeOracleConfig::Helius(config) => PriorityFeeOracle::Helius {
+                oracle: HeliusPriorityFeeOracle::new(config.clone()),
+            },
         }
     }
 }
@@ -92,66 +88,6 @@ pub enum HeliusPriorityFeeLevel {
     VeryHigh,
     /// 100th percentile
     UnsafeMax,
-}
-
-/// Configuration for the transaction submitter
-#[derive(Debug, Clone)]
-pub enum TransactionSubmitterConfig {
-    /// Use the RPC transaction submitter
-    Rpc {
-        /// The URL to use. If not provided, a default RPC URL will be used
-        url: Option<String>,
-    },
-    /// Use the Jito transaction submitter
-    Jito {
-        /// The URL to use. If not provided, a default Jito URL will be used
-        url: Option<String>,
-    },
-}
-
-impl Default for TransactionSubmitterConfig {
-    fn default() -> Self {
-        TransactionSubmitterConfig::Rpc { url: None }
-    }
-}
-
-impl TransactionSubmitterConfig {
-    /// Create a new transaction submitter from the configuration
-    pub fn create_submitter(
-        &self,
-        default_rpc_url: String,
-        metrics: PrometheusClientMetrics,
-        chain: Option<ChainInfo>,
-    ) -> Box<dyn TransactionSubmitter> {
-        match self {
-            TransactionSubmitterConfig::Rpc { url } => {
-                let rpc_url = url.clone().unwrap_or(default_rpc_url);
-                let rpc_url = Url::parse(&rpc_url).unwrap();
-                // now that we know what the RPC URL is, we
-                // can create a metrics config that has the correct
-                // node info
-                let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
-                    .with_prometheus_metrics(metrics, chain)
-                    .build();
-                Box::new(RpcTransactionSubmitter::new(rpc_client))
-            }
-            TransactionSubmitterConfig::Jito { url } => {
-                // Default to a bundle-only URL (i.e. revert protected)
-                let rpc_url = url.clone().unwrap_or_else(|| {
-                    "https://mainnet.block-engine.jito.wtf/api/v1/transactions?bundleOnly=true"
-                        .to_string()
-                });
-                let rpc_url = Url::parse(&rpc_url).unwrap();
-                // now that we know what the RPC URL is, we
-                // can create a metrics config that has the correct
-                // node info
-                let rpc_client = SealevelRpcClientBuilder::new(rpc_url)
-                    .with_prometheus_metrics(metrics, chain)
-                    .build();
-                Box::new(JitoTransactionSubmitter::new(rpc_client))
-            }
-        }
-    }
 }
 
 #[derive(thiserror::Error, Debug)]

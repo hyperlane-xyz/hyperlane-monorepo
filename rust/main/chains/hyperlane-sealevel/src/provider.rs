@@ -62,7 +62,7 @@ impl SealevelProvider {
     }
 
     /// Get an rpc client
-    pub fn rpc(&self) -> &SealevelRpcClient {
+    pub fn rpc_client(&self) -> &SealevelRpcClient {
         &self.rpc_client
     }
 
@@ -161,12 +161,13 @@ impl SealevelProvider {
     }
 
     fn parsed_message(txn: &UiTransaction) -> ChainResult<&UiParsedMessage> {
-        Ok(match &txn.message {
-            UiMessage::Parsed(m) => m,
-            m => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedMessageEncoding(Box::new(m.clone())),
-            ))?,
-        })
+        match &txn.message {
+            UiMessage::Parsed(m) => Ok(m),
+            m => {
+                let err = HyperlaneSealevelError::UnsupportedMessageEncoding(Box::new(m.clone()));
+                Err(err.into())
+            }
+        }
     }
 
     async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {

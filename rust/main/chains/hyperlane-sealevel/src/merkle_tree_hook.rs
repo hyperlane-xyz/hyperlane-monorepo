@@ -23,8 +23,8 @@ impl MerkleTreeHook for SealevelMailbox {
         );
 
         let outbox_account = self
-            .rpc()
-            .get_account_with_finalized_commitment(&self.outbox.0)
+            .get_provider()
+            .get_account_with_finalized_commitment(self.outbox.0.clone())
             .await?;
         let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?

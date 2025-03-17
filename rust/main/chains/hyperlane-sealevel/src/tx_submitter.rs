@@ -1,4 +1,7 @@
-use async_trait::async_trait;
+/// Transaction Submitter config
+pub mod config;
+
+use config::TransactionSubmitterConfig;
 use derive_new::new;
 use hyperlane_core::ChainResult;
 use solana_sdk::{
@@ -6,87 +9,80 @@ use solana_sdk::{
     signature::Signature, transaction::Transaction,
 };
 
-use crate::SealevelRpcClient;
+use crate::provider::fallback::SealevelFallbackProvider;
 
-/// A trait for submitting transactions to the chain.
-#[async_trait]
-pub trait TransactionSubmitter: Send + Sync {
+/// The minimum tip to include in a transaction.
+/// From https://docs.jito.wtf/lowlatencytxnsend/#sendtransaction
+const JITO_MINIMUM_TIP_LAMPORTS: u64 = 1000;
+
+/// Transaction Submitter
+/// Configured to work with either Jito or Rpc
+#[derive(Clone, Debug, new)]
+pub struct TransactionSubmitter {
+    /// COnfig, for jito or rpc
+    pub config: TransactionSubmitterConfig,
+    /// provider
+    pub provider: SealevelFallbackProvider,
+}
+
+impl TransactionSubmitter {
+    /// Get the RPC client
+    pub fn get_provider(&self) -> &SealevelFallbackProvider {
+        &self.provider
+    }
+
     /// Get the instruction to set the compute unit price.
-    fn get_priority_fee_instruction(
+    pub fn get_priority_fee_instruction(
         &self,
         compute_unit_price_micro_lamports: u64,
         compute_units: u64,
         payer: &Pubkey,
-    ) -> Instruction;
+    ) -> Instruction {
+        match self.config {
+            TransactionSubmitterConfig::Jito { .. } => Self::jito_get_priority_fee_instruction(
+                compute_unit_price_micro_lamports,
+                compute_units,
+                payer,
+            ),
+            TransactionSubmitterConfig::Rpc { .. } => {
+                Self::rpc_get_priority_fee_instruction(compute_unit_price_micro_lamports)
+            }
+        }
+    }
 
     /// Send a transaction to the chain.
-    async fn send_transaction(
-        &self,
-        transaction: &Transaction,
-        skip_preflight: bool,
-    ) -> ChainResult<Signature>;
-
-    /// Get the RPC client
-    fn rpc_client(&self) -> Option<&SealevelRpcClient> {
-        None
-    }
-}
-
-/// A transaction submitter that uses the vanilla RPC to submit transactions.
-#[derive(Debug, new)]
-pub struct RpcTransactionSubmitter {
-    rpc_client: SealevelRpcClient,
-}
-
-#[async_trait]
-impl TransactionSubmitter for RpcTransactionSubmitter {
-    fn get_priority_fee_instruction(
-        &self,
-        compute_unit_price_micro_lamports: u64,
-        _compute_units: u64,
-        _payer: &Pubkey,
-    ) -> Instruction {
-        ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price_micro_lamports)
-    }
-
-    async fn send_transaction(
+    pub async fn send_transaction(
         &self,
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
-        self.rpc_client
-            .send_transaction(transaction, skip_preflight)
+        self.provider
+            .call(move |provider| {
+                let transaction = transaction.clone();
+                let skip_preflight = skip_preflight.clone();
+                let future = async move {
+                    provider
+                        .rpc_client()
+                        .send_transaction(&transaction, skip_preflight)
+                        .await
+                };
+                Box::pin(future)
+            })
             .await
     }
 
-    fn rpc_client(&self) -> Option<&SealevelRpcClient> {
-        Some(&self.rpc_client)
+    fn rpc_get_priority_fee_instruction(compute_unit_price_micro_lamports: u64) -> Instruction {
+        ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price_micro_lamports)
     }
-}
 
-/// A transaction submitter that uses the Jito API to submit transactions.
-#[derive(Debug, new)]
-pub struct JitoTransactionSubmitter {
-    rpc_client: SealevelRpcClient,
-}
-
-impl JitoTransactionSubmitter {
-    /// The minimum tip to include in a transaction.
-    /// From https://docs.jito.wtf/lowlatencytxnsend/#sendtransaction
-    const MINIMUM_TIP_LAMPORTS: u64 = 1000;
-}
-
-#[async_trait]
-impl TransactionSubmitter for JitoTransactionSubmitter {
-    fn get_priority_fee_instruction(
-        &self,
+    fn jito_get_priority_fee_instruction(
         compute_unit_price_micro_lamports: u64,
         compute_units: u64,
         payer: &Pubkey,
     ) -> Instruction {
         // Divide by 1_000_000 to convert from microlamports to lamports.
         let tip_lamports = (compute_units * compute_unit_price_micro_lamports) / 1_000_000;
-        let tip_lamports = tip_lamports.max(Self::MINIMUM_TIP_LAMPORTS);
+        let tip_lamports = tip_lamports.max(JITO_MINIMUM_TIP_LAMPORTS);
 
         // The tip is a standalone transfer to a Jito fee account.
         // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
@@ -97,15 +93,5 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
             &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
             tip_lamports,
         )
-    }
-
-    async fn send_transaction(
-        &self,
-        transaction: &Transaction,
-        skip_preflight: bool,
-    ) -> ChainResult<Signature> {
-        self.rpc_client
-            .send_transaction(transaction, skip_preflight)
-            .await
     }
 }

@@ -134,7 +134,7 @@ impl CosmosRpcClient {
 
 #[async_trait]
 impl BlockNumberGetter for CosmosRpcClient {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         self.get_latest_block()
             .await
             .map(|block| block.block.header.height.value())

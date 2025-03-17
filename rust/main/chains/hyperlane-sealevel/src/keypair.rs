@@ -18,6 +18,12 @@ impl SealevelKeypair {
     }
 }
 
+impl Clone for SealevelKeypair {
+    fn clone(&self) -> Self {
+        Self(Keypair::from_bytes(self.0.to_bytes().as_slice()).unwrap())
+    }
+}
+
 impl Deref for SealevelKeypair {
     type Target = Keypair;
 

@@ -9,7 +9,7 @@ use derive_new::new;
 use ethers::prelude::JsonRpcClient;
 use ethers_core::types::U64;
 use hyperlane_core::rpc_clients::BlockNumberGetter;
-use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::ChainResult;
 use hyperlane_metric::prometheus_metric::{
     PrometheusClientMetrics, PrometheusConfig, PrometheusConfigExt,
 };
@@ -106,7 +106,7 @@ impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
 where
     C: JsonRpcClient,
 {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         let res = self
             .0
             .request(BLOCK_NUMBER_RPC, ())

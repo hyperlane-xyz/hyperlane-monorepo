@@ -10,9 +10,7 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{
-    fallback::SealevelFallbackProvider, SealevelKeypair, SealevelProvider, SealevelRpcClient,
-};
+use crate::{fallback::SealevelFallbackProvider, SealevelKeypair};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -44,8 +42,8 @@ impl SealevelMultisigIsm {
         }
     }
 
-    fn rpc(&self) -> &SealevelRpcClient {
-        self.provider.rpc()
+    fn rpc(&self) -> &SealevelFallbackProvider {
+        &self.provider
     }
 }
 
@@ -86,12 +84,14 @@ impl MultisigIsm for SealevelMultisigIsm {
             account_metas,
         );
 
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         let validators_and_threshold = self
             .rpc()
             .simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
-                self.payer
-                    .as_ref()
-                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                payer.clone(),
                 instruction,
             )
             .await?
@@ -135,13 +135,12 @@ impl SealevelMultisigIsm {
             vec![AccountMeta::new_readonly(account_metas_pda_key, false)],
         );
 
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         self.rpc()
-            .get_account_metas(
-                self.payer
-                    .as_ref()
-                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-                instruction,
-            )
+            .get_account_metas(payer.clone(), instruction)
             .await
     }
 }
