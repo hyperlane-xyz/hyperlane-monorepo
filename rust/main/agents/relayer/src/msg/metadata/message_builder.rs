@@ -4,7 +4,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use eyre::{Context, Result};
+use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
 
 use tracing::instrument;
@@ -96,14 +96,12 @@ pub async fn build_message_metadata(
         .base_builder()
         .build_ism(ism_address)
         .await
-        .context("When building ISM")
-        .map_err(|_| MetadataBuildError::FailedToBuild)?;
+        .map_err(|_| MetadataBuildError::FailedToBuild("When building ISM".into()))?;
 
     let module_type = ism
         .module_type()
         .await
-        .context("When fetching module type")
-        .map_err(|_| MetadataBuildError::FailedToBuild)?;
+        .map_err(|_| MetadataBuildError::FailedToBuild("When fetching module type".into()))?;
 
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {

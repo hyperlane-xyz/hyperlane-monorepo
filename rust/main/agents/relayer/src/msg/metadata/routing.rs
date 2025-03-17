@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
-use eyre::Context;
 use tracing::instrument;
 
 use hyperlane_core::{HyperlaneMessage, H256};
@@ -31,13 +30,11 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
             .base_builder()
             .build_routing_ism(ism_address)
             .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
         let module = ism
             .route(message)
             .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
         self.base.build(module, message, params).await
     }
 }

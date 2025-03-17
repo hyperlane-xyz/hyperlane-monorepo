@@ -287,8 +287,8 @@ impl PendingOperation for PendingMessage {
                 metadata_bytes
             }
             Err(err) => {
-                match err {
-                    MetadataBuildError::FailedToBuild => {
+                match &err {
+                    MetadataBuildError::FailedToBuild(_) => {
                         return self
                             .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
                     }

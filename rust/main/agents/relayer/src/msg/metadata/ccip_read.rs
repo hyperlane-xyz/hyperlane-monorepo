@@ -44,8 +44,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             .base_builder()
             .build_ccip_read_ism(ism_address)
             .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
 
         let response = ism
             .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())
@@ -56,13 +55,18 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 return Err(MetadataBuildError::CouldNotFetch);
             }
             Err(raw_error) => {
-                let matching_regex = Regex::new(r"0x[[:xdigit:]]+")
-                    .map_err(|_| MetadataBuildError::FailedToBuild)?;
+                let matching_regex = Regex::new(r"0x[[:xdigit:]]+").map_err(|_| {
+                    MetadataBuildError::FailedToBuild("Invalid matching regex".into())
+                })?;
                 if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
-                    let hex_val = hex_decode(&matching[0][2..])
-                        .map_err(|_| MetadataBuildError::FailedToBuild)?;
-                    OffchainLookup::decode(hex_val)
-                        .map_err(|_| MetadataBuildError::FailedToBuild)?
+                    let hex_val = hex_decode(&matching[0][2..]).map_err(|_| {
+                        MetadataBuildError::FailedToBuild("Failed to decode hex value".into())
+                    })?;
+                    OffchainLookup::decode(hex_val).map_err(|_| {
+                        MetadataBuildError::FailedToBuild(
+                            "Failed to decode into OffchainLookup".into(),
+                        )
+                    })?
                 } else {
                     info!(?raw_error, "unable to parse custom error out of revert");
                     return Err(MetadataBuildError::CouldNotFetch);
@@ -90,11 +94,15 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                     .json(&body)
                     .send()
                     .await
-                    .map_err(|_| MetadataBuildError::FailedToBuild)?
+                    .map_err(|_| {
+                        MetadataBuildError::FailedToBuild(
+                            "Failed to fetch json metadata from url".into(),
+                        )
+                    })?
             } else {
-                reqwest::get(interpolated_url)
-                    .await
-                    .map_err(|_| MetadataBuildError::FailedToBuild)?
+                reqwest::get(interpolated_url).await.map_err(|_| {
+                    MetadataBuildError::FailedToBuild("Failed to fetch metadata from url".into())
+                })?
             };
 
             let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
@@ -102,8 +110,9 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             match json {
                 Ok(result) => {
                     // remove leading 0x which hex_decode doesn't like
-                    let metadata = hex_decode(&result.data[2..])
-                        .map_err(|_| MetadataBuildError::FailedToBuild)?;
+                    let metadata = hex_decode(&result.data[2..]).map_err(|_| {
+                        MetadataBuildError::FailedToBuild("Failed to hex decode metata".into())
+                    })?;
                     return Ok(Metadata::new(metadata));
                 }
                 Err(_err) => {

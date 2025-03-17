@@ -3,7 +3,6 @@ use derive_more::Deref;
 use futures_util::future::join_all;
 
 use derive_new::new;
-use eyre::Context;
 use itertools::{Either, Itertools};
 use tracing::{info, instrument};
 
@@ -134,13 +133,11 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .base_builder()
             .build_aggregation_ism(ism_address)
             .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
         let (ism_addresses, threshold) = ism
             .modules_and_threshold(message)
             .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::FailedToBuild)?;
+            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
 
         let threshold = threshold as usize;
 
