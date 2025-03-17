@@ -31,6 +31,7 @@ import {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -62,18 +63,21 @@ abstract class TokenDeployer<
     _: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
+    // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
+    const scale = config.scale ?? 1;
+
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
-      return [config.token, config.mailbox];
+      return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
-      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
+      return [scale, config.mailbox];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, config.mailbox];
+      return [config.decimals, scale, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, config.mailbox, collateralDomain];
+      return [config.decimals, scale, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -184,7 +188,7 @@ abstract class TokenDeployer<
     return undefined;
   }
 
-  async deploy(configMap: WarpRouteDeployConfig) {
+  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
       tokenMetadata = await TokenDeployer.deriveTokenMetadata(
