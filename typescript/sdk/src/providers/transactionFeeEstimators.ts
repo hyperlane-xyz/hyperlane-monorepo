@@ -1,6 +1,5 @@
 import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
 import { toUtf8 } from '@cosmjs/encoding';
-import { Uint53 } from '@cosmjs/math';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
@@ -135,10 +134,6 @@ export async function estimateTransactionFeeSolanaWeb3({
   };
 }
 
-// This is based on a reverse-engineered version of the
-// SigningStargateClient's simulate function. It cannot be
-// used here because it requires access to the private key.
-// https://github.com/cosmos/cosmjs/issues/1568
 export async function estimateTransactionFeeCosmJs({
   transaction,
   provider,
@@ -151,26 +146,14 @@ export async function estimateTransactionFeeCosmJs({
   provider: CosmJsProvider;
   estimatedGasPrice: Numberish;
   sender: Address;
-  // Unfortunately the sender pub key is required for this simulation.
-  // For accounts that have sent a tx, the pub key could be fetched via
-  // a StargateClient getAccount call. However that will fail for addresses
-  // that have not yet sent a tx on the queried chain.
-  // Related: https://github.com/cosmos/cosmjs/issues/889
   senderPubKey: HexString;
   memo?: string;
 }): Promise<TransactionFeeEstimate> {
-  const hyperlaneModuleClient = await provider.provider;
-  const message = transaction.transaction;
-  const encodedMsg = hyperlaneModuleClient.registry.encodeAsAny(message);
-  const encodedPubkey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
-  const { sequence } = await hyperlaneModuleClient.getSequence(sender);
-  const { gasInfo } = await hyperlaneModuleClient
-    // @ts-ignore force access to protected method
-    .forceGetQueryClient()
-    .tx.simulate([encodedMsg], memo, encodedPubkey, sequence);
-  assert(gasInfo, 'Gas estimation failed');
-  const gasUnits = Uint53.fromString(gasInfo.gasUsed.toString()).toNumber();
+  const client = await provider.provider;
+  const message = client.registry.encodeAsAny(transaction.transaction);
+  const pubKey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
 
+  const gasUnits = await client.simulate(sender, pubKey, [message], memo);
   const gasPrice = parseFloat(estimatedGasPrice.toString());
 
   return {

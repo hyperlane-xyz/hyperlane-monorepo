@@ -1,4 +1,4 @@
-import { decodeBech32Pubkey } from '@cosmjs/amino';
+import { Pubkey } from '@cosmjs/amino';
 import { Uint53 } from '@cosmjs/math';
 import {
   AccountData,
@@ -139,19 +139,19 @@ export class HyperlaneModuleClient extends StargateClient {
     return new HyperlaneModuleClient(client, options);
   }
 
-  // TODO: fix
   public async simulate(
     signerAddress: string,
-    messages: readonly EncodeObject[],
+    signerPubKey: Pubkey,
+    messages: any[],
     memo: string | undefined,
   ): Promise<number> {
     const queryClient = this.getQueryClient()!;
-    const signer = decodeBech32Pubkey(signerAddress);
+
     const { sequence } = await this.getSequence(signerAddress);
     const { gasInfo } = await queryClient.tx.simulate(
       messages,
       memo,
-      signer,
+      signerPubKey,
       sequence,
     );
     return Uint53.fromString(gasInfo?.gasUsed.toString() ?? '0').toNumber();
