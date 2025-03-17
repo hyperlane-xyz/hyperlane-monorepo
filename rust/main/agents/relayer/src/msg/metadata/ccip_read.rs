@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
-use eyre::Context;
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

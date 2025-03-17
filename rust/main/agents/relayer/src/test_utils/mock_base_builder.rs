@@ -21,6 +21,13 @@ pub struct MockBaseMetadataBuilderResponses {
     pub get_proof: ResponseList<eyre::Result<Proof>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
+    /// build_ism uses a hashmap of VecDeque responses instead.
+    /// This is because AggregationISMs run in parallel, so having just
+    /// a single VecDeque shared between the different threads yields unpredictable
+    /// results. One thread might run for a long time and starve the other threads
+    /// of responses.
+    /// In order to fix this in tests, the mock ISMs are built with specific addresses
+    /// in place. And gets responses from this based on the address.
     pub build_ism:
         Arc<Mutex<HashMap<H256, VecDeque<eyre::Result<Box<dyn InterchainSecurityModule>>>>>>,
     pub build_routing_ism: ResponseList<eyre::Result<Box<dyn RoutingIsm>>>,
