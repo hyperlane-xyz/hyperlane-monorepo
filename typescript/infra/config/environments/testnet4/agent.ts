@@ -43,13 +43,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
+    alfajores: false,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
-    berabartio: true,
     bsctestnet: true,
     camptestnet: true,
+    carrchaintestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
@@ -60,7 +60,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
+    infinityvmmonza: true,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -70,6 +72,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sepolia: true,
     solanatestnet: true,
     soneiumtestnet: true,
+    somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
     suavetoliman: true,
@@ -77,17 +80,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositiontestnet: true,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
+    alfajores: false,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
-    berabartio: true,
     bsctestnet: true,
     camptestnet: true,
+    carrchaintestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
@@ -98,7 +102,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: false,
+    infinityvmmonza: true,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -108,6 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sepolia: true,
     solanatestnet: true,
     soneiumtestnet: true,
+    somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
     suavetoliman: true,
@@ -115,17 +122,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositiontestnet: true,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
+    alfajores: false,
     arbitrumsepolia: true,
     arcadiatestnet2: false,
     basesepolia: true,
-    berabartio: true,
     bsctestnet: true,
     camptestnet: true,
+    carrchaintestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: false,
@@ -136,7 +144,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: false,
+    infinityvmmonza: true,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -145,6 +155,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: false,
+    somniatestnet: true,
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
@@ -153,6 +164,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositiontestnet: false,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
 };
 
@@ -171,6 +183,15 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Temporary workaround due to InfinityVM Monza whitelisting.
+      { originDomain: getDomainId('infinityvmmonza') },
+      // Temporary workaround due to InfinityVM Monza whitelisting.
+      { destinationDomain: getDomainId('infinityvmmonza') },
+    ],
+  },
   // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -231,7 +252,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b4b4bf5-20250207-143954',
+      tag: '8c3e983-20250310-144838',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -253,7 +274,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b4b4bf5-20250207-143954',
+      tag: '9c57bfe-20250307-120826',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -262,7 +283,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b4b4bf5-20250207-143954',
+      tag: 'af7146e-20250314-172005',
     },
     resources: scraperResources,
   },
@@ -277,7 +298,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c0c967-20241218-173053',
+      tag: '8c3e983-20250310-144838',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,

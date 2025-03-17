@@ -376,12 +376,12 @@ pub mod test {
 
     fn initialize_queue(broadcaster: &sync::broadcast::Sender<MessageRetryRequest>) -> OpQueue {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
-        let op_queue = OpQueue::new(
+
+        OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
             Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
-        op_queue
+        )
     }
 
     fn generate_test_messages(

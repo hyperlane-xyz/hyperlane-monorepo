@@ -45,6 +45,11 @@ export enum TokenStandard {
   CwHypNative = 'CwHypNative',
   CwHypCollateral = 'CwHypCollateral',
   CwHypSynthetic = 'CwHypSynthetic',
+
+  //Starknet
+  StarknetHypNative = 'StarknetHypNative',
+  StarknetHypCollateral = 'StarknetHypCollateral',
+  StarknetHypSynthetic = 'StarknetHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -86,6 +91,11 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CwHypNative: ProtocolType.Cosmos,
   CwHypCollateral: ProtocolType.Cosmos,
   CwHypSynthetic: ProtocolType.Cosmos,
+
+  // Starknet
+  StarknetHypCollateral: ProtocolType.Starknet,
+  StarknetHypNative: ProtocolType.Starknet,
+  StarknetHypSynthetic: ProtocolType.Starknet,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -146,6 +156,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
+  TokenStandard.StarknetHypNative,
+  TokenStandard.StarknetHypCollateral,
+  TokenStandard.StarknetHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -181,9 +194,29 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
 };
 
+// Starknet supported token types
+export const STARKNET_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.native,
+  TokenType.synthetic,
+] as const;
+
+type StarknetSupportedTokenTypes =
+  (typeof STARKNET_SUPPORTED_TOKEN_TYPES)[number];
+
+export const STARKNET_TOKEN_TYPE_TO_STANDARD: Record<
+  StarknetSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.StarknetHypCollateral,
+  [TokenType.native]: TokenStandard.StarknetHypNative,
+  [TokenType.synthetic]: TokenStandard.StarknetHypSynthetic,
+};
+
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
     [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
+    [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
   };

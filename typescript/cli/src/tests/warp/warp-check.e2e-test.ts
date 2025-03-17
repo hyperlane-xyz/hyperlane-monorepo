@@ -5,13 +5,19 @@ import { zeroAddress } from 'viem';
 import { ERC20Test } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  HookConfig,
   HookType,
+  IsmConfig,
   IsmType,
+  MUTABLE_HOOK_TYPE,
+  MUTABLE_ISM_TYPE,
   TokenType,
   WarpRouteDeployConfig,
   randomAddress,
+  randomHookConfig,
+  randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert, deepCopy, randomInt } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -25,6 +31,8 @@ import {
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
+  deployXERC20LockboxToken,
+  deployXERC20VSToken,
   handlePrompts,
 } from '../commands/helpers.js';
 import {
@@ -51,6 +59,17 @@ describe('hyperlane warp check e2e tests', async function () {
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();
+  });
+
+  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+    return warpConfig;
+  }
+
+  // Reset config before each test to avoid test changes intertwining
+  beforeEach(async function () {
     ownerAddress = new Wallet(ANVIL_KEY).address;
     warpConfig = {
       [CHAIN_NAME_2]: {
@@ -67,46 +86,18 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-
-    return warpConfig;
-  }
-
-  describe('HYP_KEY=... hyperlane warp check --config ...', () => {
+  describe('hyperlane warp check --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
       await deployAndExportWarpRoute();
 
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        hypKey: ANVIL_KEY,
+      const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
 
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
-      );
-    });
-  });
-
-  describe('hyperlane warp check --key ... --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
-      await deployAndExportWarpRoute();
-
-      const finalOutput = await hyperlaneWarpCheckRaw({
-        privateKey: ANVIL_KEY,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.include(
         'Please specify either a symbol, chain and address or warp file',
       );
     });
@@ -163,6 +154,7 @@ describe('hyperlane warp check e2e tests', async function () {
           relayer: ownerAddress,
         };
       });
+
       it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
@@ -186,6 +178,7 @@ describe('hyperlane warp check e2e tests', async function () {
           beneficiary: ownerAddress,
         };
       });
+
       it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
@@ -241,5 +234,185 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
     });
+
+    describe('check extra lockboxes', () => {
+      async function deployXERC20WarpRoute(): Promise<
+        [string, WarpRouteDeployConfig]
+      > {
+        const xERC20TokenSymbol = 'XERC20TOKEN';
+        const xERC20Token = await deployXERC20VSToken(
+          ANVIL_KEY,
+          CHAIN_NAME_2,
+          undefined,
+          xERC20TokenSymbol,
+        );
+
+        const token = await deployToken(
+          ANVIL_KEY,
+          CHAIN_NAME_2,
+          undefined,
+          'XERC20Collateral',
+        );
+        const xERC20Lockbox = await deployXERC20LockboxToken(
+          ANVIL_KEY,
+          CHAIN_NAME_2,
+          token,
+        );
+
+        const tx = await xERC20Token.addBridge({
+          bridge: xERC20Lockbox.address,
+          bufferCap: '1000',
+          rateLimitPerSecond: '1000',
+        });
+
+        await tx.wait();
+
+        const warpConfig: WarpRouteDeployConfig = {
+          [CHAIN_NAME_2]: {
+            type: TokenType.XERC20,
+            token: xERC20Token.address,
+            mailbox: chain2Addresses.mailbox,
+            owner: ownerAddress,
+            xERC20: {
+              warpRouteLimits: {
+                bufferCap: '0',
+                rateLimitPerSecond: '0',
+              },
+              extraBridges: [
+                {
+                  limits: {
+                    bufferCap: '1000',
+                    rateLimitPerSecond: '1000',
+                  },
+                  lockbox: xERC20Lockbox.address,
+                },
+              ],
+            },
+          },
+        };
+
+        writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+        await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+        return [xERC20TokenSymbol, warpConfig];
+      }
+
+      it(`should not find differences between the local limits and the on chain ones`, async function () {
+        const [xERC20TokenSymbol] = await deployXERC20WarpRoute();
+
+        const output = await hyperlaneWarpCheck(
+          WARP_DEPLOY_OUTPUT_PATH,
+          xERC20TokenSymbol,
+        ).nothrow();
+
+        expect(output.exitCode).to.equal(0);
+      });
+
+      it(`should find differences between the local limits and the on chain ones`, async function () {
+        const [xERC20TokenSymbol, warpDeployConfig] =
+          await deployXERC20WarpRoute();
+
+        assert(
+          warpDeployConfig[CHAIN_NAME_2].type === TokenType.XERC20,
+          'Deploy config should be for an XERC20 token',
+        );
+        const currentExtraBridgesLimits =
+          warpDeployConfig[CHAIN_NAME_2].xERC20!.extraBridges![0];
+        const wrongBufferCap = randomInt(100).toString();
+        warpDeployConfig[CHAIN_NAME_2].xERC20!.extraBridges = [
+          {
+            ...currentExtraBridgesLimits,
+            limits: {
+              bufferCap: wrongBufferCap,
+              rateLimitPerSecond:
+                currentExtraBridgesLimits.limits.rateLimitPerSecond,
+            },
+          },
+        ];
+
+        writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+        const expectedDiffText = `EXPECTED: "${wrongBufferCap}"\n`;
+        const expectedActualText = `ACTUAL: "${currentExtraBridgesLimits.limits.rateLimitPerSecond}"\n`;
+
+        const output = await hyperlaneWarpCheck(
+          WARP_DEPLOY_OUTPUT_PATH,
+          xERC20TokenSymbol,
+        ).nothrow();
+
+        expect(output.exitCode).to.equal(1);
+        expect(output.text()).includes(expectedDiffText);
+        expect(output.text()).includes(expectedActualText);
+      });
+    });
   });
+
+  for (const hookType of MUTABLE_HOOK_TYPE) {
+    it(`should find owner differences between the local config and the on chain config for ${hookType}`, async function () {
+      warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
+      await deployAndExportWarpRoute();
+
+      const mutatedWarpConfig = deepCopy(warpConfig);
+
+      const hookConfig: Extract<
+        HookConfig,
+        { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
+      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
+      const actualOwner = hookConfig.owner;
+      const wrongOwner = randomAddress();
+      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
+      hookConfig.owner = wrongOwner;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
+
+      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
+      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
+
+      const output = await hyperlaneWarpCheck(
+        WARP_DEPLOY_OUTPUT_PATH,
+        tokenSymbol,
+      ).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text().includes(expectedDiffText)).to.be.true;
+      expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+  }
+
+  for (const ismType of MUTABLE_ISM_TYPE) {
+    it(`should find owner differences between the local config and the on chain config for ${ismType}`, async function () {
+      // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
+      warpConfig[CHAIN_NAME_3].interchainSecurityModule =
+        ismType === IsmType.PAUSABLE
+          ? {
+              type: IsmType.PAUSABLE,
+              owner: randomAddress(),
+              paused: true,
+            }
+          : randomIsmConfig(0, 2, ismType);
+      await deployAndExportWarpRoute();
+
+      const mutatedWarpConfig = deepCopy(warpConfig);
+
+      const ismConfig: Extract<
+        IsmConfig,
+        { type: (typeof MUTABLE_ISM_TYPE)[number]; owner: string }
+      > = mutatedWarpConfig[CHAIN_NAME_3].interchainSecurityModule;
+      const actualOwner = ismConfig.owner;
+      const wrongOwner = randomAddress();
+      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
+      ismConfig.owner = wrongOwner;
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
+
+      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
+      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
+
+      const output = await hyperlaneWarpCheck(
+        WARP_DEPLOY_OUTPUT_PATH,
+        tokenSymbol,
+      ).nothrow();
+
+      expect(output.exitCode).to.equal(1);
+      expect(output.text().includes(expectedDiffText)).to.be.true;
+      expect(output.text().includes(expectedActualText)).to.be.true;
+    });
+  }
 });

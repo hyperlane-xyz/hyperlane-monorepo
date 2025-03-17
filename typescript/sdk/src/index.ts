@@ -1,3 +1,7 @@
+export { MUTABLE_ISM_TYPE } from './ism/types.js';
+
+export { MUTABLE_HOOK_TYPE } from './hook/types.js';
+
 export { HyperlaneApp } from './app/HyperlaneApp.js';
 export {
   AdapterClassType,
@@ -244,11 +248,15 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
+  ChainDisabledReason,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
+  ChainStatus,
   ChainTechnicalStack,
+  DisabledChainSchema,
   EthJsonRpcBlockParameterTag,
+  EnabledChainSchema,
   ExplorerFamily,
   ExplorerFamilyValue,
   getChainIdNumber,
@@ -373,7 +381,11 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
-export { randomAddress } from './test/testUtils.js';
+export {
+  randomAddress,
+  randomHookConfig,
+  randomIsmConfig,
+} from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
@@ -481,6 +493,7 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,
@@ -497,15 +510,19 @@ export {
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
+  EvmXERC20VSAdapter,
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmHypVSXERC20LockboxAdapter,
+  EvmHypVSXERC20Adapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
   IHypXERC20Adapter,
+  IHypVSXERC20Adapter,
   InterchainGasQuote,
   ITokenAdapter,
   TransferParams,
@@ -580,6 +597,7 @@ export {
   HypTokenRouterConfigSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
+  isXERC20TokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
@@ -593,8 +611,12 @@ export {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
+  XERC20TokenMetadata,
+  XERC20LimitConfig,
 } from './token/types.js';
 export {
   ChainMap,

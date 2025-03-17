@@ -106,6 +106,7 @@ export function SearchMenu<
       e.stopPropagation();
       if (results.length === 1) {
         const item = results[0];
+        if (item.disabled) return;
         isEditMode ? onClickEditItem(item) : onClickItem(item);
       }
     },

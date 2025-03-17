@@ -1,10 +1,10 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
-import { getRegistry } from '@hyperlane-xyz/cli';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { diffObjMerge } from '@hyperlane-xyz/utils';
+import { diffObjMerge, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
@@ -20,6 +20,8 @@ const DEFAULT_TIMEOUT = 60000;
 const warpIdsToSkip = [
   'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
+  'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain-staging',
+  'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
 ];
 
 describe('Warp Configs', async function () {
@@ -34,10 +36,11 @@ describe('Warp Configs', async function () {
 
   before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
-    configsFromGithub = await getRegistry(
-      [DEFAULT_GITHUB_REGISTRY],
-      true,
-    ).getWarpDeployConfigs();
+    configsFromGithub = await getRegistry({
+      registryUris: [DEFAULT_GITHUB_REGISTRY],
+      enableProxy: true,
+      logger: rootLogger,
+    }).getWarpDeployConfigs();
   });
 
   const envConfig = getEnvironmentConfig(ENV);

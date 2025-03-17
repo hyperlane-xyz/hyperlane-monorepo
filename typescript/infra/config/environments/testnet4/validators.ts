@@ -209,18 +209,6 @@ export const validatorChainConfig = (
         'polygonamoy',
       ),
     },
-    berabartio: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('berabartio'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x541dd3cb282cf869d72883557badae245b63e1fd'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'berabartio',
-      ),
-    },
     citreatestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('citreatestnet'),
@@ -449,6 +437,58 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4'],
         },
         'chronicleyellowstone',
+      ),
+    },
+
+    monadtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('monadtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x734628f55694d2a5f4de3e755ccb40ecd72b16d9'],
+        },
+        'monadtestnet',
+      ),
+    },
+    weavevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('weavevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40'],
+        },
+        'weavevmtestnet',
+      ),
+    },
+
+    carrchaintestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('carrchaintestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa96dfc4d8c6cabb510701732ee01e52a75776205'],
+        },
+        'carrchaintestnet',
+      ),
+    },
+    somniatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('somniatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb3b27a27bfa94002d344e9cf5217a0e3502e018b'],
+        },
+        'somniatestnet',
+      ),
+    },
+    infinityvmmonza: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('infinityvmmonza'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb'],
+        },
+        'infinityvmmonza',
       ),
     },
   };

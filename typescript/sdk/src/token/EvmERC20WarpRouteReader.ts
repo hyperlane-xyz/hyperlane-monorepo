@@ -33,13 +33,14 @@ import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { proxyAdmin } from './../deploy/proxy.js';
-import { TokenType } from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   HypTokenConfig,
   HypTokenRouterConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
+import { getExtraLockBoxConfigs } from './xerc20.js';
 
 export class EvmERC20WarpRouteReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({
@@ -153,11 +154,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     // Finally check native
     // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
     try {
-      await this.multiProvider.estimateGas(this.chain, {
-        to: warpRouteAddress,
-        from: await this.multiProvider.getSignerAddress(this.chain),
-        value: BigNumber.from(0),
-      });
+      await this.multiProvider.estimateGas(
+        this.chain,
+        {
+          to: warpRouteAddress,
+          value: BigNumber.from(0),
+        },
+        NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
+      );
       return TokenType.native;
     } catch (e) {
       throw Error(`Error accessing token specific method ${e}`);
@@ -211,18 +215,32 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       'function bufferCap(address) external view returns (uint112)',
     ];
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+
     try {
+      const extraBridgesLimits = await getExtraLockBoxConfigs({
+        chain: this.chain,
+        multiProvider: this.multiProvider,
+        xERC20Address,
+        logger: this.logger,
+      });
+
       return {
         xERC20: {
-          limits: {
+          warpRouteLimits: {
             rateLimitPerSecond: (
               await xERC20.rateLimitPerSecond(warpRouteAddress)
             ).toString(),
             bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
           },
+          extraBridges:
+            extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
         },
       };
-    } catch (_error) {
+    } catch (error) {
+      this.logger.error(
+        `Error fetching xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
+        error,
+      );
       return {};
     }
   }
