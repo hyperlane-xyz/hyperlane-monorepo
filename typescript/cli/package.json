@@ -37,6 +37,7 @@
     "@types/yargs": "^17.0.24",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
+    "@vercel/ncc": "^0.38.3",
     "chai": "^4.5.0",
     "chai-as-promised": "^8.0.0",
     "eslint": "^9.15.0",
@@ -45,14 +46,12 @@
     "eslint-plugin-import": "^2.31.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
-    "typescript": "5.3.3",
-    "webpack": "^5.98.0",
-    "webpack-cli": "^6.0.1"
+    "typescript": "5.3.3"
   },
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
     "build": "yarn version:update && tsc && yarn bundle",
-    "bundle": "rm -rf ./bundle && webpack --config webpack.config.mjs",
+    "bundle": "rm -rf ./cli-bundle && ncc build ./dist/cli.js -o cli-bundle && node ./scripts/ncc.post-bundle.mjs",
     "dev": "yarn version:update && tsc --watch",
     "clean": "rm -rf ./dist && rm -rf ./cli-bundle",
     "lint": "eslint -c ./eslint.config.mjs",
@@ -76,7 +75,7 @@
     "node": ">=16"
   },
   "bin": {
-    "hyperlane": "./cli-bundle/cli.js"
+    "hyperlane": "./cli-bundle/index.js"
   },
   "repository": {
     "type": "git",
