@@ -102,13 +102,13 @@ export async function getContext({
   skipConfirmation,
   disableProxy = false,
   strategyPath,
-  // @ts-ignore - To be used when getRegistry function is updated to include authToken parameter
   authToken,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry({
     registryUris,
     enableProxy: !disableProxy,
     logger: rootLogger,
+    authToken,
   });
 
   //Just for backward compatibility
@@ -144,7 +144,6 @@ export async function getDryRunContext(
     fromAddress,
     skipConfirmation,
     disableProxy = false,
-    // @ts-ignore - To be used when getRegistry function is updated to include authToken parameter
     authToken,
   }: ContextSettings,
   chain?: ChainName,
@@ -153,6 +152,7 @@ export async function getDryRunContext(
     registryUris,
     enableProxy: !disableProxy,
     logger: rootLogger,
+    authToken,
   });
   const chainMetadata = await registry.getMetadata();
 
