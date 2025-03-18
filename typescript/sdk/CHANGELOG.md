@@ -1,5 +1,79 @@
 # @hyperlane-xyz/sdk
 
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+- b07e2f2ea: Estimate gas + add buffer on mailbox initialization, setting ISMs, setting IGP configs, setting routing hooks.
+
+### Patch Changes
+
+- 88970a78c: Deploy new scaled warp route bytecode
+- Updated dependencies [88970a78c]
+- Updated dependencies [88970a78c]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/core@6.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- d121c1cb8: Add XERC20 derivation in SDK/CLI Warp Reading
+- 3518f8901: Implement HyperlaneCCIPDeployer and CCIPContractCache, for deploying and initializing CCIP ISMs/Hooks for supported pairs of CCIP chains.
+- d6ddf5b9e: make warp:read and warp:check/warp:verify operations independent of signer requirements
+- 766f50695: Change semantics of ism/hook config from undefined to 0x0 for reading/checking purposes
+- e78060d73: Add CCIP boiler plate for existing ISM and Hook deployers.
+- cb7c157f0: Support DefaultHook in the SDK.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 1955579cf: Expand warpDeployConfig for checking purposes
+- 57137dad4: Add consts and utils for integrating with CCIP.
+- 500249649: Enable usage of CCIP Hooks and ISMs in warp routes.
+- 03266e2c2: add amount routing hook support in the sdk and cli
+- cb93c13a4: Add EvmHypVSXERC20LockboxAdapter and EvmHypVSXERC20Adapter adapters
+- 4147f91cb: Added AmountRoutingIsm support to the IsmReader and Factory
+
+### Patch Changes
+
+- 456407dc7: Adds checking to warp route collateral contracts
+- Updated dependencies [1a0eba65b]
+- Updated dependencies [05f89650b]
+- Updated dependencies [9a010dfc1]
+- Updated dependencies [1a0eba65b]
+- Updated dependencies [f3c67a214]
+- Updated dependencies [3518f8901]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [27eadbfc3]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/core@5.12.0
+  - @hyperlane-xyz/utils@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+- @hyperlane-xyz/core@5.11.6
+
+## 8.8.0
+
+### Minor Changes
+
+- 719d022ec: Add availability field to Chain Metadata
+- c61546cb7: Remove priority fee for sealevel non-solana chains
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+- @hyperlane-xyz/core@5.11.5
+
 ## 8.7.0
 
 ### Minor Changes

@@ -48,9 +48,9 @@ impl Decode for ethers_core::types::Signature {
         let mut buf = [0u8; 65];
         let len = reader.read(&mut buf)?;
         if len != 65 {
-            Err(ethers_core::types::SignatureError::InvalidLength(len).into())
+            Err(Box::new(ethers_core::types::SignatureError::InvalidLength(len)).into())
         } else {
-            Ok(Self::try_from(buf.as_ref())?)
+            Ok(Self::try_from(buf.as_ref()).map_err(Box::new)?)
         }
     }
 }

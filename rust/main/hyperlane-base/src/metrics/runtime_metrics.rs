@@ -5,7 +5,7 @@ use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use prometheus::IntCounter;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tokio_metrics::{TaskMetrics, TaskMonitor};
-use tracing::{info_span, instrument::Instrumented, Instrument};
+use tracing::{info_span, Instrument};
 
 use super::CoreMetrics;
 
@@ -54,11 +54,16 @@ impl RuntimeMetrics {
     }
 
     /// Spawns a tokio task to update the metrics
-    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
-        tokio::spawn(async move {
-            self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                .await;
-        })
-        .instrument(info_span!("RuntimeMetricsUpdater"))
+    pub fn spawn(self) -> JoinHandle<()> {
+        tokio::task::Builder::new()
+            .name("metrics::runtime")
+            .spawn(
+                async move {
+                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                        .await;
+                }
+                .instrument(info_span!("RuntimeMetricsUpdater")),
+            )
+            .expect("spawning tokio task from Builder is infallible")
     }
 }

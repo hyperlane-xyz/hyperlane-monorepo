@@ -22,4 +22,10 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Atom',
     symbol: 'ATOM',
   },
+  [ProtocolType.Starknet]: {
+    decimals: 18,
+    denom: '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
+    name: 'Ether',
+    symbol: 'ETH',
+  },
 };

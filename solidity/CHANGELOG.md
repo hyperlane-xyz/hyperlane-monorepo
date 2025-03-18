@@ -1,5 +1,81 @@
 # @hyperlane-xyz/core
 
+## 6.0.0
+
+### Major Changes
+
+- 88970a78c: ## Changes
+
+  Add immutable `scale` parameter to all warp route variants which scales outbound amounts **down** and inbound amounts **up**. This is useful when different chains of the route have different decimal places to unify semantics of amounts in messages.
+
+  Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
+
+  ## Migration
+
+  If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
+
+  ### `HypNativeScaled` Usage
+
+  ```diff
+  - HypNativeScaled(scale, mailbox)
+  + HypNative(scale, mailbox)
+  ```
+
+  ### `HypERC20` Usage
+
+  ```diff
+  - HypERC20(decimals, mailbox)
+  + HypERC20(decimals, scale, mailbox)
+  ```
+
+  ### `HypERC20Collateral` Usage
+
+  ```diff
+  - HypERC20Collateral(erc20, mailbox)
+  + HypERC20Collateral(erc20, scale, mailbox)
+  ```
+
+### Minor Changes
+
+- 88970a78c: Fixed misuse of aggregation hook funds for relaying messages by making sure msg.value is adequate and refunding if excess.
+
+### Patch Changes
+
+- 88970a78c: Refactor TokenRouter internal amount accounting for use in scaling Warp Routes
+- Updated dependencies [4df37393f]
+  - @hyperlane-xyz/utils@9.0.0
+
+## 5.12.0
+
+### Minor Changes
+
+- 1a0eba65b: Implement warp route amount routing ISM
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 9a010dfc1: Implement CCIP hook and ISM with unordered execution
+- 1a0eba65b: Implement warp amount routing hook
+- f3c67a214: Implement mailbox.defaultHook redirect
+- 03266e2c2: add amount routing hook support in the sdk and cli
+- 4147f91cb: Added AmountRoutingIsm support to the IsmReader and Factory
+
+### Patch Changes
+
+- 27eadbfc3: Add internal refund logic to hooks
+- Updated dependencies [05f89650b]
+- Updated dependencies [3518f8901]
+  - @hyperlane-xyz/utils@8.9.0
+
+## 5.11.6
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+
+## 5.11.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+
 ## 5.11.4
 
 ### Patch Changes

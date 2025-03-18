@@ -117,6 +117,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     injective: true,
     ink: true,
     kaia: true,
@@ -143,6 +144,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -251,6 +253,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     injective: true,
     ink: true,
     kaia: true,
@@ -272,12 +275,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     morph: true,
     nero: true,
-    // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
-    neutron: false,
+    neutron: true,
     oortmainnet: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -386,6 +389,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: true,
     ink: true,
     injective: true,
     kaia: true,
@@ -412,6 +416,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
@@ -534,6 +539,16 @@ const contextBase = {
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
+      {
+        originDomain: getDomainId('infinityvm'),
+        destinationDomain: getDomainId('solanamainnet'),
+      },
+    ],
+  },
+  {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
@@ -541,6 +556,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
+      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
+      // outside of Solana are ignored.
+      { originDomain: getDomainId('infinityvm') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -610,8 +628,8 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
-    cpu: '14000m',
-    memory: '28G',
+    cpu: '20000m',
+    memory: '55G',
   },
 };
 
@@ -681,12 +699,22 @@ const blacklistedMessageIds = [
   '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
   '0xad52d640ed71b4363731a78becc8ad1d4aa8549a290c554e48281196478ade83',
   '0x984994d247edd9967182ba91b236a4e10223ef66e3b96259f06f2b7c7fbd8176',
+
+  // oUSDT dest with zero'd out limits
+  '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
-const blacklist: MatchingList = blacklistedMessageIds.map((messageId) => ({
-  messageId,
-}));
+const blacklist: MatchingList = [
+  {
+    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
+    // A temporary measure to prevent some wasted effort on our relayer.
+    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
+  },
+  ...blacklistedMessageIds.map((messageId) => ({
+    messageId,
+  })),
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -697,7 +725,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae8f7c6-20250227-181639',
+      tag: 'cc3af7d-20250304-172021',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -707,7 +735,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '328011a-20250218-173927',
+      tag: 'f5174e6-20250310-182921',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -717,7 +745,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd82d24c-20250225-211517',
+      tag: 'af7146e-20250314-172005',
     },
     resources: scraperResources,
   },
@@ -732,7 +760,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c98b615-20250221-155531',
+      tag: 'f5174e6-20250310-182921',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -766,7 +794,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c98b615-20250221-155531',
+      tag: 'cc3af7d-20250304-172021',
     },
     blacklist,
     gasPaymentEnforcement,
