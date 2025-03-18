@@ -555,6 +555,7 @@ export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  transformConfigToCheck,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
@@ -617,7 +618,9 @@ export {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
   XERC20TokenMetadata,
   XERC20LimitConfig,
