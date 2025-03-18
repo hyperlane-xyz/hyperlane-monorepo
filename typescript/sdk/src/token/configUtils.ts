@@ -31,6 +31,12 @@ const getGasConfig = (
   warpDeployConfig[chain].gas?.toString() ||
   gasOverhead(warpDeployConfig[chain].type).toString();
 
+/**
+ * Returns default router addresses and gas values for cross-chain communication.
+ * For each remote chain:
+ * - Sets up router addresses for message routing
+ * - Configures gas values for message processing
+ */
 export function getDefaultRemoteRouterAndDestinationGasConfig(
   multiProvider: MultiProvider,
   chain: string,
@@ -143,5 +149,31 @@ export function transformConfigToCheck(
 
   return sortArraysInConfig(
     transformObj(filteredObj, transformWarpDeployConfigToCheck),
+  );
+}
+
+/**
+ * Splits warp deploy config into existing and extended configurations based on warp core chains
+ * for the warp apply process.
+ */
+export function splitWarpCoreAndExtendedConfigs(
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpCoreChains: string[],
+): [
+  WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequired,
+] {
+  return Object.entries(warpDeployConfig).reduce<
+    [WarpRouteDeployConfigMailboxRequired, WarpRouteDeployConfigMailboxRequired]
+  >(
+    ([existing, extended], [chain, config]) => {
+      if (warpCoreChains.includes(chain)) {
+        existing[chain] = config;
+      } else {
+        extended[chain] = config;
+      }
+      return [existing, extended];
+    },
+    [{}, {}],
   );
 }
