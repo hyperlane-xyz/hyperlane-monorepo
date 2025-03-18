@@ -68,6 +68,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
+    rometestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -110,6 +111,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
+    rometestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -152,6 +154,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
+    rometestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: false,

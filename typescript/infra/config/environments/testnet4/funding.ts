@@ -54,6 +54,7 @@ export const keyFunderConfig: KeyFunderConfig<
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: '0.2',
     polygonamoy: '0.2',
+    rometestnet: '0.1',
     scrollsepolia: '1',
     sepolia: '5',
     // no funding for SVM chains

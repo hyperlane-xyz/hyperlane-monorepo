@@ -20,11 +20,11 @@
     "decimals": 9
   },
   "basesepolia": {
-    "amount": "0.001000378",
+    "amount": "0.083553738",
     "decimals": 9
   },
   "bsctestnet": {
-    "amount": "3.0",
+    "amount": "1.0",
     "decimals": 9
   },
   "camptestnet": {
@@ -64,11 +64,11 @@
     "decimals": 9
   },
   "fuji": {
-    "amount": "1.000000001",
+    "amount": "0.000000002",
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.001000008",
+    "amount": "0.001000007",
     "decimals": 9
   },
   "hyperliquidevmtestnet": {
@@ -88,23 +88,27 @@
     "decimals": 9
   },
   "odysseytestnet": {
-    "amount": "2.305269988",
+    "amount": "1.500000252",
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.001000252",
+    "amount": "0.001000282",
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "32.64322213",
+    "amount": "62.286653248",
+    "decimals": 9
+  },
+  "rometestnet": {
+    "amount": "0.000000001",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "0.039205728",
+    "amount": "0.040060794",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "0.036010876",
+    "amount": "5.006879327",
     "decimals": 9
   },
   "solanatestnet": {
@@ -116,7 +120,7 @@
     "decimals": 9
   },
   "soneiumtestnet": {
-    "amount": "0.001000252",
+    "amount": "0.001990144",
     "decimals": 9
   },
   "sonicblaze": {
