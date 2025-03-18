@@ -468,12 +468,12 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
 });
 
 // Create a GnosisSafeBuilder Strategy for each safe address
-export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
-  ezEthSafes: Record<string, string>,
+export function getGnosisSafeBuilderStrategyConfigGenerator(
+  safes: Record<string, string>,
 ) {
   return (): ChainSubmissionStrategy => {
     return Object.fromEntries(
-      Object.entries(ezEthSafes).map(([chain, safeAddress]) => [
+      Object.entries(safes).map(([chain, safeAddress]) => [
         chain,
         {
           submitter: {
@@ -489,4 +489,4 @@ export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
 }
 
 export const getRenzoGnosisSafeBuilderStrategyConfig =
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
+  getGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
