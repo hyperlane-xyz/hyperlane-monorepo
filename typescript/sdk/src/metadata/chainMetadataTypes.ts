@@ -22,6 +22,7 @@ export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
   Routescan = 'routescan',
+  Voyager = 'voyager',
   ZkSync = 'zksync',
   Other = 'other',
 }

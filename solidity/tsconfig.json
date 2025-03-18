@@ -4,5 +4,11 @@
     "outDir": "./dist",
     "rootDir": "./core-utils"
   },
-  "exclude": ["./test", "hardhat.config.cts", "./dist", "zk-hardhat.config.cts"]
+  "exclude": [
+    "./test",
+    "hardhat.config.cts",
+    "./dist",
+    "zk-hardhat.config.cts",
+    "rootHardhatConfig.cts"
+  ]
 }

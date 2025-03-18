@@ -114,7 +114,15 @@ pub fn termination_invariants_met(
     if !provider_metrics_invariant_met(
         &relayer_metrics_port.to_string(),
         messages_expected,
-        &hashmap! {"status" => "success"},
+        &hashmap! {"connection" => "rpc", "status" => "success"},
+    )? {
+        return Ok(false);
+    }
+
+    if !provider_metrics_invariant_met(
+        &relayer_metrics_port.to_string(),
+        messages_expected,
+        &hashmap! {"connection" => "grpc", "status" => "success"},
     )? {
         return Ok(false);
     }
