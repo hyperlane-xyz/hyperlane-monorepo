@@ -57,7 +57,6 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     owner: owners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
-    interchainSecurityModule: ISM_CONFIG,
   };
 
   const superseed: HypTokenRouterConfig = {
@@ -67,9 +66,41 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     token: '0xc316c8252b5f2176d0135ebb0999e99296998f2e',
   };
 
+  const arbitrum: HypTokenRouterConfig = {
+    ...routerConfig.arbitrum,
+    owner: owners.arbitrum,
+    type: TokenType.collateral,
+    token: tokens.arbitrum.USDC,
+  };
+
+  const base: HypTokenRouterConfig = {
+    ...routerConfig.base,
+    owner: owners.base,
+    type: TokenType.collateral,
+    token: tokens.base.USDC,
+  };
+
+  const optimism: HypTokenRouterConfig = {
+    ...routerConfig.optimism,
+    owner: owners.optimism,
+    type: TokenType.collateral,
+    token: tokens.optimism.USDC,
+  };
+
+  const ink: HypTokenRouterConfig = {
+    ...routerConfig.ink,
+    owner: owners.ink,
+    type: TokenType.collateral,
+    token: tokens.ink.USDCe,
+  };
+
   return {
     ethereum,
     superseed,
+    arbitrum,
+    base,
+    optimism,
+    ink,
   };
 };
 
