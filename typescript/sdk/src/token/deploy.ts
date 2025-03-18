@@ -31,6 +31,7 @@ import {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -187,7 +188,7 @@ abstract class TokenDeployer<
     return undefined;
   }
 
-  async deploy(configMap: WarpRouteDeployConfig) {
+  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
       tokenMetadata = await TokenDeployer.deriveTokenMetadata(
