@@ -37,11 +37,13 @@ import {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isXERC20TokenConfig,
 } from './types.js';
 
 abstract class TokenDeployer<
@@ -67,18 +69,21 @@ abstract class TokenDeployer<
     _: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
-    if (isCollateralTokenConfig(config)) {
-      return [config.token, config.mailbox];
+    // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
+    const scale = config.scale ?? 1;
+
+    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+      return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
-      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
+      return [scale, config.mailbox];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, config.mailbox];
+      return [config.decimals, scale, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, config.mailbox, collateralDomain];
+      return [config.decimals, scale, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -95,7 +100,11 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (isCollateralTokenConfig(config) || isNativeTokenConfig(config)) {
+    if (
+      isCollateralTokenConfig(config) ||
+      isXERC20TokenConfig(config) ||
+      isNativeTokenConfig(config)
+    ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
@@ -132,7 +141,7 @@ abstract class TokenDeployer<
         }
       }
 
-      if (isCollateralTokenConfig(config)) {
+      if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
         const provider = multiProvider.getProvider(chain);
 
         if (config.isNft) {
@@ -189,7 +198,7 @@ abstract class TokenDeployer<
     return undefined;
   }
 
-  async deploy(configMap: WarpRouteDeployConfig) {
+  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
       tokenMetadata = await TokenDeployer.deriveTokenMetadata(

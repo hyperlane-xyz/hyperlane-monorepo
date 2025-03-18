@@ -27,7 +27,9 @@ use cosmrs::{
     Any, Coin,
 };
 use derive_new::new;
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 use ibc_proto::cosmos::{
     auth::v1beta1::QueryAccountResponse, bank::v1beta1::QueryBalanceResponse,
     base::tendermint::v1beta1::GetLatestBlockResponse,
@@ -136,6 +138,7 @@ impl CosmosChannel {
         > = grpc_client
             .unary(req, path, codec)
             .await
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok(response.into_inner())
     }
@@ -212,6 +215,7 @@ impl CosmosChannel {
         let response = client
             .broadcast_tx(tx_req)
             .await
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?
             .into_inner()
             .tx_response
@@ -310,7 +314,8 @@ impl WasmGrpcProvider {
             .get_grpc_urls()
             .into_iter()
             .map(|url| {
-                let metrics_config = PrometheusConfig::from_url(&url, chain.clone());
+                let metrics_config =
+                    PrometheusConfig::from_url(&url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
                     .map(|e| {
                         let metrics_channel =
@@ -383,6 +388,7 @@ impl WasmGrpcProvider {
             amount,
             self.conf.get_canonical_asset().as_str(),
         )
+        .map_err(Box::new)
         .map_err(Into::<HyperlaneCosmosError>::into)?;
         let auth_info =
             signer_info.auth_info(Fee::from_amount_and_gas(fee_coin.clone(), gas_limit));
@@ -391,10 +397,12 @@ impl WasmGrpcProvider {
             .conf
             .get_chain_id()
             .parse()
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok((
             SignDoc::new(&tx_body, &auth_info, &chain_id, account_info.account_number)
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?,
             fee_coin,
         ))
@@ -420,10 +428,12 @@ impl WasmGrpcProvider {
         let signer = self.get_signer()?;
         let tx_signed = sign_doc
             .sign(&signer.signing_key()?)
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
         Ok((
             tx_signed
                 .to_bytes()
+                .map_err(Box::new)
                 .map_err(Into::<HyperlaneCosmosError>::into)?,
             fee,
         ))
@@ -633,8 +643,8 @@ impl WasmProvider for WasmGrpcProvider {
         let fee_amount: U256 = fee.amount.into();
         if signer_balance < fee_amount {
             return Err(ChainCommunicationError::InsufficientFunds {
-                required: fee_amount,
-                available: signer_balance,
+                required: Box::new(fee_amount),
+                available: Box::new(signer_balance),
             });
         }
 
