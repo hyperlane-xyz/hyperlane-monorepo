@@ -115,7 +115,7 @@ export const apply: CommandModuleWithWriteContext<{
 
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+    const warpDeployConfig = await readWarpRouteDeployConfig(config, context);
 
     await runWarpRouteApply({
       context,
