@@ -4,16 +4,23 @@ use std::{fmt::Debug, time::Instant};
 
 use derive_builder::Builder;
 use maplit::hashmap;
-use prometheus::{CounterVec, IntCounterVec, IntGaugeVec};
+use prometheus::{CounterVec, IntCounterVec};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::utils::url_to_host_info;
 
 /// Expected label names for the metric.
-pub const PROVIDER_COUNT_LABELS: &[&str] = &["chain"];
+pub const PROVIDER_CREATE_COUNT_LABELS: &[&str] = &["chain"];
 /// Help string for the metric.
-pub const PROVIDER_COUNT_HELP: &str = "Total number of provider instances made by this client";
+pub const PROVIDER_CREATE_COUNT_HELP: &str =
+    "Total number of times this provider was instantiated by this client";
+
+/// Expected label names for the metric.
+pub const PROVIDER_DROP_COUNT_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const PROVIDER_DROP_COUNT_HELP: &str =
+    "Total number of times this provider was dropped by this client";
 
 /// Expected label names for the metric.
 pub const REQUEST_COUNT_LABELS: &[&str] =
@@ -34,7 +41,13 @@ pub struct PrometheusClientMetrics {
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
     #[builder(setter(into, strip_option), default)]
-    pub provider_count: Option<IntGaugeVec>,
+    pub provider_create_count: Option<IntCounterVec>,
+
+    /// Total number of providers being dropped.
+    /// - `chain`: chain name (or chain id if the name is unknown) of the chain
+    ///   the request was made on.
+    #[builder(setter(into, strip_option), default)]
+    pub provider_drop_count: Option<IntCounterVec>,
 
     /// Total number of requests made to this client.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
@@ -64,7 +77,7 @@ impl PrometheusClientMetrics {
         let labels = hashmap! {
             "chain" => chain,
         };
-        if let Some(counter) = &self.provider_count {
+        if let Some(counter) = &self.provider_create_count {
             counter.with(&labels).inc();
         }
     }
@@ -72,8 +85,8 @@ impl PrometheusClientMetrics {
         let labels = hashmap! {
             "chain" => chain,
         };
-        if let Some(counter) = &self.provider_count {
-            counter.with(&labels).dec();
+        if let Some(counter) = &self.provider_drop_count {
+            counter.with(&labels).inc();
         }
     }
 

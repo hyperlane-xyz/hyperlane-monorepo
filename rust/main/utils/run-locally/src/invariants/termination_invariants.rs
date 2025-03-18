@@ -275,18 +275,22 @@ pub fn provider_metrics_invariant_met(
         return Ok(false);
     }
 
-    let provider_count = fetch_metric(
+    let provider_create_count = fetch_metric(
         relayer_port,
-        "hyperlane_provider_count",
+        "hyperlane_provider_create_count",
         provider_filter_hashmap,
     )?
     .iter()
     .sum::<u32>();
 
-    log!("Provider instance count: {}", provider_count);
+    log!("Provider instance count: {}", provider_create_count);
 
-    if provider_count == 0 {
-        log!("Provider only has 0 count, expected non-zero",);
+    if provider_create_count < expected_request_count {
+        log!(
+            "Provider only has {} count, expected at least {}",
+            provider_create_count,
+            expected_request_count
+        );
         return Ok(false);
     }
 
