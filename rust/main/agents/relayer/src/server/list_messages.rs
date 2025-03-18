@@ -166,45 +166,49 @@ mod tests {
     #[tokio::test]
     async fn test_message_id_retry() {
         let (addr, op_queue) = setup_test_server();
-        let dummy_operation_1 = generate_dummy_operation_1(1);
-        let dummy_operation_2 = generate_dummy_operation_2(2);
+        let retry_count_1 = 1;
+        let retry_count_2 = 2;
+        let dummy_operation_1 = generate_dummy_operation_1(retry_count_1);
+        let dummy_operation_2 = generate_dummy_operation_2(retry_count_2);
 
         // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
         // missing on `PendingMessage` because it's derived, hence the need to hence the need to have it explicitly serialized alongside the operation.
-        let expected_response = r#"[
-  {
+        let expected_response = format!(
+            r#"[
+  {{
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
-    "operation": {
-      "destination_domain": {
+    "operation": {{
+      "destination_domain": {{
         "Known": "Arbitrum"
-      },
+      }},
       "destination_domain_id": 42161,
       "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 1,
+      "retry_count": {retry_count_1},
       "seconds_to_next_attempt": 1,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
-    }
-  },
-  {
+    }}
+  }},
+  {{
     "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
-    "operation": {
-      "destination_domain": {
+    "operation": {{
+      "destination_domain": {{
         "Known": "Arbitrum"
-      },
+      }},
       "destination_domain_id": 42161,
       "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 2,
+      "retry_count": {retry_count_2},
       "seconds_to_next_attempt": 2,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
-    }
-  }
-]"#;
+    }}
+  }}
+]"#
+        );
         op_queue.lock().await.push(Reverse(dummy_operation_1));
         op_queue.lock().await.push(Reverse(dummy_operation_2));
 
@@ -226,45 +230,49 @@ mod tests {
     #[tokio::test]
     async fn test_sorted_by_retry_count() {
         let (addr, op_queue) = setup_test_server();
-        let dummy_operation_1 = generate_dummy_operation_1(4);
-        let dummy_operation_2 = generate_dummy_operation_2(1);
+        let retry_count_1 = 4;
+        let retry_count_2 = 1;
+        let dummy_operation_1 = generate_dummy_operation_1(retry_count_1);
+        let dummy_operation_2 = generate_dummy_operation_2(retry_count_2);
 
         // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
         // missing on `PendingMessage` because it's derived, hence the need to hence the need to have it explicitly serialized alongside the operation.
-        let expected_response = r#"[
-  {
+        let expected_response = format!(
+            r#"[
+  {{
     "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
-    "operation": {
-      "destination_domain": {
+    "operation": {{
+      "destination_domain": {{
         "Known": "Arbitrum"
-      },
+      }},
       "destination_domain_id": 42161,
       "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 1,
+      "retry_count": {retry_count_2},
       "seconds_to_next_attempt": 2,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
-    }
-  },
-  {
+    }}
+  }},
+  {{
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
-    "operation": {
-      "destination_domain": {
+    "operation": {{
+      "destination_domain": {{
         "Known": "Arbitrum"
-      },
+      }},
       "destination_domain_id": 42161,
       "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
       "origin_domain_id": 0,
       "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": 4,
+      "retry_count": {retry_count_1},
       "seconds_to_next_attempt": 1,
       "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
-    }
-  }
-]"#;
+    }}
+  }}
+]"#
+        );
         op_queue.lock().await.push(Reverse(dummy_operation_1));
         op_queue.lock().await.push(Reverse(dummy_operation_2));
 
