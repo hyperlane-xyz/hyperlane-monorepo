@@ -445,6 +445,7 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
+            warn!(message_id = ?self.message.id(), tx_outcome=?self.submission_outcome, "Transaction attempting to process message either reverted or was reorged");
             let span = info_span!(
                 "Error: Transaction attempting to process message either reverted or was reorged",
                 tx_outcome=?self.submission_outcome,
