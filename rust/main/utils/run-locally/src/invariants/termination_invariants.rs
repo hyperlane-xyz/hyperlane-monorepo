@@ -283,7 +283,7 @@ pub fn provider_metrics_invariant_met(
     .iter()
     .sum::<u32>();
 
-    log!("Provider instance count: {}", provider_create_count);
+    log!("Provider created count: {}", provider_create_count);
 
     if provider_create_count < expected_request_count {
         log!(
