@@ -6,6 +6,7 @@ import {
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
+  UniversalDetails,
 } from 'starknet';
 
 import {
@@ -43,7 +44,6 @@ export class StarknetDeployer {
 
     const compiledContract = getCompiledContract(contractName, contractType);
     const casm = getCompiledContractCasm(contractName, contractType);
-    console.log('STARKNET DEPLOYER: constructorArgs', constructorArgs);
     const constructorCalldata = CallData.compile(constructorArgs);
 
     // const classHash = hash.computeSierraContractClassHash(
@@ -72,8 +72,11 @@ export class StarknetDeployer {
     };
 
     const contractFactory = new ContractFactory(params);
-    console.log('STARKNET DEPLOYER: constructorCalldata', constructorCalldata);
-    const contract = await contractFactory.deploy(constructorCalldata);
+
+    const details: UniversalDetails = {
+      blockIdentifier: 'latest',
+    };
+    const contract = await contractFactory.deploy(constructorCalldata, details);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)
