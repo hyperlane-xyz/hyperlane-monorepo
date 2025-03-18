@@ -549,6 +549,7 @@ export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
 } from './token/configUtils.js';
 export {
@@ -651,7 +652,11 @@ export {
   // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
-export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export {
+  multisigIsmVerificationCost,
+  normalizeConfig,
+  extractIsmAndHookFactoryAddresses,
+} from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
 export {
