@@ -550,6 +550,7 @@ export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
+  transformConfigToCheck,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
