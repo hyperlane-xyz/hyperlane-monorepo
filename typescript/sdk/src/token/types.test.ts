@@ -78,7 +78,6 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   it('should succeed if non-collateral type, token is empty, metadata is defined', async () => {
     //@ts-ignore
     delete config.arbitrum.token;
-    config.arbitrum.totalSupply = '0';
     config.arbitrum.name = 'name';
 
     for (const type of NON_COLLATERAL_TYPES) {

@@ -17,7 +17,6 @@ export const WarpRouteDeployConfigSchemaErrors = {
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
-  totalSupply: z.string().or(z.number()),
   decimals: z.number().optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
@@ -85,9 +84,7 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema.omit({
-  totalSupply: true,
-})
+export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema
   .partial()
   .extend({
     type: z.literal(TokenType.collateralVaultRebase),
@@ -97,6 +94,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 );
 
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  initialSupply: z.string().or(z.number()).optional(),
   type: z.enum([
     TokenType.synthetic,
     TokenType.syntheticUri,
