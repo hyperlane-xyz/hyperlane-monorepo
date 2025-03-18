@@ -84,9 +84,8 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema
-  .partial()
-  .extend({
+export const CollateralRebaseTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
   });
 export const isCollateralRebaseTokenConfig = isCompliant(
