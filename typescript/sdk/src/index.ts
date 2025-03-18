@@ -120,7 +120,10 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
-export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter.js';
+export {
+  SealevelOverheadIgpAdapter,
+  SealevelIgpAdapter,
+} from './gas/adapters/SealevelIgpAdapter.js';
 export {
   SealevelInterchainGasPaymasterConfig,
   SealevelInterchainGasPaymasterConfigSchema,
@@ -549,6 +552,7 @@ export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
 } from './token/configUtils.js';
 export {
@@ -651,7 +655,11 @@ export {
   // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
-export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export {
+  multisigIsmVerificationCost,
+  normalizeConfig,
+  extractIsmAndHookFactoryAddresses,
+} from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
 export {
