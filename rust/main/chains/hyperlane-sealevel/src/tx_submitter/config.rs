@@ -54,7 +54,7 @@ impl TransactionSubmitterConfig {
                             .build()
                     })
                     .map(|rpc_client| {
-                        SealevelProvider::new(Arc::new(rpc_client), domain.clone(), conf)
+                        SealevelProvider::new(Arc::new(rpc_client), domain.clone(), &[], conf)
                     })
                     .collect();
                 let fallback = FallbackProvider::new(providers);
@@ -80,7 +80,7 @@ impl TransactionSubmitterConfig {
                             .build()
                     })
                     .map(|rpc_client| {
-                        SealevelProvider::new(Arc::new(rpc_client), domain.clone(), conf)
+                        SealevelProvider::new(Arc::new(rpc_client), domain.clone(), &[], conf)
                     })
                     .collect();
                 let fallback = FallbackProvider::new(providers);

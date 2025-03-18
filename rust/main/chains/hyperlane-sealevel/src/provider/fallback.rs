@@ -162,6 +162,41 @@ impl SealevelFallbackProvider {
             .await
     }
 
+    /// get account with finalized commitment
+    pub async fn get_minimum_balance_for_rent_exemption(&self, len: usize) -> ChainResult<u64> {
+        self.fallback_provider
+            .call(move |provider| {
+                let future = async move {
+                    provider
+                        .rpc_client()
+                        .get_minimum_balance_for_rent_exemption(len)
+                        .await
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// get account option with finalized commitment
+    pub async fn get_account_option_with_finalized_commitment(
+        &self,
+        pubkey: Pubkey,
+    ) -> ChainResult<Option<Account>> {
+        self.fallback_provider
+            .call(move |provider| {
+                let pubkey = pubkey.clone();
+
+                let future = async move {
+                    provider
+                        .rpc_client()
+                        .get_account_option_with_finalized_commitment(&pubkey)
+                        .await
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
     /// get multiple accounts with finalized commitment
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,

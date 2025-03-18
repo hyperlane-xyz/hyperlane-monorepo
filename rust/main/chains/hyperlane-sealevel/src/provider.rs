@@ -1,11 +1,9 @@
 /// Fallback provider
 pub mod fallback;
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use lazy_static::lazy_static;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransactionWithStatusMeta, UiTransaction,
@@ -118,16 +116,6 @@ impl SealevelProvider {
             .as_ref()
             .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
         Ok(meta)
-    }
-
-    fn parsed_message(txn: &UiTransaction) -> ChainResult<&UiParsedMessage> {
-        match &txn.message {
-            UiMessage::Parsed(m) => Ok(m),
-            m => {
-                let err = HyperlaneSealevelError::UnsupportedMessageEncoding(Box::new(m.clone()));
-                Err(err.into())
-            }
-        }
     }
 
     async fn block_info_by_height(&self, slot: u64) -> Result<BlockInfo, ChainCommunicationError> {

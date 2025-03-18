@@ -26,7 +26,7 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder,
-    fallback::SealevelFallbackProvider, SealevelProvider, SealevelRpcClient, TransactionSubmitter,
+    fallback::SealevelFallbackProvider, SealevelProvider, TransactionSubmitter,
 };
 
 use crate::{
@@ -213,10 +213,7 @@ impl ChainConf {
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
-
-                let provider =
-                    build_sealevel_provider(rpc_client, locator.domain.clone(), &[], conf);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
@@ -246,12 +243,13 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let provider = build_sealevel_provider(
                     self,
-                    locator.domain.clone(),
+                    &locator,
                     &[
                         self.addresses.mailbox,
                         self.addresses.interchain_gas_paymaster,
                     ],
                     conf,
+                    metrics,
                 );
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
@@ -492,7 +490,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let paymaster = Box::new(
                     h_sealevel::SealevelInterchainGasPaymaster::new(Arc::new(provider), &locator)
                         .await?,
@@ -539,7 +537,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let indexer = Box::new(
                     h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
                         Arc::new(provider),
@@ -976,20 +974,6 @@ impl ChainConf {
             .await;
         Ok(res?)
     }
-}
-
-/// Helper to build a sealevel rpc client with metrics
-fn build_sealevel_rpc_client(
-    chain_conf: &ChainConf,
-    connection_conf: &h_sealevel::ConnectionConf,
-    metrics: &CoreMetrics,
-) -> SealevelRpcClient {
-    let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_client_url = connection_conf.urls[0].clone();
-    let client_metrics = metrics.client_metrics();
-    SealevelRpcClientBuilder::new(rpc_client_url)
-        .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
-        .build()
 }
 
 /// Helper to build a sealevel provider

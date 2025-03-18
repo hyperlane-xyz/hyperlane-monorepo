@@ -16,7 +16,7 @@ use hyperlane_operation_verifier::{
 };
 use hyperlane_warp_route::TokenMessage;
 
-use crate::SealevelProvider;
+use crate::fallback::SealevelFallbackProvider;
 
 const NATIVE_WARP_ROUTE_PREFIX: &str = "SOL/";
 // Native SOL warp routers
@@ -36,7 +36,7 @@ lazy_static! {
 /// Application operation verifier for Sealevel
 #[derive(new)]
 pub struct SealevelApplicationOperationVerifier {
-    provider: SealevelProvider,
+    provider: SealevelFallbackProvider,
 }
 
 #[async_trait]
@@ -116,7 +116,6 @@ impl SealevelApplicationOperationVerifier {
 
     async fn minimum_balance(&self) -> Option<U256> {
         self.provider
-            .rpc_client()
             // We assume that account will contain no data
             .get_minimum_balance_for_rent_exemption(0)
             .await
@@ -129,8 +128,7 @@ impl SealevelApplicationOperationVerifier {
 
         match self
             .provider
-            .rpc_client()
-            .get_account_option_with_finalized_commitment(&pubkey)
+            .get_account_option_with_finalized_commitment(pubkey)
             .await
         {
             Ok(Some(_)) => Ok(true),
