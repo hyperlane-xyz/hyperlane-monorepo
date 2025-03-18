@@ -1,26 +1,21 @@
 import { ContractFactory } from 'ethers';
 
-import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   ChainMap,
   EvmERC20WarpRouteReader,
-  ExplorerLicenseType,
   MultiProvider,
-  PostDeploymentContractVerifier,
   TokenType,
-  VerificationInput,
   WarpCoreConfig,
   hypERC20contracts,
   hypERC20factories,
-  isProxy,
-  proxyImplementation,
-  verificationUtils,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { CommandContext } from '../context/types.js';
-import { logBlue, logGray, logGreen } from '../logger.js';
+import { logBlue } from '../logger.js';
+
+import { verifyProxyAndImplementation } from './helpers.js';
 
 // Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer
 const UNSUPPORTED_CHAINS = ['zircuit'];
@@ -32,9 +27,7 @@ export async function runVerifyWarpRoute({
   context: CommandContext;
   warpCoreConfig: WarpCoreConfig;
 }) {
-  const { multiProvider, chainMetadata, registry, skipConfirmation } = context;
-
-  const verificationInputs: ChainMap<VerificationInput> = {};
+  const { chainMetadata, registry, skipConfirmation } = context;
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -46,77 +39,28 @@ export async function runVerifyWarpRoute({
 
   for (const token of warpCoreConfig.tokens) {
     const { chainName } = token;
-    verificationInputs[chainName] = [];
-
     if (UNSUPPORTED_CHAINS.includes(chainName)) {
       logBlue(`Unsupported chain ${chainName}. Skipping.`);
       continue;
     }
-    assert(token.addressOrDenom, 'Invalid addressOrDenom');
-
-    const provider = multiProvider.getProvider(chainName);
-    const isProxyContract = await isProxy(provider, token.addressOrDenom);
-
-    logGray(`Getting constructor args for ${chainName} using explorer API`);
-
-    // Verify Implementation first because Proxy won't verify without it.
-    const deployedContractAddress = isProxyContract
-      ? await proxyImplementation(provider, token.addressOrDenom)
-      : token.addressOrDenom;
-
-    const { factory, tokenType } = await getWarpRouteFactory(
-      multiProvider,
+    assert(token.addressOrDenom, 'token.addressOrDenom is missing');
+    await verifyProxyAndImplementation({
+      context,
+      address: token.addressOrDenom,
       chainName,
-      deployedContractAddress,
-    );
-    const contractName = hypERC20contracts[tokenType];
-    const implementationInput = await verificationUtils.getImplementationInput({
-      chainName,
-      contractName,
-      multiProvider,
-      bytecode: factory.bytecode,
-      implementationAddress: deployedContractAddress,
+      apiKeys,
+      getContractFactoryAndName: getWarpRouteFactoryAndName,
     });
-    verificationInputs[chainName].push(implementationInput);
-
-    // Verify Proxy and ProxyAdmin
-    if (isProxyContract) {
-      const { proxyAdminInput, transparentUpgradeableProxyInput } =
-        await verificationUtils.getProxyAndAdminInput({
-          chainName,
-          multiProvider,
-          proxyAddress: token.addressOrDenom,
-        });
-
-      verificationInputs[chainName].push(proxyAdminInput);
-      verificationInputs[chainName].push(transparentUpgradeableProxyInput);
-    }
   }
-
-  logBlue(`All explorer constructor args successfully retrieved. Verifying...`);
-  const verifier = new PostDeploymentContractVerifier(
-    verificationInputs,
-    context.multiProvider,
-    apiKeys,
-    buildArtifact,
-    ExplorerLicenseType.MIT,
-  );
-
-  await verifier.verify();
-
-  return logGreen('Finished contract verification');
 }
 
-async function getWarpRouteFactory(
+async function getWarpRouteFactoryAndName(
   multiProvider: MultiProvider,
   chainName: string,
   warpRouteAddress: Address,
 ): Promise<{
   factory: ContractFactory;
-  tokenType: Exclude<
-    TokenType,
-    TokenType.syntheticUri | TokenType.collateralUri
-  >;
+  contractName: string;
 }> {
   const warpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chainName);
   const tokenType = (await warpRouteReader.deriveTokenType(
@@ -128,5 +72,6 @@ async function getWarpRouteFactory(
     (t, _contract): _contract is any => t === tokenType,
   )[tokenType];
 
-  return { factory, tokenType };
+  const contractName = hypERC20contracts[tokenType];
+  return { factory, contractName };
 }
