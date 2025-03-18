@@ -517,6 +517,10 @@ impl PendingOperation for PendingMessage {
         self.set_retries(retries);
     }
 
+    fn get_retries(&self) -> u32 {
+        self.num_retries
+    }
+
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         Some(self.ctx.destination_mailbox.clone())
     }
