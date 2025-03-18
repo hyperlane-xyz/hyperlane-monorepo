@@ -69,7 +69,6 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
 
@@ -125,7 +124,6 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
 
@@ -188,7 +186,6 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: randomOwner,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
 
@@ -251,7 +248,6 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
       gas: GAS,
     };
