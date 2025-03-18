@@ -128,16 +128,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self
             .base_builder()
             .build_aggregation_ism(ism_address)
             .await
-            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
         let (ism_addresses, threshold) = ism
             .modules_and_threshold(message)
             .await
-            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         let threshold = threshold as usize;
 

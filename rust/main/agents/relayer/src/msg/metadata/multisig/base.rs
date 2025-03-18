@@ -106,12 +106,12 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .base_builder()
             .build_multisig_ism(ism_address)
             .await
-            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         let (validators, threshold) = multisig_ism
             .validators_and_threshold(message)
             .await
-            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");

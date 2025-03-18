@@ -96,12 +96,12 @@ pub async fn build_message_metadata(
         .base_builder()
         .build_ism(ism_address)
         .await
-        .map_err(|_| MetadataBuildError::FailedToBuild("When building ISM".into()))?;
+        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
     let module_type = ism
         .module_type()
         .await
-        .map_err(|_| MetadataBuildError::FailedToBuild("When fetching module type".into()))?;
+        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {

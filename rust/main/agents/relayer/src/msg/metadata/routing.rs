@@ -25,16 +25,15 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        const CTX: &str = "When fetching RoutingIsm metadata";
         let ism = self
             .base_builder()
             .build_routing_ism(ism_address)
             .await
-            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
         let module = ism
             .route(message)
             .await
-            .map_err(|_| MetadataBuildError::FailedToBuild(CTX.into()))?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
         self.base.build(module, message, params).await
     }
 }
