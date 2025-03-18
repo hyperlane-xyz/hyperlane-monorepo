@@ -8,14 +8,6 @@
       },
       "overhead": 166887
     },
-    "sophon": {
-      "oracleConfig": {
-        "tokenExchangeRate": "91246426181641219",
-        "gasPrice": "2261877890384",
-        "tokenDecimals": 18
-      },
-      "overhead": 333774
-    },
     "artela": {
       "oracleConfig": {
         "tokenExchangeRate": "1026217531480017",
@@ -124,6 +116,14 @@
       "oracleConfig": {
         "tokenExchangeRate": "21069803516028955",
         "gasPrice": "1504591348228",
+        "tokenDecimals": 18
+      },
+      "overhead": 333774
+    },
+    "sophon": {
+      "oracleConfig": {
+        "tokenExchangeRate": "91246426181641219",
+        "gasPrice": "2261877890384",
         "tokenDecimals": 18
       },
       "overhead": 333774
