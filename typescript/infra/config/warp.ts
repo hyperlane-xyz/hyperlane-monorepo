@@ -43,6 +43,7 @@ import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGet
 import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
 import {
   getEthereumSuperseedCBBTCWarpConfig,
+  getEthereumSuperseedUSDCSTAGEWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
@@ -113,6 +114,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
   [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
+  [WarpRouteIds.EthereumSuperseedUSDCStaging]:
+    getEthereumSuperseedUSDCSTAGEWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
   // TODO: uncomment after merging the staging route to registry
