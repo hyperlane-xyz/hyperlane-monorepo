@@ -24,8 +24,8 @@ export interface InsertedIntoTree {
   message_id: string;
   /** index ... */
   index: number;
-  /** mailbox_id ... */
-  mailbox_id: string;
+  /** merkle_tree_hook_id ... */
+  merkle_tree_hook_id: string;
 }
 
 /** GasPayment ... */
@@ -153,7 +153,7 @@ export const EventCreateMerkleTreeHook = {
 };
 
 function createBaseInsertedIntoTree(): InsertedIntoTree {
-  return { message_id: '', index: 0, mailbox_id: '' };
+  return { message_id: '', index: 0, merkle_tree_hook_id: '' };
 }
 
 export const InsertedIntoTree = {
@@ -167,8 +167,8 @@ export const InsertedIntoTree = {
     if (message.index !== 0) {
       writer.uint32(16).uint32(message.index);
     }
-    if (message.mailbox_id !== '') {
-      writer.uint32(26).string(message.mailbox_id);
+    if (message.merkle_tree_hook_id !== '') {
+      writer.uint32(26).string(message.merkle_tree_hook_id);
     }
     return writer;
   },
@@ -200,7 +200,7 @@ export const InsertedIntoTree = {
             break;
           }
 
-          message.mailbox_id = reader.string();
+          message.merkle_tree_hook_id = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -217,8 +217,8 @@ export const InsertedIntoTree = {
         ? globalThis.String(object.message_id)
         : '',
       index: isSet(object.index) ? globalThis.Number(object.index) : 0,
-      mailbox_id: isSet(object.mailbox_id)
-        ? globalThis.String(object.mailbox_id)
+      merkle_tree_hook_id: isSet(object.merkle_tree_hook_id)
+        ? globalThis.String(object.merkle_tree_hook_id)
         : '',
     };
   },
@@ -231,8 +231,8 @@ export const InsertedIntoTree = {
     if (message.index !== 0) {
       obj.index = Math.round(message.index);
     }
-    if (message.mailbox_id !== '') {
-      obj.mailbox_id = message.mailbox_id;
+    if (message.merkle_tree_hook_id !== '') {
+      obj.merkle_tree_hook_id = message.merkle_tree_hook_id;
     }
     return obj;
   },
@@ -248,7 +248,7 @@ export const InsertedIntoTree = {
     const message = createBaseInsertedIntoTree();
     message.message_id = object.message_id ?? '';
     message.index = object.index ?? 0;
-    message.mailbox_id = object.mailbox_id ?? '';
+    message.merkle_tree_hook_id = object.merkle_tree_hook_id ?? '';
     return message;
   },
 };

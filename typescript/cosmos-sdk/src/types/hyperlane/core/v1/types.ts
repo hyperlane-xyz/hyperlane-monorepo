@@ -62,13 +62,13 @@ export const Mailbox = {
       writer.uint32(42).string(message.default_ism);
     }
     if (message.default_hook !== '') {
-      writer.uint32(66).string(message.default_hook);
+      writer.uint32(50).string(message.default_hook);
     }
     if (message.required_hook !== '') {
-      writer.uint32(74).string(message.required_hook);
+      writer.uint32(58).string(message.required_hook);
     }
     if (message.local_domain !== 0) {
-      writer.uint32(80).uint32(message.local_domain);
+      writer.uint32(64).uint32(message.local_domain);
     }
     return writer;
   },
@@ -116,22 +116,22 @@ export const Mailbox = {
 
           message.default_ism = reader.string();
           continue;
-        case 8:
-          if (tag !== 66) {
+        case 6:
+          if (tag !== 50) {
             break;
           }
 
           message.default_hook = reader.string();
           continue;
-        case 9:
-          if (tag !== 74) {
+        case 7:
+          if (tag !== 58) {
             break;
           }
 
           message.required_hook = reader.string();
           continue;
-        case 10:
-          if (tag !== 80) {
+        case 8:
+          if (tag !== 64) {
             break;
           }
 

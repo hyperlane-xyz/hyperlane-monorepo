@@ -7,16 +7,16 @@ It can be used as a standalone SDK for frontend or in backend applications which
 
 ```bash
 # Install with NPM
-npm install @hyperlane-xyz/cosmos-module-sdk
+npm install @hyperlane-xyz/cosmos-sdk
 
 # Or with Yarn
-yarn add @hyperlane-xyz/cosmos-module-sdk
+yarn add @hyperlane-xyz/cosmos-sdk
 ```
 
 ## Usage
 
 ```ts
-import { HyperlaneModuleClient, SigningHyperlaneModuleClient } from "@hyperlane-xyz/cosmos-module-sdk";
+import { HyperlaneModuleClient, SigningHyperlaneModuleClient } from "@hyperlane-xyz/cosmos-sdk";
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { SigningStargateClient } from '@cosmjs/stargate';
 import { CometClient } from '@cosmjs/tendermint-rpc';
