@@ -10,3 +10,21 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 0 # Only allow security update PRs
+
+  - package-ecosystem: "cargo"
+    directory: "/rust/main"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 1
+
+  - package-ecosystem: "cargo"
+    directory: "/rust/sealevel"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 1
+
+  - package-ecosystem: "github-actions"
+    directory: "/.github/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 1
