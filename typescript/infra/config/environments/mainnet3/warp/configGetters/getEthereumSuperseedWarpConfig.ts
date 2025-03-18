@@ -107,9 +107,8 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
 export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ethereum, superseed } = await getEthereumSuperseedUSDCWarpConfig(
-    routerConfig,
-  );
+  const { ethereum, superseed, arbitrum, base, optimism, ink } =
+    await getEthereumSuperseedUSDCWarpConfig(routerConfig);
 
   return {
     ethereum,
@@ -117,5 +116,9 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
       ...superseed,
       token: '0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960',
     } as Extract<HypTokenConfig, { type: TokenType.collateralFiat }>,
+    arbitrum,
+    base,
+    optimism,
+    ink,
   };
 };
