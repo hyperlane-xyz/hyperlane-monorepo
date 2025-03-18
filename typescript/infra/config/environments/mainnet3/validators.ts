@@ -1638,5 +1638,26 @@ export const validatorChainConfig = (
         'hyperevm',
       ),
     },
+
+    infinityvm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('infinityvm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xeed503e0bd8fae0ad606361492db8711eaf0b935'],
+        },
+        'infinityvm',
+      ),
+    },
+    plume: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('plume'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x63c9b5ea28710d956a51f0f746ee8df81215663f'],
+        },
+        'plume',
+      ),
+    },
   };
 };
