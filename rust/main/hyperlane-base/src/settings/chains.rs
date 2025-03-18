@@ -216,7 +216,7 @@ impl ChainConf {
                 let rpc_client = Arc::new(build_sealevel_rpc_client(self, conf, metrics));
 
                 let provider =
-                    h_sealevel::SealevelProvider::new(rpc_client, locator.domain.clone(), conf);
+                    build_sealevel_provider(rpc_client, locator.domain.clone(), &[], conf);
                 let verifier =
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
@@ -244,7 +244,15 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(
+                    self,
+                    locator.domain.clone(),
+                    &[
+                        self.addresses.mailbox,
+                        self.addresses.interchain_gas_paymaster,
+                    ],
+                    conf,
+                );
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Cosmos(conf) => {
@@ -275,7 +283,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
 
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
@@ -318,7 +326,7 @@ impl ChainConf {
                 todo!("Fuel does not support merkle tree hooks yet")
             }
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
@@ -366,9 +374,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
                     provider,
                     Arc::new(tx_submitter),
@@ -430,7 +439,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
@@ -584,7 +593,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
@@ -639,7 +648,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
                     provider, &locator,
                 ));
@@ -683,7 +692,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
                     provider,
                     locator,
@@ -722,7 +731,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                let provider = build_sealevel_provider(self, &locator, conf, metrics);
+                let provider = build_sealevel_provider(self, &locator, &[], conf, metrics);
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
                     provider,
                     locator,
@@ -987,6 +996,7 @@ fn build_sealevel_rpc_client(
 fn build_sealevel_provider(
     chain_conf: &ChainConf,
     locator: &ContractLocator,
+    contract_addresses: &[H256],
     conf: &h_sealevel::ConnectionConf,
     metrics: &CoreMetrics,
 ) -> SealevelFallbackProvider {
@@ -1001,7 +1011,14 @@ fn build_sealevel_provider(
                 .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
                 .build()
         })
-        .map(|rpc_client| SealevelProvider::new(Arc::new(rpc_client), locator.domain.clone(), conf))
+        .map(|rpc_client| {
+            SealevelProvider::new(
+                Arc::new(rpc_client),
+                locator.domain.clone(),
+                contract_addresses,
+                conf,
+            )
+        })
         .collect();
     let fallback = FallbackProvider::new(providers);
     let provider = SealevelFallbackProvider::new(fallback);

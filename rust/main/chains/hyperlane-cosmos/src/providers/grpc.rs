@@ -27,7 +27,9 @@ use cosmrs::{
     Any, Coin,
 };
 use derive_new::new;
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 use ibc_proto::cosmos::{
     auth::v1beta1::QueryAccountResponse, bank::v1beta1::QueryBalanceResponse,
     base::tendermint::v1beta1::GetLatestBlockResponse,
@@ -312,7 +314,8 @@ impl WasmGrpcProvider {
             .get_grpc_urls()
             .into_iter()
             .map(|url| {
-                let metrics_config = PrometheusConfig::from_url(&url, chain.clone());
+                let metrics_config =
+                    PrometheusConfig::from_url(&url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
                     .map(|e| {
                         let metrics_channel =
