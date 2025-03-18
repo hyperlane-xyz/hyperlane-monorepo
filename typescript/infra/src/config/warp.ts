@@ -71,6 +71,9 @@ export const tokens = {
   mint: {
     MINT: '0x8511138208529fe1b9a37b863c7EEE3Fe234b7Ab',
   },
+  ink: {
+    USDCe: '0xF1815bd50389c46847f0Bda824eC8da914045D14',
+  },
 };
 
 export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;
