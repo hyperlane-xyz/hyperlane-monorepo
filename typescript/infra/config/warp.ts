@@ -45,6 +45,7 @@ import {
   getEthereumSuperseedCBBTCWarpConfig,
   getEthereumSuperseedUSDCSTAGEWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
+  getSuperseedGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
@@ -136,6 +137,8 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRenzoGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
     getRenzoGnosisSafeBuilderStagingStrategyConfig,
+  [WarpRouteIds.EthereumSuperseedUSDC]:
+    getSuperseedGnosisSafeBuilderStrategyConfig,
 };
 
 /**

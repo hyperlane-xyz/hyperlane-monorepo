@@ -2,15 +2,19 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  ChainSubmissionStrategy,
   HypTokenConfig,
   HypTokenRouterConfig,
   TokenType,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+
+import { getGnosisSafeBuilderStrategyConfigGenerator } from './getRenzoEZETHWarpConfig.js';
 
 // TODO: Update to use their safes
 const owners = {
@@ -122,3 +126,6 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
     ink,
   };
 };
+
+export const getSuperseedGnosisSafeBuilderStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(owners);
