@@ -109,8 +109,7 @@ pub async fn build_message_metadata(
             ism_depth = message_builder.max_ism_depth,
             ism_address = ?ism_address,
             message_id = ?message.id(),
-            "Max ISM depth reached ({})",
-            message_builder.max_ism_depth,
+            "Max ISM depth reached",
         );
         return Err(MetadataBuildError::MaxIsmDepthExceeded(
             message_builder.max_ism_depth,
@@ -125,8 +124,7 @@ pub async fn build_message_metadata(
                 ism_count = message_builder.max_ism_count,
                 ism_address = ?ism_address,
                 message_id = ?message.id(),
-                "Max ISM count reached ({})",
-                message_builder.max_ism_count,
+                "Max ISM count reached",
             );
             return Err(MetadataBuildError::MaxIsmCountReached(
                 message_builder.max_ism_count,
@@ -399,7 +397,7 @@ mod test {
         assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
-        assert!(logs_contain("Max ISM depth reached (0)"));
+        assert!(logs_contain("Max ISM depth reached ism_depth=0"));
     }
 
     #[tracing_test::traced_test]
@@ -428,7 +426,7 @@ mod test {
         assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
-        assert!(logs_contain("Max ISM count reached (0)"));
+        assert!(logs_contain("Max ISM count reached ism_count=0"));
     }
 
     #[tracing_test::traced_test]
@@ -456,7 +454,7 @@ mod test {
             .expect("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert!(*(params.ism_count.lock().await) <= 4);
-        assert!(logs_contain("Max ISM depth reached (2)"));
+        assert!(logs_contain("Max ISM depth reached ism_depth=2"));
     }
 
     #[tracing_test::traced_test]
@@ -484,6 +482,6 @@ mod test {
             .expect("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert_eq!(*(params.ism_count.lock().await), 5);
-        assert!(logs_contain("Max ISM count reached (5)"));
+        assert!(logs_contain("Max ISM count reached ism_count=5"));
     }
 }
