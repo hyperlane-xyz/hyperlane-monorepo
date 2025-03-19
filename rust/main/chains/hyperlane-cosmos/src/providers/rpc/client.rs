@@ -156,9 +156,9 @@ impl Drop for CosmosRpcClient {
 impl Clone for CosmosRpcClient {
     fn clone(&self) -> Self {
         Self::new(
-            client: self.client.clone(),
-            metrics: self.metrics.clone(),
-            metrics_config: self.metrics_config.clone(),
+            self.client.clone(),
+            self.metrics.clone(),
+            self.metrics_config.clone(),
         )
     }
 }
