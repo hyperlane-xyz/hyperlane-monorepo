@@ -28,8 +28,7 @@ export class MessageService {
     body: string;
   }) {
     const originProtocol = this.multiProvider.getProtocol(origin);
-    const core = this.cores[originProtocol];
-    if (!core) throw new Error(`No core for ${originProtocol}`);
+    const core = this.getProtocolCoreOrFail(originProtocol);
 
     return core.sendMessage(origin, destination, recipient, body);
   }
@@ -41,8 +40,7 @@ export class MessageService {
     const destinationProtocol = this.multiProvider.getProtocol(
       message.parsed.destination!,
     );
-    const core = this.cores[destinationProtocol];
-    if (!core) throw new Error(`No core for ${destinationProtocol}`);
+    const core = this.getProtocolCoreOrFail(destinationProtocol);
 
     const messageData = translateMessage(
       message,
@@ -54,5 +52,29 @@ export class MessageService {
       messageData ? { ...message, message: messageData } : message,
       getMessageMetadata(destinationProtocol),
     );
+  }
+
+  async awaitMessagesDelivery(
+    message: DispatchedMessage,
+    delay?: number,
+    maxAttempts?: number,
+  ) {
+    const destinationProtocol = this.multiProvider.getProtocol(
+      message.parsed.destination!,
+    );
+    const core = this.getProtocolCoreOrFail(destinationProtocol);
+
+    await core.waitForMessageIdProcessed(
+      message.id,
+      this.multiProvider.getChainName(message.parsed.destination!),
+      delay,
+      maxAttempts,
+    );
+  }
+
+  private getProtocolCoreOrFail(protocol: ProtocolType) {
+    const core = this.cores[protocol];
+    if (!core) throw new Error(`No core for ${protocol}`);
+    return core;
   }
 }

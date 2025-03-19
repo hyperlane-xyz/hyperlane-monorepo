@@ -13,12 +13,12 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, pollAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { toStarknetMessageBytes } from '../messaging/messageUtils.js';
 import {
   getStarknetMailboxContract,
-  parseStarknetDispatchedMessages,
+  parseStarknetDispatchEvents,
   quoteStarknetDispatch,
 } from '../utils/starknet.js';
 
@@ -54,13 +54,11 @@ export class StarknetCore {
     origin: ChainName,
   ): DispatchedMessage {
     const mailboxAddress = this.addressesMap[origin].mailbox;
-    const mailboxContract = getStarknetMailboxContract(
-      mailboxAddress,
-      this.multiProtocolSigner.getStarknetSigner(origin),
-    );
+    const signer = this.multiProtocolSigner.getStarknetSigner(origin);
+    const mailboxContract = getStarknetMailboxContract(mailboxAddress, signer);
 
     const parsedEvents = mailboxContract.parseEvents(receipt);
-    return parseStarknetDispatchedMessages(
+    return parseStarknetDispatchEvents(
       parsedEvents,
       (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
     )[0];
@@ -124,7 +122,7 @@ export class StarknetCore {
 
     return {
       dispatchTx,
-      message: parseStarknetDispatchedMessages(
+      message: parseStarknetDispatchEvents(
         parsedEvents,
         (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
       )[0],
@@ -187,7 +185,7 @@ export class StarknetCore {
               );
 
               const parsedEvents = mailboxContract.parseEvents(receipt);
-              const messages = parseStarknetDispatchedMessages(
+              const messages = parseStarknetDispatchEvents(
                 parsedEvents,
                 (domain) =>
                   this.multiProvider.tryGetChainName(domain) ?? undefined,
@@ -264,5 +262,32 @@ export class StarknetCore {
       .waitForTransaction(transaction_hash);
 
     return { transaction_hash };
+  }
+
+  async waitForMessageIdProcessed(
+    messageId: string,
+    destinationChain: ChainName,
+    delay?: number,
+    maxAttempts?: number,
+  ): Promise<true> {
+    await pollAsync(
+      async () => {
+        const mailboxAddress = this.addressesMap[destinationChain].mailbox;
+        const mailboxContract = getStarknetMailboxContract(
+          mailboxAddress,
+          this.multiProtocolSigner.getStarknetSigner(destinationChain),
+        );
+        const delivered = await mailboxContract.delivered(messageId);
+        if (delivered) {
+          this.logger.info(`Message ${messageId} was processed`);
+          return true;
+        } else {
+          throw new Error(`Message ${messageId} not yet processed`);
+        }
+      },
+      delay,
+      maxAttempts,
+    );
+    return true;
   }
 }
