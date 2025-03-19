@@ -20,6 +20,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
+import { runWarpFork } from '../fork/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -60,6 +61,7 @@ export const warpCommand: CommandModule = {
       .command(apply)
       .command(check)
       .command(deploy)
+      .command(fork)
       .command(init)
       .command(read)
       .command(send)
@@ -418,5 +420,50 @@ export const verify: CommandModuleWithWriteContext<{
     );
 
     return runVerifyWarpRoute({ context, warpCoreConfig });
+  },
+};
+
+const fork: CommandModuleWithContext<{
+  port?: number;
+  symbol?: string;
+  strategy?: string;
+  'deploy-config': string;
+}> = {
+  command: 'fork',
+  describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
+  builder: {
+    port: {
+      type: 'number',
+      description:
+        'Port to be used as initial port from which assign port numbers to all anvil instances',
+      default: 8545,
+    },
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    strategy: { ...strategyCommandOption, demandOption: false },
+    'deploy-config': outputFileCommandOption(
+      DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+      false,
+      'The path to output a Warp Config JSON or YAML file.',
+    ),
+  },
+  handler: async ({ context, symbol, deployConfig }) => {
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context,
+      warp: undefined,
+      symbol,
+    });
+    const warpDeployConfig = await readWarpRouteDeployConfig(
+      deployConfig,
+      context,
+    );
+
+    await runWarpFork({
+      context,
+      core: warpCoreConfig,
+      deployConfig: warpDeployConfig,
+    });
   },
 };
