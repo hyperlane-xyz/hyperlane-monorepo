@@ -101,7 +101,12 @@ abstract class TokenDeployer<
     ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
-      return [config.initialSupply, config.name, config.symbol, ...defaultArgs];
+      return [
+        config.initialSupply ?? 0,
+        config.name,
+        config.symbol,
+        ...defaultArgs,
+      ];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       return [0, config.name, config.symbol, ...defaultArgs];
     } else {

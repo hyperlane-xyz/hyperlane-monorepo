@@ -285,8 +285,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         token = await erc20.wrappedToken();
       }
 
-      const { name, symbol, decimals } =
-        await this.fetchERC20Metadata(token);
+      const { name, symbol, decimals } = await this.fetchERC20Metadata(token);
 
       if (type === TokenType.XERC20 || type === TokenType.XERC20Lockbox) {
         xERC20Metadata = await this.fetchXERC20Config(token, warpRouteAddress);
