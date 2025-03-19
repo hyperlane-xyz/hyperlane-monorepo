@@ -40,6 +40,23 @@ export const EventAssertionSchema = z.discriminatedUnion('type', [
 
 export type EventAssertion = z.infer<typeof EventAssertionSchema>;
 
+enum TransactionDataType {
+  RAW_CALLDATA = 'rawCalldata',
+  SIGNATURE = 'signature',
+}
+
+const TransactionDataSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(TransactionDataType.RAW_CALLDATA),
+    calldata: ZHash,
+  }),
+  z.object({
+    type: z.literal(TransactionDataType.SIGNATURE),
+    signature: z.string(),
+    args: z.array(z.string()).default([]),
+  }),
+]);
+
 export const ForkedChainConfigSchema = z.object({
   impersonateAccounts: z.array(ZHash).default([]),
   transactions: z
@@ -47,7 +64,7 @@ export const ForkedChainConfigSchema = z.object({
       z.object({
         annotation: z.string().optional(),
         from: ZHash,
-        data: ZHash.optional(),
+        data: TransactionDataSchema.optional(),
         value: z.string().optional(),
         to: ZHash.optional(),
         eventAssertions: z.array(EventAssertionSchema).default([]),
@@ -93,7 +110,7 @@ export async function runWarpFork({
 
     const rpcUrl = chainMetadata.rpcUrls[0];
     if (!rpcUrl) {
-      logRed(`Please specify either a symbol or warp config`);
+      logRed(`No rpc found for chain ${chainName}`);
       process.exit(0);
     }
 
@@ -165,9 +182,27 @@ async function handleTransactions(
       '10000000000000000000',
     ]);
 
+    let calldata: string | undefined;
+    if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
+      calldata = transaction.data.calldata;
+    } else if (transaction.data?.type === TransactionDataType.SIGNATURE) {
+      const functionInterface = new ethers.utils.Interface([
+        transaction.data.signature,
+      ]);
+
+      const [functionName] = Object.keys(functionInterface.functions);
+      calldata = functionInterface.encodeFunctionData(
+        functionName,
+        transaction.data.args,
+      );
+    }
+
+    logGray(
+      `Executing transaction on chain ${chainName}: "${transaction.annotation}" `,
+    );
     const pendingTx = await signer.sendTransaction({
       to: transaction.to,
-      data: transaction.data,
+      data: calldata,
       value: transaction.value,
     });
 
@@ -185,14 +220,22 @@ async function handleTransactions(
   logGray(`Successfully executed all transactions on chain ${chainName}`);
 }
 
-function assertEvent(eventAssertion: EventAssertion, logs: Log[]): boolean {
-  const [log] = logs.filter((rawLog) =>
+function assertEvent(eventAssertion: EventAssertion, rawLogs: Log[]): void {
+  const [rawLog] = rawLogs.filter((rawLog) =>
     eventAssertion.type === EventAssertionType.RAW_TOPIC
       ? assertEventByTopic(eventAssertion, rawLog)
       : assertEventBySignature(eventAssertion, rawLog),
   );
 
-  return !!log;
+  if (!rawLog) {
+    throw new Error(
+      `Log ${
+        eventAssertion.type === EventAssertionType.RAW_TOPIC
+          ? eventAssertion.topic
+          : eventAssertion.signature
+      } not found in transaction!`,
+    );
+  }
 }
 
 function assertEventByTopic(
