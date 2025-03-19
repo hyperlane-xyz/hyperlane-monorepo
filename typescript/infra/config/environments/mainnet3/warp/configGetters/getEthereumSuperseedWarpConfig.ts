@@ -2,11 +2,9 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  ChainSubmissionStrategy,
   HypTokenConfig,
   HypTokenRouterConfig,
   TokenType,
-  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 
 import {
