@@ -18,8 +18,6 @@ yarn add @hyperlane-xyz/cosmos-sdk
 ```ts
 import { HyperlaneModuleClient, SigningHyperlaneModuleClient } from "@hyperlane-xyz/cosmos-sdk";
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { SigningStargateClient } from '@cosmjs/stargate';
-import { CometClient } from '@cosmjs/tendermint-rpc';
 
 // using hyperlane queries without needing signers
 const lightClient = await HyperlaneModuleClient.connect(
@@ -31,23 +29,11 @@ const bridgedSupply = await lightClient.query.warp.BridgedSupply({ id: "token-id
 ...
 
 // performing hyperlane transactions
-const wallet = await DirectSecp256k1Wallet.fromKey(
-  privKey,
-  prefix,
-);
-
-const clientBase = await CometClient.connect(
-  "https://rpc-endpoint:26657",
-);
-
-const signer = await SigningStargateClient.createWithSigner(
-  clientBase,
-  wallet,
-);
+const wallet = await DirectSecp256k1Wallet.fromKey(PRIV_KEY);
 
 const signingClient = await SigningHyperlaneModuleClient.connectWithSigner(
   "https://rpc-endpoint:26657",
-  signer,
+  wallet,
 );
 
 const txReceipt = await signingClient.createMailbox({
