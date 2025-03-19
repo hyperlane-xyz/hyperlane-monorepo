@@ -66,8 +66,8 @@ pub fn termination_invariants_met(
     if !provider_metrics_invariant_met(
         RELAYER_METRICS_PORT,
         total_messages_expected,
-        &hashmap! {"chain" => "sealeveltest1", "connection" => "rpc", "status" => "success"},
-        &hashmap! {},
+        &hashmap! {"chain" => "sealeveltest2", "connection" => "rpc", "status" => "success"},
+        &hashmap! {"chain" => "sealeveltest2"},
     )? {
         return Ok(false);
     }
