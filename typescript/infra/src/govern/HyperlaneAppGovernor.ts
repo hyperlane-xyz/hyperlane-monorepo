@@ -571,7 +571,7 @@ export abstract class HyperlaneAppGovernor<
     chain: ChainName,
     signerAddress: Address,
     safeAddress: string,
-    retries = 3,
+    retries = 10,
   ): Promise<boolean> {
     if (!this.canPropose[chain].has(safeAddress)) {
       try {

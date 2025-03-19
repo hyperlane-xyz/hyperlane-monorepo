@@ -1,10 +1,10 @@
 {
   "base": {
-    "hex": "0x00000000000000000000000054624ca8abea68645b3b39211f90b804d53db680",
-    "base58": "1111111111112BBkkpUZNJgdH8DEmyDxFt74d4bH"
+    "hex": "0x000000000000000000000000cc9ece816641c8350db06af375811107b1aa0b9d",
+    "base58": "1111111111113rLmoQoXh3C1oA8mu6848RKQbnN8"
   },
   "solanamainnet": {
-    "hex": "0x2efbd8ff6417a50dbcedc18bab4235d4a2aac61af89214ac59545d30e0f86991",
-    "base58": "4AQVPTCAeLswnjksQdutxUDuxEJxUBwoWmVimGuPtGSt"
+    "hex": "0xd87c4b79368eea606390118e5e9bfdb4f720d214f8d2fc45745d00e31562f6ed",
+    "base58": "Fa4zQJCH7id5KL1eFJt2mHyFpUNfCCSkHgtMrLvrRJBN"
   }
 }

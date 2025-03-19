@@ -103,12 +103,7 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
             "ProtocolFee: insufficient protocol fee"
         );
 
-        uint256 refund = msg.value - protocolFee;
-        if (refund > 0) {
-            payable(metadata.refundAddress(message.senderAddress())).sendValue(
-                refund
-            );
-        }
+        _refund(metadata, message, msg.value - protocolFee);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

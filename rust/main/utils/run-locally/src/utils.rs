@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::process::Child;
+use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -119,18 +119,76 @@ pub fn stop_child(child: &mut Child) {
     };
 }
 
-pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<String, u32> {
+/// Given a Vec<Vec<&str>>,
+/// for each Vec<&str>, count how many lines in the file
+/// matches all the &str in that Vec.
+/// Store this count in a hashmap where the key is the vector
+/// Vec<&str>
+/// and return this hashmap.
+pub fn get_matching_lines<'a>(
+    file: &File,
+    search_strings: Vec<Vec<&'a str>>,
+) -> HashMap<Vec<&'a str>, u32> {
     let reader = io::BufReader::new(file);
     let mut matches = HashMap::new();
 
     let mut lines = reader.lines();
     while let Some(Ok(line)) = lines.next() {
-        search_strings.iter().for_each(|search_string| {
-            if line.contains(search_string) {
-                let count = matches.entry(search_string.to_string()).or_insert(0);
+        search_strings.iter().for_each(|search_string_vec| {
+            if search_string_vec
+                .iter()
+                .map(|search_string| line.contains(search_string))
+                .all(|x| x)
+            {
+                let count = matches.entry(search_string_vec.clone()).or_insert(0);
                 *count += 1;
             }
         });
     }
     matches
+}
+
+/// Returns absolute path to rust workspace
+/// `/<...>/hyperlane-monorepo/rust/main`.
+/// This allows us to have a more reliable way of generating
+/// relative paths such path to sealevel directory
+pub fn get_workspace_path() -> PathBuf {
+    let output = Command::new(env!("CARGO"))
+        .arg("locate-project")
+        .arg("--workspace")
+        .arg("--message-format=plain")
+        .output()
+        .expect("Failed to get workspace path")
+        .stdout;
+    let path_str = String::from_utf8(output).expect("Failed to parse workspace path");
+    let mut workspace_path = PathBuf::from(path_str);
+    // pop Cargo.toml from path
+    workspace_path.pop();
+    workspace_path
+}
+
+/// Returns absolute path to sealevel directory
+/// `/<...>/hyperlane-monorepo/rust/sealevel`
+#[cfg(feature = "sealevel")]
+pub fn get_sealevel_path(workspace_path: &Path) -> PathBuf {
+    concat_path(
+        workspace_path
+            .parent()
+            .expect("workspace path has no parent"),
+        "sealevel",
+    )
+}
+
+/// Returns absolute path to typescript infra directory
+/// `/<...>/hyperlane-monorepo/typescript/infra`
+pub fn get_ts_infra_path() -> PathBuf {
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--show-toplevel")
+        .output()
+        .expect("Failed to get git workspace path")
+        .stdout;
+    let path_str = String::from_utf8(output).expect("Failed to parse workspace path");
+    let git_workspace_path = PathBuf::from(path_str.trim());
+    concat_path(git_workspace_path, "typescript/infra")
 }
