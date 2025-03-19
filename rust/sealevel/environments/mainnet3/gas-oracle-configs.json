@@ -8,6 +8,30 @@
       },
       "overhead": 166887
     },
+    "everclear": {
+      "oracleConfig": {
+        "tokenExchangeRate": "239372224587870308412",
+        "gasPrice": "234340482",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "infinityvm": {
+      "oracleConfig": {
+        "tokenExchangeRate": "0",
+        "gasPrice": "0",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "sophon": {
+      "oracleConfig": {
+        "tokenExchangeRate": "91246426181641219",
+        "gasPrice": "2261877890384",
+        "tokenDecimals": 18
+      },
+      "overhead": 333774
+    },
     "artela": {
       "oracleConfig": {
         "tokenExchangeRate": "1026217531480017",
