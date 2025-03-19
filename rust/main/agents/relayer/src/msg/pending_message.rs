@@ -476,6 +476,7 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
+            warn!(message_id = ?self.message.id(), tx_outcome=?self.submission_outcome, "Transaction attempting to process message either reverted or was reorged");
             let span = info_span!(
                 "Error: Transaction attempting to process message either reverted or was reorged",
                 tx_outcome=?self.submission_outcome,
@@ -545,6 +546,10 @@ impl PendingOperation for PendingMessage {
 
     fn set_retries(&mut self, retries: u32) {
         self.set_retries(retries);
+    }
+
+    fn get_retries(&self) -> u32 {
+        self.num_retries
     }
 
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
