@@ -18,7 +18,7 @@
     },
     "infinityvm": {
       "oracleConfig": {
-        "tokenExchangeRate": "0",
+        "tokenExchangeRate": "91246426181641219",
         "gasPrice": "0",
         "tokenDecimals": 18
       },

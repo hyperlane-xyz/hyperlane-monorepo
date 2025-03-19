@@ -19,7 +19,7 @@
     "infinityvmmonza": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "1000000007",
+        "gasPrice": "0",
         "tokenDecimals": 18
       },
       "overhead": 151966
