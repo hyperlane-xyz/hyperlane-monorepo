@@ -34,7 +34,7 @@ impl TransactionSubmitterConfig {
     /// Create a new transaction submitter from the configuration
     pub fn create_submitter(
         &self,
-        provider: &SealevelFallbackProvider,
+        provider: &Arc<SealevelFallbackProvider>,
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
         domain: HyperlaneDomain,
@@ -58,7 +58,7 @@ impl TransactionSubmitterConfig {
                     })
                     .collect();
                 let fallback = FallbackProvider::new(providers);
-                let provider = SealevelFallbackProvider::new(fallback);
+                let provider = Arc::new(SealevelFallbackProvider::new(fallback));
                 TransactionSubmitter::new(self.clone(), provider)
             }
             TransactionSubmitterConfig::Jito { urls } => {
@@ -84,7 +84,7 @@ impl TransactionSubmitterConfig {
                     })
                     .collect();
                 let fallback = FallbackProvider::new(providers);
-                let provider = SealevelFallbackProvider::new(fallback);
+                let provider = Arc::new(SealevelFallbackProvider::new(fallback));
                 TransactionSubmitter::new(self.clone(), provider)
             }
         }

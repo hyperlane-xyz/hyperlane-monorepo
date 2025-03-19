@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -14,14 +16,14 @@ use crate::fallback::SealevelFallbackProvider;
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelValidatorAnnounce {
-    provider: SealevelFallbackProvider,
+    provider: Arc<SealevelFallbackProvider>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
 }
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
-    pub fn new(provider: SealevelFallbackProvider, locator: &ContractLocator) -> Self {
+    pub fn new(provider: Arc<SealevelFallbackProvider>, locator: &ContractLocator) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,

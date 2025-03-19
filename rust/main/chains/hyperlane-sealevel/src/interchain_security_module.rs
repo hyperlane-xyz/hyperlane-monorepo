@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use num_traits::cast::FromPrimitive;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
@@ -17,13 +19,13 @@ use crate::{fallback::SealevelFallbackProvider, SealevelKeypair};
 pub struct SealevelInterchainSecurityModule {
     payer: Option<SealevelKeypair>,
     program_id: Pubkey,
-    provider: SealevelFallbackProvider,
+    provider: Arc<SealevelFallbackProvider>,
 }
 
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(
-        provider: SealevelFallbackProvider,
+        provider: Arc<SealevelFallbackProvider>,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {

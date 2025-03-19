@@ -1,6 +1,8 @@
 /// Transaction Submitter config
 pub mod config;
 
+use std::sync::Arc;
+
 use config::TransactionSubmitterConfig;
 use derive_new::new;
 use hyperlane_core::ChainResult;
@@ -22,7 +24,7 @@ pub struct TransactionSubmitter {
     /// COnfig, for jito or rpc
     pub config: TransactionSubmitterConfig,
     /// provider
-    pub provider: SealevelFallbackProvider,
+    pub provider: Arc<SealevelFallbackProvider>,
 }
 
 impl TransactionSubmitter {

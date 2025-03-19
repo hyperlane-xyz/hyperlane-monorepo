@@ -1,6 +1,6 @@
-use std::collections::HashSet;
 use std::future::Future;
 use std::io::Cursor;
+use std::{collections::HashSet, sync::Arc};
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -36,7 +36,7 @@ lazy_static! {
 /// Application operation verifier for Sealevel
 #[derive(new)]
 pub struct SealevelApplicationOperationVerifier {
-    provider: SealevelFallbackProvider,
+    provider: Arc<SealevelFallbackProvider>,
 }
 
 #[async_trait]

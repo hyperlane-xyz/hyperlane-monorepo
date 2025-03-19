@@ -44,7 +44,7 @@ pub struct SealevelMailboxIndexer {
 impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
-        provider: SealevelFallbackProvider,
+        provider: Arc<SealevelFallbackProvider>,
         tx_submitter: Arc<TransactionSubmitter>,
         locator: &ContractLocator,
         conf: &ConnectionConf,

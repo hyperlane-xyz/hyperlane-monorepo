@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
@@ -22,13 +24,13 @@ pub struct SealevelMultisigIsm {
     payer: Option<SealevelKeypair>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
-    provider: SealevelFallbackProvider,
+    provider: Arc<SealevelFallbackProvider>,
 }
 
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(
-        provider: SealevelFallbackProvider,
+        provider: Arc<SealevelFallbackProvider>,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {

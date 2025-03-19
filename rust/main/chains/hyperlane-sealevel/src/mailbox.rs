@@ -66,7 +66,7 @@ pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
-    pub(crate) provider: SealevelFallbackProvider,
+    pub(crate) provider: Arc<SealevelFallbackProvider>,
     payer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<PriorityFeeOracle>,
     tx_submitter: Arc<TransactionSubmitter>,
@@ -75,7 +75,7 @@ pub struct SealevelMailbox {
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
-        provider: SealevelFallbackProvider,
+        provider: Arc<SealevelFallbackProvider>,
         tx_submitter: Arc<TransactionSubmitter>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
