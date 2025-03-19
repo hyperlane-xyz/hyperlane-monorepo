@@ -24,8 +24,8 @@ pub struct MockBaseMetadataBuilderResponses {
     /// build_ism uses a hashmap of VecDeque responses instead.
     /// This is because AggregationISMs run in parallel, so having just
     /// a single VecDeque shared between the different threads yields unpredictable
-    /// results. One thread might run for a long time and starve the other threads
-    /// of responses.
+    /// results. One thread might run for a long time and overwriting each others
+    /// responses.
     /// In order to fix this in tests, the mock ISMs are built with specific addresses
     /// in place. And gets responses from this based on the address.
     pub build_ism:
