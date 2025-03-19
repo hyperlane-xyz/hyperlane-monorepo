@@ -2,6 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
+  ChainMap,
   ChainName,
   ChainSubmissionStrategySchema,
   expandWarpDeployConfig,
@@ -20,7 +21,11 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { runWarpFork } from '../fork/warp.js';
+import {
+  ForkedChainConfig,
+  ForkedChainConfigByChainSchema,
+  runWarpFork,
+} from '../fork/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -428,6 +433,7 @@ const fork: CommandModuleWithContext<{
   symbol?: string;
   strategy?: string;
   'deploy-config': string;
+  'fork-config'?: string;
 }> = {
   command: 'fork',
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
@@ -448,8 +454,18 @@ const fork: CommandModuleWithContext<{
       false,
       'The path to output a Warp Config JSON or YAML file.',
     ),
+    'fork-config': {
+      type: 'string',
+      description:
+        'The path to a configuration file that specifies how to build the forked chains',
+    },
   },
-  handler: async ({ context, symbol, deployConfig }) => {
+  handler: async ({
+    context,
+    symbol,
+    deployConfig,
+    forkConfig: forkConfigPath,
+  }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context,
       warp: undefined,
@@ -460,10 +476,20 @@ const fork: CommandModuleWithContext<{
       context,
     );
 
+    let forkConfig: ChainMap<ForkedChainConfig>;
+    if (forkConfigPath) {
+      forkConfig = ForkedChainConfigByChainSchema.parse(
+        readYamlOrJson(forkConfigPath),
+      );
+    } else {
+      forkConfig = {};
+    }
+
     await runWarpFork({
       context,
       core: warpCoreConfig,
       deployConfig: warpDeployConfig,
+      forkConfig,
     });
   },
 };
