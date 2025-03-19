@@ -21,7 +21,7 @@
   "scripts": {
     "build": "rimraf dist && tsc",
     "format": "prettier --write .",
-    "lint": "exit 0",
+    "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "test": "exit 0"

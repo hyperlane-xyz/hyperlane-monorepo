@@ -1,7 +1,11 @@
 import MonorepoDefaults from '../../eslint.config.mjs';
 
-export default [...MonorepoDefaults,
+export default [
+  ...MonorepoDefaults,
   {
-    files: ['./src/**/*.ts']
-  }
+    files: ['src/**/*.ts'],
+  },
+  {
+    ignores: ['src/types/**/*.ts'],
+  },
 ];
