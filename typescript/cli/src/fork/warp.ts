@@ -5,6 +5,7 @@ import { $ } from 'zx';
 
 import {
   ChainName,
+  MultiProvider,
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
   ZHash,
@@ -104,9 +105,26 @@ export async function runWarpFork({
 
   let port = 8545;
   for (const chainName of filteredChainsToFork) {
-    const chainMetadata = await context.multiProvider.getChainMetadata(
+    await forkChain(
+      context.multiProvider,
       chainName,
+      port,
+      forkConfig[chainName],
     );
+
+    port++;
+  }
+}
+
+async function forkChain(
+  multiProvider: MultiProvider<{}>,
+  chainName: ChainName,
+  forkPort: number,
+  forkConfig?: ForkedChainConfig,
+): Promise<void> {
+  let killAnvilProcess: (() => Promise<void>) | undefined;
+  try {
+    const chainMetadata = await multiProvider.getChainMetadata(chainName);
 
     const rpcUrl = chainMetadata.rpcUrls[0];
     if (!rpcUrl) {
@@ -114,34 +132,39 @@ export async function runWarpFork({
       process.exit(0);
     }
 
-    const endpoint = `${LOCAL_HOST}:${port}`;
-    logGray(`Starting Anvil node for chain ${chainName} at port ${port}`);
-    const anvilProcess = $`anvil --port ${port} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http}`;
+    const endpoint = `${LOCAL_HOST}:${forkPort}`;
+    logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
+    const anvilProcess = $`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http}`;
 
     const provider = new JsonRpcProvider(endpoint);
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
-    logGray(`Running Anvil node for chain ${chainName} at ${endpoint}`);
+    logGray(
+      `Successfully started Anvil node for chain ${chainName} at ${endpoint}`,
+    );
 
-    process.once('exit', () => anvilProcess.kill());
-    port++;
+    killAnvilProcess = () => anvilProcess.kill();
+    process.once('exit', () => killAnvilProcess && killAnvilProcess());
 
-    const currentChainForkConfig = forkConfig[chainName];
-    if (!currentChainForkConfig) {
-      continue;
+    if (!forkConfig) {
+      return;
     }
 
     await handleImpersonations(
       provider,
       chainName,
-      currentChainForkConfig.impersonateAccounts,
+      forkConfig.impersonateAccounts,
     );
 
-    await handleTransactions(
-      provider,
-      chainName,
-      currentChainForkConfig.transactions,
-    );
+    await handleTransactions(provider, chainName, forkConfig.transactions);
+  } catch (error) {
+    // Kill any anvil process as if not, the process will keep running
+    // in the background
+    if (killAnvilProcess) {
+      await killAnvilProcess();
+    }
+
+    throw error;
   }
 }
 
