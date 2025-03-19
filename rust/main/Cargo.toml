@@ -13,7 +13,7 @@ members = [
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
-  "hyperlane-test",
+  "hyperlane-test", "submitter",
   "utils/abigen",
   "utils/backtrace-oneline",
   "utils/crypto",
