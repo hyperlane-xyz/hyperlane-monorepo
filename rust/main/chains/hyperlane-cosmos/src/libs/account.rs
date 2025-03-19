@@ -39,6 +39,7 @@ impl<'a> CosmosAccountId<'a> {
         let tendermint_id = TendermintAccountId::from(tendermint_pub_key);
         // Bech32 encoding
         let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok(account_id)
@@ -55,8 +56,9 @@ impl<'a> CosmosAccountId<'a> {
         let mut bytes = [0u8; 20];
         bytes.copy_from_slice(&hash.as_slice()[12..]);
 
-        let account_id =
-            AccountId::new(prefix, bytes.as_slice()).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let account_id = AccountId::new(prefix, bytes.as_slice())
+            .map_err(Box::new)
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok(account_id)
     }

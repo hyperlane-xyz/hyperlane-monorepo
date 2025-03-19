@@ -22,7 +22,10 @@ use crate::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::{
+    db::{HyperlaneDb, HyperlaneRocksDB},
+    settings::CheckpointSyncerBuildError,
+};
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -44,17 +47,28 @@ pub enum MetadataBuilderError {
     MaxDepthExceeded(u32),
 }
 
+#[derive(Clone, Debug)]
+pub enum Metadata {
+    /// Able to fetch metadata
+    Found(Vec<u8>),
+    /// Unable to fetch metadata, but no error occurred
+    CouldNotFetch,
+    /// While building metadata, encountered something that should
+    /// prohibit all metadata for the message from being built.
+    /// Provides the reason for the refusal.
+    Refused(String),
+}
+
 #[derive(Debug)]
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
-    pub metadata: Option<Vec<u8>>,
+    pub metadata: Metadata,
     pub module_type: ModuleType,
 }
 
 #[async_trait]
 pub trait MetadataBuilder: Send + Sync {
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
-        -> Result<Option<Vec<u8>>>;
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> Result<Metadata>;
 }
 
 /// Allows fetching the default ISM, caching the value for a period of time
@@ -190,11 +204,7 @@ impl Deref for MessageMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
     #[instrument(err, skip(self, message), fields(destination_domain=self.destination_domain().name()))]
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<Vec<u8>>> {
+    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> Result<Metadata> {
         self.build_ism_and_metadata(ism_address, message)
             .await
             .map(|ism_with_metadata| ism_with_metadata.metadata)
@@ -282,7 +292,7 @@ pub struct BaseMetadataBuilder {
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
-    #[new(value = "7")]
+    #[new(value = "13")]
     max_depth: u32,
 }
 
@@ -367,17 +377,27 @@ impl BaseMetadataBuilder {
 
     pub async fn build_checkpoint_syncer(
         &self,
+        message: &HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
-    ) -> Result<MultisigCheckpointSyncer> {
+    ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
         let storage_locations = self
             .origin_validator_announce
             .get_announced_storage_locations(validators)
             .await?;
 
+        debug!(
+            hyp_message=?message,
+            ?validators,
+            validators_len = ?validators.len(),
+            ?storage_locations,
+            storage_locations_len = ?storage_locations.len(),
+            "List of validators and their storage locations for message");
+
         // Only use the most recently announced location for now.
         let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
+            debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
             for storage_location in validator_storage_locations.iter().rev() {
                 let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
                     debug!(
@@ -405,6 +425,11 @@ impl BaseMetadataBuilder {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
                         break;
+                    }
+                    Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+                        // If a reorg event has been posted to a checkpoint syncer,
+                        // we refuse to build
+                        return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
                     }
                     Err(err) => {
                         debug!(

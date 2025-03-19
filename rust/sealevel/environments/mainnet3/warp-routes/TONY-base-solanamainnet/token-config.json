@@ -3,7 +3,7 @@
     "type": "collateral",
     "decimals": 18,
     "token": "0xb22a793a81ff5b6ad37f40d5fe1e0ac4184d52f3",
-    "foreignDeployment": "0x54624CA8ABEa68645b3B39211F90B804D53dB680"
+    "foreignDeployment": "0xcc9EcE816641c8350Db06af375811107B1Aa0b9d"
   },
   "solanamainnet": {
     "type": "synthetic",

@@ -20,7 +20,7 @@ import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
-import { Address, isAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
@@ -84,11 +84,8 @@ export async function inputWithInfo({
 export async function setProxyAdminConfig(
   context: CommandContext,
   chain: ChainName,
-  warpRouteOwner: Address,
-): Promise<DeployedOwnableConfig> {
-  const defaultAdminConfig: DeployedOwnableConfig = {
-    owner: warpRouteOwner,
-  };
+): Promise<DeployedOwnableConfig | undefined> {
+  let defaultAdminConfig: DeployedOwnableConfig | undefined;
 
   // default to deploying a new ProxyAdmin with `warpRouteOwner` as the owner
   // if the user supplied the --yes flag
