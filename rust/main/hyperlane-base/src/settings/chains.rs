@@ -967,10 +967,13 @@ impl ChainConf {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();
-        let rpc_metrics = Some(metrics.client_metrics());
+        let client_metrics = metrics.client_metrics();
+
+        let client_metrics = Some(client_metrics);
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
+
         let res = builder
-            .build_with_connection_conf(conf, locator, signer, rpc_metrics, middleware_metrics)
+            .build_with_connection_conf(conf, locator, signer, client_metrics, middleware_metrics)
             .await;
         Ok(res?)
     }
@@ -1035,13 +1038,14 @@ fn build_cosmos_provider(
     signer: Option<Signer>,
 ) -> ChainResult<CosmosProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_metrics = metrics.client_metrics();
+    let client_metrics = metrics.client_metrics();
+
     CosmosProvider::new(
         locator.domain.clone(),
         connection_conf.clone(),
         locator,
         signer,
-        rpc_metrics,
+        client_metrics,
         middleware_metrics.chain.clone(),
     )
 }
@@ -1056,6 +1060,7 @@ fn build_cosmos_wasm_provider(
 ) -> ChainResult<CosmosWasmRpcProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
+
     CosmosWasmRpcProvider::new(
         connection_conf,
         locator,
