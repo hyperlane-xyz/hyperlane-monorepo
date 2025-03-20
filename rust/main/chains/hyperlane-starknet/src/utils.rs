@@ -190,6 +190,21 @@ pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
 }
 
 /// Convert a byte slice to a starknet bytes
+pub fn to_metadata_bytes(bytes: &[u8]) -> MailboxBytes {
+    let result = to_packed_bytes(bytes);
+    println!(
+        "SAQUON metadata bytes size : {:?}, {:?}",
+        result.len(),
+        bytes.len()
+    );
+
+    MailboxBytes {
+        size: bytes.len() as u32,
+        data: result,
+    }
+}
+
+/// Convert a byte slice to a starknet bytes
 pub fn to_mailbox_bytes(bytes: &[u8]) -> MailboxBytes {
     let result = to_packed_bytes(bytes);
 
