@@ -6,11 +6,11 @@ use eyre::{eyre, Context, Report, Result};
 
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    config::OperationBatchConfig, rpc_clients::FallbackProvider, AggregationIsm, CcipReadIsm,
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, HyperlaneProvider, IndexMode, InterchainGasPaymaster, InterchainGasPayment,
-    InterchainSecurityModule, Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm,
-    ReorgPeriod, RoutingIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
+    config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
+    SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -25,8 +25,7 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
-    self as h_sealevel, client_builder::SealevelRpcClientBuilder,
-    fallback::SealevelFallbackProvider, SealevelProvider, TransactionSubmitter,
+    self as h_sealevel, fallback::SealevelFallbackProvider, TransactionSubmitter,
 };
 
 use crate::{
@@ -999,25 +998,16 @@ fn build_sealevel_provider(
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
 
-    let providers: Vec<_> = conf
-        .urls
-        .iter()
-        .map(|rpc_url| {
-            SealevelRpcClientBuilder::new(rpc_url.clone())
-                .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
-                .build()
-        })
-        .map(|rpc_client| {
-            SealevelProvider::new(
-                Arc::new(rpc_client),
-                locator.domain.clone(),
-                contract_addresses,
-                conf,
-            )
-        })
-        .collect();
-    let fallback = FallbackProvider::new(providers);
-    let provider = SealevelFallbackProvider::new(fallback);
+    let chain = middleware_metrics.chain.clone();
+    let urls = conf.urls.clone();
+    let provider = SealevelFallbackProvider::from_urls(
+        locator.domain.clone(),
+        conf,
+        chain,
+        contract_addresses,
+        urls,
+        client_metrics,
+    );
     provider
 }
 

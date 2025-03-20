@@ -44,7 +44,7 @@ impl SealevelMultisigIsm {
         }
     }
 
-    fn rpc(&self) -> &SealevelFallbackProvider {
+    fn provider(&self) -> &SealevelFallbackProvider {
         &self.provider
     }
 }
@@ -91,7 +91,7 @@ impl MultisigIsm for SealevelMultisigIsm {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         let validators_and_threshold = self
-            .rpc()
+            .provider()
             .simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
                 payer.clone(),
                 instruction,
@@ -141,7 +141,7 @@ impl SealevelMultisigIsm {
             .payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-        self.rpc()
+        self.provider()
             .get_account_metas(payer.clone(), instruction)
             .await
     }

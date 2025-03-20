@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use derive_new::new;
 use hyperlane_core::ChainCommunicationError;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_sdk::account::Account;
 use solana_sdk::instruction::AccountMeta;
@@ -11,8 +12,11 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiConfirmedBlock;
 use std::{fmt::Debug, ops::Deref, sync::Arc};
+use url::Url;
 
 use crate::client::SealevelTxCostEstimate;
+use crate::client_builder::SealevelRpcClientBuilder;
+use crate::ConnectionConf;
 use crate::{priority_fee::PriorityFeeOracle, SealevelKeypair, TransactionSubmitter};
 
 use super::SealevelProvider;
@@ -29,6 +33,36 @@ pub struct SealevelFallbackProvider {
 }
 
 impl SealevelFallbackProvider {
+    /// Create a SealevelFallbackProvider from a list of urls
+    pub fn from_urls(
+        domain: HyperlaneDomain,
+        conf: &ConnectionConf,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
+        contract_addresses: &[H256],
+        urls: Vec<Url>,
+        metrics: PrometheusClientMetrics,
+    ) -> Self {
+        let providers: Vec<_> = urls
+            .into_iter()
+            .map(|rpc_url| {
+                SealevelRpcClientBuilder::new(rpc_url)
+                    .with_prometheus_metrics(metrics.clone(), chain.clone())
+                    .build()
+            })
+            .map(|rpc_client| {
+                SealevelProvider::new(
+                    Arc::new(rpc_client),
+                    domain.clone(),
+                    contract_addresses,
+                    conf,
+                )
+            })
+            .collect();
+
+        let fallback = FallbackProvider::new(providers);
+        SealevelFallbackProvider::new(fallback)
+    }
+
     /// Builds a transaction with estimated costs for a given instruction.
     pub async fn build_estimated_tx_for_instruction(
         &self,

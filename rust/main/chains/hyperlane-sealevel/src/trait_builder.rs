@@ -10,7 +10,7 @@ use crate::{
 /// Sealevel connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /// The RPC url to connect to
+    /// A list of urls to connect to
     pub urls: Vec<Url>,
     /// Operation batching configuration
     pub operation_batch: OperationBatchConfig,
