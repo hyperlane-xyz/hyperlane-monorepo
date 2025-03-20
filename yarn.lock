@@ -7651,8 +7651,8 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/registry": "npm:10.12.0"
-    "@hyperlane-xyz/sdk": "npm:9.0.0"
-    "@hyperlane-xyz/utils": "npm:9.0.0"
+    "@hyperlane-xyz/sdk": "npm:9.1.0"
+    "@hyperlane-xyz/utils": "npm:9.1.0"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7692,14 +7692,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:6.0.0, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:6.0.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@chainlink/contracts-ccip": "npm:^1.5.0"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:9.0.0"
+    "@hyperlane-xyz/utils": "npm:9.1.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7751,14 +7751,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:9.0.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:9.1.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:6.0.0"
+    "@hyperlane-xyz/core": "npm:6.0.1"
     "@hyperlane-xyz/registry": "npm:10.12.0"
-    "@hyperlane-xyz/sdk": "npm:9.0.0"
+    "@hyperlane-xyz/sdk": "npm:9.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -7807,10 +7807,10 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:9.0.0"
+    "@hyperlane-xyz/helloworld": "npm:9.1.0"
     "@hyperlane-xyz/registry": "npm:10.12.0"
-    "@hyperlane-xyz/sdk": "npm:9.0.0"
-    "@hyperlane-xyz/utils": "npm:9.0.0"
+    "@hyperlane-xyz/sdk": "npm:9.1.0"
+    "@hyperlane-xyz/utils": "npm:9.1.0"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -7881,7 +7881,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:9.0.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:9.1.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -7891,9 +7891,9 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:6.0.0"
+    "@hyperlane-xyz/core": "npm:6.0.1"
     "@hyperlane-xyz/starknet-core": "npm:0.3.1"
-    "@hyperlane-xyz/utils": "npm:9.0.0"
+    "@hyperlane-xyz/utils": "npm:9.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -7956,7 +7956,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:9.0.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:9.1.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -7998,8 +7998,8 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/registry": "npm:10.12.0"
-    "@hyperlane-xyz/sdk": "npm:9.0.0"
-    "@hyperlane-xyz/utils": "npm:9.0.0"
+    "@hyperlane-xyz/sdk": "npm:9.1.0"
+    "@hyperlane-xyz/utils": "npm:9.1.0"
     "@interchain-ui/react": "npm:^1.23.28"
     "@rainbow-me/rainbowkit": "npm:^2.2.0"
     "@solana/wallet-adapter-react": "npm:^0.15.32"
@@ -9607,7 +9607,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@noble/hashes@npm:1.5.0, @noble/hashes@npm:^1.4.0, @noble/hashes@npm:~1.5.0":
+"@noble/hashes@npm:1.5.0, @noble/hashes@npm:^1.2.0, @noble/hashes@npm:^1.4.0, @noble/hashes@npm:^1.5.0, @noble/hashes@npm:~1.5.0":
   version: 1.5.0
   resolution: "@noble/hashes@npm:1.5.0"
   checksum: 10/da7fc7af52af7afcf59810a7eea6155075464ff462ffda2572dc6d57d53e2669b1ea2ec774e814f6273f1697e567f28d36823776c9bf7068cba2a2855140f26e
@@ -9628,7 +9628,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@noble/hashes@npm:1.7.1, @noble/hashes@npm:^1.2.0, @noble/hashes@npm:^1.5.0, @noble/hashes@npm:~1.7.1":
+"@noble/hashes@npm:1.7.1, @noble/hashes@npm:~1.7.1":
   version: 1.7.1
   resolution: "@noble/hashes@npm:1.7.1"
   checksum: 10/ca3120da0c3e7881d6a481e9667465cc9ebbee1329124fb0de442e56d63fef9870f8cc96f264ebdb18096e0e36cebc0e6e979a872d545deb0a6fed9353f17e05
@@ -17951,21 +17951,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"abi-wan-kanabi@npm:^2.2.3":
-  version: 2.2.3
-  resolution: "abi-wan-kanabi@npm:2.2.3"
-  dependencies:
-    ansicolors: "npm:^0.3.2"
-    cardinal: "npm:^2.1.1"
-    fs-extra: "npm:^10.0.0"
-    yargs: "npm:^17.7.2"
-  bin:
-    generate: dist/generate.js
-  checksum: 10/112ff2ee880ada687e033be1de3680a6ee51d411e0c13a7aa1160349ecc8ec0b79d2b11f352b8049db7aa45e8d10090bd99123905007423ee1ace9fb89f740de
-  languageName: node
-  linkType: hard
-
-"abi-wan-kanabi@npm:^2.2.4":
+"abi-wan-kanabi@npm:^2.2.3, abi-wan-kanabi@npm:^2.2.4":
   version: 2.2.4
   resolution: "abi-wan-kanabi@npm:2.2.4"
   dependencies:
