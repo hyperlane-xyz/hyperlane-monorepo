@@ -7650,7 +7650,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:10.1.0"
+    "@hyperlane-xyz/registry": "npm:11.1.0"
     "@hyperlane-xyz/sdk": "npm:9.1.0"
     "@hyperlane-xyz/utils": "npm:9.1.0"
     "@inquirer/core": "npm:9.0.10"
@@ -7756,7 +7756,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:6.0.1"
-    "@hyperlane-xyz/registry": "npm:10.1.0"
+    "@hyperlane-xyz/registry": "npm:11.1.0"
     "@hyperlane-xyz/sdk": "npm:9.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7869,16 +7869,6 @@ __metadata:
     tsx: "npm:^4.19.1"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/registry@npm:10.1.0":
-  version: 10.1.0
-  resolution: "@hyperlane-xyz/registry@npm:10.1.0"
-  dependencies:
-    yaml: "npm:2.4.5"
-    zod: "npm:^3.21.2"
-  checksum: 10/2b7b3bcecc25f744a2ee7ee38899706441165092e39e174b83e1e73c4b7530f989da5d3215b0760408e0b990b8d0f1ecd205b06719243cb18f8dea64fb007b4a
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/registry@npm:11.1.0":
   version: 11.1.0
