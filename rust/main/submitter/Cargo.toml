@@ -8,10 +8,11 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-chrono.workspace = true
-eyre.workspace = true
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
+
+chrono.workspace = true
+eyre.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing.workspace = true
 uuid.workspace = true

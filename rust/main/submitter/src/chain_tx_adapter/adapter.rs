@@ -2,8 +2,9 @@
 #![allow(dead_code)]
 
 use eyre::Result;
-use hyperlane_core::U256;
 use uuid::Uuid;
+
+use hyperlane_core::U256;
 
 use super::{FullPayload, Transaction, TransactionStatus};
 
@@ -32,8 +33,12 @@ pub trait AdaptsChain {
     // methods below are excluded from the MVP
 
     /// Checks if a nonce gap exists in transactions submitted by the PayloadDispatcher via this adapter
-    async fn nonce_gap_exists(&self) -> bool;
+    async fn nonce_gap_exists(&self) -> bool {
+        todo!()
+    }
 
     /// Replaces calldata in this tx with a transfer-to-self, to use its payload(s) for filling a nonce gap
-    async fn replace_tx(&self, tx: &Transaction) -> Result<()>;
+    async fn replace_tx(&self, _tx: &Transaction) -> Result<()> {
+        todo!()
+    }
 }
