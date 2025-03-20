@@ -14,31 +14,6 @@ const owners = {
 
 const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
-export const getEthereumSuperseedCBBTCWarpConfig = async (
-  routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    owner: owners.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.cbBTC,
-    interchainSecurityModule: ISM_CONFIG,
-  };
-
-  const superseed: HypTokenRouterConfig = {
-    ...routerConfig.superseed,
-    owner: owners.superseed,
-    type: TokenType.collateralFiat,
-    token: '0x6f36dbd829de9b7e077db8a35b480d4329ceb331',
-    interchainSecurityModule: ISM_CONFIG,
-  };
-
-  return {
-    ethereum,
-    superseed,
-  };
-};
-
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
