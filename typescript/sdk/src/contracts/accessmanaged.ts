@@ -80,7 +80,7 @@ export function configureAccess<
       const annotation = `set admin for role ${role} to ${roleConfig.admin}`;
       transactions.push({ data, annotation });
     }
-    if (roleConfig.grantDelay) {
+    if (roleConfig.grantDelay && roleConfig.grantDelay > 0) {
       const data = manager.encodeFunctionData('setGrantDelay', [
         role,
         roleConfig.grantDelay,
@@ -106,7 +106,7 @@ export function configureAccess<
       transactions.push({ data, annotation });
     }
 
-    if (targetConfig.adminDelay) {
+    if (targetConfig.adminDelay && targetConfig.adminDelay > 0) {
       const data = manager.encodeFunctionData('setTargetAdminDelay', [
         contract.address,
         targetConfig.adminDelay,

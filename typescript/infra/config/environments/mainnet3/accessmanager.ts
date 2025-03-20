@@ -7,7 +7,8 @@ import { AccessManagerConfig } from '@hyperlane-xyz/sdk';
 
 enum Roles {
   PUBLIC,
-  Foundation,
+  FoundationFast,
+  FoundationSlow,
   SecurityCouncil,
   AbacusWorks,
   // ... ?
@@ -25,16 +26,24 @@ type ManagedFactories = {
 
 const DAY = 24 * 60 * 60;
 
+const foundation = {
+  guardian: Roles.SecurityCouncil,
+  members: new Set([
+    '0xFoundationAddress1', // replace with actual addresses
+    '0xFoundationAddress2',
+  ]),
+};
+
 const config: AccessManagerConfig<Roles, ManagedFactories> = {
   roles: {
     [Roles.PUBLIC]: { members: new Set() },
-    [Roles.Foundation]: {
-      members: new Set([
-        '0xFoundationAddress1', // replace with actual addresses
-        '0xFoundationAddress2',
-      ]),
+    [Roles.FoundationFast]: {
+      ...foundation,
       executionDelay: 7 * DAY,
-      guardian: Roles.SecurityCouncil,
+    },
+    [Roles.FoundationSlow]: {
+      ...foundation,
+      executionDelay: 30 * DAY,
     },
     [Roles.SecurityCouncil]: {
       members: new Set([
@@ -52,18 +61,18 @@ const config: AccessManagerConfig<Roles, ManagedFactories> = {
   targets: {
     hyperToken: {
       authority: {
-        'mint(address,uint256)': Roles.Foundation,
-        'burn(address,uint256)': Roles.Foundation,
-        'setInterchainSecurityModule(address)': Roles.Foundation,
-        'setHook(address)': Roles.Foundation,
+        'mint(address,uint256)': Roles.FoundationFast,
+        'burn(address,uint256)': Roles.FoundationFast,
+        'setInterchainSecurityModule(address)': Roles.FoundationFast,
+        'setHook(address)': Roles.FoundationFast,
       },
     },
     proxyAdmin: {
       authority: {
-        'upgrade(address,address)': Roles.Foundation,
-        'upgradeAndCall(address,address,bytes)': Roles.Foundation,
-        'changeProxyAdmin(address,address)': Roles.Foundation,
-        'transferOwnership(address)': Roles.Foundation,
+        'upgrade(address,address)': Roles.FoundationSlow,
+        'upgradeAndCall(address,address,bytes)': Roles.FoundationSlow,
+        'changeProxyAdmin(address,address)': Roles.FoundationSlow,
+        'transferOwnership(address)': Roles.FoundationSlow,
       },
     },
     // TODO:
