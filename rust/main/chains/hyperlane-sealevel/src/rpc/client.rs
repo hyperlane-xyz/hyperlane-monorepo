@@ -584,7 +584,7 @@ impl SealevelRpcClient {
 
 impl std::fmt::Debug for SealevelRpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("RpcClient { ... }")
+        write!(f, "RpcClient {{ url: {} }}", self.0.url())
     }
 }
 

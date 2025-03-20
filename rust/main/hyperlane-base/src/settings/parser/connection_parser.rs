@@ -295,7 +295,7 @@ fn parse_helius_priority_fee_level(
             "unsafemax" => Some(HeliusPriorityFeeLevel::UnsafeMax),
             _ => {
                 err.push(
-                    &value_parser.cwp + "feeLevel",
+                    &value_parser.cwp + "fee_level",
                     eyre!("Unknown priority fee level"),
                 );
                 None
@@ -321,7 +321,7 @@ fn parse_transaction_submitter_config(
     if let Some(submitter_type) = submitter_type {
         match submitter_type.to_lowercase().as_str() {
             "rpc" => {
-                let urls: Vec<_> = chain
+                let urls: Vec<String> = chain
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
                     .get_opt_key("urls")
@@ -350,7 +350,7 @@ fn parse_transaction_submitter_config(
             }
             _ => {
                 err.push(
-                    &chain.cwp + "transactionSubmitter.type",
+                    &chain.cwp + "transaction_submitter.type",
                     eyre!("Unknown transaction submitter type"),
                 );
                 None

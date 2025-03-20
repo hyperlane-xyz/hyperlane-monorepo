@@ -57,6 +57,7 @@ impl TransactionSubmitterConfig {
                         SealevelProvider::new(Arc::new(rpc_client), domain.clone(), &[], conf)
                     })
                     .collect();
+
                 let fallback = FallbackProvider::new(providers);
                 let provider = Arc::new(SealevelFallbackProvider::new(fallback));
                 TransactionSubmitter::new(self.clone(), provider)
