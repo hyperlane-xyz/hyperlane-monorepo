@@ -1,76 +1,97 @@
 import {
-  HyperToken,
-  INetworkRestakeDelegator,
-  IStakerRewards,
-  IVaultTokenized,
-  ProxyAdmin,
-  TimelockController,
+  HyperToken__factory,
+  ProxyAdmin__factory,
+  TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { AccessManaged } from '@hyperlane-xyz/sdk';
+import { AccessManagerConfig } from '@hyperlane-xyz/sdk';
 
 enum Roles {
+  PUBLIC,
   Foundation,
   SecurityCouncil,
   AbacusWorks,
   // ... ?
 }
 
-type AccessManagerConfig = {
-  hyperToken: AccessManaged<HyperToken, Roles>;
-  vault: AccessManaged<IVaultTokenized, Roles>;
-  delegator: AccessManaged<INetworkRestakeDelegator, Roles>;
-  network: AccessManaged<TimelockController, Roles>;
-  rewards: AccessManaged<IStakerRewards, Roles>;
-  proxyAdmin: AccessManaged<ProxyAdmin, Roles>;
+type ManagedFactories = {
+  hyperToken: HyperToken__factory;
+  proxyAdmin: ProxyAdmin__factory;
+  network: TimelockController__factory;
+  // TODO: fix compatibility with HyperlaneFactories
+  // vault: IVaultTokenized__factory;
+  // delegator: INetworkRestakeDelegator__factory;
+  // rewards: IStakerRewards__factory;
 };
 
 const DAY = 24 * 60 * 60;
 
-const foundationAccess = {
-  authorized: new Set([Roles.Foundation]),
-  guardian: Roles.SecurityCouncil,
+const config: AccessManagerConfig<Roles, ManagedFactories> = {
+  roles: {
+    [Roles.PUBLIC]: { members: new Set() },
+    [Roles.Foundation]: {
+      members: new Set([
+        '0xFoundationAddress1', // replace with actual addresses
+        '0xFoundationAddress2',
+      ]),
+      executionDelay: 7 * DAY,
+      guardian: Roles.SecurityCouncil,
+    },
+    [Roles.SecurityCouncil]: {
+      members: new Set([
+        '0xSecurityCouncilAddress1', // replace with actual addresses
+        '0xSecurityCouncilAddress',
+      ]),
+    },
+    [Roles.AbacusWorks]: {
+      members: new Set([
+        '0xAbacusWorksAddress1', // replace with actual addresses
+        '0xAbacusWorksAddress',
+      ]),
+    },
+  },
+  targets: {
+    hyperToken: {
+      authority: {
+        'mint(address,uint256)': Roles.Foundation,
+        'burn(address,uint256)': Roles.Foundation,
+        'setInterchainSecurityModule(address)': Roles.Foundation,
+        'setHook(address)': Roles.Foundation,
+      },
+    },
+    proxyAdmin: {
+      authority: {
+        'upgrade(address,address)': Roles.Foundation,
+        'upgradeAndCall(address,address,bytes)': Roles.Foundation,
+        'changeProxyAdmin(address,address)': Roles.Foundation,
+        'transferOwnership(address)': Roles.Foundation,
+      },
+    },
+    // TODO:
+    // - migrate timelock admin from AW safe to access manager
+    // - migrate proposer from AW safe to access manager
+    network: {
+      authority: {
+        'grantRole(bytes32,address)': Roles.Foundation,
+      },
+    },
+  },
+  // TODO: fix
+  // vault: {
+  //   'migrate(uint64,bytes)': thirtyDayFoundation,
+  //   'setDepositLimit(uint256)': sevenDayFoundation,
+  //   'setDepositWhitelist(bool)': sevenDayFoundation,
+  // },
+  // delegator: {
+  //   'setNetworkLimit(bytes32,uint256)': thirtyDayFoundation,
+  //   'setMaxNetworkLimit(uint96,uint256)': thirtyDayFoundation,
+  //   'setOperatorNetworkShares(bytes32,address,uint256)': sevenDayFoundation,
+  // },
+  // rewards: {
+  //   'distributeRewards(address,address,uint256,bytes)': sevenDayFoundation,
+  // },
 };
 
-const sevenDayFoundation = {
-  ...foundationAccess,
-  delay: 7 * DAY,
-};
-
-const thirtyDayFoundation = {
-  ...foundationAccess,
-  delay: 30 * DAY,
-};
-
-const config: AccessManagerConfig = {
-  hyperToken: {
-    'mint(address,uint256)': sevenDayFoundation,
-    'burn(address,uint256)': sevenDayFoundation,
-    'setInterchainSecurityModule(address)': sevenDayFoundation,
-    'setHook(address)': sevenDayFoundation,
-  },
-  proxyAdmin: {
-    'upgrade(address,address)': thirtyDayFoundation,
-    'upgradeAndCall(address,address,bytes)': thirtyDayFoundation,
-    'changeProxyAdmin(address,address)': thirtyDayFoundation,
-    'transferOwnership(address)': thirtyDayFoundation,
-  },
-  vault: {
-    'migrate(uint64,bytes)': thirtyDayFoundation,
-    'setDepositLimit(uint256)': sevenDayFoundation,
-    'setDepositWhitelist(bool)': sevenDayFoundation,
-  },
-  delegator: {
-    'setNetworkLimit(bytes32,uint256)': thirtyDayFoundation,
-    'setMaxNetworkLimit(uint96,uint256)': thirtyDayFoundation,
-    'setOperatorNetworkShares(bytes32,address,uint256)': sevenDayFoundation,
-  },
-  network: {
-    'schedule(address,uint256,bytes,bytes32,bytes32,uint256)':
-      sevenDayFoundation,
-  },
-  rewards: {
-    'distributeRewards(address,address,uint256,bytes)': sevenDayFoundation,
-  },
-};
+// tests:
+// - mint/burn hyperToken
 
 export default config;
