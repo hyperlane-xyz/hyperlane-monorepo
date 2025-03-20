@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Make mailbox optional on warp deploy config
+Improved warp route extension and configuration handling

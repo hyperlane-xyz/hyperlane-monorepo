@@ -149,7 +149,6 @@ export const deploy: CommandModuleWithWriteContext<{
       await runWarpRouteDeploy({
         context,
         warpRouteDeploymentConfigPath: config,
-        multiProtocolSigner,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
