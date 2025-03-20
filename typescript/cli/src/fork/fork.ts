@@ -3,13 +3,7 @@ import { ethers } from 'ethers';
 import { z } from 'zod';
 import { $ } from 'zx';
 
-import {
-  ChainName,
-  MultiProvider,
-  WarpCoreConfig,
-  WarpRouteDeployConfigMailboxRequired,
-  ZHash,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider, ZHash } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -82,33 +76,31 @@ export type ForkedChainConfigByChain = z.infer<
   typeof ForkedChainConfigByChainSchema
 >;
 
-export async function runWarpFork({
+export async function runForkCommand({
   context,
-  core,
-  deployConfig,
+  chainsToFork,
   forkConfig,
+  kill,
+  basePort = 8545,
 }: {
   context: CommandContext;
-  core: WarpCoreConfig;
+  chainsToFork: Set<ChainName>;
   forkConfig: ForkedChainConfigByChain;
-  deployConfig: WarpRouteDeployConfigMailboxRequired;
+  kill: boolean;
+  basePort?: number;
 }): Promise<void> {
-  const chainsToFork = new Set([
-    ...core.tokens.map((tokenConfig) => tokenConfig.chainName),
-    ...Object.keys(deployConfig),
-  ]);
-
   const filteredChainsToFork = Array.from(chainsToFork).filter(
     (chain) =>
       context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
   );
 
-  let port = 8545;
+  let port = basePort;
   for (const chainName of filteredChainsToFork) {
     await forkChain(
       context.multiProvider,
       chainName,
       port,
+      kill,
       forkConfig[chainName],
     );
 
@@ -120,9 +112,10 @@ async function forkChain(
   multiProvider: MultiProvider<{}>,
   chainName: ChainName,
   forkPort: number,
+  kill: boolean,
   forkConfig?: ForkedChainConfig,
 ): Promise<void> {
-  let killAnvilProcess: (() => Promise<void>) | undefined;
+  let killAnvilProcess: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
     const chainMetadata = await multiProvider.getChainMetadata(chainName);
 
@@ -143,8 +136,9 @@ async function forkChain(
       `Successfully started Anvil node for chain ${chainName} at ${endpoint}`,
     );
 
-    killAnvilProcess = () => anvilProcess.kill();
-    process.once('exit', () => killAnvilProcess && killAnvilProcess());
+    killAnvilProcess = (isPanicking: boolean) =>
+      anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
+    process.once('exit', () => killAnvilProcess && killAnvilProcess(false));
 
     if (!forkConfig) {
       return;
@@ -157,11 +151,15 @@ async function forkChain(
     );
 
     await handleTransactions(provider, chainName, forkConfig.transactions);
+
+    if (kill) {
+      await killAnvilProcess(false);
+    }
   } catch (error) {
     // Kill any anvil process as if not, the process will keep running
     // in the background
     if (killAnvilProcess) {
-      await killAnvilProcess();
+      await killAnvilProcess(true);
     }
 
     throw error;

@@ -24,8 +24,8 @@ import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import {
   ForkedChainConfig,
   ForkedChainConfigByChainSchema,
-  runWarpFork,
-} from '../fork/warp.js';
+  runForkCommand,
+} from '../fork/fork.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -431,9 +431,9 @@ export const verify: CommandModuleWithWriteContext<{
 const fork: CommandModuleWithContext<{
   port?: number;
   symbol?: string;
-  strategy?: string;
   'deploy-config': string;
   'fork-config'?: string;
+  kill: boolean;
 }> = {
   command: 'fork',
   describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
@@ -448,22 +448,29 @@ const fork: CommandModuleWithContext<{
       ...symbolCommandOption,
       demandOption: false,
     },
-    strategy: { ...strategyCommandOption, demandOption: false },
     'deploy-config': outputFileCommandOption(
       DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
       false,
-      'The path to output a Warp Config JSON or YAML file.',
+      'The path for a warp route deploy config',
     ),
     'fork-config': {
       type: 'string',
       description:
         'The path to a configuration file that specifies how to build the forked chains',
     },
+    kill: {
+      type: 'boolean',
+      default: false,
+      description:
+        'If set, it will stop the forked chains once the forked config has been applied',
+    },
   },
   handler: async ({
     context,
     symbol,
     deployConfig,
+    port,
+    kill,
     forkConfig: forkConfigPath,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
@@ -485,11 +492,15 @@ const fork: CommandModuleWithContext<{
       forkConfig = {};
     }
 
-    await runWarpFork({
+    await runForkCommand({
       context,
-      core: warpCoreConfig,
-      deployConfig: warpDeployConfig,
+      chainsToFork: new Set([
+        ...warpCoreConfig.tokens.map((tokenConfig) => tokenConfig.chainName),
+        ...Object.keys(warpDeployConfig),
+      ]),
       forkConfig,
+      basePort: port,
+      kill,
     });
   },
 };
