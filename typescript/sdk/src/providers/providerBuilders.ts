@@ -149,6 +149,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
-  [ProtocolType.Starknet]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
 };
