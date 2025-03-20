@@ -183,51 +183,46 @@ export class StarknetERC20WarpModule {
 
       const contract = new Contract(ROUTER_ABI, tokenAddress, account);
 
-      try {
-        // Prepare arrays for batch enrollment
-        const domains: number[] = [];
-        const routers: Uint256[] = [];
+      // Prepare arrays for batch enrollment
+      const domains: number[] = [];
+      const routers: Uint256[] = [];
 
-        // Collect all remote chains' data
-        Object.entries(routerAddresses).forEach(
-          ([remoteChain, remoteAddress]) => {
-            if (remoteChain === chain) return; // Skip self-enrollment
+      // Collect all remote chains' data
+      Object.entries(routerAddresses).forEach(
+        ([remoteChain, remoteAddress]) => {
+          if (remoteChain === chain) return; // Skip self-enrollment
 
-            const remoteDomain = this.multiProvider.getDomainId(remoteChain);
-            const remoteProtocol =
-              this.multiProvider.getChainMetadata(remoteChain).protocol;
+          const remoteDomain = this.multiProvider.getDomainId(remoteChain);
+          const remoteProtocol =
+            this.multiProvider.getChainMetadata(remoteChain).protocol;
 
-            // Only validate and parse ETH address for Ethereum chains
-            const remoteRouter = uint256.bnToUint256(
-              remoteProtocol === ProtocolType.Ethereum
-                ? eth.validateAndParseEthAddress(remoteAddress)
-                : remoteAddress,
-            );
+          // Only validate and parse ETH address for Ethereum chains
+          const remoteRouter = uint256.bnToUint256(
+            remoteProtocol === ProtocolType.Ethereum
+              ? eth.validateAndParseEthAddress(remoteAddress)
+              : remoteAddress,
+          );
 
-            domains.push(remoteDomain);
-            routers.push(remoteRouter);
-          },
-        );
+          domains.push(remoteDomain);
+          routers.push(remoteRouter);
+        },
+      );
 
-        this.logger.info(
-          `Batch enrolling ${domains.length} remote routers on ${chain}`,
-        );
+      this.logger.info(
+        `Batch enrolling ${domains.length} remote routers on ${chain}`,
+      );
 
-        const tx = await contract.invoke('enroll_remote_routers', [
-          domains,
-          routers,
-        ]);
+      const tx = await contract.invoke('enroll_remote_routers', [
+        domains,
+        routers,
+      ]);
 
-        await account.waitForTransaction(tx.transaction_hash);
+      const receipt = await account.waitForTransaction(tx.transaction_hash);
 
+      if (receipt.isSuccess()) {
         this.logger.info(
           `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
         );
-      } catch (error) {
-        this.logger.error(
-          `Failed to enroll remote routers on ${chain}: ${error}`,
-        );
-        throw error;
       }
     }
   }
