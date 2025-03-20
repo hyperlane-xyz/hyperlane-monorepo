@@ -109,6 +109,8 @@ hyperlane:
     podLabels: {}
     attachServiceAccount: false
     storage:
+      name: 'state-premium'
+      storageClass: 'premium-immediate-rwo'
       size: 10Gi
       snapshot:
         enabled: false
