@@ -7,9 +7,9 @@ import {
   MsgRemoteTransfer,
   MsgSetToken,
   MsgUnrollRemoteRouter,
-} from '../../../types/hyperlane/warp/v1/tx';
-import { RemoteRouter } from '../../../types/hyperlane/warp/v1/types';
-import { isNotEmpty } from '../../../utils';
+} from '../../../types/hyperlane/warp/v1/tx.js';
+import { RemoteRouter } from '../../../types/hyperlane/warp/v1/types.js';
+import { isNotEmpty } from '../../../utils/index.js';
 
 /** A high level transaction of the coin module */
 export interface AminoMsgCreateCollateralToken extends AminoMsg {

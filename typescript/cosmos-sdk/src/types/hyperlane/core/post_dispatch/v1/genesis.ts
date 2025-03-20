@@ -6,14 +6,14 @@
 
 /* eslint-disable */
 import Long from 'long';
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
 import {
   GasOracle,
   InterchainGasPaymaster,
   MerkleTreeHook,
   NoopHook,
-} from './types';
+} from './types.js';
 
 export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
 

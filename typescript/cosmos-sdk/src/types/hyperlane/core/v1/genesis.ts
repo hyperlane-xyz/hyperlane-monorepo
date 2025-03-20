@@ -6,12 +6,12 @@
 
 /* eslint-disable */
 import Long from 'long';
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
-import { GenesisState as GenesisState1 } from '../interchain_security/v1/genesis';
-import { GenesisState as GenesisState2 } from '../post_dispatch/v1/genesis';
+import { GenesisState as GenesisState1 } from '../interchain_security/v1/genesis.js';
+import { GenesisState as GenesisState2 } from '../post_dispatch/v1/genesis.js';
 
-import { Mailbox } from './types';
+import { Mailbox } from './types.js';
 
 export const protobufPackage = 'hyperlane.core.v1';
 

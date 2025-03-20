@@ -4,7 +4,7 @@ import {
   MsgCreateMailbox,
   MsgProcessMessage,
   MsgSetMailbox,
-} from '../../../types/hyperlane/core/v1/tx';
+} from '../../../types/hyperlane/core/v1/tx.js';
 
 export interface MsgCreateMailboxEncodeObject extends EncodeObject {
   readonly typeUrl: '/hyperlane.core.v1.MsgCreateMailbox';

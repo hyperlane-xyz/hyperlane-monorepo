@@ -5,13 +5,13 @@
 // source: hyperlane/warp/v1/query.proto
 
 /* eslint-disable */
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
 import {
   PageRequest,
   PageResponse,
-} from '../../../cosmos/base/query/v1beta1/pagination';
-import { Coin } from '../../../cosmos/base/v1beta1/coin';
+} from '../../../cosmos/base/query/v1beta1/pagination.js';
+import { Coin } from '../../../cosmos/base/v1beta1/coin.js';
 
 import {
   HypTokenType,
@@ -19,7 +19,7 @@ import {
   hypTokenTypeFromJSON,
   hypTokenTypeToJSON,
   hypTokenTypeToNumber,
-} from './types';
+} from './types.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
 

@@ -28,7 +28,7 @@ import {
   MsgCreateMerkleRootMultisigIsm,
   MsgCreateMessageIdMultisigIsm,
   MsgCreateNoopIsm,
-} from '../types/hyperlane/core/interchain_security/v1/tx';
+} from '../types/hyperlane/core/interchain_security/v1/tx.js';
 import {
   MsgClaim,
   MsgCreateIgp,
@@ -37,12 +37,12 @@ import {
   MsgPayForGas,
   MsgSetDestinationGasConfig,
   MsgSetIgpOwner,
-} from '../types/hyperlane/core/post_dispatch/v1/tx';
+} from '../types/hyperlane/core/post_dispatch/v1/tx.js';
 import {
   MsgCreateMailbox,
   MsgProcessMessage,
   MsgSetMailbox,
-} from '../types/hyperlane/core/v1/tx';
+} from '../types/hyperlane/core/v1/tx.js';
 import {
   MsgCreateCollateralToken,
   MsgCreateSyntheticToken,
@@ -50,27 +50,27 @@ import {
   MsgRemoteTransfer,
   MsgSetToken,
   MsgUnrollRemoteRouter,
-} from '../types/hyperlane/warp/v1/tx';
+} from '../types/hyperlane/warp/v1/tx.js';
 
-import { createCoreAminoConverter } from './hyperlane/core/aminomessages';
+import { createCoreAminoConverter } from './hyperlane/core/aminomessages.js';
 import {
   MsgCreateMailboxEncodeObject,
   MsgProcessMessageEncodeObject,
   MsgSetMailboxEncodeObject,
-} from './hyperlane/core/messages';
-import { CoreExtension, setupCoreExtension } from './hyperlane/core/query';
-import { createInterchainSecurityAminoConverter } from './hyperlane/interchain_security/aminomessages';
+} from './hyperlane/core/messages.js';
+import { CoreExtension, setupCoreExtension } from './hyperlane/core/query.js';
+import { createInterchainSecurityAminoConverter } from './hyperlane/interchain_security/aminomessages.js';
 import {
   MsgAnnounceValidatorEncodeObject,
   MsgCreateMerkleRootMultisigIsmEncodeObject,
   MsgCreateMessageIdMultisigIsmEncodeObject,
   MsgCreateNoopIsmEncodeObject,
-} from './hyperlane/interchain_security/messages';
+} from './hyperlane/interchain_security/messages.js';
 import {
   InterchainSecurityExtension,
   setupInterchainSecurityExtension,
-} from './hyperlane/interchain_security/query';
-import { createPostDispatchAminoConverter } from './hyperlane/post_dispatch/aminomessages';
+} from './hyperlane/interchain_security/query.js';
+import { createPostDispatchAminoConverter } from './hyperlane/post_dispatch/aminomessages.js';
 import {
   MsgClaimEncodeObject,
   MsgCreateIgpEncodeObject,
@@ -79,12 +79,12 @@ import {
   MsgPayForGasEncodeObject,
   MsgSetDestinationGasConfigEncodeObject,
   MsgSetIgpOwnerEncodeObject,
-} from './hyperlane/post_dispatch/messages';
+} from './hyperlane/post_dispatch/messages.js';
 import {
   PostDispatchExtension,
   setupPostDispatchExtension,
-} from './hyperlane/post_dispatch/query';
-import { createWarpAminoConverter } from './hyperlane/warp/aminomessages';
+} from './hyperlane/post_dispatch/query.js';
+import { createWarpAminoConverter } from './hyperlane/warp/aminomessages.js';
 import {
   MsgCreateCollateralTokenEncodeObject,
   MsgCreateSyntheticTokenEncodeObject,
@@ -92,9 +92,9 @@ import {
   MsgRemoteTransferEncodeObject,
   MsgSetTokenEncodeObject,
   MsgUnrollRemoteRouterEncodeObject,
-} from './hyperlane/warp/messages';
-import { WarpExtension, setupWarpExtension } from './hyperlane/warp/query';
-import { REGISTRY } from './registry';
+} from './hyperlane/warp/messages.js';
+import { WarpExtension, setupWarpExtension } from './hyperlane/warp/query.js';
+import { REGISTRY } from './registry/index.js';
 
 export type HyperlaneQueryClient = QueryClient &
   BankExtension &

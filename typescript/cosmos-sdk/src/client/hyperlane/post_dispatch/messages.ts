@@ -8,7 +8,7 @@ import {
   MsgPayForGas,
   MsgSetDestinationGasConfig,
   MsgSetIgpOwner,
-} from '../../../types/hyperlane/core/post_dispatch/v1/tx';
+} from '../../../types/hyperlane/core/post_dispatch/v1/tx.js';
 
 export interface MsgCreateIgpEncodeObject extends EncodeObject {
   readonly typeUrl: '/hyperlane.core.v1.MsgCreateIgp';

@@ -2,6 +2,7 @@
   "name": "@hyperlane-xyz/cosmos-sdk",
   "version": "1.0.0",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
+  "type": "module",
   "exports": {
     ".": "./dist/index.js"
   },

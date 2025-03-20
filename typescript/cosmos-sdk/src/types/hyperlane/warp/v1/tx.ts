@@ -5,11 +5,11 @@
 // source: hyperlane/warp/v1/tx.proto
 
 /* eslint-disable */
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
-import { Coin } from '../../../cosmos/base/v1beta1/coin';
+import { Coin } from '../../../cosmos/base/v1beta1/coin.js';
 
-import { RemoteRouter } from './types';
+import { RemoteRouter } from './types.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
 

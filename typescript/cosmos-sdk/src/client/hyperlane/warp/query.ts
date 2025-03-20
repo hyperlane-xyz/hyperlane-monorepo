@@ -12,7 +12,7 @@ import {
   QueryTokenResponse,
   QueryTokensRequest,
   QueryTokensResponse,
-} from '../../../types/hyperlane/warp/v1/query';
+} from '../../../types/hyperlane/warp/v1/query.js';
 
 export interface WarpExtension {
   readonly warp: {

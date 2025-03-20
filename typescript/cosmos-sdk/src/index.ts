@@ -1,6 +1,18 @@
-export * from './client';
-export * from './client/registry';
-export * from './client/hyperlane/core/messages';
-export * from './client/hyperlane/core/aminomessages';
-export * from './client/hyperlane/warp/messages';
-export * from './client/hyperlane/warp/aminomessages';
+export * from './client/index.js';
+export * from './client/registry/index.js';
+
+export * from './client/hyperlane/core/messages.js';
+export * from './client/hyperlane/core/query.js';
+export * from './client/hyperlane/core/aminomessages.js';
+
+export * from './client/hyperlane/interchain_security/messages.js';
+export * from './client/hyperlane/interchain_security/query.js';
+export * from './client/hyperlane/interchain_security/aminomessages.js';
+
+export * from './client/hyperlane/post_dispatch/messages.js';
+export * from './client/hyperlane/post_dispatch/query.js';
+export * from './client/hyperlane/post_dispatch/aminomessages.js';
+
+export * from './client/hyperlane/warp/messages.js';
+export * from './client/hyperlane/warp/query.js';
+export * from './client/hyperlane/warp/aminomessages.js';

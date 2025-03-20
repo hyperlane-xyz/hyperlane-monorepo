@@ -5,7 +5,7 @@
 // source: hyperlane/warp/v1/types.proto
 
 /* eslint-disable */
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
 

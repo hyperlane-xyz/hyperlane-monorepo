@@ -6,9 +6,9 @@
 
 /* eslint-disable */
 import Long from 'long';
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
-import { Any } from '../../../../google/protobuf/any';
+import { Any } from '../../../../google/protobuf/any.js';
 
 export const protobufPackage = 'hyperlane.core.interchain_security.v1';
 

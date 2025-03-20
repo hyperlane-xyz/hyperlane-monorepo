@@ -3,7 +3,7 @@ import {
   MsgCreateMerkleRootMultisigIsm,
   MsgCreateMessageIdMultisigIsm,
   MsgCreateNoopIsm,
-} from '../../types/hyperlane/core/interchain_security/v1/tx';
+} from '../../types/hyperlane/core/interchain_security/v1/tx.js';
 import {
   MsgClaim,
   MsgCreateIgp,
@@ -12,12 +12,12 @@ import {
   MsgPayForGas,
   MsgSetDestinationGasConfig,
   MsgSetIgpOwner,
-} from '../../types/hyperlane/core/post_dispatch/v1/tx';
+} from '../../types/hyperlane/core/post_dispatch/v1/tx.js';
 import {
   MsgCreateMailbox,
   MsgProcessMessage,
   MsgSetMailbox,
-} from '../../types/hyperlane/core/v1/tx';
+} from '../../types/hyperlane/core/v1/tx.js';
 import {
   MsgCreateCollateralToken,
   MsgCreateSyntheticToken,
@@ -25,7 +25,7 @@ import {
   MsgRemoteTransfer,
   MsgSetToken,
   MsgUnrollRemoteRouter,
-} from '../../types/hyperlane/warp/v1/tx';
+} from '../../types/hyperlane/warp/v1/tx.js';
 
 export const REGISTRY: Record<string, any> = {
   // Core transactions

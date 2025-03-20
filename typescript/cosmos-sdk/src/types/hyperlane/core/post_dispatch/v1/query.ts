@@ -5,19 +5,19 @@
 // source: hyperlane/core/post_dispatch/v1/query.proto
 
 /* eslint-disable */
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
 import {
   PageRequest,
   PageResponse,
-} from '../../../../cosmos/base/query/v1beta1/pagination';
-import { Coin } from '../../../../cosmos/base/v1beta1/coin';
+} from '../../../../cosmos/base/query/v1beta1/pagination.js';
+import { Coin } from '../../../../cosmos/base/v1beta1/coin.js';
 
 import {
   DestinationGasConfig,
   InterchainGasPaymaster,
   NoopHook,
-} from './types';
+} from './types.js';
 
 export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
 

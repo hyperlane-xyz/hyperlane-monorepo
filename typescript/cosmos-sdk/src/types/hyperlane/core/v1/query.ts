@@ -5,14 +5,14 @@
 // source: hyperlane/core/v1/query.proto
 
 /* eslint-disable */
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
 import {
   PageRequest,
   PageResponse,
-} from '../../../cosmos/base/query/v1beta1/pagination';
+} from '../../../cosmos/base/query/v1beta1/pagination.js';
 
-import { Mailbox } from './types';
+import { Mailbox } from './types.js';
 
 export const protobufPackage = 'hyperlane.core.v1';
 

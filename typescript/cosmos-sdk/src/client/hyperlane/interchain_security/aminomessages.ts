@@ -5,7 +5,7 @@ import {
   MsgCreateMerkleRootMultisigIsm,
   MsgCreateMessageIdMultisigIsm,
   MsgCreateNoopIsm,
-} from '../../../types/hyperlane/core/interchain_security/v1/tx';
+} from '../../../types/hyperlane/core/interchain_security/v1/tx.js';
 
 export interface AminoMsgAnnounceValidator extends AminoMsg {
   readonly type: 'hyperlane/v1/MsgAnnounceValidator';

@@ -5,9 +5,9 @@
 // source: hyperlane/core/post_dispatch/v1/types.proto
 
 /* eslint-disable */
-import _m0 from 'protobufjs/minimal';
+import _m0 from 'protobufjs/minimal.js';
 
-import { Coin } from '../../../../cosmos/base/v1beta1/coin';
+import { Coin } from '../../../../cosmos/base/v1beta1/coin.js';
 
 export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
 

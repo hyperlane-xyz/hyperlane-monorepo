@@ -7,7 +7,7 @@ import {
   MsgRemoteTransfer,
   MsgSetToken,
   MsgUnrollRemoteRouter,
-} from '../../../types/hyperlane/warp/v1/tx';
+} from '../../../types/hyperlane/warp/v1/tx.js';
 
 export interface MsgCreateCollateralTokenEncodeObject extends EncodeObject {
   readonly typeUrl: '/hyperlane.warp.v1.MsgCreateCollateralToken';

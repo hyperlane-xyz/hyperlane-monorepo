@@ -18,7 +18,7 @@ import {
   QueryNoopHooksResponse,
   QueryQuoteGasPaymentRequest,
   QueryQuoteGasPaymentResponse,
-} from '../../../types/hyperlane/core/post_dispatch/v1/query';
+} from '../../../types/hyperlane/core/post_dispatch/v1/query.js';
 
 export interface PostDispatchExtension {
   readonly postDispatch: {

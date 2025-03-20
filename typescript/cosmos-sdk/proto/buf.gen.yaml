@@ -3,4 +3,4 @@ plugins:
   - name: ts_proto
     out: ./types
     strategy: all
-    opt: esModuleInterop=true,forceLong=string,useOptionals=messages,snakeToCamel=false,stringEnums=true
+    opt: esModuleInterop=true,importSuffix=.js,forceLong=string,useOptionals=messages,snakeToCamel=false,stringEnums=true

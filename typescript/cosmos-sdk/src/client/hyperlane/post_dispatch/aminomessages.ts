@@ -8,8 +8,8 @@ import {
   MsgPayForGas,
   MsgSetDestinationGasConfig,
   MsgSetIgpOwner,
-} from '../../../types/hyperlane/core/post_dispatch/v1/tx';
-import { DestinationGasConfig } from '../../../types/hyperlane/core/post_dispatch/v1/types';
+} from '../../../types/hyperlane/core/post_dispatch/v1/tx.js';
+import { DestinationGasConfig } from '../../../types/hyperlane/core/post_dispatch/v1/types.js';
 
 export interface AminoMsgClaim extends AminoMsg {
   readonly type: 'hyperlane/v1/MsgClaim';

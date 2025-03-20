@@ -12,7 +12,7 @@ import {
   QueryVerifyDryRunResponse,
   RecipientIsmRequest,
   RecipientIsmResponse,
-} from '../../../types/hyperlane/core/v1/query';
+} from '../../../types/hyperlane/core/v1/query.js';
 
 export interface CoreExtension {
   readonly core: {
