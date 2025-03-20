@@ -114,14 +114,20 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
 
   return {
     ethereum,
-    superseed: {
-      ...superseed,
-      token: '0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960',
-    } as Extract<HypTokenConfig, { type: TokenType.collateralFiat }>,
     arbitrum,
     base,
     optimism,
     ink,
+    superseed: {
+      ...superseed,
+      token: '0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960',
+    } as Extract<HypTokenConfig, { type: TokenType.collateralFiat }>,
+    solanamainnet: {
+      ...routerConfig.solanamainnet,
+      owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+      token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      type: TokenType.collateral,
+    },
   };
 };
 
