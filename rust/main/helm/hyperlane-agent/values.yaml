@@ -15,6 +15,7 @@ serviceAccount:
 # -- External Secret Store type and name
 externalSecrets:
   # Available types: SecretStore, ClusterSecretStore
+  create: true
   storeType: ClusterSecretStore
   storeName:
 
