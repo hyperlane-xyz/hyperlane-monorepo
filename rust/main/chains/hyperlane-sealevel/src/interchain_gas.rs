@@ -155,7 +155,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
         let account = self
             .provider
-            .get_account_with_finalized_commitment(valid_payment_pda_pubkey.clone())
+            .get_account_with_finalized_commitment(valid_payment_pda_pubkey)
             .await?;
         let gas_payment_account = GasPaymentAccount::fetch(&mut account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
@@ -280,7 +280,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let program_data_account = self
             .provider
-            .get_account_with_finalized_commitment(self.igp.data_pda_pubkey.clone())
+            .get_account_with_finalized_commitment(self.igp.data_pda_pubkey)
             .await?;
         let program_data = ProgramDataAccount::fetch(&mut program_data_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?

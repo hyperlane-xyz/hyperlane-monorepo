@@ -161,7 +161,7 @@ pub fn build_cosmos_connection_conf(
 }
 
 fn build_sealevel_connection_conf(
-    urls: &Vec<Url>,
+    urls: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     operation_batch: OperationBatchConfig,
@@ -177,7 +177,7 @@ fn build_sealevel_connection_conf(
         None
     } else {
         Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-            urls: urls.clone(),
+            urls: urls.to_owned(),
             operation_batch,
             native_token,
             priority_fee_oracle: priority_fee_oracle.unwrap(),

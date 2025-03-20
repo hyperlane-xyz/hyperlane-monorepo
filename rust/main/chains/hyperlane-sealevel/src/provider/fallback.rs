@@ -102,8 +102,8 @@ impl SealevelFallbackProvider {
     ) -> ChainResult<bool> {
         self.fallback_provider
             .call(move |provider| {
-                let signature = signature.clone();
-                let commitment = commitment.clone();
+                let signature = signature;
+                let commitment = commitment;
                 let future = async move {
                     provider
                         .rpc_client()
@@ -143,7 +143,7 @@ impl SealevelFallbackProvider {
     ) -> ChainResult<Account> {
         self.fallback_provider
             .call(move |provider| {
-                let pubkey = pubkey.clone();
+                let pubkey = pubkey;
                 let future = async move {
                     provider
                         .rpc_client()
@@ -218,8 +218,7 @@ impl SealevelFallbackProvider {
     ) -> ChainResult<Option<Account>> {
         self.fallback_provider
             .call(move |provider| {
-                let pubkey = pubkey.clone();
-
+                let pubkey = pubkey;
                 let future = async move {
                     provider
                         .rpc_client()
@@ -260,7 +259,7 @@ impl SealevelFallbackProvider {
     ) -> ChainResult<Vec<(Pubkey, Account)>> {
         self.fallback_provider
             .call(move |provider| {
-                let pubkey = pubkey.clone();
+                let pubkey = pubkey;
                 let config = config.clone();
 
                 let future = async move {
@@ -371,7 +370,7 @@ impl HyperlaneProvider for SealevelFallbackProvider {
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         self.fallback_provider
             .call(move |provider| {
-                let hash = hash.clone();
+                let hash = *hash;
                 let future = async move { provider.get_txn_by_hash(&hash).await };
                 Box::pin(future)
             })
@@ -381,7 +380,7 @@ impl HyperlaneProvider for SealevelFallbackProvider {
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         self.fallback_provider
             .call(move |provider| {
-                let address = address.clone();
+                let address = *address;
                 let future = async move { provider.is_contract(&address).await };
                 Box::pin(future)
             })

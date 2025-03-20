@@ -363,7 +363,7 @@ impl SealevelMailbox {
         let account = self
             .provider
             .call(move |provider| {
-                let pubkey = self.inbox.0.clone();
+                let pubkey = self.inbox.0;
                 let future = async move {
                     provider
                         .rpc_client()
@@ -428,7 +428,7 @@ impl Mailbox for SealevelMailbox {
         let account = self
             .provider
             .call(move |provider| {
-                let processed_message_account_key = processed_message_account_key.clone();
+                let processed_message_account_key = processed_message_account_key;
                 let future = async move {
                     provider
                         .rpc_client()

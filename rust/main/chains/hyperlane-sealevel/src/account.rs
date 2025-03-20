@@ -43,7 +43,7 @@ pub async fn search_accounts_by_discriminator(
         with_context: Some(false),
     };
     let accounts = provider
-        .get_program_accounts_with_config(program_id.clone(), config)
+        .get_program_accounts_with_config(*program_id, config)
         .await?;
     Ok(accounts)
 }

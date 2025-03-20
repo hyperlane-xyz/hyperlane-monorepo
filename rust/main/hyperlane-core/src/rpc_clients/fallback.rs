@@ -72,6 +72,11 @@ impl<T, B> FallbackProvider<T, B> {
     pub fn len(&self) -> usize {
         self.inner.providers.len()
     }
+
+    /// Check if this provider has any fallback providers
+    pub fn is_empty(&self) -> bool {
+        self.inner.providers.is_empty()
+    }
 }
 
 impl<T, B> Clone for FallbackProvider<T, B> {

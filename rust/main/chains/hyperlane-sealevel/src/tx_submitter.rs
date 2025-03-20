@@ -61,7 +61,7 @@ impl TransactionSubmitter {
         self.provider
             .call(move |provider| {
                 let transaction = transaction.clone();
-                let skip_preflight = skip_preflight.clone();
+                let skip_preflight = skip_preflight;
                 let future = async move {
                     provider
                         .rpc_client()

@@ -1000,15 +1000,14 @@ fn build_sealevel_provider(
 
     let chain = middleware_metrics.chain.clone();
     let urls = conf.urls.clone();
-    let provider = SealevelFallbackProvider::from_urls(
+    SealevelFallbackProvider::from_urls(
         locator.domain.clone(),
         conf,
         chain,
         contract_addresses,
         urls,
         client_metrics,
-    );
-    provider
+    )
 }
 
 fn build_sealevel_tx_submitter(
