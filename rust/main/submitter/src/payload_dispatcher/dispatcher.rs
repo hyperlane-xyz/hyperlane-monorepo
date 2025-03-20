@@ -1,5 +1,5 @@
 // TODO: re-enable clippy warnings
-#![allow(clippy::unused_unit)]
+#![allow(dead_code)]
 
 use std::path::PathBuf;
 
@@ -32,19 +32,6 @@ impl PayloadDispatcherState {
         Self {}
     }
 }
-
-pub struct PayloadDispatcherEntrypoint {
-    inner: PayloadDispatcherState,
-}
-
-impl PayloadDispatcherEntrypoint {
-    pub fn new(settings: PayloadDispatcherSettings) -> Self {
-        Self {
-            inner: PayloadDispatcherState::new(settings),
-        }
-    }
-}
-
 pub struct PayloadDispatcher {
     inner: PayloadDispatcherState,
 }
