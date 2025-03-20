@@ -156,8 +156,8 @@ async function forkChain(
       await killAnvilProcess(false);
     }
   } catch (error) {
-    // Kill any anvil process as if not, the process will keep running
-    // in the background
+    // Kill any running anvil process otherwise the process will keep running
+    // in the background.
     if (killAnvilProcess) {
       await killAnvilProcess(true);
     }
