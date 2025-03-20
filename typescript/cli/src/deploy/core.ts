@@ -149,6 +149,7 @@ export async function runCoreDeploy(params: DeployParams) {
         const starknetCoreModule = new StarknetCoreModule(
           account as StarknetAccount,
           domainId,
+          multiProvider,
         );
         deployedAddresses = await starknetCoreModule.deploy({
           chain,

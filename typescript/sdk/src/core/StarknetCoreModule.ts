@@ -6,6 +6,7 @@ import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
 import { StarknetCoreReader } from './StarknetCoreReader.js';
@@ -19,8 +20,9 @@ export class StarknetCoreModule {
   constructor(
     protected readonly signer: Account,
     protected readonly domainId: number,
+    protected readonly multiProvider: MultiProvider,
   ) {
-    this.deployer = new StarknetDeployer(signer);
+    this.deployer = new StarknetDeployer(signer, multiProvider);
     this.coreReader = new StarknetCoreReader(signer);
   }
 
@@ -58,6 +60,7 @@ export class StarknetCoreModule {
       '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7', // ETH address on Starknet chains
     ]);
     const mailboxContract = await this.deployMailbox(
+      chain,
       config.owner,
       noopIsm,
       defaultHook,
@@ -93,13 +96,15 @@ export class StarknetCoreModule {
   }
 
   async deployMailbox(
+    chain: ChainNameOrId,
     owner: string,
     defaultIsm: string,
     defaultHook: string,
     requiredHook: string,
   ) {
+    const domainId = this.multiProvider.getDomainId(chain);
     const mailboxAddress = await this.deployer.deployContract('mailbox', [
-      this.domainId,
+      BigInt(domainId),
       owner,
       defaultIsm,
       defaultHook,

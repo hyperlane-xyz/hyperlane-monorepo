@@ -6,7 +6,6 @@ import {
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
-  UniversalDetails,
 } from 'starknet';
 
 import {
@@ -25,13 +24,17 @@ import {
   IsmType,
   SupportedIsmTypesOnStarknetType,
 } from '../ism/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 export class StarknetDeployer {
   private readonly logger: Logger;
   private readonly deployedContracts: Record<string, string> = {};
 
-  constructor(private readonly account: Account) {
+  constructor(
+    private readonly account: Account,
+    private readonly multiProvider: MultiProvider,
+  ) {
     this.logger = rootLogger.child({ module: 'starknet-deployer' });
   }
 
@@ -65,6 +68,7 @@ export class StarknetDeployer {
     //   50,
     //   20,
     // );
+    // const
     const params: ContractFactoryParams = {
       compiledContract,
       account: this.account,
@@ -73,10 +77,7 @@ export class StarknetDeployer {
 
     const contractFactory = new ContractFactory(params);
 
-    const details: UniversalDetails = {
-      blockIdentifier: 'latest',
-    };
-    const contract = await contractFactory.deploy(constructorCalldata, details);
+    const contract = await contractFactory.deploy(constructorCalldata);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)
@@ -102,7 +103,7 @@ export class StarknetDeployer {
       return ismConfig;
     }
     const ismType = ismConfig.type;
-    this.logger.debug(`Deploying ${ismType} to ${chain}`);
+    this.logger.info(`Deploying ${ismType} to ${chain}`);
 
     assert(
       SupportedIsmTypesOnStarknet.includes(
@@ -158,18 +159,16 @@ export class StarknetDeployer {
             ismConfig: domains[domain],
             mailbox,
           });
-          console.log('STARKNET DEPLOYER: domain', domain);
-          // TODO: Convert domain to domainId
-          console.log('STARKNET DEPLOYER: route', route);
-          let domainId;
-          if (domain === 'sepolia') {
-            domainId = BigInt(11155111);
-          } else if (domain === 'paradexsepolia') {
-            domainId = BigInt(12263410);
-          } else {
-            throw new Error(`Unsupported domain: ${domain}`);
+          const domainId = this.multiProvider.getDomainId(domain);
+          this.logger.info(`Setting ISM ${route} for domain ${domain}`);
+          try {
+            await contract.invoke('set', [BigInt(domainId), route]);
+          } catch (error) {
+            this.logger.error(
+              `None-critical error setting ISM ${route} for domain ${domain}`,
+              error,
+            );
           }
-          await contract.invoke('set', [domainId, route]);
         }
 
         return ismAddress;
