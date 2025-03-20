@@ -1,12 +1,14 @@
-import { getRegistry } from '@hyperlane-xyz/cli';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MultiProvider,
   OwnableConfig,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objMap } from '@hyperlane-xyz/utils';
+import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import {
   EnvironmentConfig,
@@ -28,6 +30,8 @@ import {
 } from './environments/mainnet3/warp/configGetters/getBaseSolanaTRUMPWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBobaBsquaredSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
+import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
+import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
@@ -36,6 +40,7 @@ import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/conf
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
+import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
 import {
   getEthereumSuperseedCBBTCWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
@@ -58,6 +63,10 @@ import {
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
+import {
+  getSuperTokenProductionWarpConfig,
+  getSuperTokenStagingWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 
@@ -108,9 +117,16 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
+  // TODO: uncomment after merging the staging route to registry
+  // this has been commented out as it leads to check-warp-deploy cron job failing
+  // [WarpRouteIds.SuperTokenStaging]: getSuperTokenStagingWarpConfig,
+  [WarpRouteIds.SuperUSDT]: getSuperTokenProductionWarpConfig,
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
   [WarpRouteIds.BaseEthereumLumiaprismETH]:
     getBaseEthereumLumiaprismETHWarpConfig,
+  [WarpRouteIds.BscHyperevmEnzoBTC]: getBscHyperevmEnzoBTCWarpConfig,
+  [WarpRouteIds.BscHyperevmSTBTC]: getBscHyperevmSTBTCWarpConfig,
+  [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -128,19 +144,48 @@ async function getConfigFromMergedRegistry(
   _routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
+  registryUris: string[],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const warpRoute = await getRegistry(
-    [DEFAULT_REGISTRY_URI],
-    true,
-  ).getWarpDeployConfig(warpRouteId);
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: true,
+  });
+  const warpRoute = await registry.getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
-  return warpRoute;
+
+  return populateWarpRouteMailboxAddresses(warpRoute, registry);
+}
+
+/**
+ * Populates warp route configuration by filling in mailbox addresses for each chain entry
+ * @param warpRoute The warp route configuration
+ * @param registry The registry to fetch chain addresses from if needed
+ * @returns Populated configuration with mailbox addresses for all chains
+ */
+async function populateWarpRouteMailboxAddresses(
+  warpRoute: WarpRouteDeployConfig,
+  registry: IRegistry,
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const mailboxPromises = objMap(warpRoute, async (chainName, config) => {
+    const mailbox =
+      config.mailbox || (await registry.getChainAddresses(chainName))?.mailbox;
+
+    assert(mailbox, `Mailbox not found for ${chainName}`);
+
+    return {
+      ...config,
+      mailbox,
+    };
+  });
+
+  return promiseObjAll(mailboxPromises);
 }
 
 export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
   warpRouteId: string,
+  registryUris = [DEFAULT_REGISTRY_URI],
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
@@ -177,5 +222,6 @@ export async function getWarpConfig(
     routerConfigWithoutOwner,
     abacusWorksEnvOwnerConfig,
     warpRouteId,
+    registryUris,
   );
 }

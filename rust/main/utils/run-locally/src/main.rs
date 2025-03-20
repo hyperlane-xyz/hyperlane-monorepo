@@ -40,8 +40,8 @@ use utils::{get_matching_lines, get_ts_infra_path};
 
 use crate::{
     config::Config,
-    ethereum::start_anvil,
-    invariants::{post_startup_invariants, termination_invariants_met},
+    ethereum::{start_anvil, termination_invariants::termination_invariants_met},
+    invariants::post_startup_invariants,
     metrics::agent_balance_sum,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };

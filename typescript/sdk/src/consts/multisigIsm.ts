@@ -1069,6 +1069,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  infinityvm: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xeed503e0bd8fae0ad606361492db8711eaf0b935',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   infinityvmmonza: {
     threshold: 1,
     validators: [
@@ -1539,6 +1549,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  plume: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x63c9b5ea28710d956a51f0f746ee8df81215663f',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

@@ -2,6 +2,7 @@ import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
+import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
@@ -14,6 +15,7 @@ import {
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
+  StarknetJsProvider,
   TypedProvider,
   ViemProvider,
 } from './ProviderType.js';
@@ -109,6 +111,15 @@ export function defaultCosmJsWasmProviderBuilder(
   };
 }
 
+export function defaultStarknetJsProviderBuilder(
+  rpcUrls: RpcUrl[],
+): StarknetJsProvider {
+  const provider = new StarknetRpcProvider({
+    nodeUrl: rpcUrls[0].http,
+  });
+  return { provider, type: ProviderType.Starknet };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -128,7 +139,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
-  [ProviderType.Starknet]: defaultEthersV5ProviderBuilder,
+  [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -139,4 +150,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.Starknet]: defaultEthersV5ProviderBuilder,
+  [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
 };

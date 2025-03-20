@@ -1,4 +1,5 @@
 import { BigNumberish } from 'ethers';
+import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
@@ -21,6 +22,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
@@ -38,6 +40,7 @@ import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -62,6 +65,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
+    protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
@@ -153,12 +157,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-    const routesToEnroll = Array.from(
-      difference(
-        new Set(Object.keys(expectedRemoteRouters)),
-        new Set(Object.keys(actualRemoteRouters)),
-      ),
-    );
+    const routesToEnroll = Object.entries(expectedRemoteRouters)
+      .filter(([domain, expectedRouter]) => {
+        const actualRouter = actualRemoteRouters[domain];
+        // Enroll if router doesn't exist for domain or has different address
+        return (
+          !actualRouter ||
+          !eqAddress(actualRouter.address, expectedRouter.address)
+        );
+      })
+      .map(([domain]) => domain);
 
     if (routesToEnroll.length === 0) {
       return updateTransactions;
@@ -294,7 +302,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    if (!expectedConfig.interchainSecurityModule) {
+    if (
+      !expectedConfig.interchainSecurityModule ||
+      expectedConfig.interchainSecurityModule === zeroAddress
+    ) {
       return [];
     }
 
@@ -337,7 +348,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    if (!expectedConfig.hook) {
+    if (!expectedConfig.hook || expectedConfig.hook === zeroAddress) {
       return [];
     }
 
@@ -419,6 +430,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           ).address,
         },
       },
+      this.ccipContractCache,
       this.contractVerifier,
     );
     this.logger.info(
@@ -445,8 +457,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
     assert(expectedConfig.hook, 'No hook config');
-
-    if (!actualConfig.hook) {
+    if (!actualConfig.hook || actualConfig.hook === zeroAddress) {
       return this.deployNewHook(expectedConfig);
     }
 
@@ -461,16 +472,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       `No hook deployed for warp route, deploying new hook on ${this.args.chain} chain`,
     );
 
-    const {
-      staticMerkleRootMultisigIsmFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticAggregationIsmFactory,
-      staticAggregationHookFactory,
-      domainRoutingIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
-    } = this.args.addresses;
-
     assert(expectedConfig.hook, 'Hook is undefined');
     assert(
       expectedConfig.proxyAdmin?.address,
@@ -480,15 +481,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const hookModule = await EvmHookModule.create({
       chain: this.args.chain,
       config: expectedConfig.hook,
-      proxyFactoryFactories: {
-        staticMerkleRootMultisigIsmFactory,
-        staticMessageIdMultisigIsmFactory,
-        staticAggregationIsmFactory,
-        staticAggregationHookFactory,
-        domainRoutingIsmFactory,
-        staticMerkleRootWeightedMultisigIsmFactory,
-        staticMessageIdWeightedMultisigIsmFactory,
-      },
+      proxyFactoryFactories: extractIsmAndHookFactoryAddresses(
+        this.args.addresses,
+      ),
       coreAddresses: {
         mailbox: expectedConfig.mailbox,
         proxyAdmin: expectedConfig.proxyAdmin?.address, // Assume that a proxyAdmin is always deployed with a WarpRoute
@@ -507,16 +502,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
-    const {
-      staticMerkleRootMultisigIsmFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticAggregationIsmFactory,
-      staticAggregationHookFactory,
-      domainRoutingIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
-    } = this.args.addresses;
-
     assert(actualConfig.proxyAdmin?.address, 'ProxyAdmin address is undefined');
     assert(actualConfig.hook, 'Hook is undefined');
 
@@ -526,18 +511,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         chain: this.args.chain,
         config: actualConfig.hook,
         addresses: {
-          staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory,
-          staticAggregationIsmFactory,
-          staticAggregationHookFactory,
-          domainRoutingIsmFactory,
-          staticMerkleRootWeightedMultisigIsmFactory,
-          staticMessageIdWeightedMultisigIsmFactory,
+          ...extractIsmAndHookFactoryAddresses(this.args.addresses),
           mailbox: actualConfig.mailbox,
           proxyAdmin: actualConfig.proxyAdmin?.address,
           deployedHook: (actualConfig.hook as DerivedHookConfig).address,
         },
       },
+      this.ccipContractCache,
       this.contractVerifier,
     );
 
@@ -562,6 +542,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
   }): Promise<EvmERC20WarpModule> {
@@ -569,6 +550,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       chain,
       config,
       multiProvider,
+      ccipContractCache,
       contractVerifier,
       proxyFactoryFactories,
     } = params;
@@ -586,6 +568,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 
