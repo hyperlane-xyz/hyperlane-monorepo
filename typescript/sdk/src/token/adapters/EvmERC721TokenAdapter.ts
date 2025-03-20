@@ -21,12 +21,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 // Interacts with HypCollateral contracts
-export class EvmHypERC721CollateralAdapter
+export class EvmERC721CollateralAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public readonly collateralContract: HypERC721Collateral;
-  public readonly tokenAdapter: EvmTokenAdapter;
+  public readonly tokenAdapter: EvmERC721TokenAdapter;
 
   constructor(
     public readonly chainName: string,
