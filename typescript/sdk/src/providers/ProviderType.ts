@@ -19,7 +19,7 @@ import {
   Contract as StarknetContract,
   Invocation as StarknetInvocation,
   Provider as StarknetProvider,
-  ReceiptTx as StarknetTxReceipt,
+  GetTransactionReceiptResponse as StarknetTxReceipt,
 } from 'starknet';
 import type {
   GetContractReturnType,
