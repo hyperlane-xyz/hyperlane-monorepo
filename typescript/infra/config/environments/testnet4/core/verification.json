@@ -2889,5 +2889,26 @@
       "constructorArguments": "000000000000000000000000ddcfecf17586d08a5740b7d91735fcce3dfe3eed",
       "isProxy": false
     }
+  ],
+  "rometestnet": [
+    {
+      "name": "ProxyAdmin",
+      "address": "0x54148470292C24345fb828B003461a9444414517",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "Mailbox",
+      "address": "0x589C201a07c26b4725A4A829d772f24423da480B",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000030d52",
+      "isProxy": false
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
+      "constructorArguments": "000000000000000000000000589c201a07c26b4725a4a829d772f24423da480b00000000000000000000000054148470292c24345fb828b003461a944441451700000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": true,
+      "expectedimplementation": "0x589C201a07c26b4725A4A829d772f24423da480B"
+    }
   ]
 }
