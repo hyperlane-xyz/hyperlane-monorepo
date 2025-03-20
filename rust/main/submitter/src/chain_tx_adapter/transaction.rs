@@ -3,7 +3,7 @@
 
 use uuid::Uuid;
 
-use hyperlane_core::H256;
+use hyperlane_core::{H256, H512};
 
 use super::PayloadId;
 
@@ -15,7 +15,7 @@ pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
     id: TransactionId,
     /// tx identifier obtained by hashing its contents. This may change when gas price is escalated
-    hash: Option<H256>,
+    hash: Option<H512>,
     /// may include nonce, gas price, etc
     vm_specific_data: VmSpecificTxData,
     /// this is a vec to accommodate batching
