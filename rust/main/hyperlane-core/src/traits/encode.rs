@@ -1,4 +1,5 @@
 use std::io::{Error, ErrorKind};
+use uuid::Uuid;
 
 use crate::{
     GasPaymentKey, HyperlaneProtocolError, Indexed, InterchainGasPayment, H160, H256, H512, U256,
@@ -179,6 +180,29 @@ impl Decode for bool {
                 "decoded bool invalid",
             ))),
         }
+    }
+}
+
+impl Encode for Uuid {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let bytes = self.as_bytes();
+        writer.write_all(bytes.as_slice())?;
+        Ok(bytes.len())
+    }
+}
+
+impl Decode for Uuid {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let mut bytes = [0; 16];
+        reader.read_exact(&mut bytes)?;
+        Ok(Uuid::from_bytes(bytes))
     }
 }
 
