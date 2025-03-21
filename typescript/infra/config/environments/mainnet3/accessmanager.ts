@@ -1,27 +1,29 @@
 import {
-  HyperToken__factory,
-  ProxyAdmin__factory,
-  TimelockController__factory,
+  HyperToken,
+  INetworkRestakeDelegator,
+  IStakerRewards,
+  IVaultTokenized,
+  ProxyAdmin,
+  TimelockController,
 } from '@hyperlane-xyz/core';
 import { AccessManagerConfig } from '@hyperlane-xyz/sdk';
 
+import { safes } from './owners.js';
+
 enum Roles {
-  PUBLIC,
-  FoundationFast,
-  FoundationSlow,
-  SecurityCouncil,
-  AbacusWorks,
-  // ... ?
+  FoundationFast = 'Seven Day Foundation',
+  FoundationSlow = 'Thirty Day Foundation',
+  SecurityCouncil = 'Security Council',
+  AbacusWorks = 'Abacus Works',
 }
 
-type ManagedFactories = {
-  hyperToken: HyperToken__factory;
-  proxyAdmin: ProxyAdmin__factory;
-  network: TimelockController__factory;
-  // TODO: fix compatibility with HyperlaneFactories
-  // vault: IVaultTokenized__factory;
-  // delegator: INetworkRestakeDelegator__factory;
-  // rewards: IStakerRewards__factory;
+type ManagedInterfaces = {
+  hyperToken: HyperToken['interface'];
+  proxyAdmin: ProxyAdmin['interface'];
+  network: TimelockController['interface'];
+  vault: IVaultTokenized['interface'];
+  delegator: INetworkRestakeDelegator['interface'];
+  rewards: IStakerRewards['interface'];
 };
 
 const DAY = 24 * 60 * 60;
@@ -34,9 +36,8 @@ const foundation = {
   ]),
 };
 
-const config: AccessManagerConfig<Roles, ManagedFactories> = {
+const config: AccessManagerConfig<Roles, ManagedInterfaces> = {
   roles: {
-    [Roles.PUBLIC]: { members: new Set() },
     [Roles.FoundationFast]: {
       ...foundation,
       executionDelay: 7 * DAY,
@@ -50,12 +51,11 @@ const config: AccessManagerConfig<Roles, ManagedFactories> = {
         '0xSecurityCouncilAddress1', // replace with actual addresses
         '0xSecurityCouncilAddress',
       ]),
+      grantDelay: 7 * DAY,
     },
     [Roles.AbacusWorks]: {
-      members: new Set([
-        '0xAbacusWorksAddress1', // replace with actual addresses
-        '0xAbacusWorksAddress',
-      ]),
+      members: new Set([safes.ethereum]),
+      executionDelay: 3 * DAY,
     },
   },
   targets: {
@@ -80,24 +80,31 @@ const config: AccessManagerConfig<Roles, ManagedFactories> = {
     // - migrate proposer from AW safe to access manager
     network: {
       authority: {
-        'grantRole(bytes32,address)': Roles.Foundation,
+        'grantRole(bytes32,address)': Roles.FoundationFast,
+      },
+    },
+    vault: {
+      authority: {
+        'migrate(uint64,bytes)': Roles.FoundationSlow,
+        'setDepositLimit(uint256)': Roles.FoundationFast,
+        'setDepositWhitelist(bool)': Roles.FoundationFast,
+      },
+    },
+    delegator: {
+      authority: {
+        'setNetworkLimit(bytes32,uint256)': Roles.FoundationSlow,
+        'setMaxNetworkLimit(uint96,uint256)': Roles.FoundationSlow,
+        'setOperatorNetworkShares(bytes32,address,uint256)':
+          Roles.FoundationFast,
+      },
+    },
+    rewards: {
+      authority: {
+        'distributeRewards(address,address,uint256,bytes)':
+          Roles.FoundationFast,
       },
     },
   },
-  // TODO: fix
-  // vault: {
-  //   'migrate(uint64,bytes)': thirtyDayFoundation,
-  //   'setDepositLimit(uint256)': sevenDayFoundation,
-  //   'setDepositWhitelist(bool)': sevenDayFoundation,
-  // },
-  // delegator: {
-  //   'setNetworkLimit(bytes32,uint256)': thirtyDayFoundation,
-  //   'setMaxNetworkLimit(uint96,uint256)': thirtyDayFoundation,
-  //   'setOperatorNetworkShares(bytes32,address,uint256)': sevenDayFoundation,
-  // },
-  // rewards: {
-  //   'distributeRewards(address,address,uint256,bytes)': sevenDayFoundation,
-  // },
 };
 
 // tests:
