@@ -16,23 +16,8 @@ describe('configUtils', () => {
       input: any;
     }> = [
       {
-        msg: 'It should remove the totalSupply field from the config',
-        input: {
-          totalSupply: 1000,
-          hook: {
-            type: HookType.AMOUNT_ROUTING,
-          },
-        },
-        expected: {
-          hook: {
-            type: HookType.AMOUNT_ROUTING,
-          },
-        },
-      },
-      {
         msg: 'It should remove the address and ownerOverrides fields from the config',
         input: {
-          totalSupply: 1000,
           ownerOverrides: {
             owner: ADDRESS,
           },

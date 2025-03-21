@@ -9609,6 +9609,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "submitter"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "eyre",
+ "hyperlane-base",
+ "hyperlane-core",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid 1.12.0",
+]
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
