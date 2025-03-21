@@ -1,26 +1,25 @@
 import { BaseContract } from 'ethers';
 
 import { IAccessManager__factory } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { HyperlaneContracts, HyperlaneFactories } from './types.js';
 
-// TODO: validate against
-export const RESERVED_ROLES = {
+const RESERVED_ROLES: Record<string, bigint> = {
   ADMIN: 0n, // uint64 min
   PUBLIC: 2n ** 64n - 1n, // uint64 max
 };
 
 // modeled after structs from AccessManager.sol
-export type TargetConfig<C extends BaseContract, Role extends number> = {
+export type TargetConfig<C extends BaseContract, Role extends string> = {
   authority: Partial<Record<keyof C['interface']['functions'], Role>>;
   adminDelay?: number;
   closed?: boolean;
 };
 
-export type RoleConfig<Role extends number> = {
+export type RoleConfig<Role extends string> = {
   [role in Role]: {
     members: Set<Address>;
     executionDelay?: number;
@@ -31,7 +30,7 @@ export type RoleConfig<Role extends number> = {
 };
 
 export type AccessManagerConfig<
-  Role extends number,
+  Role extends string,
   F extends HyperlaneFactories,
 > = {
   targets: {
@@ -41,7 +40,7 @@ export type AccessManagerConfig<
 };
 
 export function configureAccess<
-  Role extends number,
+  Role extends string,
   F extends HyperlaneFactories,
 >(
   contracts: HyperlaneContracts<F>,
@@ -51,12 +50,28 @@ export function configureAccess<
 
   const manager = IAccessManager__factory.createInterface();
 
-  for (const role in config.roles) {
-    const roleConfig = config.roles[role];
+  const roleIds = RESERVED_ROLES;
+
+  for (const [index, [role, roleConfig]] of Object.entries<
+    RoleConfig<Role>[Role]
+  >(config.roles).entries()) {
+    assert(
+      !Object.keys(RESERVED_ROLES).includes(role),
+      `Reserved role ${role} assigned`,
+    );
+
+    const roleId = BigInt(index) + 1n;
+    assert(
+      RESERVED_ROLES.ADMIN < roleId && roleId < RESERVED_ROLES.PUBLIC,
+      `Reserved role ID ${roleId} assigned`,
+    );
+
+    roleIds[role] = roleId;
+
     for (const member of roleConfig.members) {
       const delay = roleConfig.executionDelay ?? 0;
       const data = manager.encodeFunctionData('grantRole', [
-        role,
+        roleId,
         member,
         delay,
       ]);
@@ -66,7 +81,7 @@ export function configureAccess<
 
     if (roleConfig.guardian) {
       const data = manager.encodeFunctionData('setRoleGuardian', [
-        role,
+        roleId,
         roleConfig.guardian,
       ]);
       const annotation = `set guardian for role ${role} to ${roleConfig.guardian}`;
@@ -74,7 +89,7 @@ export function configureAccess<
     }
     if (roleConfig.admin) {
       const data = manager.encodeFunctionData('setRoleAdmin', [
-        role,
+        roleId,
         roleConfig.admin,
       ]);
       const annotation = `set admin for role ${role} to ${roleConfig.admin}`;
@@ -82,7 +97,7 @@ export function configureAccess<
     }
     if (roleConfig.grantDelay && roleConfig.grantDelay > 0) {
       const data = manager.encodeFunctionData('setGrantDelay', [
-        role,
+        roleId,
         roleConfig.grantDelay,
       ]);
       const annotation = `set grant delay for role ${role} to ${roleConfig.grantDelay}`;
@@ -95,12 +110,15 @@ export function configureAccess<
     const contract = contracts[target];
 
     for (const func in targetConfig.authority) {
-      const authority = targetConfig.authority[func]!;
+      const authority = targetConfig.authority[func];
+      assert(authority && roleIds[authority], `Invalid authority ${authority}`);
+      const roleId = roleIds[authority];
+
       const selector = contract.interface.getSighash(func);
       const data = manager.encodeFunctionData('setTargetFunctionRole', [
         contract.address,
         [selector],
-        authority,
+        roleId,
       ]);
       const annotation = `set authority for ${target}.${func} to role ${authority}`;
       transactions.push({ data, annotation });
