@@ -27,6 +27,7 @@ export const testnet4SupportedChainNames = [
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
   // 'plumetestnet',
   'polygonamoy',
+  'romedevnet',
   'rometestnet',
   'scrollsepolia',
   'sepolia',

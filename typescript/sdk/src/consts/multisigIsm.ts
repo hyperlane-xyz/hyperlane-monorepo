@@ -1687,6 +1687,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  romedevnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x5cf7d8672d395218c2bfcd17e434d6686c295c24',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   rometestnet: {
     threshold: 1,
     validators: [
