@@ -1,15 +1,11 @@
-import { Interface } from '@ethersproject/abi';
+import { BaseContract } from 'ethers';
 
 import { IAccessManager__factory } from '@hyperlane-xyz/core';
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
-import {
-  HyperlaneContracts,
-  HyperlaneFactories,
-  HyperlaneInterfaces,
-} from './types.js';
+import { HyperlaneContracts, HyperlaneFactories } from './types.js';
 
 const RESERVED_ROLES: Record<string, bigint> = {
   ADMIN: 0n, // uint64 min
@@ -17,8 +13,8 @@ const RESERVED_ROLES: Record<string, bigint> = {
 };
 
 // modeled after structs from AccessManager.sol
-export type TargetConfig<I extends Interface, Role extends string> = {
-  authority: Partial<Record<keyof I['functions'], Role>>;
+export type TargetConfig<C extends BaseContract, Role extends string> = {
+  authority: Partial<Record<keyof C['interface']['functions'], Role>>;
   adminDelay?: number;
   closed?: boolean;
 };
@@ -35,20 +31,20 @@ export type RoleConfig<Role extends string> = {
 
 export type AccessManagerConfig<
   Role extends string,
-  I extends HyperlaneInterfaces,
+  C extends HyperlaneContracts<HyperlaneFactories>,
 > = {
   targets: {
-    [K in keyof I]: TargetConfig<I[K], Role>;
+    [K in keyof C]: TargetConfig<C[K], Role>;
   };
   roles: RoleConfig<Role>;
 };
 
 export function configureAccess<
   Role extends string,
-  F extends HyperlaneFactories,
+  C extends HyperlaneContracts<HyperlaneFactories>,
 >(
-  contracts: HyperlaneContracts<F>,
-  config: AccessManagerConfig<Role, HyperlaneContracts<F>['interface']>,
+  contracts: C,
+  config: AccessManagerConfig<Role, C>,
 ): AnnotatedEV5Transaction[] {
   let transactions = [];
 

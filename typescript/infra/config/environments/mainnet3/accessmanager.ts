@@ -17,13 +17,13 @@ enum Roles {
   AbacusWorks = 'Abacus Works',
 }
 
-type ManagedInterfaces = {
-  hyperToken: HyperToken['interface'];
-  proxyAdmin: ProxyAdmin['interface'];
-  network: TimelockController['interface'];
-  vault: IVaultTokenized['interface'];
-  delegator: INetworkRestakeDelegator['interface'];
-  rewards: IStakerRewards['interface'];
+type ManagedContracts = {
+  hyperToken: HyperToken;
+  proxyAdmin: ProxyAdmin;
+  network: TimelockController;
+  vault: IVaultTokenized;
+  delegator: INetworkRestakeDelegator;
+  rewards: IStakerRewards;
 };
 
 const DAY = 24 * 60 * 60;
@@ -36,7 +36,7 @@ const foundation = {
   ]),
 };
 
-const config: AccessManagerConfig<Roles, ManagedInterfaces> = {
+const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
     [Roles.FoundationFast]: {
       ...foundation,

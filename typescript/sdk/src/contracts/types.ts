@@ -12,10 +12,6 @@ export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
 };
 
-export type HyperlaneInterfaces = {
-  [key: string]: ethers.utils.Interface;
-};
-
 export type HyperlaneContracts<F extends HyperlaneFactories> = {
   [P in keyof F]: Awaited<ReturnType<F[P]['deploy']>>;
 };
