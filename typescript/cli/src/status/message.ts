@@ -73,11 +73,12 @@ export async function checkMessageStatus({
     if (delivered) {
       try {
         const processedReceipt = await core.getProcessedReceipt(message);
-        const url = context.multiProvider.getExplorerTxUrl(
+        const hash = processedReceipt.transactionHash;
+        const url = context.multiProvider.tryGetExplorerTxUrl(
           message.parsed.destination,
-          { hash: processedReceipt.transactionHash },
+          { hash },
         );
-        logGreen(`Message ${message.id} was delivered in ${url}`);
+        logGreen(`Message ${message.id} was delivered in ${url || hash}`);
       } catch (error) {
         logRed(`Failed to fetch processed receipt: ${error}`);
         logGreen(`Message ${message.id} was delivered`);
