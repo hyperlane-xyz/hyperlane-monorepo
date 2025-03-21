@@ -1,3 +1,4 @@
+import { Chain } from '@starknet-react/chains';
 import {
   useAccount,
   useConnect,
@@ -16,17 +17,18 @@ import {
   ProviderType,
   TypedTransactionReceipt,
   WarpTypedTransaction,
+  chainMetadataToStarknetChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
-
-import { widgetLogger } from '../logger.js';
 
 import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
-} from './types.js';
+  getChainsForProtocol,
+} from '../index.js';
+import { widgetLogger } from '../logger.js';
 
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknet',
@@ -169,4 +171,12 @@ export function useStarknetTransactionFns(
   );
 
   return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+}
+
+export function getStarknetChains(
+  multiProvider: MultiProtocolProvider,
+): Chain[] {
+  return getChainsForProtocol(multiProvider, ProtocolType.Starknet).map(
+    chainMetadataToStarknetChain,
+  );
 }
