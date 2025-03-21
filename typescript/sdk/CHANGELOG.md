@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 9.1.0
+
+### Minor Changes
+
+- 67d91e489: Constraint Max Mint Limit limit for super XERC20, separate check for limit and destination collateral and new lockbox token in TOKEN_COLLATERALIZED_STANDARDS
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- 351bf0010: Support populateClaimTx on SealevelIgpAdapter
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 97c773476: Skip non-Ethereum chains when deriving token metadata
+  - @hyperlane-xyz/utils@9.1.0
+  - @hyperlane-xyz/core@6.0.1
+
 ## 9.0.0
 
 ### Major Changes
