@@ -197,7 +197,7 @@ async function updateAlerts(
   // sort alertUpdateInfo by alertConfigMapping writePriority in descending order
   // the intention is to update alerts with higher writePriority first
   // if there are any errors, we don't want to continue updating alert thresholds with lower writePriority
-  // to avoid the thresholds being out of sync
+  // to avoid the thresholds being out of sync, this is only effective when we are increasing thresholds which is the most common case
   alertUpdateInfo.sort(
     (a, b) =>
       alertConfigMapping[b.alertType].writePriority -
@@ -258,19 +258,19 @@ function generateDiffTable(
 }
 
 function handleMissingChainErrors(missingChainErrors: RegressionError[]) {
-  if (missingChainErrors.length > 0) {
-    for (const error of missingChainErrors) {
-      rootLogger.error(
-        `Missing thresholds for chains: ${error.missingChains.join(', ')} for ${
-          error.alertType
-        } config`,
-      );
-    }
+  if (missingChainErrors.length === 0) return;
+
+  for (const error of missingChainErrors) {
     rootLogger.error(
-      `Aborting updating alerts due to missing thresholds in config`,
+      `Missing thresholds for chains: ${error.missingChains.join(', ')} for ${
+        error.alertType
+      } config`,
     );
-    process.exit(1);
   }
+  rootLogger.error(
+    `Aborting updating alerts due to missing thresholds in config`,
+  );
+  process.exit(1);
 }
 
 async function confirmFiringAlerts(
@@ -279,30 +279,28 @@ async function confirmFiringAlerts(
   currentThresholds: ChainMap<number>,
   proposedThresholds: ChainMap<number>,
 ) {
-  // fetch alerting chains
   const alertingChains = await fetchFiringThresholdAlert(query);
+  if (alertingChains.length === 0) return;
 
-  if (alertingChains.length > 0) {
-    rootLogger.warn(
-      `updating ${alert} alert will result in alerting for the following chains`,
-    );
-    console.table(
-      alertingChains.map((chain) => ({
-        chain,
-        current: currentThresholds[chain],
-        proposed: proposedThresholds[chain],
-      })),
-    );
+  rootLogger.warn(
+    `updating ${alert} alert will result in alerting for the following chains`,
+  );
+  console.table(
+    alertingChains.map((chain) => ({
+      chain,
+      current: currentThresholds[chain],
+      proposed: proposedThresholds[chain],
+    })),
+  );
 
-    const confirmed = await confirm({
-      message: `Do you want to proceed with updating the alert thresholds for ${alert}?`,
-    });
-    if (!confirmed) {
-      rootLogger.info(
-        `Exiting without updating any alerts, this is to avoid thresholds from being out of sync`,
-      );
-      process.exit(0);
-    }
+  const confirmed = await confirm({
+    message: `Do you want to proceed with updating the alert thresholds for ${alert}?`,
+  });
+  if (!confirmed) {
+    rootLogger.info(
+      `Exiting without updating any alerts, this is to avoid thresholds from being out of sync as we do not want to update the ${alert} alert`,
+    );
+    process.exit(0);
   }
 }
 
