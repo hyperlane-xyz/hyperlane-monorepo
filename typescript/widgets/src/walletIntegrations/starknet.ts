@@ -21,14 +21,15 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { widgetLogger } from '../logger.js';
+
 import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
-  getChainsForProtocol,
-} from '../index.js';
-import { widgetLogger } from '../logger.js';
+} from './types.js';
+import { getChainsForProtocol } from './utils.js';
 
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknet',
@@ -104,7 +105,6 @@ export function useStarknetActiveChain(
 export function useStarknetTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  const { chain } = useNetwork();
   const { account } = useAccount();
 
   const { sendAsync } = useSendTransaction({});
@@ -117,7 +117,7 @@ export function useStarknetTransactionFns(
         chainId: chainId.toString(),
       });
     },
-    [chain, multiProvider, switchChainAsync],
+    [multiProvider, switchChainAsync],
   );
 
   const onSendTx = useCallback(
