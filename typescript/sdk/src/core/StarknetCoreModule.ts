@@ -134,7 +134,7 @@ export class StarknetCoreModule {
       owner?: string;
     } = {};
 
-    const actualConfig = await this.read(args.mailboxContract);
+    // const actualConfig = await this.read(args.mailboxContract);
 
     // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
@@ -148,11 +148,7 @@ export class StarknetCoreModule {
       const { transaction_hash: defaultIsmUpdateTxHash } =
         await args.mailboxContract.invoke('set_default_ism', [defaultIsm]);
 
-      try {
-        await this.signer.waitForTransaction(defaultIsmUpdateTxHash);
-      } catch (error) {
-        this.logger.error(`Error updating default ism ${defaultIsm}: ${error}`);
-      }
+      await this.signer.waitForTransaction(defaultIsmUpdateTxHash);
       this.logger.info(
         `Transaction hash for updated default ism: ${defaultIsmUpdateTxHash}`,
       );
@@ -186,7 +182,8 @@ export class StarknetCoreModule {
     }
 
     // Update owner if different from current
-    if (expectedConfig.owner && actualConfig.owner !== expectedConfig.owner) {
+    // check actualConfig.owner !== expectedConfig.owner
+    if (expectedConfig.owner) {
       this.logger.trace(`Updating mailbox owner ${expectedConfig.owner}..`);
       const { transaction_hash: transferOwnershipTxHash } =
         await args.mailboxContract.invoke('transfer_ownership', [

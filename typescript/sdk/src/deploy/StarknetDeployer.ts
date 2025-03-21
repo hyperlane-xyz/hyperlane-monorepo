@@ -7,7 +7,6 @@ import {
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
-  UniversalDetails,
 } from 'starknet';
 
 import {
@@ -79,10 +78,7 @@ export class StarknetDeployer {
 
     const contractFactory = new ContractFactory(params);
 
-    const details: UniversalDetails = {
-      blockIdentifier: 'pending',
-    };
-    const contract = await contractFactory.deploy(constructorCalldata, details);
+    const contract = await contractFactory.deploy(constructorCalldata);
     await this.account.waitForTransaction(
       contract.deployTransactionHash as BigNumberish,
     );
@@ -183,7 +179,8 @@ export class StarknetDeployer {
             mailbox,
           });
           const domainId = this.multiProvider.getDomainId(domain);
-          await contract.invoke('set', [BigInt(domainId), route]);
+          const tx = await contract.invoke('set', [BigInt(domainId), route]);
+          await this.account.waitForTransaction(tx.transaction_hash);
           this.logger.info(`ISM ${route} set for domain ${domain}`);
         }
 

@@ -143,10 +143,6 @@ export async function runWarpRouteDeploy({
   warpRouteConfig.paradexsepolia.interchainSecurityModule = undefined;
   warpRouteConfig.starknetsepolia.interchainSecurityModule = undefined;
 
-  console.log('warpRouteConfig', warpRouteConfig);
-  // warpRouteConfig.starknetsepolia.interchainSecurityModule =
-  //   '0x04b96481bd6b1c5fec5d41b0c17581a56ef212c4fb2a7248309992a962de5649';
-
   await runDeployPlanStep({
     context,
     warpDeployConfig: warpRouteConfig,
@@ -204,9 +200,7 @@ export async function runWarpRouteDeploy({
             ...deployments.options,
             ...warpCoreConfig.options,
           };
-          console.log('ETH WARPCORECONFIG', warpCoreConfig);
         }
-
         break;
 
       case ProtocolType.Starknet:
@@ -234,9 +228,7 @@ export async function runWarpRouteDeploy({
           );
         deploymentAddWarpRouteOptions = addWarpRouteOptions;
         deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
-        console.log('STARKNET WARPCORECONFIG', warpCoreConfig);
         break;
-        throw new Error('test');
 
       default:
         throw new Error(`Unsupported protocol type: ${protocol}`);
