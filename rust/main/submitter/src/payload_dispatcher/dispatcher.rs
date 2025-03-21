@@ -3,16 +3,18 @@
 
 use std::path::PathBuf;
 
-use hyperlane_base::settings::Settings;
+use hyperlane_base::settings::ChainConf;
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
+
+use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder};
 
 /// Settings for `PayloadDispatcher`
 #[derive(Debug)]
 pub struct PayloadDispatcherSettings {
     // settings needed for the adapter
-    base: Settings,
+    chain_conf: ChainConf,
     /// Follow how `Settings` is parsed from `RawAgentConf` to parse custom fields
     /// https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/ff0d4af74ecc586ef0c036e37fa4cf9c2ba5050e/rust/main/hyperlane-base/tests/chain_config.rs#L82
     // raw_json_settings: RawAgentConf,
@@ -23,13 +25,13 @@ pub struct PayloadDispatcherSettings {
 
 pub struct PayloadDispatcherState {
     // db: DispatcherDb,
-    // adapter: Box<dyn AdaptsChain>
+    adapter: Box<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {
-    pub fn new(_settings: PayloadDispatcherSettings) -> Self {
-        // create the adapter
-        Self {}
+    pub fn new(settings: PayloadDispatcherSettings) -> Self {
+        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf);
+        Self { adapter }
     }
 }
 pub struct PayloadDispatcher {
