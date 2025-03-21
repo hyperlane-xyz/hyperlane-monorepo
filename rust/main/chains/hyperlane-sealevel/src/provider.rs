@@ -18,7 +18,7 @@ use crate::error::HyperlaneSealevelError;
 use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
-use crate::{ConnectionConf, SealevelRpcClient};
+use crate::{ConnectionConf, SealevelRpcClient, SealevelSubmit};
 
 mod recipient;
 mod transaction;

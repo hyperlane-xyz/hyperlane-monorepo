@@ -6,10 +6,11 @@ use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
-use crate::payload::PayloadId;
+use crate::chain_tx_adapter::SealevelTxPrecursor;
+use crate::payload::{FullPayload, PayloadDetails, PayloadId};
 
 pub type TransactionId = UniqueIdentifier;
-type SignerAddress = H256;
+pub type SignerAddress = H256;
 
 /// Full details about a transaction
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -21,15 +22,45 @@ pub struct Transaction {
     /// may include nonce, gas price, etc
     vm_specific_data: VmSpecificTxData,
     /// this is a vec to accommodate batching
-    payload_details: Vec<PayloadId>,
+    payload_details: Vec<PayloadDetails>,
     status: TransactionStatus,
     /// incremented on submission / gas escalation
     submission_attempts: u32,
 }
 
 impl Transaction {
+    pub fn new(payload: FullPayload, precursor: SealevelTxPrecursor) -> Self {
+        Self {
+            id: TransactionId::new(Uuid::new_v4()),
+            hash: None,
+            vm_specific_data: VmSpecificTxData::Svm(precursor),
+            payload_details: vec![payload.details().clone()],
+            status: TransactionStatus::PendingInclusion,
+            submission_attempts: 0,
+        }
+    }
+
     pub fn id(&self) -> &TransactionId {
         &self.id
+    }
+
+    pub fn hash(&self) -> Option<&H512> {
+        self.hash.as_ref()
+    }
+
+    pub fn vm_specific_data(&self) -> &VmSpecificTxData {
+        &self.vm_specific_data
+    }
+
+    pub fn update_after_submission(
+        &mut self,
+        hash: H512,
+        precursor: SealevelTxPrecursor,
+    ) -> &mut Self {
+        self.hash = Some(hash);
+        self.vm_specific_data = VmSpecificTxData::Svm(precursor);
+        self.submission_attempts += 1;
+        self
     }
 }
 
@@ -51,7 +82,7 @@ pub enum TransactionStatus {
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    Evm, // likely `TypedTransaction`, imported from ethers-rs
-    Svm, // likely `Transaction` is imported from solana-sdk
+    Evm,                      // likely `TypedTransaction`, imported from ethers-rs
+    Svm(SealevelTxPrecursor), // likely `Transaction` is imported from solana-sdk
     CosmWasm,
 }

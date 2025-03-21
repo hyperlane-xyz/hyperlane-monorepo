@@ -10,6 +10,7 @@ pub use interchain_security_module::*;
 pub use keypair::*;
 pub use mailbox::*;
 pub use merkle_tree_hook::*;
+pub use priority_fee::PriorityFeeOracle;
 pub use provider::*;
 pub use rpc::*;
 pub use solana_sdk::signer::keypair::Keypair;

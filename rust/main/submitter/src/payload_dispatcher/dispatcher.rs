@@ -1,16 +1,18 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use eyre::Result;
 use std::{path::PathBuf, sync::Arc};
+
+use eyre::Result;
+use tokio::task::JoinHandle;
+use tracing::instrument::Instrumented;
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     settings::{ChainConf, RawChainConf},
+    CoreMetrics,
 };
 use hyperlane_core::HyperlaneDomain;
-use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
 
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder},
@@ -26,6 +28,7 @@ pub struct PayloadDispatcherSettings {
     raw_chain_conf: RawChainConf,
     domain: HyperlaneDomain,
     db_path: PathBuf,
+    metrics: CoreMetrics,
 }
 
 pub struct PayloadDispatcherState {
@@ -39,7 +42,11 @@ impl PayloadDispatcherState {
     }
 
     pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
-        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
+        let adapter = ChainTxAdapterBuilder::build(
+            &settings.chain_conf,
+            &settings.raw_chain_conf,
+            &settings.metrics,
+        )?;
         let db = DB::from_path(&settings.db_path)?;
         let rocksdb = HyperlaneRocksDB::new(&settings.domain, db);
         let payload_db = Arc::new(rocksdb) as Arc<dyn PayloadDb>;

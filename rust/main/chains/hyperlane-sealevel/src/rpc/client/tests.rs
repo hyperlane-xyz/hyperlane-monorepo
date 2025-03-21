@@ -1,6 +1,6 @@
 use solana_client::nonblocking::rpc_client::RpcClient;
 
-use crate::SealevelRpcClient;
+use crate::{SealevelRpcClient, SealevelSubmit};
 
 //#[tokio::test]
 async fn _test_get_block() {

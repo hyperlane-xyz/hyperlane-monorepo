@@ -42,16 +42,14 @@ use hyperlane_core::{
 
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
-    priority_fee::PriorityFeeOracle,
-};
-use crate::{
     log_meta_composer::{
         is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
     },
-    SealevelKeypair,
+    priority_fee::PriorityFeeOracle,
+    tx_submitter::TransactionSubmitter,
+    utils::sanitize_dynamic_accounts,
+    ConnectionConf, SealevelKeypair, SealevelProvider, SealevelRpcClient, SealevelSubmit,
 };
-use crate::{tx_submitter::TransactionSubmitter, utils::sanitize_dynamic_accounts};
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -538,7 +536,7 @@ impl Mailbox for SealevelMailbox {
         let _ = self
             .rpc()
             .get_estimated_costs_for_instruction(
-                process_instruction,
+                &process_instruction,
                 self.get_payer()?,
                 &*self.tx_submitter,
                 &*self.priority_fee_oracle,

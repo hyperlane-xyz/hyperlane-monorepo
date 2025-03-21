@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
+use crate::chain_tx_adapter::SealevelPayload;
+
 pub type PayloadId = UniqueIdentifier;
 type Address = H256;
 
@@ -14,10 +16,10 @@ type Address = H256;
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
-    id: PayloadId,
+    pub id: PayloadId,
 
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
-    metadata: String,
+    pub metadata: String,
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
@@ -25,12 +27,12 @@ pub struct PayloadDetails {
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
     details: PayloadDetails,
     /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
-    data: Vec<u8>,
+    data: VmSpecificPayloadData,
     /// defaults to the hyperlane mailbox
     to: Address,
     /// defaults to `ReadyToSubmit`
@@ -71,11 +73,29 @@ impl FullPayload {
         &self.details.id
     }
 
+    pub fn details(&self) -> &PayloadDetails {
+        &self.details
+    }
+
+    pub fn data(&self) -> &VmSpecificPayloadData {
+        &self.data
+    }
+
     pub fn status(&self) -> PayloadStatus {
         self.status.clone()
     }
 
-    pub fn set_status(&mut self, status: PayloadStatus) {
+    pub fn set_status(&mut self, status: PayloadStatus) -> &mut Self {
         self.status = status;
+        self
     }
+}
+
+// add nested enum entries as we add VMs
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum VmSpecificPayloadData {
+    #[default]
+    Evm,
+    Svm(SealevelPayload),
+    CosmWasm,
 }
