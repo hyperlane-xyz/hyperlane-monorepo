@@ -17,6 +17,8 @@ spec:
     metadata:
       annotations:
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/external-secret: {{ include (print $.Template.BasePath "/external-secret.yaml") . | sha256sum }}
+        checksum/scraper-external-secret: {{ include (print $.Template.BasePath "/scraper-external-secret.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -69,8 +71,9 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
       tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        - key: "dedicated"
+          operator: "Equal"
+          value: "scraper"
+          effect: "NoSchedule"
 {{- end }}

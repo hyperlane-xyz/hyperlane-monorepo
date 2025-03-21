@@ -1,4 +1,4 @@
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, sync::Arc};
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -37,10 +37,12 @@ pub struct SealevelInterchainGasPaymaster {
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
     pub async fn new(
+        rpc_client: Arc<SealevelRpcClient>,
         conf: &ConnectionConf,
         igp_account_locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
-        let provider = SealevelProvider::new(igp_account_locator.domain.clone(), conf);
+        let provider =
+            SealevelProvider::new(rpc_client, igp_account_locator.domain.clone(), &[], conf);
         let program_id =
             Self::determine_igp_program_id(provider.rpc(), &igp_account_locator.address).await?;
         let (data_pda_pubkey, _) =
@@ -89,7 +91,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymasterIndexer {
-    rpc_client: SealevelRpcClient,
+    rpc_client: Arc<SealevelRpcClient>,
     igp: SealevelInterchainGasPaymaster,
     log_meta_composer: LogMetaComposer,
     advanced_log_meta: bool,
@@ -106,14 +108,14 @@ pub struct SealevelGasPayment {
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
     pub async fn new(
+        rpc_client: Arc<SealevelRpcClient>,
         conf: &ConnectionConf,
         igp_account_locator: ContractLocator<'_>,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
-        // Set the `processed` commitment at rpc level
-        let rpc_client = SealevelRpcClient::new(conf.url.to_string());
-
-        let igp = SealevelInterchainGasPaymaster::new(conf, &igp_account_locator).await?;
+        let igp =
+            SealevelInterchainGasPaymaster::new(rpc_client.clone(), conf, &igp_account_locator)
+                .await?;
 
         let log_meta_composer = LogMetaComposer::new(
             igp.program_id,
@@ -248,11 +250,17 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
                 let igp_account_filter = self.igp.igp_account;
-                if igp_account_filter == sealevel_payment.igp_account_pubkey {
-                    payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
-                } else {
-                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, skipping");
+                let mut payment = *sealevel_payment.payment.inner();
+                // If fees is paid to a different IGP account, we zero out the payment to make sure the db entries are contiguous, but at the same time, gasEnforcer will reject the message (if not set to none policy)
+                if igp_account_filter != sealevel_payment.igp_account_pubkey {
+                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, neutralizing payment");
+
+                    payment.payment = U256::from(0);
                 }
+                payments.push((
+                    Indexed::new(payment).with_sequence(nonce),
+                    sealevel_payment.log_meta,
+                ));
             }
         }
         Ok(payments)

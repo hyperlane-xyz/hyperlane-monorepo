@@ -68,7 +68,7 @@ export class MultiChainResolver implements ChainResolver {
     argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
     argv.context.chains = await this.getWarpRouteConfigChains(
       argv.config.trim(),
-      argv.skipConfirmation,
+      argv.context.skipConfirmation,
     );
     return argv.context.chains;
   }
@@ -82,6 +82,7 @@ export class MultiChainResolver implements ChainResolver {
         warp: argv.warp,
         symbol: argv.symbol,
       });
+
       argv.context.warpCoreConfig = warpCoreConfig;
       const chains = extractChainsFromObj(warpCoreConfig);
       return chains;
@@ -128,28 +129,30 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const { multiProvider } = argv.context;
-    const chains = [];
+    const chains = new Set<ChainName>();
 
     if (argv.origin) {
-      chains.push(argv.origin);
+      chains.add(argv.origin);
     }
 
-    if (argv.destination) {
-      chains.push(argv.destination);
+    if (argv.chain) {
+      chains.add(argv.chain);
     }
 
-    if (!argv.chains) {
-      return Array.from(
-        new Set([...chains, ...this.getEvmChains(multiProvider)]),
-      );
+    if (argv.chains) {
+      const additionalChains = argv.chains
+        .split(',')
+        .map((item: string) => item.trim());
+      return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    return Array.from(
-      new Set([
-        ...chains,
-        ...argv.chains.split(',').map((item: string) => item.trim()),
-      ]),
-    );
+    // If no destination is specified, return all EVM chains
+    if (!argv.destination) {
+      return Array.from(this.getEvmChains(multiProvider));
+    }
+
+    chains.add(argv.destination);
+    return Array.from(chains);
   }
 
   private async getWarpRouteConfigChains(

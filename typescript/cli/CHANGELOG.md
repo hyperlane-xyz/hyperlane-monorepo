@@ -1,5 +1,236 @@
 # @hyperlane-xyz/cli
 
+## 9.1.0
+
+### Minor Changes
+
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 9f9e2c3b5: fix `warp check` command to correctly check the remote routers in the config
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- d121c1cb8: Add XERC20 derivation in SDK/CLI Warp Reading
+- d6ddf5b9e: make warp:read and warp:check/warp:verify operations independent of signer requirements
+- 766f50695: Change semantics of ism/hook config from undefined to 0x0 for reading/checking purposes
+- 1955579cf: Expand warpDeployConfig for checking purposes
+- 33178eaa8: Move getRegistry function from the CLI to `@hyperlane-xyz/registry` package.
+- 4147f91cb: Added support for the new AmountRoutingIsm to be deployed and managed by the cli
+- 500249649: Enable usage of CCIP Hooks and ISMs in warp routes.
+- 03266e2c2: add amount routing hook support in the sdk and cli
+
+### Patch Changes
+
+- 9fd3aa4f3: Correctly await address in native balance check.
+- a835d5c5c: Only relay specified message ID
+- Updated dependencies [05f89650b]
+- Updated dependencies [d121c1cb8]
+- Updated dependencies [3518f8901]
+- Updated dependencies [d6ddf5b9e]
+- Updated dependencies [766f50695]
+- Updated dependencies [e78060d73]
+- Updated dependencies [cb7c157f0]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [1955579cf]
+- Updated dependencies [57137dad4]
+- Updated dependencies [3518f8901]
+- Updated dependencies [500249649]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [cb93c13a4]
+- Updated dependencies [456407dc7]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/utils@8.9.0
+  - @hyperlane-xyz/sdk@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- c68529807: Update registry dependency.
+  - @hyperlane-xyz/sdk@8.8.1
+  - @hyperlane-xyz/utils@8.8.1
+
+## 8.8.0
+
+### Minor Changes
+
+- d82d24cc7: Update `hyperlane warp init` to be undefined for ISM by default.
+- b054b0424: Update `hyperlane warp init` to not output proxyAdmin by default.
+
+### Patch Changes
+
+- Updated dependencies [719d022ec]
+- Updated dependencies [c61546cb7]
+  - @hyperlane-xyz/sdk@8.8.0
+  - @hyperlane-xyz/utils@8.8.0
+
+## 8.7.0
+
+### Minor Changes
+
+- db832b803: Added support for multiple registries in CLI with prioritization.
+- 7dd1f64a6: Update submitWarpApplyTransactions() to try-catch and print safe errors
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/utils@8.7.0
+
+## 8.6.1
+
+### Patch Changes
+
+- 236f27b5f: Fix cli package dependencies.
+  - @hyperlane-xyz/sdk@8.6.1
+  - @hyperlane-xyz/utils@8.6.1
+
+## 8.6.0
+
+### Minor Changes
+
+- d2bc2cfec: Update CLI package.json to be able to export functions
+
+### Patch Changes
+
+- 1e6ee0b9c: Fix default multichain strategy resolving.
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/sdk@8.5.0
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6b682cdb]
+  - @hyperlane-xyz/sdk@8.4.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 228f7c3d1: Fix issue where warp deploy artifacts did not include correct symbols.
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 9eb19cac7: Add explorer link to warp send and send message commands
+- aad2c2d1e: Fixing the chain resolver checks and handling for argv.chain
+
+### Patch Changes
+
+- 1536ea570: Print displayName instead of chain name in signer validity logs.
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 2d018fa7a: Fix hyperlane warp send where --origin and --destination are out of order
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- bb44f9b51: Add support for deploying Hooks using a HookConfig within a WarpConfig
+- c2ca8490d: fix signer strategy init for broken cli commands
+- 9f6b8c514: Allow self-relaying of all messages if there are multiple in a given dispatch transaction.
+- 3c4bc1cca: Update hyperlane warp send to send a round trip transfer to all chains in WarpCoreConfig, if --origin and/or --destination is not provided.
+- 79f8197f3: Added strategy management CLI commands and MultiProtocolSigner implementation for flexible cross-chain signer configuration and management
+- a5ece3b30: Add chain technical stack selector with Arbitrum Nitro support to `hyperlane registry init` command
+- d35502fa7: Update single chain selection to be searchable instead of a simple select
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 0c8372447: fix: balance check skip confirmation
+- 657ac9255: Suppress help on CLI failures
+- 9349ef73e: Fix strategy flag propagation
+- cd7c41308: Fix yaml resource exhaustion
+- 98ee79c17: Added ZKSync signer support using zksync-ethers package
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Minor Changes

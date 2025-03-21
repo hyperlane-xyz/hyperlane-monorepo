@@ -36,12 +36,9 @@ const acceptableValidatorVersions: Record<string, string> = {
   'a64af8be9a76120d0cfc727bb70660fa07e70cce': '1.0.0-beta',
   // 1.0.0
   'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1': '1.0.0',
-  // Tessellated's Build from November 2024
-  // https://github.com/Tessellated-io/hyperlane-monorepo/commit/9b855686d3e2b3d6b81238ce51a576ff5e0f770f
-  '9b855686d3e2b3d6b81238ce51a576ff5e0f770f': 'Tesselated - November 2024',
-  // Tesselated's Build from December 2024
-  // https://github.com/Tessellated-io/hyperlane-monorepo/commit/2bd17da1b30725a6d741197914f5c4b2ae25b566
-  '2bd17da1b30725a6d741197914f5c4b2ae25b566': 'Tesselated - December 2024',
+  // Tessellated's Build from December 2024
+  // https://github.com/Tessellated-io/hyperlane-monorepo/commit/c0719c7f5387c4801a9dec8edc1227fb33b44ea7
+  'c0719c7f5387c4801a9dec8edc1227fb33b44ea7': 'Tessellated - December 2024',
 };
 
 type ValidatorInfo = {

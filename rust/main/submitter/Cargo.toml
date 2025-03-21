@@ -1,0 +1,18 @@
+[package]
+name = "submitter"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
+hyperlane-core = { path = "../hyperlane-core" }
+
+chrono.workspace = true
+eyre.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tracing.workspace = true
+uuid.workspace = true

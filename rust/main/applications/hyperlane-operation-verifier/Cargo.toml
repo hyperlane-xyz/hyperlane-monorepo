@@ -1,0 +1,17 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-operation-verifier"
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[dependencies]
+hyperlane-application = { path = "../hyperlane-application" }
+hyperlane-core = { path = "../../hyperlane-core" }
+
+async-trait.workspace = true
+thiserror.workspace = true

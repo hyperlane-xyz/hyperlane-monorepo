@@ -1,5 +1,225 @@
 # @hyperlane-xyz/sdk
 
+## 9.1.0
+
+### Minor Changes
+
+- 67d91e489: Constraint Max Mint Limit limit for super XERC20, separate check for limit and destination collateral and new lockbox token in TOKEN_COLLATERALIZED_STANDARDS
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- 351bf0010: Support populateClaimTx on SealevelIgpAdapter
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 97c773476: Skip non-Ethereum chains when deriving token metadata
+  - @hyperlane-xyz/utils@9.1.0
+  - @hyperlane-xyz/core@6.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+- b07e2f2ea: Estimate gas + add buffer on mailbox initialization, setting ISMs, setting IGP configs, setting routing hooks.
+
+### Patch Changes
+
+- 88970a78c: Deploy new scaled warp route bytecode
+- Updated dependencies [88970a78c]
+- Updated dependencies [88970a78c]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/core@6.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- d121c1cb8: Add XERC20 derivation in SDK/CLI Warp Reading
+- 3518f8901: Implement HyperlaneCCIPDeployer and CCIPContractCache, for deploying and initializing CCIP ISMs/Hooks for supported pairs of CCIP chains.
+- d6ddf5b9e: make warp:read and warp:check/warp:verify operations independent of signer requirements
+- 766f50695: Change semantics of ism/hook config from undefined to 0x0 for reading/checking purposes
+- e78060d73: Add CCIP boiler plate for existing ISM and Hook deployers.
+- cb7c157f0: Support DefaultHook in the SDK.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 1955579cf: Expand warpDeployConfig for checking purposes
+- 57137dad4: Add consts and utils for integrating with CCIP.
+- 500249649: Enable usage of CCIP Hooks and ISMs in warp routes.
+- 03266e2c2: add amount routing hook support in the sdk and cli
+- cb93c13a4: Add EvmHypVSXERC20LockboxAdapter and EvmHypVSXERC20Adapter adapters
+- 4147f91cb: Added AmountRoutingIsm support to the IsmReader and Factory
+
+### Patch Changes
+
+- 456407dc7: Adds checking to warp route collateral contracts
+- Updated dependencies [1a0eba65b]
+- Updated dependencies [05f89650b]
+- Updated dependencies [9a010dfc1]
+- Updated dependencies [1a0eba65b]
+- Updated dependencies [f3c67a214]
+- Updated dependencies [3518f8901]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [27eadbfc3]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/core@5.12.0
+  - @hyperlane-xyz/utils@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+- @hyperlane-xyz/core@5.11.6
+
+## 8.8.0
+
+### Minor Changes
+
+- 719d022ec: Add availability field to Chain Metadata
+- c61546cb7: Remove priority fee for sealevel non-solana chains
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+- @hyperlane-xyz/core@5.11.5
+
+## 8.7.0
+
+### Minor Changes
+
+- bd0b8861f: Deploy to hyperevm.
+- 55db270e3: Deploy to chains bouncebit, arcadia, ronin, sophon, story, subtensor.
+- b92eb1b57: Deploy to subtensortestnet.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 12e3c4da0: Enroll new validators for unichain, celo, base, mantle, worldchain, bouncebit, arcadia, ronin, sophon, story, subtensor, hyperevm.
+- d6724c4c3: Fix an issue with HookModule that causes HookModule trigger triggering a new deployment due to unnormalized config despite configs being the same
+- d93a38cab: Add MissingRouterViolation when config misses enrolled routers
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.7.0
+- @hyperlane-xyz/core@5.11.4
+
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
+## 8.6.0
+
+### Minor Changes
+
+- 407d82004: Enroll new validators for glue, matchain, unitzero, abstract, sonicsvm, injective, swell.
+- 276d7ce4e: Deploy to berachain.
+- 1e6ee0b9c: Add new validators for unichain and berachain.
+- 77946bb13: Deploy to chronicleyellowstone testnet.
+
+### Patch Changes
+
+- ac984a17b: Fix contract address filtering to remove undefined factory addresses from the addresses map
+- ba50e62fc: Added ESLint configuration and dependency to enforce Node.js module restrictions
+- Updated dependencies [ba50e62fc]
+  - @hyperlane-xyz/core@5.11.2
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Minor Changes
+
+- 55b8ccdff: Improve usability of Token.FromChainMetadataNativeToken
+
+### Patch Changes
+
+- Updated dependencies [044665692]
+  - @hyperlane-xyz/core@5.11.1
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Minor Changes
+
+- f6b682cdb: Deploy to abstract, glue, matchain, unitzero.
+
+### Patch Changes
+
+- Updated dependencies [47ae33c6a]
+  - @hyperlane-xyz/core@5.11.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 7546c0181: Deploy to trumpchain.
+- 49856fbb9: Deploy to flametestnet, sonicblaze. Remove support for sonictestnet.
+
+### Patch Changes
+
+- Updated dependencies [db8c09011]
+- Updated dependencies [11cf66c5e]
+  - @hyperlane-xyz/core@5.10.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 69a684869: Don't try to build signers for non-EVM chains in MultiProtocolSignerManager
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+- @hyperlane-xyz/core@5.9.2
+
+## 8.1.0
+
+### Minor Changes
+
+- 9ab961a79: Deploy to new chains: artela, guru, hemi, nero, xpla.
+
+### Patch Changes
+
+- 79c61c891: Fix the return type of multisig and aggregation ISMs for zksync-stack chains.
+- 9518dbc84: Enroll new validators for artela, guru, hemi, nero, soneium, torus, xpla.
+  - @hyperlane-xyz/utils@8.1.0
+  - @hyperlane-xyz/core@5.9.1
+
+## 8.0.0
+
+### Major Changes
+
+- 26fbec8f6: Rename TokenConfig related types and utilities for clarity. E.g. `CollateralConfig` to `CollateralTokenConfig`.
+  Export more config types and zod schemas
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- 9f6b8c514: Allow self-relaying of all messages if there are multiple in a given dispatch transaction.
+- 82cebabe4: Call google storage API directly and remove @google-cloud/storage dependency from the SDK.
+- 95cc9571e: Deploy to new chains: arthera, aurora, conflux, conwai, corn, evmos, form, ink, rivalz, soneium, sonic, telos.
+- c690ca82f: Deploy to torus.
+- e9911bb9d: Added new Sealevel tx submission and priority fee oracle params to agent config types
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 71aefa03e: export BaseMetadataBuilder
+- 5942e9cff: Update default validator sets for alephzeroevmmainnet, appchain, lisk, lumiaprism, swell, treasure, vana, zklink.
+- de1190656: Export TOKEN_STANDARD_TO_PROVIDER_TYPE, XERC20_STANDARDS, and MINT_LIMITED_STANDARDS maps
+- Updated dependencies [79f8197f3]
+- Updated dependencies [0eb8d52a4]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/utils@8.0.0
+  - @hyperlane-xyz/core@5.9.0
+
 ## 7.3.0
 
 ### Minor Changes

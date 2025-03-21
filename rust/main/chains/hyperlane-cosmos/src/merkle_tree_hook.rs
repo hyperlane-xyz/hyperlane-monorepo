@@ -35,18 +35,7 @@ pub struct CosmosMerkleTreeHook {
 
 impl CosmosMerkleTreeHook {
     /// create new Cosmos MerkleTreeHook agent
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
@@ -197,25 +186,17 @@ pub struct CosmosMerkleTreeHookIndexer {
 
 impl CosmosMerkleTreeHookIndexer {
     /// The message dispatch event type from the CW contract.
-    const MERKLE_TREE_INSERTION_EVENT_TYPE: &'static str = "hpl_hook_merkle::post_dispatch";
+    pub const MERKLE_TREE_INSERTION_EVENT_TYPE: &'static str = "hpl_hook_merkle::post_dispatch";
 
     /// create new Cosmos MerkleTreeHookIndexer agent
     pub fn new(
-        conf: ConnectionConf,
+        provider: CosmosProvider,
+        wasm_provider: CosmosWasmRpcProvider,
         locator: ContractLocator,
-        signer: Option<Signer>,
-        reorg_period: u32,
     ) -> ChainResult<Self> {
-        let provider = CosmosWasmRpcProvider::new(
-            conf.clone(),
-            locator.clone(),
-            Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
-            reorg_period,
-        )?;
-
         Ok(Self {
-            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer)?,
-            provider: Box::new(provider),
+            merkle_tree_hook: CosmosMerkleTreeHook::new(provider, locator)?,
+            provider: Box::new(wasm_provider),
         })
     }
 
@@ -232,57 +213,66 @@ impl CosmosMerkleTreeHookIndexer {
         let mut insertion = IncompleteMerkleTreeInsertion::default();
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                    debug!(?contract_address, "parsed contract address from plain text");
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
-                    debug!(?contract_address, "parsed contract address from base64");
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                            debug!(?contract_address, "parsed contract address from plain text");
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                            debug!(?contract_address, "parsed contract address from base64");
+                        }
+
+                        MESSAGE_ID_ATTRIBUTE_KEY => {
+                            insertion.message_id =
+                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
+                        }
+                        v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                            insertion.message_id = Some(H256::from_slice(
+                                hex::decode(String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?)?
+                                .as_slice(),
+                            ));
+                            debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
+                        }
+
+                        INDEX_ATTRIBUTE_KEY => {
+                            insertion.leaf_index = Some(value.parse::<u32>()?);
+                            debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from plain text");
+                        }
+                        v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
+                            insertion.leaf_index = Some(
+                                String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?
+                                .parse()?,
+                            );
+                            debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from base64");
+                        }
+
+                        unknown => {
+                            debug!(?unknown, "unknown attribute");
+                        }
+                    }
                 }
 
-                MESSAGE_ID_ATTRIBUTE_KEY => {
-                    insertion.message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
-                    debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
-                }
-                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.message_id = Some(H256::from_slice(
-                        hex::decode(String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?)?
-                        .as_slice(),
-                    ));
-                    debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
-                }
-
-                INDEX_ATTRIBUTE_KEY => {
-                    insertion.leaf_index = Some(value.parse::<u32>()?);
-                    debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from plain text");
-                }
-                v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.leaf_index = Some(
-                        String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?
-                        .parse()?,
-                    );
-                    debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from base64");
-                }
-
-                unknown => {
-                    debug!(?unknown, "unknown attribute");
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
             }
         }

@@ -9,7 +9,10 @@ use std::{
     process::{Command, Stdio},
 };
 
-use solana_client::{client_error::ClientError, rpc_client::RpcClient};
+use solana_client::{
+    client_error::{reqwest, ClientError},
+    rpc_client::RpcClient,
+};
 
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
 
@@ -18,7 +21,7 @@ use hyperlane_sealevel_connection_client::{
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_token::{
-    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token, spl_token_2022,
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token_2022,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
@@ -38,6 +41,45 @@ use crate::{
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct SplTokenOffchainMetadata {
+    name: String,
+    symbol: String,
+    description: Option<String>,
+    image: Option<String>,
+    website: Option<String>,
+    // Array of key-value pairs
+    attributes: Option<Vec<(String, String)>>,
+}
+
+impl SplTokenOffchainMetadata {
+    fn validate(&self) {
+        assert!(!self.name.is_empty(), "Name must not be empty");
+        assert!(
+            !self.symbol.is_empty(),
+            "Symbol must not be empty for token with name: {}",
+            self.name
+        );
+        assert!(
+            self.description.is_some(),
+            "Description must be provided for token with name: {}",
+            self.name
+        );
+        assert!(
+            self.image.is_some(),
+            "Image must be provided for token with name: {}",
+            self.name
+        );
+        let image_url = self.image.as_ref().unwrap();
+        let image = reqwest::blocking::get(image_url).unwrap();
+        assert!(
+            image.status().is_success(),
+            "Image URL must return a successful status code, url: {}",
+            image_url,
+        );
+    }
+}
 
 /// Configuration relating to decimals.
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -87,26 +129,9 @@ struct TokenMetadata {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-enum SplTokenProgramType {
-    Token,
-    Token2022,
-}
-
-impl SplTokenProgramType {
-    fn program_id(&self) -> Pubkey {
-        match &self {
-            SplTokenProgramType::Token => spl_token::id(),
-            SplTokenProgramType::Token2022 => spl_token_2022::id(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
 struct CollateralInfo {
     #[serde(rename = "token")]
     mint: String,
-    spl_token_program: Option<SplTokenProgramType>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -321,20 +346,24 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .unwrap(),
                 )
             }
-            TokenType::Collateral(collateral_info) => ctx.new_txn().add(
-                hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                    program_id,
-                    ctx.payer_pubkey,
-                    init,
-                    collateral_info
-                        .spl_token_program
-                        .as_ref()
-                        .expect("Cannot initialize collateral warp route without SPL token program")
-                        .program_id(),
-                    collateral_info.mint.parse().expect("Invalid mint address"),
+            TokenType::Collateral(collateral_info) => {
+                let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
+                let collateral_mint_account = client.get_account(&collateral_mint).unwrap();
+                // The owner of the mint account is the SPL Token program responsible for it
+                // (either spl-token or spl-token-2022).
+                let collateral_spl_token_program = collateral_mint_account.owner;
+
+                ctx.new_txn().add(
+                    hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_spl_token_program,
+                        collateral_mint,
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            ),
+            }
         }
         .with_client(client)
         .send_with_payer();
@@ -406,6 +435,53 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         }
 
         try_fund_ata_payer(ctx, client);
+    }
+
+    fn verify_config(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, TokenConfig>,
+        app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
+        chain_configs: &HashMap<String, ChainMetadata>,
+    ) {
+        // We only have validations for SVM tokens at the moment.
+        for (chain, config) in app_configs_to_deploy.iter() {
+            if let TokenType::Synthetic(synthetic) = &config.token_type {
+                // Verify that the metadata URI provided points to a valid JSON file.
+                let metadata_uri = match synthetic.uri.as_ref() {
+                    Some(uri) => uri,
+                    None => {
+                        if chain_configs
+                            .get(*chain)
+                            .unwrap()
+                            .is_testnet
+                            .unwrap_or(false)
+                        {
+                            // Skip validation for testnet chain
+                            println!(
+                                "Skipping metadata URI validation for testnet chain: {}",
+                                chain
+                            );
+                            continue;
+                        }
+                        panic!("URI not provided for token: {}", chain);
+                    }
+                };
+                println!("Validating metadata URI: {}", metadata_uri);
+                let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
+                let metadata_contents: SplTokenOffchainMetadata = metadata_response
+                    .json()
+                    .expect("Failed to parse metadata JSON");
+                metadata_contents.validate();
+
+                // Ensure that the metadata contents match the provided token config.
+                assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
+                assert_eq!(
+                    metadata_contents.symbol, synthetic.symbol,
+                    "Symbol mismatch"
+                );
+            }
+        }
     }
 
     /// Sets gas router configs on all deployable chains.
@@ -671,6 +747,7 @@ pub fn install_spl_token_cli() {
             "dan/create-token-for-mint",
             "--rev",
             "ae4c8ac46",
+            "--locked",
         ])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())

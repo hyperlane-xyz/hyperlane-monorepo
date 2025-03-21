@@ -2,7 +2,9 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AbstractRoutingIsm__factory,
+  AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
@@ -21,8 +23,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -62,6 +66,7 @@ export interface IsmReader {
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
+  protected isZkSyncChain: boolean;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -72,6 +77,12 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
+
+    // So we can distinguish between Storage/Static ISMs
+    const chainTechnicalStack = this.multiProvider.getChainMetadata(
+      this.chain,
+    ).technicalStack;
+    this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
   }
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
@@ -140,17 +151,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       owner = await defaultFallbackIsmInstance.owner();
     } catch {
       this.logger.debug(
-        'Error accessing owner property, implying this is an ICA routing ISM.',
+        'Error accessing owner property, implying that this is not a DefaultFallbackRoutingIsm.',
         address,
       );
     }
 
-    // If the current ISM does not have an owner then it is an ICA Router
+    // If the current ISM does not have an owner then it is either an ICA Router or Amount Router
     if (!owner) {
-      return {
-        type: IsmType.ICA_ROUTING,
-        address,
-      };
+      return this.deriveNonOwnableRoutingConfig(address);
     }
 
     const domainIds = this.messageContext
@@ -192,6 +200,32 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     };
   }
 
+  private async deriveNonOwnableRoutingConfig(
+    address: Address,
+  ): Promise<WithAddress<RoutingIsmConfig>> {
+    const ism = AmountRoutingIsm__factory.connect(address, this.provider);
+
+    try {
+      const [lowerIsm, upperIsm, threshold] = await Promise.all([
+        ism.lower(),
+        ism.upper(),
+        ism.threshold(),
+      ]);
+      return {
+        type: IsmType.AMOUNT_ROUTING,
+        address,
+        lowerIsm: await this.deriveIsmConfig(lowerIsm),
+        upperIsm: await this.deriveIsmConfig(upperIsm),
+        threshold: threshold.toNumber(),
+      };
+    } catch {
+      return {
+        type: IsmType.ICA_ROUTING,
+        address,
+      };
+    }
+  }
+
   async deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
@@ -208,9 +242,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       async (module) => this.deriveIsmConfig(module),
     );
 
+    // If it's a zkSync chain, it must be a StorageAggregationIsm
+    const ismType = this.isZkSyncChain
+      ? IsmType.STORAGE_AGGREGATION
+      : IsmType.AGGREGATION;
+
     return {
       address,
-      type: IsmType.AGGREGATION,
+      type: ismType,
       modules: ismConfigs,
       threshold,
     };
@@ -227,10 +266,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG}, got ${moduleType}`,
     );
 
-    const ismType =
+    let ismType =
       moduleType === ModuleType.MERKLE_ROOT_MULTISIG
         ? IsmType.MERKLE_ROOT_MULTISIG
         : IsmType.MESSAGE_ID_MULTISIG;
+
+    // If it's a zkSync chain, it must be a StorageMultisigIsm
+    if (this.isZkSyncChain) {
+      ismType =
+        moduleType === ModuleType.MERKLE_ROOT_MULTISIG
+          ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+          : IsmType.STORAGE_MESSAGE_ID_MULTISIG;
+    }
 
     const [validators, threshold] = await ism.validatorsAndThreshold(
       ethers.constants.AddressZero,
@@ -287,6 +334,26 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
+        address,
+      );
+    }
+
+    // if it has ccipOrigin property --> CCIP
+    const ccipIsm = CCIPIsm__factory.connect(address, this.provider);
+    try {
+      const ccipOrigin = await ccipIsm.ccipOrigin();
+      const originChain = getChainNameFromCCIPSelector(ccipOrigin.toString());
+      if (!originChain) {
+        throw new Error('Unknown CCIP origin chain');
+      }
+      return {
+        address,
+        type: IsmType.CCIP,
+        originChain,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "ccipOrigin" property, implying this is not a CCIP ISM.',
         address,
       );
     }

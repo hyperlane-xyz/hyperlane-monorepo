@@ -2,59 +2,78 @@
 #![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::{
-    collections::HashMap,
     fmt::Debug,
-    ops::Deref,
-    str::FromStr,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use crate::{
-    merkle_tree::builder::MerkleTreeBuilder,
-    msg::metadata::{
-        multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
-        AggregationIsmMetadataBuilder, CcipReadIsmMetadataBuilder, NullMetadataBuilder,
-        RoutingIsmMetadataBuilder,
-    },
-    settings::matching_list::MatchingList,
-};
-use async_trait::async_trait;
 use derive_new::new;
-use eyre::{Context, Result};
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
-use hyperlane_base::{
-    settings::{ChainConf, CheckpointSyncerConf},
-    CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
-};
-use hyperlane_core::{
-    accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, H160, H256,
-};
+use eyre::Result;
+use tokio::sync::{Mutex, RwLock};
 
-use tokio::sync::RwLock;
-use tracing::{debug, info, instrument, warn};
+use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256};
 
-#[derive(Debug, thiserror::Error)]
-pub enum MetadataBuilderError {
+use crate::settings::matching_list::MatchingList;
+
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+pub enum MetadataBuildError {
+    #[error("Some external error causing the build to fail")]
+    FailedToBuild(String),
+    /// While building metadata, encountered something that should
+    /// prohibit all metadata for the message from being built.
+    /// Provides the reason for the refusal.
+    #[error("Refused")]
+    Refused(String),
+    /// Unable to fetch metadata, but no error occurred
+    #[error("Could not fetch metadata")]
+    CouldNotFetch,
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]
-    MaxDepthExceeded(u32),
+    MaxIsmDepthExceeded(u32),
+    #[error("Exceeded max count when building metadata ({0})")]
+    MaxIsmCountReached(u32),
+    #[error("Aggregation threshold not met ({0})")]
+    AggregationThresholdNotMet(u32),
+}
+
+#[derive(Clone, Debug, new)]
+pub struct Metadata(Vec<u8>);
+
+impl Metadata {
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.clone()
+    }
+}
+
+#[async_trait::async_trait]
+pub trait MetadataBuilder: Send + Sync {
+    /// Given a message, build it's ISM metadata
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> Result<Metadata, MetadataBuildError>;
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MessageMetadataBuildParams {
+    /// current ISM depth.
+    /// ISMs can be structured recursively. We keep track of the depth
+    /// of the recursion to avoid infinite loops.
+    /// This value is local to each recursion when doing a .clone()
+    pub ism_depth: u32,
+    /// current ISM count.
+    /// This value is global and is shared when doing a .clone()
+    /// in order to track all recursion branches
+    pub ism_count: Arc<Mutex<u32>>,
 }
 
 #[derive(Debug)]
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
-    pub metadata: Option<Vec<u8>>,
-    pub module_type: ModuleType,
-}
-
-#[async_trait]
-pub trait MetadataBuilder: Send + Sync {
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage)
-        -> Result<Option<Vec<u8>>>;
+    pub metadata: Metadata,
 }
 
 /// Allows fetching the default ISM, caching the value for a period of time
@@ -166,272 +185,5 @@ impl AppContextClassifier {
         }
 
         Ok(None)
-    }
-}
-
-/// Builds metadata for a message.
-#[derive(Debug, Clone)]
-pub struct MessageMetadataBuilder {
-    pub base: Arc<BaseMetadataBuilder>,
-    /// ISMs can be structured recursively. We keep track of the depth
-    /// of the recursion to avoid infinite loops.
-    pub depth: u32,
-    pub app_context: Option<String>,
-}
-
-impl Deref for MessageMetadataBuilder {
-    type Target = BaseMetadataBuilder;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-#[async_trait]
-impl MetadataBuilder for MessageMetadataBuilder {
-    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()))]
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<Option<Vec<u8>>> {
-        self.build_ism_and_metadata(ism_address, message)
-            .await
-            .map(|ism_with_metadata| ism_with_metadata.metadata)
-    }
-}
-
-impl MessageMetadataBuilder {
-    pub async fn new(
-        ism_address: H256,
-        message: &HyperlaneMessage,
-        base: Arc<BaseMetadataBuilder>,
-    ) -> Result<Self> {
-        let app_context = base
-            .app_context_classifier
-            .get_app_context(message, ism_address)
-            .await?;
-        Ok(Self {
-            base,
-            depth: 0,
-            app_context,
-        })
-    }
-
-    fn clone_with_incremented_depth(&self) -> Result<MessageMetadataBuilder> {
-        let mut cloned = self.clone();
-        cloned.depth += 1;
-        if cloned.depth > cloned.max_depth {
-            Err(MetadataBuilderError::MaxDepthExceeded(cloned.depth).into())
-        } else {
-            Ok(cloned)
-        }
-    }
-
-    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()), ret)]
-    pub async fn build_ism_and_metadata(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-    ) -> Result<IsmWithMetadataAndType> {
-        let ism: Box<dyn InterchainSecurityModule> = self
-            .build_ism(ism_address)
-            .await
-            .context("When building ISM")?;
-
-        let module_type = ism
-            .module_type()
-            .await
-            .context("When fetching module type")?;
-        let cloned = self.clone_with_incremented_depth()?;
-
-        let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
-            ModuleType::MerkleRootMultisig => {
-                Box::new(MerkleRootMultisigMetadataBuilder::new(cloned))
-            }
-            ModuleType::MessageIdMultisig => {
-                Box::new(MessageIdMultisigMetadataBuilder::new(cloned))
-            }
-            ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(cloned)),
-            ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(cloned)),
-            ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-            ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(cloned)),
-            _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
-        };
-        let meta = metadata_builder
-            .build(ism_address, message)
-            .await
-            .context("When building metadata");
-        Ok(IsmWithMetadataAndType {
-            ism,
-            metadata: meta?,
-            module_type,
-        })
-    }
-}
-
-/// Base metadata builder with types used by higher level metadata builders.
-#[allow(clippy::too_many_arguments)]
-#[derive(new)]
-pub struct BaseMetadataBuilder {
-    origin_domain: HyperlaneDomain,
-    destination_chain_setup: ChainConf,
-    origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    origin_validator_announce: Arc<dyn ValidatorAnnounce>,
-    allow_local_checkpoint_syncers: bool,
-    metrics: Arc<CoreMetrics>,
-    db: HyperlaneRocksDB,
-    app_context_classifier: IsmAwareAppContextClassifier,
-    #[new(value = "7")]
-    max_depth: u32,
-}
-
-impl Debug for BaseMetadataBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "BaseMetadataBuilder {{ origin_domain: {:?} destination_chain_setup: {:?}, validator_announce: {:?} }}",
-            self.origin_domain, self.destination_chain_setup, self.origin_validator_announce
-        )
-    }
-}
-
-impl BaseMetadataBuilder {
-    pub fn origin_domain(&self) -> &HyperlaneDomain {
-        &self.origin_domain
-    }
-
-    pub fn destination_domain(&self) -> &HyperlaneDomain {
-        &self.destination_chain_setup.domain
-    }
-
-    pub async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> Result<Proof> {
-        const CTX: &str = "When fetching message proof";
-        let proof = self
-            .origin_prover_sync
-            .read()
-            .await
-            .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?;
-
-        if proof.root() != checkpoint.root {
-            info!(
-                ?checkpoint,
-                canonical_root = ?proof.root(),
-                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
-            );
-        }
-        Ok(proof)
-    }
-
-    pub async fn highest_known_leaf_index(&self) -> Option<u32> {
-        self.origin_prover_sync.read().await.count().checked_sub(1)
-    }
-
-    pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
-        let merkle_leaf = self
-            .db
-            .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
-        Ok(merkle_leaf)
-    }
-
-    pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
-        self.destination_chain_setup
-            .build_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_routing_ism(&self, address: H256) -> Result<Box<dyn RoutingIsm>> {
-        self.destination_chain_setup
-            .build_routing_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_multisig_ism(&self, address: H256) -> Result<Box<dyn MultisigIsm>> {
-        self.destination_chain_setup
-            .build_multisig_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_aggregation_ism(&self, address: H256) -> Result<Box<dyn AggregationIsm>> {
-        self.destination_chain_setup
-            .build_aggregation_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_ccip_read_ism(&self, address: H256) -> Result<Box<dyn CcipReadIsm>> {
-        self.destination_chain_setup
-            .build_ccip_read_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_checkpoint_syncer(
-        &self,
-        validators: &[H256],
-        app_context: Option<String>,
-    ) -> Result<MultisigCheckpointSyncer> {
-        let storage_locations = self
-            .origin_validator_announce
-            .get_announced_storage_locations(validators)
-            .await?;
-
-        // Only use the most recently announced location for now.
-        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
-        for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
-            for storage_location in validator_storage_locations.iter().rev() {
-                let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
-                    debug!(
-                        ?validator,
-                        ?storage_location,
-                        "Could not parse checkpoint syncer config for validator"
-                    );
-                    continue;
-                };
-
-                // If this is a LocalStorage based checkpoint syncer and it's not
-                // allowed, ignore it
-                if !self.allow_local_checkpoint_syncers
-                    && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
-                {
-                    debug!(
-                        ?config,
-                        "Ignoring disallowed LocalStorage based checkpoint syncer"
-                    );
-                    continue;
-                }
-
-                match config.build_and_validate(None).await {
-                    Ok(checkpoint_syncer) => {
-                        // found the syncer for this validator
-                        checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
-                        break;
-                    }
-                    Err(err) => {
-                        debug!(
-                            error=%err,
-                            ?config,
-                            ?validator,
-                            "Error when loading checkpoint syncer; will attempt to use the next config"
-                        );
-                    }
-                }
-            }
-            if checkpoint_syncers.get(&validator.into()).is_none() {
-                if validator_storage_locations.is_empty() {
-                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
-                } else {
-                    warn!(
-                        ?validator,
-                        ?validator_storage_locations,
-                        "No valid checkpoint syncer configs for validator"
-                    );
-                }
-            }
-        }
-        Ok(MultisigCheckpointSyncer::new(
-            checkpoint_syncers,
-            self.metrics.clone(),
-            app_context,
-        ))
     }
 }
