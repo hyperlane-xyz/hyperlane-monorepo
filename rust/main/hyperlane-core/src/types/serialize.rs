@@ -196,7 +196,7 @@ pub enum ExpectedLen<'a> {
     Between(usize, &'a mut [u8]),
 }
 
-impl<'a> fmt::Display for ExpectedLen<'a> {
+impl fmt::Display for ExpectedLen<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpectedLen::Exact(ref v) => write!(fmt, "{} bytes", v.len()),
@@ -271,7 +271,7 @@ where
         len: ExpectedLen<'a>,
     }
 
-    impl<'a, 'b> de::Visitor<'b> for Visitor<'a> {
+    impl<'b> de::Visitor<'b> for Visitor<'_> {
         type Value = usize;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
