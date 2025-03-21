@@ -209,6 +209,20 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     return new SigningHyperlaneModuleClient(client, signer, account, options);
   }
 
+  static async createWithSigner(
+    cometclient: CometClient,
+    signer: OfflineSigner,
+    options: SigningStargateClientOptions = {},
+  ): Promise<SigningHyperlaneModuleClient> {
+    const [account] = await signer.getAccounts();
+    return new SigningHyperlaneModuleClient(
+      cometclient,
+      signer,
+      account,
+      options,
+    );
+  }
+
   private async signTx(
     msg: EncodeObject,
     options?: {
