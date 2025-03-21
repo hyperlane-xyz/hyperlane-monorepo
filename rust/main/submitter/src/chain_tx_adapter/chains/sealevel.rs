@@ -1,17 +1,21 @@
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use hyperlane_base::settings::ChainConf;
+use hyperlane_base::settings::{ChainConf, RawChainConf};
 
 use crate::chain_tx_adapter::{AdaptsChain, FullPayload, GasLimit, Transaction, TransactionStatus};
 
 pub struct SealevelTxAdapter {
     _conf: ChainConf,
+    _raw_conf: RawChainConf,
 }
 
 impl SealevelTxAdapter {
-    pub fn new(conf: ChainConf) -> Self {
-        Self { _conf: conf }
+    pub fn new(conf: ChainConf, raw_conf: RawChainConf) -> Self {
+        Self {
+            _conf: conf,
+            _raw_conf: raw_conf,
+        }
     }
 }
 

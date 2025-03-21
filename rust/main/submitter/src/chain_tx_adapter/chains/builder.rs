@@ -1,7 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use hyperlane_base::settings::ChainConf;
+use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 
 use crate::chain_tx_adapter::{
@@ -12,14 +12,14 @@ use crate::chain_tx_adapter::{
 pub struct ChainTxAdapterBuilder {}
 
 impl ChainTxAdapterBuilder {
-    pub fn build(conf: &ChainConf) -> Box<dyn AdaptsChain> {
+    pub fn build(conf: &ChainConf, raw_conf: &RawChainConf) -> Box<dyn AdaptsChain> {
         use HyperlaneDomainProtocol::*;
 
         let adapter: Box<dyn AdaptsChain> = match conf.domain.domain_protocol() {
-            Ethereum => Box::new(EthereumTxAdapter::new(conf.clone())),
+            Ethereum => Box::new(EthereumTxAdapter::new(conf.clone(), raw_conf.clone())),
             Fuel => todo!(),
-            Sealevel => Box::new(SealevelTxAdapter::new(conf.clone())),
-            Cosmos => Box::new(CosmosTxAdapter::new(conf.clone())),
+            Sealevel => Box::new(SealevelTxAdapter::new(conf.clone(), raw_conf.clone())),
+            Cosmos => Box::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
         };
 
         adapter
