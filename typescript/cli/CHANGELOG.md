@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 9.1.0
+
+### Minor Changes
+
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 9f9e2c3b5: fix `warp check` command to correctly check the remote routers in the config
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
 ## 9.0.0
 
 ### Minor Changes
