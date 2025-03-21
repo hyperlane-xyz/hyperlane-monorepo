@@ -6,6 +6,7 @@ import {
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
+  UniversalDetails,
 } from 'starknet';
 
 import {
@@ -77,7 +78,10 @@ export class StarknetDeployer {
 
     const contractFactory = new ContractFactory(params);
 
-    const contract = await contractFactory.deploy(constructorCalldata);
+    const details: UniversalDetails = {
+      blockIdentifier: 'pending',
+    };
+    const contract = await contractFactory.deploy(constructorCalldata, details);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)
@@ -169,6 +173,7 @@ export class StarknetDeployer {
               error,
             );
           }
+          this.logger.info(`ISM ${route} set for domain ${domain}`);
         }
 
         return ismAddress;
