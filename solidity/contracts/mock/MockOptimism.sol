@@ -58,4 +58,11 @@ contract MockOptimismPortal is IOptimismPortal {
         );
         CallLib.call(call);
     }
+
+    function proveWithdrawalTransaction(
+        WithdrawalTransaction memory _tx,
+        uint256 _disputeGameIndex,
+        OutputRootProof memory _outputRootProof,
+        bytes[] memory _withdrawalProof
+    ) external {}
 }
