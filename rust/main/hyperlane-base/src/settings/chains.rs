@@ -25,7 +25,7 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
-    self as h_sealevel, fallback::SealevelFallbackProvider, TransactionSubmitter,
+    self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
 
 use crate::{
@@ -288,7 +288,7 @@ impl ChainConf {
 
                 h_sealevel::SealevelMailbox::new(
                     provider,
-                    Arc::new(tx_submitter),
+                    tx_submitter,
                     conf,
                     &locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
@@ -330,15 +330,9 @@ impl ChainConf {
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
-                h_sealevel::SealevelMailbox::new(
-                    provider,
-                    Arc::new(tx_submitter),
-                    conf,
-                    &locator,
-                    None,
-                )
-                .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
-                .map_err(Into::into)
+                h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)
+                    .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
+                    .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
@@ -381,7 +375,7 @@ impl ChainConf {
 
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
                     provider,
-                    Arc::new(tx_submitter),
+                    tx_submitter,
                     &locator,
                     conf,
                     advanced_log_meta,
@@ -446,7 +440,7 @@ impl ChainConf {
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
                     provider,
-                    Arc::new(tx_submitter),
+                    tx_submitter,
                     &locator,
                     conf,
                     advanced_log_meta,
@@ -602,7 +596,7 @@ impl ChainConf {
 
                 let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
                     provider,
-                    Arc::new(tx_submitter),
+                    tx_submitter,
                     &locator,
                     conf,
                     advanced_log_meta,
@@ -994,29 +988,23 @@ fn build_sealevel_provider(
     contract_addresses: &[H256],
     conf: &h_sealevel::ConnectionConf,
     metrics: &CoreMetrics,
-) -> SealevelFallbackProvider {
+) -> SealevelProvider {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
 
     let chain = middleware_metrics.chain.clone();
     let urls = conf.urls.clone();
-    SealevelFallbackProvider::from_urls(
-        locator.domain.clone(),
-        conf,
-        chain,
-        contract_addresses,
-        urls,
-        client_metrics,
-    )
+    let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, client_metrics);
+    SealevelProvider::new(rpc_client, locator.domain.clone(), contract_addresses, conf)
 }
 
 fn build_sealevel_tx_submitter(
-    provider: &Arc<SealevelFallbackProvider>,
+    provider: &Arc<SealevelProvider>,
     chain_conf: &ChainConf,
     connection_conf: &h_sealevel::ConnectionConf,
     locator: &ContractLocator,
     metrics: &CoreMetrics,
-) -> TransactionSubmitter {
+) -> Arc<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(

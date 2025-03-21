@@ -34,7 +34,7 @@ use hyperlane_core::{
     Mailbox, MerkleTreeHook, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::{fallback::SealevelFallbackProvider, priority_fee::PriorityFeeOracle};
+use crate::{priority_fee::PriorityFeeOracle, SealevelProvider};
 use crate::{tx_submitter::TransactionSubmitter, utils::sanitize_dynamic_accounts};
 use crate::{ConnectionConf, SealevelKeypair};
 
@@ -66,17 +66,17 @@ pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
-    pub(crate) provider: Arc<SealevelFallbackProvider>,
+    pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<PriorityFeeOracle>,
-    tx_submitter: Arc<TransactionSubmitter>,
+    tx_submitter: Arc<dyn TransactionSubmitter>,
 }
 
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
-        provider: Arc<SealevelFallbackProvider>,
-        tx_submitter: Arc<TransactionSubmitter>,
+        provider: Arc<SealevelProvider>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
@@ -113,7 +113,7 @@ impl SealevelMailbox {
     }
 
     /// Get the provider RPC client.
-    pub fn get_provider(&self) -> &SealevelFallbackProvider {
+    pub fn get_provider(&self) -> &SealevelProvider {
         &self.provider
     }
 
@@ -128,10 +128,11 @@ impl SealevelMailbox {
         let payer = self
             .payer
             .as_ref()
+            .map(|p| p.pubkey())
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
         self.provider
-            .simulate_instruction(payer.clone(), instruction)
+            .simulate_instruction(&payer, instruction)
             .await
     }
 
@@ -145,9 +146,7 @@ impl SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
 
-        self.provider
-            .get_account_metas(payer.clone(), instruction)
-            .await
+        self.provider.get_account_metas(&payer, instruction).await
     }
 
     /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
@@ -362,16 +361,8 @@ impl SealevelMailbox {
     pub async fn get_inbox(&self) -> ChainResult<Box<Inbox>> {
         let account = self
             .provider
-            .call(move |provider| {
-                let pubkey = self.inbox.0;
-                let future = async move {
-                    provider
-                        .rpc_client()
-                        .get_account_with_finalized_commitment(&pubkey)
-                        .await
-                };
-                Box::pin(future)
-            })
+            .rpc_client()
+            .get_account_with_finalized_commitment(self.inbox.0)
             .await?;
         let inbox = InboxAccount::fetch(&mut account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
@@ -427,18 +418,8 @@ impl Mailbox for SealevelMailbox {
 
         let account = self
             .provider
-            .call(move |provider| {
-                let processed_message_account_key = processed_message_account_key;
-                let future = async move {
-                    provider
-                        .rpc_client()
-                        .get_account_option_with_finalized_commitment(
-                            &processed_message_account_key,
-                        )
-                        .await
-                };
-                Box::pin(future)
-            })
+            .rpc_client()
+            .get_account_option_with_finalized_commitment(processed_message_account_key)
             .await?;
 
         Ok(account.is_some())
@@ -488,9 +469,9 @@ impl Mailbox for SealevelMailbox {
             .provider
             .build_estimated_tx_for_instruction(
                 process_instruction,
-                payer.clone(),
-                self.tx_submitter.clone(),
-                self.priority_fee_oracle.clone(),
+                &payer,
+                &self.tx_submitter,
+                &self.priority_fee_oracle,
             )
             .await?;
 
@@ -501,12 +482,13 @@ impl Mailbox for SealevelMailbox {
 
         let send_instant = std::time::Instant::now();
 
-        let provider = self.tx_submitter.get_provider();
+        let provider = self
+            .tx_submitter
+            .get_provider()
+            .unwrap_or_else(|| &self.provider);
 
         // Wait for the transaction to be confirmed.
-        provider
-            .wait_for_transaction_confirmation(tx.clone())
-            .await?;
+        provider.wait_for_transaction_confirmation(&tx).await?;
 
         // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
         // tx, but still use it as a proxy for tx latency to help debug.
@@ -515,6 +497,7 @@ impl Mailbox for SealevelMailbox {
         // TODO: not sure if this actually checks if the transaction was executed / reverted?
         // Confirm the transaction.
         let executed = provider
+            .rpc_client()
             .confirm_transaction_with_commitment(signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
@@ -548,9 +531,9 @@ impl Mailbox for SealevelMailbox {
             .provider
             .get_estimated_costs_for_instruction(
                 process_instruction,
-                payer.clone(),
-                self.tx_submitter.clone(),
-                self.priority_fee_oracle.clone(),
+                payer,
+                &self.tx_submitter,
+                &self.priority_fee_oracle,
             )
             .await?;
 

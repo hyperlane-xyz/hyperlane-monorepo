@@ -15,10 +15,10 @@ use hyperlane_core::{
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
-use crate::log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer};
+use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
 use crate::{
-    account::{search_accounts_by_discriminator, search_and_validate_account},
-    fallback::SealevelFallbackProvider,
+    log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer},
+    SealevelProvider,
 };
 
 /// The offset to get the `unique_gas_payment_pubkey` field from the serialized GasPaymentData.
@@ -33,13 +33,13 @@ pub struct SealevelInterchainGasPaymaster {
     data_pda_pubkey: Pubkey,
     domain: HyperlaneDomain,
     igp_account: H256,
-    provider: Arc<SealevelFallbackProvider>,
+    provider: Arc<SealevelProvider>,
 }
 
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
     pub async fn new(
-        provider: Arc<SealevelFallbackProvider>,
+        provider: Arc<SealevelProvider>,
         igp_account_locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
         let program_id =
@@ -57,10 +57,11 @@ impl SealevelInterchainGasPaymaster {
     }
 
     async fn determine_igp_program_id(
-        provider: &Arc<SealevelFallbackProvider>,
+        provider: &Arc<SealevelProvider>,
         igp_account_pubkey: &H256,
     ) -> ChainResult<Pubkey> {
         let account = provider
+            .rpc_client()
             .get_account_with_finalized_commitment(Pubkey::from(<[u8; 32]>::from(
                 *igp_account_pubkey,
             )))
@@ -81,7 +82,7 @@ impl HyperlaneChain for SealevelInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        self.provider.provider()
+        Box::new(self.provider.clone())
     }
 }
 
@@ -90,7 +91,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymasterIndexer {
-    provider: Arc<SealevelFallbackProvider>,
+    provider: Arc<SealevelProvider>,
     igp: SealevelInterchainGasPaymaster,
     log_meta_composer: LogMetaComposer,
     advanced_log_meta: bool,
@@ -107,7 +108,7 @@ pub struct SealevelGasPayment {
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
     pub async fn new(
-        provider: Arc<SealevelFallbackProvider>,
+        provider: Arc<SealevelProvider>,
         igp_account_locator: ContractLocator<'_>,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
@@ -155,6 +156,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
         let account = self
             .provider
+            .rpc_client()
             .get_account_with_finalized_commitment(valid_payment_pda_pubkey)
             .await?;
         let gas_payment_account = GasPaymentAccount::fetch(&mut account.data.as_ref())
@@ -221,7 +223,11 @@ impl SealevelInterchainGasPaymasterIndexer {
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
     ) -> ChainResult<LogMeta> {
-        let block = self.provider.get_block(*payment_pda_slot).await?;
+        let block = self
+            .provider
+            .rpc_client()
+            .get_block(*payment_pda_slot)
+            .await?;
 
         self.log_meta_composer
             .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
@@ -280,6 +286,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let program_data_account = self
             .provider
+            .rpc_client()
             .get_account_with_finalized_commitment(self.igp.data_pda_pubkey)
             .await?;
         let program_data = ProgramDataAccount::fetch(&mut program_data_account.data.as_ref())
@@ -289,7 +296,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
             .payment_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-        let tip = self.igp.provider.get_slot().await?;
+        let tip = self.igp.provider.rpc_client().get_slot().await?;
         Ok((Some(payment_count), tip))
     }
 }

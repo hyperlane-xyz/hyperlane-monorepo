@@ -20,15 +20,17 @@ use hyperlane_core::{
     H512, U256,
 };
 
-use crate::log_meta_composer::{
-    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
-};
 use crate::tx_submitter::TransactionSubmitter;
 use crate::ConnectionConf;
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
-    fallback::SealevelFallbackProvider,
     SealevelMailbox,
+};
+use crate::{
+    log_meta_composer::{
+        is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
+    },
+    SealevelProvider,
 };
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
@@ -44,8 +46,8 @@ pub struct SealevelMailboxIndexer {
 impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
-        provider: Arc<SealevelFallbackProvider>,
-        tx_submitter: Arc<TransactionSubmitter>,
+        provider: Arc<SealevelProvider>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         locator: &ContractLocator,
         conf: &ConnectionConf,
         advanced_log_meta: bool,
@@ -100,6 +102,7 @@ impl SealevelMailboxIndexer {
         let account = self
             .mailbox
             .get_provider()
+            .rpc_client()
             .get_account_with_finalized_commitment(valid_message_storage_pda_pubkey)
             .await?;
         let dispatched_message_account =
@@ -155,6 +158,7 @@ impl SealevelMailboxIndexer {
         let block = self
             .mailbox
             .provider
+            .rpc_client()
             .get_block(*message_account_slot)
             .await?;
 
@@ -196,6 +200,7 @@ impl SealevelMailboxIndexer {
         let account = self
             .mailbox
             .get_provider()
+            .rpc_client()
             .get_account_with_finalized_commitment(valid_message_storage_pda_pubkey)
             .await?;
         let delivered_message_account = ProcessedMessageAccount::fetch(&mut account.data.as_ref())
@@ -250,6 +255,7 @@ impl SealevelMailboxIndexer {
         let block = self
             .mailbox
             .provider
+            .rpc_client()
             .get_block(*message_account_slot)
             .await?;
 
@@ -295,7 +301,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.mailbox.get_provider().get_slot().await?;
+        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
@@ -338,7 +344,7 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
             .try_into()
             .map_err(StrOrIntParseError::from)?;
 
-        let tip = self.mailbox.get_provider().get_slot().await?;
+        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
 
         Ok((Some(sequence), tip))
     }

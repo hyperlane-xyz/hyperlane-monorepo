@@ -5,8 +5,11 @@ use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use url::Url;
 
 use crate::{
-    fallback::SealevelFallbackProvider, tx_submitter::TransactionSubmitter, ConnectionConf,
+    fallback::SealevelFallbackRpcClient, tx_submitter::TransactionSubmitter, ConnectionConf,
+    SealevelProvider,
 };
+
+use super::{JitoTransactionSubmitter, RpcTransactionSubmitter};
 
 /// Configuration for the transaction submitter
 #[derive(Debug, Clone)]
@@ -33,32 +36,26 @@ impl TransactionSubmitterConfig {
     /// Create a new transaction submitter from the configuration
     pub fn create_submitter(
         &self,
-        provider: &Arc<SealevelFallbackProvider>,
+        provider: &Arc<SealevelProvider>,
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
         domain: HyperlaneDomain,
         conf: &ConnectionConf,
-    ) -> TransactionSubmitter {
+    ) -> Arc<dyn TransactionSubmitter> {
         match self {
             // if we don't have urls set for tx submitter, use
             // the urls already being used by SealevelFallbackProvider
             TransactionSubmitterConfig::Rpc { urls } if urls.is_empty() => {
-                TransactionSubmitter::new(self.clone(), provider.clone())
+                Arc::new(RpcTransactionSubmitter::new(provider.clone()))
             }
             // if we have urls set for tx submitter, create
             // a new SealevelFallbackProvider just for tx submitter
             TransactionSubmitterConfig::Rpc { urls } => {
                 let urls: Vec<_> = urls.iter().filter_map(|url| Url::parse(url).ok()).collect();
 
-                let provider = Arc::new(SealevelFallbackProvider::from_urls(
-                    domain,
-                    conf,
-                    chain,
-                    &[],
-                    urls,
-                    metrics,
-                ));
-                TransactionSubmitter::new(self.clone(), provider)
+                let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
+                let provider = SealevelProvider::new(rpc_client, domain, &[], conf);
+                Arc::new(RpcTransactionSubmitter::new(Arc::new(provider)))
             }
             TransactionSubmitterConfig::Jito { urls } => {
                 // Default to a bundle-only URL (i.e. revert protected)
@@ -73,15 +70,9 @@ impl TransactionSubmitterConfig {
 
                 let urls: Vec<_> = urls.iter().filter_map(|url| Url::parse(url).ok()).collect();
 
-                let provider = Arc::new(SealevelFallbackProvider::from_urls(
-                    domain,
-                    conf,
-                    chain,
-                    &[],
-                    urls,
-                    metrics,
-                ));
-                TransactionSubmitter::new(self.clone(), provider)
+                let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
+                let provider = SealevelProvider::new(rpc_client, domain, &[], conf);
+                Arc::new(JitoTransactionSubmitter::new(Arc::new(provider)))
             }
         }
     }

@@ -8,10 +8,10 @@ use solana_sdk::{account::Account, commitment_config::CommitmentConfig, pubkey::
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
-use crate::fallback::SealevelFallbackProvider;
+use crate::SealevelProvider;
 
 pub async fn search_accounts_by_discriminator(
-    provider: &SealevelFallbackProvider,
+    provider: &SealevelProvider,
     program_id: &Pubkey,
     discriminator: &[u8; 8],
     nonce_bytes: &[u8],
@@ -43,6 +43,7 @@ pub async fn search_accounts_by_discriminator(
         with_context: Some(false),
     };
     let accounts = provider
+        .rpc_client()
         .get_program_accounts_with_config(*program_id, config)
         .await?;
     Ok(accounts)

@@ -10,9 +10,10 @@ use serializable_account_meta::SimulationReturnData;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
+    signer::Signer,
 };
 
-use crate::{fallback::SealevelFallbackProvider, SealevelKeypair};
+use crate::{SealevelKeypair, SealevelProvider};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -24,13 +25,13 @@ pub struct SealevelMultisigIsm {
     payer: Option<SealevelKeypair>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
-    provider: Arc<SealevelFallbackProvider>,
+    provider: Arc<SealevelProvider>,
 }
 
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(
-        provider: Arc<SealevelFallbackProvider>,
+        provider: Arc<SealevelProvider>,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
@@ -42,10 +43,6 @@ impl SealevelMultisigIsm {
             domain: locator.domain.clone(),
             provider,
         }
-    }
-
-    fn provider(&self) -> &SealevelFallbackProvider {
-        &self.provider
     }
 }
 
@@ -61,7 +58,7 @@ impl HyperlaneChain for SealevelMultisigIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        self.provider.provider()
+        Box::new(self.provider.clone())
     }
 }
 
@@ -89,11 +86,12 @@ impl MultisigIsm for SealevelMultisigIsm {
         let payer = self
             .payer
             .as_ref()
+            .map(|p| p.pubkey())
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         let validators_and_threshold = self
-            .provider()
+            .provider
             .simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
-                payer.clone(),
+                &payer,
                 instruction,
             )
             .await?
@@ -141,8 +139,6 @@ impl SealevelMultisigIsm {
             .payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-        self.provider()
-            .get_account_metas(payer.clone(), instruction)
-            .await
+        self.provider.get_account_metas(payer, instruction).await
     }
 }

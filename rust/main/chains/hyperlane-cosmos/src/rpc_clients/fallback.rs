@@ -36,7 +36,7 @@ mod tests {
     use async_trait::async_trait;
     use hyperlane_core::rpc_clients::test::ProviderMock;
     use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProviderBuilder};
-    use hyperlane_core::{ChainCommunicationError, ChainResult};
+    use hyperlane_core::ChainResult;
     use tokio::time::sleep;
 
     use super::*;
