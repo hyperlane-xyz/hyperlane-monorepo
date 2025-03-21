@@ -115,8 +115,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
   [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
-  [WarpRouteIds.EthereumSuperseedUSDCStaging]:
-    getEthereumSuperseedUSDCSTAGEWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
   // TODO: uncomment after merging the staging route to registry
@@ -137,8 +135,6 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRenzoGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
     getRenzoGnosisSafeBuilderStagingStrategyConfig,
-  [WarpRouteIds.EthereumSuperseedUSDC]:
-    getSuperseedGnosisSafeBuilderStrategyConfig,
 };
 
 /**
