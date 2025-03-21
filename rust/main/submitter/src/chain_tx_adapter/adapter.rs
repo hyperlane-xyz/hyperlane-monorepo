@@ -9,7 +9,7 @@ use hyperlane_core::U256;
 
 use super::{FullPayload, Transaction, TransactionStatus};
 
-pub(crate) type GasLimit = U256;
+pub type GasLimit = U256;
 
 /// The `AdaptsChain` trait is implemented by adapters for different VMs, stacks and chains, allowing the `PayloadDispatcher` to interact with them in a generic way.
 #[async_trait]
