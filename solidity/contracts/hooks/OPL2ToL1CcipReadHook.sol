@@ -9,24 +9,18 @@ import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {InterchainGasPaymaster} from "../hooks/igp/InterchainGasPaymaster.sol";
 
 /**
- * @title OPL2ToL1ProveWithdrawalHook
+ * @title OPL2ToL1CcipReadHook
  * @notice Inform an OPL2ToL1ProveWithdrawalIsm that a withdrawal has been executed
  * on L2
  * @dev We expect a CCIP-read ISM executing portal.proveWithdrawal() on destination
  * after 7 days
  */
-contract OPL2ToL1ProveWithdrawalHook is AbstractMessageIdAuthHook {
+contract OPL2ToL1CcipReadHook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
     using TokenMessage for bytes;
 
     // ============ Constants  ============
     uint32 public constant MIN_GAS_LIMIT = 500_000;
-
-    // FIXME: make it configurable
-    InterchainGasPaymaster public constant igp =
-        InterchainGasPaymaster(
-            address(0x28B02B97a850872C4D33C3E024fab6499ad96564)
-        );
 
     // ============ Constructor ============
     constructor(
@@ -40,14 +34,7 @@ contract OPL2ToL1ProveWithdrawalHook is AbstractMessageIdAuthHook {
         bytes calldata metadata,
         bytes calldata message
     ) internal view override returns (uint256) {
-        return
-            mailbox.quoteDispatch(
-                destinationDomain,
-                ism,
-                message,
-                StandardHookMetadata.overrideGasLimit(MIN_GAS_LIMIT)
-            );
-        // + igp.quoteDispatch(metadata, message);
+        return mailbox.quoteDispatch(destinationDomain, ism, message, metadata);
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook
@@ -55,20 +42,18 @@ contract OPL2ToL1ProveWithdrawalHook is AbstractMessageIdAuthHook {
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
-        // uint256 relayFees1 = igp.quoteDispatch(metadata, message);
-        uint256 relayFees2 = mailbox.quoteDispatch(
+        uint256 relayFees = mailbox.quoteDispatch(
             destinationDomain,
             ism,
             message,
-            StandardHookMetadata.overrideGasLimit(MIN_GAS_LIMIT)
+            metadata
         );
 
-        // igp.postDispatch{value: relayFees1}(metadata, message);
-        mailbox.dispatch{value: relayFees2}(
+        mailbox.dispatch{value: relayFees}(
             destinationDomain,
             ism,
             message,
-            StandardHookMetadata.overrideGasLimit(MIN_GAS_LIMIT)
+            metadata
         );
     }
 }
