@@ -190,21 +190,6 @@ pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
 }
 
 /// Convert a byte slice to a starknet bytes
-pub fn to_metadata_bytes(bytes: &[u8]) -> MailboxBytes {
-    let result = to_packed_bytes(bytes);
-    println!(
-        "SAQUON metadata bytes size : {:?}, {:?}",
-        result.len(),
-        bytes.len()
-    );
-
-    MailboxBytes {
-        size: bytes.len() as u32,
-        data: result,
-    }
-}
-
-/// Convert a byte slice to a starknet bytes
 pub fn to_mailbox_bytes(bytes: &[u8]) -> MailboxBytes {
     let result = to_packed_bytes(bytes);
 
@@ -307,7 +292,7 @@ pub async fn send_and_confirm(
 
 #[cfg(test)]
 mod tests {
-    use super::u128_vec_to_u8_vec;
+    use super::{to_packed_bytes, u128_vec_to_u8_vec};
 
     #[test]
     fn test_u128_vec_to_u8_vec() {
@@ -323,5 +308,34 @@ mod tests {
             0x13, 0x14, 0x15, 0x16, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10,
         ];
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_to_packed_bytes() {
+        let more_than_16_bytes: &[u8] = &[
+            0, 0, 0, 8, 0, 0, 0, 141, 7, 30, 27, 94, 84, 8, 107, 189, 226, 183, 161, 49, 162, 201,
+            19, 244, 66, 72, 89, 116, 195, 45, 245, 110, 228, 127, 148, 86, 179, 39, 13, 174, 190,
+            34, 250, 186, 91, 192, 34, 58, 126, 48, 119, 173, 205, 4, 57, 31, 44, 205, 210, 178,
+            173, 46, 172, 45, 113, 195, 240, 71, 85, 213, 217, 93, 0, 0, 0, 1, 93, 203, 240, 127,
+            161, 137, 139, 13, 139, 100, 153, 31, 9, 158, 132, 120, 38, 143, 179, 110, 14, 95, 231,
+            131, 42, 163, 69, 218, 139, 136, 136, 100, 86, 34, 120, 109, 83, 216, 152, 201, 93,
+            117, 211, 122, 88, 45, 231, 141, 237, 162, 52, 151, 125, 128, 99, 73, 234, 198, 101,
+            62, 145, 144, 209, 26, 28,
+        ];
+        let result = to_packed_bytes(more_than_16_bytes);
+        assert_eq!(
+            result,
+            vec![
+                633825302715618492640915909565,
+                301358986773008671761717609911487952238,
+                303726413405683088284031432680823333434,
+                167734385094773553695181262457930689581,
+                151220134841178953442829589507493064831,
+                214719872319031779231989441941407249262,
+                19107155771253118945685492213253044333,
+                111450558651636509550279524233513153687,
+                166820127285872904829776859676333309952
+            ]
+        );
     }
 }
