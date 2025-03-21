@@ -22,6 +22,7 @@ const owners = {
   ink: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
   optimism: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
   arbitrum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  solanamainnet: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
 };
 
 const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
@@ -96,6 +97,14 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     token: tokens.ink.USDCe,
   };
 
+  const solanamainnet: HypTokenRouterConfig = {
+    ...routerConfig.solanamainnet,
+    owner: owners.solanamainnet,
+    type: TokenType.collateral,
+    token: tokens.solanamainnet.USDC,
+    foreignDeployment: '7aM3itqXToHXhdR97EwJjZc7fay6uBszhUs1rzJm3tto',
+  };
+
   return {
     ethereum,
     superseed,
@@ -103,13 +112,14 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     base,
     optimism,
     ink,
+    solanamainnet,
   };
 };
 
 export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ethereum, superseed, arbitrum, base, optimism, ink } =
+  const { ethereum, superseed, arbitrum, base, optimism, ink, solanamainnet } =
     await getEthereumSuperseedUSDCWarpConfig(routerConfig);
 
   return {
@@ -118,16 +128,14 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
     base,
     optimism,
     ink,
+    solanamainnet: {
+      ...solanamainnet,
+      foreignDeployment: '8UUnM8wheNwAf3KM65Yx72Mq8mSAHf33GUwEp3MAyQX1',
+    },
     superseed: {
       ...superseed,
       token: '0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960',
     } as Extract<HypTokenConfig, { type: TokenType.collateralFiat }>,
-    solanamainnet: {
-      ...routerConfig.solanamainnet,
-      owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-      token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      type: TokenType.collateral,
-    },
   };
 };
 
