@@ -43,9 +43,7 @@ import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGet
 import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
 import {
   getEthereumSuperseedCBBTCWarpConfig,
-  getEthereumSuperseedUSDCSTAGEWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
-  getSuperseedGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
