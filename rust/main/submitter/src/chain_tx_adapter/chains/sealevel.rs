@@ -5,18 +5,18 @@ use hyperlane_base::settings::ChainConf;
 
 use crate::chain_tx_adapter::{AdaptsChain, FullPayload, GasLimit, Transaction, TransactionStatus};
 
-pub struct SealevelChainTxAdapter {
+pub struct SealevelTxAdapter {
     _conf: ChainConf,
 }
 
-impl SealevelChainTxAdapter {
+impl SealevelTxAdapter {
     pub fn new(conf: ChainConf) -> Self {
         Self { _conf: conf }
     }
 }
 
 #[async_trait]
-impl AdaptsChain for SealevelChainTxAdapter {
+impl AdaptsChain for SealevelTxAdapter {
     async fn estimate_gas_limit(&self, _payload: &FullPayload) -> eyre::Result<GasLimit> {
         todo!()
     }

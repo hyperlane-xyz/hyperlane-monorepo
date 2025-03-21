@@ -5,10 +5,7 @@ use hyperlane_base::settings::ChainConf;
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 
 use crate::chain_tx_adapter::{
-    chains::{
-        cosmos::CosmosChainTxAdapter, ethereum::EthereumChainTxAdapter,
-        sealevel::SealevelChainTxAdapter,
-    },
+    chains::{cosmos::CosmosTxAdapter, ethereum::EthereumTxAdapter, sealevel::SealevelTxAdapter},
     AdaptsChain,
 };
 
@@ -19,10 +16,10 @@ impl ChainTxAdapterBuilder {
         use HyperlaneDomainProtocol::*;
 
         let adapter: Box<dyn AdaptsChain> = match conf.domain.domain_protocol() {
-            Ethereum => Box::new(EthereumChainTxAdapter::new(conf.clone())),
+            Ethereum => Box::new(EthereumTxAdapter::new(conf.clone())),
             Fuel => todo!(),
-            Sealevel => Box::new(SealevelChainTxAdapter::new(conf.clone())),
-            Cosmos => Box::new(CosmosChainTxAdapter::new(conf.clone())),
+            Sealevel => Box::new(SealevelTxAdapter::new(conf.clone())),
+            Cosmos => Box::new(CosmosTxAdapter::new(conf.clone())),
         };
 
         adapter

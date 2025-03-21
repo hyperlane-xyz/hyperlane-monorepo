@@ -5,18 +5,18 @@ use hyperlane_base::settings::ChainConf;
 
 use crate::chain_tx_adapter::{AdaptsChain, FullPayload, GasLimit, Transaction, TransactionStatus};
 
-pub struct EthereumChainTxAdapter {
+pub struct EthereumTxAdapter {
     _conf: ChainConf,
 }
 
-impl EthereumChainTxAdapter {
+impl EthereumTxAdapter {
     pub fn new(conf: ChainConf) -> Self {
         Self { _conf: conf }
     }
 }
 
 #[async_trait]
-impl AdaptsChain for EthereumChainTxAdapter {
+impl AdaptsChain for EthereumTxAdapter {
     async fn estimate_gas_limit(&self, _payload: &FullPayload) -> eyre::Result<GasLimit> {
         todo!()
     }
