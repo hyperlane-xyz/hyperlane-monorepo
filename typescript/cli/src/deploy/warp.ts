@@ -140,6 +140,9 @@ export async function runWarpRouteDeploy({
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
+  warpRouteConfig.paradexsepolia.interchainSecurityModule = undefined;
+  warpRouteConfig.starknetsepolia.interchainSecurityModule = undefined;
+
   await runDeployPlanStep({
     context,
     warpDeployConfig: warpRouteConfig,
