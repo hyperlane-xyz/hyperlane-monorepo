@@ -23,6 +23,7 @@ export enum ExplorerFamily {
   Blockscout = 'blockscout',
   Routescan = 'routescan',
   Voyager = 'voyager',
+  ZkSync = 'zksync',
   Other = 'other',
 }
 
