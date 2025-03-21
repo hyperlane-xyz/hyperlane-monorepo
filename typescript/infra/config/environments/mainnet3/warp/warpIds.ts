@@ -53,10 +53,7 @@ export enum WarpRouteIds {
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
   BobaBsquaredSwellUBTC = 'UBTC/boba-bsquared-swell',
-  // TODO: uncomment after merging the staging route to registry
-  // BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
-  BaseEthereumSuperseedCBBTCSTAGE = 'CBBTCSTAGE/base-ethereum-superseed',
-  EthereumSuperseedCBBTCSTAGE = 'CBBTCSTAGE/ethereum-superseed',
+  BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   EthereumSuperseedUSDC = 'USDC/ethereum-superseed',
   EthereumFormUSDT = 'USDT/ethereum-form',
   EthereumFormUSDC = 'USDC/ethereum-form',
