@@ -42,6 +42,7 @@ import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/con
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
 import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
+import { getEthereumSuperseedCBBTCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedCBBTCSTAGEWarpConfig.js';
 import { getEthereumSuperseedUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedUSDCWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
@@ -113,6 +114,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   // [WarpRouteIds.BaseEthereumSuperseedCBBTC]: getBaseEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.BaseEthereumSuperseedCBBTCSTAGE]:
     getBaseEthereumSuperseedCBBTCSTAGEWarpConfig,
+  [WarpRouteIds.EthereumSuperseedCBBTCSTAGE]:
+    getEthereumSuperseedCBBTCSTAGEWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,

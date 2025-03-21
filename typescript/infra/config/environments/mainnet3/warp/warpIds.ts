@@ -56,6 +56,7 @@ export enum WarpRouteIds {
   // TODO: uncomment after merging the staging route to registry
   // BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   BaseEthereumSuperseedCBBTCSTAGE = 'CBBTCSTAGE/base-ethereum-superseed',
+  EthereumSuperseedCBBTCSTAGE = 'CBBTCSTAGE/ethereum-superseed',
   EthereumSuperseedUSDC = 'USDC/ethereum-superseed',
   EthereumFormUSDT = 'USDT/ethereum-form',
   EthereumFormUSDC = 'USDC/ethereum-form',
