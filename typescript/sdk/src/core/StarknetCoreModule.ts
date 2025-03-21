@@ -135,12 +135,8 @@ export class StarknetCoreModule {
       });
 
       this.logger.info(`Updating default ism ${defaultIsm}..`);
-      const nonce = await this.signer.getNonce();
-      const nextNonce = BigInt(nonce) + BigInt(1);
       const { transaction_hash: defaultIsmUpdateTxHash } =
-        await args.mailboxContract.invoke('set_default_ism', [defaultIsm], {
-          nonce: nextNonce,
-        });
+        await args.mailboxContract.invoke('set_default_ism', [defaultIsm]);
 
       try {
         await this.signer.waitForTransaction(defaultIsmUpdateTxHash);

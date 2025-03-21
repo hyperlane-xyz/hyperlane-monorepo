@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 import {
   Account,
+  BigNumberish,
   CallData,
   Contract,
   ContractFactory,
@@ -82,6 +83,9 @@ export class StarknetDeployer {
       blockIdentifier: 'pending',
     };
     const contract = await contractFactory.deploy(constructorCalldata, details);
+    await this.account.waitForTransaction(
+      contract.deployTransactionHash as BigNumberish,
+    );
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)
@@ -164,15 +168,7 @@ export class StarknetDeployer {
             mailbox,
           });
           const domainId = this.multiProvider.getDomainId(domain);
-          this.logger.info(`Setting ISM ${route} for domain ${domain}`);
-          try {
-            await contract.invoke('set', [BigInt(domainId), route]);
-          } catch (error) {
-            this.logger.error(
-              `None-critical error setting ISM ${route} for domain ${domain}`,
-              error,
-            );
-          }
+          await contract.invoke('set', [BigInt(domainId), route]);
           this.logger.info(`ISM ${route} set for domain ${domain}`);
         }
 
