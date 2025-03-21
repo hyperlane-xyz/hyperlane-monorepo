@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
+use ethers_core::abi::ethereum_types::H160;
 use tracing::{instrument, warn};
 
 use futures_util::future::try_join;
@@ -94,6 +95,14 @@ where
     }
 }
 
+// The address 0x69BE704F62F7CbC1a30E35E0153D89e2b0A6Aa55 as a byte array
+// This address was randomly generated in order to estimate gas better than
+// using a fixed address like repeating the 0xab byte.
+const RANDOM_ADDRESS: H160 = H160([
+    0x69, 0xBE, 0x70, 0x4F, 0x62, 0xF7, 0xCB, 0xC1, 0xA3, 0x0E, 0x35, 0xE0, 0x15, 0x3D, 0x89, 0xE2,
+    0xB0, 0xA6, 0xAA, 0x55,
+]);
+
 #[async_trait]
 impl<M> InterchainSecurityModule for EthereumInterchainSecurityModule<M>
 where
@@ -116,10 +125,13 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let tx = self.contract.verify(
-            metadata.to_owned().into(),
-            RawHyperlaneMessage::from(message).to_vec().into(),
-        );
+        let tx = self
+            .contract
+            .verify(
+                metadata.to_owned().into(),
+                RawHyperlaneMessage::from(message).to_vec().into(),
+            )
+            .from(RANDOM_ADDRESS); // We use a random from address to ensure compatibility with zksync
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
         if verifies {
             Ok(Some(gas_estimate.into()))
