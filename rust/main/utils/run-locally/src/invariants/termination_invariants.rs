@@ -1,61 +1,14 @@
+use std::collections::HashMap;
 use std::fs::File;
 
 use crate::config::Config;
 use crate::metrics::agent_balance_sum;
-use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
 use crate::utils::get_matching_lines;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
 use crate::logging::log;
-use crate::{
-    fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
-    ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
-};
-
-/// Use the metrics to check if the relayer queues are empty and the expected
-/// number of messages have been sent.
-#[allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
-pub fn termination_invariants_met(
-    config: &Config,
-    starting_relayer_balance: f64,
-) -> eyre::Result<bool> {
-    let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
-
-    // this is total messages expected to be delivered
-    let total_messages_expected = eth_messages_expected;
-
-    // Also ensure the counter is as expected (total number of messages), summed
-    // across all mailboxes.
-    let msg_processed_count = fetch_relayer_message_processed_count()?;
-    let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
-
-    let params = RelayerTerminationInvariantParams {
-        config,
-        starting_relayer_balance,
-        msg_processed_count,
-        gas_payment_events_count,
-        total_messages_expected,
-        total_messages_dispatched: total_messages_expected,
-        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
-        non_matching_igp_message_count: 0,
-        double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
-    };
-    if !relayer_termination_invariants_met(params)? {
-        return Ok(false);
-    }
-
-    if !scraper_termination_invariants_met(
-        gas_payment_events_count,
-        total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
-        total_messages_expected,
-    )? {
-        return Ok(false);
-    }
-
-    log!("Termination invariants have been meet");
-    Ok(true)
-}
+use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
 
 pub struct RelayerTerminationInvariantParams<'a> {
     pub config: &'a Config,
@@ -212,9 +165,18 @@ pub fn relayer_termination_invariants_met(
         total_messages_expected + non_matching_igp_message_count + double_insertion_message_count,
     );
 
+    let dropped_tasks = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_tokio_dropped_tasks",
+        &hashmap! {"agent" => "relayer"},
+    )?;
+
+    assert_eq!(dropped_tasks.first().unwrap(), 0);
+
     if !relayer_balance_check(starting_relayer_balance)? {
         return Ok(false);
     }
+
     Ok(true)
 }
 
@@ -290,5 +252,47 @@ pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool
         );
         return Ok(false);
     }
+    Ok(true)
+}
+
+#[allow(dead_code)]
+pub fn provider_metrics_invariant_met(
+    relayer_port: &str,
+    expected_request_count: u32,
+    filter_hashmap: &HashMap<&str, &str>,
+    provider_filter_hashmap: &HashMap<&str, &str>,
+) -> eyre::Result<bool> {
+    let request_count = fetch_metric(relayer_port, "hyperlane_request_count", filter_hashmap)?
+        .iter()
+        .sum::<u32>();
+
+    if request_count < expected_request_count {
+        log!(
+            "Provider only has {} request count, expected {}",
+            request_count,
+            expected_request_count,
+        );
+        return Ok(false);
+    }
+
+    let provider_create_count = fetch_metric(
+        relayer_port,
+        "hyperlane_provider_create_count",
+        provider_filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+
+    log!("Provider created count: {}", provider_create_count);
+
+    if provider_create_count < expected_request_count {
+        log!(
+            "Provider only has {} count, expected at least {}",
+            provider_create_count,
+            expected_request_count
+        );
+        return Ok(false);
+    }
+
     Ok(true)
 }

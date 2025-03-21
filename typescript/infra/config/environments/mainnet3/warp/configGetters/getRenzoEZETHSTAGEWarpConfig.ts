@@ -1,10 +1,15 @@
 import {
-  chainsToDeploy,
-  getRenzoEZETHWarpConfigGenerator,
+  ezEthChainsToDeploy,
+  ezEthValidators,
   getRenzoGnosisSafeBuilderStrategyConfigGenerator,
+  getRenzoWarpConfigGenerator,
+  renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
-const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
+const ezEthStagingAddresses: Record<
+  (typeof ezEthChainsToDeploy)[number],
+  string
+> = {
   arbitrum: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   optimism: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   base: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
@@ -22,7 +27,10 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   berachain: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
 };
 
-export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
+export const ezEthStagingSafes: Record<
+  (typeof ezEthChainsToDeploy)[number],
+  string
+> = {
   arbitrum: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
   optimism: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
   base: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
@@ -40,12 +48,15 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   berachain: '0xf013c8Be28421b050cca5bD95cc57Af49568e8be',
 };
 
-const xERC20StagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
-export const getRenzoEZETHSTAGEWarpConfig = getRenzoEZETHWarpConfigGenerator(
-  ezEthSafes,
-  xERC20,
-  xERC20StagingLockbox,
-);
+const ezEthStagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
+export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
+  chainsToDeploy: ezEthChainsToDeploy,
+  validators: ezEthValidators,
+  safes: ezEthStagingSafes,
+  xERC20Addresses: ezEthStagingAddresses,
+  xERC20Lockbox: ezEthStagingLockbox,
+  tokenPrices: renzoTokenPrices,
+});
 
 export const getRenzoGnosisSafeBuilderStagingStrategyConfig =
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
+  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthStagingSafes);
