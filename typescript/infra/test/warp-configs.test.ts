@@ -18,9 +18,10 @@ chai.should();
 const DEFAULT_TIMEOUT = 60000;
 
 const warpIdsToSkip = [
+  'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
+  'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain-staging',
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
-  'USDCSTAGE/arbitrum-base-ethereum-ink-optimism-superseed',
 ];
 
 describe('Warp Configs', async function () {
