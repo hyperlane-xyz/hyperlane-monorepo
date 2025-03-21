@@ -290,7 +290,7 @@ impl SealevelProvider {
             .await?;
         let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
             &[instruction],
-            Some(&pubkey),
+            Some(pubkey),
             &recent_blockhash,
         ));
         let simulation = self.rpc_client().simulate_transaction(&transaction).await?;

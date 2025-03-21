@@ -53,8 +53,8 @@ impl SealevelFallbackRpcClient {
     ) -> ChainResult<bool> {
         self.fallback_provider
             .call(move |client| {
-                let signature = signature.clone();
-                let commitment = commitment.clone();
+                let signature = signature;
+                let commitment = commitment;
                 let future = async move {
                     client
                         .confirm_transaction_with_commitment(&signature, commitment)
@@ -126,7 +126,7 @@ impl SealevelFallbackRpcClient {
     ) -> ChainResult<Hash> {
         self.fallback_provider
             .call(move |client| {
-                let commitment = commitment.clone();
+                let commitment = commitment;
                 let future = async move {
                     client
                         .get_latest_blockhash_with_commitment(commitment)

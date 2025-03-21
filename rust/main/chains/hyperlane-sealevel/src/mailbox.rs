@@ -145,8 +145,7 @@ impl SealevelMailbox {
             .payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-
-        self.provider.get_account_metas(&payer, instruction).await
+        self.provider.get_account_metas(payer, instruction).await
     }
 
     /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
@@ -464,12 +463,11 @@ impl Mailbox for SealevelMailbox {
         let process_instruction = self.get_process_instruction(message, metadata).await?;
 
         let payer = self.get_payer()?;
-
         let tx = self
             .provider
             .build_estimated_tx_for_instruction(
                 process_instruction,
-                &payer,
+                payer,
                 &self.tx_submitter,
                 &self.priority_fee_oracle,
             )
