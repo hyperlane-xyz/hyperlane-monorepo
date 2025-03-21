@@ -12,8 +12,6 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
-import { getGnosisSafeBuilderStrategyConfigGenerator } from './getRenzoEZETHWarpConfig.js';
-
 // TODO: Update to use their safes
 const owners = {
   ethereum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
@@ -138,6 +136,3 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
     } as Extract<HypTokenConfig, { type: TokenType.collateralFiat }>,
   };
 };
-
-export const getSuperseedGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(owners);
