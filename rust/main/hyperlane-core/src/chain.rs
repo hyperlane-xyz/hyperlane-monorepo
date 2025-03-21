@@ -182,13 +182,15 @@ pub enum KnownHyperlaneDomain {
     Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
+    FuelIgnition = 1717982311,
 
     // -- Local chains --
     //
     Test1 = 9913371,
     Test2 = 9913372,
     Test3 = 9913373,
-    FuelTest1 = 13374,
+    FuelTest1 = 13373,
+    FuelTest2 = 13374,
     SealevelTest1 = 13375,
     SealevelTest2 = 13376,
     CosmosTest99990 = 99990,
@@ -203,6 +205,7 @@ pub enum KnownHyperlaneDomain {
     Chiado = 10200,
     ConnextSepolia = 6398,
     Holesky = 17000,
+    FuelTestnet = 1717982312,
     MoonbaseAlpha = 1287,
     PlumeTestnet = 161221135,
     ScrollSepolia = 534351,
@@ -321,7 +324,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             Mainnet: [
-                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
+                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber, FuelIgnition,
                 DegenChain, EclipseMainnet, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
@@ -329,11 +332,11 @@ impl KnownHyperlaneDomain {
                 Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet,
             ],
             Testnet: [
-                Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
+                Alfajores, BinanceSmartChainTestnet,FuelTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
                 PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, Abstracttestnet, Treasuretopaz
             ],
             LocalTestChain: [
-                Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
+                Test1, Test2, Test3, FuelTest1, FuelTest2, SealevelTest1, SealevelTest2, CosmosTest99990,
                 CosmosTest99991
             ],
         })
@@ -359,7 +362,7 @@ impl KnownHyperlaneDomain {
                 ScrollSepolia, Sepolia, SuperpositionTestnet
 
             ],
-            HyperlaneDomainProtocol::Fuel: [FuelTest1],
+            HyperlaneDomainProtocol::Fuel: [FuelTest1, FuelTest2, FuelTestnet, FuelIgnition],
             HyperlaneDomainProtocol::Sealevel: [EclipseMainnet, SolanaMainnet, SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [
                 Injective, Neutron, Osmosis,
@@ -396,15 +399,15 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
                 FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
-                Sei, SolanaMainnet, Taiko, Viction, Zetachain,
+                Sei, SolanaMainnet, Taiko, Viction, Zetachain, FuelIgnition,
 
                 // Local chains
-                CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
+                CosmosTest99990, CosmosTest99991, FuelTest1, FuelTest2,  SealevelTest1, SealevelTest2, Test1,
                 Test2, Test3,
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
-                Sepolia
+                Sepolia, FuelTestnet
            ],
         })
     }

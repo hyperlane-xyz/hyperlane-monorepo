@@ -54,7 +54,11 @@ mod logging;
 mod metrics;
 mod program;
 mod server;
+mod types;
 mod utils;
+
+#[cfg(feature = "fuel")]
+mod fuel;
 
 #[cfg(feature = "cosmos")]
 mod cosmos;

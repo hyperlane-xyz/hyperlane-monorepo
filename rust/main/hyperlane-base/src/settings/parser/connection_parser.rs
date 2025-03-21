@@ -1,7 +1,9 @@
 use eyre::eyre;
+use hyperlane_core::ReorgPeriod;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
+use tracing::warn;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -186,6 +188,25 @@ fn build_sealevel_connection_conf(
     }
 }
 
+fn build_fuel_connection_conf(
+    rpcs: &[Url],
+    operation_batch: OperationBatchConfig,
+    reorg: &ReorgPeriod,
+) -> Option<ChainConnectionConf> {
+    if !reorg.is_none() {
+        warn!(
+        "Reorg period set for FuelVM domain will be ignored. FuelVM chains are implemented with instant finality"
+    );
+    }
+
+    rpcs.iter().next().map(|url| {
+        ChainConnectionConf::Fuel(h_fuel::ConnectionConf {
+            url: url.clone(),
+            operation_batch,
+        })
+    })
+}
+
 fn parse_native_token(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
@@ -359,6 +380,7 @@ pub fn build_connection_conf(
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
     operation_batch: OperationBatchConfig,
+    reorg: &ReorgPeriod,
 ) -> Option<ChainConnectionConf> {
     match domain_protocol {
         HyperlaneDomainProtocol::Ethereum => build_ethereum_connection_conf(
@@ -368,10 +390,7 @@ pub fn build_connection_conf(
             default_rpc_consensus_type,
             operation_batch,
         ),
-        HyperlaneDomainProtocol::Fuel => rpcs
-            .iter()
-            .next()
-            .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
+        HyperlaneDomainProtocol::Fuel => build_fuel_connection_conf(rpcs, operation_batch, reorg),
         HyperlaneDomainProtocol::Sealevel => rpcs
             .iter()
             .next()
