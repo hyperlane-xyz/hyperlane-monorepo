@@ -75,6 +75,7 @@ impl SealevelRpcClient {
             .confirm_transaction_with_commitment(signature, commitment)
             .await
             .map(|ctx| ctx.value)
+            .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
     }
@@ -134,6 +135,7 @@ impl SealevelRpcClient {
             .0
             .get_balance(pubkey)
             .await
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneSealevelError>::into)
             .map_err(ChainCommunicationError::from)?;
 
@@ -150,6 +152,7 @@ impl SealevelRpcClient {
         self.0
             .get_block_with_config(slot, config)
             .await
+            .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
     }
@@ -239,11 +242,12 @@ impl SealevelRpcClient {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::JsonParsed),
             commitment: Some(CommitmentConfig::finalized()),
-            ..Default::default()
+            max_supported_transaction_version: Some(0),
         };
         self.0
             .get_transaction_with_config(signature, config)
             .await
+            .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
     }

@@ -1,11 +1,15 @@
+import { Chain } from '@starknet-react/chains';
 import {
   useAccount,
   useConnect,
   useDisconnect,
   useNetwork,
+  useSendTransaction,
+  useSwitchChain,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
 import { Call } from 'starknet';
+import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
 import {
   ChainName,
@@ -13,8 +17,9 @@ import {
   ProviderType,
   TypedTransactionReceipt,
   WarpTypedTransaction,
+  chainMetadataToStarknetChain,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
@@ -61,17 +66,21 @@ export function useStarknetWalletDetails(): WalletDetails {
 }
 
 export function useStarknetConnectFn(): () => void {
-  const { connect, connectors } = useConnect();
+  const { connectAsync, connectors } = useConnect();
 
-  return useCallback(() => {
-    // Get the first available connector (usually ArgentX or Braavos)
-    const connector = connectors[0];
+  // This is how they do it: https://github.com/argentlabs/starknetkit-example-dapp/blob/d1d5ba8b5e06eef76b9df9b01832b57d2f22c649/src/components/connect/ConnectStarknetReactNext.tsx#L21
+  const { starknetkitConnectModal } = useStarknetkitConnectModal({
+    connectors: connectors as StarknetkitConnector[],
+  });
+
+  return useCallback(async () => {
+    const { connector } = await starknetkitConnectModal();
     if (connector) {
-      connect({ connector });
+      await connectAsync({ connector });
     } else {
       logger.error('No Starknet wallet connectors available');
     }
-  }, [connect, connectors]);
+  }, [connectAsync, starknetkitConnectModal]);
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {
@@ -80,7 +89,7 @@ export function useStarknetDisconnectFn(): () => Promise<void> {
 }
 
 export function useStarknetActiveChain(
-  multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
   const { chain } = useNetwork();
 
@@ -98,19 +107,17 @@ export function useStarknetTransactionFns(
 ): ChainTransactionFns {
   const { chain } = useNetwork();
   const { account } = useAccount();
+  const { sendAsync } = useSendTransaction({});
+  const { switchChainAsync } = useSwitchChain({});
 
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const chainId = multiProvider.getChainMetadata(chainName).chainId;
-      const targetChainId = BigInt(chainId);
-
-      if (chain?.id !== targetChainId) {
-        throw new Error(
-          'Network switching not supported by StarkNet wallets directly. Please switch networks in your wallet.',
-        );
-      }
+      await switchChainAsync({
+        chainId: chainId.toString(),
+      });
     },
-    [chain],
+    [chain, multiProvider, switchChainAsync],
   );
 
   const onSendTx = useCallback(
@@ -135,74 +142,36 @@ export function useStarknetTransactionFns(
         throw new Error('No StarkNet account connected');
       }
 
-      try {
-        const result = await account.execute([tx.transaction as Call]);
-        const hash = result.transaction_hash;
+      const chainId = multiProvider.getChainMetadata(chainName).chainId;
+      const chainIdFromWallet = await account.getChainId();
 
-        const confirm = async (): Promise<TypedTransactionReceipt> => {
-          const receipt = await account.waitForTransaction(hash);
-          return {
-            type: ProviderType.Starknet,
-            receipt,
-          };
+      assert(
+        chainIdFromWallet === chainId,
+        `Wallet not on chain ${chainName} (ChainMismatchError)`,
+      );
+
+      const result = await sendAsync([tx.transaction as Call]);
+      const hash = result.transaction_hash;
+      const confirm = async (): Promise<TypedTransactionReceipt> => {
+        const receipt = await account.waitForTransaction(hash);
+        return {
+          type: ProviderType.Starknet,
+          receipt,
         };
+      };
 
-        return { hash, confirm };
-      } catch (error) {
-        logger.error('Failed to send StarkNet transaction:', error);
-        throw error;
-      }
+      return { hash, confirm };
     },
-    [onSwitchNetwork, account],
+    [account, multiProvider, onSwitchNetwork, sendAsync],
   );
 
   return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
 }
 
-interface StarknetChainConfig {
-  id: bigint;
-  name: string;
-  network: string;
-  nativeCurrency: {
-    name: string;
-    symbol: string;
-    decimals: number;
-    address: string;
-  };
-  rpcUrls: {
-    default: {
-      http: string[];
-    };
-    public: {
-      http: string[];
-    };
-  };
-}
-
-// Helper function to get Starknet chains from multiProvider
 export function getStarknetChains(
   multiProvider: MultiProtocolProvider,
-): StarknetChainConfig[] {
+): Chain[] {
   return getChainsForProtocol(multiProvider, ProtocolType.Starknet).map(
-    (chain) => ({
-      id: BigInt(chain.chainId),
-      name: chain.name,
-      network: chain.name.toLowerCase(),
-      nativeCurrency: {
-        name: 'Ether',
-        symbol: 'ETH',
-        decimals: 18,
-        address:
-          '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
-      },
-      rpcUrls: {
-        default: {
-          http: chain.rpcUrls.map((url) => url.toString()),
-        },
-        public: {
-          http: chain.rpcUrls.map((url) => url.toString()),
-        },
-      },
-    }),
+    chainMetadataToStarknetChain,
   );
 }

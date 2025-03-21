@@ -1,3 +1,4 @@
+import { utils } from 'ethers';
 import {
   Account,
   CairoOption,
@@ -5,6 +6,7 @@ import {
   Contract,
   ParsedEvent,
   ParsedEvents,
+  ParsedStruct,
   Provider,
 } from 'starknet';
 
@@ -14,6 +16,23 @@ import {
 } from '@hyperlane-xyz/starknet-core';
 
 import { DispatchedMessage } from '../core/types.js';
+import { StarknetIsmContractName } from '../ism/starknet-utils.js';
+import { SupportedIsmTypesOnStarknetType } from '../ism/types.js';
+
+export interface Message {
+  version: number;
+  nonce: number;
+  origin: number;
+  sender: bigint;
+  destination: number;
+  recipient: bigint;
+  body: { size: bigint; data: bigint[] };
+}
+
+export interface ByteData {
+  value: bigint;
+  size: number;
+}
 
 export function getStarknetMailboxContract(
   address: string,
@@ -47,31 +66,24 @@ export function getStarknetHypNativeContract(
   return new Contract(abi, address, signer);
 }
 
-export function parseStarknetDispatchedMessages(
-  parsedEvents: ParsedEvents,
-  chainNameResolver: (domain: number) => string | undefined,
-): DispatchedMessage[] {
-  return parsedEvents
-    .filter(
-      (event: ParsedEvent) => 'contracts::mailbox::mailbox::Dispatch' in event,
-    )
-    .map((event: any) => {
-      const dispatchEvent = event['contracts::mailbox::mailbox::Dispatch'];
-      const message = dispatchEvent.message;
+export function getStarknetEtherContract(
+  address: string,
+  signer?: Account | Provider,
+): Contract {
+  const { abi } = getCompiledContract('Ether', ContractType.TOKEN);
+  return new Contract(abi, address, signer);
+}
 
-      const originChain = chainNameResolver(message.origin);
-      const destinationChain = chainNameResolver(message.destination);
-
-      return {
-        parsed: {
-          ...message,
-          originChain,
-          destinationChain,
-        },
-        id: event.index,
-        message: message.raw,
-      } as DispatchedMessage;
-    });
+export function getStarknetIsmContract(
+  starkIsmType: SupportedIsmTypesOnStarknetType,
+  address: string,
+  signer?: Account | Provider,
+): Contract {
+  const { abi } = getCompiledContract(
+    StarknetIsmContractName[starkIsmType],
+    ContractType.CONTRACT,
+  );
+  return new Contract(abi, address, signer);
 }
 
 export async function quoteStarknetDispatch({
@@ -103,4 +115,40 @@ export async function quoteStarknetDispatch({
   ]);
 
   return quote.toString();
+}
+
+const DISPATCH_EVENT = 'contracts::mailbox::mailbox::Dispatch';
+const DISPATCH_ID_EVENT = 'contracts::mailbox::mailbox::DispatchId';
+
+export function parseStarknetDispatchEvents(
+  parsedEvents: ParsedEvents,
+  chainNameResolver: (domain: number) => string | undefined,
+): DispatchedMessage[] {
+  return parsedEvents
+    .filter((event: ParsedEvent) => DISPATCH_EVENT in event)
+    .map((dispatchEvent: ParsedEvent) => {
+      const message = dispatchEvent[DISPATCH_EVENT].message as ParsedStruct;
+      const originChain = chainNameResolver(Number(message.origin));
+      const destinationChain = chainNameResolver(Number(message.destination));
+
+      return {
+        parsed: {
+          ...message,
+          originChain,
+          destinationChain,
+        },
+        id: parseStarknetDispatchIdEvents(parsedEvents)[0],
+        message: message.raw,
+      } as DispatchedMessage;
+    });
+}
+
+export function parseStarknetDispatchIdEvents(
+  parsedEvents: ParsedEvents,
+): string[] {
+  return parsedEvents
+    .filter((event: ParsedEvent) => DISPATCH_ID_EVENT in event)
+    .map((dispatchEvent: ParsedEvent) =>
+      utils.hexlify(dispatchEvent[DISPATCH_ID_EVENT].id as bigint),
+    );
 }

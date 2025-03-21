@@ -52,7 +52,7 @@ export function MultiProtocolWalletModal({
           <ProtocolButton
             protocol={ProtocolType.Cosmos}
             onClick={onClickProtocol}
-            subTitle="an Cosmos"
+            subTitle="a Cosmos"
           >
             Cosmos
           </ProtocolButton>

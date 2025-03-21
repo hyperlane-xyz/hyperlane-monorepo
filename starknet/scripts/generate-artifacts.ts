@@ -144,7 +144,7 @@ class StarknetArtifactGenerator {
   generateJavaScriptContent(name: string, artifact: any) {
     return TEMPLATES.JS_ARTIFACT.replace('{name}', name).replace(
       '{artifact}',
-      JSON.stringify(artifact, null, 2),
+      JSON.stringify(artifact),
     );
   }
 

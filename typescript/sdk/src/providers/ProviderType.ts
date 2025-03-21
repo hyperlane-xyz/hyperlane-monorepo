@@ -16,10 +16,10 @@ import type {
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 import {
-  CallDetails as StarknetCallDetails,
   Contract as StarknetContract,
-  RpcProvider as StarknetProvider,
-  ReceiptTx as StarknetReceiptTx,
+  Invocation as StarknetInvocation,
+  Provider as StarknetProvider,
+  GetTransactionReceiptResponse as StarknetTxReceipt,
 } from 'starknet';
 import type {
   GetContractReturnType,
@@ -245,9 +245,9 @@ export interface CosmJsWasmTransaction
 }
 
 export interface StarknetJsTransaction
-  extends TypedTransactionBase<StarknetCallDetails> {
+  extends TypedTransactionBase<StarknetInvocation> {
   type: ProviderType.Starknet;
-  transaction: StarknetCallDetails;
+  transaction: StarknetInvocation;
 }
 
 export type TypedTransaction =
@@ -299,9 +299,9 @@ export interface CosmJsWasmTransactionReceipt
 }
 
 export interface StarknetJsTransactionReceipt
-  extends TypedTransactionReceiptBase<StarknetReceiptTx> {
+  extends TypedTransactionReceiptBase<StarknetTxReceipt> {
   type: ProviderType.Starknet;
-  receipt: StarknetReceiptTx;
+  receipt: StarknetTxReceipt;
 }
 
 export type TypedTransactionReceipt =

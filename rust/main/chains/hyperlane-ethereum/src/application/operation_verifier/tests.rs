@@ -113,6 +113,6 @@ fn encode(token_message: TokenMessage) -> Vec<u8> {
 fn address_not_enough_zeros() -> H256 {
     let mut buf = vec![0; 32];
     buf.fill(255);
-    let address = H256::from_slice(&buf);
-    address
+
+    H256::from_slice(&buf)
 }

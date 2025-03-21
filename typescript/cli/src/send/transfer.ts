@@ -14,11 +14,7 @@ import {
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  parseWarpRouteMessage,
-  timeout,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -118,6 +114,7 @@ async function executeDelivery({
           chainAddresses,
           multiProvider,
           context.multiProtocolSigner!,
+          context.multiProtocolProvider!,
         );
       } else {
         protocolCores[protocol] = HyperlaneCore.fromAddressesMap(
@@ -178,55 +175,27 @@ async function executeDelivery({
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    let txReceipt;
-
-    switch (tx.type) {
-      case ProviderType.EthersV5: {
-        const signer = multiProvider.getSigner(origin);
-        const provider = multiProvider.getProvider(origin);
-        const connectedSigner = signer.connect(provider);
-        const txResponse = await connectedSigner.sendTransaction(
-          tx.transaction,
-        );
-        txReceipt = await multiProvider.handleTx(origin, txResponse);
-        break;
-      }
-      case ProviderType.Starknet: {
-        const starknetSigner =
-          context.multiProtocolSigner!.getStarknetSigner(origin)!;
-
-        const txResponse = await starknetSigner.execute([
-          tx.transaction as any,
-        ]);
-
-        txReceipt = await starknetSigner.waitForTransaction(
-          txResponse.transaction_hash,
-        );
-
-        break;
-      }
-      default:
-        throw new Error(`Unsupported provider type: ${tx.type}`);
-    }
-
+    const txReceipt = await executeTxByType(tx, origin, context, multiProvider);
     txReceipts.push(txReceipt);
   }
 
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
-  let message: DispatchedMessage;
-  let parsed: any;
-  if ('transaction_hash' in transferTxReceipt) {
-    message = (
-      protocolCores.starknet! as StarknetCore
-    ).parseDispatchedMessagesFromReceipt(transferTxReceipt, origin);
-  } else {
-    message = HyperlaneCore.getDispatchedMessages(transferTxReceipt as any)[
-      messageIndex
-    ];
-    parsed = parseWarpRouteMessage(message.parsed.body);
-    log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
-  }
+
+  const message = parseMessageFromReceipt(
+    transferTxReceipt,
+    origin,
+    messageIndex,
+    protocolCores,
+  );
+
+  // const parsedBody = message?.parsed?.body
+  //   ? parseWarpRouteMessage(message.parsed.body)
+  //   : null;
+
+  // if (parsedBody) {
+  //   log(`Body:\n${indentYamlOrJson(yamlStringify(parsedBody, null, 2), 4)}`);
+  // }
 
   logBlue(
     `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
@@ -242,10 +211,65 @@ async function executeDelivery({
     await messageService.relayMessage(message);
     logGreen(WarpSendLogs.SUCCESS);
   } else if (!skipWaitForDelivery) {
-    // log('Waiting for message delivery...');
-    // await messageService.waitForMessageDelivery(message);
+    log('Waiting for message delivery...');
+    await messageService.awaitMessagesDelivery(message, 10000, 60);
     logGreen('Transfer sent to destination chain!');
   }
+}
+
+async function executeTxByType(
+  tx: any,
+  chain: ChainName,
+  context: WriteCommandContext,
+  multiProvider: any,
+) {
+  switch (tx.type) {
+    case ProviderType.EthersV5: {
+      return executeEthersTransaction(tx, chain, multiProvider);
+    }
+    case ProviderType.Starknet: {
+      return executeStarknetTransaction(tx, chain, context);
+    }
+    default:
+      throw new Error(`Unsupported provider type: ${tx.type}`);
+  }
+}
+
+async function executeEthersTransaction(
+  tx: any,
+  chain: ChainName,
+  multiProvider: any,
+) {
+  const signer = multiProvider.getSigner(chain);
+  const provider = multiProvider.getProvider(chain);
+  const connectedSigner = signer.connect(provider);
+  const txResponse = await connectedSigner.sendTransaction(tx.transaction);
+  return multiProvider.handleTx(chain, txResponse);
+}
+
+async function executeStarknetTransaction(
+  tx: any,
+  chain: ChainName,
+  context: WriteCommandContext,
+) {
+  const starknetSigner = context.multiProtocolSigner!.getStarknetSigner(chain)!;
+  const txResponse = await starknetSigner.execute([tx.transaction as any]);
+  return starknetSigner.waitForTransaction(txResponse.transaction_hash);
+}
+
+function parseMessageFromReceipt(
+  receipt: any,
+  origin: ChainName,
+  messageIndex: number,
+  protocolCores: Partial<Record<ProtocolType, HyperlaneCore | StarknetCore>>,
+): DispatchedMessage {
+  if ('transaction_hash' in receipt) {
+    return (
+      protocolCores.starknet! as StarknetCore
+    ).parseDispatchedMessagesFromReceipt(receipt, origin);
+  }
+
+  return HyperlaneCore.getDispatchedMessages(receipt)[messageIndex];
 }
 
 async function getSignerAndRecipientAddresses({

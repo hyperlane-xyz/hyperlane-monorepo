@@ -1,12 +1,13 @@
 import { BigNumber } from 'ethers';
-import { Account, Contract } from 'starknet';
+import { Account, Contract, MultiType } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
 import { ChainNameOrId } from '../types.js';
 
 import { StarknetCoreReader } from './StarknetCoreReader.js';
@@ -48,17 +49,24 @@ export class StarknetCoreModule {
       'only protocolFee hook is accepted for required hook',
     );
 
+    // Deploy core components in sequence:
+    // 1. NoopISM - A basic interchain security module that performs no validation
     const noopIsm = await this.deployer.deployContract('noop_ism', []);
 
+    // 2. Default Hook - A basic hook implementation for message processing
     const defaultHook = await this.deployer.deployContract('hook', []);
 
+    // 3. Protocol Fee Hook - Handles fee collection for cross-chain messages
     const protocolFee = await this.deployer.deployContract('protocol_fee', [
       BigNumber.from(config.requiredHook.maxProtocolFee),
       BigNumber.from(config.requiredHook.protocolFee),
       config.requiredHook.beneficiary,
       config.owner,
-      '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7', // ETH address on Starknet chains
+      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
+        .denom as MultiType,
     ]);
+
+    // 4. Deploy Mailbox with initial configuration
     const mailboxContract = await this.deployMailbox(
       chain,
       config.owner,
@@ -67,6 +75,7 @@ export class StarknetCoreModule {
       protocolFee,
     );
 
+    // 5. Update the configuration with custom ISM and hooks if specified
     const { defaultIsm, requiredHook } = await this.update(config, {
       chain,
       mailboxContract,
@@ -127,6 +136,7 @@ export class StarknetCoreModule {
 
     const actualConfig = await this.read(args.mailboxContract);
 
+    // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
       const defaultIsm = await this.deployer.deployIsm({
         chain: args.chain.toString(),
@@ -149,7 +159,13 @@ export class StarknetCoreModule {
       result.defaultIsm = defaultIsm;
     }
 
+    // Update required hook to MerkleTreeHook if specified
     if (expectedConfig.requiredHook) {
+      this.logger.info(
+        `Deploying MerkleTreeHook with explicit owner (${args.owner}). Note: Unlike EVM where deployer becomes owner, ` +
+          `in Starknet the owner is specified during construction.`,
+      );
+
       const merkleTreeHook = await this.deployer.deployContract(
         'merkle_tree_hook',
         [args.mailboxContract.address, args.owner],
@@ -169,6 +185,7 @@ export class StarknetCoreModule {
       result.requiredHook = merkleTreeHook;
     }
 
+    // Update owner if different from current
     if (expectedConfig.owner && actualConfig.owner !== expectedConfig.owner) {
       this.logger.trace(`Updating mailbox owner ${expectedConfig.owner}..`);
       const { transaction_hash: transferOwnershipTxHash } =

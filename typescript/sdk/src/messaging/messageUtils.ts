@@ -36,57 +36,71 @@ export function formatEthereumMessageForStarknet(message: DispatchedMessage): {
   };
 }
 
+// TODO: Figure out types
+export function formatParsedStarknetMessageForEthereum(message: {
+  version: number;
+  nonce: number;
+  origin: number;
+  sender: Uint256;
+  destination: number;
+  recipient: Uint256;
+  body: { size: number; data: bigint[] };
+}): DispatchedMessage['parsed'] {
+  const sender = uint256.uint256ToBN(message.sender).toString();
+  const recipient = uint256.uint256ToBN(message.recipient).toString();
+
+  const nonce = message.nonce;
+  const origin = message.origin;
+  const destination = message.destination;
+
+  return {
+    version: message.version,
+    nonce,
+    origin,
+    sender: '0x' + sender,
+    destination,
+    recipient: '0x' + recipient,
+    body: '0x',
+  };
+}
+
 export function formatStarknetMessageForEthereum(
   starknetMessage: ParsedMessage & {
     body: { size: bigint; data: bigint[] };
   },
 ): Uint8Array {
-  // Calculate buffer size based on Rust implementation
-  const headerSize = 1 + 4 + 4 + 32 + 4 + 32; // version + nonce + origin + sender + destination + recipient
+  const VERSION_OFFSET = 0;
+  const NONCE_OFFSET = 1;
+  const ORIGIN_OFFSET = 5;
+  const SENDER_OFFSET = 9;
+  const DESTINATION_OFFSET = 41;
+  const RECIPIENT_OFFSET = 45;
+  const BODY_OFFSET = 77;
+
   const bodyBytes = convertU128ArrayToBytes(starknetMessage.body.data);
-
-  // Create buffer with exact size needed
-  const buffer = new Uint8Array(headerSize + bodyBytes.length);
-  let offset = 0;
-
-  // Write version (1 byte)
-  buffer[offset] = Number(starknetMessage.version);
-  offset += 1;
-
-  // Write nonce (4 bytes)
+  const buffer = new Uint8Array(BODY_OFFSET + bodyBytes.length);
   const view = new DataView(buffer.buffer);
-  view.setUint32(offset, Number(starknetMessage.nonce), false); // false for big-endian
-  offset += 4;
-
-  // Write origin (4 bytes)
-  view.setUint32(offset, Number(starknetMessage.origin), false);
-  offset += 4;
-
-  // Write sender (32 bytes)
+  buffer[VERSION_OFFSET] = Number(starknetMessage.version);
+  view.setUint32(NONCE_OFFSET, Number(starknetMessage.nonce), false);
+  view.setUint32(ORIGIN_OFFSET, Number(starknetMessage.origin), false);
   const senderValue =
     typeof starknetMessage.sender === 'string'
       ? BigInt(starknetMessage.sender)
       : starknetMessage.sender;
   const senderBytes = num.hexToBytes(num.toHex64(senderValue));
-  buffer.set(senderBytes, offset);
-  offset += 32;
-
-  // Write destination (4 bytes)
-  view.setUint32(offset, Number(starknetMessage.destination), false);
-  offset += 4;
-
-  // Write recipient (32 bytes)
+  buffer.set(senderBytes, SENDER_OFFSET);
+  view.setUint32(
+    DESTINATION_OFFSET,
+    Number(starknetMessage.destination),
+    false,
+  );
   const recipientValue =
     typeof starknetMessage.recipient === 'string'
       ? BigInt(starknetMessage.recipient)
       : starknetMessage.recipient;
   const recipientBytes = num.hexToBytes(num.toHex64(recipientValue));
-  buffer.set(recipientBytes, offset);
-  offset += 32;
-
-  // Write body
-  buffer.set(bodyBytes, offset);
-
+  buffer.set(recipientBytes, RECIPIENT_OFFSET);
+  buffer.set(bodyBytes, BODY_OFFSET);
   return buffer;
 }
 

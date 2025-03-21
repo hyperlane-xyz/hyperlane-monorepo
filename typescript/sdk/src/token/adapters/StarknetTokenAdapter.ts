@@ -1,15 +1,23 @@
 import { BigNumber } from 'ethers';
 import { CairoOption, CairoOptionVariant, Call, Contract, num } from 'starknet';
 
-import { Address, Domain, Numberish, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  Numberish,
+  ProtocolType,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import {
+  getStarknetEtherContract,
   getStarknetHypERC20CollateralContract,
   getStarknetHypERC20Contract,
 } from '../../utils/starknet.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -119,15 +127,20 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getDomains(): Promise<Domain[]> {
-    return [];
+    return this.contract.domains();
   }
 
-  async getRouterAddress(_domain: Domain): Promise<Buffer> {
-    return Buffer.from(this.addresses.warpRouter);
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    const routerAddresses = await this.contract.routers(domain);
+    return Buffer.from(routerAddresses);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    return [];
+    const domains = await this.getDomains();
+    const routers: Buffer[] = await Promise.all(
+      domains.map((d) => this.getRouterAddress(d)),
+    );
+    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
@@ -217,8 +230,9 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     const nativeAddress =
       multiProvider.getChainMetadata(chainName)?.nativeToken?.denom;
     assert(nativeAddress, `Native address not found for chain ${chainName}`);
-    this.nativeContract = getStarknetHypERC20Contract(
-      nativeAddress,
+    this.nativeContract = getStarknetEtherContract(
+      nativeAddress ??
+        PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!.denom,
       multiProvider.getStarknetProvider(chainName),
     );
   }

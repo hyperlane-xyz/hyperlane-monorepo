@@ -2,6 +2,7 @@ import {
   Account,
   CairoOption,
   CairoOptionVariant,
+  GetTransactionReceiptResponse,
   InvokeFunctionResponse,
 } from 'starknet';
 
@@ -9,14 +10,15 @@ import {
   ChainName,
   DispatchedMessage,
   HyperlaneAddressesMap,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, pollAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { toStarknetMessageBytes } from '../messaging/messageUtils.js';
 import {
   getStarknetMailboxContract,
-  parseStarknetDispatchedMessages,
+  parseStarknetDispatchEvents,
   quoteStarknetDispatch,
 } from '../utils/starknet.js';
 
@@ -29,15 +31,18 @@ export class StarknetCore {
   protected addressesMap: HyperlaneAddressesMap<any>;
   public multiProvider: MultiProvider;
   private multiProtocolSigner: IMultiProtocolSignerManager;
+  private multiProtocolProvider: MultiProtocolProvider;
 
   constructor(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
     multiProtocolSigner: IMultiProtocolSignerManager,
+    multiProtocolProvider: MultiProtocolProvider,
   ) {
     this.addressesMap = addressesMap;
     this.multiProvider = multiProvider;
     this.multiProtocolSigner = multiProtocolSigner;
+    this.multiProtocolProvider = multiProtocolProvider;
   }
 
   getAddresses(chain: ChainName) {
@@ -45,17 +50,15 @@ export class StarknetCore {
   }
 
   parseDispatchedMessagesFromReceipt(
-    receipt: any,
+    receipt: GetTransactionReceiptResponse,
     origin: ChainName,
   ): DispatchedMessage {
     const mailboxAddress = this.addressesMap[origin].mailbox;
-    const mailboxContract = getStarknetMailboxContract(
-      mailboxAddress,
-      this.multiProtocolSigner.getStarknetSigner(origin),
-    );
+    const signer = this.multiProtocolSigner.getStarknetSigner(origin);
+    const mailboxContract = getStarknetMailboxContract(mailboxAddress, signer);
 
     const parsedEvents = mailboxContract.parseEvents(receipt);
-    return parseStarknetDispatchedMessages(
+    return parseStarknetDispatchEvents(
       parsedEvents,
       (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
     )[0];
@@ -79,10 +82,10 @@ export class StarknetCore {
       this.multiProtocolSigner.getStarknetSigner(origin),
     );
 
-    // Convert messageBody to Bytes struct format
     const messageBodyBytes = toStarknetMessageBytes(
       new TextEncoder().encode(body),
     );
+
     this.logger.debug({
       messageBodyBytes,
       encoded: new TextEncoder().encode(body),
@@ -98,7 +101,6 @@ export class StarknetCore {
       messageBody: messageBodyBytes,
     });
 
-    // Dispatch the message
     const dispatchTx = await mailboxContract.invoke('dispatch', [
       destinationDomain,
       recipient,
@@ -120,7 +122,7 @@ export class StarknetCore {
 
     return {
       dispatchTx,
-      message: parseStarknetDispatchedMessages(
+      message: parseStarknetDispatchEvents(
         parsedEvents,
         (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
       )[0],
@@ -145,33 +147,77 @@ export class StarknetCore {
 
       this.logger.debug(`Listening for dispatch on ${originChain}`);
 
-      // Set up event listener
-      const eventKey = 'contracts::mailbox::mailbox::Dispatch';
-      const unsubscribe = mailboxContract.on(eventKey, async (event: any) => {
-        const messages = parseStarknetDispatchedMessages(
-          [event],
-          (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
-        );
-        if (messages.length > 0) {
-          const dispatched = messages[0];
+      let lastBlockChecked: number | undefined;
 
-          // Add human readable chain names like HyperlaneCore
-          dispatched.parsed.originChain = this.multiProvider.getChainName(
-            dispatched.parsed.origin,
-          );
-          dispatched.parsed.destinationChain = this.multiProvider.getChainName(
-            dispatched.parsed.destination,
-          );
+      const pollForEvents = async () => {
+        try {
+          // Get the latest block
+          const provider =
+            this.multiProtocolProvider.getStarknetProvider(originChain);
+          const latestBlock = await provider.getBlock('latest');
 
-          this.logger.info(
-            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
-          );
+          // If this is the first check, just record the current block and wait for next poll
+          if (lastBlockChecked === undefined) {
+            lastBlockChecked = latestBlock.block_number;
+            return;
+          }
 
-          await handler(dispatched, event);
+          // Only check for new blocks
+          if (latestBlock.block_number <= lastBlockChecked) {
+            return;
+          }
+
+          // Get events from the blocks we haven't checked yet
+          const { events } = await provider.getEvents({
+            address: mailboxAddress,
+            from_block: { block_number: lastBlockChecked + 1 },
+            to_block: { block_number: latestBlock.block_number },
+            chunk_size: 400, // not sure what this is
+          });
+
+          lastBlockChecked = latestBlock.block_number;
+
+          if (events.length > 0) {
+            for (const event of events) {
+              // Get transaction receipt -> this is the receipt of the dispatch transaction
+              const receipt = await provider.getTransactionReceipt(
+                event.transaction_hash,
+              );
+
+              const parsedEvents = mailboxContract.parseEvents(receipt);
+              const messages = parseStarknetDispatchEvents(
+                parsedEvents,
+                (domain) =>
+                  this.multiProvider.tryGetChainName(domain) ?? undefined,
+              );
+
+              for (const dispatched of messages) {
+                this.logger.info(
+                  `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+                );
+
+                await handler(dispatched, event);
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `Error polling for events on ${originChain}: ${error}`,
+          );
         }
+      };
+
+      const intervalId = setInterval(pollForEvents, 10000); // Poll every 15 seconds
+
+      pollForEvents().catch((error) => {
+        this.logger.error(
+          `Error in initial poll for events on ${originChain}: ${error}`,
+        );
       });
 
-      eventSubscriptions.push(unsubscribe);
+      eventSubscriptions.push(() => {
+        clearInterval(intervalId);
+      });
     });
 
     return {
@@ -216,5 +262,32 @@ export class StarknetCore {
       .waitForTransaction(transaction_hash);
 
     return { transaction_hash };
+  }
+
+  async waitForMessageIdProcessed(
+    messageId: string,
+    destinationChain: ChainName,
+    delay?: number,
+    maxAttempts?: number,
+  ): Promise<true> {
+    await pollAsync(
+      async () => {
+        const mailboxAddress = this.addressesMap[destinationChain].mailbox;
+        const mailboxContract = getStarknetMailboxContract(
+          mailboxAddress,
+          this.multiProtocolSigner.getStarknetSigner(destinationChain),
+        );
+        const delivered = await mailboxContract.delivered(messageId);
+        if (delivered) {
+          this.logger.info(`Message ${messageId} was processed`);
+          return true;
+        } else {
+          throw new Error(`Message ${messageId} not yet processed`);
+        }
+      },
+      delay,
+      maxAttempts,
+    );
+    return true;
   }
 }

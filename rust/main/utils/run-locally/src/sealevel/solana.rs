@@ -21,7 +21,7 @@ pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
 pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
 
 /// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.13";
+pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.24";
 pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
@@ -57,8 +57,10 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-igp",
 ];
 
-const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
-const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
+// Used for deploying programs & running the relayer
+const SOLANA_DEPLOYER_KEYPAIR: &str = "environments/local-e2e/accounts/test_deployer-keypair.json";
+const SOLANA_DEPLOYER_ACCOUNT: &str = "environments/local-e2e/accounts/test_deployer-account.json";
+
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "environments/local-e2e/warp-routes/testwarproute/token-config.json";
 const SOLANA_CHAIN_CONFIG_FILE: &str = "environments/local-e2e/chain-config.json";
@@ -73,6 +75,10 @@ const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
 
 const SEALEVELTEST1_IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
 const SEALEVELTEST2_IGP_PROGRAM_ID: &str = "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi3C5cw1E5";
+
+// Send to a random account, because for safety reasons we don't allow the
+// relayer to relay a message that includes the relayer's payer account in its list of accounts.
+const TRANSFER_REMOTE_RECIPIENT: &str = "FeSKs7MbwF86PVuofzhKmzWVVFjyVtBTYXJZqQkBYzB6";
 
 // TODO: use a temp dir instead!
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
@@ -197,7 +203,7 @@ pub fn start_solana_test_validator(
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let solana_deployer_account = concat_path(&workspace_path, SOLANA_DEPLOYER_ACCOUNT);
+    let solana_deployer_account = concat_path(&sealevel_path, SOLANA_DEPLOYER_ACCOUNT);
     let solana_deployer_account_str = solana_deployer_account.to_string_lossy();
 
     let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
@@ -397,19 +403,10 @@ pub fn initiate_solana_hyperlane_transfer(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
-    let solana_keypair_str = solana_keypair.to_string_lossy();
+    let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
-        .arg("config", solana_config_path.to_str().unwrap())
-        .arg("keypair", solana_keypair_str.clone())
-        .cmd("address")
-        .run_with_output()
-        .join()
-        .get(0)
-        .expect("failed to get sender address")
-        .trim()
-        .to_owned();
+    let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
+    let solana_keypair_str = solana_keypair.to_string_lossy();
 
     let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
@@ -417,7 +414,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .cmd(solana_keypair_str.clone())
         .cmd("10000000000")
         .cmd(SOLANA_REMOTE_CHAIN_ID)
-        .cmd(sender) // send to self
+        .cmd(TRANSFER_REMOTE_RECIPIENT)
         .cmd("native")
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
         .run_with_output()
@@ -446,19 +443,10 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
     solana_config_path: PathBuf,
 ) -> String {
     let workspace_path = get_workspace_path();
-    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
-    let solana_keypair_str = solana_keypair.to_string_lossy();
+    let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
-        .arg("config", solana_config_path.to_str().unwrap())
-        .arg("keypair", solana_keypair_str.clone())
-        .cmd("address")
-        .run_with_output()
-        .join()
-        .get(0)
-        .expect("failed to get sender address")
-        .trim()
-        .to_owned();
+    let solana_keypair = concat_path(sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
+    let solana_keypair_str = solana_keypair.to_string_lossy();
 
     let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("token")
@@ -466,7 +454,7 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
         .cmd(solana_keypair_str)
         .cmd("10000000000")
         .cmd(SOLANA_REMOTE_CHAIN_ID)
-        .cmd(sender) // send to self
+        .cmd(TRANSFER_REMOTE_RECIPIENT)
         .cmd("native")
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
         .run_with_output()
@@ -520,7 +508,7 @@ pub fn solana_termination_invariants_met(
             // This value was gotten by observing the relayer logs.
             // TODO: get the actual message-id so we don't have to hardcode it
             "message-id",
-            "0x89c76191bd40b1858b7957e35bf3455122826e4737c5540b9dc5a555370d78c5",
+            "0xe73469a5e7c5a73f7afa1f2e4c8bfff42d1f3c462c8df2ac8aa328c2264044fc",
         )
         .arg("program-id", "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj")
         .run_with_output()
@@ -532,7 +520,7 @@ fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> P
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
 
-    let solana_keypair = concat_path(workspace_path, SOLANA_KEYPAIR);
+    let solana_keypair = concat_path(&sealevel_path, SOLANA_DEPLOYER_KEYPAIR);
     let solana_keypair_str = solana_keypair.to_string_lossy();
 
     Program::new(concat_path(
