@@ -24,10 +24,13 @@ const initialSupply = {
   optimismsepolia: 0,
 };
 
+const COLLATERAL_CHAIN = 'sepolia';
+
 const warpRouteConfig = objMap(
   initialSupply,
   (chain, amount): HypTokenRouterConfig => ({
-    type: chain === 'sepolia' ? TokenType.hyperToken : TokenType.synthetic,
+    type:
+      chain === COLLATERAL_CHAIN ? TokenType.hyperToken : TokenType.synthetic,
     owner: ETHEREUM_DEPLOYER_ADDRESS,
     mailbox: mailboxes[chain],
     totalSupply: amount,
@@ -48,16 +51,17 @@ const stakedWarpRouteConfig = objMap(
       decimals: tokenConfig.decimals,
     };
 
-    if (chain === 'sepolia') {
+    if (chain === COLLATERAL_CHAIN) {
       return {
-        type: TokenType.collateral,
-        token: '0xF56179944D867469612D138c74F1dE979D3faC72', // symbiotic tokenized vault
+        type: TokenType.collateralVaultRebase,
+        // symbiotic compound staker rewards
+        token: '0x2aDe4CDD4DCECD4FdE76dfa99d61bC8c1940f2CE',
         ...config,
       };
     } else {
       return {
-        type: TokenType.synthetic,
-        totalSupply: 0,
+        type: TokenType.syntheticRebase,
+        collateralChainName: COLLATERAL_CHAIN,
         ...config,
       };
     }
