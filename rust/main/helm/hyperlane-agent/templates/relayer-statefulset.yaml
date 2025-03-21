@@ -64,7 +64,7 @@ spec:
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
-        - name: state
+        - name: {{ .Values.hyperlane.relayer.storage.name | default "state" }}
           mountPath: {{ .Values.hyperlane.dbPath }}
         - name: relayer-configmap
           mountPath: /relayer-configmap
@@ -89,9 +89,9 @@ spec:
       {{- end }}
   volumeClaimTemplates:
   - metadata:
-      name: state
+      name: {{ .Values.hyperlane.relayer.storage.name | default "state" }}
     spec:
-      storageClassName: {{ .Values.storage.storageClass }}
+      storageClassName: {{ .Values.hyperlane.relayer.storage.storageClass | default .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
       {{- if .Values.hyperlane.relayer.storage.snapshot.enabled }}
       dataSource:

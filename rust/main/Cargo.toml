@@ -14,6 +14,7 @@ members = [
   "hyperlane-base",
   "hyperlane-core",
   "hyperlane-test",
+  "submitter",
   "utils/abigen",
   "utils/backtrace-oneline",
   "utils/crypto",
@@ -118,6 +119,7 @@ reqwest = "0.11"
 ripemd = "0.1.3"
 rlp = "=0.5.2"
 rocksdb = "0.21.0"
+rstest = "0.25.0"
 sea-orm = { version = "0.11.1", features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls",

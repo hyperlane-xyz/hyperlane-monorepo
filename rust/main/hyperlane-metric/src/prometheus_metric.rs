@@ -5,25 +5,50 @@ use std::{fmt::Debug, time::Instant};
 use derive_builder::Builder;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::utils::url_to_host_info;
 
 /// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method", "status"];
+pub const PROVIDER_CREATE_COUNT_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const PROVIDER_CREATE_COUNT_HELP: &str =
+    "Total number of times this provider was instantiated by this client";
+
+/// Expected label names for the metric.
+pub const PROVIDER_DROP_COUNT_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const PROVIDER_DROP_COUNT_HELP: &str =
+    "Total number of times this provider was dropped by this client";
+
+/// Expected label names for the metric.
+pub const REQUEST_COUNT_LABELS: &[&str] =
+    &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
 /// Expected label names for the metric.
 pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
-    &["provider_node", "chain", "method", "status"];
+    &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
+    /// Total number of providers being created.
+    /// - `chain`: chain name (or chain id if the name is unknown) of the chain
+    ///   the request was made on.
+    #[builder(setter(into, strip_option), default)]
+    pub provider_create_count: Option<IntCounterVec>,
+
+    /// Total number of providers being dropped.
+    /// - `chain`: chain name (or chain id if the name is unknown) of the chain
+    ///   the request was made on.
+    #[builder(setter(into, strip_option), default)]
+    pub provider_drop_count: Option<IntCounterVec>,
+
     /// Total number of requests made to this client.
     /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
     ///   `quicknode.pro`, or `localhost:8545`.
@@ -48,6 +73,23 @@ pub struct PrometheusClientMetrics {
 }
 
 impl PrometheusClientMetrics {
+    pub fn increment_provider_instance(&self, chain: &str) {
+        let labels = hashmap! {
+            "chain" => chain,
+        };
+        if let Some(counter) = &self.provider_create_count {
+            counter.with(&labels).inc();
+        }
+    }
+    pub fn decrement_provider_instance(&self, chain: &str) {
+        let labels = hashmap! {
+            "chain" => chain,
+        };
+        if let Some(counter) = &self.provider_drop_count {
+            counter.with(&labels).inc();
+        }
+    }
+
     /// Update prometheus metrics
     pub fn increment_metrics(
         &self,
@@ -58,6 +100,7 @@ impl PrometheusClientMetrics {
     ) {
         let labels = hashmap! {
             "provider_node" => config.node_host(),
+            "connection" => config.connection_type.as_str(),
             "chain" => config.chain_name(),
             "method" => method,
             "status" => if success { "success" } else { "failure" },
@@ -98,11 +141,29 @@ pub struct NodeInfo {
     pub host: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientConnectionType {
+    #[default]
+    Rpc,
+    Grpc,
+}
+
+impl ClientConnectionType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Grpc => "grpc",
+            Self::Rpc => "rpc",
+        }
+    }
+}
+
 /// Configuration for the prometheus JsonRpcClioent. This can be loaded via
 /// serde.
 #[derive(Default, Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct PrometheusConfig {
+    pub connection_type: ClientConnectionType,
     /// Information about what node this client is connecting to.
     pub node: Option<NodeInfo>,
 
@@ -111,13 +172,26 @@ pub struct PrometheusConfig {
 }
 
 impl PrometheusConfig {
-    pub fn from_url(url: &Url, chain: Option<ChainInfo>) -> Self {
+    pub fn from_url(
+        url: &Url,
+        connection_type: ClientConnectionType,
+        chain: Option<ChainInfo>,
+    ) -> Self {
         Self {
+            connection_type,
             node: Some(NodeInfo {
                 host: url_to_host_info(url),
             }),
             chain,
         }
+    }
+
+    pub fn chain_name(chain_info: &Option<ChainInfo>) -> &str {
+        chain_info
+            .as_ref()
+            .and_then(|c| c.name.as_ref())
+            .map(|n| n.as_str())
+            .unwrap_or("unknown")
     }
 }
 
@@ -139,10 +213,6 @@ impl PrometheusConfigExt for PrometheusConfig {
             .unwrap_or("unknown")
     }
     fn chain_name(&self) -> &str {
-        self.chain
-            .as_ref()
-            .and_then(|c| c.name.as_ref())
-            .map(|n| n.as_str())
-            .unwrap_or("unknown")
+        PrometheusConfig::chain_name(&self.chain)
     }
 }
