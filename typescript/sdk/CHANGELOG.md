@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sdk
 
+## 9.1.1
+
+### Patch Changes
+
+- 3852a9015: Fix WarpCore collateral check for lockboxes
+  - @hyperlane-xyz/utils@9.1.1
+  - @hyperlane-xyz/core@6.0.2
+
 ## 9.1.0
 
 ### Minor Changes

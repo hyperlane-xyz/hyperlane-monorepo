@@ -1,5 +1,13 @@
 # @hyperlane-xyz/helloworld
 
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.1.1
+  - @hyperlane-xyz/core@6.0.2
+
 ## 9.1.0
 
 ### Patch Changes
