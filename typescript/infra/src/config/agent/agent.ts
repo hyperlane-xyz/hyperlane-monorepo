@@ -242,24 +242,8 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
-    // For Ethereum and Sealevel, use a hex key
-    case ProtocolType.Starknet: {
-      if (metadata.name === 'starknetsepolia') {
-        console.log('starknetSEPOLIA', metadata);
-        return {
-          type: AgentSignerKeyType.Starknet,
-          address: 'VEqLwdBPk4kFMXCzKB7Cfd5NhNiHT9ZLKwU2bB8hrbV',
-          key: 'PRIVATE_KEY',
-        };
-      } else {
-        console.log('paradexsepolia', metadata);
-        return {
-          type: AgentSignerKeyType.Starknet,
-          address: 'QQDw4tyQzGKUGBgzsrni49GZ1FMc1XST2vhAfJoFKAd',
-          key: 'PRIVATE_KEY',
-        };
-      }
-    }
+    // For Ethereum, Sealevel, and Starknet, use a hex key
+    case ProtocolType.Starknet:
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:
