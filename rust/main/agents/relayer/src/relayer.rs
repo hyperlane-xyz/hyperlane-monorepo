@@ -28,7 +28,7 @@ use hyperlane_base::{
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ContractSyncCursor,
+    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
     QueueOperation, ValidatorAnnounce, H512, U256,
 };
@@ -459,7 +459,7 @@ impl Relayer {
     async fn instantiate_cursor_with_retries<T: 'static>(
         contract_sync: Arc<dyn ContractSyncer<T>>,
         index_settings: IndexSettings,
-    ) -> Result<Box<dyn ContractSyncCursor<T>>, ChainCommunicationError> {
+    ) -> ChainResult<Box<dyn ContractSyncCursor<T>>> {
         call_and_retry_n_times(
             || {
                 let contract_sync = contract_sync.clone();

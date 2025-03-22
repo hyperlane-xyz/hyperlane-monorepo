@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// The result of interacting with a chain.
-pub type ChainResult<T> = Result<T, ChainCommunicationError>;
+pub type ChainResult<T = ()> = Result<T, ChainCommunicationError>;
 
 /// An "Any"-typed error.
 pub trait HyperlaneCustomError: StdError + Send + Sync + Any {}
