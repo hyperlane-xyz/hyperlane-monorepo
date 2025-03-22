@@ -491,5 +491,26 @@ export const validatorChainConfig = (
         'infinityvmmonza',
       ),
     },
+
+    rometestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('rometestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x259eec09dd54c34043bc991f1aae014294235b8e'],
+        },
+        'rometestnet',
+      ),
+    },
+    romedevnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('romedevnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5cf7d8672d395218c2bfcd17e434d6686c295c24'],
+        },
+        'romedevnet',
+      ),
+    },
   };
 };
