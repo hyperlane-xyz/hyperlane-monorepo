@@ -27,7 +27,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_SUBMITTERCOVERAGE: 1
+  MIN_SUBMITTERCOVERAGE_PERCENTAGE: 1
 
 jobs:
   test-rs:
@@ -80,8 +80,8 @@ jobs:
           COVERAGE=$(jq -r '[.files[] | select(.path | join("/") | contains("/submitter/"))] | [([.[] | .covered] | add), ([.[] | .coverable] | add)] | @tsv' tarpaulin-report.json | awk '{print $1/$2}')
           echo "Submitter crate coverage: $COVERAGE%"
           
-          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-            echo "Error: Submitter crate coverage ($COVERAGE%) is below the minimum threshold ($MIN_COVERAGE%)"
+          if (( $(echo "$COVERAGE < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
+            echo "Error: Submitter crate coverage ($COVERAGE%) is below the minimum threshold ($MIN_SUBMITTERCOVERAGE_PERCENTAGE%)"
             exit 1
           fi
           echo "Coverage threshold met for submitter crate!"
