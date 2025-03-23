@@ -27,6 +27,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  MIN_SUBMITTERCOVERAGE: 1
 
 jobs:
   test-rs:
@@ -58,6 +59,32 @@ jobs:
       - name: Run tests for sealevel workspace
         run: cargo test
         working-directory: ./rust/sealevel
+
+      - name: Install cargo-tarpaulin
+        uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-tarpaulin
+          version: latest
+          use-tool-cache: true
+      
+      - name: Generate code coverage for submitter crate
+        working-directory: rust/main
+        run: |
+          # Target only the submitter crate
+          cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json -p submitter
+      
+      - name: Check coverage meets threshold
+        working-directory: rust/main
+        run: |
+          # Extract coverage for submitter crate only
+          COVERAGE=$(jq -r '[.files[] | select(.path | join("/") | contains("/submitter/"))] | [([.[] | .covered] | add), ([.[] | .coverable] | add)] | @tsv' tarpaulin-report.json | awk '{print $1/$2}')
+          echo "Submitter crate coverage: $COVERAGE%"
+          
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "Error: Submitter crate coverage ($COVERAGE%) is below the minimum threshold ($MIN_COVERAGE%)"
+            exit 1
+          fi
+          echo "Coverage threshold met for submitter crate!"
 
   lint-rs:
     runs-on: buildjet-8vcpu-ubuntu-2204
