@@ -21,9 +21,6 @@ impl PayloadDispatcherEntrypoint {
 
 #[cfg(test)]
 mod tests {
-    use std::any::Any;
-    use std::f64::consts::E;
-
     use async_trait::async_trait;
     use eyre::Result;
 
