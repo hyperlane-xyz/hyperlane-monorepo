@@ -9613,12 +9613,15 @@ dependencies = [
 name = "submitter"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "eyre",
  "hyperlane-base",
  "hyperlane-core",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "uuid 1.12.0",
 ]
 
 [[package]]
