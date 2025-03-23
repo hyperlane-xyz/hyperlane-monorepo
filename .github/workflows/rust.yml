@@ -64,7 +64,7 @@ jobs:
         uses: actions-rs/install@v0.1
         with:
           crate: cargo-tarpaulin
-          version: latest
+          version: 0.32.3
           use-tool-cache: true
       
       - name: Generate code coverage for submitter crate
@@ -74,7 +74,7 @@ jobs:
           cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json -p submitter
       
       - name: Check coverage meets threshold
-        working-directory: rust/main
+        working-directory: ./rust/main
         run: |
           # Extract coverage for submitter crate only
           COVERAGE=$(jq -r '[.files[] | select(.path | join("/") | contains("/submitter/"))] | [([.[] | .covered] | add), ([.[] | .coverable] | add)] | @tsv' tarpaulin-report.json | awk '{print $1/$2}')
