@@ -70,9 +70,16 @@ jobs:
       - name: Generate code coverage for submitter crate
         working-directory: rust/main
         run: |
-          # Target only the submitter crate
-          cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json -p submitter
-      
+          cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json --out Xml -p submitter --verbose
+          
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: rust/main/cobertura.xml
+          fail_ci_if_error: true
+          flags: submitter
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Check coverage meets threshold
         working-directory: ./rust/main
         run: |
