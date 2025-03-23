@@ -1,13 +1,14 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::ops::Deref;
 use uuid::Uuid;
 
-use hyperlane_core::{H256, H512};
+use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
 use crate::payload::PayloadId;
 
-pub type TransactionId = Uuid;
+pub type TransactionId = UniqueIdentifier;
 type SignerAddress = H256;
 
 /// Full details about a transaction

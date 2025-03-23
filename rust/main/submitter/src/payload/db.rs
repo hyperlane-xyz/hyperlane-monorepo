@@ -4,7 +4,7 @@
 use std::io::Write;
 
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
-use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
+use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlaneProtocolError};
 
 use super::{FullPayload, PayloadId};
 
@@ -12,7 +12,7 @@ const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
 
 pub trait PayloadDb {
     /// Retrieve the nonce of the highest processed message we're aware of
-    fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>>;
+    fn retrieve_payload_by_id(&self, id: &UniqueIdentifier) -> DbResult<Option<FullPayload>>;
 
     /// Retrieve a message by its nonce
     fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()>;

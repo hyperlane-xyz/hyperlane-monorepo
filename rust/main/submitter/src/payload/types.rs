@@ -2,11 +2,12 @@
 #![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
+use std::ops::Deref;
 use uuid::Uuid;
 
-use hyperlane_core::{H256, U256};
+use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
-pub type PayloadId = Uuid;
+pub type PayloadId = UniqueIdentifier;
 type Address = H256;
 
 /// Struct needed to keep lightweight references to payloads, such that when included in logs there's no noise.
@@ -14,6 +15,7 @@ type Address = H256;
 pub struct PayloadDetails {
     /// unique payload identifier
     id: PayloadId,
+
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
     metadata: String,
 
