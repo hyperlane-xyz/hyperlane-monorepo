@@ -30,6 +30,64 @@ env:
   MIN_SUBMITTERCOVERAGE_PERCENTAGE: 1
 
 jobs:
+  submitter-coverage:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v3'
+          shared-key: 'rust'
+          cache-provider: 'buildjet'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/main
+            ./rust/sealevel
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Install cargo-tarpaulin
+        uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-tarpaulin
+          version: 0.32.3
+          use-tool-cache: true
+      
+      - name: Generate code coverage for submitter crate
+        working-directory: rust/main
+        run: |
+          cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json --out Xml -p submitter --verbose
+          
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: rust/main/cobertura.xml
+          fail_ci_if_error: true
+          flags: submitter
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Check coverage meets threshold
+        working-directory: ./rust/main
+        run: |
+          # Extract coverage for submitter crate only
+          COVERAGE=$(jq -r '[.files[] | select(.path | join("/") | contains("/submitter/"))] | [([.[] | .covered] | add), ([.[] | .coverable] | add)] | @tsv' tarpaulin-report.json | awk '{print $1/$2}')
+          echo "Submitter crate coverage: $COVERAGE%"
+          
+          if (( $(echo "$COVERAGE < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
+            echo "Error: Submitter crate coverage ($COVERAGE%) is below the minimum threshold of ($MIN_SUBMITTERCOVERAGE_PERCENTAGE%)"
+            exit 1
+          fi
+          echo "Coverage threshold met for submitter crate!"
+
+
   test-rs:
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
@@ -143,3 +201,5 @@ jobs:
       - name: Check WASM for hyperlane-core
         run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
         working-directory: ./rust/main
+        
+        
