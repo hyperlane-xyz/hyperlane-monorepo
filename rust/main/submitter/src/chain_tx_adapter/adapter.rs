@@ -1,6 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use async_trait::async_trait;
 use eyre::Result;
 use uuid::Uuid;
 
@@ -11,9 +12,10 @@ use crate::{
     transaction::{Transaction, TransactionStatus},
 };
 
-type GasLimit = U256;
+pub type GasLimit = U256;
 
 /// The `AdaptsChain` trait is implemented by adapters for different VMs, stacks and chains, allowing the `PayloadDispatcher` to interact with them in a generic way.
+#[async_trait]
 pub trait AdaptsChain {
     /// Simulates Payload and returns its gas limit. Called in the Building Stage (PayloadDispatcher)
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;

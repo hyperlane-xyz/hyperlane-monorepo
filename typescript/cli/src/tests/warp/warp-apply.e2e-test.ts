@@ -148,7 +148,6 @@ describe('hyperlane warp apply owner update tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
 

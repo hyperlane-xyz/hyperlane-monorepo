@@ -107,7 +107,12 @@ abstract class TokenDeployer<
     ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
-      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+      return [
+        config.initialSupply ?? 0,
+        config.name,
+        config.symbol,
+        ...defaultArgs,
+      ];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       return [0, config.name, config.symbol, ...defaultArgs];
     } else {
@@ -119,9 +124,6 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadata | undefined> {
-    // this is used for synthetic token metadata and should always be 0
-    const DERIVED_TOKEN_SUPPLY = 0;
-
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
         return TokenMetadataSchema.parse(config);
@@ -135,7 +137,6 @@ abstract class TokenDeployer<
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
           return TokenMetadataSchema.parse({
-            totalSupply: DERIVED_TOKEN_SUPPLY,
             ...nativeToken,
           });
         }
@@ -156,7 +157,6 @@ abstract class TokenDeployer<
           return TokenMetadataSchema.parse({
             name,
             symbol,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
           });
         }
 
@@ -190,7 +190,6 @@ abstract class TokenDeployer<
           name,
           symbol,
           decimals,
-          totalSupply: DERIVED_TOKEN_SUPPLY,
         });
       }
     }

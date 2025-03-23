@@ -144,6 +144,14 @@
       },
       "overhead": 333774
     },
+    "sophon": {
+      "oracleConfig": {
+        "tokenExchangeRate": "91246426181641219",
+        "gasPrice": "2261877890384",
+        "tokenDecimals": 18
+      },
+      "overhead": 333774
+    },
     "hyperevm": {
       "oracleConfig": {
         "tokenExchangeRate": "2108704909057728572",

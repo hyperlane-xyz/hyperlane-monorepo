@@ -11,10 +11,12 @@ version.workspace = true
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
 
+async-trait.workspace = true
 chrono.workspace = true
 eyre.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing.workspace = true
 uuid.workspace = true
