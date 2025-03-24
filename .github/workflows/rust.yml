@@ -31,7 +31,7 @@ env:
 
 jobs:
   submitter-coverage:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +58,7 @@ jobs:
         run: |
           cargo install cargo-llvm-cov@0.5.39 --locked
           rustup component add llvm-tools-preview
-      
+
       - name: Generate coverage for submitter package
         run: cargo llvm-cov --package submitter --json --output-path coverage.json
         working-directory: ./rust/main
@@ -72,7 +72,7 @@ jobs:
             exit 1
           fi
         working-directory: ./rust/main
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -82,7 +82,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   test-rs:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,7 +112,7 @@ jobs:
         working-directory: ./rust/sealevel
 
   lint-rs:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
         with:
