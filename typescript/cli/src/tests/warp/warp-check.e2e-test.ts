@@ -41,7 +41,7 @@ import {
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
 
-describe('hyperlane warp check e2e tests', async function () {
+describe.only('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Addresses: ChainAddresses = {};
@@ -154,6 +154,7 @@ describe('hyperlane warp check e2e tests', async function () {
         const output = await hyperlaneWarpCheck(
           WARP_DEPLOY_OUTPUT_PATH,
           tokenSymbol,
+          combinedWarpCoreConfigPath,
         );
 
         expect(output.exitCode).to.equal(0);
@@ -178,6 +179,7 @@ describe('hyperlane warp check e2e tests', async function () {
         const output = await hyperlaneWarpCheck(
           WARP_DEPLOY_OUTPUT_PATH,
           tokenSymbol,
+          combinedWarpCoreConfigPath,
         );
 
         expect(output.exitCode).to.equal(0);
@@ -198,6 +200,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
         tokenSymbol,
+        combinedWarpCoreConfigPath,
       )
         .stdio('pipe')
         .nothrow();
@@ -260,6 +263,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
         tokenSymbol,
+        combinedWarpCoreConfigPath,
       ).nothrow();
 
       expect(output.exitCode).to.equal(1);
@@ -335,6 +339,7 @@ describe('hyperlane warp check e2e tests', async function () {
         const output = await hyperlaneWarpCheck(
           WARP_DEPLOY_OUTPUT_PATH,
           xERC20TokenSymbol,
+          combinedWarpCoreConfigPath,
         ).nothrow();
 
         expect(output.exitCode).to.equal(0);
@@ -369,6 +374,7 @@ describe('hyperlane warp check e2e tests', async function () {
         const output = await hyperlaneWarpCheck(
           WARP_DEPLOY_OUTPUT_PATH,
           xERC20TokenSymbol,
+          combinedWarpCoreConfigPath,
         ).nothrow();
 
         expect(output.exitCode).to.equal(1);
@@ -401,8 +407,8 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
         tokenSymbol,
+        combinedWarpCoreConfigPath,
       ).nothrow();
-
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
@@ -440,6 +446,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
         tokenSymbol,
+        combinedWarpCoreConfigPath,
       ).nothrow();
 
       expect(output.exitCode).to.equal(1);
