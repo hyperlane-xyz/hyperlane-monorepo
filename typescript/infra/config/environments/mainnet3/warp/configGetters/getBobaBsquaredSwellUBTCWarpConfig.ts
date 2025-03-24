@@ -23,13 +23,10 @@ const safeOwners: ChainMap<Address> = {
 export const getBobaBsquaredSoneiumSwellUBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero; // Use the default ISM
-
   const boba: HypTokenRouterConfig = {
     mailbox: routerConfig.boba.mailbox,
     owner: safeOwners.boba,
     type: TokenType.synthetic,
-    interchainSecurityModule: ISM_CONFIG,
   };
 
   const bsquared: HypTokenRouterConfig = {
@@ -37,21 +34,18 @@ export const getBobaBsquaredSoneiumSwellUBTCWarpConfig = async (
     owner: safeOwners.bsquared,
     type: TokenType.collateral,
     token: tokens.bsquared.uBTC,
-    interchainSecurityModule: ISM_CONFIG,
   };
 
   const soneium: HypTokenRouterConfig = {
     mailbox: routerConfig.soneium.mailbox,
     owner: safeOwners.soneium,
     type: TokenType.synthetic,
-    interchainSecurityModule: ISM_CONFIG,
   };
 
   const swell: HypTokenRouterConfig = {
     mailbox: routerConfig.swell.mailbox,
     owner: safeOwners.swell,
     type: TokenType.synthetic,
-    interchainSecurityModule: ISM_CONFIG,
   };
 
   return {
