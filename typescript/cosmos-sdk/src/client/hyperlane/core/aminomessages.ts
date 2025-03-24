@@ -1,11 +1,12 @@
 import { AminoMsg } from '@cosmjs/amino';
 
+import { isNotEmpty } from '@hyperlane-xyz/utils';
+
 import {
   MsgCreateMailbox,
   MsgProcessMessage,
   MsgSetMailbox,
 } from '../../../types/hyperlane/core/v1/tx.js';
-import { isNotEmpty } from '../../../utils/index.js';
 
 export interface AminoMsgCreateMailbox extends AminoMsg {
   readonly type: 'hyperlane/v1/MsgCreateMailbox';

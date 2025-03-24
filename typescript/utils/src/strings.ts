@@ -49,3 +49,5 @@ export const fromHexString = (hexstr: string) =>
   Buffer.from(strip0x(hexstr), 'hex');
 
 export const toHexString = (buf: Buffer) => ensure0x(buf.toString('hex'));
+
+export const isNotEmpty = (val: string): boolean => !!val && val !== '0';
