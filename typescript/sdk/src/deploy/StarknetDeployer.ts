@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 import {
   Account,
+  BigNumberish,
   CallData,
   ContractFactory,
   ContractFactoryParams,
@@ -52,6 +53,12 @@ export class StarknetDeployer {
 
     const contractFactory = new ContractFactory(params);
     const contract = await contractFactory.deploy(constructorCalldata);
+
+    const receipt = await this.account.waitForTransaction(
+      contract.deployTransactionHash as BigNumberish,
+    );
+
+    assert(receipt.isSuccess(), `Contract ${contractName} deployment failed`);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)

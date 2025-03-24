@@ -8006,6 +8006,7 @@ __metadata:
     "@solana/wallet-adapter-react": "npm:^0.15.32"
     "@solana/wallet-adapter-react-ui": "npm:^0.9.31"
     "@solana/web3.js": "npm:^1.95.4"
+    "@starknet-react/chains": "npm:^3.1.2"
     "@starknet-react/core": "npm:^3.7.2"
     "@storybook/addon-essentials": "npm:^7.6.14"
     "@storybook/addon-interactions": "npm:^7.6.14"
@@ -13357,13 +13358,6 @@ __metadata:
   version: 1.0.0
   resolution: "@scure/base@npm:1.0.0"
   checksum: 10/cbf631e1f13536287e1f19137039d29757a008fad2d9b0c8113c140e1900519a95f4884cd61633fbb2adbe426c3c9bbfde2b77519145b3d81bac9853a52c599e
-  languageName: node
-  linkType: hard
-
-"@scure/base@npm:~1.2.2, @scure/base@npm:~1.2.4":
-  version: 1.2.4
-  resolution: "@scure/base@npm:1.2.4"
-  checksum: 10/4b61679209af40143b49ce7b7570e1d9157c19df311ea6f57cd212d764b0b82222dbe3707334f08bec181caf1f047aca31aa91193c678d6548312cb3f9c82ab1
   languageName: node
   linkType: hard
 

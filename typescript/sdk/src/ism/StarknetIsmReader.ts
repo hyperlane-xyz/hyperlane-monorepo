@@ -31,25 +31,81 @@ export class StarknetIsmReader {
       const moduleType: CairoCustomEnum = await ism.module_type();
       const variant = moduleType.activeVariant();
       switch (variant) {
-        case 'UNUSED':
-          throw new Error('Error deriving NULL ISM type');
-        case 'MESSAGE_ID_MULTISIG':
-          return this.deriveMessageIdMultisigConfig(address);
-        case 'MERKLE_ROOT_MULTISIG':
-          return this.deriveMerkleRootMultisigConfig(address);
-        case 'ROUTING':
-          return this.deriveRoutingConfig(address);
         case 'AGGREGATION':
           return this.deriveAggregationConfig(address);
         case 'CCIP_READ':
           throw new Error('CCIP_READ does not have a corresponding IsmType');
+        case 'LEGACY_MULTISIG':
+          throw new Error('LEGACY_MULTISIG is deprecated and not supported');
+        case 'MERKLE_ROOT_MULTISIG':
+          return this.deriveMerkleRootMultisigConfig(address);
+        case 'MESSAGE_ID_MULTISIG':
+          return this.deriveMessageIdMultisigConfig(address);
+        case 'NULL':
+          return this.deriveNullConfig(address);
+        case 'ROUTING':
+          return this.deriveRoutingConfig(address);
+        case 'UNUSED':
+          throw new Error('Error deriving NULL ISM type');
         default:
-          throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
+          throw new Error(`Unknown ISM ModuleType: ${variant}`);
       }
     } catch (error) {
       this.logger.error(`Failed to derive ISM config for ${address}`, error);
       throw error;
     }
+  }
+
+  private async deriveAggregationConfig(
+    address: Address,
+  ): Promise<WithAddress<AggregationIsmConfig>> {
+    const ism = new Contract(
+      this.getContractAbi(IsmType.AGGREGATION),
+      address,
+      this.signer,
+    );
+
+    const [modules, threshold] = await Promise.all([
+      ism.get_modules(),
+      ism.get_threshold(),
+    ]);
+
+    const moduleConfigs = await Promise.all(
+      modules.map(async (moduleAddress: any) => {
+        return await this.deriveIsmConfig(
+          num.toHex64(moduleAddress.toString()),
+        );
+      }),
+    );
+
+    return {
+      type: IsmType.AGGREGATION,
+      address,
+      modules: moduleConfigs.filter(Boolean),
+      threshold: threshold.toString(),
+    };
+  }
+
+  private async deriveMerkleRootMultisigConfig(
+    address: Address,
+  ): Promise<WithAddress<MultisigIsmConfig>> {
+    const ism = new Contract(
+      this.getContractAbi(IsmType.MERKLE_ROOT_MULTISIG),
+      address,
+      this.signer,
+    );
+
+    const [validators, threshold] = await Promise.all([
+      ism.get_validators(),
+      ism.get_threshold(),
+    ]);
+
+    return {
+      type: IsmType.MERKLE_ROOT_MULTISIG,
+      address,
+      validators: validators.map((v: any) => num.toHex64(v.toString())),
+      threshold: threshold.toString(),
+    };
   }
 
   private async deriveMessageIdMultisigConfig(
@@ -74,25 +130,10 @@ export class StarknetIsmReader {
     };
   }
 
-  private async deriveMerkleRootMultisigConfig(
-    address: Address,
-  ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = new Contract(
-      this.getContractAbi(IsmType.MERKLE_ROOT_MULTISIG),
-      address,
-      this.signer,
-    );
-
-    const [validators, threshold] = await Promise.all([
-      ism.get_validators(),
-      ism.get_threshold(),
-    ]);
-
+  private async deriveNullConfig(address: Address): Promise<DerivedIsmConfig> {
     return {
-      type: IsmType.MERKLE_ROOT_MULTISIG,
+      type: IsmType.TEST_ISM,
       address,
-      validators: validators.map((v: any) => num.toHex64(v.toString())),
-      threshold: threshold.toString(),
     };
   }
 
@@ -128,36 +169,6 @@ export class StarknetIsmReader {
       address,
       domains: domainConfigs,
       owner: num.toHex64(owner.toString()),
-    };
-  }
-
-  private async deriveAggregationConfig(
-    address: Address,
-  ): Promise<WithAddress<AggregationIsmConfig>> {
-    const ism = new Contract(
-      this.getContractAbi(IsmType.AGGREGATION),
-      address,
-      this.signer,
-    );
-
-    const [modules, threshold] = await Promise.all([
-      ism.get_modules(),
-      ism.get_threshold(),
-    ]);
-
-    const moduleConfigs = await Promise.all(
-      modules.map(async (moduleAddress: any) => {
-        return await this.deriveIsmConfig(
-          num.toHex64(moduleAddress.toString()),
-        );
-      }),
-    );
-
-    return {
-      type: IsmType.AGGREGATION,
-      address,
-      modules: moduleConfigs.filter(Boolean),
-      threshold: threshold.toString(),
     };
   }
 }

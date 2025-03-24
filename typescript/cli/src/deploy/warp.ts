@@ -1,4 +1,5 @@
 import { confirm } from '@inquirer/prompts';
+import { BigNumber } from 'ethers';
 import { groupBy } from 'lodash-es';
 import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
@@ -75,6 +76,7 @@ import {
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -86,7 +88,12 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 
-import { prepareDeploy, runPreflightChecksForChains } from './utils.js';
+import {
+  completeDeploy,
+  prepareDeploy,
+  prepareStarknetDeploy,
+  runPreflightChecksForChains,
+} from './utils.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -102,17 +109,15 @@ interface WarpApplyParams extends DeployParams {
 export async function runWarpRouteDeploy({
   context,
   warpRouteDeploymentConfigPath,
+  multiProtocolSigner,
 }: {
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
-  const {
-    skipConfirmation,
-    chainMetadata,
-    registry,
-    multiProvider,
-    multiProtocolSigner,
-  } = context;
+  const { skipConfirmation, chainMetadata, registry } = context;
+  const multiProvider = await multiProtocolSigner?.getMultiProvider();
+  assert(multiProvider, 'No MultiProvider found!');
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -162,6 +167,9 @@ export async function runWarpRouteDeploy({
 
   let starknetSigners: ChainMap<StarknetAccount> = {};
 
+  // Collect all initial balances across protocols
+  let allInitialBalances: Record<string, BigNumber> = {};
+
   // Execute deployments for each protocol
   for (const protocol of Object.keys(chainsByProtocol) as ProtocolType[]) {
     const protocolChains = chainsByProtocol[protocol];
@@ -174,8 +182,13 @@ export async function runWarpRouteDeploy({
             chains: protocolChains,
             minGas: MINIMUM_WARP_DEPLOY_GAS,
           });
-          // const initialBalances =
-          await prepareDeploy(context, null, protocolChains);
+          const initialBalances = await prepareDeploy(
+            context,
+            null,
+            protocolChains,
+          );
+          allInitialBalances = { ...allInitialBalances, ...initialBalances };
+          console.log(initialBalances);
           const deployedContracts = await executeDeploy(
             { context, warpDeployConfig: warpRouteConfig },
             apiKeys,
@@ -192,7 +205,6 @@ export async function runWarpRouteDeploy({
               { context, warpDeployConfig: warpRouteConfig },
               deployedContracts,
             );
-
           deploymentAddWarpRouteOptions = addWarpRouteOptions;
           deployments.tokens = [
             ...deployments.tokens,
@@ -217,14 +229,22 @@ export async function runWarpRouteDeploy({
           }),
           {},
         );
+
+        const initialBalances = await prepareStarknetDeploy(
+          context,
+          null,
+          protocolChains,
+        );
+        allInitialBalances = { ...allInitialBalances, ...initialBalances };
+
         routerAddresses.starknet = await executeStarknetDeployments({
           starknetSigners,
-          warpRouteConfig,
+          warpRouteConfig, // Only pass protocol-specific config
           multiProvider,
         });
         const { warpCoreConfig, addWarpRouteOptions } =
           await getWarpCoreConfigForStarknet(
-            warpRouteConfig,
+            warpRouteConfig, // Only pass protocol-specific config
             multiProvider,
             routerAddresses.starknet,
           );
@@ -235,36 +255,18 @@ export async function runWarpRouteDeploy({
       default:
         throw new Error(`Unsupported protocol type: ${protocol}`);
     }
-    // TODO: handle
-    assert(
-      deploymentAddWarpRouteOptions,
-      'Deployment add warp route options is required',
-    );
   }
 
-  // Some of the below functions throw if passed non-EVM chains
-  // const ethereumChains = chains.filter(
-  //   (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
-  // );
+  logGreen('✅ Warp contract deployments complete');
 
-  // await runPreflightChecksForChains({
-  //   context,
-  //   chains: ethereumChains,
-  //   minGas: MINIMUM_WARP_DEPLOY_GAS,
-  // });
+  await writeDeploymentArtifacts(
+    deployments,
+    context,
+    deploymentAddWarpRouteOptions,
+  );
 
-  // const initialBalances = await prepareDeploy(context, null, ethereumChains);
-
-  // const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
-
-  // const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
-  //   deploymentParams,
-  //   deployedContracts,
-  // );
-
-  // await writeDeploymentArtifacts(warpCoreConfig, context, addWarpRouteOptions);
-
-  // await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
+  // Compatible only with EVM and Starknet chains
+  await completeDeploy(context, 'warp', allInitialBalances, null, chains);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -323,7 +325,6 @@ async function executeDeploy(
 
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
-  logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
 }
 
@@ -347,6 +348,24 @@ async function resolveWarpIsmAndHook(
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
+      if (
+        // for non-evm chains just return config as it is
+        context.multiProvider.getChainMetadata(chain).protocol !==
+          ProtocolType.Ethereum ||
+        !config.interchainSecurityModule ||
+        typeof config.interchainSecurityModule === 'string'
+      ) {
+        logGray(
+          `Config Ism is ${
+            !config.interchainSecurityModule
+              ? 'empty'
+              : config.interchainSecurityModule
+          }, skipping deployment.`,
+        );
+        return config;
+      }
+
+      logBlue(`Loading registry factory addresses for ${chain}...`);
       const registryAddresses = await context.registry.getAddresses();
       const ccipContractCache = new CCIPContractCache(registryAddresses);
       const chainAddresses = registryAddresses[chain];

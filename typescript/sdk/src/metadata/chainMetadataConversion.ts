@@ -97,6 +97,7 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
 
   return { chain, assets };
 }
+
 export function chainMetadataToStarknetChain(
   metadata: ChainMetadata,
 ): StarknetChain {

@@ -38,22 +38,23 @@ export class StarknetHookReader {
 
       const hookType: CairoCustomEnum = await hook.hook_type();
       const variant = hookType.activeVariant();
-
       switch (variant) {
-        case 'MERKLE_TREE':
-          return this.deriveMerkleTreeConfig(address);
-        case 'PROTOCOL_FEE':
-          return this.deriveProtocolFeeConfig(address);
-        case 'ROUTING':
-          return this.deriveRoutingHookConfig(address);
         case 'AGGREGATION':
           return this.deriveAggregationHookConfig(address);
         case 'FALLBACK_ROUTING':
           return this.deriveFallbackRoutingHookConfig(address);
         case 'MAILBOX_DEFAULT_HOOK':
           return this.deriveMailboxDefaultHookConfig(address);
+        case 'MERKLE_TREE':
+          return this.deriveMerkleTreeConfig(address);
+        case 'PROTOCOL_FEE':
+          return this.deriveProtocolFeeConfig(address);
+        case 'ROUTING':
+          return this.deriveRoutingHookConfig(address);
+        case 'UNUSED':
+          return this.deriveMerkleTreeConfig(address);
         default:
-          throw new Error(`Unknown hook type: ${variant}`);
+          throw new Error(`Unsupported hook type: ${variant}`);
       }
     } catch (error) {
       this.logger.error(`Failed to derive Hook config for ${address}`, error);
