@@ -26,7 +26,7 @@ const initialSupply = {
 
 const COLLATERAL_CHAIN = 'sepolia';
 
-const warpRouteConfig = objMap(
+export const warpRouteConfig = objMap(
   initialSupply,
   (chain, amount): HypTokenRouterConfig => ({
     type:
@@ -38,9 +38,8 @@ const warpRouteConfig = objMap(
   }),
 );
 
-console.log(JSON.stringify(warpRouteConfig));
-
-const stakedWarpRouteConfig = objMap(
+// TODO: configure proxy admin to be reused?
+export const stakedWarpRouteConfig = objMap(
   mailboxes,
   (chain, mailbox): HypTokenRouterConfig => {
     const config = {
@@ -67,5 +66,3 @@ const stakedWarpRouteConfig = objMap(
     }
   },
 );
-
-console.log(JSON.stringify(stakedWarpRouteConfig));

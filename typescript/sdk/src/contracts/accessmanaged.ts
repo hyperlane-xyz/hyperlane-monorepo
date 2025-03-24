@@ -13,13 +13,13 @@ const RESERVED_ROLES: Record<string, bigint> = {
 };
 
 // modeled after structs from AccessManager.sol
-export type TargetConfig<C extends BaseContract, Role extends string> = {
+type TargetConfig<C extends BaseContract, Role extends string> = {
   authority: Partial<Record<keyof C['interface']['functions'], Role>>;
   adminDelay?: number;
   closed?: boolean;
 };
 
-export type RoleConfig<Role extends string> = {
+type RoleConfig<Role extends string> = {
   [role in Role]: {
     members: Set<Address>;
     executionDelay?: number;
@@ -45,29 +45,29 @@ export function configureAccess<
 >(
   contracts: C,
   config: AccessManagerConfig<Role, C>,
+  initialAdmin: Address,
 ): AnnotatedEV5Transaction[] {
   let transactions = [];
 
   const manager = IAccessManager__factory.createInterface();
 
   const roleIds = RESERVED_ROLES;
-
-  for (const [index, [role, roleConfig]] of Object.entries<
-    RoleConfig<Role>[Role]
-  >(config.roles).entries()) {
-    assert(
-      !Object.keys(RESERVED_ROLES).includes(role),
-      `Reserved role ${role} assigned`,
-    );
-
-    const roleId = BigInt(index) + 1n;
-    assert(
-      RESERVED_ROLES.ADMIN < roleId && roleId < RESERVED_ROLES.PUBLIC,
-      `Reserved role ID ${roleId} assigned`,
-    );
-
+  for (const [index, [role]] of Object.entries<RoleConfig<Role>[Role]>(
+    config.roles,
+  ).entries()) {
+    const roleId =
+      role in RESERVED_ROLES ? RESERVED_ROLES[role] : BigInt(index) + 1n;
     roleIds[role] = roleId;
 
+    const data = manager.encodeFunctionData('labelRole', [roleId, role]);
+    const annotation = `label role ID ${roleId} with ${role}`;
+    transactions.push({ data, annotation });
+  }
+
+  for (const [role, roleConfig] of Object.entries<RoleConfig<Role>[Role]>(
+    config.roles,
+  )) {
+    const roleId = roleIds[role];
     for (const member of roleConfig.members) {
       const delay = roleConfig.executionDelay ?? 0;
       const data = manager.encodeFunctionData('grantRole', [
@@ -82,7 +82,7 @@ export function configureAccess<
     if (roleConfig.guardian) {
       const data = manager.encodeFunctionData('setRoleGuardian', [
         roleId,
-        roleConfig.guardian,
+        roleIds[roleConfig.guardian],
       ]);
       const annotation = `set guardian for role ${role} to ${roleConfig.guardian}`;
       transactions.push({ data, annotation });
@@ -90,7 +90,7 @@ export function configureAccess<
     if (roleConfig.admin) {
       const data = manager.encodeFunctionData('setRoleAdmin', [
         roleId,
-        roleConfig.admin,
+        roleIds[roleConfig.admin],
       ]);
       const annotation = `set admin for role ${role} to ${roleConfig.admin}`;
       transactions.push({ data, annotation });
@@ -111,7 +111,11 @@ export function configureAccess<
 
     for (const func in targetConfig.authority) {
       const authority = targetConfig.authority[func];
-      assert(authority && roleIds[authority], `Invalid authority ${authority}`);
+
+      assert(
+        authority && authority in roleIds,
+        `Invalid authority ${authority}`,
+      );
       const roleId = roleIds[authority];
 
       const selector = contract.interface.getSighash(func);
@@ -133,6 +137,13 @@ export function configureAccess<
       transactions.push({ data, annotation });
     }
   }
+
+  const data = manager.encodeFunctionData('renounceRole', [
+    RESERVED_ROLES.ADMIN,
+    initialAdmin,
+  ]);
+  const annotation = `renounce ADMIN role from ${initialAdmin}`;
+  transactions.push({ data, annotation });
 
   return transactions;
 }
