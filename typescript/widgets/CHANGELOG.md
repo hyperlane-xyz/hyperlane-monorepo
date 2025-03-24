@@ -1,5 +1,13 @@
 # @hyperlane-xyz/widgets
 
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
 ## 9.2.0
 
 ### Minor Changes
