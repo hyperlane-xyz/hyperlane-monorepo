@@ -98,6 +98,7 @@ where
 // The address 0x69BE704F62F7CbC1a30E35E0153D89e2b0A6Aa55 as a byte array.
 // This address was randomly generated in order to estimate gas better than
 // using a fixed address like repeating the 0xab byte, as required by ZkSync chains.
+// This is due to some compression optimizations that ZkSync does when an address is low entropy.
 const RANDOM_ADDRESS: H160 = H160([
     0x69, 0xBE, 0x70, 0x4F, 0x62, 0xF7, 0xCB, 0xC1, 0xA3, 0x0E, 0x35, 0xE0, 0x15, 0x3D, 0x89, 0xE2,
     0xB0, 0xA6, 0xAA, 0x55,
@@ -129,7 +130,7 @@ where
             metadata.to_owned().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        if self.domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::ZkSync {
+        if self.domain.is_zksync_stack() {
             // We use a random from address to ensure compatibility with zksync,
             // but intentionally do not set this for other chains which may have assumptions
             // around the presence of funds in the from address (which defaults to address(0)).
