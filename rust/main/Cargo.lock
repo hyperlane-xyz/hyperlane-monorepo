@@ -4853,6 +4853,7 @@ dependencies = [
  "tracing",
  "typetag",
  "uint 0.9.5",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -7492,7 +7493,7 @@ dependencies = [
  "tracing-futures",
  "tracing-test",
  "typetag",
- "uuid 1.12.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -7628,7 +7629,7 @@ dependencies = [
  "rkyv_derive",
  "seahash",
  "tinyvec",
- "uuid 1.12.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -8282,7 +8283,7 @@ dependencies = [
  "time",
  "tracing",
  "url",
- "uuid 1.12.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -8343,7 +8344,7 @@ dependencies = [
  "sea-query-derive",
  "serde_json",
  "time",
- "uuid 1.12.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -8359,7 +8360,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
- "uuid 1.12.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -9720,7 +9721,7 @@ dependencies = [
  "time",
  "tokio-stream",
  "url",
- "uuid 1.12.0",
+ "uuid 1.11.0",
  "whoami",
 ]
 
@@ -10033,10 +10034,17 @@ dependencies = [
 name = "submitter"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "chrono",
+ "eyre",
  "hyperlane-base",
  "hyperlane-core",
+ "serde",
+ "serde_json",
+ "thiserror",
  "tokio",
  "tracing",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -10295,7 +10303,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "uuid 1.12.0",
+ "uuid 1.11.0",
  "walkdir",
 ]
 
@@ -11155,9 +11163,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.12.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "744018581f9a3454a9e15beb8a33b017183f1e7c0cd170232a2d1453b23a51c4"
+checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 dependencies = [
  "getrandom 0.2.15",
  "serde",
