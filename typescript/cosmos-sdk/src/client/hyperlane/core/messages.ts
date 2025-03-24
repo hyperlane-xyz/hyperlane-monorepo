@@ -5,18 +5,19 @@ import {
   MsgProcessMessage,
   MsgSetMailbox,
 } from '../../../types/hyperlane/core/v1/tx.js';
+import { REGISTRY } from '../../registry/index.js';
 
 export interface MsgCreateMailboxEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgCreateMailbox';
+  readonly typeUrl: typeof REGISTRY.MsgCreateMailbox.proto.type;
   readonly value: Partial<MsgCreateMailbox>;
 }
 
 export interface MsgSetMailboxEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgSetMailbox';
+  readonly typeUrl: typeof REGISTRY.MsgSetMailbox.proto.type;
   readonly value: Partial<MsgSetMailbox>;
 }
 
 export interface MsgProcessMessageEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgProcessMessage';
+  readonly typeUrl: typeof REGISTRY.MsgProcessMessage.proto.type;
   readonly value: Partial<MsgProcessMessage>;
 }

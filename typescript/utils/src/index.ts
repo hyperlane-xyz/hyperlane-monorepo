@@ -147,7 +147,6 @@ export {
   toTitleCase,
   toUpperCamelCase,
   trimToLength,
-  isNotEmpty,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
 export {

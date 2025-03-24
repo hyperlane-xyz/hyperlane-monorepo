@@ -52,14 +52,12 @@ import {
   MsgUnrollRemoteRouter,
 } from '../types/hyperlane/warp/v1/tx.js';
 
-import { createCoreAminoConverter } from './hyperlane/core/aminomessages.js';
 import {
   MsgCreateMailboxEncodeObject,
   MsgProcessMessageEncodeObject,
   MsgSetMailboxEncodeObject,
 } from './hyperlane/core/messages.js';
 import { CoreExtension, setupCoreExtension } from './hyperlane/core/query.js';
-import { createInterchainSecurityAminoConverter } from './hyperlane/interchain_security/aminomessages.js';
 import {
   MsgAnnounceValidatorEncodeObject,
   MsgCreateMerkleRootMultisigIsmEncodeObject,
@@ -70,7 +68,6 @@ import {
   InterchainSecurityExtension,
   setupInterchainSecurityExtension,
 } from './hyperlane/interchain_security/query.js';
-import { createPostDispatchAminoConverter } from './hyperlane/post_dispatch/aminomessages.js';
 import {
   MsgClaimEncodeObject,
   MsgCreateIgpEncodeObject,
@@ -84,7 +81,6 @@ import {
   PostDispatchExtension,
   setupPostDispatchExtension,
 } from './hyperlane/post_dispatch/query.js';
-import { createWarpAminoConverter } from './hyperlane/warp/aminomessages.js';
 import {
   MsgCreateCollateralTokenEncodeObject,
   MsgCreateSyntheticTokenEncodeObject,
@@ -123,12 +119,11 @@ export class HyperlaneModuleClient extends StargateClient {
     );
 
     this.registry = new Registry([...defaultRegistryTypes]);
+
     // register all the custom tx types
-    for (const typeUrl in REGISTRY) {
-      if (REGISTRY[typeUrl]) {
-        this.registry.register(typeUrl, REGISTRY[typeUrl]);
-      }
-    }
+    Object.values(REGISTRY).forEach(({ proto }) => {
+      this.registry.register(proto.type, proto.converter);
+    });
   }
 
   static async connect(
@@ -169,14 +164,25 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     account: AccountData,
     options: SigningStargateClientOptions,
   ) {
+    // register all the custom amino tx types
+    const aminoTypes = Object.values(REGISTRY).reduce(
+      (types, { proto, amino }) => ({
+        ...types,
+        [proto.type]: {
+          aminoType: amino.type,
+          toAmino: (amino.converter as any)?.toJSON ?? proto.converter.toJSON,
+          fromAmino:
+            (amino.converter as any)?.fromJSON ?? proto.converter.fromJSON,
+        },
+      }),
+      {},
+    );
+
     super(cometClient, signer, {
       ...options,
       aminoTypes: new AminoTypes({
         ...options.aminoTypes,
-        ...createCoreAminoConverter(),
-        ...createInterchainSecurityAminoConverter(),
-        ...createPostDispatchAminoConverter(),
-        ...createWarpAminoConverter(),
+        ...aminoTypes,
       }),
     });
 
@@ -190,11 +196,9 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     );
 
     // register all the custom tx types
-    for (const typeUrl in REGISTRY) {
-      if (REGISTRY[typeUrl]) {
-        this.registry.register(typeUrl, REGISTRY[typeUrl]);
-      }
-    }
+    Object.values(REGISTRY).forEach(({ proto }) => {
+      this.registry.register(proto.type, proto.converter);
+    });
 
     this.account = account;
   }
@@ -249,11 +253,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateMailboxEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateMailbox',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgCreateMailbox.proto.type,
+      value: REGISTRY.MsgCreateMailbox.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -267,11 +271,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgSetMailboxEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgSetMailbox',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgSetMailbox.proto.type,
+      value: REGISTRY.MsgSetMailbox.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -285,11 +289,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgProcessMessageEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgProcessMessage',
-      value: {
-        relayer: this.account.address,
+      typeUrl: REGISTRY.MsgProcessMessage.proto.type,
+      value: REGISTRY.MsgProcessMessage.proto.converter.create({
         ...value,
-      },
+        relayer: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -303,11 +307,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateMessageIdMultisigIsmEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateMessageIdMultisigIsm',
-      value: {
-        creator: this.account.address,
+      typeUrl: REGISTRY.MsgCreateMessageIdMultisigIsm.proto.type,
+      value: REGISTRY.MsgCreateMessageIdMultisigIsm.proto.converter.create({
         ...value,
-      },
+        creator: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -321,11 +325,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateMerkleRootMultisigIsmEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateMerkleRootMultisigIsm',
-      value: {
-        creator: this.account.address,
+      typeUrl: REGISTRY.MsgCreateMerkleRootMultisigIsm.proto.type,
+      value: REGISTRY.MsgCreateMerkleRootMultisigIsm.proto.converter.create({
         ...value,
-      },
+        creator: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -339,11 +343,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateNoopIsmEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateNoopIsm',
-      value: {
-        creator: this.account.address,
+      typeUrl: REGISTRY.MsgCreateNoopIsm.proto.type,
+      value: REGISTRY.MsgCreateNoopIsm.proto.converter.create({
         ...value,
-      },
+        creator: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -357,11 +361,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgAnnounceValidatorEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgAnnounceValidator',
-      value: {
-        creator: this.account.address,
+      typeUrl: REGISTRY.MsgAnnounceValidator.proto.type,
+      value: REGISTRY.MsgAnnounceValidator.proto.converter.create({
         ...value,
-      },
+        creator: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -375,11 +379,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateIgpEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateIgp',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgCreateIgp.proto.type,
+      value: REGISTRY.MsgCreateIgp.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -393,11 +397,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgSetIgpOwnerEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgSetIgpOwner',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgSetIgpOwner.proto.type,
+      value: REGISTRY.MsgSetIgpOwner.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -411,11 +415,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgSetDestinationGasConfigEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgSetDestinationGasConfig',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgSetDestinationGasConfig.proto.type,
+      value: REGISTRY.MsgSetDestinationGasConfig.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -429,11 +433,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgPayForGasEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgPayForGas',
-      value: {
-        sender: this.account.address,
+      typeUrl: REGISTRY.MsgPayForGas.proto.type,
+      value: REGISTRY.MsgPayForGas.proto.converter.create({
         ...value,
-      },
+        sender: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -447,11 +451,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgClaimEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgClaim',
-      value: {
-        sender: this.account.address,
+      typeUrl: REGISTRY.MsgClaim.proto.type,
+      value: REGISTRY.MsgClaim.proto.converter.create({
         ...value,
-      },
+        sender: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -465,11 +469,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateMerkleTreeHookEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateMerkleTreeHook',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgCreateMerkleTreeHook.proto.type,
+      value: REGISTRY.MsgCreateMerkleTreeHook.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -483,11 +487,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateNoopHookEncodeObject = {
-      typeUrl: '/hyperlane.core.v1.MsgCreateNoopHook',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgCreateNoopHook.proto.type,
+      value: REGISTRY.MsgCreateNoopHook.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -501,11 +505,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateCollateralTokenEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgCreateCollateralToken',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgCreateCollateralToken.proto.type,
+      value: REGISTRY.MsgCreateCollateralToken.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -519,11 +523,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgCreateSyntheticTokenEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgCreateSyntheticToken',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgCreateSyntheticToken.proto.type,
+      value: REGISTRY.MsgCreateSyntheticToken.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -537,11 +541,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgSetTokenEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgSetToken',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgSetToken.proto.type,
+      value: REGISTRY.MsgSetToken.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -555,11 +559,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgEnrollRemoteRouterEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgEnrollRemoteRouter',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgEnrollRemoteRouter.proto.type,
+      value: REGISTRY.MsgEnrollRemoteRouter.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -573,11 +577,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgUnrollRemoteRouterEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgUnrollRemoteRouter',
-      value: {
-        owner: this.account.address,
+      typeUrl: REGISTRY.MsgUnrollRemoteRouter.proto.type,
+      value: REGISTRY.MsgUnrollRemoteRouter.proto.converter.create({
         ...value,
-      },
+        owner: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);
@@ -591,11 +595,11 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     },
   ): Promise<DeliverTxResponse> {
     const msg: MsgRemoteTransferEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgRemoteTransfer',
-      value: {
-        sender: this.account.address,
+      typeUrl: REGISTRY.MsgRemoteTransfer.proto.type,
+      value: REGISTRY.MsgRemoteTransfer.proto.converter.create({
         ...value,
-      },
+        sender: this.account.address,
+      }),
     };
 
     return this.signTx(msg, options);

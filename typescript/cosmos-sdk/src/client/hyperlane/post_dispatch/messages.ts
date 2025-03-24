@@ -9,38 +9,39 @@ import {
   MsgSetDestinationGasConfig,
   MsgSetIgpOwner,
 } from '../../../types/hyperlane/core/post_dispatch/v1/tx.js';
+import { REGISTRY } from '../../registry/index.js';
 
 export interface MsgCreateIgpEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgCreateIgp';
+  readonly typeUrl: typeof REGISTRY.MsgCreateIgp.proto.type;
   readonly value: Partial<MsgCreateIgp>;
 }
 
 export interface MsgSetIgpOwnerEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgSetIgpOwner';
+  readonly typeUrl: typeof REGISTRY.MsgSetIgpOwner.proto.type;
   readonly value: Partial<MsgSetIgpOwner>;
 }
 
 export interface MsgSetDestinationGasConfigEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgSetDestinationGasConfig';
+  readonly typeUrl: typeof REGISTRY.MsgSetDestinationGasConfig.proto.type;
   readonly value: Partial<MsgSetDestinationGasConfig>;
 }
 
 export interface MsgPayForGasEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgPayForGas';
+  readonly typeUrl: typeof REGISTRY.MsgPayForGas.proto.type;
   readonly value: Partial<MsgPayForGas>;
 }
 
 export interface MsgClaimEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgClaim';
+  readonly typeUrl: typeof REGISTRY.MsgClaim.proto.type;
   readonly value: Partial<MsgClaim>;
 }
 
 export interface MsgCreateMerkleTreeHookEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgCreateMerkleTreeHook';
+  readonly typeUrl: typeof REGISTRY.MsgCreateMerkleTreeHook.proto.type;
   readonly value: Partial<MsgCreateMerkleTreeHook>;
 }
 
 export interface MsgCreateNoopHookEncodeObject extends EncodeObject {
-  readonly typeUrl: '/hyperlane.core.v1.MsgCreateNoopHook';
+  readonly typeUrl: typeof REGISTRY.MsgCreateNoopHook.proto.type;
   readonly value: Partial<MsgCreateNoopHook>;
 }

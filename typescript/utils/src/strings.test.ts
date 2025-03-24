@@ -4,7 +4,6 @@ import { Readable } from 'stream';
 import {
   errorToString,
   fromHexString,
-  isNotEmpty,
   sanitizeString,
   streamToString,
   toHexString,
@@ -54,18 +53,5 @@ describe('String Utilities', () => {
     const buffer = fromHexString(hexString);
     expect(buffer.toString('utf8')).to.equal('Hello');
     expect(toHexString(buffer)).to.equal(hexString);
-  });
-
-  it('should confirm empty strings', () => {
-    const emptyString = '';
-    const emptyNumberString = '0';
-
-    const notEmptyString = 'test';
-    const noEmptyNumberString = '2';
-
-    expect(isNotEmpty(emptyString)).to.be.false;
-    expect(isNotEmpty(emptyNumberString)).to.be.false;
-    expect(isNotEmpty(notEmptyString)).to.be.true;
-    expect(isNotEmpty(noEmptyNumberString)).to.be.true;
   });
 });
