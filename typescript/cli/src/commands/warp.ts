@@ -32,7 +32,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
-import { getWarpCoreConfigOrExit } from '../utils/warp.js';
+import { getWarpConfigs, getWarpCoreConfigOrExit } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -366,15 +366,16 @@ export const check: CommandModuleWithContext<{
     }),
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, symbol, warp }) => {
+  handler: async ({ context, symbol, warp, warpRouteId, config }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    const { warpDeployConfig } = context;
-    let { warpCoreConfig } = context;
-    assert(
-      warpDeployConfig && warpCoreConfig,
-      'Missing warp deploy config or warp core config',
-    );
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context: context,
+      warpRouteId: warpRouteId,
+      config: config,
+      warp: warp,
+      symbol: symbol,
+    });
 
     // First validate that warpCoreConfig chains match warpDeployConfig
     const deployConfigChains = Object.keys(warpDeployConfig);
@@ -394,21 +395,9 @@ export const check: CommandModuleWithContext<{
     const onChainWarpConfig = await runWarpRouteRead({
       context: {
         ...context,
-        warpCoreConfig,
+        warpCoreConfig: warpCoreConfig,
       },
     });
-
-    warpCoreConfig =
-      context.warpCoreConfig ??
-      (await getWarpCoreConfigOrExit({
-        context,
-        warp,
-        symbol,
-      }));
-
-    if (!warpCoreConfig) {
-      throw new Error('No warp core config found');
-    }
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
