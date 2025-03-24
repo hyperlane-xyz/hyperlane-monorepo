@@ -37,13 +37,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
-      - name: Setup 10GB swap space
+      - name: Set up 20GB swap space
         run: |
           # Check if swap is already enabled
           if [ $(free | grep -c Swap) -eq 0 ] || [ $(free | grep Swap | awk '{print $2}') -eq 0 ]; then
-            echo "Setting up 10GB swap space"
-            # Create a 10GB swap file
-            sudo fallocate -l 10G /swapfile
+            echo "Setting up 20GB swap space"
+            # Create a 20GB swap file
+            sudo fallocate -l 20G /swapfile
             sudo chmod 600 /swapfile
             sudo mkswap /swapfile
             sudo swapon /swapfile
