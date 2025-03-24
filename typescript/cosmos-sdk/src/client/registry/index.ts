@@ -30,7 +30,7 @@ import {
 // amino converters can be null by default since the
 // converters for proto can be taken. In rare cases
 // they can differ, in that instance the amino
-// converters can be overriden here by adding the
+// converters can be overridden here by adding the
 // methods "toJSON" and "fromJSON".
 export const REGISTRY = {
   // Core transactions
