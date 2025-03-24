@@ -4,7 +4,6 @@ pragma solidity >=0.8.0;
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 
 import {HypERC20} from "../HypERC20.sol";
 
@@ -15,8 +14,7 @@ import {HypERC20} from "../HypERC20.sol";
 contract HyperToken is
     HypERC20,
     AccessControlUpgradeable,
-    ERC20BurnableUpgradeable,
-    ERC20PermitUpgradeable
+    ERC20BurnableUpgradeable
 {
     /// @notice Role identifier for addresses allowed to mint tokens.
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
