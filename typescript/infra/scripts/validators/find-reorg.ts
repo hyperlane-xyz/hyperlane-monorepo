@@ -54,15 +54,23 @@ async function main() {
       currentCheckpointIndex,
     );
     if (!signedCheckpoint) {
-      rootLogger.error(`Checkpoint ${currentCheckpointIndex} not found`);
+      rootLogger.error('Signed checkpoint not found', {
+        currentCheckpointIndex,
+        latestCheckpointIndex,
+      });
       continue;
     }
 
     const { root, index } = signedCheckpoint.value.checkpoint;
 
-    rootLogger.info(`Checking checkpoint ${index} with root ${root}`);
+    rootLogger.info(
+      'Fetched signed checkpoint',
+      signedCheckpoint.value.checkpoint,
+    );
 
-    rootLogger.info(`Searching for canonical checkpoint ${index}...`);
+    rootLogger.info('Searching for canonical checkpoint...', {
+      index,
+    });
     const canonicalCheckpoint = await getCanonicalCheckpointBinarySearch(
       merkleTreeHook,
       index,
@@ -71,7 +79,10 @@ async function main() {
     );
     if (!canonicalCheckpoint) {
       rootLogger.info(
-        `Canonical checkpoint for ${index} not found. This may be expected if there were multiple insertions in one block`,
+        'Canonical checkpoint not found. This may be expected if there were multiple insertions in one block',
+        {
+          index,
+        },
       );
 
       checkpointAssessments.push({
@@ -98,14 +109,20 @@ async function main() {
     };
 
     if (canonicalCheckpoint.root.toLowerCase() === root.toLowerCase()) {
-      rootLogger.info(`✅ No reorg detected at checkpoint ${index}`);
+      rootLogger.info('✅ No reorg detected at checkpoint', {
+        index,
+        signedCheckpoint: signedCheckpoint.value.checkpoint,
+        canonicalCheckpoint: canonicalCheckpoint,
+      });
       assessment.reorgStatus = '✅ NO REORG';
       checkpointAssessments.push(assessment);
       break;
     } else {
-      rootLogger.error(`❌ Reorg detected at checkpoint ${index}`);
-      rootLogger.error(`❌Canonical root: ${canonicalCheckpoint.root}`);
-      rootLogger.error(`❌Signed root: ${root}`);
+      rootLogger.error('❌❌ Reorg detected at checkpoint ❌❌', {
+        index,
+        signedCheckpoint: signedCheckpoint.value.checkpoint,
+        canonicalCheckpoint: canonicalCheckpoint,
+      });
       assessment.reorgStatus = '❌ REORG';
       checkpointAssessments.push(assessment);
     }
@@ -128,21 +145,25 @@ async function getCanonicalCheckpointBinarySearch(
   startBlock: number,
   endBlock: number,
 ): Promise<{ root: string; index: number; block: number } | null> {
-  rootLogger.debug(
-    'Searching for checkpoint',
+  rootLogger.debug('Searching for checkpoint in range', {
     checkpointIndex,
-    'between blocks',
     startBlock,
-    'and',
     endBlock,
-  );
+  });
 
   const midBlock = Math.floor((startBlock + endBlock) / 2);
   const midCheckpoint = await merkleTreeHook.latestCheckpoint({
     blockTag: midBlock,
   });
   const [midRoot, midIndex] = midCheckpoint;
-  rootLogger.debug('Mid checkpoint:', midIndex, midRoot);
+  rootLogger.debug('Checkpoint in middle of range found', {
+    checkpointIndex,
+    startBlock,
+    endBlock,
+    midBlock,
+    midIndex,
+    midRoot,
+  });
   if (midIndex === checkpointIndex) {
     return {
       root: midRoot,
