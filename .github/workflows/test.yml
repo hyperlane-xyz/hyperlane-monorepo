@@ -20,6 +20,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  RUSTC_WRAPPER: sccache
 
 jobs:
   yarn-install:
@@ -235,17 +236,6 @@ jobs:
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v2-rust-e2e'
-          shared-key: ${{ matrix.e2e-type }}
-          cache-provider: 'buildjet'
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
-          workspaces: |
-            ./rust/main
-            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
-
       - name: Free disk space
         run: |
           # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
@@ -282,6 +272,9 @@ jobs:
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.8
 
       - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
