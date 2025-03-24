@@ -359,7 +359,7 @@ export async function createAgentKeysIfNotExists(
   );
 
   // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
-  await persistAddressesLocally(agentConfig, keys);
+  await persistAddressesLocally(agentConfig, nonStarknetKeys);
   return;
 }
 

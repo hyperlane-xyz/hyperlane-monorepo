@@ -124,8 +124,6 @@ export type CosmosKeyConfig = {
 };
 export type StarknetKeyConfig = {
   type: AgentSignerKeyType.Starknet;
-  address: string;
-  key: string;
 };
 export type KeyConfig =
   | AwsKeyConfig
@@ -244,6 +242,7 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
     // For Ethereum, Sealevel, and Starknet, use a hex key
     case ProtocolType.Starknet:
+      return { type: AgentSignerKeyType.Starknet };
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:
