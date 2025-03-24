@@ -62,7 +62,8 @@ mod tests {
 
     use async_trait::async_trait;
     use eyre::Result;
-    use hyperlane_base::db::DbResult;
+    use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
 
     use super::*;
     use crate::chain_tx_adapter::*;
@@ -114,25 +115,70 @@ mod tests {
         }
     }
 
-    fn set_up() -> Box<dyn Entrypoint> {
+    fn set_up(db: Arc<dyn PayloadDb>) -> Box<dyn Entrypoint> {
         let adapter = Box::new(MockAdapter::new()) as Box<dyn AdaptsChain>;
-        let db = Box::new(MockDb::new()) as Box<dyn PayloadDb>;
         let entrypoint_state = PayloadDispatcherState::new(db, adapter);
         Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state))
     }
 
-    #[tokio::test]
-    async fn test_write_and_read_payload_mock_db() {
-        let entrypoint = set_up();
-        let payload = FullPayload::default();
+    async fn test_entrypoint_db_usage(
+        entrypoint: Box<dyn Entrypoint>,
+        db: Arc<dyn PayloadDb>,
+    ) -> Result<()> {
+        let mut payload = FullPayload::default();
         let payload_id = payload.id().clone();
 
-        entrypoint.send_payload(payload.clone()).await.unwrap();
-        let status = entrypoint.payload_status(payload_id.clone()).await.unwrap();
+        entrypoint.send_payload(payload.clone()).await?;
 
+        let status = entrypoint.payload_status(payload_id.clone()).await?;
         assert_eq!(status, PayloadStatus::ReadyToSubmit);
+
+        // update the payload's status
+        let new_status = PayloadStatus::Finalized;
+        payload.set_status(new_status.clone());
+        db.store_payload_by_id(payload).await.unwrap();
+
+        // ensure the db entry was updated
+        let status = entrypoint.payload_status(payload_id.clone()).await?;
+        assert_eq!(status, new_status);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_write_and_read_payload_rocksdb() {}
+    async fn test_write_and_read_payload_mock_db() {
+        let db = Arc::new(MockDb::new()) as Arc<dyn PayloadDb>;
+        let entrypoint = set_up(db.clone());
+
+        test_entrypoint_db_usage(entrypoint, db).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_write_and_read_payload_rocksdb() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let domain = KnownHyperlaneDomain::Arbitrum.into();
+        let rocksdb = Arc::new(HyperlaneRocksDB::new(&domain, db)) as Arc<dyn PayloadDb>;
+        let entrypoint = set_up(rocksdb.clone());
+
+        test_entrypoint_db_usage(entrypoint, rocksdb).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_estimate_gas_limit() {
+        let db = Arc::new(MockDb::new()) as Arc<dyn PayloadDb>;
+        let mock_gas_limit = GasLimit::from(8750526);
+        let mut mock_adapter = MockAdapter::new();
+        mock_adapter
+            .expect_estimate_gas_limit()
+            .returning(move |_| Ok(mock_gas_limit));
+        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let entrypoint_state = PayloadDispatcherState::new(db, adapter);
+        let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));
+
+        let payload = FullPayload::default();
+        let gas_limit = entrypoint.estimate_gas_limit(&payload).await.unwrap();
+
+        assert_eq!(gas_limit, mock_gas_limit);
+    }
 }

@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use eyre::Result;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -29,12 +29,12 @@ pub struct PayloadDispatcherSettings {
 }
 
 pub struct PayloadDispatcherState {
-    pub(crate) db: Box<dyn PayloadDb>,
+    pub(crate) db: Arc<dyn PayloadDb>,
     pub(crate) adapter: Box<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {
-    pub fn new(db: Box<dyn PayloadDb>, adapter: Box<dyn AdaptsChain>) -> Self {
+    pub fn new(db: Arc<dyn PayloadDb>, adapter: Box<dyn AdaptsChain>) -> Self {
         Self { db, adapter }
     }
 
@@ -42,7 +42,7 @@ impl PayloadDispatcherState {
         let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
         let db = DB::from_path(&settings.db_path)?;
         let rocksdb = HyperlaneRocksDB::new(&settings.domain, db);
-        let payload_db = Box::new(rocksdb) as Box<dyn PayloadDb>;
+        let payload_db = Arc::new(rocksdb) as Arc<dyn PayloadDb>;
         Ok(Self::new(payload_db, adapter))
     }
 }
