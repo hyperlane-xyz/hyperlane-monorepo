@@ -369,7 +369,8 @@ export const check: CommandModuleWithContext<{
   handler: async ({ context, symbol, warp }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    let { warpDeployConfig, warpCoreConfig } = context;
+    const { warpDeployConfig } = context;
+    let { warpCoreConfig } = context;
     assert(
       warpDeployConfig && warpCoreConfig,
       'Missing warp deploy config or warp core config',
