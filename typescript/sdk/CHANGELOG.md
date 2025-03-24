@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sdk
 
+## 9.2.1
+
+### Patch Changes
+
+- e3d09168e: Updated NON_ZERO_SENDER_ADDRESS to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 to fix reading on zksync chains
+  - @hyperlane-xyz/utils@9.2.1
+  - @hyperlane-xyz/core@6.0.3
+
 ## 9.2.0
 
 ### Minor Changes
