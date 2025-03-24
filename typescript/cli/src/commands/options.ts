@@ -261,6 +261,6 @@ export const avsChainCommandOption: Options = {
 
 export const warpRouteIdCommandOption: Options = {
   type: 'string',
-  description: 'Warp route ID to check',
+  description: 'Warp route ID to specify the warp route',
   alias: 'id',
 };

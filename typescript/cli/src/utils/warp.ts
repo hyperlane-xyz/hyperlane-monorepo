@@ -44,34 +44,37 @@ export async function getWarpCoreConfigOrExit({
 /**
  * Gets both warp configs based on the provided inputs. Handles all cases:
  * - warpRouteId: gets configs directly from registry
- * - config & warp files: reads from files
+ * - warpDeployConfigPath & warpCoreConfigPath: reads from files
  * - symbol: prompts user to select from matching routes
  * - no inputs: prompts user to search and select from all routes
  */
 export async function getWarpConfigs({
   context,
   warpRouteId,
-  config,
-  warp,
+  warpDeployConfigPath,
+  warpCoreConfigPath,
   symbol,
 }: {
   context: CommandContext;
   warpRouteId?: string;
-  config?: string;
-  warp?: string;
+  warpDeployConfigPath?: string;
+  warpCoreConfigPath?: string;
   symbol?: string;
 }): Promise<{
   warpDeployConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (config || warp) {
-    if (!config || !warp) {
+  if (warpDeployConfigPath || warpCoreConfigPath) {
+    if (!warpDeployConfigPath || !warpCoreConfigPath) {
       throw new Error(
-        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
+        'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
       );
     }
-    const warpDeployConfig = await readWarpRouteDeployConfig(config, context);
-    const warpCoreConfig = readWarpCoreConfig(warp);
+    const warpDeployConfig = await readWarpRouteDeployConfig(
+      warpDeployConfigPath,
+      context,
+    );
+    const warpCoreConfig = readWarpCoreConfig(warpCoreConfigPath);
     return { warpDeployConfig, warpCoreConfig };
   }
 

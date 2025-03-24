@@ -363,6 +363,7 @@ export const check: CommandModuleWithContext<{
     config: inputFileCommandOption({
       description: 'The path to a warp route deployment configuration file',
       demandOption: false,
+      alias: 'wd',
     }),
     warpRouteId: warpRouteIdCommandOption,
   },
@@ -370,11 +371,12 @@ export const check: CommandModuleWithContext<{
     logCommandHeader('Hyperlane Warp Check');
 
     const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-      context: context,
-      warpRouteId: warpRouteId,
-      config: config,
-      warp: warp,
-      symbol: symbol,
+      context,
+      warpRouteId,
+      symbol,
+
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
     });
 
     // First validate that warpCoreConfig chains match warpDeployConfig
