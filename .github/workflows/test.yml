@@ -236,6 +236,17 @@ jobs:
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v3-rust-e2e'
+          shared-key: ${{ matrix.e2e-type }}
+          cache-provider: 'buildjet'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/main
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
+
       - name: Free disk space
         run: |
           # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
@@ -260,15 +271,30 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
+      - name: Install OpenSSL 1.1 for Solana toolchain
+        run: |
+          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          sudo dpkg -i libssl1.1.deb
+
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
+      # Set rust_changes to true if:
+      # - in the merge queue
+      # - on the main branch
+      # - PR with changes to ./rust
+      # - PR with changes to this workflow
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
-          if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
+          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" && -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml)" ]]; then
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in Rust files or workflow:"
+            git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
