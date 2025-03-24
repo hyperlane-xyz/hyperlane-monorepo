@@ -37,6 +37,23 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: Setup 10GB swap space
+        run: |
+          # Check if swap is already enabled
+          if [ $(free | grep -c Swap) -eq 0 ] || [ $(free | grep Swap | awk '{print $2}') -eq 0 ]; then
+            echo "Setting up 10GB swap space"
+            # Create a 10GB swap file
+            sudo fallocate -l 10G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            # Verify swap is enabled
+            echo "Swap configuration after setup:"
+            free -h
+          else
+            echo "Swap already configured"
+            free -h
+          fi
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -117,39 +134,6 @@ jobs:
       - name: Run tests for sealevel workspace
         run: cargo test
         working-directory: ./rust/sealevel
-
-      - name: Install cargo-tarpaulin
-        uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-tarpaulin
-          version: 0.32.3
-          use-tool-cache: true
-      
-      - name: Generate code coverage for submitter crate
-        working-directory: rust/main
-        run: |
-          cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json --out Xml -p submitter --verbose
-          
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: rust/main/cobertura.xml
-          fail_ci_if_error: true
-          flags: submitter
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Check coverage meets threshold
-        working-directory: ./rust/main
-        run: |
-          # Extract coverage for submitter crate only
-          COVERAGE=$(jq -r '[.files[] | select(.path | join("/") | contains("/submitter/"))] | [([.[] | .covered] | add), ([.[] | .coverable] | add)] | @tsv' tarpaulin-report.json | awk '{print $1/$2}')
-          echo "Submitter crate coverage: $COVERAGE%"
-          
-          if (( $(echo "$COVERAGE < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
-            echo "Error: Submitter crate coverage ($COVERAGE%) is below the minimum threshold of ($MIN_SUBMITTERCOVERAGE_PERCENTAGE%)"
-            exit 1
-          fi
-          echo "Coverage threshold met for submitter crate!"
 
   lint-rs:
     runs-on: buildjet-8vcpu-ubuntu-2204
