@@ -2,7 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import { assert, objFilter, setEquality } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -26,7 +26,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
-import { getWarpConfigs, getWarpCoreConfigOrExit } from '../utils/warp.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -360,7 +360,7 @@ export const check: CommandModuleWithContext<{
     }),
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, symbol, warp }) => {
+  handler: async ({ context }) => {
     logCommandHeader('Hyperlane Warp Check');
 
     let { warpDeployConfig, warpCoreConfig } = context;
@@ -373,10 +373,7 @@ export const check: CommandModuleWithContext<{
     const deployConfigChains = Object.keys(warpDeployConfig);
     const coreConfigChains = warpCoreConfig.tokens.map((t) => t.chainName);
 
-    if (
-      !deployConfigChains.every((chain) => coreConfigChains.includes(chain)) ||
-      !coreConfigChains.every((chain) => deployConfigChains.includes(chain))
-    ) {
+    if (!setEquality(new Set(deployConfigChains), new Set(coreConfigChains))) {
       logRed('Chain mismatch between warp core config and warp deploy config:');
       logRed('──────────────────────');
       logRed('Deploy config chains:');
@@ -392,8 +389,6 @@ export const check: CommandModuleWithContext<{
         ...context,
         warpCoreConfig,
       },
-      warp,
-      symbol,
     });
 
     await runWarpRouteCheck({
