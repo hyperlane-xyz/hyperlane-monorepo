@@ -23,6 +23,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
   envNameToAgentEnv,
@@ -55,10 +56,35 @@ export async function writeAgentConfig(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
+  // Get gas prices for Cosmos chains.
+  // Instead of iterating through `addresses`, which only includes EVM chains,
+  // iterate through the environment chain names.
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const environmentChains = envAgentConfig.environmentChainNames;
+  const additionalConfig = Object.fromEntries(
+    await Promise.all(
+      environmentChains
+        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
+        .map(async (chain) => [
+          chain,
+          {
+            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
+          },
+        ]),
+    ),
+  );
+
+  // Include scraper-only chains in the generatedagent config
+  const agentConfigChains = getCombinedChainsToScrape(
+    envAgentConfig.environmentChainNames,
+    envAgentConfig.scraper?.scraperOnlyChains || {},
+  );
+
   // Get the addresses for the environment
   const addressesMap = getAddresses(
     environment,
     Modules.CORE,
+    agentConfigChains,
   ) as ChainMap<ChainAddresses>;
 
   const addressesForEnv = filterRemoteDomainMetadata(addressesMap);
@@ -113,31 +139,14 @@ export async function writeAgentConfig(
     ),
   );
 
-  // Get gas prices for Cosmos chains.
-  // Instead of iterating through `addresses`, which only includes EVM chains,
-  // iterate through the environment chain names.
-  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
-  const environmentChains = envAgentConfig.environmentChainNames;
-  const additionalConfig = Object.fromEntries(
-    await Promise.all(
-      environmentChains
-        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
-        .map(async (chain) => [
-          chain,
-          {
-            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
-          },
-        ]),
-    ),
-  );
-
   const agentConfig = buildAgentConfig(
-    environmentChains,
+    agentConfigChains,
     await getEnvironmentConfig(environment).getMultiProvider(
       undefined,
       undefined,
       // Don't use secrets
       false,
+      agentConfigChains,
     ),
     addressesForEnv as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,

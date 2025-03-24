@@ -617,15 +617,28 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
   return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
-export function getAddresses(environment: DeployEnvironment, module: Modules) {
+export function getAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  chains: ChainName[] = [],
+) {
+  let addresses;
   if (isRegistryModule(environment, module)) {
-    const allAddresses = getChainAddresses();
-    const envChains = getEnvChains(environment);
-    return objFilter(allAddresses, (chain, _): _ is ChainAddresses => {
-      return envChains.includes(chain);
+    addresses = getChainAddresses();
+  } else {
+    addresses = readJSONAtPath(getInfraLandfillPath(environment, module));
+  }
+
+  // Filter by chains if specified, otherwise use environment chains
+  if (chains.length > 0) {
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return chains.includes(chain);
     });
   } else {
-    return readJSONAtPath(getInfraLandfillPath(environment, module));
+    const envChains = getEnvChains(environment);
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return envChains.includes(chain);
+    });
   }
 }
 

@@ -23,6 +23,7 @@ import {
   senderMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
+import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
@@ -469,6 +470,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
 };
 
+// Chains not in our core set of supported chains, and supported ONLY by the scraper
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
+  forma: true,
+};
+
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
   mainnet3SupportedChainNames,
@@ -742,6 +748,7 @@ const hyperlane: RootAgentConfig = {
     resources: validatorResources,
   },
   scraper: {
+    scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
