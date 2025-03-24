@@ -41,7 +41,7 @@ import {
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
 
-describe.only('hyperlane warp check e2e tests', async function () {
+describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Addresses: ChainAddresses = {};

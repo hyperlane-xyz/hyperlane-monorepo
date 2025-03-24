@@ -29,7 +29,6 @@ enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_READ,
-  WARP_CHECK,
   STRATEGY,
   CORE_APPLY,
   DEFAULT,
@@ -222,10 +221,6 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpCoreConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_READ);
-  }
-
-  static forWarpCoreDeployConfigs(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.WARP_CHECK);
   }
 
   static forCoreApply(): MultiChainResolver {
