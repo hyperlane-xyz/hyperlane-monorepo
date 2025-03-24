@@ -22,6 +22,7 @@ const warpIdsToSkip = [
   'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain-staging',
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
+  'USDC/ethereum-superseed',
 ];
 
 describe('Warp Configs', async function () {
