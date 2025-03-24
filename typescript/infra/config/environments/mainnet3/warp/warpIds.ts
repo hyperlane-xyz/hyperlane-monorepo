@@ -54,7 +54,7 @@ export enum WarpRouteIds {
   AppchainBaseUSDC = 'USDC/appchain-base',
   BobaBsquaredSwellUBTC = 'UBTC/boba-bsquared-swell',
   EthereumSuperseedCBBTC = 'CBBTC/ethereum-superseed',
-  EthereumSuperseedUSDC = 'USDC/ethereum-superseed',
+  EthereumSuperseedUSDC = 'USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed',
   EthereumFormUSDT = 'USDT/ethereum-form',
   EthereumFormUSDC = 'USDC/ethereum-form',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',
