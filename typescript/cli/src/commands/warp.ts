@@ -360,23 +360,15 @@ export const check: CommandModuleWithContext<{
     }),
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, symbol, warp, warpRouteId }) => {
+  handler: async ({ context, symbol, warp }) => {
     logCommandHeader('Hyperlane Warp Check');
 
     let { warpDeployConfig, warpCoreConfig } = context;
+    assert(
+      warpDeployConfig && warpCoreConfig,
+      'Missing warp deploy config or warp core config',
+    );
 
-    if (!warpDeployConfig || !warpCoreConfig) {
-      const configs = await getWarpConfigs({
-        context,
-        warpRouteId,
-        config,
-        warp,
-        symbol,
-      });
-      assert(configs.warpDeployConfig, `No warp deploy config found!`);
-      warpDeployConfig = configs.warpDeployConfig;
-      warpCoreConfig = configs.warpCoreConfig;
-    }
     // First validate that warpCoreConfig chains match warpDeployConfig
     const deployConfigChains = Object.keys(warpDeployConfig);
     const coreConfigChains = warpCoreConfig.tokens.map((t) => t.chainName);
