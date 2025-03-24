@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_config::{
@@ -21,25 +23,19 @@ use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, Ch
 use crate::error::HyperlaneSealevelError;
 
 /// Wrapper struct around Solana's RpcClient
-pub struct SealevelRpcClient(RpcClient);
-
-impl Clone for SealevelRpcClient {
-    fn clone(&self) -> Self {
-        let rpc_client = RpcClient::new(self.url());
-        Self(rpc_client)
-    }
-}
+#[derive(Clone)]
+pub struct SealevelRpcClient(Arc<RpcClient>);
 
 impl SealevelRpcClient {
     /// constructor
     pub fn new(rpc_endpoint: String) -> Self {
         let rpc_client =
             RpcClient::new_with_commitment(rpc_endpoint, CommitmentConfig::processed());
-        Self::from_rpc_client(rpc_client)
+        Self::from_rpc_client(Arc::new(rpc_client))
     }
 
     /// constructor with an rpc client
-    pub fn from_rpc_client(rpc_client: RpcClient) -> Self {
+    pub fn from_rpc_client(rpc_client: Arc<RpcClient>) -> Self {
         Self(rpc_client)
     }
 
