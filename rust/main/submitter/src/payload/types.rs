@@ -11,7 +11,7 @@ pub type PayloadId = UniqueIdentifier;
 type Address = H256;
 
 /// Struct needed to keep lightweight references to payloads, such that when included in logs there's no noise.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
     id: PayloadId,
@@ -25,7 +25,7 @@ pub struct PayloadDetails {
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct FullPayload {
     /// reference to payload used by other components
     details: PayloadDetails,
@@ -50,6 +50,7 @@ pub enum PayloadStatus {
     PendingInclusion,
     Included,
     Finalized,
+    NotFound,
     Dropped(DropReason),
     Retry(RetryReason),
 }
@@ -68,5 +69,9 @@ pub enum RetryReason {
 impl FullPayload {
     pub fn id(&self) -> &PayloadId {
         &self.details.id
+    }
+
+    pub fn status(&self) -> PayloadStatus {
+        self.status.clone()
     }
 }

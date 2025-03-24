@@ -29,8 +29,8 @@ pub struct PayloadDispatcherSettings {
 }
 
 pub struct PayloadDispatcherState {
-    db: Box<dyn PayloadDb>,
-    adapter: Box<dyn AdaptsChain>,
+    pub(crate) db: Box<dyn PayloadDb>,
+    pub(crate) adapter: Box<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {

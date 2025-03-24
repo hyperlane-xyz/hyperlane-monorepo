@@ -3,6 +3,7 @@
 
 use std::io::Write;
 
+use async_trait::async_trait;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlaneProtocolError};
 
@@ -10,20 +11,22 @@ use super::{FullPayload, PayloadId};
 
 const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
 
-pub trait PayloadDb {
+#[async_trait]
+pub trait PayloadDb: Send + Sync {
     /// Retrieve a payload by its unique ID
-    fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>>;
+    async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>>;
 
     /// Store a payload by its unique ID
-    fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()>;
+    async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()>;
 }
 
+#[async_trait]
 impl PayloadDb for HyperlaneRocksDB {
-    fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>> {
+    async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>> {
         self.retrieve_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, id)
     }
 
-    fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()> {
+    async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()> {
         self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), &payload)
     }
 }

@@ -81,7 +81,7 @@ impl Decode for HyperlaneIdentifier {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash, Default)]
 /// Unique identifier type
 pub struct UniqueIdentifier(Uuid);
 
