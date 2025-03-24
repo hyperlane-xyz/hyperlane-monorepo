@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use axum::async_trait;
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Report, Result};
+use serde_json::Value;
 
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
@@ -12,6 +13,7 @@ use hyperlane_core::{
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
     SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use hyperlane_cosmos::{
@@ -23,7 +25,6 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
@@ -45,6 +46,18 @@ pub trait TryFromWithMetrics<T>: Sized {
         metrics: &CoreMetrics,
         advanced_log_meta: bool,
     ) -> Result<Self>;
+}
+
+/// Contains JSON value which can contain chain-specific configuration which is parsed by
+/// AdaptsChain trait implementation.
+#[allow(dead_code)]
+#[derive(Clone, Debug, Default)]
+pub struct RawChainConf(Value);
+
+impl From<Value> for RawChainConf {
+    fn from(value: Value) -> Self {
+        Self(value)
+    }
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
