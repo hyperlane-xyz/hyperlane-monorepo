@@ -31,10 +31,6 @@ impl PayloadDispatcherState {
         let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
         Self { adapter }
     }
-
-    pub(crate) fn from_adapter(adapter: Box<dyn AdaptsChain>) -> Self {
-        Self { adapter }
-    }
 }
 pub struct PayloadDispatcher {
     inner: PayloadDispatcherState,

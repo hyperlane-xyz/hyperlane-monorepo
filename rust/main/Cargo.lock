@@ -9618,7 +9618,6 @@ dependencies = [
  "eyre",
  "hyperlane-base",
  "hyperlane-core",
- "mockall",
  "serde",
  "serde_json",
  "thiserror",
