@@ -1,3 +1,7 @@
+use std::ops::Deref;
+
+use uuid::Uuid;
+
 use crate::{Decode, Encode, HyperlaneProtocolError, H160, H256};
 
 /// Identifier type.
@@ -74,5 +78,24 @@ impl Decode for HyperlaneIdentifier {
         Self: Sized,
     {
         Ok(HyperlaneIdentifier(H256::read_from(reader)?))
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+/// Unique identifier type
+pub struct UniqueIdentifier(Uuid);
+
+impl UniqueIdentifier {
+    /// Create a new unique identifier
+    pub fn new(uuid: Uuid) -> Self {
+        UniqueIdentifier(uuid)
+    }
+}
+
+impl Deref for UniqueIdentifier {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
