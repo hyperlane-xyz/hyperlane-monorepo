@@ -37,23 +37,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
-      - name: Set up 20GB swap space
-        run: |
-          # Check if swap is already enabled
-          if [ $(free | grep -c Swap) -eq 0 ] || [ $(free | grep Swap | awk '{print $2}') -eq 0 ]; then
-            echo "Setting up 20GB swap space"
-            # Create a 20GB swap file
-            sudo fallocate -l 20G /swapfile
-            sudo chmod 600 /swapfile
-            sudo mkswap /swapfile
-            sudo swapon /swapfile
-            # Verify swap is enabled
-            echo "Swap configuration after setup:"
-            free -h
-          else
-            echo "Swap already configured"
-            free -h
-          fi
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -71,39 +54,30 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: Install cargo-tarpaulin
-        uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-tarpaulin
-          version: 0.32.3
-          use-tool-cache: true
-      
-      - name: Generate code coverage for submitter crate
-        working-directory: rust/main
+      - name: Install cargo-llvm-cov
         run: |
-          cargo tarpaulin --avoid-cfg-tarpaulin --skip-clean --target-dir ../target/tarpaulin --out Json --out Xml -p submitter --verbose
-          
+          cargo install cargo-llvm-cov@0.5.39 --locked
+          rustup component add llvm-tools-preview
+      
+      - name: Generate coverage for submitter package
+        run: cargo llvm-cov --package submitter --json --output-path coverage.json
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(cat coverage.json | jq -r '.data[0].totals.lines.percent')
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE * 100 < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
+            echo "Code coverage is below minimum threshold of $MIN_SUBMITTERCOVERAGE_PERCENTAGE percent"
+            exit 1
+          fi
+      
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          file: rust/main/cobertura.xml
-          fail_ci_if_error: true
+          files: coverage.json
           flags: submitter
+          fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Check coverage meets threshold
-        working-directory: ./rust/main
-        run: |
-          # Extract coverage for submitter crate only
-          COVERAGE=$(jq -r '[.files[] | select(.path | join("/") | contains("/submitter/"))] | [([.[] | .covered] | add), ([.[] | .coverable] | add)] | @tsv' tarpaulin-report.json | awk '{print $1/$2}')
-          echo "Submitter crate coverage: $COVERAGE%"
-          
-          if (( $(echo "$COVERAGE < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
-            echo "Error: Submitter crate coverage ($COVERAGE%) is below the minimum threshold of ($MIN_SUBMITTERCOVERAGE_PERCENTAGE%)"
-            exit 1
-          fi
-          echo "Coverage threshold met for submitter crate!"
-
 
   test-rs:
     runs-on: buildjet-8vcpu-ubuntu-2204
