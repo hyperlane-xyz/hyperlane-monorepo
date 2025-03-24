@@ -11,10 +11,10 @@ use super::{FullPayload, PayloadId};
 const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
 
 pub trait PayloadDb {
-    /// Retrieve the nonce of the highest processed message we're aware of
+    /// Retrieve a payload by its unique ID
     fn retrieve_payload_by_id(&self, id: &UniqueIdentifier) -> DbResult<Option<FullPayload>>;
 
-    /// Retrieve a message by its nonce
+    /// Store a payload by its unique ID
     fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()>;
 }
 

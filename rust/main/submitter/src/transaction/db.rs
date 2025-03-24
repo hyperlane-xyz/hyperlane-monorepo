@@ -11,10 +11,10 @@ use super::{Transaction, TransactionId};
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
 pub trait TransactionDb {
-    /// Retrieve the nonce of the highest processed message we're aware of
+    /// Retrieve a transaction by its unique ID
     fn retrieve_transaction_by_id(&self, id: &TransactionId) -> DbResult<Option<Transaction>>;
 
-    /// Retrieve a message by its nonce
+    /// Store a transaction by its unique ID
     fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()>;
 }
 
