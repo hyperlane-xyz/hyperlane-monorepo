@@ -1,5 +1,32 @@
 # @hyperlane-xyz/widgets
 
+## 9.1.0
+
+### Patch Changes
+
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
 ## 8.9.0
 
 ### Patch Changes
