@@ -1,15 +1,25 @@
 import { zeroAddress } from 'viem';
 
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  TransformObjectTransformer,
+  objMap,
+  transformObj,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
+import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { WarpRouteDeployConfig } from './types.js';
+import {
+  HypTokenRouterConfig,
+  WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
 
 /**
  * Gets gas configuration for a chain
@@ -21,6 +31,12 @@ const getGasConfig = (
   warpDeployConfig[chain].gas?.toString() ||
   gasOverhead(warpDeployConfig[chain].type).toString();
 
+/**
+ * Returns default router addresses and gas values for cross-chain communication.
+ * For each remote chain:
+ * - Sets up router addresses for message routing
+ * - Configures gas values for message processing
+ */
 export function getDefaultRemoteRouterAndDestinationGasConfig(
   multiProvider: MultiProvider,
   chain: string,
@@ -60,9 +76,9 @@ export function getRouterAddressesFromWarpCoreConfig(
 
 export async function expandWarpDeployConfig(
   multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   deployedRoutersAddresses: ChainMap<Address>,
-): Promise<WarpRouteDeployConfig> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
@@ -89,4 +105,75 @@ export async function expandWarpDeployConfig(
       ...config,
     };
   });
+}
+
+const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => {
+  // Needed to check if we are currently inside the remoteRouters object
+  const maybeRemoteRoutersKey = propPath[propPath.length - 3];
+  const parentKey = propPath[propPath.length - 1];
+
+  // Remove the address and ownerOverrides fields if we are not inside the
+  // remoteRouters property
+  if (
+    (parentKey === 'address' && maybeRemoteRoutersKey !== 'remoteRouters') ||
+    parentKey === 'ownerOverrides'
+  ) {
+    return undefined;
+  }
+
+  if (typeof obj === 'string' && parentKey !== 'type') {
+    return obj.toLowerCase();
+  }
+
+  return obj;
+};
+
+type HypTokenRouterConfigKey = keyof HypTokenRouterConfig;
+const KEYS_TO_IGNORE: HypTokenRouterConfigKey[] = ['totalSupply'];
+
+/**
+ * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
+ * field where they are not required for the config comparison
+ */
+export function transformConfigToCheck(
+  obj: HypTokenRouterConfig,
+): HypTokenRouterConfig {
+  const filteredObj = Object.fromEntries(
+    Object.entries(obj).filter(
+      ([key]) => !KEYS_TO_IGNORE.includes(key as HypTokenRouterConfigKey),
+    ),
+  );
+
+  return sortArraysInConfig(
+    transformObj(filteredObj, transformWarpDeployConfigToCheck),
+  );
+}
+
+/**
+ * Splits warp deploy config into existing and extended configurations based on warp core chains
+ * for the warp apply process.
+ */
+export function splitWarpCoreAndExtendedConfigs(
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpCoreChains: string[],
+): [
+  WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequired,
+] {
+  return Object.entries(warpDeployConfig).reduce<
+    [WarpRouteDeployConfigMailboxRequired, WarpRouteDeployConfigMailboxRequired]
+  >(
+    ([existing, extended], [chain, config]) => {
+      if (warpCoreChains.includes(chain)) {
+        existing[chain] = config;
+      } else {
+        extended[chain] = config;
+      }
+      return [existing, extended];
+    },
+    [{}, {}],
+  );
 }
