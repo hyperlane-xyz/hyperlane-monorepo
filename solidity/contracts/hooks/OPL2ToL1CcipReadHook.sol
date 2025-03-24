@@ -42,14 +42,7 @@ contract OPL2ToL1CcipReadHook is AbstractMessageIdAuthHook {
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
-        uint256 relayFees = mailbox.quoteDispatch(
-            destinationDomain,
-            ism,
-            message,
-            metadata
-        );
-
-        mailbox.dispatch{value: relayFees}(
+        mailbox.dispatch{value: msg.value}(
             destinationDomain,
             ism,
             message,
