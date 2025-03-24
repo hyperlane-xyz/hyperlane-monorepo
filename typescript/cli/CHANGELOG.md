@@ -1,5 +1,17 @@
 # @hyperlane-xyz/cli
 
+## 9.2.0
+
+### Patch Changes
+
+- 2955bd990: Catch and log error instead of hard exiting when unable to get the tx receipt of a delivered message.
+- 53dd71a4b: Do not error in hyperlane status if chain does not contain block explorer URL.
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
 ## 9.1.0
 
 ### Minor Changes

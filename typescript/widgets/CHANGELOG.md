@@ -1,5 +1,19 @@
 # @hyperlane-xyz/widgets
 
+## 9.2.0
+
+### Minor Changes
+
+- 3e66e8f12: Utils for fetching Starknet chains
+
+### Patch Changes
+
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
 ## 9.1.0
 
 ### Patch Changes
