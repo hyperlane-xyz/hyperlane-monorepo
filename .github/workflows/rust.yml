@@ -61,6 +61,7 @@ jobs:
       
       - name: Generate coverage for submitter package
         run: cargo llvm-cov --package submitter --json --output-path coverage.json
+        working-directory: ./rust/main
 
       - name: Check coverage threshold
         run: |
@@ -70,12 +71,13 @@ jobs:
             echo "Code coverage is below minimum threshold of $MIN_SUBMITTERCOVERAGE_PERCENTAGE percent"
             exit 1
           fi
+        working-directory: ./rust/main
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: coverage.json
-          flags: submitter
+          flags: ./rust/main/submitter
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
