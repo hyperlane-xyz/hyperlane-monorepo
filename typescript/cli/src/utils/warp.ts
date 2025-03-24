@@ -81,11 +81,17 @@ export async function getWarpConfigs({
       symbol,
     );
     const routeId = warpRouteConfigToId(warpCoreConfig);
-    if (!routeId) {
-      throw new Error(`No matching warp route ID found for symbol ${symbol}`);
-    }
+    assert(routeId, `No matching warp route ID found for symbol ${symbol}`);
 
-    const warpDeployConfig = await getWarpDeployConfig(routeId, context);
+    const warpDeployConfig = await context.registry.getWarpDeployConfig(
+      routeId,
+    );
+
+    assert(
+      warpDeployConfig,
+      `warp deploy config not found for route ${routeId}`,
+    );
+
     return { warpDeployConfig, warpCoreConfig };
   }
 
