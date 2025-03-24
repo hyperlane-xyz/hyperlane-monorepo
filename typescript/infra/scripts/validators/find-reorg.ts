@@ -136,9 +136,6 @@ async function getCanonicalCheckpointBinarySearch(
     'and',
     endBlock,
   );
-  if (startBlock === endBlock) {
-    return null;
-  }
 
   const midBlock = Math.floor((startBlock + endBlock) / 2);
   const midCheckpoint = await merkleTreeHook.latestCheckpoint({
@@ -152,6 +149,13 @@ async function getCanonicalCheckpointBinarySearch(
       index: midIndex,
       block: midBlock,
     };
+  }
+
+  // This can happen if multiple messages were inserted in the same block -- in this case,
+  // a checkpoint for a particular index may have only existed very briefly within a block, but not as
+  // the final state of the block.
+  if (startBlock === endBlock) {
+    return null;
   }
 
   if (checkpointIndex < midIndex) {
