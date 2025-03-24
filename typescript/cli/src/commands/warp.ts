@@ -4,6 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  WarpRouteDeployConfigMailboxRequired,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -410,7 +411,7 @@ export const check: CommandModuleWithContext<{
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
-      warpDeployConfig,
+      warpDeployConfig as WarpRouteDeployConfigMailboxRequired,
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     );
 
