@@ -1074,8 +1074,6 @@ mod test {
             })
             .sum();
 
-        eprintln!("Total backoff duration: {:?}", total_backoff_duration);
-
         // Have a window that is acceptable for "around 2 weeks".
         // Give or take 1 day.
         let max_backoff_duration = chrono::Duration::weeks(2)
