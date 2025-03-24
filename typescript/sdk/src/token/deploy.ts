@@ -8,7 +8,13 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objKeys,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -120,6 +126,10 @@ abstract class TokenDeployer<
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
         return TokenMetadataSchema.parse(config);
+      } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        // If the config didn't specify the token metadata, we can only now
+        // derive it for Ethereum chains. So here we skip non-Ethereum chains.
+        continue;
       }
 
       if (isNativeTokenConfig(config)) {

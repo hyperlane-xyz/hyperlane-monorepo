@@ -219,11 +219,17 @@ export class Token implements IToken {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypXERC20) {
+    } else if (
+      standard === TokenStandard.EvmHypXERC20 ||
+      standard === TokenStandard.EvmHypVSXERC20
+    ) {
       return new EvmHypXERC20Adapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypXERC20Lockbox) {
+    } else if (
+      standard === TokenStandard.EvmHypXERC20Lockbox ||
+      standard === TokenStandard.EvmHypVSXERC20Lockbox
+    ) {
       return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });

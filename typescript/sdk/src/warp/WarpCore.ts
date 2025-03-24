@@ -488,31 +488,17 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    if (
-      !TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard) &&
-      !MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
-    ) {
+    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
       this.logger.debug(
         `${destinationToken.symbol} is not collateralized, skipping`,
       );
       return true;
     }
 
-    let destinationBalance: bigint;
-
     const adapter = destinationToken.getAdapter(this.multiProvider);
-    if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
-      destinationBalance = await (
-        adapter as IHypXERC20Adapter<unknown>
-      ).getMintLimit();
-    } else {
-      destinationBalance = await adapter.getBalance(
-        destinationToken.addressOrDenom,
-      );
-    }
+    const destinationBalance: bigint = await adapter.getBalance(
+      destinationToken.addressOrDenom,
+    );
 
     const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
       destinationToken.decimals,
@@ -585,6 +571,12 @@ export class WarpCore {
       recipient,
     );
     if (amountError) return amountError;
+
+    const destinationRateLimitError = await this.validateDestinationRateLimit(
+      originTokenAmount,
+      destination,
+    );
+    if (destinationRateLimitError) return destinationRateLimitError;
 
     const destinationCollateralError = await this.validateDestinationCollateral(
       originTokenAmount,
@@ -788,8 +780,73 @@ export class WarpCore {
       originTokenAmount,
       destination,
     });
-    if (!valid) return { amount: 'Insufficient collateral on destination' };
 
+    if (!valid) {
+      return { amount: 'Insufficient collateral on destination' };
+    }
+    return null;
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for minting
+   */
+  protected async validateDestinationRateLimit(
+    originTokenAmount: TokenAmount,
+    destination: ChainNameOrId,
+  ): Promise<Record<string, string> | null> {
+    const { token: originToken, amount } = originTokenAmount;
+    const destinationName = this.multiProvider.getChainName(destination);
+    const destinationToken =
+      originToken.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
+
+    if (!MINT_LIMITED_STANDARDS.includes(destinationToken.standard)) {
+      this.logger.debug(
+        `${destinationToken.symbol} does not have rate limit constraint, skipping`,
+      );
+      return null;
+    }
+
+    let destinationMintLimit: bigint = 0n;
+    if (
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as IHypXERC20Adapter<unknown>;
+      destinationMintLimit = await adapter.getMintLimit();
+
+      if (
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20 ||
+        destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+      ) {
+        const bufferCap = await adapter.getMintMaxLimit();
+        const max = bufferCap / 2n;
+        if (destinationMintLimit > max) {
+          this.logger.debug(
+            `Mint limit ${destinationMintLimit} exceeds max ${max}, using max`,
+          );
+          destinationMintLimit = max;
+        }
+      }
+    }
+
+    const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(
+      destinationToken.decimals,
+      originToken.decimals,
+      destinationMintLimit.toString(),
+    );
+
+    const isSufficient = BigInt(destinationMintLimitInOriginDecimals) >= amount;
+    this.logger.debug(
+      `${originTokenAmount.token.symbol} to ${destination} has ${
+        isSufficient ? 'sufficient' : 'INSUFFICIENT'
+      } rate limits`,
+    );
+    if (!isSufficient) return { amount: 'Rate limit exceeded on destination' };
     return null;
   }
 

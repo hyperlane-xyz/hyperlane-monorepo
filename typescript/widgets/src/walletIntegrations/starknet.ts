@@ -1,4 +1,3 @@
-import { Chain } from '@starknet-react/chains';
 import {
   useAccount,
   useConnect,
@@ -17,7 +16,6 @@ import {
   ProviderType,
   TypedTransactionReceipt,
   WarpTypedTransaction,
-  chainMetadataToStarknetChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -29,7 +27,6 @@ import {
   ChainTransactionFns,
   WalletDetails,
 } from './types.js';
-import { getChainsForProtocol } from './utils.js';
 
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknet',
@@ -107,6 +104,7 @@ export function useStarknetTransactionFns(
 ): ChainTransactionFns {
   const { chain } = useNetwork();
   const { account } = useAccount();
+
   const { sendAsync } = useSendTransaction({});
   const { switchChainAsync } = useSwitchChain({});
 
@@ -145,33 +143,30 @@ export function useStarknetTransactionFns(
       const chainId = multiProvider.getChainMetadata(chainName).chainId;
       const chainIdFromWallet = await account.getChainId();
 
-      assert(
-        chainIdFromWallet === chainId,
-        `Wallet not on chain ${chainName} (ChainMismatchError)`,
-      );
+      try {
+        assert(
+          chainIdFromWallet === chainId,
+          `Wallet not on chain ${chainName} (ChainMismatchError)`,
+        );
 
-      const result = await sendAsync([tx.transaction as Call]);
-      const hash = result.transaction_hash;
-      const confirm = async (): Promise<TypedTransactionReceipt> => {
-        const receipt = await account.waitForTransaction(hash);
-        return {
-          type: ProviderType.Starknet,
-          receipt,
+        const result = await sendAsync([tx.transaction as Call]);
+        const hash = result.transaction_hash;
+        const confirm = async (): Promise<TypedTransactionReceipt> => {
+          const receipt = await account.waitForTransaction(hash);
+          return {
+            type: ProviderType.Starknet,
+            receipt,
+          };
         };
-      };
 
-      return { hash, confirm };
+        return { hash, confirm };
+      } catch (error) {
+        logger.error('Failed to send StarkNet transaction:', error);
+        throw error;
+      }
     },
     [account, multiProvider, onSwitchNetwork, sendAsync],
   );
 
   return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
-}
-
-export function getStarknetChains(
-  multiProvider: MultiProtocolProvider,
-): Chain[] {
-  return getChainsForProtocol(multiProvider, ProtocolType.Starknet).map(
-    chainMetadataToStarknetChain,
-  );
 }

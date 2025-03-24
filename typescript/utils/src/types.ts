@@ -14,7 +14,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
   [ProtocolType.Sealevel]: 'lamports',
   [ProtocolType.Cosmos]: 'uATOM',
-  [ProtocolType.Starknet]: 'wei',
+  [ProtocolType.Starknet]: 'fri',
 };
 
 /********* BASIC TYPES *********/
