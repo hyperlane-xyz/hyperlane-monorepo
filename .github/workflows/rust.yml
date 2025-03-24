@@ -161,5 +161,3 @@ jobs:
       - name: Check WASM for hyperlane-core
         run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
         working-directory: ./rust/main
-        
-        
