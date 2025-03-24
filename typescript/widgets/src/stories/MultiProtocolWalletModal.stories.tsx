@@ -11,6 +11,8 @@ import {
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { clusterApiUrl } from '@solana/web3.js';
+import { sepolia } from '@starknet-react/chains';
+import { StarknetConfig, publicProvider } from '@starknet-react/core';
 import { Meta, StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React, { PropsWithChildren, useState } from 'react';
@@ -41,24 +43,26 @@ function MinimalDapp({ protocols }: { protocols?: ProtocolType[] }) {
     <EthereumWalletProvider>
       <CosmosWalletProvider>
         <SolanaWalletProvider>
-          <div className="htw-space-y-4">
-            <h1>CONNECT BUTTON</h1>
-            <ConnectWalletButton
-              multiProvider={multiProvider}
-              onClickWhenConnected={open}
-              onClickWhenUnconnected={open}
+          <StarknetWalletProvider>
+            <div className="htw-space-y-4">
+              <h1>CONNECT BUTTON</h1>
+              <ConnectWalletButton
+                multiProvider={multiProvider}
+                onClickWhenConnected={open}
+                onClickWhenUnconnected={open}
+              />
+              <h1>ACCOUNT SUMMARY</h1>
+              <AccountList
+                multiProvider={multiProvider}
+                onClickConnectWallet={open}
+              />
+            </div>
+            <MultiProtocolWalletModal
+              isOpen={isOpen}
+              close={close}
+              protocols={protocols}
             />
-            <h1>ACCOUNT SUMMARY</h1>
-            <AccountList
-              multiProvider={multiProvider}
-              onClickConnectWallet={open}
-            />
-          </div>
-          <MultiProtocolWalletModal
-            isOpen={isOpen}
-            close={close}
-            protocols={protocols}
-          />
+          </StarknetWalletProvider>
         </SolanaWalletProvider>
       </CosmosWalletProvider>
     </EthereumWalletProvider>
@@ -105,6 +109,14 @@ function SolanaWalletProvider({ children }: PropsWithChildren<unknown>) {
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
+  );
+}
+
+function StarknetWalletProvider({ children }: PropsWithChildren<unknown>) {
+  return (
+    <StarknetConfig chains={[sepolia]} provider={publicProvider()}>
+      {children}
+    </StarknetConfig>
   );
 }
 

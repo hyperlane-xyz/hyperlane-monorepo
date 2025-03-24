@@ -8,7 +8,7 @@ import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockHypERC4626 is HypERC4626 {
-    constructor(address _mailbox) HypERC4626(18, _mailbox, 2) {}
+    constructor(address _mailbox) HypERC4626(18, 1, _mailbox, 2) {}
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);

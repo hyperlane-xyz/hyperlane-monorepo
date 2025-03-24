@@ -1,7 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  ChainSubmissionStrategySchema,
+  expandWarpDeployConfig,
+  getRouterAddressesFromWarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
 import { assert, objFilter, setEquality } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
@@ -111,7 +116,7 @@ export const apply: CommandModuleWithWriteContext<{
 
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+    const warpDeployConfig = await readWarpRouteDeployConfig(config, context);
 
     await runWarpRouteApply({
       context,
@@ -360,7 +365,7 @@ export const check: CommandModuleWithContext<{
     }),
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context }) => {
+  handler: async ({ context, symbol, warp }) => {
     logCommandHeader('Hyperlane Warp Check');
 
     let { warpDeployConfig, warpCoreConfig } = context;
@@ -391,9 +396,27 @@ export const check: CommandModuleWithContext<{
       },
     });
 
+    warpCoreConfig =
+      context.warpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        context,
+        warp,
+        symbol,
+      }));
+
+    if (!warpCoreConfig) {
+      throw new Error('No warp core config found');
+    }
+
+    const expandedWarpDeployConfig = await expandWarpDeployConfig(
+      context.multiProvider,
+      warpDeployConfig,
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+    );
+
     await runWarpRouteCheck({
       onChainWarpConfig,
-      warpRouteConfig: warpDeployConfig,
+      warpRouteConfig: expandedWarpDeployConfig,
     });
 
     process.exit(0);

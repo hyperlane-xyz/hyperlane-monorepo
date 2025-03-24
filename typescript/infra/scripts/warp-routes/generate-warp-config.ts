@@ -7,14 +7,14 @@ import { getWarpConfig } from '../../config/warp.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
+  withKnownWarpRouteIdRequired,
   withOutputFile,
-  withWarpRouteIdRequired,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
   const { warpRouteId, environment, outFile } = await withOutputFile(
-    withWarpRouteIdRequired(getArgs()),
+    withKnownWarpRouteIdRequired(getArgs()),
   ).argv;
 
   const { multiProvider } = await getHyperlaneCore(environment);

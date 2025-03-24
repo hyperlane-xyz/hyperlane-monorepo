@@ -54,12 +54,10 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
   });
 
-  it('should require mailbox address', () => {
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
-
+  it('should not require mailbox address', () => {
     //@ts-ignore
     delete config.arbitrum.mailbox;
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
+    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
   });
 
   it('should throw if collateral type and token is empty', async () => {
@@ -80,7 +78,6 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   it('should succeed if non-collateral type, token is empty, metadata is defined', async () => {
     //@ts-ignore
     delete config.arbitrum.token;
-    config.arbitrum.totalSupply = '0';
     config.arbitrum.name = 'name';
 
     for (const type of NON_COLLATERAL_TYPES) {
