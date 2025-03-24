@@ -63,7 +63,7 @@ async function main() {
     rootLogger.info(`Checking checkpoint ${index} with root ${root}`);
 
     rootLogger.info(`Searching for canonical checkpoint ${index}...`);
-    const canonicalCheckpoint = await getCheckpointBinarySearch(
+    const canonicalCheckpoint = await getCanonicalCheckpointBinarySearch(
       merkleTreeHook,
       index,
       0,
@@ -122,7 +122,7 @@ async function main() {
   process.exit(0);
 }
 
-async function getCheckpointBinarySearch(
+async function getCanonicalCheckpointBinarySearch(
   merkleTreeHook: MerkleTreeHook,
   checkpointIndex: number,
   startBlock: number,
@@ -155,14 +155,14 @@ async function getCheckpointBinarySearch(
   }
 
   if (checkpointIndex < midIndex) {
-    return getCheckpointBinarySearch(
+    return getCanonicalCheckpointBinarySearch(
       merkleTreeHook,
       checkpointIndex,
       startBlock,
       midBlock,
     );
   } else {
-    return getCheckpointBinarySearch(
+    return getCanonicalCheckpointBinarySearch(
       merkleTreeHook,
       checkpointIndex,
       midBlock + 1,
