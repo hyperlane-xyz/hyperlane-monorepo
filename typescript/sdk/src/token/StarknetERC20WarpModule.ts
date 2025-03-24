@@ -53,7 +53,10 @@ export class StarknetERC20WarpModule {
       )
         continue;
 
-      const deployer = new StarknetDeployer(this.account[chain]);
+      const deployer = new StarknetDeployer(
+        this.account[chain],
+        this.multiProvider,
+      );
       const deployerAccountAddress = this.account[chain].address;
       const ismAddress = await this.getStarknetDeploymentISMAddress({
         ismConfig: interchainSecurityModule,

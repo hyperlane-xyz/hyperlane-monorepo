@@ -6,6 +6,7 @@ import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
 import { ChainNameOrId } from '../types.js';
 
@@ -20,8 +21,9 @@ export class StarknetCoreModule {
   constructor(
     protected readonly signer: Account,
     protected readonly domainId: number,
+    protected readonly multiProvider: MultiProvider,
   ) {
-    this.deployer = new StarknetDeployer(signer);
+    this.deployer = new StarknetDeployer(signer, this.multiProvider);
     this.coreReader = new StarknetCoreReader(signer);
   }
 
