@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Implements HypERC20Checker.getOwnableOverrides() and adds an ownerOverride to collateralProxyAdmin and sets it to config.proxyAdmin
+Implements `HypERC20Checker.getOwnableOverrides()`. Sets `config.proxyAdmin.owner` to `collateralProxyAdmin` as an `ownerOverride`
