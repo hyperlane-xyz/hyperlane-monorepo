@@ -19,17 +19,6 @@ pub struct PrometheusSealevelRpcSender {
     pub config: PrometheusConfig,
 }
 
-impl Clone for PrometheusSealevelRpcSender {
-    fn clone(&self) -> Self {
-        Self {
-            url: self.url.clone(),
-            inner: HttpSender::new(self.url.clone()),
-            metrics: self.metrics.clone(),
-            config: self.config.clone(),
-        }
-    }
-}
-
 impl std::fmt::Debug for PrometheusSealevelRpcSender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PrometheusSealevelRpcSender {{ url: {} }}", self.url)
