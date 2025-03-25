@@ -33,11 +33,9 @@ export function getCombinedChainsToScrape(
 ): string[] {
   const chainsToScrape = new Set(contextChainNames);
 
-  // Add scraper-only chains that are enabled
-  for (const [chain, enabled] of Object.entries(scraperOnlyChains)) {
-    if (enabled) {
-      chainsToScrape.add(chain);
-    }
+  // Add all scraper-only chains so we don't need to rebuild images to enable them
+  for (const chain of Object.keys(scraperOnlyChains)) {
+    chainsToScrape.add(chain);
   }
 
   return Array.from(chainsToScrape).sort();
