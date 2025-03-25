@@ -25,31 +25,51 @@ import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
 import {
   MsgAnnounceValidator,
+  MsgAnnounceValidatorResponse,
   MsgCreateMerkleRootMultisigIsm,
+  MsgCreateMerkleRootMultisigIsmResponse,
   MsgCreateMessageIdMultisigIsm,
+  MsgCreateMessageIdMultisigIsmResponse,
   MsgCreateNoopIsm,
+  MsgCreateNoopIsmResponse,
 } from '../types/hyperlane/core/interchain_security/v1/tx.js';
 import {
   MsgClaim,
+  MsgClaimResponse,
   MsgCreateIgp,
+  MsgCreateIgpResponse,
   MsgCreateMerkleTreeHook,
+  MsgCreateMerkleTreeHookResponse,
   MsgCreateNoopHook,
+  MsgCreateNoopHookResponse,
   MsgPayForGas,
+  MsgPayForGasResponse,
   MsgSetDestinationGasConfig,
+  MsgSetDestinationGasConfigResponse,
   MsgSetIgpOwner,
+  MsgSetIgpOwnerResponse,
 } from '../types/hyperlane/core/post_dispatch/v1/tx.js';
 import {
   MsgCreateMailbox,
+  MsgCreateMailboxResponse,
   MsgProcessMessage,
+  MsgProcessMessageResponse,
   MsgSetMailbox,
+  MsgSetMailboxResponse,
 } from '../types/hyperlane/core/v1/tx.js';
 import {
   MsgCreateCollateralToken,
+  MsgCreateCollateralTokenResponse,
   MsgCreateSyntheticToken,
+  MsgCreateSyntheticTokenResponse,
   MsgEnrollRemoteRouter,
+  MsgEnrollRemoteRouterResponse,
   MsgRemoteTransfer,
+  MsgRemoteTransferResponse,
   MsgSetToken,
+  MsgSetTokenResponse,
   MsgUnrollRemoteRouter,
+  MsgUnrollRemoteRouterResponse,
 } from '../types/hyperlane/warp/v1/tx.js';
 
 import {
@@ -98,6 +118,10 @@ export type HyperlaneQueryClient = QueryClient &
   CoreExtension &
   InterchainSecurityExtension &
   PostDispatchExtension;
+
+export interface TxResponse<R> extends DeliverTxResponse {
+  response: R;
+}
 
 export class HyperlaneModuleClient extends StargateClient {
   readonly query: HyperlaneQueryClient;
@@ -155,7 +179,7 @@ export class HyperlaneModuleClient extends StargateClient {
 
 export class SigningHyperlaneModuleClient extends SigningStargateClient {
   public query: HyperlaneQueryClient;
-  protected account: AccountData;
+  public account: AccountData;
   private readonly GAS_MULTIPLIER = 1.6;
 
   protected constructor(
@@ -165,18 +189,20 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     options: SigningStargateClientOptions,
   ) {
     // register all the custom amino tx types
-    const aminoTypes = Object.values(REGISTRY).reduce(
-      (types, { proto, amino }) => ({
-        ...types,
-        [proto.type]: {
-          aminoType: amino.type,
-          toAmino: (amino.converter as any)?.toJSON ?? proto.converter.toJSON,
-          fromAmino:
-            (amino.converter as any)?.fromJSON ?? proto.converter.fromJSON,
-        },
-      }),
-      {},
-    );
+    const aminoTypes = Object.values(REGISTRY)
+      .filter((r) => !!r.amino.type) // filter out responses which have no amino type
+      .reduce(
+        (types, { proto, amino }) => ({
+          ...types,
+          [proto.type]: {
+            aminoType: amino.type,
+            toAmino: (amino.converter as any)?.toJSON ?? proto.converter.toJSON,
+            fromAmino:
+              (amino.converter as any)?.fromJSON ?? proto.converter.fromJSON,
+          },
+        }),
+        {},
+      );
 
     super(cometClient, signer, {
       ...options,
@@ -227,13 +253,13 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     );
   }
 
-  private async signTx(
+  private async submitTx<R>(
     msg: EncodeObject,
     options?: {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ) {
+  ): Promise<TxResponse<R>> {
     const result = await this.signAndBroadcast(
       this.account.address,
       [msg],
@@ -242,7 +268,10 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     );
     assertIsDeliverTxSuccess(result);
 
-    return result;
+    return {
+      ...result,
+      response: this.registry.decode(result.msgResponses[0]),
+    };
   }
 
   public async createMailbox(
@@ -251,7 +280,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateMailboxResponse>> {
     const msg: MsgCreateMailboxEncodeObject = {
       typeUrl: REGISTRY.MsgCreateMailbox.proto.type,
       value: REGISTRY.MsgCreateMailbox.proto.converter.create({
@@ -260,7 +289,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async setMailbox(
@@ -269,7 +298,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgSetMailboxResponse>> {
     const msg: MsgSetMailboxEncodeObject = {
       typeUrl: REGISTRY.MsgSetMailbox.proto.type,
       value: REGISTRY.MsgSetMailbox.proto.converter.create({
@@ -278,7 +307,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async processMessage(
@@ -287,7 +316,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgProcessMessageResponse>> {
     const msg: MsgProcessMessageEncodeObject = {
       typeUrl: REGISTRY.MsgProcessMessage.proto.type,
       value: REGISTRY.MsgProcessMessage.proto.converter.create({
@@ -296,7 +325,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createMessageIdMultisigIsm(
@@ -305,7 +334,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateMessageIdMultisigIsmResponse>> {
     const msg: MsgCreateMessageIdMultisigIsmEncodeObject = {
       typeUrl: REGISTRY.MsgCreateMessageIdMultisigIsm.proto.type,
       value: REGISTRY.MsgCreateMessageIdMultisigIsm.proto.converter.create({
@@ -314,7 +343,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createMerklerootMultisigIsm(
@@ -323,7 +352,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateMerkleRootMultisigIsmResponse>> {
     const msg: MsgCreateMerkleRootMultisigIsmEncodeObject = {
       typeUrl: REGISTRY.MsgCreateMerkleRootMultisigIsm.proto.type,
       value: REGISTRY.MsgCreateMerkleRootMultisigIsm.proto.converter.create({
@@ -332,7 +361,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createNoopIsm(
@@ -341,7 +370,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateNoopIsmResponse>> {
     const msg: MsgCreateNoopIsmEncodeObject = {
       typeUrl: REGISTRY.MsgCreateNoopIsm.proto.type,
       value: REGISTRY.MsgCreateNoopIsm.proto.converter.create({
@@ -350,7 +379,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async announceValidator(
@@ -359,7 +388,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgAnnounceValidatorResponse>> {
     const msg: MsgAnnounceValidatorEncodeObject = {
       typeUrl: REGISTRY.MsgAnnounceValidator.proto.type,
       value: REGISTRY.MsgAnnounceValidator.proto.converter.create({
@@ -368,7 +397,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createIgp(
@@ -377,7 +406,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateIgpResponse>> {
     const msg: MsgCreateIgpEncodeObject = {
       typeUrl: REGISTRY.MsgCreateIgp.proto.type,
       value: REGISTRY.MsgCreateIgp.proto.converter.create({
@@ -386,7 +415,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async setIgpOwner(
@@ -395,7 +424,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgSetIgpOwnerResponse>> {
     const msg: MsgSetIgpOwnerEncodeObject = {
       typeUrl: REGISTRY.MsgSetIgpOwner.proto.type,
       value: REGISTRY.MsgSetIgpOwner.proto.converter.create({
@@ -404,7 +433,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async setDestinationGasConfig(
@@ -413,7 +442,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgSetDestinationGasConfigResponse>> {
     const msg: MsgSetDestinationGasConfigEncodeObject = {
       typeUrl: REGISTRY.MsgSetDestinationGasConfig.proto.type,
       value: REGISTRY.MsgSetDestinationGasConfig.proto.converter.create({
@@ -422,7 +451,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async payForGas(
@@ -431,7 +460,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgPayForGasResponse>> {
     const msg: MsgPayForGasEncodeObject = {
       typeUrl: REGISTRY.MsgPayForGas.proto.type,
       value: REGISTRY.MsgPayForGas.proto.converter.create({
@@ -440,7 +469,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async claim(
@@ -449,7 +478,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgClaimResponse>> {
     const msg: MsgClaimEncodeObject = {
       typeUrl: REGISTRY.MsgClaim.proto.type,
       value: REGISTRY.MsgClaim.proto.converter.create({
@@ -458,7 +487,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createMerkleTreeHook(
@@ -467,7 +496,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateMerkleTreeHookResponse>> {
     const msg: MsgCreateMerkleTreeHookEncodeObject = {
       typeUrl: REGISTRY.MsgCreateMerkleTreeHook.proto.type,
       value: REGISTRY.MsgCreateMerkleTreeHook.proto.converter.create({
@@ -476,7 +505,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createNoopHook(
@@ -485,7 +514,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateNoopHookResponse>> {
     const msg: MsgCreateNoopHookEncodeObject = {
       typeUrl: REGISTRY.MsgCreateNoopHook.proto.type,
       value: REGISTRY.MsgCreateNoopHook.proto.converter.create({
@@ -494,7 +523,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createCollateralToken(
@@ -503,7 +532,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateCollateralTokenResponse>> {
     const msg: MsgCreateCollateralTokenEncodeObject = {
       typeUrl: REGISTRY.MsgCreateCollateralToken.proto.type,
       value: REGISTRY.MsgCreateCollateralToken.proto.converter.create({
@@ -512,7 +541,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async createSyntheticToken(
@@ -521,7 +550,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgCreateSyntheticTokenResponse>> {
     const msg: MsgCreateSyntheticTokenEncodeObject = {
       typeUrl: REGISTRY.MsgCreateSyntheticToken.proto.type,
       value: REGISTRY.MsgCreateSyntheticToken.proto.converter.create({
@@ -530,7 +559,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async setToken(
@@ -539,7 +568,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgSetTokenResponse>> {
     const msg: MsgSetTokenEncodeObject = {
       typeUrl: REGISTRY.MsgSetToken.proto.type,
       value: REGISTRY.MsgSetToken.proto.converter.create({
@@ -548,7 +577,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async enrollRemoteRouter(
@@ -557,7 +586,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgEnrollRemoteRouterResponse>> {
     const msg: MsgEnrollRemoteRouterEncodeObject = {
       typeUrl: REGISTRY.MsgEnrollRemoteRouter.proto.type,
       value: REGISTRY.MsgEnrollRemoteRouter.proto.converter.create({
@@ -566,7 +595,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async unrollRemoteRouter(
@@ -575,7 +604,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgUnrollRemoteRouterResponse>> {
     const msg: MsgUnrollRemoteRouterEncodeObject = {
       typeUrl: REGISTRY.MsgUnrollRemoteRouter.proto.type,
       value: REGISTRY.MsgUnrollRemoteRouter.proto.converter.create({
@@ -584,7 +613,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 
   public async remoteTransfer(
@@ -593,7 +622,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       fee?: StdFee | 'auto' | number;
       memo?: string;
     },
-  ): Promise<DeliverTxResponse> {
+  ): Promise<TxResponse<MsgRemoteTransferResponse>> {
     const msg: MsgRemoteTransferEncodeObject = {
       typeUrl: REGISTRY.MsgRemoteTransfer.proto.type,
       value: REGISTRY.MsgRemoteTransfer.proto.converter.create({
@@ -602,6 +631,6 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       }),
     };
 
-    return this.signTx(msg, options);
+    return this.submitTx(msg, options);
   }
 }
