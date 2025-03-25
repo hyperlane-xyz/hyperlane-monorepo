@@ -92,31 +92,37 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  describe('hyperlane warp check --config ...', () => {
+  describe('hyperlane warp check --config ... and hyperlane warp check --warp ...', () => {
+    const expectedError =
+      'Both --config/-wd and --warp/-wc must be provided together when using individual file paths';
     it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
       await deployAndExportWarpRoute();
 
-      const output = await hyperlaneWarpCheckRaw({
+      const output1 = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
 
-      expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.include(
-        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
-      );
+      const output2 = await hyperlaneWarpCheckRaw({
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output1.exitCode).to.equal(1);
+      expect(output1.text()).to.include(expectedError);
+      expect(output2.exitCode).to.equal(1);
+      expect(output2.text()).to.include(expectedError);
     });
   });
 
-  describe('hyperlane warp check --symbol ... --config ... --warp ...', () => {
+  describe('hyperlane warp check --symbol ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
-      const output = hyperlaneWarpCheckRaw({
+      const output = await hyperlaneWarpCheckRaw({
         symbol: tokenSymbol,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
       })
         .stdio('pipe')
         .nothrow();
@@ -126,7 +132,7 @@ describe('hyperlane warp check e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp check --symbol ... --config ... --key ...', () => {
+  describe('hyperlane warp check --config ... --warp ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
@@ -153,7 +159,6 @@ describe('hyperlane warp check e2e tests', async function () {
 
         const output = await hyperlaneWarpCheck(
           WARP_DEPLOY_OUTPUT_PATH,
-          tokenSymbol,
           combinedWarpCoreConfigPath,
         );
 
