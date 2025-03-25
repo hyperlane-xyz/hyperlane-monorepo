@@ -1,10 +1,10 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main branch, ignoring md files
+  # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
-  # Triggers on pull requests, ignoring md files
+  # Triggers on pull requests
   pull_request:
     branches:
       - '*'
