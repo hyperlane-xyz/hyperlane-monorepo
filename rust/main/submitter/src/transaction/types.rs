@@ -1,16 +1,18 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::ops::Deref;
 use uuid::Uuid;
 
-use hyperlane_core::{H256, H512};
+use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
-use super::PayloadId;
+use crate::payload::PayloadId;
 
-pub type TransactionId = Uuid;
+pub type TransactionId = UniqueIdentifier;
 type SignerAddress = H256;
 
 /// Full details about a transaction
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
     id: TransactionId,
@@ -25,8 +27,16 @@ pub struct Transaction {
     submission_attempts: u32,
 }
 
+impl Transaction {
+    pub fn id(&self) -> &TransactionId {
+        &self.id
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub enum TransactionStatus {
     /// default state. If the tx appears dropped from the mempool, it goes back to this state
+    #[default]
     PendingInclusion,
     /// accepted by node, pending inclusion
     Mempool(SignerAddress),
@@ -39,6 +49,7 @@ pub enum TransactionStatus {
 }
 
 // add nested enum entries as we add VMs
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
     Evm, // likely `TypedTransaction`, imported from ethers-rs
     Svm, // likely `Transaction` is imported from solana-sdk

@@ -737,11 +737,13 @@ impl PendingMessage {
     ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
-            i if (1..10).contains(&i) => 10,
-            i if (10..15).contains(&i) => 90,
-            i if (15..25).contains(&i) => 60 * 2,
-            // linearly increase from 2min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => (i as u64 - 23) * 90,
+            1 => 5,
+            2 => 10,
+            3 => 30,
+            4 => 60,
+            i if (5..25).contains(&i) => 60 * 3,
+            // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
+            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
             // wait 30min for the next 5 attempts
             i if (40..45).contains(&i) => 60 * 30,
             // wait 60min for the next 5 attempts
@@ -835,6 +837,7 @@ mod test {
         time::{Duration, Instant},
     };
 
+    use chrono::TimeDelta;
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
@@ -1059,5 +1062,65 @@ mod test {
         );
 
         assert_eq!(num_retries, expected_retries);
+    }
+
+    /// Make sure DEFAULT_MAX_MESSAGE_RETRIES takes around 2 weeks to reach
+    /// so that messages doesn't getting dropped earlier than expected
+    #[test]
+    fn check_default_max_message_retries() {
+        let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
+            .filter_map(|i| {
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+            })
+            .sum();
+
+        // Have a window that is acceptable for "around 2 weeks".
+        // Give or take 1 day.
+        let max_backoff_duration = chrono::Duration::weeks(2)
+            .checked_add(&TimeDelta::days(1))
+            .expect("Failed to compute duration")
+            .to_std()
+            .expect("Failed to convert TimeDelta to Duration");
+        let min_backoff_duration = chrono::Duration::weeks(2)
+            .checked_sub(&TimeDelta::days(1))
+            .expect("Failed to compute duration")
+            .to_std()
+            .expect("Failed to convert TimeDelta to Duration");
+
+        assert!(total_backoff_duration < max_backoff_duration);
+        assert!(total_backoff_duration > min_backoff_duration);
+    }
+
+    /// Chainlink's CCIP is known to take upwards of 25mins to
+    /// process.
+    /// So make sure we have a couple of retries around 25-30min range.
+    /// In this test case, we define "couple of retries" = 2
+    #[test]
+    fn check_ccip_retry() {
+        let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
+            .filter_map(|i| {
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+            })
+            .collect();
+
+        let cumulative_backoff_durations: Vec<Duration> = backoff_durations
+            .into_iter()
+            .scan(Duration::from_secs(0), |acc, x| {
+                *acc += x;
+                Some(*acc)
+            })
+            .collect();
+
+        // 25 mins
+        let min_backoff_duration = Duration::from_secs(60 * 25);
+        // 30 mins
+        let max_backoff_duration = Duration::from_secs(60 * 30);
+
+        let num_retries_in_range = cumulative_backoff_durations
+            .into_iter()
+            .filter(|d| *d >= min_backoff_duration && *d <= max_backoff_duration)
+            .count();
+
+        assert_eq!(num_retries_in_range, 2);
     }
 }
