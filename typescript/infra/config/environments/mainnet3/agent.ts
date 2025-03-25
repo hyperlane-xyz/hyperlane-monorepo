@@ -603,7 +603,8 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'velo_message_module',
       // Almost all messages to / from this address relate to the Velo Message Module.
       // The only exception is Metal, which had an initial misconfiguration that the Velo
-      // team resolved with a different contract deploy.
+      // team resolved with a different contract deploy. We can still only match on this address
+      // as Metal is the only exception, so it's always receiving from or sending messages to this address.
       matchingList: consistentSenderRecipientMatchingList(
         '0xF385603a12Be8b7B885222329c581FDD1C30071D',
       ),
