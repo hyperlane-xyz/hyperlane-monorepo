@@ -254,7 +254,7 @@ export function senderMatchingList(
   }));
 }
 
-// A matching list to match messages send to or from the given address
+// A matching list to match messages sent to or from the given address
 // between any chains.
 export function consistentSenderRecipientMatchingList(
   address: Address,
