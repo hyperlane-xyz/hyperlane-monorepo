@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
@@ -56,62 +57,48 @@ contract HypERC4626Collateral is HypERC20Collateral {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        uint256 _value,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32 messageId) {
-        // Can't override _transferFromSender only because we need to pass shares in the token message
-        _transferFromSender(_amount);
-        uint256 _shares = _depositIntoVault(_amount);
-        uint256 _exchangeRate = vault.convertToAssets(PRECISION);
-
-        rateUpdateNonce++;
-        bytes memory _tokenMetadata = abi.encode(
-            _exchangeRate,
-            rateUpdateNonce
-        );
-
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _shares,
-            _tokenMetadata
-        );
-
-        messageId = _Router_dispatch(
-            _destination,
-            _value,
-            _tokenMessage,
-            _hookMetadata,
-            _hook
-        );
-
-        emit SentTransferRemote(_destination, _recipient, _shares);
-    }
-
     /**
-     * @dev Deposits into the vault and increment assetDeposited
-     * @param _amount amount to deposit into vault
+     * @inheritdoc FungibleTokenRouter
+     * @dev
      */
-    function _depositIntoVault(uint256 _amount) internal returns (uint256) {
-        wrappedToken.approve(address(vault), _amount);
-        return vault.deposit(_amount, address(this));
+    function _outboundAmount(
+        uint256 _localAmount
+    ) internal view virtual override returns (uint256) {
+        return
+            FungibleTokenRouter._outboundAmount(
+                vault.convertToShares(_localAmount)
+            );
     }
 
     /**
-     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`, and withdraws from vault
+     * @inheritdoc HypERC20Collateral
+     * @dev Extend ERC20 collateral `_transferFromSender` with deposit to vault.
+     * @dev Append exchange rate (and nonce) to the message.
+     */
+    function _transferFromSender(
+        uint256 _amount
+    ) internal virtual override returns (bytes memory) {
+        HypERC20Collateral._transferFromSender(_amount);
+
+        wrappedToken.approve(address(vault), _amount);
+        vault.deposit(_amount, address(this));
+
+        uint256 _exchangeRate = vault.convertToAssets(PRECISION);
+        rateUpdateNonce++;
+
+        return abi.encode(_exchangeRate, rateUpdateNonce);
+    }
+
+    /**
+     * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
      * @inheritdoc HypERC20Collateral
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
+        uint256 _shares,
         bytes calldata
     ) internal virtual override {
-        // withdraw with the specified amount of shares
-        vault.redeem(_amount, _recipient, address(this));
+        vault.redeem(_shares, _recipient, address(this));
     }
 
     /**
