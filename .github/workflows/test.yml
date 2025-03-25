@@ -280,16 +280,13 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       # Set rust_changes to true if:
-      # - in the merge queue
       # - on the main branch
       # - PR with changes to ./rust
       # - PR with changes to this workflow
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
-          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
-            echo "rust_changes=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "pull_request" && -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml)" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
