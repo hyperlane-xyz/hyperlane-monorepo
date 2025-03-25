@@ -120,6 +120,22 @@
       },
       "overhead": 600000
     },
+    "superseed": {
+      "oracleConfig": {
+        "tokenExchangeRate": "239372224587870308412",
+        "gasPrice": "234340482",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "ink": {
+      "oracleConfig": {
+        "tokenExchangeRate": "239372224587870308412",
+        "gasPrice": "234340482",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "soon": {
       "oracleConfig": {
         "tokenExchangeRate": "23937222458787030",
