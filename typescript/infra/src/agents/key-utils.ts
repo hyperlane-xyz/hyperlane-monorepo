@@ -447,6 +447,7 @@ async function persistAddressesLocally(
       kathyAddresses,
     );
   }
+
   await persistRoleAddressesToLocalArtifacts(
     Role.Relayer,
     agentConfig.runEnv,

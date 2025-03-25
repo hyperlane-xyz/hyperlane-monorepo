@@ -304,12 +304,11 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8c3e983-20250310-144838',
+      tag: '2c861ea-20250324-140712',
     },
     // whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    transactionGasLimit: 2_500_000_000_000_000,
     resources: relayerResources,
   },
   validators: {
