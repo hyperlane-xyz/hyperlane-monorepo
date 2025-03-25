@@ -3,7 +3,10 @@ import { Wallet } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import { ERC20Test } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import {
   HookConfig,
   HookType,
@@ -131,6 +134,24 @@ describe('hyperlane warp check e2e tests', async function () {
       // only one route exists for this token so no need to interact with prompts
       const output = await hyperlaneWarpCheckRaw({
         symbol: tokenSymbol,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    });
+  });
+
+  describe('hyperlane warp check --warpRouteId ...', () => {
+    it(`should not find any differences between the on chain config and the local one`, async function () {
+      await deployAndExportWarpRoute();
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: createWarpRouteConfigId(tokenSymbol, [
+          CHAIN_NAME_2,
+          CHAIN_NAME_3,
+        ]),
       })
         .stdio('pipe')
         .nothrow();
