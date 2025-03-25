@@ -69,6 +69,13 @@ describe('hyperlane warp check e2e tests', async function () {
 
   async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    // currently warp deploy is not writing the deploy config to the registry
+    // should remove this once the deploy config is written to the registry
+    writeYamlOrJson(
+      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+      warpConfig,
+    );
+
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     return warpConfig;
@@ -121,6 +128,7 @@ describe('hyperlane warp check e2e tests', async function () {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
+      // only one route exists for this token so no need to interact with prompts
       const output = await hyperlaneWarpCheckRaw({
         symbol: tokenSymbol,
       })
