@@ -22,6 +22,8 @@ import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 // ============ External Imports ============
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
+import "forge-std/console.sol";
+
 /**
  * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault
  * @author Abacus Works
@@ -64,10 +66,9 @@ contract HypERC4626Collateral is HypERC20Collateral {
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual override returns (uint256) {
-        return
-            FungibleTokenRouter._outboundAmount(
-                vault.convertToShares(_localAmount)
-            );
+        uint256 shares = vault.convertToShares(_localAmount);
+        console.log(shares);
+        return FungibleTokenRouter._outboundAmount(shares);
     }
 
     /**
@@ -81,7 +82,9 @@ contract HypERC4626Collateral is HypERC20Collateral {
         HypERC20Collateral._transferFromSender(_amount);
 
         wrappedToken.approve(address(vault), _amount);
-        vault.deposit(_amount, address(this));
+        // TODO: send this in the message rather than vault.convertToShares
+        uint256 shares = vault.deposit(_amount, address(this));
+        console.log(shares);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
         rateUpdateNonce++;
