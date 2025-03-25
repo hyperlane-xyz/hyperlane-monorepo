@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 
 if [ ! -f "$(dirname -- "$0")/_/husky.sh" ]; then
-	echo "$(dirname -- "$0")/_/husky.sh" is missing >&2
-	echo 'did you make sure to `yarn install`?' >&2
-	exit 1
+    echo "$(dirname -- "$0")/_/husky.sh" is missing >&2
+    echo 'did you make sure to run `yarn install`?' >&2
+    exit 1
 fi
 
 . "$(dirname -- "$0")/_/husky.sh"
