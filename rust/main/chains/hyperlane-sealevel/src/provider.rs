@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -149,8 +147,8 @@ impl SealevelProvider {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &Arc<dyn TransactionSubmitter>,
-        priority_fee_oracle: &Arc<PriorityFeeOracle>,
+        tx_submitter: &Box<dyn TransactionSubmitter>,
+        priority_fee_oracle: &Box<dyn PriorityFeeOracle>,
     ) -> ChainResult<Transaction> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -211,7 +209,7 @@ impl SealevelProvider {
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &Arc<dyn TransactionSubmitter>,
+        tx_submitter: &Box<dyn TransactionSubmitter>,
         sign: bool,
     ) -> ChainResult<Transaction> {
         let instructions = vec![
@@ -316,8 +314,8 @@ impl SealevelProvider {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &Arc<dyn TransactionSubmitter>,
-        priority_fee_oracle: &Arc<PriorityFeeOracle>,
+        tx_submitter: &Box<dyn TransactionSubmitter>,
+        priority_fee_oracle: &Box<dyn PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values

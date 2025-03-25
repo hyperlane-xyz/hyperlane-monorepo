@@ -41,12 +41,12 @@ impl TransactionSubmitterConfig {
         chain: Option<ChainInfo>,
         domain: HyperlaneDomain,
         conf: &ConnectionConf,
-    ) -> Arc<dyn TransactionSubmitter> {
+    ) -> Box<dyn TransactionSubmitter> {
         match self {
             // if we don't have urls set for tx submitter, use
             // the urls already being used by SealevelFallbackProvider
             TransactionSubmitterConfig::Rpc { urls } if urls.is_empty() => {
-                Arc::new(RpcTransactionSubmitter::new(provider.clone()))
+                Box::new(RpcTransactionSubmitter::new(provider.clone()))
             }
             // if we have urls set for tx submitter, create
             // a new SealevelFallbackProvider just for tx submitter
@@ -55,7 +55,7 @@ impl TransactionSubmitterConfig {
 
                 let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
                 let provider = SealevelProvider::new(rpc_client, domain, &[], conf);
-                Arc::new(RpcTransactionSubmitter::new(Arc::new(provider)))
+                Box::new(RpcTransactionSubmitter::new(Arc::new(provider)))
             }
             TransactionSubmitterConfig::Jito { urls } => {
                 // Default to a bundle-only URL (i.e. revert protected)
@@ -72,7 +72,7 @@ impl TransactionSubmitterConfig {
 
                 let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, metrics);
                 let provider = SealevelProvider::new(rpc_client, domain, &[], conf);
-                Arc::new(JitoTransactionSubmitter::new(Arc::new(provider)))
+                Box::new(JitoTransactionSubmitter::new(Arc::new(provider)))
             }
         }
     }

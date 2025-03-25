@@ -47,7 +47,7 @@ impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
         provider: Arc<SealevelProvider>,
-        tx_submitter: Arc<dyn TransactionSubmitter>,
+        tx_submitter: Box<dyn TransactionSubmitter>,
         locator: &ContractLocator,
         conf: &ConnectionConf,
         advanced_log_meta: bool,

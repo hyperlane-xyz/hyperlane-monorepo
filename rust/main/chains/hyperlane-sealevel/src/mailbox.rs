@@ -68,15 +68,15 @@ pub struct SealevelMailbox {
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
-    priority_fee_oracle: Arc<PriorityFeeOracle>,
-    tx_submitter: Arc<dyn TransactionSubmitter>,
+    priority_fee_oracle: Box<dyn PriorityFeeOracle>,
+    tx_submitter: Box<dyn TransactionSubmitter>,
 }
 
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
         provider: Arc<SealevelProvider>,
-        tx_submitter: Arc<dyn TransactionSubmitter>,
+        tx_submitter: Box<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
@@ -96,7 +96,7 @@ impl SealevelMailbox {
             inbox,
             outbox,
             payer,
-            priority_fee_oracle: Arc::new(conf.priority_fee_oracle.create_oracle()),
+            priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
             provider,
         })

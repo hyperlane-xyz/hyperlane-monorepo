@@ -3,7 +3,7 @@ use serde::Serialize;
 use url::Url;
 
 use crate::{
-    priority_fee::{HeliusPriorityFeeOracle, PriorityFeeOracle},
+    priority_fee::{ConstantPriorityFeeOracle, HeliusPriorityFeeOracle, PriorityFeeOracle},
     tx_submitter::config::TransactionSubmitterConfig,
 };
 
@@ -50,12 +50,14 @@ impl Default for PriorityFeeOracleConfig {
 
 impl PriorityFeeOracleConfig {
     /// Create a new priority fee oracle from the configuration
-    pub fn create_oracle(&self) -> PriorityFeeOracle {
+    pub fn create_oracle(&self) -> Box<dyn PriorityFeeOracle> {
         match self {
-            PriorityFeeOracleConfig::Constant(fee) => PriorityFeeOracle::Constant { fee: *fee },
-            PriorityFeeOracleConfig::Helius(config) => PriorityFeeOracle::Helius {
-                oracle: HeliusPriorityFeeOracle::new(config.clone()),
-            },
+            PriorityFeeOracleConfig::Constant(fee) => {
+                Box::new(ConstantPriorityFeeOracle::new(*fee))
+            }
+            PriorityFeeOracleConfig::Helius(config) => {
+                Box::new(HeliusPriorityFeeOracle::new(config.clone()))
+            }
         }
     }
 }
