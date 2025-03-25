@@ -24,7 +24,7 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
     using StandardHookMetadata for bytes;
 
     // ============ Constants  ============
-    uint32 public constant MIN_GAS_LIMIT = 500_000;
+    uint32 public constant PROVE_WITHDRAWAL_GAS_LIMIT = 500_000;
 
     IMailbox public immutable mailbox;
     bytes32 public immutable ccipReadIsm;
@@ -52,7 +52,9 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
                 message.destination(),
                 ccipReadIsm,
                 message,
-                metadata,
+                StandardHookMetadata.overrideGasLimit(
+                    PROVE_WITHDRAWAL_GAS_LIMIT
+                ),
                 childHook
             );
     }
