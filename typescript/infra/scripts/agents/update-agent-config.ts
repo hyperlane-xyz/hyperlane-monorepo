@@ -16,10 +16,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  assert,
   objFilter,
   objMap,
   objMerge,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -127,7 +129,7 @@ export async function writeAgentConfig(
           const deployedBlock = await mailbox.deployedBlock();
           return deployedBlock.toNumber();
         } catch (err) {
-          console.error(
+          rootLogger.error(
             'Failed to get deployed block, defaulting to 0. Chain:',
             chain,
             'Error:',
@@ -137,6 +139,31 @@ export async function writeAgentConfig(
         }
       },
     ),
+  );
+
+  // For each chain, ensure the required contract addresses are set
+  let missingArtifactsCount = 0;
+  for (const [chain, artifacts] of Object.entries(addressesForEnv)) {
+    // required fields in HyperlaneDeploymentArtifacts
+    const requiredArtifacts = [
+      'merkleTreeHook',
+      'interchainGasPaymaster',
+      'mailbox',
+      'validatorAnnounce',
+    ];
+
+    for (const artifact of requiredArtifacts) {
+      if (!artifacts[artifact]) {
+        rootLogger.warn(`${artifact} address not found for chain ${chain}`);
+        missingArtifactsCount++;
+      }
+    }
+  }
+
+  // If there are missing addresses, fail the script
+  assert(
+    missingArtifactsCount === 0,
+    `Missing ${missingArtifactsCount} addresses in configuration`,
   );
 
   const agentConfig = buildAgentConfig(
@@ -181,6 +208,6 @@ export async function writeAgentConfig(
 main()
   .then(() => process.exit(0))
   .catch((e) => {
-    console.error('Failed to update agent config', e);
+    rootLogger.error('Failed to update agent config', e);
     process.exit(1);
   });
