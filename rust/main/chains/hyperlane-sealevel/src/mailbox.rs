@@ -468,8 +468,8 @@ impl Mailbox for SealevelMailbox {
             .build_estimated_tx_for_instruction(
                 process_instruction,
                 payer,
-                &self.tx_submitter,
-                &self.priority_fee_oracle,
+                &*self.tx_submitter,
+                &*self.priority_fee_oracle,
             )
             .await?;
 
@@ -530,8 +530,8 @@ impl Mailbox for SealevelMailbox {
             .get_estimated_costs_for_instruction(
                 process_instruction,
                 payer,
-                &self.tx_submitter,
-                &self.priority_fee_oracle,
+                &*self.tx_submitter,
+                &*self.priority_fee_oracle,
             )
             .await?;
 
