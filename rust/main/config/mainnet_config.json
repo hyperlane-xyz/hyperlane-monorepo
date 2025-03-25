@@ -8766,7 +8766,8 @@
       "validatorAnnounce": "0x3434ecD3a6D3411A699A3e60AC8B3e6aFEBD40c3",
       "index": {
         "from": 29
-      }
+      },
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000"
     }
   },
   "defaultRpcConsensusType": "fallback"
