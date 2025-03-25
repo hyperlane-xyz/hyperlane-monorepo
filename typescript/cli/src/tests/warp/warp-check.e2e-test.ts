@@ -39,7 +39,6 @@ import {
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
-  hyperlaneWarpCheck,
   hyperlaneWarpCheckRaw,
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
@@ -165,11 +164,10 @@ describe('hyperlane warp check e2e tests', async function () {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-        combinedWarpCoreConfigPath,
-      );
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      });
 
       expect(output.exitCode).to.equal(0);
       expect(output.text()).to.includes('No violations found');
@@ -186,10 +184,10 @@ describe('hyperlane warp check e2e tests', async function () {
       it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
-        const output = await hyperlaneWarpCheck(
-          WARP_DEPLOY_OUTPUT_PATH,
-          combinedWarpCoreConfigPath,
-        );
+        const output = await hyperlaneWarpCheckRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        });
 
         expect(output.exitCode).to.equal(0);
         expect(output.text()).to.includes('No violations found');
@@ -210,11 +208,10 @@ describe('hyperlane warp check e2e tests', async function () {
       it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
-        const output = await hyperlaneWarpCheck(
-          WARP_DEPLOY_OUTPUT_PATH,
-          tokenSymbol,
-          combinedWarpCoreConfigPath,
-        );
+        const output = await hyperlaneWarpCheckRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        });
 
         expect(output.exitCode).to.equal(0);
         expect(output.text()).to.includes('No violations found');
@@ -231,11 +228,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedActualText = `ACTUAL: "${zeroAddress.toLowerCase()}"\n`;
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-        combinedWarpCoreConfigPath,
-      )
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      })
         .stdio('pipe')
         .nothrow();
 
@@ -255,11 +251,10 @@ describe('hyperlane warp check e2e tests', async function () {
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-        combinedWarpCoreConfigPath,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
@@ -294,11 +289,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `      EXPECTED:
         address: "${warpCore.tokens[0].addressOrDenom!.toLowerCase()}"`;
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-        combinedWarpCoreConfigPath,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.includes(expectedDiffText);
@@ -368,20 +362,16 @@ describe('hyperlane warp check e2e tests', async function () {
       }
 
       it(`should not find differences between the local limits and the on chain ones`, async function () {
-        const [xERC20TokenSymbol] = await deployXERC20WarpRoute();
-
-        const output = await hyperlaneWarpCheck(
-          WARP_DEPLOY_OUTPUT_PATH,
-          xERC20TokenSymbol,
-          combinedWarpCoreConfigPath,
-        ).nothrow();
+        const output = await hyperlaneWarpCheckRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        }).nothrow();
 
         expect(output.exitCode).to.equal(0);
       });
 
       it(`should find differences between the local limits and the on chain ones`, async function () {
-        const [xERC20TokenSymbol, warpDeployConfig] =
-          await deployXERC20WarpRoute();
+        const [_, warpDeployConfig] = await deployXERC20WarpRoute();
 
         assert(
           warpDeployConfig[CHAIN_NAME_2].type === TokenType.XERC20,
@@ -405,11 +395,10 @@ describe('hyperlane warp check e2e tests', async function () {
         const expectedDiffText = `EXPECTED: "${wrongBufferCap}"\n`;
         const expectedActualText = `ACTUAL: "${currentExtraBridgesLimits.limits.rateLimitPerSecond}"\n`;
 
-        const output = await hyperlaneWarpCheck(
-          WARP_DEPLOY_OUTPUT_PATH,
-          xERC20TokenSymbol,
-          combinedWarpCoreConfigPath,
-        ).nothrow();
+        const output = await hyperlaneWarpCheckRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        }).nothrow();
 
         expect(output.exitCode).to.equal(1);
         expect(output.text()).includes(expectedDiffText);
@@ -438,11 +427,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-        combinedWarpCoreConfigPath,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
@@ -477,11 +465,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-        combinedWarpCoreConfigPath,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
