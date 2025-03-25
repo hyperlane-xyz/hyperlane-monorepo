@@ -21,6 +21,7 @@
     "displayName": "Abstract",
     "domainId": 2741,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.abstract-safe.protofire.io",
     "index": {
       "from": 201749
     },
@@ -282,6 +283,42 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
+  "arcadia": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.arcadia.khalani.network/api",
+        "family": "blockscout",
+        "name": "Arcadia Explorer",
+        "url": "https://explorer.arcadia.khalani.network"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 5
+    },
+    "chainId": 4278608,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Arcadia",
+    "domainId": 4278608,
+    "gasCurrencyCoinGeckoId": "khalani-aip",
+    "name": "arcadia",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "AIP",
+      "symbol": "AIP"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://arcadia.khalani.network"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "artela": {
     "blockExplorers": [
       {
@@ -474,6 +511,42 @@
     ],
     "technicalStack": "other"
   },
+  "bouncebit": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://bbscan.io/api",
+        "family": "other",
+        "name": "BBScan",
+        "url": "https://bbscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 4,
+      "reorgPeriod": 5
+    },
+    "chainId": 6001,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "BounceBit",
+    "domainId": 6001,
+    "gasCurrencyCoinGeckoId": "bouncebit",
+    "name": "bouncebit",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BounceBit",
+      "symbol": "BB"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://fullnode-mainnet.bouncebitapi.com"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "flame": {
     "blockExplorers": [
       {
@@ -632,6 +705,43 @@
       }
     ],
     "technicalStack": "opstack"
+  },
+  "berachain": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan/api/",
+        "family": "routescan",
+        "name": "Berachain Explorer",
+        "url": "https://beratrail.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 5
+    },
+    "chainId": 80094,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Berachain",
+    "domainId": 80094,
+    "gasCurrencyCoinGeckoId": "berachain-bera",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.berachain.com",
+    "name": "berachain",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BERA",
+      "symbol": "BERA"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.berachain.com"
+      }
+    ],
+    "technicalStack": "other"
   },
   "bitlayer": {
     "blockExplorers": [
@@ -1009,7 +1119,7 @@
     "blockExplorers": [
       {
         "apiUrl": "https://evmapi.confluxscan.net/api",
-        "family": "blockscout",
+        "family": "other",
         "name": "ConfluxScan eSpace",
         "url": "https://evm.confluxscan.net"
       }
@@ -1453,6 +1563,9 @@
       },
       {
         "http": "https://cloudflare-eth.com"
+      },
+      {
+        "http": "https://eth.drpc.org"
       }
     ],
     "technicalStack": "other"
@@ -1736,7 +1849,7 @@
     "displayName": "Fraxtal",
     "domainId": 252,
     "gasCurrencyCoinGeckoId": "frax-ether",
-    "gnosisSafeTransactionServiceUrl": "https://transaction-frax.safe.optimism.io",
+    "gnosisSafeTransactionServiceUrl": "https://safe.mainnet.frax.com/txs",
     "name": "fraxtal",
     "nativeToken": {
       "decimals": 18,
@@ -2034,6 +2147,43 @@
     ],
     "technicalStack": "other"
   },
+  "hyperevm": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://hyperliquid.cloud.blockscout.com/api",
+        "family": "blockscout",
+        "name": "HyperEVM Explorer",
+        "url": "https://hyperliquid.cloud.blockscout.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 5
+    },
+    "chainId": 999,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "HyperEVM",
+    "domainId": 999,
+    "gasCurrencyCoinGeckoId": "hyperliquid",
+    "gnosisSafeTransactionServiceUrl": "https://prod.hyperliquid.keypersafe.xyz",
+    "name": "hyperevm",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Hyperliquid",
+      "symbol": "HYPE"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.hyperliquid.xyz/evm"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "immutablezkevmmainnet": {
     "blockExplorers": [
       {
@@ -2119,6 +2269,37 @@
       }
     ],
     "technicalStack": "arbitrumnitro"
+  },
+  "infinityvm": {
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 1
+    },
+    "chainId": 1032009,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Infinity VM",
+    "domainId": 1032009,
+    "gasCurrencyCoinGeckoId": "infinityvm",
+    "index": {
+      "from": 157889
+    },
+    "name": "infinityvm",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "INF",
+      "symbol": "INF"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet-endpoint.infinityvm.xyz"
+      }
+    ],
+    "technicalStack": "other"
   },
   "ink": {
     "blockExplorers": [
@@ -2365,6 +2546,7 @@
     "displayName": "Lisk",
     "domainId": 1135,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-lisk.safe.optimism.io",
     "name": "lisk",
     "nativeToken": {
       "decimals": 18,
@@ -2917,7 +3099,10 @@
         "http": "https://rpc.morphl2.io"
       }
     ],
-    "technicalStack": "other"
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "gasPrice": 1000000
+    }
   },
   "nero": {
     "blockExplorers": [
@@ -3199,6 +3384,45 @@
     "transactionOverrides": {
       "gasPrice": "0.025"
     }
+  },
+  "plume": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://phoenix-explorer.plumenetwork.xyz/api",
+        "family": "blockscout",
+        "name": "Plume Explorer",
+        "url": "https://phoenix-explorer.plumenetwork.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 98866,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Plume",
+    "domainId": 98866,
+    "gasCurrencyCoinGeckoId": "plume",
+    "index": {
+      "from": 9588
+    },
+    "name": "plume",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Plume",
+      "symbol": "PLUME"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://phoenix-rpc.plumenetwork.xyz"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
   },
   "polygon": {
     "blockExplorers": [
@@ -3552,6 +3776,45 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
+  "ronin": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://app.roninchain.com/api",
+        "family": "other",
+        "name": "Ronin Explorer",
+        "url": "https://app.roninchain.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 5
+    },
+    "chainId": 2020,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Ronin",
+    "domainId": 2020,
+    "gasCurrencyCoinGeckoId": "ronin",
+    "name": "ronin",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ronin",
+      "symbol": "RON"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://api.roninchain.com/rpc"
+      },
+      {
+        "http": "https://ronin.drpc.org"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "rootstockmainnet": {
     "blockExplorers": [
       {
@@ -3861,6 +4124,7 @@
     "displayName": "Soneium",
     "domainId": 1868,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://trx-soneium-stg.safe.protofire.io",
     "name": "soneium",
     "nativeToken": {
       "decimals": 18,
@@ -3914,10 +4178,10 @@
   "sonicsvm": {
     "blockExplorers": [
       {
-        "apiUrl": "https://solscan.io",
+        "apiUrl": "https://explorer.sonic.game/?cluster=custom&customUrl=https%3A%2F%2Fapi.mainnet-alpha.sonic.game",
         "family": "other",
-        "name": "Solana Explorer",
-        "url": "https://solscan.io"
+        "name": "Sonic SVM Explorer",
+        "url": "https://explorer.sonic.game/?cluster=custom&customUrl=https%3A%2F%2Fapi.mainnet-alpha.sonic.game"
       }
     ],
     "blocks": {
@@ -3983,6 +4247,82 @@
     ],
     "technicalStack": "other"
   },
+  "sophon": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://verification-explorer.sophon.xyz/contract_verification",
+        "family": "etherscan",
+        "name": "Sophon Explorer",
+        "url": "https://explorer.sophon.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 0
+    },
+    "chainId": 50104,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Sophon",
+    "domainId": 50104,
+    "gasCurrencyCoinGeckoId": "sophon",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.sophon.xyz",
+    "name": "sophon",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "sophon",
+      "symbol": "SOPH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.sophon.xyz"
+      },
+      {
+        "http": "https://sophon-mainnet-public.unifra.io"
+      }
+    ],
+    "technicalStack": "zksync"
+  },
+  "story": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.storyscan.xyz/api",
+        "family": "blockscout",
+        "name": "Storyscan",
+        "url": "https://www.storyscan.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 5
+    },
+    "chainId": 1514,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Story Mainnet",
+    "domainId": 1514,
+    "gasCurrencyCoinGeckoId": "story-2",
+    "name": "story",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "IP",
+      "symbol": "IP"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.storyrpc.io"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "stride": {
     "bech32Prefix": "stride",
     "blockExplorers": [
@@ -4044,6 +4384,42 @@
       "gasPrice": "0.0025"
     }
   },
+  "subtensor": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://evm.taostats.io/api",
+        "family": "other",
+        "name": "TaoStats EVM",
+        "url": "https://evm.taostats.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 12,
+      "reorgPeriod": 5
+    },
+    "chainId": 964,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Subtensor",
+    "domainId": 964,
+    "gasCurrencyCoinGeckoId": "bittensor",
+    "name": "subtensor",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Bittensor",
+      "symbol": "TAO"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://bittensor-finney.api.onfinality.io/public"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "superseed": {
     "blockExplorers": [
       {
@@ -4066,6 +4442,7 @@
     "displayName": "Superseed",
     "domainId": 5330,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://trx-superseed.safe.protofire.io",
     "name": "superseed",
     "nativeToken": {
       "decimals": 18,
@@ -4330,6 +4707,7 @@
     "displayName": "Treasure",
     "domainId": 61166,
     "gasCurrencyCoinGeckoId": "magic",
+    "gnosisSafeTransactionServiceUrl": "https://prod.treasure.keypersafe.xyz",
     "name": "treasure",
     "nativeToken": {
       "decimals": 18,
@@ -4386,10 +4764,10 @@
   "unichain": {
     "blockExplorers": [
       {
-        "apiUrl": "https://unichain.blockscout.com/api",
-        "family": "blockscout",
+        "apiUrl": "https://api.uniscan.xyz/api",
+        "family": "etherscan",
         "name": "Unichain Explorer",
-        "url": "https://unichain.blockscout.com"
+        "url": "https://uniscan.xyz"
       }
     ],
     "blocks": {
@@ -4405,6 +4783,7 @@
     "displayName": "Unichain",
     "domainId": 130,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-unichain.safe.global",
     "name": "unichain",
     "nativeToken": {
       "decimals": 18,
@@ -4533,10 +4912,10 @@
   "worldchain": {
     "blockExplorers": [
       {
-        "apiUrl": "https://worldchain-mainnet-explorer.alchemy.com/api",
-        "family": "blockscout",
-        "name": "World Chain explorer",
-        "url": "https://worldchain-mainnet-explorer.alchemy.com"
+        "apiUrl": "https://api.worldscan.org/api",
+        "family": "etherscan",
+        "name": "Worldscan",
+        "url": "https://worldscan.org"
       }
     ],
     "blocks": {
@@ -4552,6 +4931,7 @@
     "displayName": "World Chain",
     "domainId": 480,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-worldchain.safe.global",
     "name": "worldchain",
     "nativeToken": {
       "decimals": 18,
@@ -4825,6 +5205,7 @@
     "displayNameShort": "zkLink",
     "domainId": 810180,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.zklink.io",
     "name": "zklink",
     "nativeToken": {
       "decimals": 18,
@@ -4864,6 +5245,7 @@
     "displayName": "zkSync",
     "domainId": 324,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zksync.safe.global",
     "name": "zksync",
     "nativeToken": {
       "decimals": 18,
