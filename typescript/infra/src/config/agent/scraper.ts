@@ -30,11 +30,15 @@ export interface HelmScraperValues extends HelmStatefulSetValues {
 export function getCombinedChainsToScrape(
   contextChainNames: string[],
   scraperOnlyChains: ChainMap<boolean> = {},
+  enabledOnly = false,
 ): string[] {
   const chainsToScrape = new Set(contextChainNames);
 
   // Add all scraper-only chains so we don't need to rebuild images to enable them
   for (const chain of Object.keys(scraperOnlyChains)) {
+    if (enabledOnly && !scraperOnlyChains[chain]) {
+      continue;
+    }
     chainsToScrape.add(chain);
   }
 
@@ -49,10 +53,11 @@ export class ScraperConfigHelper extends AgentConfigHelper<ScraperConfig> {
   }
 
   async buildConfig(): Promise<ScraperConfig> {
-    // Combine the context chain names with the scraper only chains
+    // Combine the context chain names with the ENABLED scraper only chains
     const chainsToScrape = getCombinedChainsToScrape(
       this.contextChainNames[Role.Scraper],
       this.rawConfig.scraper?.scraperOnlyChains,
+      true,
     );
 
     return {
