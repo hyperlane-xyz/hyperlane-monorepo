@@ -7,7 +7,13 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objKeys,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -31,6 +37,7 @@ import {
   TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
@@ -62,18 +69,21 @@ abstract class TokenDeployer<
     _: ChainName,
     config: HypTokenRouterConfig,
   ): Promise<any> {
+    // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
+    const scale = config.scale ?? 1;
+
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
-      return [config.token, config.mailbox];
+      return [config.token, scale, config.mailbox];
     } else if (isNativeTokenConfig(config)) {
-      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
+      return [scale, config.mailbox];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, config.mailbox];
+      return [config.decimals, scale, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, config.mailbox, collateralDomain];
+      return [config.decimals, scale, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -97,7 +107,12 @@ abstract class TokenDeployer<
     ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
-      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+      return [
+        config.initialSupply ?? 0,
+        config.name,
+        config.symbol,
+        ...defaultArgs,
+      ];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       return [0, config.name, config.symbol, ...defaultArgs];
     } else {
@@ -109,19 +124,19 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadata | undefined> {
-    // this is used for synthetic token metadata and should always be 0
-    const DERIVED_TOKEN_SUPPLY = 0;
-
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
         return TokenMetadataSchema.parse(config);
+      } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        // If the config didn't specify the token metadata, we can only now
+        // derive it for Ethereum chains. So here we skip non-Ethereum chains.
+        continue;
       }
 
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
           return TokenMetadataSchema.parse({
-            totalSupply: DERIVED_TOKEN_SUPPLY,
             ...nativeToken,
           });
         }
@@ -142,7 +157,6 @@ abstract class TokenDeployer<
           return TokenMetadataSchema.parse({
             name,
             symbol,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
           });
         }
 
@@ -176,7 +190,6 @@ abstract class TokenDeployer<
           name,
           symbol,
           decimals,
-          totalSupply: DERIVED_TOKEN_SUPPLY,
         });
       }
     }
@@ -184,7 +197,7 @@ abstract class TokenDeployer<
     return undefined;
   }
 
-  async deploy(configMap: WarpRouteDeployConfig) {
+  async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadata: TokenMetadata | undefined;
     try {
       tokenMetadata = await TokenDeployer.deriveTokenMetadata(

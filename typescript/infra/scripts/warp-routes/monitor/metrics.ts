@@ -11,17 +11,22 @@ import { logger } from './utils.js';
 
 export const metricsRegister = new Registry();
 
-type WarpRouteMetricLabels = keyof WarpRouteMetrics;
+type supportedTokenStandards = TokenStandard | 'EvmManagedLockbox' | 'xERC20';
 
-interface WarpRouteMetrics {
+interface BaseWarpRouteMetrics {
   chain_name: ChainName;
   token_address: string;
   token_name: string;
-  wallet_address: string;
-  token_standard: TokenStandard | 'EvmManagedLockbox' | 'xERC20';
   warp_route_id: string;
+}
+
+interface WarpRouteMetrics extends BaseWarpRouteMetrics {
+  wallet_address: string;
+  token_standard: supportedTokenStandards;
   related_chain_names: string;
 }
+
+type WarpRouteMetricLabels = keyof WarpRouteMetrics;
 
 const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
   'chain_name',
@@ -47,6 +52,29 @@ const warpRouteCollateralValue = new Gauge({
   labelNames: warpRouteMetricLabels,
 });
 
+interface WarpRouteValueAtRiskMetrics extends BaseWarpRouteMetrics {
+  collateral_chain_name: ChainName;
+  collateral_token_standard: supportedTokenStandards;
+}
+
+type WarpRouteValueAtRiskMetricLabels = keyof WarpRouteValueAtRiskMetrics;
+
+const warpRouteValueAtRiskLabels: WarpRouteValueAtRiskMetricLabels[] = [
+  'chain_name',
+  'collateral_chain_name',
+  'token_address',
+  'token_name',
+  'collateral_token_standard',
+  'warp_route_id',
+];
+
+const warpRouteValueAtRisk = new Gauge({
+  name: 'hyperlane_warp_route_value_at_risk',
+  help: 'Value at risk on chain for a given Warp Route',
+  registers: [metricsRegister],
+  labelNames: warpRouteValueAtRiskLabels,
+});
+
 const walletBalanceGauge = getWalletBalanceGauge(metricsRegister);
 
 const xERC20LimitsGauge = new Gauge({
@@ -69,6 +97,11 @@ export function updateTokenBalanceMetrics(
   balanceInfo: WarpRouteBalance,
   collateralTokenSymbol: string,
 ) {
+  const allChains = warpCore.getTokenChains().sort();
+  const relatedChains = allChains.filter(
+    (chainName) => chainName !== token.chainName,
+  );
+
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
     token_address: balanceInfo.tokenAddress,
@@ -87,11 +120,8 @@ export function updateTokenBalanceMetrics(
       collateralTokenSymbol,
       warpCore.getTokenChains(),
     ),
-    related_chain_names: warpCore
-      .getTokenChains()
-      .filter((chainName) => chainName !== token.chainName)
-      .sort()
-      .join(','),
+    // TODO: consider deprecating this label given that we have the value at risk metric
+    related_chain_names: relatedChains.join(','),
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
@@ -104,6 +134,7 @@ export function updateTokenBalanceMetrics(
   );
 
   if (balanceInfo.valueUSD) {
+    // TODO: consider deprecating this metric in favor of the value at risk metric
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
     logger.info(
       {
@@ -112,6 +143,26 @@ export function updateTokenBalanceMetrics(
       },
       'Wallet value updated for token',
     );
+
+    for (const chainName of allChains) {
+      const labels = {
+        chain_name: chainName,
+        collateral_chain_name: metrics.chain_name,
+        token_address: metrics.token_address,
+        token_name: metrics.token_name,
+        collateral_token_standard: metrics.token_standard,
+        warp_route_id: metrics.warp_route_id,
+      };
+
+      warpRouteValueAtRisk.labels(labels).set(balanceInfo.valueUSD);
+      logger.info(
+        {
+          labels,
+          valueUSD: balanceInfo.valueUSD,
+        },
+        `Value at risk on ${chainName} updated for token`,
+      );
+    }
   }
 }
 // TODO: This does not need to be a separate function, we can redefine updateTokenBalanceMetrics to be generic

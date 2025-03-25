@@ -177,7 +177,7 @@ export class SealevelTokenAdapter
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
     // TODO solana support
-    return { decimals: 9, symbol: 'SPL', name: 'SPL Token', totalSupply: '' };
+    return { decimals: 9, symbol: 'SPL', name: 'SPL Token' };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -280,7 +280,6 @@ export abstract class SealevelHypTokenAdapter
     // TODO full token metadata support
     return {
       decimals: tokenData.decimals,
-      totalSupply: '0',
       symbol: 'HYP',
       name: 'Unknown Hyp Token',
     };

@@ -1,5 +1,95 @@
 # @hyperlane-xyz/cli
 
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
+## 9.2.0
+
+### Patch Changes
+
+- 2955bd990: Catch and log error instead of hard exiting when unable to get the tx receipt of a delivered message.
+- 53dd71a4b: Do not error in hyperlane status if chain does not contain block explorer URL.
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
+## 9.1.0
+
+### Minor Changes
+
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 9f9e2c3b5: fix `warp check` command to correctly check the remote routers in the config
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- d121c1cb8: Add XERC20 derivation in SDK/CLI Warp Reading
+- d6ddf5b9e: make warp:read and warp:check/warp:verify operations independent of signer requirements
+- 766f50695: Change semantics of ism/hook config from undefined to 0x0 for reading/checking purposes
+- 1955579cf: Expand warpDeployConfig for checking purposes
+- 33178eaa8: Move getRegistry function from the CLI to `@hyperlane-xyz/registry` package.
+- 4147f91cb: Added support for the new AmountRoutingIsm to be deployed and managed by the cli
+- 500249649: Enable usage of CCIP Hooks and ISMs in warp routes.
+- 03266e2c2: add amount routing hook support in the sdk and cli
+
+### Patch Changes
+
+- 9fd3aa4f3: Correctly await address in native balance check.
+- a835d5c5c: Only relay specified message ID
+- Updated dependencies [05f89650b]
+- Updated dependencies [d121c1cb8]
+- Updated dependencies [3518f8901]
+- Updated dependencies [d6ddf5b9e]
+- Updated dependencies [766f50695]
+- Updated dependencies [e78060d73]
+- Updated dependencies [cb7c157f0]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [1955579cf]
+- Updated dependencies [57137dad4]
+- Updated dependencies [3518f8901]
+- Updated dependencies [500249649]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [cb93c13a4]
+- Updated dependencies [456407dc7]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/utils@8.9.0
+  - @hyperlane-xyz/sdk@8.9.0
+
 ## 8.8.1
 
 ### Patch Changes
