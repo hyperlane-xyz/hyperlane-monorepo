@@ -32,7 +32,7 @@ import {
   readWarpConfig,
 } from '../commands/warp.js';
 
-describe('hyperlane warp apply warp route extension tests', async function () {
+describe('hyperlane warp apply basic extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Addresses: ChainAddresses = {};
@@ -69,7 +69,6 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
 
@@ -125,7 +124,6 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
 
@@ -188,9 +186,11 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: randomOwner,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
     };
+    // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+    warpDeployConfig[CHAIN_NAME_2].remoteRouters = undefined;
+    warpDeployConfig[CHAIN_NAME_2].destinationGas = undefined;
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
@@ -251,10 +251,14 @@ describe('hyperlane warp apply warp route extension tests', async function () {
       name: 'Ether',
       owner: new Wallet(ANVIL_KEY).address,
       symbol: 'ETH',
-      totalSupply: 0,
       type: TokenType.native,
       gas: GAS,
     };
+
+    // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+    warpDeployConfig[CHAIN_NAME_2].remoteRouters = undefined;
+    warpDeployConfig[CHAIN_NAME_2].destinationGas = undefined;
+
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpConfigPath, warpDeployConfig);
     await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);

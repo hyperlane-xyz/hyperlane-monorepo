@@ -23,6 +23,7 @@ import {
   senderMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
+import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
@@ -469,6 +470,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
 };
 
+// Chains not in our core set of supported chains, and supported ONLY by the scraper
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
+  forma: true,
+};
+
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
   mainnet3SupportedChainNames,
@@ -705,9 +711,16 @@ const blacklistedMessageIds = [
 ];
 
 // Blacklist matching list intended to be used by all contexts.
-const blacklist: MatchingList = blacklistedMessageIds.map((messageId) => ({
-  messageId,
-}));
+const blacklist: MatchingList = [
+  {
+    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
+    // A temporary measure to prevent some wasted effort on our relayer.
+    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
+  },
+  ...blacklistedMessageIds.map((messageId) => ({
+    messageId,
+  })),
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -718,7 +731,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cc3af7d-20250304-172021',
+      tag: 'f887ebf-20250321-173043',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -735,10 +748,11 @@ const hyperlane: RootAgentConfig = {
     resources: validatorResources,
   },
   scraper: {
+    scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f5174e6-20250310-182921',
+      tag: 'a76dd09-20250325-111203',
     },
     resources: scraperResources,
   },
@@ -753,7 +767,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f5174e6-20250310-182921',
+      tag: 'f887ebf-20250321-173043',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
