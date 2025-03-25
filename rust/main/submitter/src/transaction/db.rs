@@ -3,6 +3,7 @@
 
 use std::io::Write;
 
+use async_trait::async_trait;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
 
@@ -10,20 +11,26 @@ use super::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
+#[async_trait]
 pub trait TransactionDb {
     /// Retrieve a transaction by its unique ID
-    fn retrieve_transaction_by_id(&self, id: &TransactionId) -> DbResult<Option<Transaction>>;
+    async fn retrieve_transaction_by_id(&self, id: &TransactionId)
+        -> DbResult<Option<Transaction>>;
 
     /// Store a transaction by its unique ID
-    fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()>;
+    async fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()>;
 }
 
+#[async_trait]
 impl TransactionDb for HyperlaneRocksDB {
-    fn retrieve_transaction_by_id(&self, id: &TransactionId) -> DbResult<Option<Transaction>> {
+    async fn retrieve_transaction_by_id(
+        &self,
+        id: &TransactionId,
+    ) -> DbResult<Option<Transaction>> {
         self.retrieve_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, id)
     }
 
-    fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()> {
+    async fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()> {
         self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, tx.id(), &tx)
     }
 }

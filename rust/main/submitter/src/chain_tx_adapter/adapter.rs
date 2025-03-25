@@ -16,7 +16,7 @@ pub type GasLimit = U256;
 
 /// The `AdaptsChain` trait is implemented by adapters for different VMs, stacks and chains, allowing the `PayloadDispatcher` to interact with them in a generic way.
 #[async_trait]
-pub trait AdaptsChain {
+pub trait AdaptsChain: Send + Sync {
     /// Simulates Payload and returns its gas limit. Called in the Building Stage (PayloadDispatcher)
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
 
