@@ -14,6 +14,7 @@
 
 - 7fe739d52: Update default ISMs with new validators for infinityvm, plume, fuse. Add gas buffer when deploying Interchain Accounts. Add gas buffer when transferring ownership of contracts in HyperlaneDeployer. Migrate safe signing from signTransactionHash -> signTypedData.
 - 3e66e8f12: Utils for fetching Starknet chains
+- Note: This version included removal of totalSupply in TokenMetadata in 4f08670d8
 
 ### Patch Changes
 
