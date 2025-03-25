@@ -1,6 +1,8 @@
 import search from '@inquirer/search';
 
+import { warpRouteConfigToId } from '@hyperlane-xyz/registry';
 import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   readWarpCoreConfig,
@@ -9,11 +11,6 @@ import {
 import { CommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
 
-import {
-  getWarpConfigFromRegistry,
-  getWarpDeployConfig,
-  getWarpRouteIds,
-} from './registry.js';
 import { selectRegistryWarpRoute } from './tokens.js';
 
 /**
@@ -47,74 +44,94 @@ export async function getWarpCoreConfigOrExit({
 /**
  * Gets both warp configs based on the provided inputs. Handles all cases:
  * - warpRouteId: gets configs directly from registry
- * - config & warp files: reads from files
+ * - warpDeployConfigPath & warpCoreConfigPath: reads from files
  * - symbol: prompts user to select from matching routes
  * - no inputs: prompts user to search and select from all routes
  */
 export async function getWarpConfigs({
   context,
   warpRouteId,
-  config,
-  warp,
+  warpDeployConfigPath,
+  warpCoreConfigPath,
   symbol,
 }: {
   context: CommandContext;
   warpRouteId?: string;
-  config?: string;
-  warp?: string;
+  warpDeployConfigPath?: string;
+  warpCoreConfigPath?: string;
   symbol?: string;
 }): Promise<{
-  warpDeployConfig: WarpRouteDeployConfig | null;
+  warpDeployConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (config || warp) {
-    if (!config || !warp) {
+  if (warpDeployConfigPath || warpCoreConfigPath) {
+    if (!warpDeployConfigPath || !warpCoreConfigPath) {
       throw new Error(
-        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
+        'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
       );
     }
-    const warpDeployConfig = await readWarpRouteDeployConfig(config);
-    const warpCoreConfig = readWarpCoreConfig(warp);
+    const warpDeployConfig = await readWarpRouteDeployConfig(
+      warpDeployConfigPath,
+      context,
+    );
+    const warpCoreConfig = readWarpCoreConfig(warpCoreConfigPath);
     return { warpDeployConfig, warpCoreConfig };
   }
 
-  if (warpRouteId) {
-    return getWarpConfigFromRegistry(warpRouteId, context);
-  }
-
-  if (symbol) {
+  if (symbol && !warpRouteId) {
     const warpCoreConfig = await selectRegistryWarpRoute(
       context.registry,
       symbol,
     );
+    const routeId = warpRouteConfigToId(warpCoreConfig);
+    assert(routeId, `No matching warp route ID found for symbol ${symbol}`);
 
-    const routeIds = await getWarpRouteIds(context);
-    const routeId = routeIds.find((id) =>
-      id.toUpperCase().includes(symbol.toUpperCase()),
+    const warpDeployConfig = await context.registry.getWarpDeployConfig(
+      routeId,
     );
-    if (!routeId) {
-      throw new Error(`No matching warp route ID found for symbol ${symbol}`);
-    }
 
-    const warpDeployConfig = await getWarpDeployConfig(routeId, context);
+    assert(
+      warpDeployConfig,
+      `warp deploy config not found for route ${routeId}`,
+    );
+
     return { warpDeployConfig, warpCoreConfig };
   }
 
+  let selectedId = warpRouteId;
+
   // No inputs provided, prompt user to select from all routes
-  const routeIds = await getWarpRouteIds(context);
-  if (routeIds.length === 0) {
-    throw new Error('No valid warp routes found in registry');
+  if (!selectedId) {
+    const routeIds = Object.keys(
+      (await context.registry.listRegistryContent()).deployments.warpRoutes,
+    );
+    if (routeIds.length === 0) {
+      throw new Error('No valid warp routes found in registry');
+    }
+
+    selectedId = (await search({
+      message: 'Select a warp route:',
+      source: (term) => {
+        return routeIds.filter((id) =>
+          id.toLowerCase().includes(term?.toLowerCase() || ''),
+        );
+      },
+      pageSize: 20,
+    })) as string;
   }
 
-  const selectedId = (await search({
-    message: 'Select a warp route:',
-    source: (term) => {
-      return routeIds.filter((id) =>
-        id.toLowerCase().includes(term?.toLowerCase() || ''),
-      );
-    },
-    pageSize: 20,
-  })) as string;
+  const warpCoreConfig = await context.registry.getWarpRoute(selectedId);
+  assert(warpCoreConfig, `Missing warp config for warp route ${selectedId}.`);
+  const warpDeployConfig = await context.registry.getWarpDeployConfig(
+    selectedId,
+  );
+  assert(
+    warpDeployConfig,
+    `Missing warp deploy config for warp route ${selectedId}.`,
+  );
 
-  return getWarpConfigFromRegistry(selectedId, context);
+  return {
+    warpDeployConfig,
+    warpCoreConfig,
+  };
 }
