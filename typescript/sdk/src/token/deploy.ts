@@ -192,6 +192,7 @@ abstract class TokenDeployer<
             break;
         }
         if (isStarknet) {
+          // TODO: check if taking ABI from starknet-core might break this
           const erc20Abi = [
             {
               name: 'name',

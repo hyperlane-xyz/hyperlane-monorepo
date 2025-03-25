@@ -10,7 +10,6 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
-  IsmType,
   StarknetCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -119,12 +118,10 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.Starknet:
       {
-        const domainId = multiProvider.getDomainId(chain);
         const account = multiProtocolSigner!.getStarknetSigner(chain);
         assert(account, 'Starknet account failed!');
         const starknetCoreModule = new StarknetCoreModule(
           account,
-          domainId,
           multiProvider,
         );
         deployedAddresses = await starknetCoreModule.deploy({
