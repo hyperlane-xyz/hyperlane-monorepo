@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use hyperlane_core::U256;
 
-use super::{FullPayload, Transaction, TransactionStatus};
+use crate::{
+    payload::FullPayload,
+    transaction::{Transaction, TransactionStatus},
+};
 
 pub type GasLimit = U256;
 

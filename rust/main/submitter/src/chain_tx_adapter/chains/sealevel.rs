@@ -3,7 +3,11 @@ use uuid::Uuid;
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 
-use crate::chain_tx_adapter::{AdaptsChain, FullPayload, GasLimit, Transaction, TransactionStatus};
+use crate::{
+    chain_tx_adapter::{AdaptsChain, GasLimit},
+    payload::FullPayload,
+    transaction::{Transaction, TransactionStatus},
+};
 
 pub struct SealevelTxAdapter {
     _conf: ChainConf,
