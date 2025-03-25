@@ -92,6 +92,47 @@ export const SealevelOverheadIgpDataSchema = new Map<any, any>([
   ],
 ]);
 
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L159
+export class SealevelIgpData {
+  /// The bump seed for this PDA.
+  bump_seed!: number;
+  // The salt used to derive the IGP PDA.
+  salt!: Uint8Array; // 32 bytes
+  /// The owner of the IGP.
+  owner?: Uint8Array | null;
+  owner_pub_key?: PublicKey;
+  /// The beneficiary of the IGP.
+  beneficiary!: Uint8Array; // 32 bytes
+  beneficiary_pub_key!: PublicKey;
+  gas_oracles!: Map<number, bigint>;
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+    this.owner_pub_key = this.owner ? new PublicKey(this.owner) : undefined;
+    this.beneficiary_pub_key = new PublicKey(this.beneficiary);
+  }
+}
+
+export const SealevelIgpDataSchema = new Map<any, any>([
+  [
+    SealevelAccountDataWrapper,
+    getSealevelAccountDataSchema(SealevelIgpData, [8]),
+  ],
+  [
+    SealevelIgpData,
+    {
+      kind: 'struct',
+      fields: [
+        ['bump_seed', 'u8'],
+        ['salt', [32]],
+        ['owner', { kind: 'option', type: [32] }],
+        ['beneficiary', [32]],
+        ['gas_oracles', { kind: 'map', key: 'u32', value: 'u64' }],
+      ],
+    },
+  ],
+]);
+
 /**
  * IGP instruction Borsh Schema
  */

@@ -1,11 +1,15 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
+import { Chain as StarknetChain } from '@starknet-react/chains';
 import { Chain, defineChain } from 'viem';
+
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { test1 } from '../consts/testChains.js';
 import {
   ChainMetadata,
   getChainIdNumber,
 } from '../metadata/chainMetadataTypes.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
 
 export function chainMetadataToViemChain(metadata: ChainMetadata): Chain {
   return defineChain({
@@ -95,4 +99,40 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
   };
 
   return { chain, assets };
+}
+
+export function chainMetadataToStarknetChain(
+  metadata: ChainMetadata,
+): StarknetChain {
+  const httpUrls = metadata.rpcUrls
+    .map((url) => {
+      if (typeof url.http === 'string') {
+        return url.http;
+      }
+      return null;
+    })
+    .filter((url): url is string => url !== null);
+
+  return {
+    id: BigInt(metadata.chainId),
+    name: metadata.name,
+    network: metadata.name.toLowerCase(),
+    nativeCurrency: {
+      name: metadata.nativeToken?.name || 'Ether',
+      symbol: metadata.nativeToken?.symbol || 'ETH',
+      decimals: metadata.nativeToken?.decimals || 18,
+      address:
+        (metadata.nativeToken?.denom as `0x${string}`) ??
+        PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet].denom,
+    },
+    testnet: metadata.isTestnet,
+    rpcUrls: {
+      default: {
+        http: httpUrls,
+      },
+      public: {
+        http: httpUrls,
+      },
+    },
+  };
 }

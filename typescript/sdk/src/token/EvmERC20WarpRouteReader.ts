@@ -206,10 +206,9 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   }
 
   async fetchXERC20Config(
-    type: TokenType.XERC20 | TokenType.XERC20Lockbox,
     xERC20Address: Address,
     warpRouteAddress: Address,
-  ): Promise<XERC20TokenMetadata | {}> {
+  ): Promise<XERC20TokenMetadata> {
     // fetch the limits if possible
     const rateLimitsABI = [
       'function rateLimitPerSecond(address) external view returns (uint128)',
@@ -286,15 +285,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         token = await erc20.wrappedToken();
       }
 
-      const { name, symbol, decimals, totalSupply } =
-        await this.fetchERC20Metadata(token);
+      const { name, symbol, decimals } = await this.fetchERC20Metadata(token);
 
       if (type === TokenType.XERC20 || type === TokenType.XERC20Lockbox) {
-        xERC20Metadata = await this.fetchXERC20Config(
-          type,
-          token,
-          warpRouteAddress,
-        );
+        xERC20Metadata = await this.fetchXERC20Config(token, warpRouteAddress);
       }
 
       return {
@@ -303,7 +297,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         name,
         symbol,
         decimals,
-        totalSupply,
         token: lockbox || token,
       };
     } else if (
@@ -333,7 +326,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
           name,
           symbol,
           decimals,
-          totalSupply: 0,
         };
       } else {
         throw new Error(
@@ -349,14 +341,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
     const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
-    const [name, symbol, decimals, totalSupply] = await Promise.all([
+    const [name, symbol, decimals] = await Promise.all([
       erc20.name(),
       erc20.symbol(),
       erc20.decimals(),
-      erc20.totalSupply(),
     ]);
 
-    return { name, symbol, decimals, totalSupply: totalSupply.toString() };
+    return { name, symbol, decimals };
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {

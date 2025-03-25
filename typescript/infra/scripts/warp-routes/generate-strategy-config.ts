@@ -9,13 +9,17 @@ import {
 
 import { strategyConfigGetterMap } from '../../config/warp.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
-import { getArgs, withOutputFile, withWarpRouteId } from '../agent-utils.js';
+import {
+  getArgs,
+  withKnownWarpRouteId,
+  withOutputFile,
+} from '../agent-utils.js';
 
 // Writes the strategy config to disk
 async function main() {
   const logger = configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { warpRouteId, outFile } = await withOutputFile(
-    withWarpRouteId(getArgs()),
+    withKnownWarpRouteId(getArgs()),
   ).argv;
   assert(warpRouteId, 'warpRouteId not provided');
 

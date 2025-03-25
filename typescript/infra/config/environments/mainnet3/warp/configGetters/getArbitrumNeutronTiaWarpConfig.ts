@@ -30,7 +30,6 @@ export const getArbitrumNeutronTiaWarpConfig = async (
     name: 'TIA',
     symbol: 'TIA.n',
     decimals: 6,
-    totalSupply: 0,
     gas: 600_000,
   };
 

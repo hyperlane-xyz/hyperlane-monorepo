@@ -19,20 +19,42 @@ use serde::{de::DeserializeOwned, Serialize};
 /// metrics. To make this as flexible as possible, the metric vecs need to be
 /// created and named externally, they should follow the naming convention here
 /// and must include the described labels.
-#[derive(new)]
 pub struct PrometheusJsonRpcClient<C> {
     inner: C,
     metrics: PrometheusClientMetrics,
     config: PrometheusConfig,
 }
 
+impl<C> PrometheusJsonRpcClient<C> {
+    /// Create new PrometheusJsonRpcClient
+    pub fn new(inner: C, metrics: PrometheusClientMetrics, config: PrometheusConfig) -> Self {
+        // increment provider metric count
+        let chain_name = PrometheusConfig::chain_name(&config.chain);
+        metrics.increment_provider_instance(chain_name);
+
+        Self {
+            inner,
+            metrics,
+            config,
+        }
+    }
+}
+
+impl<C> Drop for PrometheusJsonRpcClient<C> {
+    fn drop(&mut self) {
+        // decrement provider metric count
+        let chain_name = PrometheusConfig::chain_name(&self.config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
+    }
+}
+
 impl<C: Clone> Clone for PrometheusJsonRpcClient<C> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            metrics: self.metrics.clone(),
-            config: self.config.clone(),
-        }
+        Self::new(
+            self.inner.clone(),
+            self.metrics.clone(),
+            self.config.clone(),
+        )
     }
 }
 

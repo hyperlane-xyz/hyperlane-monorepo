@@ -41,7 +41,8 @@ impl SealevelInterchainGasPaymaster {
         conf: &ConnectionConf,
         igp_account_locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
-        let provider = SealevelProvider::new(rpc_client, igp_account_locator.domain.clone(), conf);
+        let provider =
+            SealevelProvider::new(rpc_client, igp_account_locator.domain.clone(), &[], conf);
         let program_id =
             Self::determine_igp_program_id(provider.rpc(), &igp_account_locator.address).await?;
         let (data_pda_pubkey, _) =

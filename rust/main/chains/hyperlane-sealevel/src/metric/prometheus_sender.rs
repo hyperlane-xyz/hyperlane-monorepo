@@ -20,11 +20,23 @@ pub struct PrometheusSealevelRpcSender {
 
 impl PrometheusSealevelRpcSender {
     pub fn new(url: Url, metrics: PrometheusClientMetrics, config: PrometheusConfig) -> Self {
+        // increment provider metric count
+        let chain_name = PrometheusConfig::chain_name(&config.chain);
+        metrics.increment_provider_instance(chain_name);
+
         Self {
             inner: HttpSender::new(url),
             metrics,
             config,
         }
+    }
+}
+
+impl Drop for PrometheusSealevelRpcSender {
+    fn drop(&mut self) {
+        // decrement provider metric count when dropped
+        let chain_name = PrometheusConfig::chain_name(&self.config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
     }
 }
 

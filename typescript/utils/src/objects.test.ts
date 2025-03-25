@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import {
+  TransformObjectTransformer,
   arrayToObject,
   deepCopy,
   deepEquals,
@@ -20,6 +21,7 @@ import {
   pick,
   promiseObjAll,
   stringifyObject,
+  transformObj,
 } from './objects.js';
 
 describe('Object utilities', () => {
@@ -352,5 +354,120 @@ describe('Object utilities', () => {
       const obj = { a: 1, b: 2 };
       expect(() => mustGet(obj, 'c')).to.Throw();
     });
+  });
+
+  describe(transformObj.name, () => {
+    it('should format a string', () => {
+      const actual = 'HELLO';
+      const expected = 'hello';
+      const formatter: TransformObjectTransformer = (obj: any) =>
+        typeof obj === 'string' ? obj.toLowerCase() : obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should format a number', () => {
+      const actual = 42;
+      const expected = 84;
+      const formatter: TransformObjectTransformer = (obj: any) =>
+        typeof obj === 'number' ? obj * 2 : obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should return an empty object when given an empty object', () => {
+      const actual = {};
+      const expected = {};
+      const formatter: TransformObjectTransformer = (obj: any) => obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should return an empty array when given an empty array', () => {
+      const actual: any[] = [];
+      const expected: any[] = [];
+      const formatter: TransformObjectTransformer = (obj) => obj;
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should remove values when shouldInclude is false', () => {
+      const actual = {
+        keep: 'value',
+        remove: 'this should be removed',
+      };
+
+      const expected = {
+        keep: 'value',
+      };
+
+      const formatter: TransformObjectTransformer = (
+        obj: any,
+        propPath: ReadonlyArray<string>,
+      ) => {
+        const parentKey = propPath[propPath.length - 1];
+
+        if (parentKey === 'remove') {
+          return undefined;
+        }
+
+        return obj;
+      };
+
+      expect(transformObj(actual, formatter)).to.eql(expected);
+    });
+
+    it('should throw an error when maximum depth is exceeded', () => {
+      // Build a nested object with depth > 15.
+      const obj: any = {};
+      let current = obj;
+      for (let i = 0; i < 16; i++) {
+        current['level' + i] = {};
+        current = current['level' + i];
+      }
+      const formatter: TransformObjectTransformer = (obj) => obj;
+
+      expect(() => transformObj(obj, formatter)).to.throw(
+        'transformObj went too deep. Max depth is 15',
+      );
+    });
+
+    const testCases: Array<{ actual: any; expected: any }> = [
+      { actual: { a: 'Henlo', b: 2 }, expected: { a: 'henlo', b: 2 } },
+      {
+        actual: {
+          a: {
+            b: 'Test',
+          },
+          c: {
+            d: {
+              e: 'TeSt 2',
+            },
+          },
+        },
+        expected: {
+          a: {
+            b: 'test',
+          },
+          c: {
+            d: {
+              e: 'test 2',
+            },
+          },
+        },
+      },
+    ];
+
+    for (const { actual, expected } of testCases) {
+      it('should successfully apply the formatter function to an object', () => {
+        const formatter: TransformObjectTransformer = (obj: any) => {
+          return typeof obj === 'string' ? obj.toLowerCase() : obj;
+        };
+
+        const formatted = transformObj(actual, formatter);
+
+        expect(formatted).to.eql(expected);
+      });
+    }
   });
 });

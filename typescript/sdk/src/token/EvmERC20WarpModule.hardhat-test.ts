@@ -179,7 +179,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       name: TOKEN_NAME,
       symbol: TOKEN_NAME,
       decimals: TOKEN_DECIMALS,
-      totalSupply: TOKEN_SUPPLY,
+      initialSupply: TOKEN_SUPPLY,
     };
 
     // Deploy using WarpModule

@@ -52,3 +52,6 @@ hyperlane-sealevel-validator-announce = { path = "../../../sealevel/programs/val
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }
+
+[dev-dependencies]
+rstest.workspace = true

@@ -1,5 +1,62 @@
 # @hyperlane-xyz/sdk
 
+## 9.2.1
+
+### Patch Changes
+
+- e3d09168e: Updated NON_ZERO_SENDER_ADDRESS to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 to fix reading on zksync chains
+  - @hyperlane-xyz/utils@9.2.1
+  - @hyperlane-xyz/core@6.0.3
+
+## 9.2.0
+
+### Minor Changes
+
+- 7fe739d52: Update default ISMs with new validators for infinityvm, plume, fuse. Add gas buffer when deploying Interchain Accounts. Add gas buffer when transferring ownership of contracts in HyperlaneDeployer. Migrate safe signing from signTransactionHash -> signTypedData.
+- 3e66e8f12: Utils for fetching Starknet chains
+
+### Patch Changes
+
+- 3852a9015: Fix WarpCore collateral check for lockboxes
+  - @hyperlane-xyz/utils@9.2.0
+  - @hyperlane-xyz/core@6.0.2
+
+## 9.1.0
+
+### Minor Changes
+
+- 67d91e489: Constraint Max Mint Limit limit for super XERC20, separate check for limit and destination collateral and new lockbox token in TOKEN_COLLATERALIZED_STANDARDS
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- 351bf0010: Support populateClaimTx on SealevelIgpAdapter
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 97c773476: Skip non-Ethereum chains when deriving token metadata
+  - @hyperlane-xyz/utils@9.1.0
+  - @hyperlane-xyz/core@6.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+- b07e2f2ea: Estimate gas + add buffer on mailbox initialization, setting ISMs, setting IGP configs, setting routing hooks.
+
+### Patch Changes
+
+- 88970a78c: Deploy new scaled warp route bytecode
+- Updated dependencies [88970a78c]
+- Updated dependencies [88970a78c]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/core@6.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
 ## 8.9.0
 
 ### Minor Changes

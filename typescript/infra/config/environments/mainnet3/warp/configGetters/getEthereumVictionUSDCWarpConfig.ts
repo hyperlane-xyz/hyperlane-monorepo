@@ -23,7 +23,6 @@ export const getEthereumVictionUSDCWarpConfig = async (
     name: 'USDC',
     symbol: 'USDC',
     decimals: 6,
-    totalSupply: 0,
     gas: 75_000,
     interchainSecurityModule: ethers.constants.AddressZero,
   };

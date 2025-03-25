@@ -120,13 +120,12 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   }
 
   override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
-    const [decimals, symbol, name, totalSupply] = await Promise.all([
+    const [decimals, symbol, name] = await Promise.all([
       isNft ? 0 : this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
-      this.getTotalSupply(),
     ]);
-    return { decimals, symbol, name, totalSupply: totalSupply.toString() };
+    return { decimals, symbol, name };
   }
 
   override async isApproveRequired(

@@ -22,9 +22,11 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
+use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
+
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -40,6 +42,8 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 };
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
+pub const ISM_MAX_DEPTH: u32 = 13;
+pub const ISM_MAX_COUNT: u32 = 100;
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -50,7 +54,7 @@ pub struct MessageContext {
     pub origin_db: Arc<dyn HyperlaneDb>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
-    pub metadata_builder: Arc<BaseMetadataBuilder>,
+    pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
     pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -259,9 +263,9 @@ impl PendingOperation for PendingMessage {
         };
 
         let message_metadata_builder = match MessageMetadataBuilder::new(
+            self.ctx.metadata_builder.clone(),
             ism_address,
             &self.message,
-            self.ctx.metadata_builder.clone(),
         )
         .await
         {
@@ -271,28 +275,55 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let metadata = match message_metadata_builder
-            .build(ism_address, &self.message)
+        let params = MessageMetadataBuildParams::default();
+
+        let metadata_bytes = match message_metadata_builder
+            .build(ism_address, &self.message, params)
             .await
         {
-            Ok(metadata) => metadata,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-            }
-        };
-
-        let metadata_bytes = match metadata {
-            Metadata::Found(metadata_bytes) => {
+            Ok(metadata) => {
+                let metadata_bytes = metadata.to_vec();
                 self.metadata = Some(metadata_bytes.clone());
                 metadata_bytes
             }
-            Metadata::CouldNotFetch => {
-                return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
-            }
-            // If the metadata building is refused, we still allow it to be retried later.
-            Metadata::Refused(reason) => {
-                warn!(?reason, "Metadata building refused");
-                return self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
+            Err(err) => {
+                match &err {
+                    MetadataBuildError::FailedToBuild(_) => {
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                    MetadataBuildError::CouldNotFetch => {
+                        return self
+                            .on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
+                    }
+                    // If the metadata building is refused, we still allow it to be retried later.
+                    MetadataBuildError::Refused(reason) => {
+                        warn!(?reason, "Metadata building refused");
+                        return self
+                            .on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
+                    }
+                    // These errors cannot be recovered from, so we drop them
+                    MetadataBuildError::UnsupportedModuleType(reason) => {
+                        warn!(?reason, "Unsupported module type");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                    MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                        warn!(depth, "Max ISM depth reached");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                    MetadataBuildError::MaxIsmCountReached(count) => {
+                        warn!(count, "Max ISM count reached");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+                    }
+                    MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                        warn!(threshold, "Aggregation threshold not met");
+                        return self
+                            .on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata);
+                    }
+                }
             }
         };
 
@@ -445,6 +476,7 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
+            warn!(message_id = ?self.message.id(), tx_outcome=?self.submission_outcome, "Transaction attempting to process message either reverted or was reorged");
             let span = info_span!(
                 "Error: Transaction attempting to process message either reverted or was reorged",
                 tx_outcome=?self.submission_outcome,
@@ -514,6 +546,10 @@ impl PendingOperation for PendingMessage {
 
     fn set_retries(&mut self, retries: u32) {
         self.set_retries(retries);
+    }
+
+    fn get_retries(&self) -> u32 {
+        self.num_retries
     }
 
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
@@ -701,11 +737,13 @@ impl PendingMessage {
     ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
-            i if (1..10).contains(&i) => 10,
-            i if (10..15).contains(&i) => 90,
-            i if (15..25).contains(&i) => 60 * 2,
-            // linearly increase from 2min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => (i as u64 - 23) * 90,
+            1 => 5,
+            2 => 10,
+            3 => 30,
+            4 => 60,
+            i if (5..25).contains(&i) => 60 * 3,
+            // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
+            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
             // wait 30min for the next 5 attempts
             i if (40..45).contains(&i) => 60 * 30,
             // wait 60min for the next 5 attempts
@@ -799,6 +837,7 @@ mod test {
         time::{Duration, Instant},
     };
 
+    use chrono::TimeDelta;
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
@@ -1023,5 +1062,65 @@ mod test {
         );
 
         assert_eq!(num_retries, expected_retries);
+    }
+
+    /// Make sure DEFAULT_MAX_MESSAGE_RETRIES takes around 2 weeks to reach
+    /// so that messages doesn't getting dropped earlier than expected
+    #[test]
+    fn check_default_max_message_retries() {
+        let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
+            .filter_map(|i| {
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+            })
+            .sum();
+
+        // Have a window that is acceptable for "around 2 weeks".
+        // Give or take 1 day.
+        let max_backoff_duration = chrono::Duration::weeks(2)
+            .checked_add(&TimeDelta::days(1))
+            .expect("Failed to compute duration")
+            .to_std()
+            .expect("Failed to convert TimeDelta to Duration");
+        let min_backoff_duration = chrono::Duration::weeks(2)
+            .checked_sub(&TimeDelta::days(1))
+            .expect("Failed to compute duration")
+            .to_std()
+            .expect("Failed to convert TimeDelta to Duration");
+
+        assert!(total_backoff_duration < max_backoff_duration);
+        assert!(total_backoff_duration > min_backoff_duration);
+    }
+
+    /// Chainlink's CCIP is known to take upwards of 25mins to
+    /// process.
+    /// So make sure we have a couple of retries around 25-30min range.
+    /// In this test case, we define "couple of retries" = 2
+    #[test]
+    fn check_ccip_retry() {
+        let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
+            .filter_map(|i| {
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+            })
+            .collect();
+
+        let cumulative_backoff_durations: Vec<Duration> = backoff_durations
+            .into_iter()
+            .scan(Duration::from_secs(0), |acc, x| {
+                *acc += x;
+                Some(*acc)
+            })
+            .collect();
+
+        // 25 mins
+        let min_backoff_duration = Duration::from_secs(60 * 25);
+        // 30 mins
+        let max_backoff_duration = Duration::from_secs(60 * 30);
+
+        let num_retries_in_range = cumulative_backoff_durations
+            .into_iter()
+            .filter(|d| *d >= min_backoff_duration && *d <= max_backoff_duration)
+            .count();
+
+        assert_eq!(num_retries_in_range, 2);
     }
 }

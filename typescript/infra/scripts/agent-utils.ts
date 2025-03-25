@@ -201,11 +201,19 @@ export function withOutputFile<T>(args: Argv<T>) {
     .alias('o', 'outFile');
 }
 
-export function withWarpRouteId<T>(args: Argv<T>) {
+export function withKnownWarpRouteId<T>(args: Argv<T>) {
   return args
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
     .choices('warpRouteId', Object.values(WarpRouteIds));
+}
+
+export function withWarpRouteId<T>(args: Argv<T>) {
+  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
+export function withWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withDryRun<T>(args: Argv<T>) {
@@ -215,8 +223,8 @@ export function withDryRun<T>(args: Argv<T>) {
     .default('dryRun', false);
 }
 
-export function withWarpRouteIdRequired<T>(args: Argv<T>) {
-  return withWarpRouteId(args).demandOption('warpRouteId');
+export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -339,9 +347,11 @@ export function withSkipReview<T>(args: Argv<T>) {
 
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
   return select({
     message: 'Select Warp Route ID',
     choices,
@@ -607,15 +617,28 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
   return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
-export function getAddresses(environment: DeployEnvironment, module: Modules) {
+export function getAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  chains?: ChainName[],
+) {
+  let addresses;
   if (isRegistryModule(environment, module)) {
-    const allAddresses = getChainAddresses();
-    const envChains = getEnvChains(environment);
-    return objFilter(allAddresses, (chain, _): _ is ChainAddresses => {
-      return envChains.includes(chain);
+    addresses = getChainAddresses();
+  } else {
+    addresses = readJSONAtPath(getInfraLandfillPath(environment, module));
+  }
+
+  // Filter by chains if specified, otherwise use environment chains
+  if (chains && chains.length > 0) {
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return chains.includes(chain);
     });
   } else {
-    return readJSONAtPath(getInfraLandfillPath(environment, module));
+    const envChains = getEnvChains(environment);
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return envChains.includes(chain);
+    });
   }
 }
 
