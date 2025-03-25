@@ -276,7 +276,7 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
   };
 
 // This overrides the HyperlaneAppChecker.checkOwnership
-// This is used because proxyAdmins.owner differ from warp route owner (timelock)
+// This is used because proxyAdmins.owner (timelock) differ from warp route owner
 export const ownerOverrides: ChainMap<Record<string, Address>> = {
   arbitrum: {
     collateralProxyAdmin: '0xfC67503Ab4DF366C19858A13c3f8a68781c64DD5',
