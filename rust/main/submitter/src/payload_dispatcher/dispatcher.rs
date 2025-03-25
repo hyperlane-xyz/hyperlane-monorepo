@@ -1,14 +1,21 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use eyre::Result;
+use std::{path::PathBuf, sync::Arc};
 
-use hyperlane_base::settings::{ChainConf, RawChainConf};
+use hyperlane_base::{
+    db::{HyperlaneRocksDB, DB},
+    settings::{ChainConf, RawChainConf},
+};
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder};
+use crate::{
+    chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder},
+    payload::PayloadDb,
+};
 
 /// Settings for `PayloadDispatcher`
 #[derive(Debug)]
@@ -22,29 +29,33 @@ pub struct PayloadDispatcherSettings {
 }
 
 pub struct PayloadDispatcherState {
-    // db: DispatcherDb,
-    adapter: Box<dyn AdaptsChain>,
+    pub(crate) db: Arc<dyn PayloadDb>,
+    pub(crate) adapter: Box<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {
-    pub fn new(settings: PayloadDispatcherSettings) -> Self {
-        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
-        Self { adapter }
+    pub fn new(db: Arc<dyn PayloadDb>, adapter: Box<dyn AdaptsChain>) -> Self {
+        Self { db, adapter }
     }
 
-    pub(crate) fn from_adapter(adapter: Box<dyn AdaptsChain>) -> Self {
-        Self { adapter }
+    pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
+        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
+        let db = DB::from_path(&settings.db_path)?;
+        let rocksdb = HyperlaneRocksDB::new(&settings.domain, db);
+        let payload_db = Arc::new(rocksdb) as Arc<dyn PayloadDb>;
+        Ok(Self::new(payload_db, adapter))
     }
 }
+
 pub struct PayloadDispatcher {
     inner: PayloadDispatcherState,
 }
 
 impl PayloadDispatcher {
-    pub fn new(settings: PayloadDispatcherSettings) -> Self {
-        Self {
-            inner: PayloadDispatcherState::new(settings),
-        }
+    pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
+        Ok(Self {
+            inner: PayloadDispatcherState::try_from_settings(settings)?,
+        })
     }
 
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
