@@ -371,7 +371,8 @@ describe('hyperlane warp check e2e tests', async function () {
       });
 
       it(`should find differences between the local limits and the on chain ones`, async function () {
-        const [_, warpDeployConfig] = await deployXERC20WarpRoute();
+        const [xERC20TokenSymbol, warpDeployConfig] =
+          await deployXERC20WarpRoute();
 
         assert(
           warpDeployConfig[CHAIN_NAME_2].type === TokenType.XERC20,
@@ -397,7 +398,9 @@ describe('hyperlane warp check e2e tests', async function () {
 
         const output = await hyperlaneWarpCheckRaw({
           warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-          warpCoreConfigPath: combinedWarpCoreConfigPath,
+          warpCoreConfigPath: getCombinedWarpRoutePath(xERC20TokenSymbol, [
+            CHAIN_NAME_2,
+          ]),
         }).nothrow();
 
         expect(output.exitCode).to.equal(1);
