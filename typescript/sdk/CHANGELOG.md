@@ -1,5 +1,26 @@
 # @hyperlane-xyz/sdk
 
+## 9.2.1
+
+### Patch Changes
+
+- e3d09168e: Updated NON_ZERO_SENDER_ADDRESS to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 to fix reading on zksync chains
+  - @hyperlane-xyz/utils@9.2.1
+  - @hyperlane-xyz/core@6.0.3
+
+## 9.2.0
+
+### Minor Changes
+
+- 7fe739d52: Update default ISMs with new validators for infinityvm, plume, fuse. Add gas buffer when deploying Interchain Accounts. Add gas buffer when transferring ownership of contracts in HyperlaneDeployer. Migrate safe signing from signTransactionHash -> signTypedData.
+- 3e66e8f12: Utils for fetching Starknet chains
+
+### Patch Changes
+
+- 3852a9015: Fix WarpCore collateral check for lockboxes
+  - @hyperlane-xyz/utils@9.2.0
+  - @hyperlane-xyz/core@6.0.2
+
 ## 9.1.0
 
 ### Minor Changes
