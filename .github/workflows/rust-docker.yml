@@ -68,7 +68,7 @@ jobs:
       - name: Build and push
         uses: depot/build-push-action@v1
         with:
-          project: jmrf3hq6zz
+          project: czmkmn2km1
           context: .
           file: ./rust/Dockerfile
           push: true
