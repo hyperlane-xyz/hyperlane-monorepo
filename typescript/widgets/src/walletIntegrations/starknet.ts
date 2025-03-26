@@ -105,7 +105,6 @@ export function useStarknetActiveChain(
 export function useStarknetTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  const { chain } = useNetwork();
   const { account } = useAccount();
   const { sendAsync } = useSendTransaction({});
   const { switchChainAsync } = useSwitchChain({});
@@ -117,7 +116,7 @@ export function useStarknetTransactionFns(
         chainId: chainId.toString(),
       });
     },
-    [chain, multiProvider, switchChainAsync],
+    [multiProvider, switchChainAsync],
   );
 
   const onSendTx = useCallback(

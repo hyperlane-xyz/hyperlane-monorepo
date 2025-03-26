@@ -131,9 +131,6 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
   return obj;
 };
 
-type HypTokenRouterConfigKey = keyof HypTokenRouterConfig;
-const KEYS_TO_IGNORE: HypTokenRouterConfigKey[] = ['totalSupply'];
-
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -141,14 +138,8 @@ const KEYS_TO_IGNORE: HypTokenRouterConfigKey[] = ['totalSupply'];
 export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
-  const filteredObj = Object.fromEntries(
-    Object.entries(obj).filter(
-      ([key]) => !KEYS_TO_IGNORE.includes(key as HypTokenRouterConfigKey),
-    ),
-  );
-
   return sortArraysInConfig(
-    transformObj(filteredObj, transformWarpDeployConfigToCheck),
+    transformObj(obj, transformWarpDeployConfigToCheck),
   );
 }
 

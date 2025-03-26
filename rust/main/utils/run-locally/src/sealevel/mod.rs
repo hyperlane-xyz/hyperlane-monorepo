@@ -243,6 +243,9 @@ fn run_locally() {
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
 
+    // sleep some more to avoid flakes when sending transfers below
+    sleep(Duration::from_secs(10));
+
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
     for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
         initiate_solana_hyperlane_transfer(

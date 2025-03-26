@@ -27,7 +27,10 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
-import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
+import {
+  EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypXERC20LockboxAdapter,
+} from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -495,10 +498,22 @@ export class WarpCore {
       return true;
     }
 
-    const adapter = destinationToken.getAdapter(this.multiProvider);
-    const destinationBalance: bigint = await adapter.getBalance(
-      destinationToken.addressOrDenom,
-    );
+    let destinationBalance: bigint = 0n;
+
+    if (
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypXERC20LockboxAdapter;
+      destinationBalance = await adapter.getBridgedSupply();
+    } else {
+      const adapter = destinationToken.getAdapter(this.multiProvider);
+      destinationBalance = await adapter.getBalance(
+        destinationToken.addressOrDenom,
+      );
+    }
 
     const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
       destinationToken.decimals,
