@@ -5,6 +5,20 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { getArgs, withChainRequired } from '../agent-utils.js';
 import { getHyperlaneCore } from '../core-utils.js';
 
+enum ReorgStatus {
+  NO_REORG = '✅ NO REORG',
+  REORG = '❌ REORG',
+  UNKNOWN = '🤷‍♂️ UNKNOWN (could not find canonical checkpoint)',
+}
+
+interface CheckpointAssessment {
+  checkpointIndex: number;
+  signedRoot: string;
+  canonicalRoot: string | null;
+  canonicalBlock: number | null;
+  reorgStatus: ReorgStatus;
+}
+
 async function main() {
   const { environment, chain, validator } = await withChainRequired(getArgs())
     .describe('validator', 'Validator address')
@@ -35,13 +49,9 @@ async function main() {
 
   let highBlock = await provider.getBlockNumber();
 
-  const checkpointAssessments: {
-    index: number;
-    signedRoot: string;
-    canonicalRoot: string | null;
-    canonicalBlock: number | null;
-    reorgStatus: string;
-  }[] = [];
+  const checkpointAssessments: CheckpointAssessment[] = [];
+
+  let reorgDetected = false;
 
   // Start from the latest checkpoint and go backwards until we find a non-reorged checkpoint,
   // which we assume to mean that there are no reorgs before that point.
@@ -78,7 +88,7 @@ async function main() {
       highBlock,
     );
     if (!canonicalCheckpoint) {
-      rootLogger.info(
+      rootLogger.warn(
         'Canonical checkpoint not found. This may be expected if there were multiple insertions in one block',
         {
           index,
@@ -86,11 +96,11 @@ async function main() {
       );
 
       checkpointAssessments.push({
-        index,
+        checkpointIndex: index,
         signedRoot: root,
         canonicalRoot: null,
         canonicalBlock: null,
-        reorgStatus: '🤷‍♂️ UNKNOWN (could not find canonical checkpoint)',
+        reorgStatus: ReorgStatus.UNKNOWN,
       });
 
       continue;
@@ -100,12 +110,12 @@ async function main() {
     highBlock = canonicalCheckpoint.block;
 
     const assessment = {
-      index,
+      checkpointIndex: index,
       signedRoot: root,
       canonicalRoot: canonicalCheckpoint.root,
       canonicalBlock: canonicalCheckpoint.block,
-      // to be filled in just a moment
-      reorgStatus: '',
+      // to be updated in just a moment
+      reorgStatus: ReorgStatus.UNKNOWN,
     };
 
     if (canonicalCheckpoint.root.toLowerCase() === root.toLowerCase()) {
@@ -114,7 +124,7 @@ async function main() {
         signedCheckpoint: signedCheckpoint.value.checkpoint,
         canonicalCheckpoint: canonicalCheckpoint,
       });
-      assessment.reorgStatus = '✅ NO REORG';
+      assessment.reorgStatus = ReorgStatus.NO_REORG;
       checkpointAssessments.push(assessment);
       break;
     } else {
@@ -123,20 +133,15 @@ async function main() {
         signedCheckpoint: signedCheckpoint.value.checkpoint,
         canonicalCheckpoint: canonicalCheckpoint,
       });
-      assessment.reorgStatus = '❌ REORG';
+      reorgDetected = true;
+      assessment.reorgStatus = ReorgStatus.REORG;
       checkpointAssessments.push(assessment);
     }
   }
 
-  console.table(checkpointAssessments, [
-    'index',
-    'signedRoot',
-    'canonicalRoot',
-    'canonicalBlock',
-    'reorgStatus',
-  ]);
+  console.table(checkpointAssessments);
 
-  process.exit(0);
+  process.exit(reorgDetected ? 1 : 0);
 }
 
 async function getCanonicalCheckpointBinarySearch(
