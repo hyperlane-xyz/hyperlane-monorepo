@@ -10,5 +10,7 @@ mod core;
 mod agent_metrics;
 mod json_rpc_client;
 mod provider;
+mod runtime_metrics;
 
 pub use self::agent_metrics::*;
+pub use self::runtime_metrics::*;
