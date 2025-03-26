@@ -25,7 +25,7 @@ contract OPL2ToL1CcipReadIsm is
     using TypeCasts for address;
 
     // CCIP-read gateways URLs
-    string[] urls;
+    string[] public urls;
     // mailbox on L1
     IMailbox mailbox;
     // the OP Portal contract on L1
@@ -54,17 +54,10 @@ contract OPL2ToL1CcipReadIsm is
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
-        bytes memory ccipReadCallData = _areWeMessageRecipient(_message)
-            ? abi.encodeWithSignature("getWithdrawalProof(bytes)", _message)
-            : abi.encodeWithSignature(
-                "getFinalizeWithdrawalTx(bytes)",
-                _message
-            );
-
         revert OffchainLookup(
             address(this),
             urls,
-            ccipReadCallData,
+            abi.encodeWithSignature("getOffchainData(bytes)", _message),
             OPL2ToL1CcipReadIsm.process.selector,
             _message
         );
@@ -141,9 +134,14 @@ contract OPL2ToL1CcipReadIsm is
     }
 
     function _finalizeWithdrawal(bytes calldata _metadata) internal {
-        IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
+        (IOptimismPortal.WithdrawalTransaction memory _tx, , , ) = abi.decode(
             _metadata,
-            (IOptimismPortal.WithdrawalTransaction)
+            (
+                IOptimismPortal.WithdrawalTransaction,
+                uint256,
+                IOptimismPortal.OutputRootProof,
+                bytes[]
+            )
         );
 
         opPortal.finalizeWithdrawalTransaction(_tx);
