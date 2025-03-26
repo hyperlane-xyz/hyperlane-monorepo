@@ -3873,6 +3873,7 @@
       "testRecipient": "0xbB22547D1dc681fe925f568f637Ff67aC06c20fc",
       "validatorAnnounce": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
       "index": {
+        "chunk": 30,
         "from": 28949565
       },
       "interchainAccountIsm": "0xc2Da384799488B4e1E773d70a83346529145085B",
@@ -6683,6 +6684,7 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x84444cE490233CFa76E3F1029bc166aa8c266907",
       "index": {
+        "chunk": 999,
         "from": 111730015
       }
     },
