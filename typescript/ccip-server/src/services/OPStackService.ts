@@ -49,21 +49,14 @@ class OPStackService {
     return this.crossChainMessenger.toLowLevelMessage(resolved);
   }
 
-  // TODO: remove
-  async identity([message]: ethers.utils.Result): Promise<Array<string>> {
-    return [message];
-  }
-
   /**
    * Gets the account and single storage proof from eth_getProof
    * @param transactionHash Transaction containing the MessagePassed event
    * @returns The encoded
    */
-  async getWithdrawalProof([message]: ethers.utils.Result): Promise<
-    Array<any>
-  > {
+  async getOffchainData([message]: ethers.utils.Result): Promise<Array<any>> {
     const messageId: string = ethers.utils.keccak256(message);
-    console.log(`getWithdrawalProof[${messageId}]`);
+    console.log(`getOffchainData[${messageId}]`);
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
         messageId,
@@ -80,7 +73,6 @@ class OPStackService {
     );
 
     const withdrawal = await this.getWithdrawalTransactionFromReceipt(receipt);
-
     // See cross-chain-messenger.ts 'proveMessage' fn on Optimism SDK
     const proof = await this.crossChainMessenger.getBedrockMessageProof(
       receipt,
@@ -120,52 +112,6 @@ class OPStackService {
     // TODO: remove
     console.info(`Proof[${messageId}]`, _proof);
     console.log(`Message[${messageId}]`, message);
-
-    return [...args];
-  }
-
-  /**
-   * Gets the account and single storage proof from eth_getProof
-   * @param the message arrived at the OPFinalizeIsm
-   * @returns The abi encoded OP WithdrawalTransaction
-   */
-  async getFinalizeWithdrawalTx([message]: ethers.utils.Result): Promise<
-    Array<any>
-  > {
-    console.log('getFinalizeWithdrawalTx called!');
-    const messageId: string = ethers.utils.keccak256(message);
-    const txHash =
-      await this.hyperlaneService.getOriginTransactionHashByMessageId(
-        messageId,
-      );
-
-    const receipt = await this.l2RpcService.provider.getTransactionReceipt(
-      txHash,
-    );
-
-    const withdrawal = await this.getWithdrawalTransactionFromReceipt(receipt);
-
-    const args = [
-      [
-        withdrawal.messageNonce,
-        withdrawal.sender,
-        withdrawal.target,
-        withdrawal.value,
-        withdrawal.minGasLimit,
-        withdrawal.message,
-      ],
-    ];
-
-    // TODO: remove
-    const encodedTx = [
-      ethers.utils.defaultAbiCoder.encode(
-        ['tuple(uint256,address,address,uint256,uint256,bytes)'],
-        args,
-      ),
-    ];
-
-    // TODO: remove
-    console.log(`Encoded[${messageId}]`, encodedTx);
 
     return [...args];
   }
