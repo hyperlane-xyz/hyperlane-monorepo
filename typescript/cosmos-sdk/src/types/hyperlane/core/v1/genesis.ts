@@ -22,16 +22,16 @@ export interface GenesisState {
   /** post_dispatch_genesis */
   post_dispatch_genesis?: GenesisState2 | undefined;
   mailboxes: Mailbox[];
-  messages: MailboxMessage[];
+  messages: GenesisMailboxMessageWrapper[];
   ism_sequence: string;
   post_dispatch_sequence: string;
   app_sequence: string;
 }
 
-/** Mailbox message for genesis state */
-export interface MailboxMessage {
+/** GenesisMailboxMessageWrapper ... */
+export interface GenesisMailboxMessageWrapper {
   mailbox_id: string;
-  message_id: Uint8Array;
+  message_id: string;
 }
 
 function createBaseGenesisState(): GenesisState {
@@ -67,7 +67,10 @@ export const GenesisState = {
       Mailbox.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     for (const v of message.messages) {
-      MailboxMessage.encode(v!, writer.uint32(34).fork()).ldelim();
+      GenesisMailboxMessageWrapper.encode(
+        v!,
+        writer.uint32(34).fork(),
+      ).ldelim();
     }
     if (message.ism_sequence !== '0') {
       writer.uint32(40).uint64(message.ism_sequence);
@@ -118,7 +121,9 @@ export const GenesisState = {
             break;
           }
 
-          message.messages.push(MailboxMessage.decode(reader, reader.uint32()));
+          message.messages.push(
+            GenesisMailboxMessageWrapper.decode(reader, reader.uint32()),
+          );
           continue;
         case 5:
           if (tag !== 40) {
@@ -164,7 +169,9 @@ export const GenesisState = {
         ? object.mailboxes.map((e: any) => Mailbox.fromJSON(e))
         : [],
       messages: globalThis.Array.isArray(object?.messages)
-        ? object.messages.map((e: any) => MailboxMessage.fromJSON(e))
+        ? object.messages.map((e: any) =>
+            GenesisMailboxMessageWrapper.fromJSON(e),
+          )
         : [],
       ism_sequence: isSet(object.ism_sequence)
         ? globalThis.String(object.ism_sequence)
@@ -192,7 +199,9 @@ export const GenesisState = {
       obj.mailboxes = message.mailboxes.map((e) => Mailbox.toJSON(e));
     }
     if (message.messages?.length) {
-      obj.messages = message.messages.map((e) => MailboxMessage.toJSON(e));
+      obj.messages = message.messages.map((e) =>
+        GenesisMailboxMessageWrapper.toJSON(e),
+      );
     }
     if (message.ism_sequence !== '0') {
       obj.ism_sequence = message.ism_sequence;
@@ -227,7 +236,9 @@ export const GenesisState = {
     message.mailboxes =
       object.mailboxes?.map((e) => Mailbox.fromPartial(e)) || [];
     message.messages =
-      object.messages?.map((e) => MailboxMessage.fromPartial(e)) || [];
+      object.messages?.map((e) =>
+        GenesisMailboxMessageWrapper.fromPartial(e),
+      ) || [];
     message.ism_sequence = object.ism_sequence ?? '0';
     message.post_dispatch_sequence = object.post_dispatch_sequence ?? '0';
     message.app_sequence = object.app_sequence ?? '0';
@@ -235,29 +246,32 @@ export const GenesisState = {
   },
 };
 
-function createBaseMailboxMessage(): MailboxMessage {
-  return { mailbox_id: '0', message_id: new Uint8Array(0) };
+function createBaseGenesisMailboxMessageWrapper(): GenesisMailboxMessageWrapper {
+  return { mailbox_id: '0', message_id: '' };
 }
 
-export const MailboxMessage = {
+export const GenesisMailboxMessageWrapper = {
   encode(
-    message: MailboxMessage,
+    message: GenesisMailboxMessageWrapper,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.mailbox_id !== '0') {
       writer.uint32(8).uint64(message.mailbox_id);
     }
-    if (message.message_id.length !== 0) {
-      writer.uint32(18).bytes(message.message_id);
+    if (message.message_id !== '') {
+      writer.uint32(18).string(message.message_id);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): MailboxMessage {
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): GenesisMailboxMessageWrapper {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseMailboxMessage();
+    const message = createBaseGenesisMailboxMessageWrapper();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -273,7 +287,7 @@ export const MailboxMessage = {
             break;
           }
 
-          message.message_id = reader.bytes();
+          message.message_id = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -284,67 +298,42 @@ export const MailboxMessage = {
     return message;
   },
 
-  fromJSON(object: any): MailboxMessage {
+  fromJSON(object: any): GenesisMailboxMessageWrapper {
     return {
       mailbox_id: isSet(object.mailbox_id)
         ? globalThis.String(object.mailbox_id)
         : '0',
       message_id: isSet(object.message_id)
-        ? bytesFromBase64(object.message_id)
-        : new Uint8Array(0),
+        ? globalThis.String(object.message_id)
+        : '',
     };
   },
 
-  toJSON(message: MailboxMessage): unknown {
+  toJSON(message: GenesisMailboxMessageWrapper): unknown {
     const obj: any = {};
     if (message.mailbox_id !== '0') {
       obj.mailbox_id = message.mailbox_id;
     }
-    if (message.message_id.length !== 0) {
-      obj.message_id = base64FromBytes(message.message_id);
+    if (message.message_id !== '') {
+      obj.message_id = message.message_id;
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MailboxMessage>, I>>(
+  create<I extends Exact<DeepPartial<GenesisMailboxMessageWrapper>, I>>(
     base?: I,
-  ): MailboxMessage {
-    return MailboxMessage.fromPartial(base ?? ({} as any));
+  ): GenesisMailboxMessageWrapper {
+    return GenesisMailboxMessageWrapper.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<MailboxMessage>, I>>(
+  fromPartial<I extends Exact<DeepPartial<GenesisMailboxMessageWrapper>, I>>(
     object: I,
-  ): MailboxMessage {
-    const message = createBaseMailboxMessage();
+  ): GenesisMailboxMessageWrapper {
+    const message = createBaseGenesisMailboxMessageWrapper();
     message.mailbox_id = object.mailbox_id ?? '0';
-    message.message_id = object.message_id ?? new Uint8Array(0);
+    message.message_id = object.message_id ?? '';
     return message;
   },
 };
-
-function bytesFromBase64(b64: string): Uint8Array {
-  if ((globalThis as any).Buffer) {
-    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
-  } else {
-    const bin = globalThis.atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; ++i) {
-      arr[i] = bin.charCodeAt(i);
-    }
-    return arr;
-  }
-}
-
-function base64FromBytes(arr: Uint8Array): string {
-  if ((globalThis as any).Buffer) {
-    return globalThis.Buffer.from(arr).toString('base64');
-  } else {
-    const bin: string[] = [];
-    arr.forEach((byte) => {
-      bin.push(globalThis.String.fromCharCode(byte));
-    });
-    return globalThis.btoa(bin.join(''));
-  }
-}
 
 type Builtin =
   | Date

@@ -16,14 +16,14 @@ export const protobufPackage = 'hyperlane.core.interchain_security.v1';
 export interface GenesisState {
   /** accounts are the accounts present at genesis. */
   isms: Any[];
-  validator_storage_locations: ValidatorStorageLocationGenesisWrapper[];
+  validator_storage_locations: GenesisValidatorStorageLocationWrapper[];
 }
 
 /**
- * ValidatorStorageLocationGenesisWrapper stores the information for
+ * GenesisValidatorStorageLocationWrapper stores the information for
  * validator, mailbox and storage-location which validators have announced
  */
-export interface ValidatorStorageLocationGenesisWrapper {
+export interface GenesisValidatorStorageLocationWrapper {
   mailbox_id: string;
   validator_address: string;
   index: string;
@@ -43,7 +43,7 @@ export const GenesisState = {
       Any.encode(v!, writer.uint32(10).fork()).ldelim();
     }
     for (const v of message.validator_storage_locations) {
-      ValidatorStorageLocationGenesisWrapper.encode(
+      GenesisValidatorStorageLocationWrapper.encode(
         v!,
         writer.uint32(18).fork(),
       ).ldelim();
@@ -72,7 +72,7 @@ export const GenesisState = {
           }
 
           message.validator_storage_locations.push(
-            ValidatorStorageLocationGenesisWrapper.decode(
+            GenesisValidatorStorageLocationWrapper.decode(
               reader,
               reader.uint32(),
             ),
@@ -96,7 +96,7 @@ export const GenesisState = {
         object?.validator_storage_locations,
       )
         ? object.validator_storage_locations.map((e: any) =>
-            ValidatorStorageLocationGenesisWrapper.fromJSON(e),
+            GenesisValidatorStorageLocationWrapper.fromJSON(e),
           )
         : [],
     };
@@ -109,7 +109,7 @@ export const GenesisState = {
     }
     if (message.validator_storage_locations?.length) {
       obj.validator_storage_locations = message.validator_storage_locations.map(
-        (e) => ValidatorStorageLocationGenesisWrapper.toJSON(e),
+        (e) => GenesisValidatorStorageLocationWrapper.toJSON(e),
       );
     }
     return obj;
@@ -127,13 +127,13 @@ export const GenesisState = {
     message.isms = object.isms?.map((e) => Any.fromPartial(e)) || [];
     message.validator_storage_locations =
       object.validator_storage_locations?.map((e) =>
-        ValidatorStorageLocationGenesisWrapper.fromPartial(e),
+        GenesisValidatorStorageLocationWrapper.fromPartial(e),
       ) || [];
     return message;
   },
 };
 
-function createBaseValidatorStorageLocationGenesisWrapper(): ValidatorStorageLocationGenesisWrapper {
+function createBaseGenesisValidatorStorageLocationWrapper(): GenesisValidatorStorageLocationWrapper {
   return {
     mailbox_id: '0',
     validator_address: '',
@@ -142,9 +142,9 @@ function createBaseValidatorStorageLocationGenesisWrapper(): ValidatorStorageLoc
   };
 }
 
-export const ValidatorStorageLocationGenesisWrapper = {
+export const GenesisValidatorStorageLocationWrapper = {
   encode(
-    message: ValidatorStorageLocationGenesisWrapper,
+    message: GenesisValidatorStorageLocationWrapper,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.mailbox_id !== '0') {
@@ -165,11 +165,11 @@ export const ValidatorStorageLocationGenesisWrapper = {
   decode(
     input: _m0.Reader | Uint8Array,
     length?: number,
-  ): ValidatorStorageLocationGenesisWrapper {
+  ): GenesisValidatorStorageLocationWrapper {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseValidatorStorageLocationGenesisWrapper();
+    const message = createBaseGenesisValidatorStorageLocationWrapper();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -210,7 +210,7 @@ export const ValidatorStorageLocationGenesisWrapper = {
     return message;
   },
 
-  fromJSON(object: any): ValidatorStorageLocationGenesisWrapper {
+  fromJSON(object: any): GenesisValidatorStorageLocationWrapper {
     return {
       mailbox_id: isSet(object.mailbox_id)
         ? globalThis.String(object.mailbox_id)
@@ -225,7 +225,7 @@ export const ValidatorStorageLocationGenesisWrapper = {
     };
   },
 
-  toJSON(message: ValidatorStorageLocationGenesisWrapper): unknown {
+  toJSON(message: GenesisValidatorStorageLocationWrapper): unknown {
     const obj: any = {};
     if (message.mailbox_id !== '0') {
       obj.mailbox_id = message.mailbox_id;
@@ -243,16 +243,16 @@ export const ValidatorStorageLocationGenesisWrapper = {
   },
 
   create<
-    I extends Exact<DeepPartial<ValidatorStorageLocationGenesisWrapper>, I>,
-  >(base?: I): ValidatorStorageLocationGenesisWrapper {
-    return ValidatorStorageLocationGenesisWrapper.fromPartial(
+    I extends Exact<DeepPartial<GenesisValidatorStorageLocationWrapper>, I>,
+  >(base?: I): GenesisValidatorStorageLocationWrapper {
+    return GenesisValidatorStorageLocationWrapper.fromPartial(
       base ?? ({} as any),
     );
   },
   fromPartial<
-    I extends Exact<DeepPartial<ValidatorStorageLocationGenesisWrapper>, I>,
-  >(object: I): ValidatorStorageLocationGenesisWrapper {
-    const message = createBaseValidatorStorageLocationGenesisWrapper();
+    I extends Exact<DeepPartial<GenesisValidatorStorageLocationWrapper>, I>,
+  >(object: I): GenesisValidatorStorageLocationWrapper {
+    const message = createBaseGenesisValidatorStorageLocationWrapper();
     message.mailbox_id = object.mailbox_id ?? '0';
     message.validator_address = object.validator_address ?? '';
     message.index = object.index ?? '0';

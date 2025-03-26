@@ -8,9 +8,9 @@ import {
   QueryIgpResponse,
   QueryIgpsRequest,
   QueryIgpsResponse,
-  QueryMerkleTreeHook,
+  QueryMerkleTreeHookRequest,
   QueryMerkleTreeHookResponse,
-  QueryMerkleTreeHooks,
+  QueryMerkleTreeHooksRequest,
   QueryMerkleTreeHooksResponse,
   QueryNoopHookRequest,
   QueryNoopHookResponse,
@@ -32,11 +32,11 @@ export interface PostDispatchExtension {
     readonly Igp: (req: QueryIgpRequest) => Promise<QueryIgpResponse>;
     /** MerkleTreeHooks */
     readonly MerkleTreeHooks: (
-      req: QueryMerkleTreeHooks,
+      req: QueryMerkleTreeHooksRequest,
     ) => Promise<QueryMerkleTreeHooksResponse>;
     /** MerkleTreeHook ... */
     readonly MerkleTreeHook: (
-      req: QueryMerkleTreeHook,
+      req: QueryMerkleTreeHookRequest,
     ) => Promise<QueryMerkleTreeHookResponse>;
     /** NoopHooks */
     readonly NoopHooks: (
@@ -67,9 +67,9 @@ export function setupPostDispatchExtension(
         queryService.DestinationGasConfigs(req),
       Igps: (req: QueryIgpsRequest) => queryService.Igps(req),
       Igp: (req: QueryIgpRequest) => queryService.Igp(req),
-      MerkleTreeHooks: (req: QueryMerkleTreeHooks) =>
+      MerkleTreeHooks: (req: QueryMerkleTreeHooksRequest) =>
         queryService.MerkleTreeHooks(req),
-      MerkleTreeHook: (req: QueryMerkleTreeHook) =>
+      MerkleTreeHook: (req: QueryMerkleTreeHookRequest) =>
         queryService.MerkleTreeHook(req),
       NoopHooks: (req: QueryNoopHooksRequest) => queryService.NoopHooks(req),
       NoopHook: (req: QueryNoopHookRequest) => queryService.NoopHook(req),

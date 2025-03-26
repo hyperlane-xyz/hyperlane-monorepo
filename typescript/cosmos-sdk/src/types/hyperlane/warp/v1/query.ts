@@ -46,7 +46,7 @@ export interface QueryTokenResponse {
   token?: WrappedHypToken | undefined;
 }
 
-/** / HypToken */
+/** WrappedHypToken */
 export interface WrappedHypToken {
   id: string;
   owner: string;
@@ -1042,7 +1042,7 @@ export const QueryQuoteRemoteTransferResponse = {
   },
 };
 
-/** Msg defines the module Msg service. */
+/** Query defines the module Query service. */
 export interface Query {
   /** Tokens ... */
   Tokens(request: QueryTokensRequest): Promise<QueryTokensResponse>;

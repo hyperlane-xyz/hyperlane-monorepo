@@ -20,13 +20,13 @@ export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
 /** GenesisState defines the post dispatch submodule's genesis state. */
 export interface GenesisState {
   igps: InterchainGasPaymaster[];
-  igp_gas_configs: DestinationGasConfigGenesisWrapper[];
+  igp_gas_configs: GenesisDestinationGasConfigWrapper[];
   merkle_tree_hooks: MerkleTreeHook[];
   noop_hooks: NoopHook[];
 }
 
-/** DestinationGasConfigGenesisWrapper ... */
-export interface DestinationGasConfigGenesisWrapper {
+/** GenesisDestinationGasConfigWrapper ... */
+export interface GenesisDestinationGasConfigWrapper {
   /** remote_domain ... */
   remote_domain: number;
   /** gas_oracle ... */
@@ -55,7 +55,7 @@ export const GenesisState = {
       InterchainGasPaymaster.encode(v!, writer.uint32(10).fork()).ldelim();
     }
     for (const v of message.igp_gas_configs) {
-      DestinationGasConfigGenesisWrapper.encode(
+      GenesisDestinationGasConfigWrapper.encode(
         v!,
         writer.uint32(18).fork(),
       ).ldelim();
@@ -92,7 +92,7 @@ export const GenesisState = {
           }
 
           message.igp_gas_configs.push(
-            DestinationGasConfigGenesisWrapper.decode(reader, reader.uint32()),
+            GenesisDestinationGasConfigWrapper.decode(reader, reader.uint32()),
           );
           continue;
         case 3:
@@ -127,7 +127,7 @@ export const GenesisState = {
         : [],
       igp_gas_configs: globalThis.Array.isArray(object?.igp_gas_configs)
         ? object.igp_gas_configs.map((e: any) =>
-            DestinationGasConfigGenesisWrapper.fromJSON(e),
+            GenesisDestinationGasConfigWrapper.fromJSON(e),
           )
         : [],
       merkle_tree_hooks: globalThis.Array.isArray(object?.merkle_tree_hooks)
@@ -146,7 +146,7 @@ export const GenesisState = {
     }
     if (message.igp_gas_configs?.length) {
       obj.igp_gas_configs = message.igp_gas_configs.map((e) =>
-        DestinationGasConfigGenesisWrapper.toJSON(e),
+        GenesisDestinationGasConfigWrapper.toJSON(e),
       );
     }
     if (message.merkle_tree_hooks?.length) {
@@ -173,7 +173,7 @@ export const GenesisState = {
       object.igps?.map((e) => InterchainGasPaymaster.fromPartial(e)) || [];
     message.igp_gas_configs =
       object.igp_gas_configs?.map((e) =>
-        DestinationGasConfigGenesisWrapper.fromPartial(e),
+        GenesisDestinationGasConfigWrapper.fromPartial(e),
       ) || [];
     message.merkle_tree_hooks =
       object.merkle_tree_hooks?.map((e) => MerkleTreeHook.fromPartial(e)) || [];
@@ -183,7 +183,7 @@ export const GenesisState = {
   },
 };
 
-function createBaseDestinationGasConfigGenesisWrapper(): DestinationGasConfigGenesisWrapper {
+function createBaseGenesisDestinationGasConfigWrapper(): GenesisDestinationGasConfigWrapper {
   return {
     remote_domain: 0,
     gas_oracle: undefined,
@@ -192,9 +192,9 @@ function createBaseDestinationGasConfigGenesisWrapper(): DestinationGasConfigGen
   };
 }
 
-export const DestinationGasConfigGenesisWrapper = {
+export const GenesisDestinationGasConfigWrapper = {
   encode(
-    message: DestinationGasConfigGenesisWrapper,
+    message: GenesisDestinationGasConfigWrapper,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.remote_domain !== 0) {
@@ -215,11 +215,11 @@ export const DestinationGasConfigGenesisWrapper = {
   decode(
     input: _m0.Reader | Uint8Array,
     length?: number,
-  ): DestinationGasConfigGenesisWrapper {
+  ): GenesisDestinationGasConfigWrapper {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDestinationGasConfigGenesisWrapper();
+    const message = createBaseGenesisDestinationGasConfigWrapper();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -260,7 +260,7 @@ export const DestinationGasConfigGenesisWrapper = {
     return message;
   },
 
-  fromJSON(object: any): DestinationGasConfigGenesisWrapper {
+  fromJSON(object: any): GenesisDestinationGasConfigWrapper {
     return {
       remote_domain: isSet(object.remote_domain)
         ? globalThis.Number(object.remote_domain)
@@ -275,7 +275,7 @@ export const DestinationGasConfigGenesisWrapper = {
     };
   },
 
-  toJSON(message: DestinationGasConfigGenesisWrapper): unknown {
+  toJSON(message: GenesisDestinationGasConfigWrapper): unknown {
     const obj: any = {};
     if (message.remote_domain !== 0) {
       obj.remote_domain = Math.round(message.remote_domain);
@@ -292,15 +292,15 @@ export const DestinationGasConfigGenesisWrapper = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DestinationGasConfigGenesisWrapper>, I>>(
+  create<I extends Exact<DeepPartial<GenesisDestinationGasConfigWrapper>, I>>(
     base?: I,
-  ): DestinationGasConfigGenesisWrapper {
-    return DestinationGasConfigGenesisWrapper.fromPartial(base ?? ({} as any));
+  ): GenesisDestinationGasConfigWrapper {
+    return GenesisDestinationGasConfigWrapper.fromPartial(base ?? ({} as any));
   },
   fromPartial<
-    I extends Exact<DeepPartial<DestinationGasConfigGenesisWrapper>, I>,
-  >(object: I): DestinationGasConfigGenesisWrapper {
-    const message = createBaseDestinationGasConfigGenesisWrapper();
+    I extends Exact<DeepPartial<GenesisDestinationGasConfigWrapper>, I>,
+  >(object: I): GenesisDestinationGasConfigWrapper {
+    const message = createBaseGenesisDestinationGasConfigWrapper();
     message.remote_domain = object.remote_domain ?? 0;
     message.gas_oracle =
       object.gas_oracle !== undefined && object.gas_oracle !== null

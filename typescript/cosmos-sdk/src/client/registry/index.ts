@@ -118,7 +118,7 @@ export const REGISTRY = {
   // Interchain security transactions
   MsgCreateMessageIdMultisigIsm: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateMessageIdMultisigIsm' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateMessageIdMultisigIsm' as const,
       converter: MsgCreateMessageIdMultisigIsm,
     },
     amino: {
@@ -128,7 +128,7 @@ export const REGISTRY = {
   },
   MsgCreateMessageIdMultisigIsmResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateMessageIdMultisigIsmResponse' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateMessageIdMultisigIsmResponse' as const,
       converter: MsgCreateMessageIdMultisigIsmResponse,
     },
     amino: {
@@ -138,7 +138,7 @@ export const REGISTRY = {
   },
   MsgCreateMerkleRootMultisigIsm: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateMerkleRootMultisigIsm' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateMerkleRootMultisigIsm' as const,
       converter: MsgCreateMerkleRootMultisigIsm,
     },
     amino: {
@@ -148,7 +148,7 @@ export const REGISTRY = {
   },
   MsgCreateMerkleRootMultisigIsmResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateMerkleRootMultisigIsmResponse' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateMerkleRootMultisigIsmResponse' as const,
       converter: MsgCreateMerkleRootMultisigIsmResponse,
     },
     amino: {
@@ -158,7 +158,7 @@ export const REGISTRY = {
   },
   MsgCreateNoopIsm: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateNoopIsm' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateNoopIsm' as const,
       converter: MsgCreateNoopIsm,
     },
     amino: {
@@ -168,7 +168,7 @@ export const REGISTRY = {
   },
   MsgCreateNoopIsmResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateNoopIsmResponse' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateNoopIsmResponse' as const,
       converter: MsgCreateNoopIsmResponse,
     },
     amino: {
@@ -178,7 +178,7 @@ export const REGISTRY = {
   },
   MsgAnnounceValidator: {
     proto: {
-      type: '/hyperlane.core.v1.MsgAnnounceValidator' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgAnnounceValidator' as const,
       converter: MsgAnnounceValidator,
     },
     amino: {
@@ -188,7 +188,7 @@ export const REGISTRY = {
   },
   MsgAnnounceValidatorResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgAnnounceValidatorResponse' as const,
+      type: '/hyperlane.core.interchain_security.v1.MsgAnnounceValidatorResponse' as const,
       converter: MsgAnnounceValidatorResponse,
     },
     amino: {
@@ -200,7 +200,7 @@ export const REGISTRY = {
   // Post dispatch transactions
   MsgCreateIgp: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateIgp' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgCreateIgp' as const,
       converter: MsgCreateIgp,
     },
     amino: {
@@ -210,7 +210,7 @@ export const REGISTRY = {
   },
   MsgCreateIgpResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateIgpResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgCreateIgpResponse' as const,
       converter: MsgCreateIgpResponse,
     },
     amino: {
@@ -220,7 +220,7 @@ export const REGISTRY = {
   },
   MsgSetIgpOwner: {
     proto: {
-      type: '/hyperlane.core.v1.MsgSetIgpOwner' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgSetIgpOwner' as const,
       converter: MsgSetIgpOwner,
     },
     amino: {
@@ -230,7 +230,7 @@ export const REGISTRY = {
   },
   MsgSetIgpOwnerResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgSetIgpOwnerResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgSetIgpOwnerResponse' as const,
       converter: MsgSetIgpOwnerResponse,
     },
     amino: {
@@ -240,7 +240,7 @@ export const REGISTRY = {
   },
   MsgSetDestinationGasConfig: {
     proto: {
-      type: '/hyperlane.core.v1.MsgSetDestinationGasConfig' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgSetDestinationGasConfig' as const,
       converter: MsgSetDestinationGasConfig,
     },
     amino: {
@@ -250,7 +250,7 @@ export const REGISTRY = {
   },
   MsgSetDestinationGasConfigResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgSetDestinationGasConfigResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgSetDestinationGasConfigResponse' as const,
       converter: MsgSetDestinationGasConfigResponse,
     },
     amino: {
@@ -260,7 +260,7 @@ export const REGISTRY = {
   },
   MsgPayForGas: {
     proto: {
-      type: '/hyperlane.core.v1.MsgPayForGas' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgPayForGas' as const,
       converter: MsgPayForGas,
     },
     amino: {
@@ -270,7 +270,7 @@ export const REGISTRY = {
   },
   MsgPayForGasResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgPayForGasResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgPayForGasResponse' as const,
       converter: MsgPayForGasResponse,
     },
     amino: {
@@ -280,7 +280,7 @@ export const REGISTRY = {
   },
   MsgClaim: {
     proto: {
-      type: '/hyperlane.core.v1.MsgClaim' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgClaim' as const,
       converter: MsgClaim,
     },
     amino: {
@@ -290,7 +290,7 @@ export const REGISTRY = {
   },
   MsgClaimResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgClaimResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgClaimResponse' as const,
       converter: MsgClaimResponse,
     },
     amino: {
@@ -300,7 +300,7 @@ export const REGISTRY = {
   },
   MsgCreateMerkleTreeHook: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateMerkleTreeHook' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgCreateMerkleTreeHook' as const,
       converter: MsgCreateMerkleTreeHook,
     },
     amino: {
@@ -310,7 +310,7 @@ export const REGISTRY = {
   },
   MsgCreateMerkleTreeHookResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateMerkleTreeHookResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgCreateMerkleTreeHookResponse' as const,
       converter: MsgCreateMerkleTreeHookResponse,
     },
     amino: {
@@ -320,7 +320,7 @@ export const REGISTRY = {
   },
   MsgCreateNoopHook: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateNoopHook' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgCreateNoopHook' as const,
       converter: MsgCreateNoopHook,
     },
     amino: {
@@ -330,7 +330,7 @@ export const REGISTRY = {
   },
   MsgCreateNoopHookResponse: {
     proto: {
-      type: '/hyperlane.core.v1.MsgCreateNoopHookResponse' as const,
+      type: '/hyperlane.core.post_dispatch.v1.MsgCreateNoopHookResponse' as const,
       converter: MsgCreateNoopHookResponse,
     },
     amino: {

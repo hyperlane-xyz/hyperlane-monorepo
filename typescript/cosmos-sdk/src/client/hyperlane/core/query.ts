@@ -8,10 +8,10 @@ import {
   QueryMailboxResponse,
   QueryMailboxesRequest,
   QueryMailboxesResponse,
+  QueryRecipientIsmRequest,
+  QueryRecipientIsmResponse,
   QueryVerifyDryRunRequest,
   QueryVerifyDryRunResponse,
-  RecipientIsmRequest,
-  RecipientIsmResponse,
 } from '../../../types/hyperlane/core/v1/query.js';
 
 export interface CoreExtension {
@@ -30,8 +30,8 @@ export interface CoreExtension {
     ) => Promise<QueryDeliveredResponse>;
     /** RecipientIsm ... */
     readonly RecipientIsm: (
-      req: RecipientIsmRequest,
-    ) => Promise<RecipientIsmResponse>;
+      req: QueryRecipientIsmRequest,
+    ) => Promise<QueryRecipientIsmResponse>;
     /** VerifyDryRun ... */
     readonly VerifyDryRun: (
       req: QueryVerifyDryRunRequest,
@@ -50,7 +50,7 @@ export function setupCoreExtension(base: QueryClient): CoreExtension {
       Mailboxes: (req: QueryMailboxesRequest) => queryService.Mailboxes(req),
       Mailbox: (req: QueryMailboxRequest) => queryService.Mailbox(req),
       Delivered: (req: QueryDeliveredRequest) => queryService.Delivered(req),
-      RecipientIsm: (req: RecipientIsmRequest) =>
+      RecipientIsm: (req: QueryRecipientIsmRequest) =>
         queryService.RecipientIsm(req),
       VerifyDryRun: (req: QueryVerifyDryRunRequest) =>
         queryService.VerifyDryRun(req),

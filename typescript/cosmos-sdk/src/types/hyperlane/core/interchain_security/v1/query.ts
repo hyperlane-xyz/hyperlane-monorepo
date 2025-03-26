@@ -49,13 +49,13 @@ export interface QueryAnnouncedStorageLocationsResponse {
   storage_locations: string[];
 }
 
-/** QueryAnnouncedStorageLocationsRequest ... */
+/** QueryLatestAnnouncedStorageLocationRequest ... */
 export interface QueryLatestAnnouncedStorageLocationRequest {
   mailbox_id: string;
   validator_address: string;
 }
 
-/** QueryAnnouncedStorageLocationsResponse ... */
+/** QueryLatestAnnouncedStorageLocationResponse ... */
 export interface QueryLatestAnnouncedStorageLocationResponse {
   storage_location: string;
 }
@@ -693,7 +693,7 @@ export const QueryLatestAnnouncedStorageLocationResponse = {
   },
 };
 
-/** Msg defines the module Msg service. */
+/** Query defines the module Query service. */
 export interface Query {
   /** Isms ... */
   Isms(request: QueryIsmsRequest): Promise<QueryIsmsResponse>;

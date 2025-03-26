@@ -50,13 +50,13 @@ export interface QueryDeliveredResponse {
   delivered: boolean;
 }
 
-/** RecipientIsmRequest ... */
-export interface RecipientIsmRequest {
+/** QueryRecipientIsmRequest ... */
+export interface QueryRecipientIsmRequest {
   recipient: string;
 }
 
-/** RecipientIsmResponse ... */
-export interface RecipientIsmResponse {
+/** QueryRecipientIsmResponse ... */
+export interface QueryRecipientIsmResponse {
   ism_id: string;
 }
 
@@ -542,13 +542,13 @@ export const QueryDeliveredResponse = {
   },
 };
 
-function createBaseRecipientIsmRequest(): RecipientIsmRequest {
+function createBaseQueryRecipientIsmRequest(): QueryRecipientIsmRequest {
   return { recipient: '' };
 }
 
-export const RecipientIsmRequest = {
+export const QueryRecipientIsmRequest = {
   encode(
-    message: RecipientIsmRequest,
+    message: QueryRecipientIsmRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.recipient !== '') {
@@ -557,11 +557,14 @@ export const RecipientIsmRequest = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): RecipientIsmRequest {
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): QueryRecipientIsmRequest {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRecipientIsmRequest();
+    const message = createBaseQueryRecipientIsmRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -581,7 +584,7 @@ export const RecipientIsmRequest = {
     return message;
   },
 
-  fromJSON(object: any): RecipientIsmRequest {
+  fromJSON(object: any): QueryRecipientIsmRequest {
     return {
       recipient: isSet(object.recipient)
         ? globalThis.String(object.recipient)
@@ -589,7 +592,7 @@ export const RecipientIsmRequest = {
     };
   },
 
-  toJSON(message: RecipientIsmRequest): unknown {
+  toJSON(message: QueryRecipientIsmRequest): unknown {
     const obj: any = {};
     if (message.recipient !== '') {
       obj.recipient = message.recipient;
@@ -597,27 +600,27 @@ export const RecipientIsmRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RecipientIsmRequest>, I>>(
+  create<I extends Exact<DeepPartial<QueryRecipientIsmRequest>, I>>(
     base?: I,
-  ): RecipientIsmRequest {
-    return RecipientIsmRequest.fromPartial(base ?? ({} as any));
+  ): QueryRecipientIsmRequest {
+    return QueryRecipientIsmRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RecipientIsmRequest>, I>>(
+  fromPartial<I extends Exact<DeepPartial<QueryRecipientIsmRequest>, I>>(
     object: I,
-  ): RecipientIsmRequest {
-    const message = createBaseRecipientIsmRequest();
+  ): QueryRecipientIsmRequest {
+    const message = createBaseQueryRecipientIsmRequest();
     message.recipient = object.recipient ?? '';
     return message;
   },
 };
 
-function createBaseRecipientIsmResponse(): RecipientIsmResponse {
+function createBaseQueryRecipientIsmResponse(): QueryRecipientIsmResponse {
   return { ism_id: '' };
 }
 
-export const RecipientIsmResponse = {
+export const QueryRecipientIsmResponse = {
   encode(
-    message: RecipientIsmResponse,
+    message: QueryRecipientIsmResponse,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.ism_id !== '') {
@@ -629,11 +632,11 @@ export const RecipientIsmResponse = {
   decode(
     input: _m0.Reader | Uint8Array,
     length?: number,
-  ): RecipientIsmResponse {
+  ): QueryRecipientIsmResponse {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseRecipientIsmResponse();
+    const message = createBaseQueryRecipientIsmResponse();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -653,13 +656,13 @@ export const RecipientIsmResponse = {
     return message;
   },
 
-  fromJSON(object: any): RecipientIsmResponse {
+  fromJSON(object: any): QueryRecipientIsmResponse {
     return {
       ism_id: isSet(object.ism_id) ? globalThis.String(object.ism_id) : '',
     };
   },
 
-  toJSON(message: RecipientIsmResponse): unknown {
+  toJSON(message: QueryRecipientIsmResponse): unknown {
     const obj: any = {};
     if (message.ism_id !== '') {
       obj.ism_id = message.ism_id;
@@ -667,15 +670,15 @@ export const RecipientIsmResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RecipientIsmResponse>, I>>(
+  create<I extends Exact<DeepPartial<QueryRecipientIsmResponse>, I>>(
     base?: I,
-  ): RecipientIsmResponse {
-    return RecipientIsmResponse.fromPartial(base ?? ({} as any));
+  ): QueryRecipientIsmResponse {
+    return QueryRecipientIsmResponse.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RecipientIsmResponse>, I>>(
+  fromPartial<I extends Exact<DeepPartial<QueryRecipientIsmResponse>, I>>(
     object: I,
-  ): RecipientIsmResponse {
-    const message = createBaseRecipientIsmResponse();
+  ): QueryRecipientIsmResponse {
+    const message = createBaseQueryRecipientIsmResponse();
     message.ism_id = object.ism_id ?? '';
     return message;
   },
@@ -855,7 +858,7 @@ export const QueryVerifyDryRunResponse = {
   },
 };
 
-/** Msg defines the module Msg service. */
+/** Query defines the module Query service. */
 export interface Query {
   /** Mailboxes ... */
   Mailboxes(request: QueryMailboxesRequest): Promise<QueryMailboxesResponse>;
@@ -870,7 +873,9 @@ export interface Query {
    * core module is unique. This means that one application cannot be registered
    * to two mailboxes, resulting in a mailbox-independent lookup.
    */
-  RecipientIsm(request: RecipientIsmRequest): Promise<RecipientIsmResponse>;
+  RecipientIsm(
+    request: QueryRecipientIsmRequest,
+  ): Promise<QueryRecipientIsmResponse>;
   /** VerifyDryRun ... */
   VerifyDryRun(
     request: QueryVerifyDryRunRequest,
@@ -914,11 +919,13 @@ export class QueryClientImpl implements Query {
     );
   }
 
-  RecipientIsm(request: RecipientIsmRequest): Promise<RecipientIsmResponse> {
-    const data = RecipientIsmRequest.encode(request).finish();
+  RecipientIsm(
+    request: QueryRecipientIsmRequest,
+  ): Promise<QueryRecipientIsmResponse> {
+    const data = QueryRecipientIsmRequest.encode(request).finish();
     const promise = this.rpc.request(this.service, 'RecipientIsm', data);
     return promise.then((data) =>
-      RecipientIsmResponse.decode(_m0.Reader.create(data)),
+      QueryRecipientIsmResponse.decode(_m0.Reader.create(data)),
     );
   }
 

@@ -70,8 +70,8 @@ export interface QueryQuoteGasPaymentResponse {
   gas_payment: Coin[];
 }
 
-/** QueryCountRequest ... */
-export interface QueryMerkleTreeHooks {
+/** QueryMerkleTreeHooksRequest ... */
+export interface QueryMerkleTreeHooksRequest {
   pagination?: PageRequest | undefined;
 }
 
@@ -81,8 +81,8 @@ export interface QueryMerkleTreeHooksResponse {
   pagination?: PageResponse | undefined;
 }
 
-/** QueryMerkleTreeHook ... */
-export interface QueryMerkleTreeHook {
+/** QueryMerkleTreeHookRequest ... */
+export interface QueryMerkleTreeHookRequest {
   id: string;
 }
 
@@ -810,13 +810,13 @@ export const QueryQuoteGasPaymentResponse = {
   },
 };
 
-function createBaseQueryMerkleTreeHooks(): QueryMerkleTreeHooks {
+function createBaseQueryMerkleTreeHooksRequest(): QueryMerkleTreeHooksRequest {
   return { pagination: undefined };
 }
 
-export const QueryMerkleTreeHooks = {
+export const QueryMerkleTreeHooksRequest = {
   encode(
-    message: QueryMerkleTreeHooks,
+    message: QueryMerkleTreeHooksRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.pagination !== undefined) {
@@ -828,11 +828,11 @@ export const QueryMerkleTreeHooks = {
   decode(
     input: _m0.Reader | Uint8Array,
     length?: number,
-  ): QueryMerkleTreeHooks {
+  ): QueryMerkleTreeHooksRequest {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseQueryMerkleTreeHooks();
+    const message = createBaseQueryMerkleTreeHooksRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -852,7 +852,7 @@ export const QueryMerkleTreeHooks = {
     return message;
   },
 
-  fromJSON(object: any): QueryMerkleTreeHooks {
+  fromJSON(object: any): QueryMerkleTreeHooksRequest {
     return {
       pagination: isSet(object.pagination)
         ? PageRequest.fromJSON(object.pagination)
@@ -860,7 +860,7 @@ export const QueryMerkleTreeHooks = {
     };
   },
 
-  toJSON(message: QueryMerkleTreeHooks): unknown {
+  toJSON(message: QueryMerkleTreeHooksRequest): unknown {
     const obj: any = {};
     if (message.pagination !== undefined) {
       obj.pagination = PageRequest.toJSON(message.pagination);
@@ -868,15 +868,15 @@ export const QueryMerkleTreeHooks = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryMerkleTreeHooks>, I>>(
+  create<I extends Exact<DeepPartial<QueryMerkleTreeHooksRequest>, I>>(
     base?: I,
-  ): QueryMerkleTreeHooks {
-    return QueryMerkleTreeHooks.fromPartial(base ?? ({} as any));
+  ): QueryMerkleTreeHooksRequest {
+    return QueryMerkleTreeHooksRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHooks>, I>>(
+  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHooksRequest>, I>>(
     object: I,
-  ): QueryMerkleTreeHooks {
-    const message = createBaseQueryMerkleTreeHooks();
+  ): QueryMerkleTreeHooksRequest {
+    const message = createBaseQueryMerkleTreeHooksRequest();
     message.pagination =
       object.pagination !== undefined && object.pagination !== null
         ? PageRequest.fromPartial(object.pagination)
@@ -992,13 +992,13 @@ export const QueryMerkleTreeHooksResponse = {
   },
 };
 
-function createBaseQueryMerkleTreeHook(): QueryMerkleTreeHook {
+function createBaseQueryMerkleTreeHookRequest(): QueryMerkleTreeHookRequest {
   return { id: '' };
 }
 
-export const QueryMerkleTreeHook = {
+export const QueryMerkleTreeHookRequest = {
   encode(
-    message: QueryMerkleTreeHook,
+    message: QueryMerkleTreeHookRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.id !== '') {
@@ -1007,11 +1007,14 @@ export const QueryMerkleTreeHook = {
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): QueryMerkleTreeHook {
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): QueryMerkleTreeHookRequest {
     const reader =
       input instanceof _m0.Reader ? input : _m0.Reader.create(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseQueryMerkleTreeHook();
+    const message = createBaseQueryMerkleTreeHookRequest();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1031,11 +1034,11 @@ export const QueryMerkleTreeHook = {
     return message;
   },
 
-  fromJSON(object: any): QueryMerkleTreeHook {
+  fromJSON(object: any): QueryMerkleTreeHookRequest {
     return { id: isSet(object.id) ? globalThis.String(object.id) : '' };
   },
 
-  toJSON(message: QueryMerkleTreeHook): unknown {
+  toJSON(message: QueryMerkleTreeHookRequest): unknown {
     const obj: any = {};
     if (message.id !== '') {
       obj.id = message.id;
@@ -1043,15 +1046,15 @@ export const QueryMerkleTreeHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryMerkleTreeHook>, I>>(
+  create<I extends Exact<DeepPartial<QueryMerkleTreeHookRequest>, I>>(
     base?: I,
-  ): QueryMerkleTreeHook {
-    return QueryMerkleTreeHook.fromPartial(base ?? ({} as any));
+  ): QueryMerkleTreeHookRequest {
+    return QueryMerkleTreeHookRequest.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHook>, I>>(
+  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHookRequest>, I>>(
     object: I,
-  ): QueryMerkleTreeHook {
-    const message = createBaseQueryMerkleTreeHook();
+  ): QueryMerkleTreeHookRequest {
+    const message = createBaseQueryMerkleTreeHookRequest();
     message.id = object.id ?? '';
     return message;
   },
@@ -1694,13 +1697,13 @@ export interface Query {
   QuoteGasPayment(
     request: QueryQuoteGasPaymentRequest,
   ): Promise<QueryQuoteGasPaymentResponse>;
-  /** MerkleTreeHook ... */
+  /** MerkleTreeHooks ... */
   MerkleTreeHooks(
-    request: QueryMerkleTreeHooks,
+    request: QueryMerkleTreeHooksRequest,
   ): Promise<QueryMerkleTreeHooksResponse>;
   /** MerkleTreeHook ... */
   MerkleTreeHook(
-    request: QueryMerkleTreeHook,
+    request: QueryMerkleTreeHookRequest,
   ): Promise<QueryMerkleTreeHookResponse>;
   /** NoopHooks ... */
   NoopHooks(request: QueryNoopHooksRequest): Promise<QueryNoopHooksResponse>;
@@ -1765,9 +1768,9 @@ export class QueryClientImpl implements Query {
   }
 
   MerkleTreeHooks(
-    request: QueryMerkleTreeHooks,
+    request: QueryMerkleTreeHooksRequest,
   ): Promise<QueryMerkleTreeHooksResponse> {
-    const data = QueryMerkleTreeHooks.encode(request).finish();
+    const data = QueryMerkleTreeHooksRequest.encode(request).finish();
     const promise = this.rpc.request(this.service, 'MerkleTreeHooks', data);
     return promise.then((data) =>
       QueryMerkleTreeHooksResponse.decode(_m0.Reader.create(data)),
@@ -1775,9 +1778,9 @@ export class QueryClientImpl implements Query {
   }
 
   MerkleTreeHook(
-    request: QueryMerkleTreeHook,
+    request: QueryMerkleTreeHookRequest,
   ): Promise<QueryMerkleTreeHookResponse> {
-    const data = QueryMerkleTreeHook.encode(request).finish();
+    const data = QueryMerkleTreeHookRequest.encode(request).finish();
     const promise = this.rpc.request(this.service, 'MerkleTreeHook', data);
     return promise.then((data) =>
       QueryMerkleTreeHookResponse.decode(_m0.Reader.create(data)),
