@@ -11,7 +11,7 @@
     "decimals": 6,
     "name": "SPICE",
     "symbol": "SPICE",
-    "uri": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/e5e2a6e347398bb4cd53b09e47f7b6969ef7643b/deployments/warp_routes/SPICE/metadata.json",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/3f20f57ff27f176c810134bd93279da1f0aee9e1/deployments/warp_routes/SPICE/metadata.json",
     "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
     "owner": "G8v8LHQw2pWuJiQbbPRHehsNEneMkCzRHz7vSPP2ttiZ"
   }
