@@ -27,6 +27,10 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
         ...abacusWorksEnvOwnerConfig.arbitrum,
         address: '0x6701d503369cf6aA9e5EdFfEBFA40A2ffdf3dB21',
       },
+      ownerOverrides: {
+        proxyAdmin: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+        collateralProxyAdmin: '0x4DFF9b5b0143E642a3F63a5bcf2d1C328e600bf8',
+      },
       type: TokenType.collateral,
       token: tokens.arbitrum.USDT,
       interchainSecurityModule: ISM_CONFIG,
