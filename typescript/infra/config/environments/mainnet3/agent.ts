@@ -19,6 +19,7 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   MetricAppContext,
+  consistentSenderRecipientMatchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
@@ -35,8 +36,6 @@ import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresse
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
-import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
-import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -608,11 +607,20 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     {
       name: 'velo_message_module',
-      matchingList: routerMatchingList(veloMessageModuleAddresses),
+      // Almost all messages to / from this address relate to the Velo Message Module.
+      // The only exception is Metal, which had an initial misconfiguration that the Velo
+      // team resolved with a different contract deploy. We can still only match on this address
+      // as Metal is the only exception, so it's always receiving from or sending messages to this address.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xF385603a12Be8b7B885222329c581FDD1C30071D',
+      ),
     },
     {
       name: 'velo_token_bridge',
-      matchingList: routerMatchingList(veloTokenBridgeAddresses),
+      // All messages to / from this address relate to the Velo Token Bridge.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xA7287a56C01ac8Baaf8e7B662bDB41b10889C7A6',
+      ),
     },
     {
       // https://github.com/bgd-labs/aave-delivery-infrastructure?tab=readme-ov-file#deployed-addresses
@@ -731,7 +739,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f887ebf-20250321-173043',
+      tag: 'af73f39-20250325-130319',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -767,7 +775,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f887ebf-20250321-173043',
+      tag: 'af73f39-20250325-130319',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -801,7 +809,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cc3af7d-20250304-172021',
+      tag: 'af73f39-20250325-130319',
     },
     blacklist,
     gasPaymentEnforcement,
