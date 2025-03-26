@@ -24,23 +24,19 @@ export async function runWarpRouteRead({
   context,
   chain,
   address,
-  warp,
   symbol,
 }: {
   context: CommandContext;
   chain?: ChainName;
-  warp?: string;
   address?: string;
   symbol?: string;
-}): Promise<Record<ChainName, HypTokenRouterConfig>> {
-  const { multiProvider } = context;
-
-  const hasWarpConfig = Boolean(symbol || warp);
+}): Promise<ChainMap<HypTokenRouterConfig>> {
+  const hasWarpConfig = Boolean(symbol);
   const hasChainAddress = Boolean(chain && address);
 
   if (!hasWarpConfig && !hasChainAddress) {
     logRed(
-      'Invalid input parameters. Please provide either a token symbol/warp configuration or both chain name and token address',
+      'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
     );
     process.exit(1);
   }
@@ -48,7 +44,6 @@ export async function runWarpRouteRead({
   const warpCoreConfig = hasWarpConfig
     ? await getWarpCoreConfigOrExit({
         context,
-        warp,
         symbol,
       })
     : undefined;
@@ -58,6 +53,30 @@ export async function runWarpRouteRead({
         warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
       )
     : { [chain!]: address! };
+
+  return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
+}
+
+export async function getWarpRouteConfigsByCore({
+  context,
+  warpCoreConfig,
+}: {
+  context: CommandContext;
+  warpCoreConfig: WarpCoreConfig;
+}): Promise<ChainMap<HypTokenRouterConfig>> {
+  const addresses = Object.fromEntries(
+    warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+  );
+
+  return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
+}
+
+async function deriveWarpRouteConfigs(
+  context: CommandContext,
+  addresses: ChainMap<string>,
+  warpCoreConfig?: WarpCoreConfig,
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const { multiProvider } = context;
 
   validateEvmCompatibility(addresses);
 

@@ -22,7 +22,7 @@ import {
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
-import { runWarpRouteRead } from '../read/warp.js';
+import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -394,8 +394,9 @@ export const check: CommandModuleWithContext<{
     }
 
     // Get on-chain config
-    const onChainWarpConfig = await runWarpRouteRead({
+    const onChainWarpConfig = await getWarpRouteConfigsByCore({
       context,
+      warpCoreConfig,
     });
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
