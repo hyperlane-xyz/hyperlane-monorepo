@@ -26,12 +26,14 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
     // ============ Constants  ============
     uint32 public constant MIN_GAS_LIMIT = 500_000;
 
-    IMailbox public mailbox;
+    IMailbox public immutable mailbox;
     bytes32 public immutable ccipReadIsm;
+    IPostDispatchHook public immutable childHook;
 
     // ============ Constructor ============
-    constructor(address _mailbox, address _ccipReadIsm) {
+    constructor(address _mailbox, address _ccipReadIsm, address _childHook) {
         mailbox = IMailbox(_mailbox);
+        childHook = IPostDispatchHook(_childHook);
         ccipReadIsm = _ccipReadIsm.addressToBytes32();
     }
 
@@ -50,7 +52,8 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
                 message.destination(),
                 ccipReadIsm,
                 message,
-                metadata
+                metadata,
+                childHook
             );
     }
 
@@ -63,7 +66,8 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
             message.destination(),
             ccipReadIsm,
             message,
-            metadata
+            metadata,
+            childHook
         );
     }
 }
