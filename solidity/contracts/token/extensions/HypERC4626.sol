@@ -137,6 +137,9 @@ contract HypERC4626 is HypERC20 {
             FungibleTokenRouter._outboundAmount(assetsToShares(_localAmount));
     }
 
+    // `_inboundAmount` implementation reused from `FungibleTokenRouter` unchanged because message
+    // accounting is in shares
+
     // ========== TokenRouter extensions ============
     /// @inheritdoc TokenRouter
     function _handle(

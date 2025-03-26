@@ -71,19 +71,23 @@ contract HypERC4626Collateral is HypERC20Collateral {
         bytes memory _hookMetadata,
         address _hook
     ) internal virtual override returns (bytes32 messageId) {
-        HypERC20Collateral._transferFromSender(_amount);
-
-        wrappedToken.approve(address(vault), _amount);
-        uint256 shares = vault.deposit(_amount, address(this));
+        // Can't override _transferFromSender only because we need to pass shares in the token message
+        _transferFromSender(_amount);
+        uint256 _shares = _depositIntoVault(_amount);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
-        rateUpdateNonce++;
 
-        uint256 outboundAmount = _outboundAmount(shares);
+        rateUpdateNonce++;
+        bytes memory _tokenMetadata = abi.encode(
+            _exchangeRate,
+            rateUpdateNonce
+        );
+
+        uint256 _outboundAmount = _outboundAmount(_shares);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            outboundAmount,
-            abi.encode(_exchangeRate, rateUpdateNonce)
+            _outboundAmount,
+            _tokenMetadata
         );
 
         messageId = _Router_dispatch(
@@ -94,7 +98,16 @@ contract HypERC4626Collateral is HypERC20Collateral {
             _hook
         );
 
-        emit SentTransferRemote(_destination, _recipient, outboundAmount);
+        emit SentTransferRemote(_destination, _recipient, _outboundAmount);
+    }
+
+    /**
+     * @dev Deposits into the vault and increment assetDeposited
+     * @param _amount amount to deposit into vault
+     */
+    function _depositIntoVault(uint256 _amount) internal returns (uint256) {
+        wrappedToken.approve(address(vault), _amount);
+        return vault.deposit(_amount, address(this));
     }
 
     /**

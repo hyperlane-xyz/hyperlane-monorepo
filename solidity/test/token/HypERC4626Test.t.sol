@@ -551,7 +551,12 @@ contract HypERC4626CollateralTest is HypTokenTest {
         remoteMailbox.processNextInboundMessage();
 
         uint256 balance = remoteToken.balanceOf(BOB);
-        assertNotEq(balance, transferAmount);
+        assertApproxEqRelDecimal(
+            balance,
+            transferAmount + _discountedYield(),
+            1e14,
+            0
+        );
 
         vm.prank(BOB);
         remoteToken.approve(ALICE, balance);
