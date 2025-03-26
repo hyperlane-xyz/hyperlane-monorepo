@@ -85,7 +85,7 @@ contract HypNative is TokenRouter {
      */
     function _transferFromSender(
         uint256
-    ) internal pure override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         return bytes(""); // no metadata
     }
 
