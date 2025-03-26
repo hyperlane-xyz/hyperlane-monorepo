@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
@@ -46,6 +48,7 @@ impl SealevelRpcClientBuilder {
             sender,
             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
         );
-        SealevelRpcClient::from_rpc_client(rpc_client)
+
+        SealevelRpcClient::from_rpc_client(Arc::new(rpc_client))
     }
 }
