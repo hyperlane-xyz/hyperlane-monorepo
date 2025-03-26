@@ -101,7 +101,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include(
-        'Invalid input parameters. Please provide either a token symbol/warp configuration or both chain name and token address',
+        'Please specify either a symbol or warp config',
       );
     });
   });
