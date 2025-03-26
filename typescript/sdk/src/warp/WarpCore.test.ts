@@ -161,6 +161,7 @@ describe('WarpCore', () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
         getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
       } as any),
     );
 
@@ -211,6 +212,7 @@ describe('WarpCore', () => {
         populateTransferRemoteTx: () => Promise.resolve({}),
         getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
         getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
         getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
         getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
       } as any),

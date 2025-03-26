@@ -461,6 +461,7 @@ export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToViemChain,
+  chainMetadataToStarknetChain,
 } from './metadata/chainMetadataConversion.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export {
