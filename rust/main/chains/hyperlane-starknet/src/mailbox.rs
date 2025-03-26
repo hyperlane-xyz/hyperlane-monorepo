@@ -73,7 +73,6 @@ impl StarknetMailbox {
         let account;
         if locator.domain.id() == 12263410 {
             // paradexsepolia
-            println!("ANYMA, {:?}, {:?}", locator.domain.name(), signer.address);
             account = build_single_owner_account(
                 &conn.url,
                 signer.local_wallet(),
@@ -82,11 +81,6 @@ impl StarknetMailbox {
                 locator.domain.id(),
             );
         } else {
-            println!(
-                "DISCLOSURE, {:?}, {:?}",
-                locator.domain.name(),
-                signer.address
-            );
             // other chains
             account = build_single_owner_account(
                 &conn.url,
@@ -119,13 +113,12 @@ impl StarknetMailbox {
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
         println!("MAILBOX address: {:?}", self.contract.address);
-        let msg = StarknetMessage::from(message);
-        println!("SAQUON recipient {:?}", msg.recipient.to_bytes_be());
 
         println!(
-            "SAQUON process call: metadata {:?} and message {:?}",
+            "SAQUON process call: metadata {:?} and message {:?} and id {:?}",
             metadata,
-            StarknetMessage::from(message)
+            StarknetMessage::from(message),
+            message.id()
         );
 
         // self.contract.
@@ -133,6 +126,7 @@ impl StarknetMailbox {
             .contract
             .process(&to_mailbox_bytes(metadata), &message.into());
 
+        println!("SAQUON tx {:?}", tx);
         let gas_estimate = match tx_gas_estimate {
             Some(estimate) => HyU256(estimate)
                 .try_into()
@@ -147,7 +141,7 @@ impl StarknetMailbox {
                     .overall_fee
             }
         };
-        println!("SAQUON gas estimate {:?}, {:?}", gas_estimate, tx);
+        println!("SAQUON gas estimate {:?}", gas_estimate);
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
 
