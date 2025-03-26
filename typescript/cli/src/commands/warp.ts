@@ -395,10 +395,7 @@ export const check: CommandModuleWithContext<{
 
     // Get on-chain config
     const onChainWarpConfig = await runWarpRouteRead({
-      context: {
-        ...context,
-        warpCoreConfig: warpCoreConfig,
-      },
+      context,
     });
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
