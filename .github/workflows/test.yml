@@ -230,6 +230,30 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      # Set rust_changes to true if:
+      # - on the main branch
+      # - PR with changes to ./rust
+      # - PR with changes to this workflow
+      - name: Check for Rust file changes
+        id: check-rust-changes
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" && -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml)" ]]; then
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in Rust files or workflow:"
+            git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml
+          else
+            echo "rust_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Exit early if no rust changes detected and e2e-type is not evm
+        run: |
+          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" && "${{ matrix.e2e-type }}" != "evm" ]]; then
+            echo "No rust changes detected and e2e-type is not evm. Exiting job early."
+            exit 0
+          fi
+
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
@@ -279,29 +303,12 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      # Set rust_changes to true if:
-      # - on the main branch
-      # - PR with changes to ./rust
-      # - PR with changes to this workflow
-      - name: Check for Rust file changes
-        id: check-rust-changes
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "rust_changes=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" && -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml)" ]]; then
-            echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "Changes detected in Rust files or workflow:"
-            git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml
-          else
-            echo "rust_changes=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.8
 
       - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
-        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        if: ${{ matrix.e2e-type == 'cosmwasm' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
@@ -318,7 +325,7 @@ jobs:
 
       - name: agent tests (Sealevel)
         run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
-        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        if: ${{ matrix.e2e-type == 'sealevel' }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
