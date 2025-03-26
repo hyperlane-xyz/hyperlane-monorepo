@@ -17,12 +17,10 @@ pragma solidity >=0.8.0;
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 
 // ============ External Imports ============
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-
-import "forge-std/console.sol";
 
 /**
  * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault
@@ -60,36 +58,43 @@ contract HypERC4626Collateral is HypERC20Collateral {
     }
 
     /**
-     * @inheritdoc FungibleTokenRouter
-     * @dev
+     * @inheritdoc TokenRouter
+     * @dev Override `_transferRemote` to send shares as amount and append {exchange rate, nonce} in the message.
+     *      This is preferred for readability and to avoid confusion with the amount of shares. The scaling factor
+     *      is applied to the shares returned by the deposit before sending the message.
      */
-    function _outboundAmount(
-        uint256 _localAmount
-    ) internal view virtual override returns (uint256) {
-        uint256 shares = vault.convertToShares(_localAmount);
-        console.log(shares);
-        return FungibleTokenRouter._outboundAmount(shares);
-    }
-
-    /**
-     * @inheritdoc HypERC20Collateral
-     * @dev Extend ERC20 collateral `_transferFromSender` with deposit to vault.
-     * @dev Append exchange rate (and nonce) to the message.
-     */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual override returns (bytes32 messageId) {
         HypERC20Collateral._transferFromSender(_amount);
 
         wrappedToken.approve(address(vault), _amount);
-        // TODO: send this in the message rather than vault.convertToShares
         uint256 shares = vault.deposit(_amount, address(this));
-        console.log(shares);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
         rateUpdateNonce++;
 
-        return abi.encode(_exchangeRate, rateUpdateNonce);
+        uint256 outboundAmount = _outboundAmount(shares);
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            outboundAmount,
+            abi.encode(_exchangeRate, rateUpdateNonce)
+        );
+
+        messageId = _Router_dispatch(
+            _destination,
+            _value,
+            _tokenMessage,
+            _hookMetadata,
+            _hook
+        );
+
+        emit SentTransferRemote(_destination, _recipient, outboundAmount);
     }
 
     /**
