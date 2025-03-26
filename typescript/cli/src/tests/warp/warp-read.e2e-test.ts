@@ -58,7 +58,7 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read --config ...', () => {
-    it('Invalid input parameters. Please provide either a token symbol/warp configuration or both chain name and token address', async () => {
+    it('should exit early if no symbol or no chain and address', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
       const output = await hyperlaneWarpReadRaw({
@@ -67,7 +67,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include(
-        'Invalid input parameters. Please provide either a token symbol/warp configuration or both chain name and token address',
+        'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
       );
     });
   });
