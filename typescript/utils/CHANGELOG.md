@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 9.2.1
+
+## 9.2.0
+
+## 9.1.0
+
 ## 9.0.0
 
 ### Major Changes
