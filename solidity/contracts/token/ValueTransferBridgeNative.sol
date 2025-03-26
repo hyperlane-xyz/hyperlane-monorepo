@@ -23,7 +23,7 @@ abstract contract ValueTransferBridgeNative is HypNative {
     uint32 constant HOOK_METADATA_GAS_LIMIT = 700_000;
 
     // L2 bridge used to initiate the withdrawal
-    address public l2Bridge;
+    address public l2Bridge; // TODO: immutable
 
     /**
      * @dev see MailboxClient's initializer for other configurables
