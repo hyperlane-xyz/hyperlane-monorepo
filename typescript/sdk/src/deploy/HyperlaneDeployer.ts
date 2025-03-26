@@ -824,16 +824,19 @@ export abstract class HyperlaneDeployer<
           { contractName, current, desiredOwner: owner },
           'Current owner and config owner do not match',
         );
-        const receipt = await this.runIfOwner(chain, ownable, () => {
+        const receipt = await this.runIfOwner(chain, ownable, async () => {
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
+          const estimatedGas = await ownable.estimateGas.transferOwnership(
+            owner,
+          );
           return this.multiProvider.handleTx(
             chain,
-            ownable.transferOwnership(
-              owner,
-              this.multiProvider.getTransactionOverrides(chain),
-            ),
+            ownable.transferOwnership(owner, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...this.multiProvider.getTransactionOverrides(chain),
+            }),
           );
         });
         if (receipt) receipts.push(receipt);
