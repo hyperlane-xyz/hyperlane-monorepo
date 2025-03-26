@@ -44,13 +44,14 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<Transaction> {
-        vec![Transaction::new(
+        let tx = Transaction::new(
             UniqueIdentifier::random(),
             None,
             VmSpecificTxData::Evm,
             payloads.into_iter().map(|p| p.details()).collect(),
             TransactionStatus::default(),
             Default::default(),
-        )]
+        );
+        vec![tx]
     }
 }

@@ -30,13 +30,7 @@ pub struct PayloadDispatcherSettings {
     db_path: PathBuf,
 }
 
-#[derive(new)]
-pub struct StageState {
-    pub(crate) payload_db: Arc<dyn PayloadDb>,
-    pub(crate) tx_db: Arc<dyn TransactionDb>,
-    pub(crate) adapter: Box<dyn AdaptsChain>,
-}
-
+/// State that is common (but not shared) to all components of the `PayloadDispatcher`
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,

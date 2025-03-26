@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::{payload::FullPayload, transaction::Transaction};
 
-use super::StageState;
+use super::PayloadDispatcherState;
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -19,7 +19,7 @@ struct BuildingStage {
     queue: BuildingStageQueue,
     /// This channel is the exitpoint of the Building Stage
     inclusion_stage_sender: mpsc::Sender<Transaction>,
-    state: StageState,
+    state: PayloadDispatcherState,
 }
 
 impl BuildingStage {
@@ -31,6 +31,9 @@ impl BuildingStage {
                 for tx in txs {
                     self.inclusion_stage_sender.send(tx).await?;
                 }
+            } else {
+                // wait for the next payload to arrive
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }
     }
@@ -82,7 +85,7 @@ mod tests {
             .returning(|payloads| Ok(dummy_tx(payloads)));
 
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
-        let state = super::StageState::new(payload_db, tx_db, adapter);
+        let state = super::PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, mut receiver) = tokio::sync::mpsc::channel(100);
         let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
         let building_stage = super::BuildingStage::new(queue.clone(), sender.clone(), state);
