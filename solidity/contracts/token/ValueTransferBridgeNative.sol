@@ -5,6 +5,7 @@ import {HypNative} from "./HypNative.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -15,7 +16,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @dev Derives from the Hyperlane native token router, but supports
  * transfer of ERC20 token value
  */
-abstract contract ValueTransferBridgeNative is HypNative {
+abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
@@ -77,12 +78,17 @@ abstract contract ValueTransferBridgeNative is HypNative {
         require(false, "Unavailable");
     }
 
-    /// @inheritdoc TokenRouter
+    /// @inheritdoc IValueTransferBridge
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
-    ) external payable override returns (bytes32) {
+    )
+        external
+        payable
+        override(HypNative, IValueTransferBridge)
+        returns (bytes32)
+    {
         bytes32 _router = _mustHaveRemoteRouter(_destination);
         uint256 _value = msg.value - _amountOrId;
         bytes memory _extraData = bytes("");
