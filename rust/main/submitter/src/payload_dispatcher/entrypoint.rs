@@ -75,24 +75,8 @@ mod tests {
     use super::*;
     use crate::chain_tx_adapter::*;
     use crate::payload::*;
+    use crate::payload_dispatcher::test_utils::tests::MockAdapter;
     use crate::transaction::*;
-
-    mockall::mock! {
-        pub Adapter {
-        }
-
-        #[async_trait]
-        impl AdaptsChain for Adapter {
-            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
-            async fn build_transactions(&self, payloads: Vec<FullPayload>) -> Vec<Transaction>;
-            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
-            async fn submit(&self, tx: &mut Transaction) -> Result<()>;
-            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus>;
-            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<uuid::Uuid>>;
-            async fn nonce_gap_exists(&self) -> bool;
-            async fn replace_tx(&self, _tx: &Transaction) -> Result<()>;
-        }
-    }
 
     struct MockDb {
         // need arcmutex for interior mutability

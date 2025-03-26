@@ -1,6 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use derive_new::new;
 use eyre::Result;
 use std::{path::PathBuf, sync::Arc};
 
@@ -72,8 +73,16 @@ impl PayloadDispatcher {
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         // TODO: here
         // create the submit queue and channels for the Dispatcher stages
+
         // spawn the DbLoader with references to the submit queue and channels
         // spawn the 3 stages using the adapter, db, queue and channels
         todo!()
     }
+}
+
+#[derive(new)]
+pub struct StageState {
+    pub(crate) payload_db: Arc<dyn PayloadDb>,
+    pub(crate) tx_db: Arc<dyn TransactionDb>,
+    pub(crate) adapter: Box<dyn AdaptsChain>,
 }
