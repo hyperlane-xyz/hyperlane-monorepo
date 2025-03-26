@@ -16,7 +16,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @dev Derives from the Hyperlane native token router, but supports
  * transfer of ERC20 token value
  */
-abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
+abstract contract ValueTransferBridgeNative is HypNative {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
@@ -25,13 +25,20 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
 
     // L2 bridge used to initiate the withdrawal
     address public l2Bridge; // TODO: immutable
+    // L1 domain where the withdrawal will be finalized
+    uint32 public immutable l1Domain;
 
     error NotImplemented();
 
     /**
      * @dev see MailboxClient's initializer for other configurables
      */
-    constructor(address _l2Bridge, address _mailbox) HypNative(_mailbox) {
+    constructor(
+        uint32 _l1Domain,
+        address _l2Bridge,
+        address _mailbox
+    ) HypNative(_mailbox) {
+        l1Domain = _l1Domain;
         l2Bridge = _l2Bridge;
         _transferOwnership(_msgSender()); // TODO: remove
     }
@@ -44,29 +51,19 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual returns (uint256 fees) {
-        // Check HypNative._transferFromSender()
-        bytes memory _tokenMetadata = bytes("");
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _amount,
-            _tokenMetadata
-        );
-
-        bytes memory _extraData = bytes("");
-
-        fees =
+    ) external view virtual returns (uint256) {
+        return
             _Router_quoteDispatch(
-                _destination,
-                _tokenMessage,
-                _getHookMetadata(),
+                l1Domain,
+                _getQuoteTokenMessage(),
+                _overrideGasLimit(),
                 address(hook)
             ) +
             _l2BridgeQuoteTransferRemote(
-                _destination,
+                l1Domain,
                 _recipient,
                 _amount,
-                _extraData
+                _l2BridgeExtraData()
             );
     }
 
@@ -80,32 +77,23 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
         revert NotImplemented();
     }
 
-    /// @inheritdoc IValueTransferBridge
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
+    function _transferFromSender(
         uint256 _amountOrId
-    )
-        external
-        payable
-        override(HypNative, IValueTransferBridge)
-        returns (bytes32)
-    {
-        bytes32 _router = _mustHaveRemoteRouter(_destination);
-        uint256 _value = msg.value - _amountOrId;
-        bytes memory _extraData = bytes("");
+    ) internal override returns (bytes memory metadata) {
+        metadata = _l2BridgeTransferRemote(
+            l1Domain,
+            _mustHaveRemoteRouter(l1Domain),
+            _amountOrId,
+            _l2BridgeExtraData()
+        );
+    }
 
-        _l2BridgeTransferRemote(_destination, _router, _amountOrId, _extraData);
+    function _l2BridgeExtraData() internal view virtual returns (bytes memory) {
+        return bytes("");
+    }
 
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                _value,
-                _getHookMetadata(),
-                address(hook) // (i.e. OPL2ToL1ProveWithdrawalHook)
-            );
+    function _getQuoteTokenMessage() internal view returns (bytes memory) {
+        return TokenMessage.format(bytes32(0), 0, _l2BridgeExtraData());
     }
 
     /**
@@ -120,7 +108,7 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
         bytes32 _recipient,
         uint256 _amount,
         bytes memory _extraData
-    ) internal virtual;
+    ) internal virtual returns (bytes memory metadata);
 
     /**
      * @notice Returns the rollup bridge fees needed to perform the tranfer to L1
@@ -137,7 +125,7 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
         return 0;
     }
 
-    function _getHookMetadata() internal view returns (bytes memory) {
+    function _overrideGasLimit() internal view returns (bytes memory) {
         return StandardHookMetadata.overrideGasLimit(HOOK_METADATA_GAS_LIMIT);
     }
 }

@@ -10,6 +10,12 @@ import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
+/**
+ * @notice Prove and finalize a OP stack withdrawal on L1
+ * @dev Proving and finalizing had been merged into a single
+ * ISM because OP Stack expects the prover and the finalizer to
+ * be the same caller
+ */
 contract OPL2ToL1CcipReadIsm is
     AbstractCcipReadIsm,
     IMessageRecipient,
