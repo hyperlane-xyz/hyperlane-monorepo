@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 use solana_client::{
@@ -31,9 +31,17 @@ impl PrometheusSealevelRpcSender {
         let chain_name = PrometheusConfig::chain_name(&config.chain);
         metrics.increment_provider_instance(chain_name);
 
+        let timeout = std::env::var("SEALEVEL_RPC_CLIENT_ELEVATED_TIMEOUT_SECONDS")
+            .ok()
+            .unwrap_or("30".to_string())
+            .parse::<u64>()
+            .unwrap_or(30u64);
+
+        let inner = HttpSender::new_with_timeout(url.clone(), Duration::from_secs(timeout));
+
         Self {
             url: url.clone(),
-            inner: HttpSender::new(url),
+            inner,
             metrics,
             config,
         }
