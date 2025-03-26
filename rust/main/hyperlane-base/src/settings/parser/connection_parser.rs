@@ -325,26 +325,18 @@ fn parse_transaction_submitter_config(
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
                     .get_opt_key("urls")
-                    .into_array_iter()
-                    .map(|arr_iter| {
-                        arr_iter
-                            .filter_map(|v| v.parse_from_str("Invalid url").ok())
-                            .collect()
-                    })
+                    .parse_string()
+                    .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
                 Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls })
             }
             "jito" => {
-                let urls: Vec<_> = chain
+                let urls: Vec<String> = chain
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
                     .get_opt_key("urls")
-                    .into_array_iter()
-                    .map(|arr_iter| {
-                        arr_iter
-                            .filter_map(|v| v.parse_from_str("Invalid url").ok())
-                            .collect()
-                    })
+                    .parse_string()
+                    .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
                 Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls })
             }
