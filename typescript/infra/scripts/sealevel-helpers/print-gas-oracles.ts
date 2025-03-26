@@ -100,6 +100,9 @@ function getChainConnections(
     connectedChains = [
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
+      ['solanamainnet', 'everclear'],
+      ['solanamainnet', 'infinityvm'],
+      ['solanamainnet', 'sophon'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
@@ -108,6 +111,9 @@ function getChainConnections(
       // As testnet warp routes are not tracked well, hardcode the connected chains.
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
+      ['solanatestnet', 'connextsepolia'],
+      ['solanatestnet', 'infinityvmmonza'],
+      ['solanatestnet', 'basesepolia'],
     ];
   } else {
     throw new Error(`Unknown environment: ${environment}`);
