@@ -31,6 +31,12 @@ const getGasConfig = (
   warpDeployConfig[chain].gas?.toString() ||
   gasOverhead(warpDeployConfig[chain].type).toString();
 
+/**
+ * Returns default router addresses and gas values for cross-chain communication.
+ * For each remote chain:
+ * - Sets up router addresses for message routing
+ * - Configures gas values for message processing
+ */
 export function getDefaultRemoteRouterAndDestinationGasConfig(
   multiProvider: MultiProvider,
   chain: string,
@@ -125,9 +131,6 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
   return obj;
 };
 
-type HypTokenRouterConfigKey = keyof HypTokenRouterConfig;
-const KEYS_TO_IGNORE: HypTokenRouterConfigKey[] = ['totalSupply'];
-
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -135,13 +138,33 @@ const KEYS_TO_IGNORE: HypTokenRouterConfigKey[] = ['totalSupply'];
 export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
-  const filteredObj = Object.fromEntries(
-    Object.entries(obj).filter(
-      ([key]) => !KEYS_TO_IGNORE.includes(key as HypTokenRouterConfigKey),
-    ),
-  );
-
   return sortArraysInConfig(
-    transformObj(filteredObj, transformWarpDeployConfigToCheck),
+    transformObj(obj, transformWarpDeployConfigToCheck),
+  );
+}
+
+/**
+ * Splits warp deploy config into existing and extended configurations based on warp core chains
+ * for the warp apply process.
+ */
+export function splitWarpCoreAndExtendedConfigs(
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+  warpCoreChains: string[],
+): [
+  WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequired,
+] {
+  return Object.entries(warpDeployConfig).reduce<
+    [WarpRouteDeployConfigMailboxRequired, WarpRouteDeployConfigMailboxRequired]
+  >(
+    ([existing, extended], [chain, config]) => {
+      if (warpCoreChains.includes(chain)) {
+        existing[chain] = config;
+      } else {
+        extended[chain] = config;
+      }
+      return [existing, extended];
+    },
+    [{}, {}],
   );
 }

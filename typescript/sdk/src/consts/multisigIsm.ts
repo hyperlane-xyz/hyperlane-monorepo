@@ -925,7 +925,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9',
         alias: AW_VALIDATOR_ALIAS,
       },
-      { address: '0x6760226b34213d262D41D5291Ed57E81a68b4E0b', alias: 'Fuse' },
+      { address: '0x1FE988A1A20cE4141B2081fF8446DA99e11D61d7', alias: 'Fuse' },
       DEFAULT_MERKLY_VALIDATOR,
     ],
   },
@@ -1070,12 +1070,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   infinityvm: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xeed503e0bd8fae0ad606361492db8711eaf0b935',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1545,12 +1547,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   plume: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x63c9b5ea28710d956a51f0f746ee8df81215663f',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 

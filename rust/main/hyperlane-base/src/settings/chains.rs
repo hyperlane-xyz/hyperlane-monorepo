@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use axum::async_trait;
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Report, Result};
+use serde_json::Value;
 
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
@@ -12,6 +13,7 @@ use hyperlane_core::{
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
     SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use hyperlane_cosmos::{
@@ -23,7 +25,6 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_sealevel::{
     self as h_sealevel, client_builder::SealevelRpcClientBuilder, SealevelRpcClient,
     TransactionSubmitter,
@@ -46,6 +47,18 @@ pub trait TryFromWithMetrics<T>: Sized {
         metrics: &CoreMetrics,
         advanced_log_meta: bool,
     ) -> Result<Self>;
+}
+
+/// Contains JSON value which can contain chain-specific configuration which is parsed by
+/// AdaptsChain trait implementation.
+#[allow(dead_code)]
+#[derive(Clone, Debug, Default)]
+pub struct RawChainConf(Value);
+
+impl From<Value> for RawChainConf {
+    fn from(value: Value) -> Self {
+        Self(value)
+    }
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
@@ -977,10 +990,13 @@ impl ChainConf {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();
-        let rpc_metrics = Some(metrics.client_metrics());
+        let client_metrics = metrics.client_metrics();
+
+        let client_metrics = Some(client_metrics);
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
+
         let res = builder
-            .build_with_connection_conf(conf, locator, signer, rpc_metrics, middleware_metrics)
+            .build_with_connection_conf(conf, locator, signer, client_metrics, middleware_metrics)
             .await;
         Ok(res?)
     }
@@ -995,6 +1011,7 @@ fn build_sealevel_rpc_client(
     let middleware_metrics = chain_conf.metrics_conf();
     let rpc_client_url = connection_conf.url.clone();
     let client_metrics = metrics.client_metrics();
+
     SealevelRpcClientBuilder::new(rpc_client_url)
         .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
         .build()
@@ -1033,13 +1050,14 @@ fn build_cosmos_provider(
     signer: Option<Signer>,
 ) -> ChainResult<CosmosProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
-    let rpc_metrics = metrics.client_metrics();
+    let client_metrics = metrics.client_metrics();
+
     CosmosProvider::new(
         locator.domain.clone(),
         connection_conf.clone(),
         locator,
         signer,
-        rpc_metrics,
+        client_metrics,
         middleware_metrics.chain.clone(),
     )
 }
@@ -1054,6 +1072,7 @@ fn build_cosmos_wasm_provider(
 ) -> ChainResult<CosmosWasmRpcProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
+
     CosmosWasmRpcProvider::new(
         connection_conf,
         locator,
