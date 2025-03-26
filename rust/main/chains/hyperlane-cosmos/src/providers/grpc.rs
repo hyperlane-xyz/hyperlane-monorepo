@@ -226,7 +226,7 @@ impl CosmosChannel {
 
 #[async_trait]
 impl BlockNumberGetter for CosmosChannel {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         let mut client = ServiceClient::new(self.channel.clone());
         let request = tonic::Request::new(GetLatestBlockRequest {});
 
@@ -687,7 +687,7 @@ impl WasmProvider for WasmGrpcProvider {
 
 #[async_trait]
 impl BlockNumberGetter for WasmGrpcProvider {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         self.latest_block_height().await
     }
 }
