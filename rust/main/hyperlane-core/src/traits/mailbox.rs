@@ -63,8 +63,6 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Arguments:
     /// - `message`: The message to be processed
     /// - `metadata`: The metadata needed to process the message
-    /// - `apply_gas_overrides`: Whether to apply gas overrides to the transaction. Use `false` if
-    /// just checking that it doesn't revert, and `true` when looking to submit the transaction.
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
