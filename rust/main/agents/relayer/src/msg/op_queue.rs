@@ -185,6 +185,7 @@ pub mod test {
         recipient_address: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
+        retry_count: u32,
     }
 
     impl MockPendingOperation {
@@ -197,6 +198,7 @@ pub mod test {
                 sender_address: H256::random(),
                 recipient_address: H256::random(),
                 origin_domain_id: 0,
+                retry_count: 0,
             }
         }
 
@@ -208,6 +210,7 @@ pub mod test {
                 origin_domain_id: message.origin,
                 destination_domain_id: message.destination,
                 seconds_to_next_attempt: 0,
+                retry_count: 0,
                 destination_domain: HyperlaneDomain::Unknown {
                     domain_id: message.destination,
                     domain_name: "test".to_string(),
@@ -248,6 +251,11 @@ pub mod test {
                 origin_domain_id: domain_id,
                 ..self
             }
+        }
+
+        pub fn with_retry_count(mut self, retry_count: u32) -> Self {
+            self.set_retries(retry_count);
+            self
         }
     }
 
@@ -353,8 +361,11 @@ pub mod test {
             todo!()
         }
 
-        fn set_retries(&mut self, _retries: u32) {
-            todo!()
+        fn set_retries(&mut self, retries: u32) {
+            self.retry_count = retries;
+        }
+        fn get_retries(&self) -> u32 {
+            self.retry_count
         }
     }
 

@@ -87,7 +87,7 @@ async function main() {
       // For each validator on this chain
       for (let i = 0; i < announcedValidators.length; i++) {
         const validator = announcedValidators[i];
-        const location = storageLocations[i][0];
+        const location = storageLocations[i][storageLocations[i].length - 1];
 
         // Skip validators not in default ISM unless --all flag is set
         const isDefaultIsmValidator = findDefaultValidatorAlias(validator);
