@@ -117,7 +117,7 @@ contract OPL2ToL1CcipReadIsm is
             IOptimismPortal.OutputRootProof memory _outputRootProof,
             bytes[] memory _withdrawalProof
         ) = abi.decode(
-                abi.decode(_metadata, (bytes)), // NOTE: due to the chainlink's ccip-server ABI data type conversions
+                _metadata,
                 (
                     IOptimismPortal.WithdrawalTransaction,
                     uint256,
@@ -136,7 +136,7 @@ contract OPL2ToL1CcipReadIsm is
 
     function _finalizeWithdrawal(bytes calldata _metadata) internal {
         IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
-            abi.decode(_metadata, (bytes)), // NOTE: due to the chainlink's ccip-server ABI data type conversions
+            _metadata,
             (IOptimismPortal.WithdrawalTransaction)
         );
 

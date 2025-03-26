@@ -60,7 +60,7 @@ class OPStackService {
    * @returns The encoded
    */
   async getWithdrawalProof([message]: ethers.utils.Result): Promise<
-    Array<string>
+    Array<any>
   > {
     const messageId: string = ethers.utils.keccak256(message);
     console.log(`getWithdrawalProof[${messageId}]`);
@@ -104,6 +104,8 @@ class OPStackService {
       ],
       proof.withdrawalProof,
     ] as const;
+
+    // TODO: remove
     const _proof = [
       ethers.utils.defaultAbiCoder.encode(
         [
@@ -115,11 +117,11 @@ class OPStackService {
         args,
       ),
     ];
-
+    // TODO: remove
     console.info(`Proof[${messageId}]`, _proof);
     console.log(`Message[${messageId}]`, message);
 
-    return _proof;
+    return [...args];
   }
 
   /**
@@ -128,7 +130,7 @@ class OPStackService {
    * @returns The abi encoded OP WithdrawalTransaction
    */
   async getFinalizeWithdrawalTx([message]: ethers.utils.Result): Promise<
-    Array<string>
+    Array<any>
   > {
     console.log('getFinalizeWithdrawalTx called!');
     const messageId: string = ethers.utils.keccak256(message);
@@ -153,6 +155,8 @@ class OPStackService {
         withdrawal.message,
       ],
     ];
+
+    // TODO: remove
     const encodedTx = [
       ethers.utils.defaultAbiCoder.encode(
         ['tuple(uint256,address,address,uint256,uint256,bytes)'],
@@ -160,8 +164,10 @@ class OPStackService {
       ),
     ];
 
+    // TODO: remove
     console.log(`Encoded[${messageId}]`, encodedTx);
-    return encodedTx;
+
+    return [...args];
   }
 
   forceRelayerRecheck(): void {
