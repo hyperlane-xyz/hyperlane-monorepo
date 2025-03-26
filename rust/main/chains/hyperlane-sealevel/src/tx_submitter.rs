@@ -1,4 +1,10 @@
+/// Transaction Submitter config
+pub mod config;
+
+use std::sync::Arc;
+
 use async_trait::async_trait;
+
 use derive_new::new;
 use hyperlane_core::ChainResult;
 use solana_sdk::{
@@ -6,7 +12,7 @@ use solana_sdk::{
     signature::Signature, transaction::Transaction,
 };
 
-use crate::SealevelRpcClient;
+use crate::SealevelProvider;
 
 /// A trait for submitting transactions to the chain.
 #[async_trait]
@@ -27,7 +33,7 @@ pub trait TransactionSubmitter: Send + Sync {
     ) -> ChainResult<Signature>;
 
     /// Get the RPC client
-    fn rpc_client(&self) -> Option<&SealevelRpcClient> {
+    fn get_provider(&self) -> Option<&SealevelProvider> {
         None
     }
 }
@@ -35,7 +41,7 @@ pub trait TransactionSubmitter: Send + Sync {
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
 #[derive(Debug, new)]
 pub struct RpcTransactionSubmitter {
-    rpc_client: SealevelRpcClient,
+    provider: Arc<SealevelProvider>,
 }
 
 #[async_trait]
@@ -54,20 +60,21 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
-        self.rpc_client
+        self.provider
+            .rpc_client()
             .send_transaction(transaction, skip_preflight)
             .await
     }
 
-    fn rpc_client(&self) -> Option<&SealevelRpcClient> {
-        Some(&self.rpc_client)
+    fn get_provider(&self) -> Option<&SealevelProvider> {
+        Some(&self.provider)
     }
 }
 
 /// A transaction submitter that uses the Jito API to submit transactions.
 #[derive(Debug, new)]
 pub struct JitoTransactionSubmitter {
-    rpc_client: SealevelRpcClient,
+    provider: Arc<SealevelProvider>,
 }
 
 impl JitoTransactionSubmitter {
@@ -104,7 +111,8 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
-        self.rpc_client
+        self.provider
+            .rpc_client()
             .send_transaction(transaction, skip_preflight)
             .await
     }
