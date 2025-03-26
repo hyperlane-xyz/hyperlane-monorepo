@@ -64,10 +64,7 @@ impl InterchainSecurityModule for MockInterchainSecurityModule {
             .lock()
             .unwrap()
             .pop_front()
-            .expect(&format!(
-                "No mock dry_run_verify response set {}",
-                self.address
-            ))
+            .unwrap_or_else(|| panic!("No mock dry_run_verify response set {}", self.address))
     }
 }
 
