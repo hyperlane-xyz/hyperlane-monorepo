@@ -26,6 +26,8 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
     // L2 bridge used to initiate the withdrawal
     address public l2Bridge; // TODO: immutable
 
+    error NotImplemented();
+
     /**
      * @dev see MailboxClient's initializer for other configurables
      */
@@ -75,7 +77,7 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
         bytes calldata /* _hookMetadata */,
         address /* _hook */
     ) external payable override returns (bytes32) {
-        require(false, "Unavailable");
+        revert NotImplemented();
     }
 
     /// @inheritdoc IValueTransferBridge
