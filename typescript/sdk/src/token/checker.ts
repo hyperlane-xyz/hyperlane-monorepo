@@ -10,7 +10,6 @@ import {
   ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { AddressesMap } from '@hyperlane-xyz/sdk';
 import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
@@ -86,21 +85,6 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     }
 
     return filterOwnableContracts(contracts);
-  }
-
-  getOwnableOverrides(chain: ChainName): AddressesMap | undefined {
-    const config = this.configMap[chain];
-    let ownableOverrides = super.getOwnableOverrides(chain);
-
-    // collateralProxyAdmin is set above in ownables()
-    // Override it, otherwise it will fallback to warpRouter.owner() to compare
-    if (config.proxyAdmin) {
-      ownableOverrides = {
-        ...ownableOverrides,
-        collateralProxyAdmin: config.proxyAdmin.owner!,
-      };
-    }
-    return ownableOverrides;
   }
 
   async checkToken(chain: ChainName): Promise<void> {
