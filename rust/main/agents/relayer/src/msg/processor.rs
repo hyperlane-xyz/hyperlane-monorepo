@@ -53,12 +53,24 @@ struct ForwardBackwardIterator {
 
 impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
-    fn new(db: Arc<dyn HyperlaneDb>) -> Self {
-        let high_nonce = db.retrieve_highest_seen_message_nonce().ok().flatten();
+    async fn new(db: Arc<dyn HyperlaneDb>) -> Self {
+        // we want to wait until the high nonce is available in the db
+        // so that we can process messages immediately that come in after the relayer starts
+        let high_nonce = loop {
+            match db.retrieve_highest_seen_message_nonce().ok() {
+                Some(Some(nonce)) => {
+                    break Some(nonce);
+                }
+                _ => {
+                    tracing::warn!("Highest seen nonce not yet available in db, retrying in 1s...");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        };
+
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
-            // If the high nonce is None, we start from the beginning
-            high_nonce.unwrap_or_default().into(),
+            high_nonce,
             NonceDirection::High,
             db.clone(),
             domain.clone(),
@@ -319,7 +331,7 @@ impl ProcessorExt for MessageProcessor {
 
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub async fn new(
         db: HyperlaneRocksDB,
         message_whitelist: Arc<MatchingList>,
         message_blacklist: Arc<MatchingList>,
@@ -338,7 +350,8 @@ impl MessageProcessor {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
+            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>)
+                .await,
             max_retries,
         }
     }
@@ -514,7 +527,7 @@ mod test {
         )
     }
 
-    fn dummy_message_processor(
+    async fn dummy_message_processor(
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
@@ -542,7 +555,8 @@ mod test {
                 HashMap::from([(destination_domain.id(), message_context)]),
                 vec![],
                 DEFAULT_MAX_MESSAGE_RETRIES,
-            ),
+            )
+            .await,
             receive_channel,
         )
     }
@@ -593,7 +607,7 @@ mod test {
         num_operations: usize,
     ) -> Vec<QueueOperation> {
         let (message_processor, mut receive_channel) =
-            dummy_message_processor(origin_domain, destination_domain, db);
+            dummy_message_processor(origin_domain, destination_domain, db).await;
 
         let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
         let process_fut = processor.spawn(info_span!("MessageProcessor"));
@@ -875,7 +889,7 @@ mod test {
         let dummy_metrics = dummy_processor_metrics(0);
         let db = Arc::new(mock_db);
 
-        let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone());
+        let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone()).await;
 
         let mut messages = vec![];
         while let Some(msg) = forward_backward_iterator
