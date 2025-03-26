@@ -12,8 +12,8 @@ use tracing::{instrument, warn};
 use futures_util::future::try_join;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneDomainTechnicalStack, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule,
-    ModuleType, RawHyperlaneMessage, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,
+    H256, U256,
 };
 use num_traits::cast::FromPrimitive;
 
