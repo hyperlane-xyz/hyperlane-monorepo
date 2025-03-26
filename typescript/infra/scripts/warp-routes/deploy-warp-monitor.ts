@@ -1,7 +1,16 @@
-import { checkbox } from '@inquirer/prompts';
+import { input } from '@inquirer/prompts';
+import chalk from 'chalk';
+import { execSync } from 'child_process';
+
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
+import { getRegistry } from '../../config/registry.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../src/warp/helm.js';
 import {
@@ -13,8 +22,29 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+async function validateRegistryCommit(commit: string) {
+  const registry = getRegistry();
+  const registryUri = registry.getUri();
+
+  try {
+    rootLogger.info(
+      chalk.grey.italic(`Attempting to fetch registry commit ${commit}...`),
+    );
+    execSync(`cd ${registryUri} && git fetch origin ${commit}`, {
+      stdio: 'inherit',
+    });
+    rootLogger.info(chalk.grey.italic('Fetch completed successfully.'));
+  } catch (_) {
+    rootLogger.error(chalk.red(`Unable to fetch registry commit ${commit}.`));
+    process.exit(1);
+  }
+}
+
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const envConfig = getEnvironmentConfig(environment);
+  const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
 
   let warpRouteIds;
   if (warpRouteId) {
@@ -22,6 +52,12 @@ async function main() {
   } else {
     warpRouteIds = await getWarpRouteIdsInteractive();
   }
+
+  const registryCommit = await input({
+    message:
+      'Enter the registry version to use (can be a commit, branch or tag):',
+  });
+  await validateRegistryCommit(registryCommit);
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
@@ -31,7 +67,9 @@ async function main() {
       warpRouteId,
       environment,
       agentConfig.environmentChainNames,
+      registryCommit,
     );
+    await helmManager.runPreflightChecks(multiProtocolProvider);
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 
@@ -42,11 +80,11 @@ async function main() {
   );
 
   for (const id of warpRouteIds) {
-    console.log(`Deploying Warp Monitor for Warp Route ID: ${id}`);
+    rootLogger.info(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);
   }
 }
 
 main()
-  .then(() => console.log('Deploy successful!'))
-  .catch(console.error);
+  .then(() => rootLogger.info('Deploy successful!'))
+  .catch(rootLogger.error);

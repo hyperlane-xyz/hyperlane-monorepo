@@ -539,6 +539,31 @@ describe('HyperlaneIsmFactory', async () => {
     });
   }
 
+  it(`should deploy a ${IsmType.AMOUNT_ROUTING}`, async () => {
+    const config: RoutingIsmConfig = {
+      type: IsmType.AMOUNT_ROUTING,
+      lowerIsm: randomIsmConfig(),
+      upperIsm: randomIsmConfig(),
+      threshold: randomInt(1e6, 1),
+    };
+
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    });
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+      mailboxAddress,
+    );
+    expect(matches).to.be.true;
+  });
+
   it(`redeploy same config if the mailbox address changes for defaultFallbackRoutingIsm`, async () => {
     exampleRoutingConfig.type = IsmType.FALLBACK_ROUTING;
     let matches = true;

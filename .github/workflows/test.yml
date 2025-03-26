@@ -1,10 +1,10 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main branch, ignoring md files
+  # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
-  # Triggers on pull requests, ignoring md files
+  # Triggers on pull requests
   pull_request:
     branches:
       - '*'
@@ -20,6 +20,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  RUSTC_WRAPPER: sccache
 
 jobs:
   yarn-install:
@@ -135,10 +136,16 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
+          - warp-apply
+          - warp-bridge-1
+          - warp-bridge-2
+          - warp-check
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
           - warp-init
           - warp-read
-          - warp-apply
-          - warp-deploy
+          - warp-send
     steps:
       - uses: actions/checkout@v4
         with:
@@ -205,13 +212,13 @@ jobs:
           fi
 
   e2e-matrix:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [cosmwasm, evm, sealevel]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -232,13 +239,13 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v2-rust-e2e'
+          prefix-key: 'v3-rust-e2e'
           shared-key: ${{ matrix.e2e-type }}
           cache-provider: 'buildjet'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type == 'non-cosmwasm' && './rust/sealevel' || '' }}
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         run: |
@@ -264,36 +271,70 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
+      - name: Install OpenSSL 1.1 for Solana toolchain
+        run: |
+          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          sudo dpkg -i libssl1.1.deb
+
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: agent tests (CosmWasm)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
-        if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust/main
-        env:
-          RUST_BACKTRACE: 'full'
-
+      # Set rust_changes to true if:
+      # - on the main branch
+      # - PR with changes to ./rust
+      # - PR with changes to this workflow
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
-          if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)"
+          elif [[ "${{ github.event_name }}" == "pull_request" && -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml)" ]]; then
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in Rust files or workflow:"
+            git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: agent tests (EVM and Sealevel)
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.8
+
+      - name: agent tests (CosmWasm)
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests (EVM)
         run: cargo run --release --bin run-locally --features test-utils
-        if: matrix.e2e-type == 'non-cosmwasm'
+        if: ${{ matrix.e2e-type == 'evm' }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
+
+      - name: agent tests (Sealevel)
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: e2e-matrix
+    if: always()
+    steps:
+      - name: Check e2e matrix status
+        if: ${{ needs.e2e-matrix.result != 'success' }}
+        run: |
+          echo "E2E tests failed"
+          exit 1
 
   env-test:
     runs-on: ubuntu-latest

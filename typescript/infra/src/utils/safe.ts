@@ -7,6 +7,7 @@ import {
 } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
+import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
   ChainNameOrId,
@@ -14,9 +15,16 @@ import {
   getSafe,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress, retryAsync } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  eqAddress,
+  retryAsync,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
+// eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
 export async function getSafeAndService(
@@ -24,12 +32,12 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
+  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   const safeSdk: Safe.default = await retryAsync(
     () => getSafe(chain, multiProvider, safeAddress),
     5,
     1000,
   );
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 
@@ -82,7 +90,7 @@ export async function executeTx(
 
   await safeSdk.executeTransaction(safeTransaction);
 
-  console.log(
+  rootLogger.info(
     chalk.green.bold(`Executed transaction ${safeTxHash} on ${chain}`),
   );
 }
@@ -93,12 +101,13 @@ export async function createSafeTransaction(
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
   onlyCalls?: boolean,
+  nonce?: number,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
     onlyCalls,
-    options: { nonce: nextNonce },
+    options: { nonce: nonce ?? nextNonce },
   });
 }
 
@@ -111,7 +120,7 @@ export async function proposeSafeTransaction(
   signer: ethers.Signer,
 ): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-  const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+  const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
 
   await safeService.proposeTransaction({
@@ -122,7 +131,7 @@ export async function proposeSafeTransaction(
     senderSignature: senderSignature.data,
   });
 
-  console.log(
+  rootLogger.info(
     chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
   );
 }
@@ -143,7 +152,7 @@ export async function deleteAllPendingSafeTxs(
   });
 
   if (!pendingTxsResponse.ok) {
-    console.error(
+    rootLogger.error(
       chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
     );
     return;
@@ -156,7 +165,7 @@ export async function deleteAllPendingSafeTxs(
     await deleteSafeTx(chain, multiProvider, safeAddress, tx.safeTxHash);
   }
 
-  console.log(
+  rootLogger.info(
     `Deleted all pending transactions on ${chain} for ${safeAddress}\n`,
   );
 }
@@ -177,7 +186,7 @@ export async function getSafeTx(
   });
 
   if (!txDetailsResponse.ok) {
-    console.error(
+    rootLogger.error(
       chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
     );
     return;
@@ -205,7 +214,7 @@ export async function deleteSafeTx(
   });
 
   if (!txDetailsResponse.ok) {
-    console.error(
+    rootLogger.error(
       chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
     );
     return;
@@ -215,21 +224,23 @@ export async function deleteSafeTx(
   const proposer = txDetails.proposer;
 
   if (!proposer) {
-    console.error(chalk.red(`No proposer found for transaction ${safeTxHash}`));
+    rootLogger.error(
+      chalk.red(`No proposer found for transaction ${safeTxHash}`),
+    );
     return;
   }
 
   // Compare proposer to signer
   const signerAddress = await signer.getAddress();
-  if (proposer !== signerAddress) {
-    console.log(
+  if (!eqAddress(proposer, signerAddress)) {
+    rootLogger.info(
       chalk.italic(
         `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
       ),
     );
     return;
   }
-  console.log(`Deleting transaction ${safeTxHash} proposed by ${proposer}`);
+  rootLogger.info(`Deleting transaction ${safeTxHash} proposed by ${proposer}`);
 
   try {
     // Generate the EIP-712 signature
@@ -275,7 +286,7 @@ export async function deleteSafeTx(
     });
 
     if (res.status === 204) {
-      console.log(
+      rootLogger.info(
         chalk.green(
           `Successfully deleted transaction ${safeTxHash} on ${chain}`,
         ),
@@ -284,13 +295,13 @@ export async function deleteSafeTx(
     }
 
     const errorBody = await res.text();
-    console.error(
+    rootLogger.error(
       chalk.red(
         `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
       ),
     );
   } catch (error) {
-    console.error(
+    rootLogger.error(
       chalk.red(`Failed to delete transaction ${safeTxHash} on ${chain}:`),
       error,
     );
@@ -310,8 +321,8 @@ export async function updateSafeOwner(
     (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
   );
 
-  console.log(chalk.magentaBright('Owners to remove:', ownersToRemove));
-  console.log(chalk.magentaBright('Owners to add:', ownersToAdd));
+  rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
+  rootLogger.info(chalk.magentaBright('Owners to add:', ownersToAdd));
 
   const transactions: AnnotatedCallData[] = [];
 
@@ -342,4 +353,105 @@ export async function updateSafeOwner(
   }
 
   return transactions;
+}
+
+type SafeStatus = {
+  chain: string;
+  nonce: number;
+  submissionDate: string;
+  shortTxHash: string;
+  fullTxHash: string;
+  confs: number;
+  threshold: number;
+  status: string;
+  balance: string;
+};
+
+export enum SafeTxStatus {
+  NO_CONFIRMATIONS = '🔴',
+  PENDING = '🟡',
+  ONE_AWAY = '🔵',
+  READY_TO_EXECUTE = '🟢',
+}
+
+export async function getPendingTxsForChains(
+  chains: string[],
+  multiProvider: MultiProvider,
+  safes: Record<string, Address>,
+): Promise<SafeStatus[]> {
+  const txs: SafeStatus[] = [];
+  await Promise.all(
+    chains.map(async (chain) => {
+      if (!safes[chain]) {
+        rootLogger.error(chalk.red.bold(`No safe found for ${chain}`));
+        return;
+      }
+
+      if (chain === 'endurance') {
+        rootLogger.info(
+          chalk.gray.italic(
+            `Skipping chain ${chain} as it does not have a functional safe API`,
+          ),
+        );
+        return;
+      }
+
+      let safeSdk, safeService;
+      try {
+        ({ safeSdk, safeService } = await getSafeAndService(
+          chain,
+          multiProvider,
+          safes[chain],
+        ));
+      } catch (error) {
+        rootLogger.warn(
+          chalk.yellow(
+            `Skipping chain ${chain} as there was an error getting the safe service: ${error}`,
+          ),
+        );
+        return;
+      }
+
+      const threshold = await safeSdk.getThreshold();
+      const pendingTxs = await safeService.getPendingTransactions(safes[chain]);
+      if (pendingTxs.results.length === 0) {
+        return;
+      }
+
+      const balance = await safeSdk.getBalance();
+      const nativeToken = await multiProvider.getNativeToken(chain);
+      const formattedBalance = formatUnits(balance, nativeToken.decimals);
+
+      pendingTxs.results.forEach(
+        ({ nonce, submissionDate, safeTxHash, confirmations }) => {
+          const confs = confirmations?.length ?? 0;
+          const status =
+            confs >= threshold
+              ? SafeTxStatus.READY_TO_EXECUTE
+              : confs === 0
+              ? SafeTxStatus.NO_CONFIRMATIONS
+              : threshold - confs
+              ? SafeTxStatus.ONE_AWAY
+              : SafeTxStatus.PENDING;
+
+          txs.push({
+            chain,
+            nonce,
+            submissionDate: new Date(submissionDate).toDateString(),
+            shortTxHash: `${safeTxHash.slice(0, 6)}...${safeTxHash.slice(-4)}`,
+            fullTxHash: safeTxHash,
+            confs,
+            threshold,
+            status,
+            balance: `${Number(formattedBalance).toFixed(5)} ${
+              nativeToken.symbol
+            }`,
+          });
+        },
+      );
+    }),
+  );
+  return txs.sort(
+    (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
+  );
 }

@@ -14,10 +14,13 @@ RUN mkdir -p rust/sealevel
 
 # Add workspace to workdir
 COPY rust/main/agents rust/main/agents
+COPY rust/main/applications rust/main/applications
 COPY rust/main/chains rust/main/chains
 COPY rust/main/hyperlane-base rust/main/hyperlane-base
 COPY rust/main/hyperlane-core rust/main/hyperlane-core
+COPY rust/main/hyperlane-metric rust/main/hyperlane-metric
 COPY rust/main/hyperlane-test rust/main/hyperlane-test
+COPY rust/main/submitter rust/main/submitter
 COPY rust/main/ethers-prometheus rust/main/ethers-prometheus
 COPY rust/main/utils rust/main/utils
 COPY rust/sealevel rust/sealevel

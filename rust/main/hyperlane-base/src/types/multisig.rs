@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
     HyperlaneDomain, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256,
@@ -40,6 +40,10 @@ impl MultisigCheckpointSyncer {
 
         for validator in validators {
             let address = H160::from(*validator);
+            debug!(
+                ?address,
+                "Getting latest checkpoint from validator via checkpoint syncer",
+            );
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
                 // Gracefully handle errors getting the latest_index
                 match checkpoint_syncer.latest_index().await {
@@ -56,6 +60,8 @@ impl MultisigCheckpointSyncer {
                         latest_indices.insert(H160::from(*validator), None);
                     }
                 }
+            } else {
+                warn!(?address, "Checkpoint syncer is not provided for validator");
             }
         }
 

@@ -200,9 +200,6 @@
   "solanamainnet": {
     "validators": ["0x7bd1536cb7505cf2ea1dc6744127d91fbe87a2ad"]
   },
-  "stride": {
-    "validators": ["0x1edadb2330c77769a7e9b48d990289ccdcafa430"]
-  },
   "tangle": {
     "validators": ["0xd778d113975b2fe45eda424bf93c28f32a90b076"]
   },

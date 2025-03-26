@@ -2,7 +2,10 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  CCIPIsm,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -37,6 +40,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { CCIPContractCache } from '../ccip/utils.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
   HyperlaneAddressesMap,
@@ -52,6 +56,8 @@ import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
+  AmountRoutingIsmConfig,
+  CCIPIsmConfig,
   DeployedIsm,
   DeployedIsmType,
   DomainRoutingIsmConfig,
@@ -70,6 +76,7 @@ const ismFactories = {
   [IsmType.TEST_ISM]: new TestIsm__factory(),
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
+  [IsmType.CCIP]: new CCIPIsm__factory(),
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -90,6 +97,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
     public readonly multiProvider: MultiProvider,
+    public readonly ccipContractCache: CCIPContractCache = new CCIPContractCache(),
   ) {
     super(
       contractsMap,
@@ -102,13 +110,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
+    ccipContractCache?: CCIPContractCache,
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
+    return new HyperlaneIsmFactory(
+      helper.contractsMap,
+      multiProvider,
+      ccipContractCache,
+    );
   }
 
   async deploy<C extends IsmConfig>(params: {
@@ -155,6 +168,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
       case IsmType.ICA_ROUTING:
+      case IsmType.AMOUNT_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
           config,
@@ -208,6 +222,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.bridge],
         );
         break;
+      case IsmType.CCIP:
+        contract = await this.deployCCIPIsm(destination, config);
+        break;
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
@@ -228,6 +245,25 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     return contract;
+  }
+
+  protected async deployCCIPIsm(
+    destination: ChainName,
+    config: CCIPIsmConfig,
+  ): Promise<CCIPIsm> {
+    const ism = this.ccipContractCache.getIsm(config.originChain, destination);
+    if (!ism) {
+      this.logger.error(
+        `CCIP ISM not found for ${config.originChain} -> ${destination}`,
+      );
+      throw new Error(
+        `CCIP ISM not found for ${config.originChain} -> ${destination}`,
+      );
+    }
+    return CCIPIsm__factory.connect(
+      ism,
+      this.multiProvider.getSigner(destination),
+    );
   }
 
   protected async deployMultisigIsm(
@@ -327,6 +363,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       return this.deployIcaIsm(params);
     }
 
+    if (config.type === IsmType.AMOUNT_ROUTING) {
+      return this.deployAmountRoutingIsm({
+        config: config,
+        destination: params.destination,
+        origin: params.origin,
+        mailbox: params.mailbox,
+      });
+    }
+
     return this.deployOwnableRoutingIsm({
       ...params,
       // Can't pass params directly because ts will complain that the types do not match
@@ -347,6 +392,34 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       params.destination,
       new InterchainAccountIsm__factory(),
       [params.mailbox],
+    );
+  }
+
+  private async deployAmountRoutingIsm(params: {
+    destination: ChainName;
+    config: AmountRoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+  }): Promise<IRoutingIsm> {
+    const { threshold, lowerIsm, upperIsm } = params.config;
+
+    const addresses: Address[] = [];
+    for (const module of [lowerIsm, upperIsm]) {
+      const submodule = await this.deploy({
+        destination: params.destination,
+        config: module,
+        origin: params.origin,
+        mailbox: params.mailbox,
+      });
+      addresses.push(submodule.address);
+    }
+
+    const [lowerIsmAddress, upperIsmAddress] = addresses;
+
+    return this.multiProvider.handleDeploy(
+      params.destination,
+      new AmountRoutingIsm__factory(),
+      [lowerIsmAddress, upperIsmAddress, threshold],
     );
   }
 
