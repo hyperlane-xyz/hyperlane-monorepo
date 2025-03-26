@@ -49,7 +49,7 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
             mailbox.quoteDispatch(
                 message.destination(),
                 ccipReadIsm,
-                message,
+                _getMessageBody(message),
                 StandardHookMetadata.overrideGasLimit(
                     PROVE_WITHDRAWAL_GAS_LIMIT
                 ),
@@ -65,9 +65,15 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
         mailbox.dispatch{value: msg.value}(
             message.destination(),
             ccipReadIsm,
-            message,
+            _getMessageBody(message),
             metadata,
             childHook
         );
+    }
+
+    function _getMessageBody(
+        bytes calldata message
+    ) internal view returns (bytes memory) {
+        return abi.encode(message.id());
     }
 }
