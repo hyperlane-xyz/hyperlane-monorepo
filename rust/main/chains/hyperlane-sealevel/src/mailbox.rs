@@ -112,6 +112,11 @@ impl SealevelMailbox {
         self.outbox
     }
 
+    /// Get the sealevel provider client.
+    pub fn get_provider(&self) -> &SealevelProvider {
+        &self.provider
+    }
+
     /// Simulates an instruction, and attempts to deserialize it into a T.
     /// If no return data at all was returned, returns Ok(None).
     /// If some return data was returned but deserialization was unsuccessful,
