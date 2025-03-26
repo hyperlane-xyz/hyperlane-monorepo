@@ -27,12 +27,12 @@ mod types;
 mod utils;
 
 const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/dojo";
-const KATANA_CLI_VERSION: &str = "1.3.1";
+const KATANA_CLI_VERSION: &str = "0.7.0-alpha.3";
 const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
-const STARKNET_CLI_VERSION: &str = "0.3.8";
+const STARKNET_CLI_VERSION: &str = "0.2.8";
 
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/aroralanuk/starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.3.4";
+const CAIRO_HYPERLANE_VERSION: &str = "0.3.5";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -57,7 +57,7 @@ pub fn install_starknet(
         })
         .install(starknet_cli_dir);
 
-    println!("codes_src {:?}", codes_src);
+    // println!("codes_src {:?}", codes_src);
 
     let codes = codes_src
         .unwrap_or(CodeSource::Remote {
@@ -155,8 +155,8 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
     //     .flag("disable-fee")  // Add this line to include --disable-fee
     //     .spawn("STARKNET", None);
     let node: AgentHandles = cli
-        // .arg("host", config.node_addr_base.clone())
-        .arg("http.port", config.node_port_base.to_string())
+        .arg("host", config.node_addr_base.clone())
+        .arg("port", config.node_port_base.to_string())
         .arg("block-time", "1000".to_string())
         .spawn("STARKNET", None);
 

@@ -143,10 +143,10 @@ pub(crate) fn deploy_all(
         declarations.hpl_ism_aggregate,
         vec![
             deployer.clone(),
-            "1".to_string(),
+            "2".to_string(),
             ism_multisig.clone(),
-            // ism_pausable.clone(),
-            "1".to_string(),
+            ism_pausable.clone(),
+            "2".to_string(),
         ],
     );
 
