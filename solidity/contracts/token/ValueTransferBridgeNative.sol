@@ -132,23 +132,4 @@ abstract contract ValueTransferBridgeNative is HypNative {
     function _getHookMetadata() internal view returns (bytes memory) {
         return StandardHookMetadata.overrideGasLimit(HOOK_METADATA_GAS_LIMIT);
     }
-
-    /**
-     * @dev Transfer the value to the recipient when the withdrawal is finalized
-     * @dev Emits `ReceivedTransferRemote` event on the destination chain.
-     * @param _origin The identifier of the origin chain.
-     * @param _message The encoded remote transfer message containing the recipient address and amount.
-     */
-    function _handle(
-        uint32 _origin,
-        bytes32,
-        bytes calldata _message
-    ) internal virtual override {
-        bytes32 recipient = _message.recipient();
-        uint256 amount = _message.amount();
-
-        Address.sendValue(payable(recipient.bytes32ToAddress()), amount);
-
-        emit ReceivedTransferRemote(_origin, recipient, amount);
-    }
 }
