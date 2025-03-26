@@ -1,5 +1,5 @@
 import { constants } from 'ethers';
-import { Contract, RpcProvider, shortString } from 'starknet';
+import { Contract, shortString } from 'starknet';
 
 import {
   ERC20__factory,
@@ -20,6 +20,7 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { defaultStarknetJsProviderBuilder } from '../providers/providerBuilders.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
@@ -146,14 +147,14 @@ abstract class TokenDeployer<
       if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
         // Add chain type checking
         const chainMetadata = multiProvider.getChainMetadata(chain);
-        const isStarknet = chainMetadata.protocol === 'starknet';
+        const isStarknet = chainMetadata.protocol === ProtocolType.Starknet;
         let provider;
 
         // Handle different chain types
         if (isStarknet) {
-          provider = new RpcProvider({
-            nodeUrl: chainMetadata.rpcUrls[0].http as any, // Use the actual RPC URL from chain metadata
-          });
+          provider = defaultStarknetJsProviderBuilder(
+            chainMetadata.rpcUrls,
+          ).provider;
         } else {
           provider = multiProvider.getProvider(chain) as any;
         }
@@ -232,7 +233,6 @@ abstract class TokenDeployer<
             name,
             symbol,
             decimals,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
           });
         }
 

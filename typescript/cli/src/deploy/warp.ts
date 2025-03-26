@@ -1254,7 +1254,7 @@ async function getWarpCoreConfigCore<T>(
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
 
-async function enrollRemoteRoutersOfStarknetOnEvm(
+async function enrollStarknetRoutersOnEvmChains(
   multiProvider: MultiProvider,
   evmChains: ChainName[],
   evmRouterAddresses: ChainMap<Address>,
@@ -1267,37 +1267,48 @@ async function enrollRemoteRoutersOfStarknetOnEvm(
     objMap(evmRouterAddresses, async (evmChain, evmRouterAddress) => {
       if (!evmChains.includes(evmChain)) return;
 
-      await retryAsync(async () => {
-        // Create warp route reader for the EVM chain
-        const warpRouteReader = new EvmERC20WarpRouteReader(
-          multiProvider,
-          evmChain,
-        );
+      // Create warp route reader for the EVM chain
+      const warpRouteReader = new EvmERC20WarpRouteReader(
+        multiProvider,
+        evmChain,
+      );
 
-        // Get current config from the deployed router
-        const mutatedWarpRouteConfig =
-          await warpRouteReader.deriveWarpRouteConfig(evmRouterAddress);
+      // Get current config from the deployed router
+      const mutatedWarpRouteConfig =
+        await warpRouteReader.deriveWarpRouteConfig(evmRouterAddress);
 
-        // Filter for only Starknet chains
-        const starknetChains = Object.keys(starknetDeployedAddresses).filter(
-          (chain) =>
-            multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Starknet,
-        );
+      // Filter for only Starknet chains
+      const starknetChains = Object.keys(starknetDeployedAddresses).filter(
+        (chain) =>
+          multiProvider.getChainMetadata(chain).protocol ===
+          ProtocolType.Starknet,
+      );
 
-        // Add Starknet routers to the config
-        mutatedWarpRouteConfig.remoteRouters =
-          starknetChains.reduce<RemoteRouters>(
-            (remoteRouters, starknetChain) => {
-              remoteRouters[multiProvider.getDomainId(starknetChain)] = {
-                address: starknetDeployedAddresses[starknetChain],
-              };
-              return remoteRouters;
-            },
-            {},
-          );
+      // Add Starknet routers to the config
+      mutatedWarpRouteConfig.remoteRouters =
+        starknetChains.reduce<RemoteRouters>((remoteRouters, starknetChain) => {
+          remoteRouters[multiProvider.getDomainId(starknetChain)] = {
+            address: starknetDeployedAddresses[starknetChain],
+          };
+          return remoteRouters;
+        }, {});
 
-        const {
+      const {
+        domainRoutingIsmFactory,
+        staticMerkleRootMultisigIsmFactory,
+        staticMessageIdMultisigIsmFactory,
+        staticAggregationIsmFactory,
+        staticAggregationHookFactory,
+        staticMerkleRootWeightedMultisigIsmFactory,
+        staticMessageIdWeightedMultisigIsmFactory,
+      } = registryAddresses[evmChain];
+
+      // Create warp module to update the router
+      const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
+        config: mutatedWarpRouteConfig,
+        chain: evmChain,
+        addresses: {
+          deployedTokenRoute: evmRouterAddress,
           domainRoutingIsmFactory,
           staticMerkleRootMultisigIsmFactory,
           staticMessageIdMultisigIsmFactory,
@@ -1305,32 +1316,14 @@ async function enrollRemoteRoutersOfStarknetOnEvm(
           staticAggregationHookFactory,
           staticMerkleRootWeightedMultisigIsmFactory,
           staticMessageIdWeightedMultisigIsmFactory,
-        } = registryAddresses[evmChain];
-
-        // Create warp module to update the router
-        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-          config: mutatedWarpRouteConfig,
-          chain: evmChain,
-          addresses: {
-            deployedTokenRoute: evmRouterAddress,
-            domainRoutingIsmFactory,
-            staticMerkleRootMultisigIsmFactory,
-            staticMessageIdMultisigIsmFactory,
-            staticAggregationIsmFactory,
-            staticAggregationHookFactory,
-            staticMerkleRootWeightedMultisigIsmFactory,
-            staticMessageIdWeightedMultisigIsmFactory,
-          },
-        });
-
-        // Generate transactions to update the router
-        const chainTxs = await evmERC20WarpModule.update(
-          mutatedWarpRouteConfig,
-        );
-        if (chainTxs.length > 0) {
-          transactions.push(...chainTxs);
-        }
+        },
       });
+
+      // Generate transactions to update the router
+      const chainTxs = await evmERC20WarpModule.update(mutatedWarpRouteConfig);
+      if (chainTxs.length > 0) {
+        transactions.push(...chainTxs);
+      }
     }),
   );
 
@@ -1379,7 +1372,7 @@ async function enrollCrossChainRouters({
   console.log(
     'enrolled starknet routers: starknetWarpModule.enrollRemoteRouters',
   );
-  const evmEnrollmentTxs = await enrollRemoteRoutersOfStarknetOnEvm(
+  const evmEnrollmentTxs = await enrollStarknetRoutersOnEvmChains(
     multiProvider,
     evmChains,
     evmAddresses,

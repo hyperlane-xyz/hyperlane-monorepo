@@ -1,6 +1,5 @@
 import {
   Account,
-  Contract,
   MultiType,
   Uint256,
   byteArray,
@@ -9,7 +8,7 @@ import {
   uint256,
 } from 'starknet';
 
-import { TokenType } from '@hyperlane-xyz/sdk';
+import { TokenType, getStarknetHypERC20Contract } from '@hyperlane-xyz/sdk';
 import { ContractType } from '@hyperlane-xyz/starknet-core';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -71,7 +70,7 @@ export class StarknetERC20WarpModule {
             {
               decimals: tokenMetadata.decimals,
               mailbox: mailbox!,
-              total_supply: tokenMetadata.totalSupply,
+              total_supply: 0,
               name: [byteArray.byteArrayFromString(tokenMetadata.name)],
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
               hook: getChecksumAddress(0),
@@ -164,27 +163,8 @@ export class StarknetERC20WarpModule {
 
       const account = this.account[chain];
 
-      // Updated Router ABI to include batch enrollment
-      const ROUTER_ABI = [
-        {
-          type: 'function',
-          name: 'enroll_remote_routers',
-          inputs: [
-            {
-              name: 'domains',
-              type: 'core::array::Array::<core::integer::u32>',
-            },
-            {
-              name: 'routers',
-              type: 'core::array::Array::<core::integer::u256>',
-            },
-          ],
-          outputs: [],
-          state_mutability: 'external',
-        },
-      ];
-
-      const contract = new Contract(ROUTER_ABI, tokenAddress, account);
+      // HypERC20 inherits RouterComponent
+      const routerContract = getStarknetHypERC20Contract(tokenAddress, account);
 
       // Prepare arrays for batch enrollment
       const domains: number[] = [];
@@ -215,7 +195,7 @@ export class StarknetERC20WarpModule {
         `Batch enrolling ${domains.length} remote routers on ${chain}`,
       );
 
-      const tx = await contract.invoke('enroll_remote_routers', [
+      const tx = await routerContract.invoke('enroll_remote_routers', [
         domains,
         routers,
       ]);

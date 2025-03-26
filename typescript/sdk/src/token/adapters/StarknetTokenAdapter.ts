@@ -50,13 +50,12 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
-    const [decimals, symbol, name, totalSupply] = await Promise.all([
+    const [decimals, symbol, name] = await Promise.all([
       this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
-      this.contract.totalSupply() ?? '0',
     ]);
-    return { decimals, symbol, name, totalSupply };
+    return { decimals, symbol, name };
   }
 
   async isApproveRequired(
