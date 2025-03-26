@@ -2368,6 +2368,7 @@
       "gasCurrencyCoinGeckoId": "ethereum",
       "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zkevm.safe.global/",
       "index": {
+        "chunk": 999,
         "from": 6577743
       },
       "interchainAccountIsm": "0xc1198e241DAe48BF5AEDE5DCE49Fe4A6064cF7a7",
