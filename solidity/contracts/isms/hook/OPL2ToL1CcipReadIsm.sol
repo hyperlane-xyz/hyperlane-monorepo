@@ -25,6 +25,13 @@ contract OPL2ToL1CcipReadIsm is
     // the OP Portal contract on L1
     IOptimismPortal immutable opPortal;
 
+    event ReceivedMessage(
+        uint32 indexed origin,
+        bytes32 indexed sender,
+        uint256 indexed value,
+        bytes message
+    );
+
     constructor(string[] memory _urls, address _opPortal, address _mailbox) {
         require(_urls.length > 0, "URLs array is empty");
         urls = _urls;
@@ -83,8 +90,10 @@ contract OPL2ToL1CcipReadIsm is
     function handle(
         uint32 _origin,
         bytes32 _sender,
-        bytes calldata _message
-    ) external payable {}
+        bytes calldata _messageBody
+    ) external payable {
+        emit ReceivedMessage(_origin, _sender, msg.value, _messageBody);
+    }
 
     function interchainSecurityModule()
         external
