@@ -21,7 +21,7 @@ abstract contract ValueTransferBridgeNative is HypNative, IValueTransferBridge {
     using TypeCasts for address;
     using TokenMessage for bytes;
 
-    uint32 constant HOOK_METADATA_GAS_LIMIT = 700_000;
+    uint32 constant HOOK_METADATA_GAS_LIMIT = 450_000;
 
     // L2 bridge used to initiate the withdrawal
     address public l2Bridge; // TODO: immutable
