@@ -78,4 +78,8 @@ impl FullPayload {
     pub fn set_status(&mut self, status: PayloadStatus) {
         self.status = status;
     }
+
+    pub fn details(&self) -> PayloadDetails {
+        self.details.clone()
+    }
 }

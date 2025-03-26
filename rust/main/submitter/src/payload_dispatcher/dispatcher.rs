@@ -30,6 +30,13 @@ pub struct PayloadDispatcherSettings {
     db_path: PathBuf,
 }
 
+#[derive(new)]
+pub struct StageState {
+    pub(crate) payload_db: Arc<dyn PayloadDb>,
+    pub(crate) tx_db: Arc<dyn TransactionDb>,
+    pub(crate) adapter: Box<dyn AdaptsChain>,
+}
+
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
@@ -78,11 +85,4 @@ impl PayloadDispatcher {
         // spawn the 3 stages using the adapter, db, queue and channels
         todo!()
     }
-}
-
-#[derive(new)]
-pub struct StageState {
-    pub(crate) payload_db: Arc<dyn PayloadDb>,
-    pub(crate) tx_db: Arc<dyn TransactionDb>,
-    pub(crate) adapter: Box<dyn AdaptsChain>,
 }

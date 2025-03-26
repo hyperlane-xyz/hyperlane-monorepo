@@ -6,7 +6,9 @@ pub(crate) mod tests {
     use async_trait::async_trait;
     use eyre::Result;
     use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
+    use hyperlane_core::identifiers::UniqueIdentifier;
     use hyperlane_core::KnownHyperlaneDomain;
+    use uuid::Uuid;
 
     use super::*;
     use crate::chain_tx_adapter::*;
@@ -39,5 +41,16 @@ pub(crate) mod tests {
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb.clone() as Arc<dyn TransactionDb>;
         (payload_db, tx_db)
+    }
+
+    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<Transaction> {
+        vec![Transaction::new(
+            UniqueIdentifier::random(),
+            None,
+            VmSpecificTxData::Evm,
+            payloads.into_iter().map(|p| p.details()).collect(),
+            TransactionStatus::default(),
+            Default::default(),
+        )]
     }
 }
