@@ -2,7 +2,10 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {TokenMessage} from "../token/libs/TokenMessage.sol";
+import {Message} from "../libs/Message.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
 import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
@@ -15,36 +18,50 @@ import {InterchainGasPaymaster} from "../hooks/igp/InterchainGasPaymaster.sol";
  * @dev We expect a CCIP-read ISM executing portal.proveWithdrawal() on destination
  * after 7 days
  */
-contract OPL2ToL1CcipReadHook is AbstractMessageIdAuthHook {
+contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using TypeCasts for address;
     using StandardHookMetadata for bytes;
-    using TokenMessage for bytes;
 
     // ============ Constants  ============
     uint32 public constant MIN_GAS_LIMIT = 500_000;
 
+    IMailbox public mailbox;
+    bytes32 public immutable ccipReadIsm;
+
     // ============ Constructor ============
-    constructor(
-        address _mailbox,
-        uint32 _destinationDomain,
-        bytes32 _ism
-    ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {}
+    constructor(address _mailbox, address _ccipReadIsm) {
+        mailbox = IMailbox(_mailbox);
+        ccipReadIsm = _ccipReadIsm.addressToBytes32();
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.OP_L2_TO_L1);
+    }
 
     /// @inheritdoc AbstractPostDispatchHook
     function _quoteDispatch(
         bytes calldata metadata,
         bytes calldata message
     ) internal view override returns (uint256) {
-        return mailbox.quoteDispatch(destinationDomain, ism, message, metadata);
+        return
+            mailbox.quoteDispatch(
+                message.destination(),
+                ccipReadIsm,
+                message,
+                metadata
+            );
     }
 
-    /// @inheritdoc AbstractMessageIdAuthHook
-    function _sendMessageId(
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
         mailbox.dispatch{value: msg.value}(
-            destinationDomain,
-            ism,
+            message.destination(),
+            ccipReadIsm,
             message,
             metadata
         );
