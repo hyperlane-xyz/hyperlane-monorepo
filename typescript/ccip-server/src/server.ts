@@ -33,17 +33,8 @@ server.add(ProofsServiceAbi, [
 
 server.add(OPStackServiceAbi, [
   {
-    type: 'getWithdrawalProof',
-    func: opStackService.getWithdrawalProof.bind(opStackService),
-  },
-  {
-    type: 'getFinalizeWithdrawalTx',
-    func: opStackService.getFinalizeWithdrawalTx.bind(opStackService),
-  },
-  // TODO: remove
-  {
-    type: 'identity',
-    func: opStackService.identity.bind(opStackService),
+    type: 'getOffchainData',
+    func: opStackService.getOffchainData.bind(opStackService),
   },
 ]);
 

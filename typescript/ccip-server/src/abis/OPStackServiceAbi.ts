@@ -1,8 +1,5 @@
 const OPStackServiceAbi = [
-  // 'function getWithdrawalProof(bytes) public view returns (bytes)',
-  'function getWithdrawalProof(bytes) public view returns (tuple(uint256,address,address,uint256,uint256,bytes),uint256,tuple(bytes32,bytes32,bytes32,bytes32),bytes[])',
-  'function getFinalizeWithdrawalTx(bytes) public view returns (tuple(uint256,address,address,uint256,uint256,bytes))',
-  'function identity(bytes) public view returns (bytes)', // TODO: remove
+  'function getOffchainData(bytes) public view returns (tuple(uint256,address,address,uint256,uint256,bytes),uint256,tuple(bytes32,bytes32,bytes32,bytes32),bytes[])',
 ];
 
 export { OPStackServiceAbi };
