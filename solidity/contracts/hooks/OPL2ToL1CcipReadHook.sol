@@ -10,7 +10,7 @@ import {InterchainGasPaymaster} from "../hooks/igp/InterchainGasPaymaster.sol";
 
 /**
  * @title OPL2ToL1CcipReadHook
- * @notice Inform an OPL2ToL1ProveWithdrawalIsm that a withdrawal has been executed
+ * @notice Inform an OPL2ToL1ProveWithdrawalIsm that a withdrawal has been initiated
  * on L2
  * @dev We expect a CCIP-read ISM executing portal.proveWithdrawal() on destination
  * after 7 days
