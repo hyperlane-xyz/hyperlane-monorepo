@@ -7,7 +7,7 @@ use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
-    instruction::{AccountMeta, Instruction},
+    instruction::AccountMeta,
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},

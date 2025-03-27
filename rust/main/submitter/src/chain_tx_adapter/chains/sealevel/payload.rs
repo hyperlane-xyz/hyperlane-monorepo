@@ -1,18 +1,18 @@
-use solana_sdk::instruction::Instruction;
+use solana_sdk::instruction::Instruction as SealevelInstruction;
 
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub(crate) struct SealevelPayload {
-    pub(crate) instruction: Instruction,
+    pub(crate) instruction: SealevelInstruction,
 }
 
-pub(crate) trait GetInstruction {
-    fn instruction(&self) -> &Instruction;
+pub(crate) trait Instruction {
+    fn instruction(&self) -> &SealevelInstruction;
 }
 
-impl GetInstruction for FullPayload {
-    fn instruction(&self) -> &Instruction {
+impl Instruction for FullPayload {
+    fn instruction(&self) -> &SealevelInstruction {
         match self.data() {
             VmSpecificPayloadData::Svm(payload) => &payload.instruction,
             _ => panic!(),
