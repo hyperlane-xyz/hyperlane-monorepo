@@ -212,8 +212,6 @@ fn install_sim_app() -> PathBuf {
 
     let release_name = format!("{BINARY_NAME}_{target}");
     log!("Downloading Sim App {}", release_name);
-    // TODO: point to official releases on github, right now we only have this private preview binary of a simulation app
-    // once there are actual releases on the github, we can use them
     let uri = format!(
         "https://github.com/bcp-innovations/hyperlane-cosmos/releases/download/v1.0.0-beta0/{}",
         release_name
