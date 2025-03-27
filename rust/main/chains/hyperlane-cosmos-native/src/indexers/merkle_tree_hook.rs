@@ -22,7 +22,7 @@ use hyperlane_core::{
 
 use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
-use super::{EventIndexer, ParsedEvent};
+use super::{CosmosEventIndexer, ParsedEvent};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
@@ -130,7 +130,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
     }
 }
 
-impl EventIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
+impl CosmosEventIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
     fn target_type() -> String {
         InsertedIntoTree::full_name()
     }
@@ -187,25 +187,25 @@ impl Indexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        EventIndexer::fetch_logs_in_range(self, range).await
+        CosmosEventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        EventIndexer::get_finalized_block_number(self).await
+        CosmosEventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
+        CosmosEventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = EventIndexer::get_finalized_block_number(self).await?;
+        let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
         let merkle_tree = self
             .provider
             .grpc()

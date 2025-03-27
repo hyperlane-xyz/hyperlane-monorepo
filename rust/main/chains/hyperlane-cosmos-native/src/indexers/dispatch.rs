@@ -18,7 +18,7 @@ use crate::{
     Signer,
 };
 
-use super::{EventIndexer, ParsedEvent};
+use super::{CosmosEventIndexer, ParsedEvent};
 
 /// Dispatch indexer to check if a new hyperlane message was dispatched
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ impl CosmosNativeDispatchIndexer {
     }
 }
 
-impl EventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
+impl CosmosEventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     fn target_type() -> String {
         Dispatch::full_name()
     }
@@ -91,18 +91,18 @@ impl Indexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        EventIndexer::fetch_logs_in_range(self, range).await
+        CosmosEventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        EventIndexer::get_finalized_block_number(self).await
+        CosmosEventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
+        CosmosEventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
@@ -111,7 +111,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     #[instrument(err, skip(self), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = EventIndexer::get_finalized_block_number(self).await?;
+        let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
         let mailbox = self
             .provider
             .grpc()

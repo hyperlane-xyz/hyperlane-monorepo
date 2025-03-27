@@ -13,7 +13,7 @@ use hyperlane_core::{
 
 use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
-use super::{EventIndexer, ParsedEvent};
+use super::{CosmosEventIndexer, ParsedEvent};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
@@ -32,7 +32,7 @@ impl CosmosNativeDeliveryIndexer {
     }
 }
 
-impl EventIndexer<H256> for CosmosNativeDeliveryIndexer {
+impl CosmosEventIndexer<H256> for CosmosNativeDeliveryIndexer {
     fn target_type() -> String {
         Process::full_name()
     }
@@ -84,25 +84,25 @@ impl Indexer<H256> for CosmosNativeDeliveryIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        EventIndexer::fetch_logs_in_range(self, range).await
+        CosmosEventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        EventIndexer::get_finalized_block_number(self).await
+        CosmosEventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
+        CosmosEventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<H256> for CosmosNativeDeliveryIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = EventIndexer::get_finalized_block_number(self).await?;
+        let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
 }

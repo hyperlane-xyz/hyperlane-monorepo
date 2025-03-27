@@ -45,7 +45,7 @@ impl<T: PartialEq> ParsedEvent<T> {
 
 #[async_trait]
 /// Event indexer that parses and filters events based on the target type & parse function.
-pub trait EventIndexer<T: PartialEq + Send + Sync + 'static>: Indexer<T>
+pub trait CosmosEventIndexer<T: PartialEq + Send + Sync + 'static>: Indexer<T>
 where
     Self: Clone + Send + Sync + 'static,
     Indexed<T>: From<T>,

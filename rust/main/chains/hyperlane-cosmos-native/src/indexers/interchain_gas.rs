@@ -13,7 +13,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    ConnectionConf, CosmosNativeProvider, EventIndexer, HyperlaneCosmosError, RpcProvider,
+    ConnectionConf, CosmosEventIndexer, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider,
 };
 
 use super::ParsedEvent;
@@ -68,7 +68,7 @@ impl CosmosNativeInterchainGas {
     }
 }
 
-impl EventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
+impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     fn target_type() -> String {
         GasPayment::full_name()
     }
@@ -153,25 +153,25 @@ impl Indexer<InterchainGasPayment> for CosmosNativeInterchainGas {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        EventIndexer::fetch_logs_in_range(self, range).await
+        CosmosEventIndexer::fetch_logs_in_range(self, range).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        EventIndexer::get_finalized_block_number(self).await
+        CosmosEventIndexer::get_finalized_block_number(self).await
     }
 
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        EventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
+        CosmosEventIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = EventIndexer::get_finalized_block_number(self).await?;
+        let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
 }
