@@ -8,13 +8,13 @@ use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
     QueryAnnouncedStorageLocationsResponse, QueryIsmRequest, QueryIsmResponse,
 };
 use hyperlane_cosmos_rs::hyperlane::core::post_dispatch::v1::{
-    query_client::QueryClient as PostDispatchQueryClient, QueryMerkleTreeHook,
+    query_client::QueryClient as PostDispatchQueryClient, QueryMerkleTreeHookRequest,
     QueryMerkleTreeHookResponse,
 };
 use hyperlane_cosmos_rs::hyperlane::core::v1::query_client::QueryClient;
 use hyperlane_cosmos_rs::hyperlane::core::v1::{
     QueryDeliveredRequest, QueryDeliveredResponse, QueryMailboxRequest, QueryMailboxResponse,
-    RecipientIsmRequest, RecipientIsmResponse,
+    QueryRecipientIsmRequest, QueryRecipientIsmResponse,
 };
 use itertools::Itertools;
 use tonic::async_trait;
@@ -158,14 +158,14 @@ impl GrpcProvider {
     ///
     /// Recipient is a 32 byte long hex address
     /// Mailbox independent query as one application (recipient) can only ever register on one mailbox
-    pub async fn recipient_ism(&self, recipient: String) -> ChainResult<RecipientIsmResponse> {
+    pub async fn recipient_ism(&self, recipient: String) -> ChainResult<QueryRecipientIsmResponse> {
         self.fallback
             .call(|client| {
                 let recipient = recipient.clone();
                 let future = async move {
                     let mut service = QueryClient::new(client.channel.clone());
                     let result = service
-                        .recipient_ism(RecipientIsmRequest { recipient })
+                        .recipient_ism(QueryRecipientIsmRequest { recipient })
                         .await
                         .map_err(HyperlaneCosmosError::from)?
                         .into_inner();
@@ -191,7 +191,7 @@ impl GrpcProvider {
                     let mut service = PostDispatchQueryClient::new(client.channel.clone());
                     let result = service
                         .merkle_tree_hook(Self::request_at_height(
-                            QueryMerkleTreeHook { id },
+                            QueryMerkleTreeHookRequest { id },
                             height,
                         ))
                         .await

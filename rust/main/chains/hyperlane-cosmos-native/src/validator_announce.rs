@@ -7,7 +7,7 @@ use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::MsgAnnounceVa
 use hyperlane_cosmos_rs::prost::{Message, Name};
 
 use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
+    Announcement, ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Signable, SignedType,
     TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
@@ -82,7 +82,7 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
             validator: announcement.value.validator.encode_hex(),
             storage_location: announcement.value.storage_location.clone(),
             signature: hex::encode(announcement.signature.to_vec()),
-            mailbox_id: announcement.value.mailbox_address.encode_hex(),
+            mailbox_id: "0x".to_owned() + &hex::encode(announcement.value.mailbox_address.to_vec()), // has to be prefixed with 0x
             creator: signer,
         };
 

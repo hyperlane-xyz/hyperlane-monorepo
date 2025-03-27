@@ -4756,9 +4756,9 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-cosmos-rs"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45d1f3451308182a0aaf20c51984645486dcbf44ace6dce4965609b79ff11a3d"
+checksum = "0354da8627e2110442d445e55df8cff1d73c67e6e62e2af401fb53122e92b65e"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",
