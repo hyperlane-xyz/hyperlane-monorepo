@@ -269,11 +269,16 @@ impl AdaptsChain for SealevelTxAdapter {
         let executed = provider
             .confirm_transaction(signature, CommitmentConfig::processed())
             .await
-            .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
+            .map_err(|err| {
+                warn!(
+                    "Failed to confirm process transaction with commitment level processed: {}",
+                    err
+                )
+            })
             .unwrap_or(false);
 
         if !executed {
-            bail!("Transaction is not confirmed")
+            bail!("Process transaction is not confirmed with commitment level processed")
         }
 
         Ok(())

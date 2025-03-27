@@ -13,28 +13,31 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiConfirmedBlock};
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction,
+    EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+};
 
 use hyperlane_base::settings::parser::h_sealevel::{
     PriorityFeeOracle, SealevelKeypair, TransactionSubmitter,
 };
 use hyperlane_base::settings::ChainConf;
-use hyperlane_core::{ChainResult, U256};
+use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_sealevel::fallback::SealevelRpcClientForSubmitter;
 use hyperlane_sealevel::{SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate};
 
 use crate::chain_tx_adapter::chains::sealevel::SealevelTxAdapter;
 use crate::chain_tx_adapter::{AdaptsChain, SealevelPayload, SealevelTxPrecursor};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
-use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
 
 const GAS_LIMIT: u32 = 42;
 
 mock! {
-    pub RpcClient {}
+    pub Client {}
 
     #[async_trait]
-    impl SealevelRpcClientForSubmitter for RpcClient {
+    impl SealevelRpcClientForSubmitter for Client {
         async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn simulate_transaction(&self, transaction: &SealevelTransaction) -> ChainResult<RpcSimulateTransactionResult>;
@@ -122,7 +125,7 @@ async fn test_estimate_gas_limit() {
     let result = adapter.estimate_gas_limit(&payload).await;
 
     // then
-    matches!(result, Ok(_));
+    assert!(matches!(result, Ok(_)));
     assert_eq!(expected, result.unwrap());
 }
 
@@ -137,9 +140,8 @@ async fn test_build_transactions() {
     let result = adapter.build_transactions(&[payload]).await;
 
     // then
-    matches!(result, Ok(_));
-    let precursor = actual_precursor(result);
-    assert_eq!(expected, precursor);
+    assert!(matches!(result, Ok(_)));
+    assert_eq!(expected, actual_precursor(result));
 }
 
 #[tokio::test]
@@ -165,7 +167,23 @@ async fn test_submit() {
     let result = adapter.submit(&mut transaction).await;
 
     // then
-    matches!(result, Ok(_));
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_tx_status() {
+    // given
+    let adapter = adapter();
+    let transaction = transaction();
+
+    // when
+    let result = adapter.tx_status(&transaction).await;
+
+    // then
+    assert!(result.is_ok());
+    let address = SignerAddress::zero();
+    let status = result.unwrap();
+    assert!(matches!(status, TransactionStatus::Finalized(a) if a == address));
 }
 
 fn actual_precursor(result: Result<Vec<Transaction>>) -> SealevelTxPrecursor {
@@ -213,7 +231,7 @@ fn mock_submitter() -> MockSubmitter {
     submitter
 }
 
-fn mock_client() -> MockRpcClient {
+fn mock_client() -> MockClient {
     let result = RpcSimulateTransactionResult {
         err: None,
         logs: None,
@@ -222,11 +240,40 @@ fn mock_client() -> MockRpcClient {
         return_data: None,
     };
 
-    let mut client = MockRpcClient::new();
+    let mut client = MockClient::new();
+    client.expect_get_block().returning(move |_| Ok(block()));
+    client
+        .expect_get_transaction()
+        .returning(move |_| Ok(encoded_transaction()));
     client
         .expect_simulate_transaction()
         .returning(move |_| Ok(result.clone()));
     client
+}
+
+fn block() -> UiConfirmedBlock {
+    UiConfirmedBlock {
+        previous_blockhash: "".to_string(),
+        blockhash: "".to_string(),
+        parent_slot: 0,
+        transactions: None,
+        signatures: None,
+        rewards: None,
+        block_time: None,
+        block_height: None,
+    }
+}
+
+fn encoded_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
+    EncodedConfirmedTransactionWithStatusMeta {
+        slot: 43,
+        transaction: EncodedTransactionWithStatusMeta {
+            transaction: EncodedTransaction::LegacyBinary("binary".to_string()),
+            meta: None,
+            version: None,
+        },
+        block_time: None,
+    }
 }
 
 fn instruction() -> Instruction {
@@ -246,4 +293,11 @@ fn payload() -> FullPayload {
 
 fn precursor() -> SealevelTxPrecursor {
     SealevelTxPrecursor::new(instruction(), estimate())
+}
+
+fn transaction() -> Transaction {
+    let mut transaction = Transaction::new(&payload(), precursor());
+    transaction.update_after_submission(H512::zero(), precursor());
+
+    transaction
 }
