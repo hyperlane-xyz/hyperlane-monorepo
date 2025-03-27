@@ -13,7 +13,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -216,12 +216,15 @@ impl SealevelTxAdapter {
 #[async_trait]
 impl AdaptsChain for SealevelTxAdapter {
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
+        info!(?payload, "estimating payload");
         let not_estimated = Self::to_precursor(payload);
         let estimated = self.estimate(not_estimated).await?;
+        info!(?payload, ?estimated, "estimated payload");
         Ok(estimated.estimate.compute_units.into())
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>> {
+        info!(?payloads, "building transactions for payloads");
         let payloads_and_precursors = payloads
             .iter()
             .map(|payload| (Self::to_precursor(payload), payload))
@@ -234,10 +237,12 @@ impl AdaptsChain for SealevelTxAdapter {
             transactions.push(transaction);
         }
 
+        info!(?payloads, ?transactions, "built transactions for payloads");
         Ok(transactions)
     }
 
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool> {
+        info!(?tx, "simulating transaction");
         let precursor = Self::get_precursor(tx);
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
         let success = self
@@ -245,10 +250,12 @@ impl AdaptsChain for SealevelTxAdapter {
             .simulate_transaction(&svm_transaction)
             .await
             .is_ok();
+        info!(?tx, success, "simulated transaction");
         Ok(success)
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<()> {
+        info!(?tx, "submitting transaction");
         let not_estimated = Self::get_precursor(tx);
         let estimated = self.estimate(not_estimated.clone()).await?;
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
@@ -256,15 +263,19 @@ impl AdaptsChain for SealevelTxAdapter {
             .submitter
             .send_transaction(&svm_transaction, true)
             .await?;
-        let hash = signature.into();
 
+        let hash = signature.into();
         tx.update_after_submission(hash, estimated);
+
+        info!(?tx, "submitted transaction");
 
         let provider = self.submitter.get_default_provider();
 
         provider
             .wait_for_transaction_confirmation(&svm_transaction)
             .await?;
+
+        info!(?tx, "confirmed transaction by signature status");
 
         let executed = provider
             .confirm_transaction(signature, CommitmentConfig::processed())
@@ -277,6 +288,8 @@ impl AdaptsChain for SealevelTxAdapter {
             })
             .unwrap_or(false);
 
+        info!(?tx, "confirmed transaction with commitment level processed");
+
         if !executed {
             bail!("Process transaction is not confirmed with commitment level processed")
         }
@@ -285,6 +298,8 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus> {
+        info!(?tx, "checking status of transaction");
+
         let h512 = tx.hash().ok_or(eyre::eyre!(
             "Hash should be set for transaction to check its status"
         ))?;
@@ -296,11 +311,14 @@ impl AdaptsChain for SealevelTxAdapter {
         let transaction = if let Ok(transaction) = transaction_search_result {
             transaction
         } else {
+            info!(?tx, "pending transaction");
             return Ok(TransactionStatus::PendingInclusion);
         };
 
         // slot at which transaction was included into blockchain
         let inclusion_slot = transaction.slot;
+
+        info!(?tx, slot = ?inclusion_slot, "found transaction");
 
         // if block with this slot is add to the chain, transaction is considered to be confirmed
         let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
@@ -308,6 +326,7 @@ impl AdaptsChain for SealevelTxAdapter {
         let confirming_block = self.client.get_block(confirming_slot).await;
 
         if confirming_block.is_ok() {
+            info!(?tx, "finalized transaction");
             return Ok(TransactionStatus::Finalized(signer_address));
         }
 
@@ -315,8 +334,14 @@ impl AdaptsChain for SealevelTxAdapter {
         let including_block = self.client.get_block(inclusion_slot).await;
 
         match including_block {
-            Ok(_) => Ok(TransactionStatus::Included(signer_address)),
-            Err(_) => Ok(TransactionStatus::PendingInclusion),
+            Ok(_) => {
+                info!(?tx, "included transaction");
+                Ok(TransactionStatus::Included(signer_address))
+            }
+            Err(_) => {
+                info!(?tx, "pending transaction");
+                Ok(TransactionStatus::PendingInclusion)
+            }
         }
     }
 
