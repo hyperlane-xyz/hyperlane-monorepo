@@ -21,7 +21,7 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::fallback::SealevelSubmit;
+use crate::fallback::SealevelRpcClientForSubmitter;
 use crate::log_meta_composer::{
     is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
 };

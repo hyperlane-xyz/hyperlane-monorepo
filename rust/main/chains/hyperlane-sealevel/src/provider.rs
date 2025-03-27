@@ -26,7 +26,7 @@ use hyperlane_core::{
 };
 
 use crate::error::HyperlaneSealevelError;
-use crate::fallback::{SealevelFallbackRpcClient, SealevelSubmit};
+use crate::fallback::{SealevelFallbackRpcClient, SealevelRpcClientForSubmitter};
 use crate::priority_fee::PriorityFeeOracle;
 use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};

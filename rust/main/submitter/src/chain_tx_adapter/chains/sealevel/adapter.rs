@@ -25,7 +25,7 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{ChainResult, ReorgPeriod, H256};
-use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SealevelSubmit};
+use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SealevelRpcClientForSubmitter};
 use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
 };
@@ -41,7 +41,7 @@ use crate::transaction::{
 pub struct SealevelTxAdapter {
     reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
-    rpc_client: Box<dyn SealevelSubmit>,
+    rpc_client: Box<dyn SealevelRpcClientForSubmitter>,
     provider: Box<dyn SealevelProviderForSubmitter>,
     priority_fee_oracle: Box<dyn PriorityFeeOracle>,
     tx_submitter: Box<dyn TransactionSubmitter>,
@@ -90,7 +90,7 @@ impl SealevelTxAdapter {
     fn new_internal(
         conf: ChainConf,
         _raw_conf: RawChainConf,
-        rpc_client: Box<dyn SealevelSubmit>,
+        rpc_client: Box<dyn SealevelRpcClientForSubmitter>,
         provider: Box<dyn SealevelProviderForSubmitter>,
         priority_fee_oracle: Box<dyn PriorityFeeOracle>,
         tx_submitter: Box<dyn TransactionSubmitter>,
