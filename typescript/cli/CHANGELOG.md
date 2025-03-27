@@ -1,5 +1,58 @@
 # @hyperlane-xyz/cli
 
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
+## 9.2.0
+
+### Patch Changes
+
+- 2955bd990: Catch and log error instead of hard exiting when unable to get the tx receipt of a delivered message.
+- 53dd71a4b: Do not error in hyperlane status if chain does not contain block explorer URL.
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
+## 9.1.0
+
+### Minor Changes
+
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 9f9e2c3b5: fix `warp check` command to correctly check the remote routers in the config
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
 ## 8.9.0
 
 ### Minor Changes

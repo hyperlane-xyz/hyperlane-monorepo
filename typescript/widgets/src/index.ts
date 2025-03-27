@@ -67,6 +67,7 @@ export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
 export { PROTOCOL_TO_LOGO } from './logos/protocols.js';
 export { SolanaLogo } from './logos/Solana.js';
+export { StarknetLogo } from './logos/Starknet.js';
 export { WalletConnectLogo } from './logos/WalletConnect.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
 export {
@@ -131,6 +132,15 @@ export {
   useSolanaTransactionFns,
   useSolanaWalletDetails,
 } from './walletIntegrations/solana.js';
+export {
+  getStarknetChains,
+  useStarknetAccount,
+  useStarknetActiveChain,
+  useStarknetConnectFn,
+  useStarknetDisconnectFn,
+  useStarknetTransactionFns,
+  useStarknetWalletDetails,
+} from './walletIntegrations/starknet.js';
 export type {
   AccountInfo,
   ActiveChainInfo,

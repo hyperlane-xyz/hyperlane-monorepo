@@ -1,4 +1,8 @@
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
+use std::sync::Arc;
+
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_client::RpcClientConfig};
 use solana_sdk::commitment_config::CommitmentConfig;
 use url::Url;
@@ -29,7 +33,8 @@ impl SealevelRpcClientBuilder {
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
     ) -> Self {
-        let metrics_config = PrometheusConfig::from_url(&self.rpc_url, chain);
+        let metrics_config =
+            PrometheusConfig::from_url(&self.rpc_url, ClientConnectionType::Rpc, chain);
         self.prometheus_config = Some((metrics, metrics_config));
         self
     }
@@ -43,6 +48,7 @@ impl SealevelRpcClientBuilder {
             sender,
             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
         );
-        SealevelRpcClient::from_rpc_client(rpc_client)
+
+        SealevelRpcClient::from_rpc_client(Arc::new(rpc_client))
     }
 }

@@ -259,7 +259,7 @@ pub fn build_cosmos_native_connection_conf(
 }
 
 fn build_sealevel_connection_conf(
-    url: &Url,
+    urls: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     operation_batch: OperationBatchConfig,
@@ -275,7 +275,7 @@ fn build_sealevel_connection_conf(
         None
     } else {
         Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-            url: url.clone(),
+            urls: urls.to_owned(),
             operation_batch,
             native_token,
             priority_fee_oracle: priority_fee_oracle.unwrap(),
@@ -393,7 +393,7 @@ fn parse_helius_priority_fee_level(
             "unsafemax" => Some(HeliusPriorityFeeLevel::UnsafeMax),
             _ => {
                 err.push(
-                    &value_parser.cwp + "feeLevel",
+                    &value_parser.cwp + "fee_level",
                     eyre!("Unknown priority fee level"),
                 );
                 None
@@ -408,7 +408,7 @@ fn parse_helius_priority_fee_level(
 fn parse_transaction_submitter_config(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
-) -> Option<h_sealevel::TransactionSubmitterConfig> {
+) -> Option<h_sealevel::config::TransactionSubmitterConfig> {
     let submitter_type = chain
         .chain(err)
         .get_opt_key("transactionSubmitter")
@@ -419,26 +419,28 @@ fn parse_transaction_submitter_config(
     if let Some(submitter_type) = submitter_type {
         match submitter_type.to_lowercase().as_str() {
             "rpc" => {
-                let url = chain
+                let urls: Vec<String> = chain
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
-                    .get_opt_key("url")
-                    .parse_from_str("Invalid url")
-                    .end();
-                Some(h_sealevel::TransactionSubmitterConfig::Rpc { url })
+                    .get_opt_key("urls")
+                    .parse_string()
+                    .map(|str| str.split(",").map(|s| s.to_owned()).collect())
+                    .unwrap_or_default();
+                Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls })
             }
             "jito" => {
-                let url = chain
+                let urls: Vec<String> = chain
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
-                    .get_opt_key("url")
-                    .parse_from_str("Invalid url")
-                    .end();
-                Some(h_sealevel::TransactionSubmitterConfig::Jito { url })
+                    .get_opt_key("urls")
+                    .parse_string()
+                    .map(|str| str.split(",").map(|s| s.to_owned()).collect())
+                    .unwrap_or_default();
+                Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls })
             }
             _ => {
                 err.push(
-                    &chain.cwp + "transactionSubmitter.type",
+                    &chain.cwp + "transaction_submitter.type",
                     eyre!("Unknown transaction submitter type"),
                 );
                 None
@@ -446,7 +448,7 @@ fn parse_transaction_submitter_config(
         }
     } else {
         // If not specified at all, use default
-        Some(h_sealevel::TransactionSubmitterConfig::default())
+        Some(h_sealevel::config::TransactionSubmitterConfig::default())
     }
 }
 
@@ -470,10 +472,10 @@ pub fn build_connection_conf(
             .iter()
             .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
-        HyperlaneDomainProtocol::Sealevel => rpcs
-            .iter()
-            .next()
-            .and_then(|url| build_sealevel_connection_conf(url, chain, err, operation_batch)),
+        HyperlaneDomainProtocol::Sealevel => {
+            let urls = rpcs.to_vec();
+            build_sealevel_connection_conf(&urls, chain, err, operation_batch)
+        }
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
         }
