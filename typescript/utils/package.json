@@ -49,7 +49,10 @@
     "test:ci": "yarn test"
   },
   "type": "module",
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./eslint-rules": "./dist/eslint-rules/index.js"
+  },
   "types": "./dist/index.d.ts",
   "files": [
     "/dist"
