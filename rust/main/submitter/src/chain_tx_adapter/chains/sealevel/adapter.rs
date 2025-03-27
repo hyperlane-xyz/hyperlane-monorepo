@@ -29,11 +29,10 @@ use hyperlane_base::{
 use hyperlane_core::{ChainResult, ReorgPeriod, H256};
 use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SealevelRpcClientForSubmitter};
 use hyperlane_sealevel::{
-    create_keypair, PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter,
-    SealevelTxCostEstimate,
+    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::chains::sealevel::conf::get_connection_conf;
+use crate::chain_tx_adapter::chains::sealevel::conf::{create_keypair, get_connection_conf};
 use crate::chain_tx_adapter::chains::sealevel::transaction::{
     Precursor, TransactionFactory, Update,
 };
@@ -101,7 +100,7 @@ impl SealevelTxAdapter {
         oracle: Box<dyn PriorityFeeOracle>,
         submitter: Box<dyn TransactionSubmitter>,
     ) -> Result<Self> {
-        let keypair = Self::create_keypair(&conf)?;
+        let keypair = create_keypair(&conf)?;
         let reorg_period = conf.reorg_period.clone();
 
         Ok(Self {
@@ -130,16 +129,6 @@ impl SealevelTxAdapter {
             oracle,
             submitter,
         }
-    }
-
-    fn create_keypair(conf: &ChainConf) -> Result<SealevelKeypair> {
-        let signer = conf.signer.as_ref().wrap_err("Signer is missing")?;
-        let key = match signer {
-            SignerConf::HexKey { key } => key,
-            _ => bail!("Sealevel supports only hex key"),
-        };
-        let keypair = create_keypair(key)?;
-        Ok(SealevelKeypair(keypair))
     }
 
     async fn estimate(&self, precursor: SealevelTxPrecursor) -> ChainResult<SealevelTxPrecursor> {
