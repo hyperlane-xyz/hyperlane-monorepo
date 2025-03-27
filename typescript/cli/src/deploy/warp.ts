@@ -1369,9 +1369,6 @@ async function enrollCrossChainRouters({
     ...evmAddresses,
     ...starknetAddresses,
   });
-  console.log(
-    'enrolled starknet routers: starknetWarpModule.enrollRemoteRouters',
-  );
   const evmEnrollmentTxs = await enrollStarknetRoutersOnEvmChains(
     multiProvider,
     evmChains,
