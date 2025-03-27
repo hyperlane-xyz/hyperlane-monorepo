@@ -1,5 +1,7 @@
 import { Rule } from 'eslint';
+// eslint-disable-next-line no-restricted-imports
 import fs from 'fs';
+// eslint-disable-next-line no-restricted-imports
 import path from 'path';
 
 const NODE_BUILTIN_MODULES = [
@@ -105,7 +107,7 @@ const rule: Rule.RuleModule = {
           ...extractNamedExports(content),
           ...extractReExports(content, filePath),
         ];
-      } catch (error) {
+      } catch (_) {
         return [];
       }
     };
