@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{ContextCompat, Result};
+use eyre::{ContextCompat, Report, Result};
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_sdk::{
@@ -20,19 +20,18 @@ use hyperlane_base::{
             client_builder::SealevelRpcClientBuilder, ConnectionConf, PriorityFeeOracle,
             SealevelKeypair, TransactionSubmitter,
         },
-        BuildableWithSignerConf, ChainConf, ChainConnectionConf, RawChainConf,
+        BuildableWithSignerConf, ChainConf, ChainConnectionConf, RawChainConf, SignerConf,
     },
     CoreMetrics,
 };
 use hyperlane_core::{ChainResult, ReorgPeriod, H256};
 use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SealevelRpcClientForSubmitter};
 use hyperlane_sealevel::{
-    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
+    create_keypair, PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter,
+    SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::{
-    chains::sealevel::create_keypair, AdaptsChain, GasLimit, SealevelTxPrecursor,
-};
+use crate::chain_tx_adapter::{AdaptsChain, GasLimit, SealevelTxPrecursor};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
     SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,
@@ -95,8 +94,7 @@ impl SealevelTxAdapter {
         priority_fee_oracle: Box<dyn PriorityFeeOracle>,
         tx_submitter: Box<dyn TransactionSubmitter>,
     ) -> Result<Self> {
-        let signer = conf.signer.as_ref().wrap_err("Signer is missing")?;
-        let keypair = create_keypair(signer)?;
+        let keypair = Self::create_keypair(&conf)?;
         let reorg_period = conf.reorg_period.clone();
 
         Ok(Self {
@@ -107,6 +105,16 @@ impl SealevelTxAdapter {
             priority_fee_oracle,
             tx_submitter,
         })
+    }
+
+    fn create_keypair(conf: &ChainConf) -> Result<SealevelKeypair> {
+        let signer = conf.signer.as_ref().wrap_err("Signer is missing")?;
+        let key = match signer {
+            SignerConf::HexKey { key } => key,
+            _ => return Err(Report::msg("Sealevel supports only hex key".to_string())),
+        };
+        let keypair = create_keypair(key)?;
+        Ok(SealevelKeypair(keypair))
     }
 
     async fn estimate(&self, precursor: SealevelTxPrecursor) -> ChainResult<SealevelTxPrecursor> {

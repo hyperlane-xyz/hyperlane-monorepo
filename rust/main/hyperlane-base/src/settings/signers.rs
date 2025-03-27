@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
@@ -124,12 +123,7 @@ impl ChainSigner for fuels::prelude::WalletUnlocked {
 impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
-            let secret = SecretKey::from_bytes(key.as_bytes())
-                .context("Invalid sealevel ed25519 secret key")?;
-            let public = ed25519_dalek::PublicKey::from(&secret);
-            let dalek = ed25519_dalek::Keypair { secret, public };
-            Ok(hyperlane_sealevel::Keypair::from_bytes(&dalek.to_bytes())
-                .context("Unable to create Keypair")?)
+            hyperlane_sealevel::create_keypair(key)
         } else {
             bail!(format!("{conf:?} key is not supported by sealevel"));
         }

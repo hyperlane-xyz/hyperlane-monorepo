@@ -14,7 +14,6 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 
 async-trait.workspace = true
 chrono.workspace = true
-ed25519-dalek.workspace = true
 eyre.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -23,7 +22,6 @@ solana-sdk.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
-thiserror = "1.0.63"
 
 [dev-dependencies]
 mockall.workspace = true
