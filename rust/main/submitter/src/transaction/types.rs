@@ -1,18 +1,19 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use derive_new::new;
 use std::ops::Deref;
 use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
-use crate::payload::PayloadId;
+use crate::payload::{PayloadDetails, PayloadId};
 
 pub type TransactionId = UniqueIdentifier;
 type SignerAddress = H256;
 
 /// Full details about a transaction
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, new)]
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
     id: TransactionId,
@@ -21,7 +22,7 @@ pub struct Transaction {
     /// may include nonce, gas price, etc
     vm_specific_data: VmSpecificTxData,
     /// this is a vec to accommodate batching
-    payload_details: Vec<PayloadId>,
+    payload_details: Vec<PayloadDetails>,
     status: TransactionStatus,
     /// incremented on submission / gas escalation
     submission_attempts: u32,
@@ -30,6 +31,10 @@ pub struct Transaction {
 impl Transaction {
     pub fn id(&self) -> &TransactionId {
         &self.id
+    }
+
+    pub fn payload_details(&self) -> &[PayloadDetails] {
+        &self.payload_details
     }
 }
 

@@ -29,7 +29,10 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
-    async fn build_transactions(&self, _payloads: Vec<FullPayload>) -> Vec<Transaction> {
+    async fn build_transactions(
+        &self,
+        _payloads: Vec<FullPayload>,
+    ) -> eyre::Result<Vec<Transaction>> {
         todo!()
     }
 
