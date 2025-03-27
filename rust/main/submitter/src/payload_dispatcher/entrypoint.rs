@@ -77,7 +77,7 @@ mod tests {
         #[async_trait]
         impl AdaptsChain for Adapter {
             async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
-            async fn build_transactions(&self, payloads: Vec<FullPayload>) -> Result<Vec<Transaction>>;
+            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
             async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
             async fn submit(&self, tx: &mut Transaction) -> Result<()>;
             async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus>;

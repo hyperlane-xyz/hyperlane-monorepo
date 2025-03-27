@@ -30,7 +30,7 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn build_transactions(&self, _payloads: Vec<FullPayload>) -> Result<Vec<Transaction>> {
+    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Result<Vec<Transaction>> {
         todo!()
     }
 

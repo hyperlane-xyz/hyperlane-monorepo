@@ -30,19 +30,19 @@ pub struct PayloadDetails {
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
-    details: PayloadDetails,
+    pub details: PayloadDetails,
     /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
-    data: VmSpecificPayloadData,
+    pub data: VmSpecificPayloadData,
     /// defaults to the hyperlane mailbox
-    to: Address,
+    pub to: Address,
     /// defaults to `ReadyToSubmit`
-    status: PayloadStatus,
+    pub status: PayloadStatus,
 
     // unused fields in MVP
     // always None initially
-    value: Option<U256>,
+    pub value: Option<U256>,
     /// will be up to the adapter to interpret this. Meant to help enforce the new igp social contract requirement (after 30 mins, stop enforcing any gas price caps)
-    inclusion_soft_deadline: Option<DateTime<Utc>>,
+    pub inclusion_soft_deadline: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]

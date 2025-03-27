@@ -29,7 +29,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(payload: FullPayload, precursor: SealevelTxPrecursor) -> Self {
+    pub fn new(payload: &FullPayload, precursor: SealevelTxPrecursor) -> Self {
         Self {
             id: TransactionId::new(Uuid::new_v4()),
             hash: None,

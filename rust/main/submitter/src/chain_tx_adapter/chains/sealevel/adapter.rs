@@ -40,10 +40,10 @@ use crate::transaction::{
 pub struct SealevelTxAdapter {
     reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
-    rpc_client: Box<dyn SealevelRpcClientForSubmitter>,
+    client: Box<dyn SealevelRpcClientForSubmitter>,
     provider: Box<dyn SealevelProviderForSubmitter>,
-    priority_fee_oracle: Box<dyn PriorityFeeOracle>,
-    tx_submitter: Box<dyn TransactionSubmitter>,
+    oracle: Box<dyn PriorityFeeOracle>,
+    submitter: Box<dyn TransactionSubmitter>,
 }
 
 impl SealevelTxAdapter {
@@ -53,22 +53,22 @@ impl SealevelTxAdapter {
         let chain_info = conf.metrics_conf().chain;
         let client_metrics = metrics.client_metrics();
 
-        let fallback_provider = SealevelFallbackRpcClient::from_urls(
+        let client = SealevelFallbackRpcClient::from_urls(
             chain_info.clone(),
             urls.clone(),
             client_metrics.clone(),
         );
 
         let provider = SealevelProvider::new(
-            fallback_provider.clone(),
+            client.clone(),
             conf.domain.clone(),
             &[H256::zero()],
             connection_conf,
         );
 
-        let priority_fee_oracle = connection_conf.priority_fee_oracle.create_oracle();
+        let oracle = connection_conf.priority_fee_oracle.create_oracle();
 
-        let tx_submitter = connection_conf.transaction_submitter.create_submitter(
+        let submitter = connection_conf.transaction_submitter.create_submitter(
             &Arc::new(provider.clone()),
             client_metrics.clone(),
             chain_info.clone(),
@@ -79,20 +79,20 @@ impl SealevelTxAdapter {
         Self::new_internal(
             conf,
             raw_conf,
-            Box::new(fallback_provider),
+            Box::new(client),
             Box::new(provider),
-            priority_fee_oracle,
-            tx_submitter,
+            oracle,
+            submitter,
         )
     }
 
     fn new_internal(
         conf: ChainConf,
         _raw_conf: RawChainConf,
-        rpc_client: Box<dyn SealevelRpcClientForSubmitter>,
+        client: Box<dyn SealevelRpcClientForSubmitter>,
         provider: Box<dyn SealevelProviderForSubmitter>,
-        priority_fee_oracle: Box<dyn PriorityFeeOracle>,
-        tx_submitter: Box<dyn TransactionSubmitter>,
+        oracle: Box<dyn PriorityFeeOracle>,
+        submitter: Box<dyn TransactionSubmitter>,
     ) -> Result<Self> {
         let keypair = Self::create_keypair(&conf)?;
         let reorg_period = conf.reorg_period.clone();
@@ -101,10 +101,28 @@ impl SealevelTxAdapter {
             reorg_period,
             keypair,
             provider,
-            rpc_client,
-            priority_fee_oracle,
-            tx_submitter,
+            client,
+            oracle,
+            submitter,
         })
+    }
+
+    #[allow(unused)]
+    #[cfg(test)]
+    fn new_internal_default(
+        client: Box<dyn SealevelRpcClientForSubmitter>,
+        provider: Box<dyn SealevelProviderForSubmitter>,
+        oracle: Box<dyn PriorityFeeOracle>,
+        submitter: Box<dyn TransactionSubmitter>,
+    ) -> Self {
+        Self {
+            reorg_period: ReorgPeriod::default(),
+            keypair: SealevelKeypair::default(),
+            provider,
+            client,
+            oracle,
+            submitter,
+        }
     }
 
     fn create_keypair(conf: &ChainConf) -> Result<SealevelKeypair> {
@@ -123,8 +141,8 @@ impl SealevelTxAdapter {
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
                 &self.keypair,
-                &*self.tx_submitter,
-                &*self.priority_fee_oracle,
+                &*self.submitter,
+                &*self.oracle,
             )
             .await?;
         Ok(SealevelTxPrecursor::new(precursor.instruction, estimate))
@@ -160,7 +178,7 @@ impl SealevelTxAdapter {
                 estimate.compute_unit_price_micro_lamports,
                 instruction.clone(),
                 &self.keypair,
-                &*self.tx_submitter,
+                &*self.submitter,
                 sign,
             )
             .await
@@ -187,7 +205,7 @@ impl SealevelTxAdapter {
         }
     }
 
-    fn to_precursor(&self, payload: &FullPayload) -> SealevelTxPrecursor {
+    fn to_precursor(payload: &FullPayload) -> SealevelTxPrecursor {
         let instruction = Self::get_instruction(payload);
         SealevelTxPrecursor::new(instruction.clone(), SealevelTxCostEstimate::default())
     }
@@ -196,16 +214,16 @@ impl SealevelTxAdapter {
 #[async_trait]
 impl AdaptsChain for SealevelTxAdapter {
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
-        let not_estimated = self.to_precursor(payload);
+        let not_estimated = Self::to_precursor(payload);
         let estimated = self.estimate(not_estimated).await?;
         Ok(estimated.estimate.compute_units.into())
     }
 
-    async fn build_transactions(&self, payloads: Vec<FullPayload>) -> Result<Vec<Transaction>> {
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>> {
         let payloads_and_precursors = payloads
-            .into_iter()
-            .map(|payload| (self.to_precursor(&payload), payload))
-            .collect::<Vec<(SealevelTxPrecursor, FullPayload)>>();
+            .iter()
+            .map(|payload| (Self::to_precursor(payload), payload))
+            .collect::<Vec<(SealevelTxPrecursor, &FullPayload)>>();
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
@@ -221,7 +239,7 @@ impl AdaptsChain for SealevelTxAdapter {
         let precursor = Self::get_precursor(tx);
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
         let success = self
-            .rpc_client
+            .client
             .simulate_transaction(&svm_transaction)
             .await
             .is_ok();
@@ -233,7 +251,7 @@ impl AdaptsChain for SealevelTxAdapter {
         let estimated = self.estimate(not_estimated.clone()).await?;
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
         let signature = self
-            .tx_submitter
+            .submitter
             .send_transaction(&svm_transaction, true)
             .await?;
         let hash = signature.into();
@@ -241,7 +259,7 @@ impl AdaptsChain for SealevelTxAdapter {
         tx.update_after_submission(hash, estimated);
 
         let provider = self
-            .tx_submitter
+            .submitter
             .get_provider()
             .map(|c| c as &dyn SealevelProviderForSubmitter)
             .unwrap_or_else(|| &*self.provider);
@@ -258,7 +276,7 @@ impl AdaptsChain for SealevelTxAdapter {
             "Hash should be set for transaction to check its status"
         ))?;
         let signature = Signature::new(h512.as_ref());
-        let transaction_search_result = self.rpc_client.get_transaction(signature).await;
+        let transaction_search_result = self.client.get_transaction(signature).await;
 
         let signer_address = SignerAddress::default();
 
@@ -271,7 +289,7 @@ impl AdaptsChain for SealevelTxAdapter {
         let slot = transaction.slot;
 
         let current_confirmed_block = self
-            .rpc_client
+            .client
             .get_block(slot + self.reorg_period.as_blocks()? as u64)
             .await;
 
@@ -279,7 +297,7 @@ impl AdaptsChain for SealevelTxAdapter {
             return Ok(TransactionStatus::Finalized(signer_address));
         }
 
-        let transaction_block = self.rpc_client.get_block(slot).await;
+        let transaction_block = self.client.get_block(slot).await;
 
         match transaction_block {
             Ok(_) => Ok(TransactionStatus::Included(signer_address)),
