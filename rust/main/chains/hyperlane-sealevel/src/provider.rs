@@ -89,6 +89,13 @@ pub trait SealevelProviderForSubmitter: Send + Sync {
     /// Waits for Sealevel transaction confirmation with processed commitment level
     async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
         -> ChainResult<()>;
+
+    /// Confirm transaction
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool>;
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -287,6 +294,16 @@ impl SealevelProviderForSubmitter for SealevelProvider {
                     .to_string(),
             ),
         ))
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.rpc_client()
+            .confirm_transaction_with_commitment(signature, commitment)
+            .await
     }
 }
 

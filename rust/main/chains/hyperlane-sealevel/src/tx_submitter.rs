@@ -12,7 +12,7 @@ use solana_sdk::{
     signature::Signature, transaction::Transaction,
 };
 
-use crate::SealevelProvider;
+use crate::{SealevelProvider, SealevelProviderForSubmitter};
 
 /// A trait for submitting transactions to the chain.
 #[async_trait]
@@ -32,10 +32,8 @@ pub trait TransactionSubmitter: Send + Sync {
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
 
-    /// Get the RPC client
-    fn get_provider(&self) -> Option<&SealevelProvider> {
-        None
-    }
+    /// Get the default provider
+    fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter>;
 }
 
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
@@ -66,15 +64,16 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
             .await
     }
 
-    fn get_provider(&self) -> Option<&SealevelProvider> {
-        Some(&self.provider)
+    fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter> {
+        self.provider.clone()
     }
 }
 
 /// A transaction submitter that uses the Jito API to submit transactions.
 #[derive(Debug, new)]
 pub struct JitoTransactionSubmitter {
-    provider: Arc<SealevelProvider>,
+    default_provider: Arc<SealevelProvider>,
+    submit_provider: Arc<SealevelProvider>,
 }
 
 impl JitoTransactionSubmitter {
@@ -111,9 +110,13 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
-        self.provider
+        self.submit_provider
             .rpc_client()
             .send_transaction(transaction, skip_preflight)
             .await
+    }
+
+    fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter> {
+        self.default_provider.clone()
     }
 }

@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use eyre::Result;
 use mockall::mock;
 use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_sdk::{
+    commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     message::Message,
@@ -54,7 +57,7 @@ mock! {
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> Instruction;
         async fn send_transaction(&self, transaction: &SealevelTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        fn get_provider(&self) -> Option<&'static SealevelProvider>;
+        fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter>;
     }
 }
 
@@ -95,7 +98,15 @@ impl SealevelProviderForSubmitter for MockProvider {
         &self,
         _transaction: &SealevelTransaction,
     ) -> ChainResult<()> {
-        todo!()
+        Ok(())
+    }
+
+    async fn confirm_transaction(
+        &self,
+        _signature: Signature,
+        _commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        Ok(true)
     }
 }
 
@@ -144,6 +155,19 @@ async fn test_simulate_tx() {
     assert!(simulated);
 }
 
+#[tokio::test]
+async fn test_submit() {
+    // given
+    let adapter = adapter();
+    let mut transaction = Transaction::new(&payload(), precursor());
+
+    // when
+    let result = adapter.submit(&mut transaction).await;
+
+    // then
+    matches!(result, Ok(_));
+}
+
 fn actual_precursor(result: Result<Vec<Transaction>>) -> SealevelTxPrecursor {
     let transactions = result.unwrap();
     let transaction = transactions.first().unwrap();
@@ -162,15 +186,34 @@ fn estimate() -> SealevelTxCostEstimate {
 }
 
 fn adapter() -> SealevelTxAdapter {
-    let client = client_mock();
-    let oracle = Box::new(MockOracle::new()) as Box<dyn PriorityFeeOracle>;
-    let provider = Box::new(MockProvider {}) as Box<dyn SealevelProviderForSubmitter>;
-    let submitter = Box::new(MockSubmitter::new()) as Box<dyn TransactionSubmitter>;
+    let client = mock_client();
+    let oracle = MockOracle::new();
+    let provider = MockProvider {};
+    let submitter = mock_submitter();
 
-    SealevelTxAdapter::new_internal_default(Box::new(client), provider, oracle, submitter)
+    SealevelTxAdapter::new_internal_default(
+        Box::new(client),
+        Box::new(provider),
+        Box::new(oracle),
+        Box::new(submitter),
+    )
 }
 
-fn client_mock() -> MockRpcClient {
+fn mock_submitter() -> MockSubmitter {
+    let signature = Signature::default();
+
+    let mut submitter = MockSubmitter::new();
+    submitter
+        .expect_send_transaction()
+        .returning(move |_, _| Ok(signature.clone()));
+    submitter.expect_get_default_provider().returning(move || {
+        let provider = MockProvider {};
+        Arc::new(provider)
+    });
+    submitter
+}
+
+fn mock_client() -> MockRpcClient {
     let result = RpcSimulateTransactionResult {
         err: None,
         logs: None,

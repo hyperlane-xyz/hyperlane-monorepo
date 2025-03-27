@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{ContextCompat, Report, Result};
+use eyre::{bail, ContextCompat, Report, Result};
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_sdk::{
+    commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     message::Message,
@@ -12,6 +13,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
+use tracing::warn;
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -129,7 +131,7 @@ impl SealevelTxAdapter {
         let signer = conf.signer.as_ref().wrap_err("Signer is missing")?;
         let key = match signer {
             SignerConf::HexKey { key } => key,
-            _ => return Err(Report::msg("Sealevel supports only hex key".to_string())),
+            _ => bail!("Sealevel supports only hex key"),
         };
         let keypair = create_keypair(key)?;
         Ok(SealevelKeypair(keypair))
@@ -258,15 +260,21 @@ impl AdaptsChain for SealevelTxAdapter {
 
         tx.update_after_submission(hash, estimated);
 
-        let provider = self
-            .submitter
-            .get_provider()
-            .map(|c| c as &dyn SealevelProviderForSubmitter)
-            .unwrap_or_else(|| &*self.provider);
+        let provider = self.submitter.get_default_provider();
 
         provider
             .wait_for_transaction_confirmation(&svm_transaction)
             .await?;
+
+        let executed = provider
+            .confirm_transaction(signature, CommitmentConfig::processed())
+            .await
+            .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
+            .unwrap_or(false);
+
+        if !executed {
+            bail!("Transaction is not confirmed")
+        }
 
         Ok(())
     }
