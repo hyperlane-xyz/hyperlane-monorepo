@@ -13,10 +13,10 @@ use crate::chain_tx_adapter::{
     AdaptsChain,
 };
 
-pub struct ChainTxAdapterBuilder {}
+pub struct ChainTxAdapterFactory {}
 
-impl ChainTxAdapterBuilder {
-    pub fn build(
+impl ChainTxAdapterFactory {
+    pub fn new(
         conf: &ChainConf,
         raw_conf: &RawChainConf,
         metrics: &CoreMetrics,

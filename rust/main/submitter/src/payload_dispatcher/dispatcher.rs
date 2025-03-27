@@ -16,7 +16,7 @@ use hyperlane_base::{
 use hyperlane_core::HyperlaneDomain;
 
 use crate::{
-    chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder},
+    chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
     payload::PayloadDb,
     transaction::TransactionDb,
 };
@@ -54,7 +54,7 @@ impl PayloadDispatcherState {
     }
 
     pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
-        let adapter = ChainTxAdapterBuilder::build(
+        let adapter = ChainTxAdapterFactory::new(
             &settings.chain_conf,
             &settings.raw_chain_conf,
             &settings.metrics,
