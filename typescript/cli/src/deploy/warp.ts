@@ -460,7 +460,7 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
+export function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
       if (
@@ -628,7 +628,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ) {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, registry } = params.context;
+  const { multiProvider, registry, chainMetadata } = params.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);
@@ -643,23 +643,21 @@ async function updateExistingWarpRoute(
   // Get all deployed router addresses
   const deployedRoutersAddresses =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-
   const expandedWarpDeployConfig = await expandWarpDeployConfig(
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
   );
-
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
+        if (chainMetadata[chain].protocol !== ProtocolType.Ethereum) return;
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
         const configWithMailbox = {
           ...config,
           mailbox: registryAddresses[chain].mailbox,
         };
-
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
@@ -673,6 +671,7 @@ async function updateExistingWarpRoute(
           ccipContractCache,
           contractVerifier,
         );
+
         transactions.push(
           ...(await evmERC20WarpModule.update(configWithMailbox)),
         );

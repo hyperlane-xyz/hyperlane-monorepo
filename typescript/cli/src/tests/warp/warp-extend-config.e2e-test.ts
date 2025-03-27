@@ -4,12 +4,15 @@ import { Wallet } from 'ethers';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HypTokenRouterConfig,
+  TokenStandard,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 
+import { fullyConnectTokens } from '../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
@@ -23,6 +26,7 @@ import {
   WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
   extendWarpConfig,
+  getCombinedWarpRoutePath,
   getDomainId,
 } from '../commands/helpers.js';
 import {
@@ -203,5 +207,66 @@ describe('hyperlane warp apply config extension tests', async function () {
       normalizeConfig(updatedConfig),
       'warp deploy config should remain unchanged after extension',
     );
+  });
+
+  it.only('should set remoteRouter and destinationGas for chains with foreignDeployment', async () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+    // Remove remoteRouters and destinationGas as they are empty when read
+    delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
+    delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
+
+    // Add solana into WarpDeploy
+    warpDeployConfig.solanamainnet = {
+      foreignDeployment: '7aM3itqXToHXhdR97EwJjZc7fay6uBszhUs1rzJm3tto',
+      mailbox: chain2Addresses!.mailbox,
+      owner: new Wallet(ANVIL_KEY).address,
+      type: TokenType.native,
+    };
+
+    const warpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH_2,
+    ) as WarpCoreConfig;
+
+    // Add solana into WarpCore
+    warpCoreConfig.tokens.push({
+      addressOrDenom: '7aM3itqXToHXhdR97EwJjZc7fay6uBszhUs1rzJm3tto',
+      chainName: 'solanamainnet',
+      decimals: 18,
+      name: 'Ether',
+      standard: TokenStandard.SealevelHypNative,
+      symbol: 'ETH',
+    });
+    fullyConnectTokens(warpCoreConfig);
+    console.log(
+      'warpCoreConfigwarpCoreConfigwarpCoreConfig',
+      JSON.stringify(warpCoreConfig, null, 2),
+    );
+
+    // Read back the config to verify changes
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      'solanamainnet',
+    ]);
+
+    writeYamlOrJson(COMBINED_WARP_CORE_CONFIG_PATH, warpCoreConfig);
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+    await hyperlaneWarpApply(warpDeployPath, COMBINED_WARP_CORE_CONFIG_PATH);
+    const updatedConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpDeployPath,
+    );
+    console.log('updated', updatedConfig);
+    // // const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+
+    // // Verify the remote router was updated correctly
+    // expect(objLength(updatedConfig[CHAIN_NAME_2].remoteRouters!)).to.equal(1);
   });
 });

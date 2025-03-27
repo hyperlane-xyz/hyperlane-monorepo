@@ -3,6 +3,7 @@ import { zeroAddress } from 'viem';
 import {
   Address,
   TransformObjectTransformer,
+  hexOrBase58ToHex,
   objMap,
   transformObj,
 } from '@hyperlane-xyz/utils';
@@ -45,21 +46,19 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
 ): [RemoteRouters, DestinationGas] {
   const remoteRouters: RemoteRouters = {};
   const destinationGas: DestinationGas = {};
-
   const otherChains = multiProvider
     .getRemoteChains(chain)
     .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
 
   for (const otherChain of otherChains) {
     const domainId = multiProvider.getDomainId(otherChain);
-
     remoteRouters[domainId] = {
-      address: deployedRoutersAddresses[otherChain],
+      address: warpDeployConfig[otherChain].foreignDeployment
+        ? hexOrBase58ToHex(warpDeployConfig[otherChain].foreignDeployment!)
+        : deployedRoutersAddresses[otherChain],
     };
-
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
   }
-
   return [remoteRouters, destinationGas];
 }
 
