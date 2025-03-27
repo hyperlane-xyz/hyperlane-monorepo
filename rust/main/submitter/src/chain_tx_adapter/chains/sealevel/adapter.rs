@@ -318,7 +318,7 @@ impl AdaptsChain for SealevelTxAdapter {
 
         info!(?tx, slot = ?inclusion_slot, "found transaction");
 
-        // if block with this slot is add to the chain, transaction is considered to be confirmed
+        // if block with this slot is added to the chain, transaction is considered to be confirmed
         let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
 
         let confirming_block = self.client.get_block(confirming_slot).await;
