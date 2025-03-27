@@ -16,7 +16,7 @@ use crate::chain_tx_adapter::{
 pub struct ChainTxAdapterFactory {}
 
 impl ChainTxAdapterFactory {
-    pub fn new(
+    pub fn build(
         conf: &ChainConf,
         raw_conf: &RawChainConf,
         metrics: &CoreMetrics,

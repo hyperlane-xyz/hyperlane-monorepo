@@ -26,8 +26,8 @@ use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_sealevel::fallback::SealevelRpcClientForSubmitter;
 use hyperlane_sealevel::{SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate};
 
+use crate::chain_tx_adapter::chains::sealevel::transaction::TransactionFactory;
 use crate::chain_tx_adapter::chains::sealevel::SealevelTxAdapter;
-use crate::chain_tx_adapter::chains::transaction::TransactionFactory;
 use crate::chain_tx_adapter::{AdaptsChain, SealevelPayload, SealevelTxPrecursor};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
@@ -149,7 +149,7 @@ async fn test_build_transactions() {
 async fn test_simulate_tx() {
     // given
     let adapter = adapter();
-    let transaction = TransactionFactory::new(&payload(), precursor());
+    let transaction = TransactionFactory::build(&payload(), precursor());
 
     // when
     let simulated = adapter.simulate_tx(&transaction).await.unwrap();
@@ -162,7 +162,7 @@ async fn test_simulate_tx() {
 async fn test_submit() {
     // given
     let adapter = adapter();
-    let mut transaction = TransactionFactory::new(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(&payload(), precursor());
 
     // when
     let result = adapter.submit(&mut transaction).await;
@@ -296,7 +296,7 @@ fn precursor() -> SealevelTxPrecursor {
 }
 
 fn transaction() -> Transaction {
-    let mut transaction = TransactionFactory::new(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(&payload(), precursor());
     transaction.update_after_submission(H512::zero(), precursor());
 
     transaction

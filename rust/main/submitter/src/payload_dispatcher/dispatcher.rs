@@ -54,7 +54,7 @@ impl PayloadDispatcherState {
     }
 
     pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
-        let adapter = ChainTxAdapterFactory::new(
+        let adapter = ChainTxAdapterFactory::build(
             &settings.chain_conf,
             &settings.raw_chain_conf,
             &settings.metrics,

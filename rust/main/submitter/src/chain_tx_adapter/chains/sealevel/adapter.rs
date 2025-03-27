@@ -33,7 +33,7 @@ use hyperlane_sealevel::{
     SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::chains::transaction::TransactionFactory;
+use crate::chain_tx_adapter::chains::sealevel::transaction::TransactionFactory;
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit, SealevelTxPrecursor};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
@@ -234,7 +234,7 @@ impl AdaptsChain for SealevelTxAdapter {
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
             let estimated = self.estimate(not_estimated).await?;
-            let transaction = TransactionFactory::new(payload, estimated);
+            let transaction = TransactionFactory::build(payload, estimated);
             transactions.push(transaction);
         }
 
