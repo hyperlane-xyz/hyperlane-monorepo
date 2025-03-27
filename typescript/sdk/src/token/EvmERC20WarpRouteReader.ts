@@ -178,6 +178,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       }
 
       // Check native last (only if all others fail)
+      // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
       try {
         await this.multiProvider.estimateGas(
           this.chain,
