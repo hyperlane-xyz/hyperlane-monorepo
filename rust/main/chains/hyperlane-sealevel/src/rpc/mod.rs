@@ -1,5 +1,8 @@
 pub use client::{SealevelRpcClient, SealevelSubmit, SealevelTxCostEstimate};
 
-mod client;
+/// rpc client
+pub mod client;
 /// SealevelRpcClientBuilder
 pub mod client_builder;
+/// rpc fallback client
+pub mod fallback;

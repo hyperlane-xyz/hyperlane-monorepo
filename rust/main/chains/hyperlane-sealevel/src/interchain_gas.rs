@@ -31,20 +31,17 @@ pub struct SealevelInterchainGasPaymaster {
     data_pda_pubkey: Pubkey,
     domain: HyperlaneDomain,
     igp_account: H256,
-    provider: SealevelProvider,
+    provider: Arc<SealevelProvider>,
 }
 
 impl SealevelInterchainGasPaymaster {
     /// Create a new Sealevel IGP.
     pub async fn new(
-        rpc_client: Arc<SealevelRpcClient>,
-        conf: &ConnectionConf,
+        provider: Arc<SealevelProvider>,
         igp_account_locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
-        let provider =
-            SealevelProvider::new(rpc_client, igp_account_locator.domain.clone(), &[], conf);
         let program_id =
-            Self::determine_igp_program_id(provider.rpc(), &igp_account_locator.address).await?;
+            Self::determine_igp_program_id(&provider, &igp_account_locator.address).await?;
         let (data_pda_pubkey, _) =
             Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
@@ -58,11 +55,12 @@ impl SealevelInterchainGasPaymaster {
     }
 
     async fn determine_igp_program_id(
-        rpc_client: &SealevelRpcClient,
+        provider: &Arc<SealevelProvider>,
         igp_account_pubkey: &H256,
     ) -> ChainResult<Pubkey> {
-        let account = rpc_client
-            .get_account_with_finalized_commitment(&Pubkey::from(<[u8; 32]>::from(
+        let account = provider
+            .rpc_client()
+            .get_account_with_finalized_commitment(Pubkey::from(<[u8; 32]>::from(
                 *igp_account_pubkey,
             )))
             .await?;
@@ -82,7 +80,7 @@ impl HyperlaneChain for SealevelInterchainGasPaymaster {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        self.provider.provider()
+        Box::new(self.provider.clone())
     }
 }
 
@@ -91,7 +89,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymasterIndexer {
-    rpc_client: Arc<SealevelRpcClient>,
+    provider: Arc<SealevelProvider>,
     igp: SealevelInterchainGasPaymaster,
     log_meta_composer: LogMetaComposer,
     advanced_log_meta: bool,
@@ -108,14 +106,12 @@ pub struct SealevelGasPayment {
 impl SealevelInterchainGasPaymasterIndexer {
     /// Create a new Sealevel IGP indexer.
     pub async fn new(
-        rpc_client: Arc<SealevelRpcClient>,
-        conf: &ConnectionConf,
+        provider: Arc<SealevelProvider>,
         igp_account_locator: ContractLocator<'_>,
         advanced_log_meta: bool,
     ) -> ChainResult<Self> {
         let igp =
-            SealevelInterchainGasPaymaster::new(rpc_client.clone(), conf, &igp_account_locator)
-                .await?;
+            SealevelInterchainGasPaymaster::new(provider.clone(), &igp_account_locator).await?;
 
         let log_meta_composer = LogMetaComposer::new(
             igp.program_id,
@@ -124,7 +120,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         );
 
         Ok(Self {
-            rpc_client,
+            provider,
             igp,
             log_meta_composer,
             advanced_log_meta,
@@ -140,7 +136,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         let sequence_number_bytes = sequence_number.to_le_bytes();
         let unique_gas_payment_pubkey_length = 32; // the length of the `unique_gas_payment_pubkey` field
         let accounts = search_accounts_by_discriminator(
-            &self.rpc_client,
+            &self.provider,
             &self.igp.program_id,
             discriminator,
             &sequence_number_bytes,
@@ -157,8 +153,9 @@ impl SealevelInterchainGasPaymasterIndexer {
 
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
         let account = self
-            .rpc_client
-            .get_account_with_finalized_commitment(&valid_payment_pda_pubkey)
+            .provider
+            .rpc_client()
+            .get_account_with_finalized_commitment(valid_payment_pda_pubkey)
             .await?;
         let gas_payment_account = GasPaymentAccount::fetch(&mut account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
@@ -224,7 +221,11 @@ impl SealevelInterchainGasPaymasterIndexer {
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
     ) -> ChainResult<LogMeta> {
-        let block = self.rpc_client.get_block(*payment_pda_slot).await?;
+        let block = self
+            .provider
+            .rpc_client()
+            .get_block(*payment_pda_slot)
+            .await?;
 
         self.log_meta_composer
             .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
@@ -282,8 +283,9 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let program_data_account = self
-            .rpc_client
-            .get_account_with_finalized_commitment(&self.igp.data_pda_pubkey)
+            .provider
+            .rpc_client()
+            .get_account_with_finalized_commitment(self.igp.data_pda_pubkey)
             .await?;
         let program_data = ProgramDataAccount::fetch(&mut program_data_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
@@ -292,7 +294,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
             .payment_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-        let tip = self.igp.provider.rpc().get_slot().await?;
+        let tip = self.igp.provider.rpc_client().get_slot().await?;
         Ok((Some(payment_count), tip))
     }
 }

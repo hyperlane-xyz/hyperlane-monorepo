@@ -1,9 +1,7 @@
-use base64::Engine;
-use borsh::{BorshDeserialize, BorshSerialize};
-use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
+use std::sync::Arc;
+
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
-    rpc_client::SerializableTransaction,
     rpc_config::{
         RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
         RpcSimulateTransactionConfig, RpcTransactionConfig,
@@ -12,100 +10,21 @@ use solana_client::{
 };
 use solana_program::clock::Slot;
 use solana_sdk::{
-    account::Account,
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
-    hash::Hash,
-    instruction::{AccountMeta, Instruction},
-    message::Message,
-    pubkey::Pubkey,
-    signature::{Signature, Signer},
-    transaction::Transaction,
+    account::Account, commitment_config::CommitmentConfig, hash::Hash, pubkey::Pubkey,
+    signature::Signature, transaction::Transaction,
 };
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
-    UiReturnDataEncoding, UiTransactionEncoding,
+    UiTransactionEncoding,
 };
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
+use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, U256};
 
-use crate::{
-    error::HyperlaneSealevelError, priority_fee::PriorityFeeOracle,
-    tx_submitter::TransactionSubmitter, SealevelKeypair,
-};
-
-const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
-const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
-
-const PRIORITY_FEE_MULTIPLIER_NUMERATOR: u64 = 110;
-const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
-
-/// The max amount of compute units for a transaction.
-const MAX_COMPUTE_UNITS: u32 = 1_400_000;
-
-/// Transaction cost estimate
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq)]
-pub struct SealevelTxCostEstimate {
-    /// Compute units estimate
-    pub compute_units: u32,
-    /// Compute unit price estimate
-    pub compute_unit_price_micro_lamports: u64,
-}
-
-impl Default for SealevelTxCostEstimate {
-    fn default() -> Self {
-        Self {
-            compute_units: MAX_COMPUTE_UNITS,
-            compute_unit_price_micro_lamports: 0,
-        }
-    }
-}
-
-/// Defines methods required to submit transactions to Sealevel chains
-#[async_trait::async_trait]
-pub trait SealevelSubmit: Send + Sync {
-    /// Creates Sealevel transaction for instruction
-    async fn create_transaction_for_instruction(
-        &self,
-        compute_unit_limit: u32,
-        compute_unit_price_micro_lamports: u64,
-        instruction: Instruction,
-        payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        sign: bool,
-    ) -> ChainResult<Transaction>;
-
-    /// Requests block from node
-    async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
-
-    /// Estimates cost for Sealevel instruction
-    async fn get_estimated_costs_for_instruction(
-        &self,
-        instruction: &Instruction,
-        payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<SealevelTxCostEstimate>;
-
-    /// Requests transaction from node
-    async fn get_transaction(
-        &self,
-        signature: &Signature,
-    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
-
-    /// Simulates Sealevel transaction
-    async fn simulate_transaction(
-        &self,
-        transaction: &Transaction,
-    ) -> ChainResult<RpcSimulateTransactionResult>;
-
-    /// Waits for Sealevel transaction confirmation with processed commitment level
-    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
-        -> ChainResult<()>;
-}
+use crate::error::HyperlaneSealevelError;
 
 /// Wrapper struct around Solana's RpcClient
-pub struct SealevelRpcClient(RpcClient);
+#[derive(Clone)]
+pub struct SealevelRpcClient(Arc<RpcClient>);
 
 #[async_trait::async_trait]
 impl SealevelSubmit for SealevelRpcClient {
@@ -349,12 +268,17 @@ impl SealevelRpcClient {
     pub fn new(rpc_endpoint: String) -> Self {
         let rpc_client =
             RpcClient::new_with_commitment(rpc_endpoint, CommitmentConfig::processed());
-        Self::from_rpc_client(rpc_client)
+        Self::from_rpc_client(Arc::new(rpc_client))
     }
 
     /// constructor with an rpc client
-    pub fn from_rpc_client(rpc_client: RpcClient) -> Self {
+    pub fn from_rpc_client(rpc_client: Arc<RpcClient>) -> Self {
         Self(rpc_client)
+    }
+
+    /// Get Url
+    pub fn url(&self) -> String {
+        self.0.url()
     }
 
     /// confirm transaction with given commitment
@@ -370,31 +294,6 @@ impl SealevelRpcClient {
             .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
-    }
-
-    /// Simulates an Instruction that will return a list of AccountMetas.
-    pub async fn get_account_metas(
-        &self,
-        payer: &SealevelKeypair,
-        instruction: Instruction,
-    ) -> ChainResult<Vec<AccountMeta>> {
-        // If there's no data at all, default to an empty vec.
-        let account_metas = self
-            .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
-                payer,
-                instruction,
-            )
-            .await?
-            .map(|serializable_account_metas| {
-                serializable_account_metas
-                    .return_data
-                    .into_iter()
-                    .map(|serializable_account_meta| serializable_account_meta.into())
-                    .collect()
-            })
-            .unwrap_or_else(Vec::new);
-
-        Ok(account_metas)
     }
 
     /// get account with finalized commitment
@@ -432,6 +331,31 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from)?;
 
         Ok(balance.into())
+    }
+
+    /// get block
+    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        let config = RpcBlockConfig {
+            commitment: Some(CommitmentConfig::finalized()),
+            max_supported_transaction_version: Some(0),
+            ..Default::default()
+        };
+        self.0
+            .get_block_with_config(slot, config)
+            .await
+            .map_err(Box::new)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
+    }
+
+    /// get block_height
+    pub async fn get_block_height(&self) -> ChainResult<u64> {
+        self.0
+            .get_block_height()
+            .await
+            .map_err(Box::new)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     /// get minimum balance for rent exemption
@@ -537,93 +461,39 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    /// Simulates an instruction, and attempts to deserialize it into a T.
-    /// If no return data at all was returned, returns Ok(None).
-    /// If some return data was returned but deserialization was unsuccessful,
-    /// an Err is returned.
-    pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
+    /// simulate a transaction
+    pub async fn simulate_transaction(
         &self,
-        payer: &SealevelKeypair,
-        instruction: Instruction,
-    ) -> ChainResult<Option<T>> {
-        let commitment = CommitmentConfig::finalized();
-        let recent_blockhash = self
-            .get_latest_blockhash_with_commitment(commitment)
-            .await?;
-        let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction],
-            Some(&payer.pubkey()),
-            &recent_blockhash,
-        ));
-        let simulation = self.simulate_transaction(&transaction).await?;
-
-        if let Some(return_data) = simulation.return_data {
-            let bytes = match return_data.data.1 {
-                UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
-                    .decode(return_data.data.0)
-                    .map_err(ChainCommunicationError::from_other)?,
-            };
-
-            let decoded_data =
-                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
-
-            return Ok(Some(decoded_data));
-        }
-
-        Ok(None)
-    }
-
-    /// Builds a transaction with estimated costs for a given instruction.
-    pub async fn build_estimated_tx_for_instruction(
-        &self,
-        instruction: Instruction,
-        payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<Transaction> {
-        // Get the estimated costs for the instruction.
-        let SealevelTxCostEstimate {
-            compute_units,
-            compute_unit_price_micro_lamports,
-        } = self
-            .get_estimated_costs_for_instruction(
-                &instruction,
-                payer,
-                tx_submitter,
-                priority_fee_oracle,
+        transaction: &Transaction,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        let result = self
+            .0
+            .simulate_transaction_with_config(
+                transaction,
+                RpcSimulateTransactionConfig {
+                    sig_verify: false,
+                    replace_recent_blockhash: true,
+                    ..Default::default()
+                },
             )
-            .await?;
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value;
 
-        tracing::info!(
-            ?compute_units,
-            ?compute_unit_price_micro_lamports,
-            "Got compute units and compute unit price / priority fee for transaction"
-        );
-
-        // Build the final transaction with the correct compute unit limit and price.
-        let tx = self
-            .create_transaction_for_instruction(
-                compute_units,
-                compute_unit_price_micro_lamports,
-                instruction,
-                payer,
-                tx_submitter,
-                true,
-            )
-            .await?;
-
-        Ok(tx)
-    }
-
-    /// Get Url
-    pub fn url(&self) -> String {
-        self.0.url()
+        Ok(result)
     }
 }
 
 impl std::fmt::Debug for SealevelRpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("RpcClient { ... }")
+        write!(f, "RpcClient {{ url: {} }}", self.0.url())
+    }
+}
+
+#[async_trait::async_trait]
+impl BlockNumberGetter for SealevelRpcClient {
+    async fn get_block_number(&self) -> ChainResult<u64> {
+        self.get_block_height().await
     }
 }
 

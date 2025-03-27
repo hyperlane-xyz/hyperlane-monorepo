@@ -468,11 +468,11 @@ fn parse_base_and_override_urls(
 
     if combined.is_empty() {
         err.push(
-            &chain.cwp + base_key,
+            &chain.cwp + base_key.to_ascii_lowercase(),
             eyre!("Missing base {} definitions for chain", base_key),
         );
         err.push(
-            &chain.cwp + "custom_rpc_urls",
+            &chain.cwp + override_key.to_lowercase(),
             eyre!("Also missing {} overrides for chain", base_key),
         );
     }
