@@ -33,7 +33,8 @@ use hyperlane_sealevel::{
     SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::chains::sealevel::{payload, transaction::TransactionFactory};
+use crate::chain_tx_adapter::chains::sealevel::payload;
+use crate::chain_tx_adapter::chains::sealevel::transaction::{Precursor, TransactionFactory};
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit, SealevelTxPrecursor};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
@@ -193,13 +194,6 @@ impl SealevelTxAdapter {
             _ => panic!(),
         }
     }
-
-    fn get_precursor(tx: &Transaction) -> &SealevelTxPrecursor {
-        match tx.vm_specific_data() {
-            VmSpecificTxData::Svm(pre_tx) => pre_tx,
-            _ => panic!(),
-        }
-    }
 }
 
 #[async_trait]
@@ -232,7 +226,7 @@ impl AdaptsChain for SealevelTxAdapter {
 
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool> {
         info!(?tx, "simulating transaction");
-        let precursor = Self::get_precursor(tx);
+        let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
         let success = self
             .client
@@ -245,7 +239,7 @@ impl AdaptsChain for SealevelTxAdapter {
 
     async fn submit(&self, tx: &mut Transaction) -> Result<()> {
         info!(?tx, "submitting transaction");
-        let not_estimated = Self::get_precursor(tx);
+        let not_estimated = tx.precursor();
         let estimated = self.estimate(not_estimated.clone()).await?;
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
         let signature = self
