@@ -181,9 +181,8 @@ async fn test_tx_status() {
 
     // then
     assert!(result.is_ok());
-    let address = SignerAddress::zero();
     let status = result.unwrap();
-    assert!(matches!(status, TransactionStatus::Finalized(a) if a == address));
+    assert!(matches!(status, TransactionStatus::Finalized));
 }
 
 fn actual_precursor(result: Result<Vec<Transaction>>) -> SealevelTxPrecursor {
