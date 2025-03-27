@@ -24,6 +24,10 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
+  if (remote === 'deepbrainchain') {
+    overhead *= 8;
+  }
+
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
   if (remote === 'moonbeam' || remote === 'torus') {
     overhead *= 4;
