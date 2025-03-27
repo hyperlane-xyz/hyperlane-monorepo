@@ -16,10 +16,10 @@ type Address = H256;
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
-    pub id: PayloadId,
+    id: PayloadId,
 
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
-    pub metadata: String,
+    metadata: String,
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.

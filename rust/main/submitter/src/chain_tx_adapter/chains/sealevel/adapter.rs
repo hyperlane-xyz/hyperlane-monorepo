@@ -18,14 +18,17 @@ use hyperlane_base::{
     settings::{
         parser::h_sealevel::{
             client_builder::SealevelRpcClientBuilder, ConnectionConf, PriorityFeeOracle,
-            SealevelKeypair, SealevelRpcClient, TransactionSubmitter,
+            SealevelKeypair, TransactionSubmitter,
         },
         BuildableWithSignerConf, ChainConf, ChainConnectionConf, RawChainConf,
     },
     CoreMetrics,
 };
-use hyperlane_core::{ChainResult, ReorgPeriod};
-use hyperlane_sealevel::{PriorityFeeOracleConfig, SealevelSubmit, SealevelTxCostEstimate};
+use hyperlane_core::{ChainResult, ReorgPeriod, H256};
+use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SealevelSubmit};
+use hyperlane_sealevel::{
+    PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
+};
 
 use crate::chain_tx_adapter::{
     chains::sealevel::create_keypair, AdaptsChain, GasLimit, SealevelTxPrecursor,
@@ -37,8 +40,9 @@ use crate::transaction::{
 
 pub struct SealevelTxAdapter {
     reorg_period: ReorgPeriod,
-    rpc_client: Box<dyn SealevelSubmit>,
     keypair: SealevelKeypair,
+    rpc_client: Box<dyn SealevelSubmit>,
+    provider: Box<dyn SealevelProviderForSubmitter>,
     priority_fee_oracle: Box<dyn PriorityFeeOracle>,
     tx_submitter: Box<dyn TransactionSubmitter>,
 }
@@ -46,28 +50,38 @@ pub struct SealevelTxAdapter {
 impl SealevelTxAdapter {
     pub fn new(conf: ChainConf, raw_conf: RawChainConf, metrics: &CoreMetrics) -> Result<Self> {
         let connection_conf = Self::get_connection_conf(&conf);
-        let url = &connection_conf.url;
-        let middleware_metrics = &conf.metrics_conf();
+        let urls = &connection_conf.urls;
+        let chain_info = conf.metrics_conf().chain;
         let client_metrics = metrics.client_metrics();
 
-        let rpc_client = Box::new(
-            SealevelRpcClientBuilder::new(url.clone())
-                .with_prometheus_metrics(client_metrics.clone(), middleware_metrics.chain.clone())
-                .build(),
+        let fallback_provider = SealevelFallbackRpcClient::from_urls(
+            chain_info.clone(),
+            urls.clone(),
+            client_metrics.clone(),
+        );
+
+        let provider = SealevelProvider::new(
+            fallback_provider.clone(),
+            conf.domain.clone(),
+            &[H256::zero()],
+            connection_conf,
         );
 
         let priority_fee_oracle = connection_conf.priority_fee_oracle.create_oracle();
 
         let tx_submitter = connection_conf.transaction_submitter.create_submitter(
-            url.to_string(),
-            client_metrics,
-            middleware_metrics.chain.clone(),
+            &Arc::new(provider.clone()),
+            client_metrics.clone(),
+            chain_info.clone(),
+            conf.domain.clone(),
+            connection_conf,
         );
 
         Self::new_internal(
             conf,
             raw_conf,
-            rpc_client,
+            Box::new(fallback_provider),
+            Box::new(provider),
             priority_fee_oracle,
             tx_submitter,
         )
@@ -77,6 +91,7 @@ impl SealevelTxAdapter {
         conf: ChainConf,
         _raw_conf: RawChainConf,
         rpc_client: Box<dyn SealevelSubmit>,
+        provider: Box<dyn SealevelProviderForSubmitter>,
         priority_fee_oracle: Box<dyn PriorityFeeOracle>,
         tx_submitter: Box<dyn TransactionSubmitter>,
     ) -> Result<Self> {
@@ -86,8 +101,9 @@ impl SealevelTxAdapter {
 
         Ok(Self {
             reorg_period,
-            rpc_client,
             keypair,
+            provider,
+            rpc_client,
             priority_fee_oracle,
             tx_submitter,
         })
@@ -95,9 +111,9 @@ impl SealevelTxAdapter {
 
     async fn estimate(&self, precursor: SealevelTxPrecursor) -> ChainResult<SealevelTxPrecursor> {
         let estimate = self
-            .rpc_client
+            .provider
             .get_estimated_costs_for_instruction(
-                &precursor.instruction,
+                precursor.instruction.clone(),
                 &self.keypair,
                 &*self.tx_submitter,
                 &*self.priority_fee_oracle,
@@ -130,7 +146,7 @@ impl SealevelTxAdapter {
             estimate,
         } = precursor;
 
-        self.rpc_client
+        self.provider
             .create_transaction_for_instruction(
                 estimate.compute_units,
                 estimate.compute_unit_price_micro_lamports,
@@ -216,13 +232,14 @@ impl AdaptsChain for SealevelTxAdapter {
 
         tx.update_after_submission(hash, estimated);
 
-        let rpc = self
+        let provider = self
             .tx_submitter
-            .rpc_client()
-            .map(|c| c as &dyn SealevelSubmit)
-            .unwrap_or_else(|| &*self.rpc_client);
+            .get_provider()
+            .map(|c| c as &dyn SealevelProviderForSubmitter)
+            .unwrap_or_else(|| &*self.provider);
 
-        rpc.wait_for_transaction_confirmation(&svm_transaction)
+        provider
+            .wait_for_transaction_confirmation(&svm_transaction)
             .await?;
 
         Ok(())
@@ -233,7 +250,7 @@ impl AdaptsChain for SealevelTxAdapter {
             "Hash should be set for transaction to check its status"
         ))?;
         let signature = Signature::new(h512.as_ref());
-        let transaction_search_result = self.rpc_client.get_transaction(&signature).await;
+        let transaction_search_result = self.rpc_client.get_transaction(signature).await;
 
         let signer_address = SignerAddress::default();
 
