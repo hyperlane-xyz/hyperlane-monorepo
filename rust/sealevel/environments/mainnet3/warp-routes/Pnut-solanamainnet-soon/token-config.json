@@ -1,0 +1,16 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump"
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Peanut the Squirrel",
+    "symbol": "Pnut",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/Pnut/metadata.json",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A"
+  }
+}

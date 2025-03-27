@@ -1,0 +1,16 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm"
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "dogwifhat",
+    "symbol": "WIF",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/WIF/metadata.json",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A"
+  }
+}
