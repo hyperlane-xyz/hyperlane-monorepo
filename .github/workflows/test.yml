@@ -230,55 +230,6 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: setup rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v3-rust-e2e'
-          shared-key: ${{ matrix.e2e-type }}
-          cache-provider: 'buildjet'
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
-          workspaces: |
-            ./rust/main
-            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
-
-      - name: Free disk space
-        run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      - name: Install mold linker
-        uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
-
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
-
-      - name: Install OpenSSL 1.1 for Solana toolchain
-        run: |
-          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
-          sudo dpkg -i libssl1.1.deb
-
-      - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
-
       # Set rust_changes to true if:
       # - on the main branch
       # - PR with changes to ./rust
@@ -296,19 +247,90 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
+      # If there are no rust changes and the e2e-type is not evm,
+      # then we want to skip this e2e test to save billing time.
+      - name: Check rust and e2e conditions
+        id: check-conditions
+        run: |
+          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" && "${{ matrix.e2e-type }}" != "evm" ]]; then
+            echo "skip-e2e=true" >> $GITHUB_OUTPUT
+            echo "No rust changes detected and e2e-type is not evm. Will skip remaining steps."
+          else
+            echo "skip-e2e=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: foundry-install
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: setup rust
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: rust cache
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v3-rust-e2e'
+          shared-key: ${{ matrix.e2e-type }}
+          cache-provider: 'buildjet'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/main
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
+
+      - name: Free disk space
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Install mold linker
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
+
+      - name: yarn-build
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install system dependencies
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
+
+      - name: Install OpenSSL 1.1 for Solana toolchain
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        run: |
+          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          sudo dpkg -i libssl1.1.deb
+
+      - name: Checkout registry
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: ./.github/actions/checkout-registry
+
       - name: Run sccache-cache
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: mozilla-actions/sccache-action@v0.0.8
 
       - name: agent tests (CosmWasm)
+        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
-        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (EVM)
+        if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
         run: cargo run --release --bin run-locally --features test-utils
-        if: ${{ matrix.e2e-type == 'evm' }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
@@ -317,8 +339,8 @@ jobs:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (Sealevel)
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
         run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
-        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
