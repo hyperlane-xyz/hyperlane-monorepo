@@ -194,7 +194,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         throw Error(`Unable to determine token type: ${e}`);
       }
     } finally {
-      this.setSmartProviderLogLevel(getLogLevel());
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
   }
 
