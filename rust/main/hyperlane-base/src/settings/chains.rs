@@ -376,7 +376,8 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
-                let hook = h_cosmos_native::CosmosMerkleTreeHook::new(provider, locator.clone())?;
+                let hook =
+                    h_cosmos_native::CosmosNativeMerkleTreeHook::new(provider, locator.clone())?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -698,7 +699,7 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_cosmos_native::CosmosNativeTreeInsertionIndexer::new(
+                let indexer = Box::new(h_cosmos_native::CosmosNativeMerkleTreeHook::new(
                     provider, locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)

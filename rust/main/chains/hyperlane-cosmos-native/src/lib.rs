@@ -11,7 +11,6 @@ mod indexers;
 mod ism;
 mod libs;
 mod mailbox;
-mod merkle_tree_hook;
 mod prometheus;
 mod providers;
 mod signers;
@@ -20,6 +19,5 @@ mod validator_announce;
 
 pub use {
     self::error::*, self::indexers::*, self::ism::*, self::libs::*, self::mailbox::*,
-    self::merkle_tree_hook::*, self::providers::*, self::signers::*, self::trait_builder::*,
-    self::validator_announce::*,
+    self::providers::*, self::signers::*, self::trait_builder::*, self::validator_announce::*,
 };
