@@ -99,6 +99,7 @@ impl SimApp {
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
             .flag("yes")
+            .filter_logs(|_| false)
             .run()
             .join();
         sleep(Duration::from_secs(1)); // wait for the block to mined
@@ -130,6 +131,7 @@ impl SimApp {
             .arg("keyring-backend", "test")
             .arg("gas", "400000")
             .flag("yes")
+            .filter_logs(|_| false)
             .run()
             .join();
         sleep(Duration::from_secs(1)); // wait for the block to mined
@@ -216,6 +218,7 @@ impl SimApp {
             .arg("node", &self.rpc_addr)
             .arg("home", &self.home)
             .arg("keyring-backend", "test")
+            .filter_logs(|_| false)
             .flag("yes")
             .run()
             .join();

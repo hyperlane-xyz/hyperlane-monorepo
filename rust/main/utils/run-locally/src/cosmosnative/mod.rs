@@ -121,7 +121,6 @@ fn launch_cosmos_validator(agent_config: AgentConfig, agent_config_path: PathBuf
         .hyp_env("DEFAULTSIGNER_KEY", KEY_VALIDATOR.1)
         .hyp_env("DEFAULTSIGNER_TYPE", "cosmosKey")
         .hyp_env("DEFAULTSIGNER_PREFIX", PREFIX)
-        .hyp_env("LOG_LEVEL", "error")
         .spawn("VAL", None);
 
     validator
@@ -155,7 +154,6 @@ fn launch_cosmos_relayer(
             }]"#,
         )
         .hyp_env("METRICSPORT", metrics.to_string())
-        .hyp_env("LOG_LEVEL", "error")
         .spawn("RLY", None);
 
     relayer
@@ -180,7 +178,6 @@ fn launch_cosmos_scraper(
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
         .hyp_env("METRICSPORT", metrics.to_string())
-        .hyp_env("LOG_LEVEL", "error")
         .spawn("SCR", None);
 
     scraper
