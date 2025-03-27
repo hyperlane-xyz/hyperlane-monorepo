@@ -8,7 +8,12 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, setEquality } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  intersection,
+  objFilter,
+  setEquality,
+} from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -370,39 +375,69 @@ export const check: CommandModuleWithContext<{
   handler: async ({ context, symbol, warp, warpRouteId, config }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-      context,
-      warpRouteId,
-      symbol,
+    const { warpCoreConfig, warpDeployConfig: initialWarpDeployConfig } =
+      await getWarpConfigs({
+        context,
+        warpRouteId,
+        symbol,
+        warpDeployConfigPath: config,
+        warpCoreConfigPath: warp,
+      });
 
-      warpDeployConfigPath: config,
-      warpCoreConfigPath: warp,
-    });
+    let warpDeployConfig = initialWarpDeployConfig;
+    let warpCoreConfigMutable = warpCoreConfig;
 
     // First validate that warpCoreConfig chains match warpDeployConfig
     const deployConfigChains = Object.keys(warpDeployConfig);
     const coreConfigChains = warpCoreConfig.tokens.map((t) => t.chainName);
 
     if (!setEquality(new Set(deployConfigChains), new Set(coreConfigChains))) {
-      logRed('Chain mismatch between warp core config and warp deploy config:');
+      logRed(
+        'Warning: Chain mismatch between warp core config and warp deploy config:',
+      );
       logRed('──────────────────────');
       logRed('Deploy config chains:');
       deployConfigChains.forEach((chain) => logRed(`  - ${chain}`));
       logRed('Core config chains:');
       coreConfigChains.forEach((chain) => logRed(`  - ${chain}`));
-      process.exit(1);
+
+      const matchingChains = intersection(
+        new Set(deployConfigChains),
+        new Set(coreConfigChains),
+      );
+
+      if (matchingChains.size === 0) {
+        logRed('Error: No matching chains found between configs');
+        process.exit(1);
+      }
+
+      logRed(
+        `Continuing with check for matching chains: ${Array.from(
+          matchingChains,
+        ).join(', ')}\n`,
+      );
+
+      // Filter configs to only include matching chains
+      warpDeployConfig = Object.fromEntries(
+        Object.entries(warpDeployConfig).filter(([chain]) =>
+          matchingChains.has(chain),
+        ),
+      );
+      warpCoreConfigMutable.tokens = warpCoreConfigMutable.tokens.filter(
+        (token) => matchingChains.has(token.chainName),
+      );
     }
 
     // Get on-chain config
     const onChainWarpConfig = await getWarpRouteConfigsByCore({
       context,
-      warpCoreConfig,
+      warpCoreConfig: warpCoreConfigMutable,
     });
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
       warpDeployConfig as WarpRouteDeployConfigMailboxRequired,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfigMutable),
     );
 
     await runWarpRouteCheck({
