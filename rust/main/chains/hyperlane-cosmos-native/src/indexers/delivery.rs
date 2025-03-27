@@ -42,7 +42,7 @@ impl EventIndexer<H256> for CosmosNativeDeliveryIndexer {
     }
 
     #[instrument(err)]
-    fn parse(&self, attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<H256>> {
+    fn parse(&self, attrs: &[EventAttribute]) -> ChainResult<ParsedEvent<H256>> {
         let mut message_id: Option<H256> = None;
         let mut contract_address: Option<H256> = None;
 

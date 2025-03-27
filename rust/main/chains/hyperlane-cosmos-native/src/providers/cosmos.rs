@@ -121,7 +121,7 @@ impl CosmosNativeProvider {
     pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<u32> {
         let height = self.rpc.get_block_number().await? as u32;
         match reorg {
-            ReorgPeriod::None => return Ok(height),
+            ReorgPeriod::None => Ok(height),
             ReorgPeriod::Blocks(blocks) if blocks.get() >= height => Ok(1), // height has to be at least 1 -> block 0 does not exist in cosmos
             ReorgPeriod::Blocks(blocks) => Ok(height - blocks.get()),
             ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(reorg.clone())),

@@ -47,7 +47,7 @@ impl EventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     }
 
     #[instrument(err)]
-    fn parse(&self, attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
+    fn parse(&self, attrs: &[EventAttribute]) -> ChainResult<ParsedEvent<HyperlaneMessage>> {
         let mut message: Option<HyperlaneMessage> = None;
         let mut contract_address: Option<H256> = None;
 

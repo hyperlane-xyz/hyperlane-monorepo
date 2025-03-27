@@ -27,7 +27,7 @@ pub struct SimApp {
 
 /// Sim app
 ///
-/// the sim app is a light cosmos chain that implemenets the hyperlane cosmos module
+/// the sim app is a light cosmos chain that implements the hyperlane cosmos module
 impl SimApp {
     pub fn new(bin: String, home: String, port_offset: u32) -> Self {
         let port_base = 26657 + port_offset * 6; // we increment by 6 ports as we need 6 unique ports per chain

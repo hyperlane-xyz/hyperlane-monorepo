@@ -80,12 +80,13 @@ impl HyperlaneChain for CosmosMerkleTreeHook {
 impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
         let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
         let branch = tree
             .leafs
             .iter()
-            .map(|hash| H256::from_slice(&hash))
+            .map(|hash| H256::from_slice(hash))
             .collect_vec();
 
         let branch = branch.as_slice();
@@ -110,6 +111,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
         let root = H256::from_slice(&tree.root);

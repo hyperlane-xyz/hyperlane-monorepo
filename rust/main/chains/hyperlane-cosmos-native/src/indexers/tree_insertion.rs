@@ -43,7 +43,7 @@ impl EventIndexer<MerkleTreeInsertion> for CosmosNativeTreeInsertionIndexer {
     }
 
     #[instrument(err)]
-    fn parse(&self, attrs: &Vec<EventAttribute>) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
+    fn parse(&self, attrs: &[EventAttribute]) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
         let mut message_id: Option<H256> = None;
         let mut leaf_index: Option<u32> = None;
         let mut contract_address: Option<H256> = None;

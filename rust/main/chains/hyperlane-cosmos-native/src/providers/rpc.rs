@@ -33,7 +33,9 @@ use hyperlane_core::{
     utils::to_atto,
     AccountAddressType, ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
 };
-use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{
+    ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
@@ -97,7 +99,16 @@ impl RpcProvider {
                             .map_err(ChainCommunicationError::from_other)
                     })
                     .map(|client| {
-                        let metrics_config = PrometheusConfig::from_url(url, chain.clone());
+                        let metrics_config = PrometheusConfig::from_url(
+                            url,
+                            ClientConnectionType::Rpc,
+                            chain.clone(),
+                        );
+
+                        // increment provider metric count
+                        let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
+                        metrics.increment_provider_instance(chain_name);
+
                         CosmosHttpClient {
                             client,
                             metrics_config,
@@ -119,7 +130,7 @@ impl RpcProvider {
         })
     }
 
-    // moslty copy pasted from `hyperlane-cosmos/src/providers/rpc/client.rs`
+    // mostly copy pasted from `hyperlane-cosmos/src/providers/rpc/client.rs`
     async fn track_metric_call<F, Fut, T>(
         client: &CosmosHttpClient,
         method: &str,
@@ -385,13 +396,12 @@ impl RpcProvider {
         // broadcast tx commit blocks until the tx is included in a block
         self.provider
             .call(|client| {
-                let signed_tx = signed_tx.clone();
+                let signed_tx = signed_tx.clone(); // TODO: this is very memory inefficient, we should actually be able to just reference the slice
                 let future = async move {
-                    client
-                        .client
-                        .broadcast_tx_commit(signed_tx)
-                        .await
-                        .map_err(ChainCommunicationError::from_other)
+                    Self::track_metric_call(&client, "send", || {
+                        client.client.broadcast_tx_commit(signed_tx.clone())
+                    })
+                    .await
                 };
                 Box::pin(future)
             })

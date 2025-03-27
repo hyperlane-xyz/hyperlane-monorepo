@@ -21,7 +21,9 @@ use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 
 use crate::prometheus::metrics_channel::MetricsChannel;
 use crate::{ConnectionConf, HyperlaneCosmosError};
@@ -68,7 +70,8 @@ impl GrpcProvider {
             .get_grpc_urls()
             .iter()
             .map(|url| {
-                let metrics_config = PrometheusConfig::from_url(&url, chain.clone());
+                let metrics_config =
+                    PrometheusConfig::from_url(url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
                     .map(|e| {
                         let metrics_channel =
@@ -108,7 +111,6 @@ impl GrpcProvider {
         self.fallback
             .call(|client| {
                 let id = id.clone();
-                let height = height.clone();
                 let future = async move {
                     let mut service = QueryClient::new(client.channel.clone());
                     let result = service
@@ -155,7 +157,7 @@ impl GrpcProvider {
     /// ISM for a given recipient
     ///
     /// Recipient is a 32 byte long hex address
-    /// Mailbox independed query as one application (recipient) can only ever register on one mailbox
+    /// Mailbox independent query as one application (recipient) can only ever register on one mailbox
     pub async fn recipient_ism(&self, recipient: String) -> ChainResult<RecipientIsmResponse> {
         self.fallback
             .call(|client| {
@@ -185,7 +187,6 @@ impl GrpcProvider {
         self.fallback
             .call(|client| {
                 let id = id.clone();
-                let height = height.clone();
                 let future = async move {
                     let mut service = PostDispatchQueryClient::new(client.channel.clone());
                     let result = service
@@ -203,7 +204,7 @@ impl GrpcProvider {
             .await
     }
 
-    /// checks if a message has been delievered to the given mailbox
+    /// checks if a message has been delivered to the given mailbox
     pub async fn delivered(
         &self,
         mailbox_id: String,

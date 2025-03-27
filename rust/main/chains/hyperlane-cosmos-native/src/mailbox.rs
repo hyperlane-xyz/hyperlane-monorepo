@@ -29,7 +29,7 @@ impl CosmosNativeMailbox {
     ) -> ChainResult<CosmosNativeMailbox> {
         Ok(CosmosNativeMailbox {
             provider,
-            address: locator.address.clone(),
+            address: locator.address,
             domain: locator.domain.clone(),
         })
     }
@@ -139,10 +139,7 @@ impl Mailbox for CosmosNativeMailbox {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let any_encoded = self.encode_hyperlane_message(message, metadata)?;
-        let gas_limit = match tx_gas_limit {
-            Some(gas) => Some(gas.as_u64()),
-            None => None,
-        };
+        let gas_limit: Option<u64> = tx_gas_limit.map(|gas| gas.as_u64());
 
         let response = self
             .provider

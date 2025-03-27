@@ -52,7 +52,7 @@ impl CosmosNativeIsm {
 impl HyperlaneContract for CosmosNativeIsm {
     /// Return the address of this contract
     fn address(&self) -> H256 {
-        self.address.clone()
+        self.address
     }
 }
 

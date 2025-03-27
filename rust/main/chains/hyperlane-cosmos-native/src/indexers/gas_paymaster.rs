@@ -37,7 +37,7 @@ impl CosmosNativeGasPaymaster {
         locator: ContractLocator,
     ) -> ChainResult<Self> {
         Ok(CosmosNativeGasPaymaster {
-            address: locator.address.clone(),
+            address: locator.address,
             domain: locator.domain.clone(),
             native_token: conf.get_native_token().denom.clone(),
             provider,
@@ -78,10 +78,7 @@ impl EventIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
     }
 
     #[instrument(err)]
-    fn parse<'a>(
-        &self,
-        attrs: &'a Vec<EventAttribute>,
-    ) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
+    fn parse(&self, attrs: &[EventAttribute]) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
         let mut message_id: Option<H256> = None;
         let mut igp_id: Option<H256> = None;
         let mut gas_amount: Option<U256> = None;

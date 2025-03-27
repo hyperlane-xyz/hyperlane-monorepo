@@ -44,7 +44,7 @@ impl<T: PartialEq> ParsedEvent<T> {
 }
 
 #[async_trait]
-/// todo
+/// Event indexer that parses and filters events based on the target type & parse function.
 pub trait EventIndexer<T: PartialEq + Send + Sync + 'static>: Indexer<T>
 where
     Self: Clone + Send + Sync + 'static,
@@ -54,10 +54,10 @@ where
     fn target_type() -> String;
 
     /// Cosmos provider
-    fn provider<'a>(&'a self) -> &'a RpcProvider;
+    fn provider(&self) -> &RpcProvider;
 
     /// parses the event attributes to the target type
-    fn parse<'a>(&self, attributes: &'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>;
+    fn parse(&self, attributes: &[EventAttribute]) -> ChainResult<ParsedEvent<T>>;
 
     /// address for the given module that will be indexed
     fn address(&self) -> &H256;
@@ -188,11 +188,7 @@ where
 
     /// Iter through all events in the tx, looking for any target events
     /// made by the contract we are indexing.
-    fn handle_tx<'a>(
-        &'a self,
-        tx: tx::Response,
-        block_hash: H256,
-    ) -> impl Iterator<Item = (T, LogMeta)> + 'a {
+    fn handle_tx(&self, tx: tx::Response, block_hash: H256) -> impl Iterator<Item = (T, LogMeta)> {
         let tx_events = tx.tx_result.events;
         let tx_hash = tx.hash;
         let tx_index = tx.index;
@@ -209,15 +205,15 @@ where
                     trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
                 })
                 .ok()
-                .and_then(|parsed_event| {
-                    Some((parsed_event.event, LogMeta {
+                .map(|parsed_event| {
+                    (parsed_event.event, LogMeta {
                         address: parsed_event.contract_address,
                         block_number: block_height.value(),
                         block_hash,
                         transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
                         transaction_index: tx_index as u64,
                         log_index: U256::from(log_idx),
-                    }))
+                    })
                 })
         })
     }
