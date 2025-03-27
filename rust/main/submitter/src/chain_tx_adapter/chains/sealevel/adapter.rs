@@ -33,6 +33,7 @@ use hyperlane_sealevel::{
     SealevelTxCostEstimate,
 };
 
+use crate::chain_tx_adapter::chains::sealevel::conf::get_connection_conf;
 use crate::chain_tx_adapter::chains::sealevel::payload;
 use crate::chain_tx_adapter::chains::sealevel::transaction::{Precursor, TransactionFactory};
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit, SealevelTxPrecursor};
@@ -52,7 +53,7 @@ pub struct SealevelTxAdapter {
 
 impl SealevelTxAdapter {
     pub fn new(conf: ChainConf, raw_conf: RawChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        let connection_conf = Self::get_connection_conf(&conf);
+        let connection_conf = get_connection_conf(&conf);
         let urls = &connection_conf.urls;
         let chain_info = conf.metrics_conf().chain;
         let client_metrics = metrics.client_metrics();
@@ -186,13 +187,6 @@ impl SealevelTxAdapter {
                 sign,
             )
             .await
-    }
-
-    fn get_connection_conf(conf: &ChainConf) -> &ConnectionConf {
-        match &conf.connection {
-            ChainConnectionConf::Sealevel(connection_conf) => connection_conf,
-            _ => panic!(),
-        }
     }
 }
 
