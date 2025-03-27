@@ -64,11 +64,13 @@ export type TokenArgs = Omit<
 export interface IToken extends TokenArgs {
   protocol: ProtocolType;
 
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown>;
+  getAdapter(
+    multiProvider: MultiProtocolProvider,
+  ): Promise<ITokenAdapter<unknown>>;
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,
-  ): IHypTokenAdapter<unknown>;
+  ): Promise<IHypTokenAdapter<unknown>>;
 
   getBalance(
     multiProvider: MultiProtocolProvider,

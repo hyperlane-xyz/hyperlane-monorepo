@@ -260,7 +260,7 @@ async function getTokenBridgedBalance(
     return undefined;
   }
 
-  const adapter = token.getHypAdapter(warpCore.multiProvider);
+  const adapter = await token.getHypAdapter(warpCore.multiProvider);
   let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
   const bridgedSupply = await adapter.getBridgedSupply();
   if (bridgedSupply === undefined) {
@@ -335,9 +335,9 @@ async function getSealevelAtaPayerBalance(
       `Unsupported ATA payer protocol type ${token.protocol} or standard ${token.standard}`,
     );
   }
-  const adapter = token.getHypAdapter(
+  const adapter = (await token.getHypAdapter(
     warpCore.multiProvider,
-  ) as SealevelHypTokenAdapter;
+  )) as SealevelHypTokenAdapter;
 
   const ataPayer = adapter.deriveAtaPayerAccount().toString();
   const nativeToken = Token.FromChainMetadataNativeToken(
@@ -369,17 +369,17 @@ async function getXERC20Info(
   }
 
   if (token.standard === TokenStandard.EvmHypXERC20) {
-    const adapter = token.getAdapter(
+    const adapter = (await token.getAdapter(
       warpCore.multiProvider,
-    ) as EvmHypXERC20Adapter;
+    )) as EvmHypXERC20Adapter;
     return {
       limits: await getXERC20Limit(token, adapter),
       xERC20Address: (await adapter.getXERC20()).address,
     };
   } else if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
-    const adapter = token.getAdapter(
+    const adapter = (await token.getAdapter(
       warpCore.multiProvider,
-    ) as EvmHypXERC20LockboxAdapter;
+    )) as EvmHypXERC20LockboxAdapter;
     return {
       limits: await getXERC20Limit(token, adapter),
       xERC20Address: (await adapter.getXERC20()).address,

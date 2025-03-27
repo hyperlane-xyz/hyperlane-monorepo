@@ -254,7 +254,7 @@ describe('Token', () => {
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
       expect(token.standard).to.eql(tokenArgs.standard);
-      const adapter = token.getAdapter(multiProvider);
+      const adapter = await token.getAdapter(multiProvider);
       const balanceCheckAddress =
         STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK[token.standard] ??
         PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK[token.protocol];

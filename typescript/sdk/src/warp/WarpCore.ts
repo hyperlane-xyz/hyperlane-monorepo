@@ -148,7 +148,7 @@ export class WarpCore {
       gasAddressOrDenom = defaultQuote.addressOrDenom;
     } else {
       // Otherwise, compute IGP quote via the adapter
-      const hypAdapter = originToken.getHypAdapter(
+      const hypAdapter = await originToken.getHypAdapter(
         this.multiProvider,
         destinationName,
       );
@@ -330,7 +330,10 @@ export class WarpCore {
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
-    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
+    const hypAdapter = await token.getHypAdapter(
+      this.multiProvider,
+      destinationName,
+    );
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
@@ -492,12 +495,12 @@ export class WarpCore {
       destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
       destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
     ) {
-      const adapter = destinationToken.getAdapter(
+      const adapter = (await destinationToken.getAdapter(
         this.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
+      )) as EvmHypXERC20LockboxAdapter;
       destinationBalance = await adapter.getBridgedSupply();
     } else {
-      const adapter = destinationToken.getAdapter(this.multiProvider);
+      const adapter = await destinationToken.getAdapter(this.multiProvider);
       destinationBalance = await adapter.getBalance(
         destinationToken.addressOrDenom,
       );
@@ -529,7 +532,7 @@ export class WarpCore {
     owner: Address;
   }): Promise<boolean> {
     const { token, amount } = originTokenAmount;
-    const adapter = token.getAdapter(this.multiProvider);
+    const adapter = await token.getAdapter(this.multiProvider);
     const isRequired = await adapter.isApproveRequired(
       owner,
       token.addressOrDenom,
@@ -678,7 +681,9 @@ export class WarpCore {
     const destinationToken =
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
-    const destinationAdapter = destinationToken.getAdapter(this.multiProvider);
+    const destinationAdapter = await destinationToken.getAdapter(
+      this.multiProvider,
+    );
 
     // Get the min required destination amount
     const minDestinationTransferAmount =
@@ -814,9 +819,9 @@ export class WarpCore {
       destinationToken.standard === TokenStandard.EvmHypXERC20 ||
       destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
     ) {
-      const adapter = destinationToken.getAdapter(
+      const adapter = (await destinationToken.getAdapter(
         this.multiProvider,
-      ) as IHypXERC20Adapter<unknown>;
+      )) as IHypXERC20Adapter<unknown>;
       destinationMintLimit = await adapter.getMintLimit();
 
       if (
@@ -856,7 +861,9 @@ export class WarpCore {
   protected async validateOriginCollateral(
     originTokenAmount: TokenAmount,
   ): Promise<Record<string, string> | null> {
-    const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
+    const adapter = await originTokenAmount.token.getAdapter(
+      this.multiProvider,
+    );
 
     if (
       originTokenAmount.token.standard === TokenStandard.EvmHypXERC20 ||
