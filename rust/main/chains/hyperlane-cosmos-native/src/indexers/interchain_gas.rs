@@ -20,23 +20,23 @@ use super::ParsedEvent;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
-pub struct CosmosNativeGasPaymaster {
+pub struct CosmosNativeInterchainGas {
     address: H256,
     domain: HyperlaneDomain,
     provider: CosmosNativeProvider,
     native_token: String,
 }
 
-impl InterchainGasPaymaster for CosmosNativeGasPaymaster {}
+impl InterchainGasPaymaster for CosmosNativeInterchainGas {}
 
-impl CosmosNativeGasPaymaster {
+impl CosmosNativeInterchainGas {
     ///  Gas Payment Indexer
     pub fn new(
         provider: CosmosNativeProvider,
         conf: &ConnectionConf,
         locator: ContractLocator,
     ) -> ChainResult<Self> {
-        Ok(CosmosNativeGasPaymaster {
+        Ok(CosmosNativeInterchainGas {
             address: locator.address,
             domain: locator.domain.clone(),
             native_token: conf.get_native_token().denom.clone(),
@@ -68,7 +68,7 @@ impl CosmosNativeGasPaymaster {
     }
 }
 
-impl EventIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
+impl EventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     fn target_type() -> String {
         GasPayment::full_name()
     }
@@ -128,7 +128,7 @@ impl EventIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
     }
 }
 
-impl HyperlaneChain for CosmosNativeGasPaymaster {
+impl HyperlaneChain for CosmosNativeInterchainGas {
     // Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -140,7 +140,7 @@ impl HyperlaneChain for CosmosNativeGasPaymaster {
     }
 }
 
-impl HyperlaneContract for CosmosNativeGasPaymaster {
+impl HyperlaneContract for CosmosNativeInterchainGas {
     // Return the address of this contract
     fn address(&self) -> H256 {
         self.address
@@ -148,7 +148,7 @@ impl HyperlaneContract for CosmosNativeGasPaymaster {
 }
 
 #[async_trait]
-impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
+impl Indexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -169,7 +169,7 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
+impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = EventIndexer::get_finalized_block_number(self).await?;
         Ok((None, tip))

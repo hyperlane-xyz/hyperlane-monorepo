@@ -561,7 +561,7 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_cosmos_native::CosmosNativeGasPaymaster::new(
+                let indexer = Box::new(h_cosmos_native::CosmosNativeInterchainGas::new(
                     provider, conf, locator,
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
@@ -625,7 +625,7 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_cosmos_native::CosmosNativeGasPaymaster::new(
+                let indexer = Box::new(h_cosmos_native::CosmosNativeInterchainGas::new(
                     provider,
                     conf,
                     locator,
