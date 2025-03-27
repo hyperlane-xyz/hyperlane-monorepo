@@ -247,7 +247,8 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      # Replace the condition check step
+      # If there are no rust changes and the e2e-type is not evm,
+      # then we want to skip this e2e test to save billing time.
       - name: Check rust and e2e conditions
         id: check-conditions
         run: |
