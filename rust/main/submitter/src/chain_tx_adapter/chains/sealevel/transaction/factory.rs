@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::chain_tx_adapter::SealevelTxPrecursor;
+use crate::chain_tx_adapter::chains::sealevel::SealevelTxPrecursor;
 use crate::payload::FullPayload;
 use crate::transaction::{Transaction, TransactionId, TransactionStatus, VmSpecificTxData};
 

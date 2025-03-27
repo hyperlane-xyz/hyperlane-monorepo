@@ -45,17 +45,6 @@ impl Transaction {
     pub fn vm_specific_data(&self) -> &VmSpecificTxData {
         &self.vm_specific_data
     }
-
-    pub fn update_after_submission(
-        &mut self,
-        hash: H512,
-        precursor: SealevelTxPrecursor,
-    ) -> &mut Self {
-        self.hash = Some(hash);
-        self.vm_specific_data = VmSpecificTxData::Svm(precursor);
-        self.submission_attempts += 1;
-        self
-    }
 }
 
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]

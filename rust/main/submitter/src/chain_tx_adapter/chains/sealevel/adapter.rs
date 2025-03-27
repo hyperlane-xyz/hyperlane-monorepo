@@ -34,9 +34,11 @@ use hyperlane_sealevel::{
 };
 
 use crate::chain_tx_adapter::chains::sealevel::conf::get_connection_conf;
-use crate::chain_tx_adapter::chains::sealevel::payload;
-use crate::chain_tx_adapter::chains::sealevel::transaction::{Precursor, TransactionFactory};
-use crate::chain_tx_adapter::{AdaptsChain, GasLimit, SealevelTxPrecursor};
+use crate::chain_tx_adapter::chains::sealevel::transaction::{
+    Precursor, TransactionFactory, Update,
+};
+use crate::chain_tx_adapter::chains::sealevel::SealevelTxPrecursor;
+use crate::chain_tx_adapter::{AdaptsChain, GasLimit};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
     SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,

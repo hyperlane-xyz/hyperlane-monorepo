@@ -3,8 +3,8 @@ use solana_sdk::instruction::Instruction as SealevelInstruction;
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub(crate) struct SealevelPayload {
-    pub(crate) instruction: SealevelInstruction,
+pub struct SealevelPayload {
+    pub instruction: SealevelInstruction,
 }
 
 pub(crate) trait Instruction {

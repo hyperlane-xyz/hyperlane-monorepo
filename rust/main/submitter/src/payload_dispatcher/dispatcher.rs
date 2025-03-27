@@ -15,11 +15,9 @@ use hyperlane_base::{
 };
 use hyperlane_core::HyperlaneDomain;
 
-use crate::{
-    chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
-    payload::PayloadDb,
-    transaction::TransactionDb,
-};
+use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory};
+use crate::payload::PayloadDb;
+use crate::transaction::TransactionDb;
 
 /// Settings for `PayloadDispatcher`
 #[derive(Debug)]

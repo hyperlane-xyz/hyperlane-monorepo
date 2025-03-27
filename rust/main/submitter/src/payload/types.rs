@@ -1,8 +1,9 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use chrono::{DateTime, Utc};
 use std::ops::Deref;
+
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};

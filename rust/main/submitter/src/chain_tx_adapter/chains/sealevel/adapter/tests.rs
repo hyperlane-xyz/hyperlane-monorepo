@@ -7,7 +7,7 @@ use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
-    instruction::Instruction,
+    instruction::Instruction as SealevelInstruction,
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
@@ -26,9 +26,11 @@ use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_sealevel::fallback::SealevelRpcClientForSubmitter;
 use hyperlane_sealevel::{SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate};
 
-use crate::chain_tx_adapter::chains::sealevel::transaction::TransactionFactory;
-use crate::chain_tx_adapter::chains::sealevel::SealevelTxAdapter;
-use crate::chain_tx_adapter::{AdaptsChain, SealevelPayload, SealevelTxPrecursor};
+use crate::chain_tx_adapter::chains::sealevel::transaction::{TransactionFactory, Update};
+use crate::chain_tx_adapter::chains::sealevel::{
+    SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor,
+};
+use crate::chain_tx_adapter::AdaptsChain;
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
 
@@ -59,7 +61,7 @@ mock! {
 
     #[async_trait]
     impl TransactionSubmitter for Submitter {
-        fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> Instruction;
+        fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
         async fn send_transaction(&self, transaction: &SealevelTransaction, skip_preflight: bool) -> ChainResult<Signature>;
         fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter>;
     }
@@ -73,7 +75,7 @@ impl SealevelProviderForSubmitter for MockProvider {
         &self,
         _compute_unit_limit: u32,
         _compute_unit_price_micro_lamports: u64,
-        _instruction: Instruction,
+        _instruction: SealevelInstruction,
         _payer: &SealevelKeypair,
         _tx_submitter: &dyn TransactionSubmitter,
         _sign: bool,
@@ -87,7 +89,7 @@ impl SealevelProviderForSubmitter for MockProvider {
 
     async fn get_estimated_costs_for_instruction(
         &self,
-        _instruction: Instruction,
+        _instruction: SealevelInstruction,
         _payer: &SealevelKeypair,
         _tx_submitter: &dyn TransactionSubmitter,
         _priority_fee_oracle: &dyn PriorityFeeOracle,
@@ -276,7 +278,7 @@ fn encoded_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
     }
 }
 
-fn instruction() -> Instruction {
+fn instruction() -> SealevelInstruction {
     ComputeBudgetInstruction::set_compute_unit_limit(GAS_LIMIT)
 }
 
