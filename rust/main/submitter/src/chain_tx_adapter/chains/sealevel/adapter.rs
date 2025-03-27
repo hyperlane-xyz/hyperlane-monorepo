@@ -292,3 +292,6 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(Vec::new())
     }
 }
+
+#[cfg(test)]
+mod tests;
