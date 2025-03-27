@@ -273,7 +273,6 @@ export async function setupIncompleteWarpRouteExtension(
     name: 'Ether',
     owner: new Wallet(ANVIL_KEY).address,
     symbol: 'ETH',
-    totalSupply: 0,
     type: TokenType.native,
   };
 
