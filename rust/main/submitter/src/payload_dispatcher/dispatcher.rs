@@ -3,6 +3,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 
+use derive_new::new;
 use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -17,6 +18,7 @@ use hyperlane_core::HyperlaneDomain;
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder},
     payload::PayloadDb,
+    transaction::TransactionDb,
 };
 
 /// Settings for `PayloadDispatcher`
@@ -31,14 +33,24 @@ pub struct PayloadDispatcherSettings {
     metrics: CoreMetrics,
 }
 
+/// State that is common (but not shared) to all components of the `PayloadDispatcher`
 pub struct PayloadDispatcherState {
-    pub(crate) db: Arc<dyn PayloadDb>,
+    pub(crate) payload_db: Arc<dyn PayloadDb>,
+    pub(crate) tx_db: Arc<dyn TransactionDb>,
     pub(crate) adapter: Box<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {
-    pub fn new(db: Arc<dyn PayloadDb>, adapter: Box<dyn AdaptsChain>) -> Self {
-        Self { db, adapter }
+    pub fn new(
+        payload_db: Arc<dyn PayloadDb>,
+        tx_db: Arc<dyn TransactionDb>,
+        adapter: Box<dyn AdaptsChain>,
+    ) -> Self {
+        Self {
+            payload_db,
+            tx_db,
+            adapter,
+        }
     }
 
     pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
@@ -48,9 +60,10 @@ impl PayloadDispatcherState {
             &settings.metrics,
         )?;
         let db = DB::from_path(&settings.db_path)?;
-        let rocksdb = HyperlaneRocksDB::new(&settings.domain, db);
-        let payload_db = Arc::new(rocksdb) as Arc<dyn PayloadDb>;
-        Ok(Self::new(payload_db, adapter))
+        let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
+        let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
+        let tx_db = rocksdb as Arc<dyn TransactionDb>;
+        Ok(Self::new(payload_db, tx_db, adapter))
     }
 }
 
@@ -66,7 +79,9 @@ impl PayloadDispatcher {
     }
 
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
+        // TODO: here
         // create the submit queue and channels for the Dispatcher stages
+
         // spawn the DbLoader with references to the submit queue and channels
         // spawn the 3 stages using the adapter, db, queue and channels
         todo!()

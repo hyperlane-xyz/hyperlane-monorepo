@@ -73,12 +73,12 @@ impl FullPayload {
         &self.details.id
     }
 
-    pub fn details(&self) -> &PayloadDetails {
-        &self.details
-    }
-
     pub fn data(&self) -> &VmSpecificPayloadData {
         &self.data
+    }
+
+    pub fn details(&self) -> &PayloadDetails {
+        &self.details
     }
 
     pub fn status(&self) -> PayloadStatus {

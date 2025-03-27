@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use std::ops::Deref;
+
 use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
@@ -13,19 +14,19 @@ pub type TransactionId = UniqueIdentifier;
 pub type SignerAddress = H256;
 
 /// Full details about a transaction
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
-    id: TransactionId,
+    pub id: TransactionId,
     /// tx identifier obtained by hashing its contents. This may change when gas price is escalated
-    hash: Option<H512>,
+    pub hash: Option<H512>,
     /// may include nonce, gas price, etc
-    vm_specific_data: VmSpecificTxData,
+    pub vm_specific_data: VmSpecificTxData,
     /// this is a vec to accommodate batching
-    payload_details: Vec<PayloadDetails>,
-    status: TransactionStatus,
+    pub payload_details: Vec<PayloadDetails>,
+    pub status: TransactionStatus,
     /// incremented on submission / gas escalation
-    submission_attempts: u32,
+    pub submission_attempts: u32,
 }
 
 impl Transaction {
@@ -48,6 +49,10 @@ impl Transaction {
         self.hash.as_ref()
     }
 
+    pub fn payload_details(&self) -> &[PayloadDetails] {
+        &self.payload_details
+    }
+
     pub fn vm_specific_data(&self) -> &VmSpecificTxData {
         &self.vm_specific_data
     }
@@ -64,7 +69,7 @@ impl Transaction {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
+#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum TransactionStatus {
     /// default state. If the tx appears dropped from the mempool, it goes back to this state
     #[default]
@@ -80,9 +85,10 @@ pub enum TransactionStatus {
 }
 
 // add nested enum entries as we add VMs
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    Evm,                      // likely `TypedTransaction`, imported from ethers-rs
-    Svm(SealevelTxPrecursor), // likely `Transaction` is imported from solana-sdk
+    #[default]
+    Evm,
+    Svm(SealevelTxPrecursor),
     CosmWasm,
 }

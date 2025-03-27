@@ -9617,6 +9617,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "derive-new",
  "eyre",
  "hyperlane-base",
  "hyperlane-core",
