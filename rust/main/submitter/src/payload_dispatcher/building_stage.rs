@@ -63,7 +63,7 @@ mod tests {
         receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
     ) -> Result<Vec<PayloadDetails>> {
         // future that receives `sent_payload_count` payloads from the building stage
-        let receive_payloads = async {
+        let received_payloads = async {
             let mut received_payloads = Vec::new();
             while received_payloads.len() < sent_payload_count {
                 let tx_received = receiver.recv().await.unwrap();
@@ -78,7 +78,7 @@ mod tests {
             // this arm runs indefinitely
             res = building_stage.run() => res,
             // this arm runs until all sent payloads are sent as txs
-            payloads = receive_payloads => {
+            payloads = received_payloads => {
                 return Ok(payloads);
             },
             // this arm is the timeout
