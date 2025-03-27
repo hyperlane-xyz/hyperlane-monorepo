@@ -88,10 +88,7 @@ impl Mailbox for CosmosNativeMailbox {
             .grpc()
             .mailbox(self.address.encode_hex(), Some(height))
             .await?;
-        match mailbox.mailbox {
-            Some(mailbox) => Ok(mailbox.message_sent),
-            None => Ok(0u32),
-        }
+        Ok(mailbox.mailbox.map(|m| m.message_sent).unwrap_or(0))
     }
 
     /// Fetch the status of a message

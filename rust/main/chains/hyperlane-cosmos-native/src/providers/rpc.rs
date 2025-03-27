@@ -36,6 +36,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
+use url::Url;
 
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
@@ -74,6 +75,48 @@ impl BlockNumberGetter for CosmosHttpClient {
     }
 }
 
+impl CosmosHttpClient {
+    /// Create new `CosmosHttpClient`
+    pub fn new(
+        client: HttpClient,
+        metrics: PrometheusClientMetrics,
+        metrics_config: PrometheusConfig,
+    ) -> Self {
+        // increment provider metric count
+        let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
+        metrics.increment_provider_instance(chain_name);
+
+        Self {
+            client,
+            metrics,
+            metrics_config,
+        }
+    }
+
+    /// Creates a CosmosHttpClient from a url
+    pub fn from_url(
+        url: &Url,
+        metrics: PrometheusClientMetrics,
+        metrics_config: PrometheusConfig,
+    ) -> ChainResult<Self> {
+        let tendermint_url = tendermint_rpc::Url::try_from(url.to_owned())
+            .map_err(Box::new)
+            .map_err(ChainCommunicationError::from_other)?;
+        let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
+            .map_err(Box::new)
+            .map_err(ChainCommunicationError::from_other)?;
+
+        let client = HttpClient::builder(url)
+            // Consider supporting different compatibility modes.
+            .compat_mode(CompatMode::latest())
+            .build()
+            .map_err(Box::new)
+            .map_err(ChainCommunicationError::from_other)?;
+
+        Ok(Self::new(client, metrics, metrics_config))
+    }
+}
+
 impl RpcProvider {
     /// Returns a new Rpc Provider
     pub fn new(
@@ -86,35 +129,9 @@ impl RpcProvider {
             .get_rpc_urls()
             .iter()
             .map(|url| {
-                tendermint_rpc::Url::try_from(url.to_owned())
-                    .map_err(ChainCommunicationError::from_other)
-                    .and_then(|url| {
-                        tendermint_rpc::HttpClientUrl::try_from(url)
-                            .map_err(ChainCommunicationError::from_other)
-                    })
-                    .and_then(|url| {
-                        HttpClient::builder(url)
-                            .compat_mode(CompatMode::latest())
-                            .build()
-                            .map_err(ChainCommunicationError::from_other)
-                    })
-                    .map(|client| {
-                        let metrics_config = PrometheusConfig::from_url(
-                            url,
-                            ClientConnectionType::Rpc,
-                            chain.clone(),
-                        );
-
-                        // increment provider metric count
-                        let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
-                        metrics.increment_provider_instance(chain_name);
-
-                        CosmosHttpClient {
-                            client,
-                            metrics_config,
-                            metrics: metrics.clone(),
-                        }
-                    })
+                let metrics_config =
+                    PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
+                CosmosHttpClient::from_url(url, metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
