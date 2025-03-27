@@ -5,6 +5,7 @@ use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 
 use inflector::Inflector;
 
@@ -140,26 +141,11 @@ fn fmt_file(path: &Path) {
 
 /// Get the rustfmt binary path.
 #[cfg(feature = "fmt")]
-fn rustfmt_path() -> &'static Path {
-    use std::path::PathBuf;
-
-    // lazy static var
-    static mut PATH: Option<PathBuf> = None;
-
-    if let Some(path) = unsafe { PATH.as_ref() } {
-        return path;
-    }
-
+fn rustfmt_path() -> PathBuf {
     if let Ok(path) = std::env::var("RUSTFMT") {
-        unsafe {
-            PATH = Some(PathBuf::from(path));
-            PATH.as_ref().unwrap()
-        }
+        PathBuf::from(path)
     } else {
         // assume it is in PATH
-        unsafe {
-            PATH = Some(which::which("rustmft").unwrap_or_else(|_| "rustfmt".into()));
-            PATH.as_ref().unwrap()
-        }
+        which::which("rustmft").unwrap_or_else(|_| "rustfmt".into())
     }
 }

@@ -1,4 +1,5 @@
 //! HelloWorld program.
+#![allow(unexpected_cfgs)]
 
 use access_control::AccessControl;
 use account_utils::{create_pda_account, SizedData};
