@@ -70,13 +70,13 @@ pub enum TransactionStatus {
     #[default]
     PendingInclusion,
     /// accepted by node, pending inclusion
-    Mempool(SignerAddress),
+    Mempool,
     /// in an unfinalized block
-    Included(SignerAddress),
+    Included,
     /// in a block older than the configured `reorgPeriod`
-    Finalized(SignerAddress),
+    Finalized,
     /// currently only assigned when a reorg is detected
-    DroppedByChain(SignerAddress),
+    DroppedByChain,
 }
 
 // add nested enum entries as we add VMs

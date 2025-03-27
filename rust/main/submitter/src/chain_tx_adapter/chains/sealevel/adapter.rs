@@ -306,8 +306,6 @@ impl AdaptsChain for SealevelTxAdapter {
         let signature = Signature::new(h512.as_ref());
         let transaction_search_result = self.client.get_transaction(signature).await;
 
-        let signer_address = SignerAddress::default();
-
         let transaction = if let Ok(transaction) = transaction_search_result {
             transaction
         } else {
@@ -327,7 +325,7 @@ impl AdaptsChain for SealevelTxAdapter {
 
         if confirming_block.is_ok() {
             info!(?tx, "finalized transaction");
-            return Ok(TransactionStatus::Finalized(signer_address));
+            return Ok(TransactionStatus::Finalized);
         }
 
         // block which includes transaction into blockchain
@@ -336,7 +334,7 @@ impl AdaptsChain for SealevelTxAdapter {
         match including_block {
             Ok(_) => {
                 info!(?tx, "included transaction");
-                Ok(TransactionStatus::Included(signer_address))
+                Ok(TransactionStatus::Included)
             }
             Err(_) => {
                 info!(?tx, "pending transaction");
