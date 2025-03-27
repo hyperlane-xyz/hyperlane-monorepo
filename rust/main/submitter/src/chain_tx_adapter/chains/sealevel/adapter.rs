@@ -33,7 +33,7 @@ use hyperlane_sealevel::{
     SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::chains::sealevel::transaction::TransactionFactory;
+use crate::chain_tx_adapter::chains::sealevel::{payload, transaction::TransactionFactory};
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit, SealevelTxPrecursor};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
@@ -194,23 +194,11 @@ impl SealevelTxAdapter {
         }
     }
 
-    fn get_instruction(payload: &FullPayload) -> &Instruction {
-        match payload.data() {
-            VmSpecificPayloadData::Svm(payload) => &payload.instruction,
-            _ => panic!(),
-        }
-    }
-
     fn get_precursor(tx: &Transaction) -> &SealevelTxPrecursor {
         match tx.vm_specific_data() {
             VmSpecificTxData::Svm(pre_tx) => pre_tx,
             _ => panic!(),
         }
-    }
-
-    fn to_precursor(payload: &FullPayload) -> SealevelTxPrecursor {
-        let instruction = Self::get_instruction(payload);
-        SealevelTxPrecursor::new(instruction.clone(), SealevelTxCostEstimate::default())
     }
 }
 
@@ -218,7 +206,7 @@ impl SealevelTxAdapter {
 impl AdaptsChain for SealevelTxAdapter {
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
         info!(?payload, "estimating payload");
-        let not_estimated = Self::to_precursor(payload);
+        let not_estimated = SealevelTxPrecursor::from_payload(payload);
         let estimated = self.estimate(not_estimated).await?;
         info!(?payload, ?estimated, "estimated payload");
         Ok(estimated.estimate.compute_units.into())
@@ -228,7 +216,7 @@ impl AdaptsChain for SealevelTxAdapter {
         info!(?payloads, "building transactions for payloads");
         let payloads_and_precursors = payloads
             .iter()
-            .map(|payload| (Self::to_precursor(payload), payload))
+            .map(|payload| (SealevelTxPrecursor::from_payload(payload), payload))
             .collect::<Vec<(SealevelTxPrecursor, &FullPayload)>>();
 
         let mut transactions = Vec::new();
