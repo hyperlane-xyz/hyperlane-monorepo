@@ -12,7 +12,7 @@ use super::{Transaction, TransactionId};
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
 #[async_trait]
-pub trait TransactionDb {
+pub trait TransactionDb: Send + Sync {
     /// Retrieve a transaction by its unique ID
     async fn retrieve_transaction_by_id(&self, id: &TransactionId)
         -> DbResult<Option<Transaction>>;
