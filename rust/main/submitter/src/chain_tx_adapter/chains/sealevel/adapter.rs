@@ -299,20 +299,22 @@ impl AdaptsChain for SealevelTxAdapter {
             return Ok(TransactionStatus::PendingInclusion);
         };
 
-        let slot = transaction.slot;
+        // slot at which transaction was included into blockchain
+        let inclusion_slot = transaction.slot;
 
-        let current_confirmed_block = self
-            .client
-            .get_block(slot + self.reorg_period.as_blocks()? as u64)
-            .await;
+        // if block with this slot is add to the chain, transaction is considered to be confirmed
+        let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
 
-        if current_confirmed_block.is_ok() {
+        let confirming_block = self.client.get_block(confirming_slot).await;
+
+        if confirming_block.is_ok() {
             return Ok(TransactionStatus::Finalized(signer_address));
         }
 
-        let transaction_block = self.client.get_block(slot).await;
+        // block which includes transaction into blockchain
+        let including_block = self.client.get_block(inclusion_slot).await;
 
-        match transaction_block {
+        match including_block {
             Ok(_) => Ok(TransactionStatus::Included(signer_address)),
             Err(_) => Ok(TransactionStatus::PendingInclusion),
         }
