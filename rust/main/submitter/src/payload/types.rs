@@ -79,7 +79,7 @@ impl FullPayload {
         self.status = status;
     }
 
-    pub fn details(&self) -> PayloadDetails {
-        self.details.clone()
+    pub fn details(&self) -> &PayloadDetails {
+        &self.details
     }
 }

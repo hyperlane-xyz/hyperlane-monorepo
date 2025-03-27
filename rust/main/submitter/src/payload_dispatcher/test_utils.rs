@@ -48,7 +48,7 @@ pub(crate) mod tests {
             UniqueIdentifier::random(),
             None,
             VmSpecificTxData::Evm,
-            payloads.into_iter().map(|p| p.details()).collect(),
+            payloads.into_iter().map(|p| p.details().clone()).collect(),
             TransactionStatus::default(),
             Default::default(),
         );

@@ -46,27 +46,40 @@ mod tests {
 
     use crate::{
         chain_tx_adapter::AdaptsChain,
-        payload::{self, PayloadDetails},
+        payload::{self, FullPayload, PayloadDetails},
         payload_dispatcher::{
             building_stage,
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
+            PayloadDispatcherState,
         },
         transaction::Transaction,
     };
 
     use super::{BuildingStage, BuildingStageQueue};
 
-    async fn run_building_stage_once(
-        building_stage: &super::BuildingStage,
+    async fn run_building_stage(
+        sent_payload_count: usize,
+        building_stage: &BuildingStage,
         receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
-    ) -> Result<PayloadDetails> {
-        // give the building stage 1 second to send the transaction to the receiver
+    ) -> Result<Vec<PayloadDetails>> {
+        // future that receives `sent_payload_count` payloads from the building stage
+        let receive_payloads = async {
+            let mut received_payloads = Vec::new();
+            while received_payloads.len() < sent_payload_count {
+                let tx_received = receiver.recv().await.unwrap();
+                let payload_details_received = tx_received.payload_details();
+                received_payloads.extend_from_slice(payload_details_received);
+            }
+            received_payloads
+        };
+
+        // give the building stage 1 second to send the transaction(s) to the receiver
         let _ = tokio::select! {
             // this arm runs indefinitely
             res = building_stage.run() => res,
-            // this arm runs until the first transaction is created by the step above
-            tx = receiver.recv() => {
-                return Ok(tx.unwrap().payload_details().first().unwrap().clone());
+            // this arm runs until all sent payloads are sent as txs
+            payloads = receive_payloads => {
+                return Ok(payloads);
             },
             // this arm is the timeout
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => Err(eyre::eyre!("Timeout")),
@@ -88,10 +101,10 @@ mod tests {
             .times(payloads_to_send)
             .returning(|payloads| Ok(dummy_tx(payloads)));
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
-        let state = super::PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
-        let building_stage = super::BuildingStage::new(queue.clone(), sender, state);
+        let building_stage = BuildingStage::new(queue.clone(), sender, state);
         (building_stage, receiver, queue)
     }
 
@@ -102,12 +115,15 @@ mod tests {
 
         // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
-            let payload_to_send = super::FullPayload::default();
+            let payload_to_send = FullPayload::default();
             queue.lock().await.push_back(payload_to_send.clone());
-            let payload_details_received = run_building_stage_once(&building_stage, &mut receiver)
+            let payload_details_received = run_building_stage(1, &building_stage, &mut receiver)
                 .await
                 .unwrap();
-            assert_eq!(payload_details_received, payload_to_send.details());
+            assert_eq!(
+                payload_details_received,
+                vec![payload_to_send.details().clone()]
+            );
         }
     }
 
@@ -118,17 +134,20 @@ mod tests {
 
         let mut sent_payloads = Vec::new();
         for _ in 0..PAYLOADS_TO_SEND {
-            let payload_to_send = super::FullPayload::default();
+            let payload_to_send = FullPayload::default();
             queue.lock().await.push_back(payload_to_send.clone());
             sent_payloads.push(payload_to_send);
         }
 
         // send multiple payloads to the building stage and check that they are sent to the receiver in the same order
-        for sent_payload in sent_payloads {
-            let payload_details_received = run_building_stage_once(&building_stage, &mut receiver)
+        let payload_details_received =
+            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver)
                 .await
                 .unwrap();
-            assert_eq!(payload_details_received, sent_payload.details());
-        }
+        let expected_payload_details = sent_payloads
+            .iter()
+            .map(|payload| payload.details().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(payload_details_received, expected_payload_details);
     }
 }
