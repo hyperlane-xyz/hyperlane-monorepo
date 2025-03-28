@@ -1,10 +1,18 @@
+import {
+  CallData,
+  InvokeTransactionReceiptResponse,
+  ParsedEvents,
+  events as eventsUtils,
+} from 'starknet';
+
+import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, HexString } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
-  TypedTransactionReceipt,
+  StarknetJsTransactionReceipt,
 } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import {
@@ -27,7 +35,7 @@ export class StarknetCoreAdapter
   }
 
   extractMessageIds(
-    sourceTx: TypedTransactionReceipt,
+    sourceTx: StarknetJsTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
     if (sourceTx.type !== ProviderType.Starknet) {
       throw new Error(
@@ -35,12 +43,35 @@ export class StarknetCoreAdapter
       );
     }
 
-    const mailboxContract = getStarknetMailboxContract(
-      this.addresses.mailbox,
-      this.getProvider(),
-    );
+    let parsedEvents: ParsedEvents = [];
+    sourceTx.receipt.match({
+      success: (txR) => {
+        const emittedEvents =
+          (txR as InvokeTransactionReceiptResponse).events?.map((event) => {
+            return {
+              block_hash: (txR as any).block_hash,
+              block_number: (txR as any).block_number,
+              transaction_hash: (txR as any).transaction_hash,
+              ...event,
+            };
+          }) || [];
 
-    const parsedEvents = mailboxContract.parseEvents(sourceTx.receipt);
+        if (emittedEvents.length === 0) return;
+        const mailboxAbi = getCompiledContract('mailbox').abi;
+        parsedEvents = eventsUtils.parseEvents(
+          emittedEvents,
+          eventsUtils.getAbiEvents(mailboxAbi),
+          CallData.getAbiStruct(mailboxAbi),
+          CallData.getAbiEnum(mailboxAbi),
+        );
+      },
+      _: () => {
+        throw Error('This transaction was not successful.');
+      },
+    });
+
+    if (!parsedEvents || parsedEvents.length === 0) return [];
+
     const messages = parseStarknetDispatchEvents(
       parsedEvents,
       (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
