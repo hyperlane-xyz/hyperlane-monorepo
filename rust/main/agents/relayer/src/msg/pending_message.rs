@@ -271,8 +271,7 @@ impl PendingOperation for PendingMessage {
             .await
             .is_err()
         {
-            return self
-                .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
+            return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
         }
 
         let ism_address = match self
