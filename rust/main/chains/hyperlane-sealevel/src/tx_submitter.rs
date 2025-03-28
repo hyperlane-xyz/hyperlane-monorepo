@@ -4,13 +4,13 @@ pub mod config;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-
 use derive_new::new;
-use hyperlane_core::ChainResult;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-    signature::Signature, transaction::Transaction,
+    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
+    instruction::Instruction, pubkey::Pubkey, signature::Signature, transaction::Transaction,
 };
+
+use hyperlane_core::ChainResult;
 
 use crate::{SealevelProvider, SealevelProviderForSubmitter};
 
@@ -32,8 +32,16 @@ pub trait TransactionSubmitter: Send + Sync {
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
 
-    /// Get the default provider
-    fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter>;
+    /// Waits for Sealevel transaction confirmation with processed commitment level
+    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
+        -> ChainResult<()>;
+
+    /// Confirm transaction
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool>;
 }
 
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
@@ -64,8 +72,23 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
             .await
     }
 
-    fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter> {
-        self.provider.clone()
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
+        self.provider
+            .wait_for_transaction_confirmation(transaction)
+            .await
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.provider
+            .confirm_transaction(signature, commitment)
+            .await
     }
 }
 
@@ -116,7 +139,22 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
             .await
     }
 
-    fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter> {
-        self.default_provider.clone()
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
+        self.default_provider
+            .wait_for_transaction_confirmation(transaction)
+            .await
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.default_provider
+            .confirm_transaction(signature, commitment)
+            .await
     }
 }

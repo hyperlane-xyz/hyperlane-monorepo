@@ -481,10 +481,10 @@ impl Mailbox for SealevelMailbox {
 
         let send_instant = std::time::Instant::now();
 
-        let provider = self.tx_submitter.get_default_provider();
-
         // Wait for the transaction to be confirmed.
-        provider.wait_for_transaction_confirmation(&tx).await?;
+        self.tx_submitter
+            .wait_for_transaction_confirmation(&tx)
+            .await?;
 
         // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
         // tx, but still use it as a proxy for tx latency to help debug.
@@ -492,7 +492,8 @@ impl Mailbox for SealevelMailbox {
 
         // TODO: not sure if this actually checks if the transaction was executed / reverted?
         // Confirm the transaction.
-        let executed = provider
+        let executed = self
+            .tx_submitter
             .confirm_transaction(signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))

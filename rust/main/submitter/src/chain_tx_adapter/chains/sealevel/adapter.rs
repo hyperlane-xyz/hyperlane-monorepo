@@ -237,15 +237,14 @@ impl AdaptsChain for SealevelTxAdapter {
 
         info!(?tx, "submitted transaction");
 
-        let provider = self.submitter.get_default_provider();
-
-        provider
+        self.submitter
             .wait_for_transaction_confirmation(&svm_transaction)
             .await?;
 
         info!(?tx, "confirmed transaction by signature status");
 
-        let executed = provider
+        let executed = self
+            .submitter
             .confirm_transaction(signature, CommitmentConfig::processed())
             .await
             .map_err(|err| {

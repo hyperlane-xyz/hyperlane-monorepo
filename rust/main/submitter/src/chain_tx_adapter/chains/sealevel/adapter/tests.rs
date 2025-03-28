@@ -63,7 +63,8 @@ mock! {
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
         async fn send_transaction(&self, transaction: &SealevelTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        fn get_default_provider(&self) -> Arc<dyn SealevelProviderForSubmitter>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction) -> ChainResult<()>;
+        async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
     }
 }
 
@@ -226,10 +227,12 @@ fn mock_submitter() -> MockSubmitter {
     submitter
         .expect_send_transaction()
         .returning(move |_, _| Ok(signature.clone()));
-    submitter.expect_get_default_provider().returning(move || {
-        let provider = MockProvider {};
-        Arc::new(provider)
-    });
+    submitter
+        .expect_wait_for_transaction_confirmation()
+        .returning(move |_| Ok(()));
+    submitter
+        .expect_confirm_transaction()
+        .returning(move |_, _| Ok(true));
     submitter
 }
 
