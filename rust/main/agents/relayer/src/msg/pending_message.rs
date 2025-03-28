@@ -16,9 +16,9 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -45,6 +45,9 @@ pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
 pub const USE_CACHE_METADATA_LOG: &str = "Reusing cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
+const ECO_SENDER: &[u8] = &[
+    216, 144, 214, 106, 14, 37, 48, 51, 93, 16, 179, 222, 181, 200, 236, 142, 161, 218, 185, 84,
+];
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -249,6 +252,31 @@ impl PendingOperation for PendingMessage {
                 "Dropping message because recipient is not a contract"
             );
             return PendingOperationResult::Drop;
+        }
+
+        // If it's the Eco sender...
+        if self.message.sender == H160::from_slice(ECO_SENDER).into() {
+            // Let's test if the message may meet the gas payment requirement
+            // before we even try to build the metadata.
+            let dummy_estimate = TxCostEstimate {
+                gas_limit: U256::zero(),
+                gas_price: FixedPointNumber::zero(),
+                l2_gas_limit: None,
+            };
+            // If even this doesn't meet the gas payment requirement,
+            // we skip the metadata building.
+            if self
+                .ctx
+                .origin_gas_payment_enforcer
+                .message_meets_gas_payment_requirement(&self.message, &dummy_estimate)
+                .await
+                .is_err()
+            {
+                // Arbitrarily increase the retries for these to make it retried less frequently
+                self.set_retries(self.num_retries + 3);
+                return self
+                    .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
+            }
         }
 
         let mut metadata_bytes = match self.metadata.as_ref() {
@@ -874,6 +902,7 @@ impl MessageSubmissionMetrics {
 mod test {
     use std::{
         fmt::Debug,
+        str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
     };
@@ -882,7 +911,7 @@ mod test {
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use crate::msg::pending_message::{DEFAULT_MAX_MESSAGE_RETRIES, ECO_SENDER};
 
     use super::PendingMessage;
 
@@ -1163,5 +1192,14 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
+    }
+
+    #[test]
+    fn test_eco_sender() {
+        let eco_sender = H160::from_slice(ECO_SENDER);
+        assert_eq!(
+            eco_sender,
+            H160::from_str("0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954").unwrap()
+        );
     }
 }
