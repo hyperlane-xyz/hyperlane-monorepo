@@ -24,6 +24,9 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
+
+  // DeepBrainChain gas metering is different to vanilla EVM
+  // https://hyperlaneworkspace.slack.com/archives/C08GR6PBPGT/p1743074511084179?thread_ts=1743073273.793169&cid=C08GR6PBPGT
   if (remote === 'deepbrainchain') {
     overhead *= 8;
   }
