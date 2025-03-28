@@ -21,11 +21,11 @@ const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   ethereum: {
     address: '0xef0Adeb4103A7A1AcE86371867202f2171126362',
-    owner: '0xef0Adeb4103A7A1AcE86371867202f2171126362',
+    owner: ezEthSafes.ethereum,
   },
   base: {
     address: '0x7E4607Fef69d2177f56cE62651fA1aeeB385B2BF',
-    owner: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
+    owner: ezEthSafes.base,
   },
 };
 export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
