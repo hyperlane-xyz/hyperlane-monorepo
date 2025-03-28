@@ -51,7 +51,7 @@ impl Entrypoint for PayloadDispatcherEntrypoint {
             .retrieve_payload_by_id(&payload_id)
             .await?;
         let status = payload
-            .map(|payload| payload.status())
+            .map(|payload| payload.status)
             .unwrap_or(PayloadStatus::NotFound);
         Ok(status)
     }
@@ -158,7 +158,7 @@ mod tests {
 
         // update the payload's status
         let new_status = PayloadStatus::Finalized;
-        payload.set_status(new_status.clone());
+        payload.status = new_status.clone();
         db.store_payload_by_id(payload).await.unwrap();
 
         // ensure the db entry was updated

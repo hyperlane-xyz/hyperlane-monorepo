@@ -22,7 +22,7 @@ pub(crate) mod tests {
         #[async_trait]
         impl AdaptsChain for Adapter {
             async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
-            async fn build_transactions(&self, payloads: Vec<FullPayload>) -> Result<Vec<Transaction>>;
+            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
             async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
             async fn submit(&self, tx: &mut Transaction) -> Result<()>;
             async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus>;
@@ -45,14 +45,18 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<Transaction> {
-        let tx = Transaction::new(
-            UniqueIdentifier::random(),
-            None,
-            VmSpecificTxData::Evm,
-            payloads.into_iter().map(|p| p.details().clone()).collect(),
-            TransactionStatus::default(),
-            Default::default(),
-        );
-        vec![tx]
+        let details = payloads
+            .into_iter()
+            .map(|payload| payload.details)
+            .collect();
+        let transaction = Transaction {
+            id: UniqueIdentifier::random(),
+            hash: None,
+            vm_specific_data: VmSpecificTxData::Evm,
+            payload_details: details,
+            status: Default::default(),
+            submission_attempts: 0,
+        };
+        vec![transaction]
     }
 }

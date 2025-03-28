@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use eyre::Result;
 use uuid::Uuid;
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
@@ -25,30 +26,27 @@ impl CosmosTxAdapter {
 
 #[async_trait]
 impl AdaptsChain for CosmosTxAdapter {
-    async fn estimate_gas_limit(&self, _payload: &FullPayload) -> eyre::Result<GasLimit> {
+    async fn estimate_gas_limit(&self, _payload: &FullPayload) -> Result<GasLimit> {
         todo!()
     }
 
-    async fn build_transactions(
-        &self,
-        _payloads: Vec<FullPayload>,
-    ) -> eyre::Result<Vec<Transaction>> {
+    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Result<Vec<Transaction>> {
         todo!()
     }
 
-    async fn simulate_tx(&self, _tx: &Transaction) -> eyre::Result<bool> {
+    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool> {
         todo!()
     }
 
-    async fn submit(&self, _tx: &mut Transaction) -> eyre::Result<()> {
+    async fn submit(&self, _tx: &mut Transaction) -> Result<()> {
         todo!()
     }
 
-    async fn tx_status(&self, _tx: &Transaction) -> eyre::Result<TransactionStatus> {
+    async fn tx_status(&self, _tx: &Transaction) -> Result<TransactionStatus> {
         todo!()
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> eyre::Result<Vec<Uuid>> {
+    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>> {
         todo!()
     }
 
