@@ -16,9 +16,9 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -248,6 +248,17 @@ impl PendingOperation for PendingMessage {
                 "Dropping message because recipient is not a contract"
             );
             return PendingOperationResult::Drop;
+        }
+
+        // Perform a preflight check to see if we can short circuit the gas
+        // payment requirement check early without performing expensive
+        // operations like metadata building or gas estimation.
+        if !self.meets_gas_payment_requirement_preflight_check(message) {
+            warn!(
+                ?zero_cost_status,
+                "Message does not meet the gas payment requirement preflight check"
+            );
+            return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
         }
 
         let ism_address = match self
@@ -649,6 +660,35 @@ impl PendingMessage {
         PendingOperationStatus::FirstPrepareAttempt
     }
 
+    /// A preflight check to see if a message could possibly meet
+    /// a gas payment requirement prior to undertaking expensive operations
+    /// like metadata building or gas estimation.
+    async fn meets_gas_payment_requirement_preflight_check(
+        &self,
+        message: &HyperlaneMessage,
+    ) -> Result<bool> {
+        // We test if the message may meet the gas payment requirement
+        // with the most simple tx cost estimate: one that has zero cost
+        // whatsoever. If the message does not meet the gas payment requirement
+        // with zero cost, we can skip the metadata building and gas estimation
+        // altogether. This covers the case of a message that did not pay our IGP,
+        // which may violate the gas payment enforcement policies depending on
+        // the configuration.
+        let zero_cost = TxCostEstimate {
+            gas_limit: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
+            l2_gas_limit: None,
+        };
+        // If even this doesn't meet the gas payment requirement,
+        // we skip the metadata building.
+        let zero_cost_status = self
+            .ctx
+            .origin_gas_payment_enforcer
+            .message_meets_gas_payment_requirement(&self.message, &zero_cost)
+            .await;
+        matches!(zero_cost_status, Ok(GasPolicyStatus::PolicyMet(_)))
+    }
+
     fn on_reprepare<E: Debug>(
         &mut self,
         err: Option<E>,
@@ -833,6 +873,7 @@ impl MessageSubmissionMetrics {
 mod test {
     use std::{
         fmt::Debug,
+        str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
     };
