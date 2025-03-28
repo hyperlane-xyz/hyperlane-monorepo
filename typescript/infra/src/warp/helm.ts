@@ -170,9 +170,9 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       mailbox: chainAddresses.mailbox,
     };
 
-    const adapter = (await token.getAdapter(
+    const adapter = token.getAdapter(
       warpCore.multiProvider,
-    )) as SealevelHypTokenAdapter;
+    ) as SealevelHypTokenAdapter;
     const ataPayer = adapter.deriveAtaPayerAccount();
     const provider = adapter.multiProvider.getSolanaWeb3Provider(
       token.chainName,

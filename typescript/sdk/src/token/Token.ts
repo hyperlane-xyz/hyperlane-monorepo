@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { PublicKey } from '@solana/web3.js';
 
 import {
   Address,
@@ -101,9 +99,7 @@ export class Token implements IToken {
    * @throws If multiProvider does not contain this token's chain.
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
-  async getAdapter(
-    multiProvider: MultiProtocolProvider,
-  ): Promise<ITokenAdapter<unknown>> {
+  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom } = this;
 
     assert(!this.isNft(), 'NFT adapters not yet supported');
@@ -176,10 +172,10 @@ export class Token implements IToken {
    * @throws If multiProvider does not contain this token's chain.
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
-  async getHypAdapter(
+  getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,
-  ): Promise<IHypTokenAdapter<unknown>> {
+  ): IHypTokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
       this;
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
@@ -250,38 +246,11 @@ export class Token implements IToken {
         `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
       );
 
-      const protocol = multiProvider.getProtocol(chainName);
-      assert(
-        protocol === ProtocolType.Sealevel,
-        `Sealevel hyp collateral token is supported only on ${ProtocolType.Sealevel} chains`,
-      );
-
-      const svmProvider = multiProvider.getSolanaWeb3Provider(chainName);
-      const accountInfo = await svmProvider.getAccountInfo(
-        new PublicKey(collateralAddressOrDenom),
-      );
-
-      assert(
-        accountInfo,
-        'collateralAddressOrDenom must be an existing account for Sealevel hyp collateral tokens',
-      );
-
-      assert(
-        accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ||
-          accountInfo.owner.equals(TOKEN_PROGRAM_ID),
-        `collateralAddressOrDenom must be a token for Sealevel hyp collateral tokens`,
-      );
-
-      return new SealevelHypCollateralAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          token: collateralAddressOrDenom,
-          mailbox,
-        },
-        accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID),
-      );
+      return new SealevelHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.SealevelHypSynthetic) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(

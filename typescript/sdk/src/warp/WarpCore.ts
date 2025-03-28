@@ -330,10 +330,7 @@ export class WarpCore {
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
-    const hypAdapter = await token.getHypAdapter(
-      this.multiProvider,
-      destinationName,
-    );
+    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
@@ -532,7 +529,7 @@ export class WarpCore {
     owner: Address;
   }): Promise<boolean> {
     const { token, amount } = originTokenAmount;
-    const adapter = await token.getAdapter(this.multiProvider);
+    const adapter = token.getAdapter(this.multiProvider);
     const isRequired = await adapter.isApproveRequired(
       owner,
       token.addressOrDenom,
