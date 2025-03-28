@@ -24,7 +24,6 @@ import {
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -43,7 +42,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
@@ -53,6 +52,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -60,13 +60,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: false,
+    infinityvmmonza: true,
     inksepolia: true,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -85,7 +85,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
@@ -95,6 +95,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -102,13 +103,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: false,
-    infinityvmmonza: false,
+    infinityvmmonza: true,
     inksepolia: true,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -127,7 +128,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: false,
     basesepolia: true,
@@ -137,6 +138,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: false,
+    cotitestnet: false,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -144,13 +146,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: false,
-    infinityvmmonza: false,
+    infinityvmmonza: true,
     inksepolia: true,
+    modetestnet: false,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -262,10 +264,6 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(
           helloWorld[Contexts.Hyperlane].addresses,
         ),
-      },
-      {
-        name: 'plumetestnet_sepolia_eth',
-        matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
       },
     ],
     resources: relayerResources,
