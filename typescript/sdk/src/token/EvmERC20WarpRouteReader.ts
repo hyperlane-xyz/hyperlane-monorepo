@@ -96,7 +96,8 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const cached = EvmERC20WarpRouteReader.tokenTypeCache.get(warpRouteAddress);
+    const cacheKey = `${this.chain}-${warpRouteAddress}`;
+    const cached = EvmERC20WarpRouteReader.tokenTypeCache.get(cacheKey);
     if (cached) return cached;
 
     // Temporarily turn off SmartProvider logging
@@ -169,10 +170,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       for (const result of results) {
         if (result.status === 'fulfilled') {
           const tokenType = result.value;
-          EvmERC20WarpRouteReader.tokenTypeCache.set(
-            warpRouteAddress,
-            tokenType,
-          );
+          EvmERC20WarpRouteReader.tokenTypeCache.set(cacheKey, tokenType);
           return tokenType;
         }
       }
@@ -189,7 +187,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
           NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
         );
         const type = TokenType.native;
-        EvmERC20WarpRouteReader.tokenTypeCache.set(warpRouteAddress, type);
+        EvmERC20WarpRouteReader.tokenTypeCache.set(cacheKey, type);
         return type;
       } catch (e) {
         throw Error(`Unable to determine token type: ${e}`);
