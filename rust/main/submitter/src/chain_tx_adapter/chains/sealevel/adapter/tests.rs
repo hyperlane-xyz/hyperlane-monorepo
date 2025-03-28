@@ -138,14 +138,16 @@ async fn test_build_transactions() {
     // given
     let adapter = adapter();
     let payload = payload();
-    let expected = VmSpecificTxData::Svm(SealevelTxPrecursor::new(instruction(), estimate()));
+    let data = VmSpecificTxData::Svm(SealevelTxPrecursor::new(instruction(), estimate()));
+    let expected = (payload.details().clone(), data);
 
     // when
     let result = adapter.build_transactions(&[payload.clone()]).await;
 
     // then
     assert!(matches!(result, Ok(_)));
-    assert_eq!((payload.details().clone(), expected), actual(result));
+    let actual = payload_details_and_data_in_transaction(result);
+    assert_eq!(expected, actual);
 }
 
 #[tokio::test]
@@ -189,7 +191,9 @@ async fn test_tx_status() {
     assert!(matches!(status, TransactionStatus::Finalized));
 }
 
-fn actual(result: Result<Vec<Transaction>>) -> (PayloadDetails, VmSpecificTxData) {
+fn payload_details_and_data_in_transaction(
+    result: Result<Vec<Transaction>>,
+) -> (PayloadDetails, VmSpecificTxData) {
     let transactions = result.unwrap();
     let transaction = transactions.first().unwrap();
     (
