@@ -5,7 +5,7 @@ import {HypNative} from "./HypNative.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
+import {Quotes, IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -51,20 +51,22 @@ abstract contract ValueTransferBridgeNative is HypNative {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual returns (uint256) {
-        return
-            _Router_quoteDispatch(
-                l1Domain,
-                _getQuoteTokenMessage(),
-                _overrideGasLimit(),
-                address(hook)
-            ) +
+    ) external view virtual returns (Quotes[] memory quotes) {
+        uint256 quoteAmount = _Router_quoteDispatch(
+            l1Domain,
+            _getQuoteTokenMessage(),
+            _overrideGasLimit(),
+            address(hook)
+        ) +
             _l2BridgeQuoteTransferRemote(
                 l1Domain,
                 _recipient,
                 _amount,
                 _l2BridgeExtraData()
             );
+
+        quotes = new Quotes[](1);
+        quotes[0] = Quotes(address(0), quoteAmount);
     }
 
     function transferRemote(
