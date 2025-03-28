@@ -155,7 +155,6 @@ export class SealevelTokenAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly isSpl2022: boolean = false,
   ) {
     super(chainName, multiProvider, addresses);
     this.tokenMintPubKey = new PublicKey(addresses.token);
@@ -265,9 +264,8 @@ export abstract class SealevelHypTokenAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     addresses: HypTokenAddresses,
-    public readonly isSpl2022: boolean = false,
   ) {
-    super(chainName, multiProvider, { token: addresses.token }, isSpl2022);
+    super(chainName, multiProvider, { token: addresses.token });
     this.addresses = addresses;
     this.warpProgramPubKey = new PublicKey(addresses.warpRouter);
   }
@@ -650,15 +648,12 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       warpRouter: Address;
       mailbox: Address;
     },
-    public readonly isSpl2022: boolean = false,
   ) {
     // Pass in placeholder address for 'token' to avoid errors in the parent classes
-    super(
-      chainName,
-      multiProvider,
-      { ...addresses, token: SystemProgram.programId.toBase58() },
-      isSpl2022,
-    );
+    super(chainName, multiProvider, {
+      ...addresses,
+      token: SystemProgram.programId.toBase58(),
+    });
     this.wrappedNative = new SealevelNativeTokenAdapter(
       chainName,
       multiProvider,

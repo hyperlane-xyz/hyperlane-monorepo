@@ -115,19 +115,13 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.EvmNative) {
       return new EvmNativeTokenAdapter(chainName, multiProvider, {});
     } else if (standard === TokenStandard.SealevelSpl) {
-      return new SealevelTokenAdapter(
-        chainName,
-        multiProvider,
-        { token: addressOrDenom },
-        false,
-      );
+      return new SealevelTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (standard === TokenStandard.SealevelSpl2022) {
-      return new SealevelTokenAdapter(
-        chainName,
-        multiProvider,
-        { token: addressOrDenom },
-        true,
-      );
+      return new SealevelTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (standard === TokenStandard.SealevelNative) {
       return new SealevelNativeTokenAdapter(chainName, multiProvider, {});
     } else if (standard === TokenStandard.CosmosIcs20) {
@@ -230,15 +224,10 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.SealevelHypNative) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      return new SealevelHypNativeAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          mailbox,
-        },
-        false,
-      );
+      return new SealevelHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.SealevelHypCollateral) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
@@ -257,16 +246,11 @@ export class Token implements IToken {
         collateralAddressOrDenom,
         `collateralAddressOrDenom required for Sealevel hyp synthetic tokens`,
       );
-      return new SealevelHypSyntheticAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          token: collateralAddressOrDenom,
-          mailbox,
-        },
-        false,
-      );
+      return new SealevelHypSyntheticAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.CwHypNative) {
       return new CwHypNativeAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
@@ -347,7 +331,7 @@ export class Token implements IToken {
     multiProvider: MultiProtocolProvider,
     address: Address,
   ): Promise<TokenAmount> {
-    const adapter = await this.getAdapter(multiProvider);
+    const adapter = this.getAdapter(multiProvider);
     const balance = await adapter.getBalance(address);
     return new TokenAmount(balance, this);
   }
