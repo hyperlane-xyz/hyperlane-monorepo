@@ -10,8 +10,11 @@ pub trait Update {
 impl Update for Transaction {
     fn update_after_submission(&mut self, hash: H512, precursor: SealevelTxPrecursor) -> &mut Self {
         self.hash = Some(hash);
-        self.vm_specific_data = VmSpecificTxData::Svm(precursor);
         self.submission_attempts += 1;
+
+        // Data is updated since transaction is re-estimated before submission
+        self.vm_specific_data = VmSpecificTxData::Svm(precursor);
+
         self
     }
 }
