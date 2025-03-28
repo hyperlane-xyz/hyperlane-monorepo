@@ -720,11 +720,6 @@ const blacklistedMessageIds = [
 
 // Blacklist matching list intended to be used by all contexts.
 const blacklist: MatchingList = [
-  {
-    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
-    // A temporary measure to prevent some wasted effort on our relayer.
-    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
-  },
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
@@ -741,7 +736,14 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: 'af73f39-20250325-130319',
     },
-    blacklist,
+    blacklist: [
+      {
+        // Eco, who's sending a lot of messages not intended to be processed by the relayer.
+        // A temporary measure to prevent some wasted effort on our relayer.
+        senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
+      },
+      ...blacklist,
+    ],
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     resources: relayerResources,
