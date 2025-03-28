@@ -228,6 +228,12 @@ export class SealevelTokenAdapter
     return mintInfo.owner;
   }
 
+  async isSpl2022(): Promise<boolean> {
+    const tokenProgramId = await this.getTokenProgramId();
+
+    return tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
+  }
+
   async deriveAssociatedTokenAccount(owner: PublicKey): Promise<PublicKey> {
     const tokenProgramId = await this.getTokenProgramId();
     return getAssociatedTokenAddressSync(
