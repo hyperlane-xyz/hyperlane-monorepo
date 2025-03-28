@@ -4,10 +4,11 @@
 use std::io::Write;
 
 use async_trait::async_trait;
-use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
+use eyre::eyre;
+use hyperlane_base::db::{DbError, DbResult, HyperlaneRocksDB};
 use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlaneProtocolError};
 
-use super::{FullPayload, PayloadId};
+use super::{FullPayload, PayloadId, PayloadStatus};
 
 const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
 
@@ -18,6 +19,19 @@ pub trait PayloadDb: Send + Sync {
 
     /// Store a payload by its unique ID
     async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()>;
+
+    /// Set the status of a payload by its unique ID. Performs one read (to first fetch the full payload) and one write.
+    async fn set_payload_status(&self, id: &PayloadId, status: PayloadStatus) -> DbResult<()> {
+        let mut payload = self
+            .retrieve_payload_by_id(id)
+            .await?
+            .ok_or(DbError::Other("Payload doesn't exist".to_owned()))?;
+        payload.set_status(status);
+        self.store_payload_by_id(payload)
+            .await
+            .map_err(|err| DbError::Other(format!("Failed to store payload: {:?}", err)))?;
+        Ok(())
+    }
 }
 
 #[async_trait]

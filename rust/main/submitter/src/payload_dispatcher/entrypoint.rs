@@ -115,7 +115,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn store_transaction_by_id(&self, _tx: Transaction) -> DbResult<()> {
+        async fn store_transaction_by_id(&self, _tx: &Transaction) -> DbResult<()> {
             unimplemented!()
         }
     }
