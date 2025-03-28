@@ -6,8 +6,12 @@ use std::{collections::VecDeque, sync::Arc};
 use derive_new::new;
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
+use tracing::{error, info, warn};
 
-use crate::{payload::FullPayload, transaction::Transaction};
+use crate::{
+    payload::{DropReason, FullPayload, PayloadDetails, PayloadStatus},
+    transaction::Transaction,
+};
 
 use super::PayloadDispatcherState;
 
@@ -22,20 +26,120 @@ struct BuildingStage {
     state: PayloadDispatcherState,
 }
 
+// - Event-driven by the Building queue
+// - Calls `simulate_payload(payload)` on ChainTxAdapter to drop bad payloads
+// - Builds txs from payloads via ChainTxAdapter, by calling `build_transactions(payloads)`
+// - Sends txs to the **Inclusion Stage** via its channel
+// - updates the Transaction store, the Payload store, the `payload_id` → `tx_uuid` mapping
+
 impl BuildingStage {
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self) {
         loop {
-            let payload = self.queue.lock().await.pop_front();
-            if let Some(payload) = payload {
-                let txs = self.state.adapter.build_transactions(vec![payload]).await?;
-                for tx in txs {
-                    self.inclusion_stage_sender.send(tx).await?;
+            // event-driven by the Building queue
+            let payload = match self.queue.lock().await.pop_front() {
+                Some(payload) => payload,
+                None => {
+                    // wait for the next payload to arrive
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    continue;
                 }
-            } else {
-                // wait for the next payload to arrive
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            };
+
+            let payloads = vec![payload];
+            let txs = match self
+                .state
+                .adapter
+                .build_transactions(payloads.clone())
+                .await
+            {
+                Err(err) => {
+                    error!(
+                        ?err,
+                        ?payloads,
+                        "Error building transactions. Dropping payloads"
+                    );
+                    let details_for_payloads: Vec<_> =
+                        payloads.into_iter().map(|p| p.details().clone()).collect();
+                    self.drop_payloads(&details_for_payloads, DropReason::UnhandledError)
+                        .await;
+                    continue;
+                }
+                Ok(txs) => txs,
+            };
+
+            for tx in txs {
+                if let Err(err) = self.simulate_tx(&tx).await {
+                    error!(?err, "Error simulating transaction. Dropping transaction");
+                    // TODO: distinguish between network error and failed simulation
+                    self.drop_tx(&tx, DropReason::FailedSimulation).await;
+                    continue;
+                };
+                if let Err(err) = self.send_tx_to_inclusion_stage(tx.clone()).await {
+                    error!(?err, "Error storing transaction in the database");
+                    self.drop_tx(&tx, DropReason::UnhandledError).await;
+                    continue;
+                } else {
+                    self.store_tx(&tx).await;
+                }
             }
         }
+    }
+
+    async fn drop_payloads(&self, details: &[PayloadDetails], reason: DropReason) {
+        for d in details {
+            if let Err(err) = self
+                .state
+                .payload_db
+                .set_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
+                .await
+            {
+                error!(?err, "Error updating payload status to `dropped`");
+            }
+            warn!(?details, "Payload dropped from Building Stage");
+        }
+    }
+
+    async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
+        self.drop_payloads(tx.payload_details(), reason).await;
+    }
+
+    async fn store_tx(&self, tx: &Transaction) {
+        if let Err(err) = self.state.tx_db.store_transaction_by_id(tx).await {
+            error!(?err, "Error storing transaction in the database");
+        }
+        // update the status of payloads in the payload store
+        for payload_detail in tx.payload_details() {
+            if let Err(err) = self
+                .state
+                .payload_db
+                .set_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
+                .await
+            {
+                error!(?err, "Error updating payload status to `sent`");
+            }
+        }
+    }
+
+    async fn simulate_tx(&self, tx: &Transaction) -> Result<()> {
+        match self.state.adapter.simulate_tx(tx).await {
+            Ok(true) => {
+                info!(?tx, "Transaction simulation succeeded");
+                Ok(())
+            }
+            Ok(false) => Err(eyre::eyre!("Transaction simulation failed")),
+            Err(err) => Err(eyre::eyre!("Error simulating transaction: {:?}", err)),
+        }
+    }
+
+    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<()> {
+        if let Err(err) = self.inclusion_stage_sender.send(tx.clone()).await {
+            return Err(eyre::eyre!(
+                "Error sending transaction to Inclusion Stage: {:?}",
+                err
+            ));
+        }
+        info!(?tx, "Transaction sent to Inclusion Stage");
+        Ok(())
     }
 }
 
@@ -61,7 +165,7 @@ mod tests {
         sent_payload_count: usize,
         building_stage: &BuildingStage,
         receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
-    ) -> Result<Vec<PayloadDetails>> {
+    ) -> Vec<PayloadDetails> {
         // future that receives `sent_payload_count` payloads from the building stage
         let received_payloads = async {
             let mut received_payloads = Vec::new();
@@ -79,12 +183,12 @@ mod tests {
             res = building_stage.run() => res,
             // this arm runs until all sent payloads are sent as txs
             payloads = received_payloads => {
-                return Ok(payloads);
+                return payloads;
             },
             // this arm is the timeout
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => Err(eyre::eyre!("Timeout")),
-        }?;
-        Err(eyre::eyre!("No transaction was sent to the receiver"))
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => panic!("Timeout"),
+        };
+        panic!("No transaction was sent to the receiver")
     }
 
     fn test_setup(
@@ -100,6 +204,10 @@ mod tests {
             .expect_build_transactions()
             .times(payloads_to_send)
             .returning(|payloads| Ok(dummy_tx(payloads)));
+        mock_adapter
+            .expect_simulate_tx()
+            .times(payloads_to_send)
+            .returning(|_| Ok(true));
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
         let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
@@ -117,9 +225,8 @@ mod tests {
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::default();
             queue.lock().await.push_back(payload_to_send.clone());
-            let payload_details_received = run_building_stage(1, &building_stage, &mut receiver)
-                .await
-                .unwrap();
+            let payload_details_received =
+                run_building_stage(1, &building_stage, &mut receiver).await;
             assert_eq!(
                 payload_details_received,
                 vec![payload_to_send.details().clone()]
@@ -141,9 +248,7 @@ mod tests {
 
         // send multiple payloads to the building stage and check that they are sent to the receiver in the same order
         let payload_details_received =
-            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver)
-                .await
-                .unwrap();
+            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
         let expected_payload_details = sent_payloads
             .iter()
             .map(|payload| payload.details().clone())
