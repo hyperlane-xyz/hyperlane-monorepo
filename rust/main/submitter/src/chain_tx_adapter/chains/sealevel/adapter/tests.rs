@@ -138,14 +138,14 @@ async fn test_build_transactions() {
     // given
     let adapter = adapter();
     let payload = payload();
-    let expected = SealevelTxPrecursor::new(instruction(), estimate());
+    let expected = VmSpecificTxData::Svm(SealevelTxPrecursor::new(instruction(), estimate()));
 
     // when
     let result = adapter.build_transactions(&[payload]).await;
 
     // then
     assert!(matches!(result, Ok(_)));
-    assert_eq!(expected, actual_precursor(result));
+    assert_eq!(expected, actual_data(result));
 }
 
 #[tokio::test]
@@ -189,14 +189,10 @@ async fn test_tx_status() {
     assert!(matches!(status, TransactionStatus::Finalized));
 }
 
-fn actual_precursor(result: Result<Vec<Transaction>>) -> SealevelTxPrecursor {
+fn actual_data(result: Result<Vec<Transaction>>) -> VmSpecificTxData {
     let transactions = result.unwrap();
     let transaction = transactions.first().unwrap();
-    let precursor = match transaction.vm_specific_data() {
-        VmSpecificTxData::Svm(p) => p.clone(),
-        _ => panic!("testing Sealevel"),
-    };
-    precursor
+    transaction.vm_specific_data().clone()
 }
 
 fn estimate() -> SealevelTxCostEstimate {
