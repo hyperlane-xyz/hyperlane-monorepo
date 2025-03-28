@@ -383,6 +383,7 @@ impl BaseAgent for Relayer {
 
         for origin in &self.origin_chains {
             self.chain_metrics.set_critical_error(origin.name(), false);
+
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
