@@ -323,18 +323,6 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
     address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
     owner: ezEthSafes.taiko,
   },
-  swell: {
-    address: '0xc4D0b4ef01eD7091792fe3D4c039457719e2DC68',
-    owner: ezEthSafes.swell,
-  },
-  unichain: {
-    address: '0xa92a7036fd5b2a8C2A6BB24bE2d9Cf66a1a0849F',
-    owner: ezEthSafes.unichain,
-  },
-  berachain: {
-    address: '0xfc5c1d5Ac3655668F2545668938a52D7810DB86d',
-    owner: ezEthSafes.berachain,
-  },
 };
 
 export function getRenzoWarpConfigGenerator(params: {
@@ -476,7 +464,7 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
-  existingProxyAdmins,
+  existingProxyAdmins: existingProxyAdmins,
 });
 
 // Create a GnosisSafeBuilder Strategy for each safe address

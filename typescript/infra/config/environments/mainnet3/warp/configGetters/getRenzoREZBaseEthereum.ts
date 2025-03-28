@@ -1,4 +1,3 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
@@ -18,16 +17,7 @@ const rezEthAddresses = {
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
 const rezEthSafes = pick(ezEthSafes, rezEthChainsToDeploy);
 const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
-const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
-  ethereum: {
-    address: '0xef0Adeb4103A7A1AcE86371867202f2171126362',
-    owner: ezEthSafes.ethereum,
-  },
-  base: {
-    address: '0x7E4607Fef69d2177f56cE62651fA1aeeB385B2BF',
-    owner: ezEthSafes.base,
-  },
-};
+
 export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
   validators: rezEthValidators,
@@ -35,5 +25,4 @@ export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: rezEthAddresses,
   xERC20Lockbox: rezProductionLockbox,
   tokenPrices: rezEthTokenPrices,
-  existingProxyAdmins,
 });
