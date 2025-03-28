@@ -12,7 +12,12 @@ import {
   MultiProvider,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  OperatorChain,
+  ProtocolType,
+  isObjEmpty,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {
@@ -86,7 +91,7 @@ export const checkValidatorAvsSetup = async (
   );
 
   if (!isObjEmpty(avsOperatorRecord)) {
-    await setValidatorInfo(context, avsOperatorRecord, topLevelErrors);
+    await setValidatorInfo(chain, context, avsOperatorRecord, topLevelErrors);
   }
 
   logOutput(avsOperatorRecord, topLevelErrors);
@@ -231,6 +236,7 @@ const setOperatorName = async (
 };
 
 const setValidatorInfo = async (
+  operatorChain: string,
   context: CommandContext,
   avsOperatorRecord: Record<Address, ValidatorInfo>,
   topLevelErrors: string[],
@@ -246,6 +252,15 @@ const setValidatorInfo = async (
   for (const chain of chains) {
     // skip if chain is not an Ethereum chain
     if (chainMetadata[chain].protocol !== ProtocolType.Ethereum) continue;
+
+    // skip if chain network type does not match the operator chain
+    if (
+      (operatorChain === OperatorChain.Ethereum &&
+        chainMetadata[chain].isTestnet) ||
+      (operatorChain === OperatorChain.Holesky &&
+        !chainMetadata[chain].isTestnet)
+    )
+      continue;
 
     const chainAddresses = addresses[chain];
 
