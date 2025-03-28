@@ -70,6 +70,7 @@ export enum WarpRouteIds {
   SolanaSoonSOL = 'SOL/solanamainnet-soon',
   SolanaSonicsvmSOL = 'SOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSONIC = 'SONIC/solanamainnet-sonicsvm',
+  SolanaSonicsvmSPICE = 'SPICE/solanamainnet-sonicsvm',
   SolanaSonicsvmUSDC = 'USDC/solanamainnet-sonicsvm',
   SolanaSonicsvmUSDT = 'USDT/solanamainnet-sonicsvm',
   SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',

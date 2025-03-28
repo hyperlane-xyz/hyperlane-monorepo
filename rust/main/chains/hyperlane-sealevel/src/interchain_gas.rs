@@ -16,10 +16,9 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::{
-    log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer},
-    SealevelProvider,
-};
+use crate::fallback::SubmitSealevelRpc;
+use crate::log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer};
+use crate::SealevelProvider;
 
 /// The offset to get the `unique_gas_payment_pubkey` field from the serialized GasPaymentData.
 /// The account data includes prefixes that are accounted for here: a 1 byte initialized flag
