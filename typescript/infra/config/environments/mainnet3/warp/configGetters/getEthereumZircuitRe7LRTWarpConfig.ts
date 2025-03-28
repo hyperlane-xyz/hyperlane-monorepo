@@ -1,6 +1,11 @@
 import { ethers } from 'ethers';
 
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfig,
+  OwnableConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
@@ -22,9 +27,7 @@ export const getEthereumZircuitRe7LRTWarpConfig = async (
     owner: Re7Safes.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.Re7LRT,
-    ownerOverrides: {
-      collateralProxyAdmin: '0x81698f87C6482bF1ce9bFcfC0F103C4A0Adf0Af0',
-    },
+    interchainSecurityModule: ISM_CONFIG,
   };
 
   const zircuit: HypTokenRouterConfig = {
