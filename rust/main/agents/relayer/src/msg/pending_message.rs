@@ -42,11 +42,9 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 };
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
+pub const USE_CACHE_METADATA_LOG: &str = "Reusing cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
-
-/// 1 day
-pub const STALE_METADATA_SECS: u64 = 60 * 60 * 24;
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -97,7 +95,7 @@ pub struct PendingMessage {
     submission_outcome: Option<TxOutcome>,
     #[new(default)]
     #[serde(skip_serializing)]
-    metadata: Option<(Vec<u8>, Instant)>,
+    metadata: Option<Vec<u8>>,
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
@@ -253,17 +251,15 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
-        let metadata_bytes = match self.metadata.as_ref() {
+        let mut metadata_bytes = match self.metadata.as_ref() {
             // if metadata is already built and is not too stale
-            Some((metadata, built_time))
-                if Instant::now().duration_since(*built_time).as_secs() < STALE_METADATA_SECS =>
-            {
-                tracing::debug!("Reusing cached metadata");
+            Some(metadata) => {
+                tracing::debug!(USE_CACHE_METADATA_LOG);
                 metadata.to_vec()
             }
             _ => match self.build_metadata().await {
                 Ok(metadata) => {
-                    self.metadata = Some((metadata.to_vec(), Instant::now()));
+                    self.metadata = Some(metadata.to_vec());
                     metadata.to_vec()
                 }
                 Err(err) => {
@@ -272,16 +268,40 @@ impl PendingOperation for PendingMessage {
             },
         };
 
+        // first attempt at gas estimation
+        let mut tx_cost_estimate = self
+            .ctx
+            .destination_mailbox
+            .process_estimate_costs(&self.message, &metadata_bytes)
+            .await;
+
+        // if gas estimate fails, we want to retry building metadata,
+        // and try gas estimation again
+        if tx_cost_estimate.is_err() {
+            self.clear_metadata();
+            match self.build_metadata().await {
+                Ok(metadata) => {
+                    self.metadata = Some(metadata.to_vec());
+                    metadata_bytes = metadata.to_vec();
+
+                    // second attempt at gas estimation
+                    tx_cost_estimate = self
+                        .ctx
+                        .destination_mailbox
+                        .process_estimate_costs(&self.message, &metadata_bytes)
+                        .await;
+                }
+                Err(err) => {
+                    return err;
+                }
+            }
+        }
+
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
         // move onto the next tick.
-        let tx_cost_estimate = match self
-            .ctx
-            .destination_mailbox
-            .process_estimate_costs(&self.message, &metadata_bytes)
-            .await
-        {
+        let tx_cost_estimate = match tx_cost_estimate {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
                 let reason = self
@@ -352,7 +372,7 @@ impl PendingOperation for PendingMessage {
             .expect("Pending message must be prepared before it can be submitted");
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
-        if let Some((metadata, _)) = self.metadata.as_ref() {
+        if let Some(metadata) = self.metadata.as_ref() {
             if self
                 .ctx
                 .destination_mailbox

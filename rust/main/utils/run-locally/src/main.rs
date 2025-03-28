@@ -34,7 +34,7 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
+use relayer::msg::pending_message::{RETRIEVED_MESSAGE_LOG, USE_CACHE_METADATA_LOG};
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
 use utils::get_ts_infra_path;
@@ -581,7 +581,7 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
-    let line_filters = vec!["Reusing cached metadata"];
+    let line_filters = vec![USE_CACHE_METADATA_LOG];
 
     log!("Checking metadata cache was used...");
     let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
