@@ -40,12 +40,7 @@ impl BuildingStage {
             };
 
             let payloads = vec![payload];
-            let txs = match self
-                .state
-                .adapter
-                .build_transactions(&payloads)
-                .await
-            {
+            let txs = match self.state.adapter.build_transactions(&payloads).await {
                 Err(err) => {
                     error!(
                         ?err,
