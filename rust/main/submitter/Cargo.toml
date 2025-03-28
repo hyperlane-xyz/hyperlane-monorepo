@@ -10,6 +10,7 @@ version.workspace = true
 [dependencies]
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
+hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 
 async-trait.workspace = true
 chrono.workspace = true
@@ -17,7 +18,9 @@ derive-new.workspace = true
 eyre.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+solana-transaction-status.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }

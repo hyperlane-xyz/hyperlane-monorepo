@@ -1,23 +1,23 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::{path::PathBuf, sync::Arc};
+
 use derive_new::new;
 use eyre::Result;
-use std::{path::PathBuf, sync::Arc};
+use tokio::task::JoinHandle;
+use tracing::instrument::Instrumented;
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     settings::{ChainConf, RawChainConf},
+    CoreMetrics,
 };
 use hyperlane_core::HyperlaneDomain;
-use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
 
-use crate::{
-    chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder},
-    payload::PayloadDb,
-    transaction::TransactionDb,
-};
+use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory};
+use crate::payload::PayloadDb;
+use crate::transaction::TransactionDb;
 
 /// Settings for `PayloadDispatcher`
 #[derive(Debug)]
@@ -28,6 +28,7 @@ pub struct PayloadDispatcherSettings {
     raw_chain_conf: RawChainConf,
     domain: HyperlaneDomain,
     db_path: PathBuf,
+    metrics: CoreMetrics,
 }
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
@@ -51,7 +52,11 @@ impl PayloadDispatcherState {
     }
 
     pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
-        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
+        let adapter = ChainTxAdapterFactory::build(
+            &settings.chain_conf,
+            &settings.raw_chain_conf,
+            &settings.metrics,
+        )?;
         let db = DB::from_path(&settings.db_path)?;
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
