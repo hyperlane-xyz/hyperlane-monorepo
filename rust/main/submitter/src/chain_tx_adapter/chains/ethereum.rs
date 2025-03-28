@@ -49,4 +49,12 @@ impl AdaptsChain for EthereumTxAdapter {
     async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>> {
         todo!()
     }
+
+    fn estimated_block_time(&self) -> std::time::Duration {
+        todo!()
+    }
+
+    fn max_batch_size(&self) -> usize {
+        todo!()
+    }
 }
