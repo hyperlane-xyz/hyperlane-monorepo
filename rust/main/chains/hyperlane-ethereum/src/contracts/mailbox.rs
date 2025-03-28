@@ -627,10 +627,7 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{
-        contracts::EthereumMailbox, tx::apply_gas_estimate_buffer, ConnectionConf,
-        RpcConnectionConf,
-    };
+    use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
 
     fn get_test_mailbox(
         domain: HyperlaneDomain,

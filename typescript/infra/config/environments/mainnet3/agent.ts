@@ -117,7 +117,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -253,7 +253,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -389,7 +389,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -734,7 +734,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'af73f39-20250325-130319',
+      tag: '7c4f0f2-20250326-180331',
     },
     blacklist: [
       {
@@ -762,7 +762,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a76dd09-20250325-111203',
+      tag: 'c03278b-20250326-170423',
     },
     resources: scraperResources,
   },
@@ -811,7 +811,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'af73f39-20250325-130319',
+      tag: '7c4f0f2-20250326-180331',
     },
     blacklist,
     gasPaymentEnforcement,
