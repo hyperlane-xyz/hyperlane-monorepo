@@ -34,7 +34,9 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use relayer::msg::pending_message::{RETRIEVED_MESSAGE_LOG, USE_CACHE_METADATA_LOG};
+use relayer::msg::pending_message::{
+    INVALIDATE_CACHE_METADATA_LOG, RETRIEVED_MESSAGE_LOG, USE_CACHE_METADATA_LOG,
+};
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
 use utils::get_ts_infra_path;
@@ -590,13 +592,28 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
         .get(&line_filters)
         .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
 
-    log!("metadata cache was used... {}", metadata_cache_reuse_count);
-
     if metadata_cache_reuse_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "Cache metadata reuse count is {}, expected {}",
             metadata_cache_reuse_count,
             ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+        );
+        return Ok(false);
+    }
+
+    let line_filters = vec![INVALIDATE_CACHE_METADATA_LOG];
+
+    log!("Checking invalidate metadata cache happened...");
+    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+
+    let invalidate_metadata_cache_count = *matched_logs
+        .get(&line_filters)
+        .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
+
+    if invalidate_metadata_cache_count == 0 {
+        log!(
+            "Invalidate cache metadata reuse count is {}, expected non-zero value",
+            invalidate_metadata_cache_count,
         );
         return Ok(false);
     }

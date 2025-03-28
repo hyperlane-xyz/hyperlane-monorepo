@@ -43,6 +43,7 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
 pub const USE_CACHE_METADATA_LOG: &str = "Reusing cached metadata";
+pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
@@ -829,7 +830,7 @@ impl PendingMessage {
 
     /// clear metadata cache
     fn clear_metadata(&mut self) {
-        tracing::debug!("Invalidating cached metadata");
+        tracing::debug!(INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
     }
 }
