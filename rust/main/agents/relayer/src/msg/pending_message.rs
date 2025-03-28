@@ -16,9 +16,9 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -248,6 +248,31 @@ impl PendingOperation for PendingMessage {
                 "Dropping message because recipient is not a contract"
             );
             return PendingOperationResult::Drop;
+        }
+
+        // Before performing any expensive operations like metadata building
+        // or gas estimation, we check if even the most simple tx cost estimate
+        // is met. This covers the case of a message that did not pay our IGP
+        // and the gas payment enforcement policies are not met.
+
+        // Let's test if the message may meet the gas payment requirement
+        // before we even try to build the metadata.
+        let zero_cost = TxCostEstimate {
+            gas_limit: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
+            l2_gas_limit: None,
+        };
+        // If even this doesn't meet the gas payment requirement,
+        // we skip the metadata building.
+        if self
+            .ctx
+            .origin_gas_payment_enforcer
+            .message_meets_gas_payment_requirement(&self.message, &zero_cost)
+            .await
+            .is_err()
+        {
+            return self
+                .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
         }
 
         let ism_address = match self
@@ -833,6 +858,7 @@ impl MessageSubmissionMetrics {
 mod test {
     use std::{
         fmt::Debug,
+        str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
     };
@@ -841,7 +867,7 @@ mod test {
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use crate::msg::pending_message::{DEFAULT_MAX_MESSAGE_RETRIES, ECO_SENDER};
 
     use super::PendingMessage;
 
@@ -1122,5 +1148,14 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
+    }
+
+    #[test]
+    fn test_eco_sender() {
+        let eco_sender = H160::from_slice(ECO_SENDER);
+        assert_eq!(
+            eco_sender,
+            H160::from_str("0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954").unwrap()
+        );
     }
 }
