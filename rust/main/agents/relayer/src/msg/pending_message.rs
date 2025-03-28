@@ -866,7 +866,7 @@ mod test {
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
-    use crate::msg::pending_message::{DEFAULT_MAX_MESSAGE_RETRIES, ECO_SENDER};
+    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
 
     use super::PendingMessage;
 
@@ -1147,14 +1147,5 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
-    }
-
-    #[test]
-    fn test_eco_sender() {
-        let eco_sender = H160::from_slice(ECO_SENDER);
-        assert_eq!(
-            eco_sender,
-            H160::from_str("0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954").unwrap()
-        );
     }
 }
