@@ -49,7 +49,7 @@ pub(crate) mod tests {
             .map(|payload| payload.details)
             .collect();
         let transaction = Transaction {
-            id: Default::default(),
+            id: UniqueIdentifier::random(),
             hash: None,
             vm_specific_data: VmSpecificTxData::Evm,
             payload_details: details,
