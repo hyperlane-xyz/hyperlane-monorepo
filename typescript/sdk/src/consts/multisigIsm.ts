@@ -617,6 +617,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  cotitestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x5c535dff16237a2cae97c97f9556404cd230c9c0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   cyber: {
     threshold: 2,
     validators: [
@@ -1384,6 +1394,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  modetestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   molten: {
     threshold: 2,
     validators: [
@@ -1563,6 +1583,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xe765a214849f3ecdf00793b97d00422f2d408ea6',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  plumetestnet2: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x16637c78e1ea169132efcf4df8ebd03de349e740',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
