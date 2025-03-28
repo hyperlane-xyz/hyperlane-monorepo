@@ -401,7 +401,11 @@ fn main() -> ExitCode {
     test_passed = wait_for_condition(
         &config,
         loop_start,
-        || Ok(relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?),
+        || {
+            Ok(relayer_restart_invariants_met()?
+                && relayer_reorg_handling_invariants_met()?
+                && relayer_cached_metadata_invariant_met()?)
+        },
         || !SHUTDOWN.load(Ordering::Relaxed),
         || long_running_processes_exited_check(&mut state),
     );
@@ -567,6 +571,38 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     }
     assert_eq!(
         no_metadata_message_count,
+        ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    );
+    Ok(true)
+}
+
+fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
+    let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+    let relayer_logfile = File::open(log_file_path).unwrap();
+
+    let line_filters = vec![RETRIEVED_MESSAGE_LOG, "Reusing cached metadata"];
+
+    log!("Checking metadata cache was used...");
+    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+
+    let metadata_cache_reuse_count = *matched_logs
+        .get(&line_filters)
+        .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
+    // These messages are never inserted into the merkle tree.
+    // So these messages will never be deliverable and will always
+    // be in a CouldNotFetchMetadata state.
+    // When the relayer restarts, these messages' statuses should be
+    // retrieved from the database with CouldNotFetchMetadata status.
+    if metadata_cache_reuse_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+        log!(
+            "Cache metadata reuse count is {}, expected {}",
+            metadata_cache_reuse_count,
+            ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+        );
+        return Ok(false);
+    }
+    assert_eq!(
+        metadata_cache_reuse_count,
         ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     );
     Ok(true)
