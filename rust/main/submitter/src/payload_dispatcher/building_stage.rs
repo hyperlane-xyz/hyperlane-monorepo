@@ -26,12 +26,6 @@ struct BuildingStage {
     state: PayloadDispatcherState,
 }
 
-// - Event-driven by the Building queue
-// - Calls `simulate_payload(payload)` on ChainTxAdapter to drop bad payloads
-// - Builds txs from payloads via ChainTxAdapter, by calling `build_transactions(payloads)`
-// - Sends txs to the **Inclusion Stage** via its channel
-// - updates the Transaction store, the Payload store, the `payload_id` → `tx_uuid` mapping
-
 impl BuildingStage {
     pub async fn run(&self) {
         loop {
@@ -107,7 +101,6 @@ impl BuildingStage {
         if let Err(err) = self.state.tx_db.store_transaction_by_id(tx).await {
             error!(?err, "Error storing transaction in the database");
         }
-        // update the status of payloads in the payload store
         for payload_detail in tx.payload_details() {
             if let Err(err) = self
                 .state
