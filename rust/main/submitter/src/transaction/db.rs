@@ -18,7 +18,7 @@ pub trait TransactionDb: Send + Sync {
         -> DbResult<Option<Transaction>>;
 
     /// Store a transaction by its unique ID
-    async fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()>;
+    async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()>;
 }
 
 #[async_trait]
@@ -30,8 +30,8 @@ impl TransactionDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, id)
     }
 
-    async fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, tx.id(), &tx)
+    async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()> {
+        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, tx.id(), tx)
     }
 }
 
