@@ -258,7 +258,7 @@ impl PendingOperation for PendingMessage {
             Some(metadata) => match self
                 .ctx
                 .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata)
+                .process_estimate_costs(&self.message, metadata)
                 .await
             {
                 Ok(s) => Some(s),
