@@ -254,14 +254,21 @@ describe('Token', () => {
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
       expect(token.standard).to.eql(tokenArgs.standard);
+
+      // if the token is from an SVM we need to stub before getting the adapter
+      // because a call to the provider is done to check the token standard
+      let sandbox;
+      if (token.protocol === ProtocolType.Sealevel) {
+        sandbox = stubMultiProtocolProvider(multiProvider);
+      }
+
       const adapter = await token.getAdapter(multiProvider);
       const balanceCheckAddress =
         STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK[token.standard] ??
         PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK[token.protocol];
       if (!balanceCheckAddress)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
-
-      const sandbox = stubMultiProtocolProvider(multiProvider);
+      sandbox = sandbox ?? stubMultiProtocolProvider(multiProvider);
       // @ts-ignore simple extra mock for the Ethers V5 token contract call
       adapter.contract = {
         balanceOf: async () => '100',
