@@ -21,7 +21,7 @@ pub trait AdaptsChain: Send + Sync {
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    async fn build_transactions(&self, payloads: Vec<FullPayload>) -> Vec<Transaction>;
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
