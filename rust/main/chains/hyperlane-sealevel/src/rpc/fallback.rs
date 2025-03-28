@@ -23,7 +23,7 @@ use crate::client_builder::SealevelRpcClientBuilder;
 
 /// Defines methods required to submit transactions to Sealevel chains
 #[async_trait]
-pub trait SealevelRpcClientForSubmitter: Send + Sync {
+pub trait SubmitSealevelRpc: Send + Sync {
     /// Requests block from node
     async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
 
@@ -47,7 +47,7 @@ pub struct SealevelFallbackRpcClient {
 }
 
 #[async_trait]
-impl SealevelRpcClientForSubmitter for SealevelFallbackRpcClient {
+impl SubmitSealevelRpc for SealevelFallbackRpcClient {
     /// get block
     async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
         self.fallback_provider

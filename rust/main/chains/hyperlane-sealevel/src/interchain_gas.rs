@@ -16,7 +16,7 @@ use hyperlane_core::{
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::fallback::SealevelRpcClientForSubmitter;
+use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer};
 use crate::SealevelProvider;
 

@@ -23,7 +23,7 @@ use hyperlane_base::settings::parser::h_sealevel::{
 };
 use hyperlane_base::settings::ChainConf;
 use hyperlane_core::{ChainResult, H512, U256};
-use hyperlane_sealevel::fallback::SealevelRpcClientForSubmitter;
+use hyperlane_sealevel::fallback::SubmitSealevelRpc;
 use hyperlane_sealevel::{SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate};
 
 use crate::chain_tx_adapter::chains::sealevel::transaction::{TransactionFactory, Update};
@@ -40,7 +40,7 @@ mock! {
     pub Client {}
 
     #[async_trait]
-    impl SealevelRpcClientForSubmitter for Client {
+    impl SubmitSealevelRpc for Client {
         async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn simulate_transaction(&self, transaction: &SealevelTransaction) -> ChainResult<RpcSimulateTransactionResult>;
