@@ -267,13 +267,16 @@ impl PendingOperation for PendingMessage {
             };
             // If even this doesn't meet the gas payment requirement,
             // we skip the metadata building.
-            if self
+            let status = self
                 .ctx
                 .origin_gas_payment_enforcer
                 .message_meets_gas_payment_requirement(&self.message, &dummy_estimate)
-                .await
-                .is_err()
-            {
+                .await;
+            if !matches!(status, Ok(GasPolicyStatus::PolicyMet(_))) {
+                tracing::debug!(
+                    ?status,
+                    "Skipping metadata building because gas payment requirement is not met"
+                );
                 // Arbitrarily increase the retries for these to make it retried less frequently
                 self.set_retries(self.num_retries + 3);
                 return self
