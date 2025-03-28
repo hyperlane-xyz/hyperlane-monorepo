@@ -36,6 +36,14 @@ impl Transaction {
     pub fn payload_details(&self) -> &[PayloadDetails] {
         &self.payload_details
     }
+
+    pub fn set_status(&mut self, status: TransactionStatus) {
+        self.status = status;
+    }
+
+    pub fn submission_attempts(&self) -> u32 {
+        self.submission_attempts
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
@@ -50,7 +58,7 @@ pub enum TransactionStatus {
     /// in a block older than the configured `reorgPeriod`
     Finalized(SignerAddress),
     /// currently only assigned when a reorg is detected
-    DroppedByChain(SignerAddress),
+    DroppedByChain,
 }
 
 // add nested enum entries as we add VMs

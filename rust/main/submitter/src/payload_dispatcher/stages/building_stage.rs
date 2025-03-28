@@ -87,76 +87,10 @@ impl BuildingStage {
         }
     }
 
-    async fn drop_payloads(&self, details: &[PayloadDetails], reason: DropReason) {
-        for d in details {
-            if let Err(err) = self
-                .state
-                .payload_db
-                .store_new_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?details,
-                    "Error updating payload status to `dropped`"
-                );
-            }
-            warn!(?details, "Payload dropped from Building Stage");
-        }
-    }
-
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
         // Transactions are only persisted if they are sent to the Inclusion Stage
         // so the only thing to update in this stage is the payload status
         self.drop_payloads(tx.payload_details(), reason).await;
-    }
-
-    async fn store_tx(&self, tx: &Transaction) {
-        if let Err(err) = self.state.tx_db.store_transaction_by_id(tx).await {
-            error!(
-                ?err,
-                payload_details = ?tx.payload_details(),
-                "Error storing transaction in the database"
-            );
-        }
-        for payload_detail in tx.payload_details() {
-            if let Err(err) = self
-                .state
-                .payload_db
-                .store_new_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?tx.payload_details(),
-                    "Error updating payload status to `sent`"
-                );
-            }
-
-            if let Err(err) = self
-                .state
-                .payload_db
-                .store_tx_id_by_payload_id(payload_detail.id(), tx.id())
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?tx.payload_details(),
-                    "Error storing transaction id in the database"
-                );
-            }
-        }
-    }
-
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<()> {
-        match self.state.adapter.simulate_tx(tx).await {
-            Ok(true) => {
-                info!(?tx, "Transaction simulation succeeded");
-                Ok(())
-            }
-            Ok(false) => Err(eyre::eyre!("Transaction simulation failed")),
-            Err(err) => Err(eyre::eyre!("Error simulating transaction: {:?}", err)),
-        }
     }
 
     async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<()> {

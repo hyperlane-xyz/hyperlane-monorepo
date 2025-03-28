@@ -30,36 +30,6 @@ pub struct PayloadDispatcherSettings {
     db_path: PathBuf,
 }
 
-/// State that is common (but not shared) to all components of the `PayloadDispatcher`
-pub struct PayloadDispatcherState {
-    pub(crate) payload_db: Arc<dyn PayloadDb>,
-    pub(crate) tx_db: Arc<dyn TransactionDb>,
-    pub(crate) adapter: Box<dyn AdaptsChain>,
-}
-
-impl PayloadDispatcherState {
-    pub fn new(
-        payload_db: Arc<dyn PayloadDb>,
-        tx_db: Arc<dyn TransactionDb>,
-        adapter: Box<dyn AdaptsChain>,
-    ) -> Self {
-        Self {
-            payload_db,
-            tx_db,
-            adapter,
-        }
-    }
-
-    pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
-        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
-        let db = DB::from_path(&settings.db_path)?;
-        let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
-        let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
-        let tx_db = rocksdb as Arc<dyn TransactionDb>;
-        Ok(Self::new(payload_db, tx_db, adapter))
-    }
-}
-
 pub struct PayloadDispatcher {
     inner: PayloadDispatcherState,
 }
