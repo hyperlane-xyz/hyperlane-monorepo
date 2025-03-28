@@ -31,7 +31,7 @@ impl TransactionDb for HyperlaneRocksDB {
     }
 
     async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, tx.id(), tx)
+        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, &tx.id, tx)
     }
 }
 

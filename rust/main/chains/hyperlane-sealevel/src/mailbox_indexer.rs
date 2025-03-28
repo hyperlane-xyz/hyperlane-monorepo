@@ -20,18 +20,13 @@ use hyperlane_core::{
     H512, U256,
 };
 
+use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::fallback::SubmitSealevelRpc;
+use crate::log_meta_composer::{
+    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
+};
 use crate::tx_submitter::TransactionSubmitter;
-use crate::ConnectionConf;
-use crate::{
-    account::{search_accounts_by_discriminator, search_and_validate_account},
-    SealevelMailbox,
-};
-use crate::{
-    log_meta_composer::{
-        is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
-    },
-    SealevelProvider,
-};
+use crate::{ConnectionConf, SealevelMailbox, SealevelProvider};
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
 #[derive(Debug)]

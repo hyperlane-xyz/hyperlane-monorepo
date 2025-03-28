@@ -13,7 +13,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::PayloadDispatcherState;
+use super::state::PayloadDispatcherState;
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -40,12 +40,7 @@ impl BuildingStage {
             };
 
             let payloads = vec![payload];
-            let txs = match self
-                .state
-                .adapter
-                .build_transactions(payloads.clone())
-                .await
-            {
+            let txs = match self.state.adapter.build_transactions(&payloads).await {
                 Err(err) => {
                     error!(
                         ?err,
@@ -53,8 +48,9 @@ impl BuildingStage {
                         "Error building transactions. Dropping payloads"
                     );
                     let details_for_payloads: Vec<_> =
-                        payloads.into_iter().map(|p| p.details().clone()).collect();
-                    self.drop_payloads(&details_for_payloads, DropReason::UnhandledError)
+                        payloads.into_iter().map(|p| p.details.clone()).collect();
+                    self.state
+                        .drop_payloads(&details_for_payloads, DropReason::UnhandledError)
                         .await;
                     continue;
                 }
@@ -62,10 +58,10 @@ impl BuildingStage {
             };
 
             for tx in txs {
-                if let Err(err) = self.simulate_tx(&tx).await {
+                if let Err(err) = self.state.simulate_tx(&tx).await {
                     error!(
                         ?err,
-                        payload_details = ?tx.payload_details(),
+                        payload_details = ?tx.payload_details,
                         "Error simulating transaction. Dropping transaction"
                     );
                     // TODO: distinguish between network error and failed simulation
@@ -75,75 +71,22 @@ impl BuildingStage {
                 if let Err(err) = self.send_tx_to_inclusion_stage(tx.clone()).await {
                     error!(
                         ?err,
-                        payload_details = ?tx.payload_details(),
+                        payload_details = ?tx.payload_details,
                         "Error sending transaction to inclusion stage"
                     );
                     self.drop_tx(&tx, DropReason::UnhandledError).await;
                     continue;
                 } else {
-                    self.store_tx(&tx).await;
+                    self.state.store_tx(&tx).await;
                 }
             }
-        }
-    }
-
-    async fn drop_payloads(&self, details: &[PayloadDetails], reason: DropReason) {
-        for d in details {
-            if let Err(err) = self
-                .state
-                .payload_db
-                .set_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?details,
-                    "Error updating payload status to `dropped`"
-                );
-            }
-            warn!(?details, "Payload dropped from Building Stage");
         }
     }
 
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
         // Transactions are only persisted if they are sent to the Inclusion Stage
         // so the only thing to update in this stage is the payload status
-        self.drop_payloads(tx.payload_details(), reason).await;
-    }
-
-    async fn store_tx(&self, tx: &Transaction) {
-        if let Err(err) = self.state.tx_db.store_transaction_by_id(tx).await {
-            error!(
-                ?err,
-                payload_details = ?tx.payload_details(),
-                "Error storing transaction in the database"
-            );
-        }
-        for payload_detail in tx.payload_details() {
-            if let Err(err) = self
-                .state
-                .payload_db
-                .set_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?tx.payload_details(),
-                    "Error updating payload status to `sent`"
-                );
-            }
-        }
-    }
-
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<()> {
-        match self.state.adapter.simulate_tx(tx).await {
-            Ok(true) => {
-                info!(?tx, "Transaction simulation succeeded");
-                Ok(())
-            }
-            Ok(false) => Err(eyre::eyre!("Transaction simulation failed")),
-            Err(err) => Err(eyre::eyre!("Error simulating transaction: {:?}", err)),
-        }
+        self.state.drop_payloads(&tx.payload_details, reason).await;
     }
 
     async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<()> {
@@ -167,7 +110,6 @@ mod tests {
         chain_tx_adapter::AdaptsChain,
         payload::{self, FullPayload, PayloadDetails},
         payload_dispatcher::{
-            building_stage,
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
@@ -186,8 +128,8 @@ mod tests {
             let mut received_payloads = Vec::new();
             while received_payloads.len() < sent_payload_count {
                 let tx_received = receiver.recv().await.unwrap();
-                let payload_details_received = tx_received.payload_details();
-                received_payloads.extend_from_slice(payload_details_received);
+                let payload_details_received = tx_received.payload_details;
+                received_payloads.extend_from_slice(&payload_details_received);
             }
             received_payloads
         };
@@ -218,7 +160,7 @@ mod tests {
         mock_adapter
             .expect_build_transactions()
             .times(payloads_to_send)
-            .returning(|payloads| Ok(dummy_tx(payloads)));
+            .returning(|payloads| Ok(dummy_tx(payloads.to_vec())));
         mock_adapter
             .expect_simulate_tx()
             .times(payloads_to_send)
@@ -244,7 +186,7 @@ mod tests {
                 run_building_stage(1, &building_stage, &mut receiver).await;
             assert_eq!(
                 payload_details_received,
-                vec![payload_to_send.details().clone()]
+                vec![payload_to_send.details.clone()]
             );
         }
     }
@@ -266,7 +208,7 @@ mod tests {
             run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
         let expected_payload_details = sent_payloads
             .iter()
-            .map(|payload| payload.details().clone())
+            .map(|payload| payload.details.clone())
             .collect::<Vec<_>>();
         assert_eq!(payload_details_received, expected_payload_details);
     }
