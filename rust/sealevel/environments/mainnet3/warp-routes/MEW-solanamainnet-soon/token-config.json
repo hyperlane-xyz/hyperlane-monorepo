@@ -3,7 +3,8 @@
     "type": "collateral",
     "decimals": 5,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "token": "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5"
+    "token": "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5",
+    "owner": "E2vjMXigtkS9xxaTt87MgddnesCoiW87akkg3U5BXvTY"
   },
   "soon": {
     "type": "synthetic",
@@ -11,6 +12,7 @@
     "name": "cat in a dogs world",
     "symbol": "MEW",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/MEW/metadata.json",
-    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A"
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
+    "owner": "CvD8JycSHKTXV5ibc3xeq8CojMMJBtL2ZMNDqjk5fLF3"
   }
 }
