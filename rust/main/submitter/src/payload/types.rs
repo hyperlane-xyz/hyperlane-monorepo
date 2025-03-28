@@ -24,6 +24,12 @@ pub struct PayloadDetails {
     success_criteria: Option<(Vec<u8>, Address)>,
 }
 
+impl PayloadDetails {
+    pub fn id(&self) -> &PayloadId {
+        &self.id
+    }
+}
+
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct FullPayload {
@@ -59,6 +65,7 @@ pub enum PayloadStatus {
 pub enum DropReason {
     FailedSimulation,
     Reverted,
+    UnhandledError,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -77,5 +84,9 @@ impl FullPayload {
 
     pub fn set_status(&mut self, status: PayloadStatus) {
         self.status = status;
+    }
+
+    pub fn details(&self) -> &PayloadDetails {
+        &self.details
     }
 }

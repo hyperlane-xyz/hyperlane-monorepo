@@ -205,9 +205,6 @@
       "0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3"
     ]
   },
-  "infinityvm": {
-    "validators": ["0xeed503e0bd8fae0ad606361492db8711eaf0b935"]
-  },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
