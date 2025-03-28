@@ -24,6 +24,7 @@ export const testnet4SupportedChainNames = [
   'monadtestnet',
   'odysseytestnet',
   'optimismsepolia',
+  'paradexsepolia',
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
   // 'plumetestnet',
   'polygonamoy',
@@ -34,6 +35,7 @@ export const testnet4SupportedChainNames = [
   'soneiumtestnet',
   'sonicblaze',
   'sonicsvmtestnet',
+  'starknetsepolia',
   'suavetoliman',
   'subtensortestnet',
   'superpositiontestnet',
