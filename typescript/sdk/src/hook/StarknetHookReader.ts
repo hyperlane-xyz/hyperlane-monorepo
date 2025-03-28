@@ -1,15 +1,16 @@
-import {
-  Account,
-  CairoCustomEnum,
-  Contract,
-  Provider as StarknetProvider,
-  num,
-} from 'starknet';
+import { CairoCustomEnum, num } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { StarknetJsProvider } from '../providers/ProviderType.js';
 import { ChainMap } from '../types.js';
+import { ChainNameOrId } from '../types.js';
+import {
+  StarknetContractName,
+  StarknetHookType,
+  getStarknetContract,
+} from '../utils/starknet.js';
 
 import {
   AggregationHookConfig,
@@ -26,32 +27,38 @@ export class StarknetHookReader {
   protected readonly logger = rootLogger.child({
     module: 'StarknetHookReader',
   });
+  protected provider: StarknetJsProvider['provider'];
 
   constructor(
-    protected readonly starknetProviderOrSigner: Account | StarknetProvider,
-  ) {}
+    protected readonly multiProvider: MultiProtocolProvider,
+    protected readonly chain: ChainNameOrId,
+  ) {
+    this.provider = this.multiProvider.getStarknetProvider(chain);
+  }
 
   async deriveHookConfig(address: Address): Promise<HookConfig> {
     try {
-      const { abi } = getCompiledContract('hook');
-      const hook = new Contract(abi, address, this.starknetProviderOrSigner);
-
+      const hook = getStarknetContract(
+        StarknetContractName.HOOK,
+        address,
+        this.provider,
+      );
       const hookType: CairoCustomEnum = await hook.hook_type();
       const variant = hookType.activeVariant();
       switch (variant) {
-        case 'AGGREGATION':
+        case StarknetHookType.AGGREGATION:
           return this.deriveAggregationHookConfig(address);
-        case 'FALLBACK_ROUTING':
+        case StarknetHookType.FALLBACK_ROUTING:
           return this.deriveFallbackRoutingHookConfig(address);
-        case 'MAILBOX_DEFAULT_HOOK':
+        case StarknetHookType.MAILBOX_DEFAULT_HOOK:
           return this.deriveMailboxDefaultHookConfig(address);
-        case 'MERKLE_TREE':
+        case StarknetHookType.MERKLE_TREE:
           return this.deriveMerkleTreeConfig(address);
-        case 'PROTOCOL_FEE':
+        case StarknetHookType.PROTOCOL_FEE:
           return this.deriveProtocolFeeConfig(address);
-        case 'ROUTING':
+        case StarknetHookType.ROUTING:
           return this.deriveRoutingHookConfig(address);
-        case 'UNUSED':
+        case StarknetHookType.UNUSED:
           return this.deriveMerkleTreeConfig(address);
         default:
           throw new Error(`Unsupported hook type: ${variant}`);
@@ -75,17 +82,20 @@ export class StarknetHookReader {
   private async deriveProtocolFeeConfig(
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
-    const { abi } = getCompiledContract('protocol_fee');
-    const hook = new Contract(abi, address, this.starknetProviderOrSigner);
+    const hook = getStarknetContract(
+      StarknetContractName.PROTOCOL_FEE,
+      address,
+      this.provider,
+    );
 
     const [owner, protocolFee, beneficiary] = await Promise.all([
       hook.owner(),
       hook.get_protocol_fee(),
       hook.get_beneficiary(),
     ]);
+
     // no getter for max protocol fee
     // pub const MAX_PROTOCOL_FEE: u256 = 1000000000;
-
     return {
       type: HookType.PROTOCOL_FEE,
       address,
@@ -99,8 +109,11 @@ export class StarknetHookReader {
   private async deriveRoutingHookConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
-    const { abi } = getCompiledContract('domain_routing_hook');
-    const hook = new Contract(abi, address, this.starknetProviderOrSigner);
+    const hook = getStarknetContract(
+      StarknetContractName.DOMAIN_ROUTING_HOOK,
+      address,
+      this.provider,
+    );
     const [domains, owner] = await Promise.all([hook.domains(), hook.owner()]);
     const domainConfigs: Record<string, HookConfig> = {};
     for (const domain of domains) {
@@ -129,8 +142,11 @@ export class StarknetHookReader {
   private async deriveFallbackRoutingHookConfig(
     address: Address,
   ): Promise<WithAddress<FallbackRoutingHookConfig>> {
-    const { abi } = getCompiledContract('fallback_domain_routing_hook');
-    const hook = new Contract(abi, address, this.starknetProviderOrSigner);
+    const hook = getStarknetContract(
+      StarknetContractName.FALLBACK_DOMAIN_ROUTING_HOOK,
+      address,
+      this.provider,
+    );
     const [domains, owner, fallbackHookAddress] = await Promise.all([
       hook.domains(),
       hook.owner(),
@@ -169,8 +185,11 @@ export class StarknetHookReader {
   private async deriveAggregationHookConfig(
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
-    const { abi } = getCompiledContract('static_aggregation_hook');
-    const hook = new Contract(abi, address, this.starknetProviderOrSigner);
+    const hook = getStarknetContract(
+      StarknetContractName.STATIC_AGGREGATION_HOOK,
+      address,
+      this.provider,
+    );
     const hooks = await hook.get_hooks();
     const hookConfigs = await Promise.all(
       hooks.map(async (hookAddress: any) => {

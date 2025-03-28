@@ -1,14 +1,18 @@
 import { BigNumber } from 'ethers';
 import { Account, Contract, MultiType } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
 import { ChainNameOrId } from '../types.js';
+import {
+  StarknetContractName,
+  getStarknetMailboxContract,
+} from '../utils/starknet.js';
 
 import { StarknetCoreReader } from './StarknetCoreReader.js';
 import { CoreConfig } from './types.js';
@@ -21,9 +25,11 @@ export class StarknetCoreModule {
   constructor(
     protected readonly signer: Account,
     protected readonly multiProvider: MultiProvider,
+    protected readonly multiProtocolProvider: MultiProtocolProvider,
+    protected readonly chain: ChainNameOrId,
   ) {
     this.deployer = new StarknetDeployer(signer, multiProvider);
-    this.coreReader = new StarknetCoreReader(signer);
+    this.coreReader = new StarknetCoreReader(multiProtocolProvider, chain);
   }
 
   /**
@@ -50,20 +56,29 @@ export class StarknetCoreModule {
 
     // Deploy core components in sequence:
     // 1. NoopISM - A basic interchain security module that performs no validation
-    const noopIsm = await this.deployer.deployContract('noop_ism', []);
+    const noopIsm = await this.deployer.deployContract(
+      StarknetContractName.NOOP_ISM,
+      [],
+    );
 
     // 2. Default Hook - A basic hook implementation for message processing
-    const defaultHook = await this.deployer.deployContract('hook', []);
+    const defaultHook = await this.deployer.deployContract(
+      StarknetContractName.HOOK,
+      [],
+    );
 
     // 3. Protocol Fee Hook - Handles fee collection for cross-chain messages
-    const protocolFee = await this.deployer.deployContract('protocol_fee', [
-      BigNumber.from(config.requiredHook.maxProtocolFee),
-      BigNumber.from(config.requiredHook.protocolFee),
-      config.requiredHook.beneficiary,
-      config.owner,
-      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
-        .denom as MultiType,
-    ]);
+    const protocolFee = await this.deployer.deployContract(
+      StarknetContractName.PROTOCOL_FEE,
+      [
+        BigNumber.from(config.requiredHook.maxProtocolFee),
+        BigNumber.from(config.requiredHook.protocolFee),
+        config.requiredHook.beneficiary,
+        config.owner,
+        PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
+          .denom as MultiType,
+      ],
+    );
 
     // 4. Deploy Mailbox with initial configuration
     const mailboxContract = await this.deployMailbox(
@@ -82,12 +97,12 @@ export class StarknetCoreModule {
     });
 
     const validatorAnnounce = await this.deployer.deployContract(
-      'validator_announce',
+      StarknetContractName.VALIDATOR_ANNOUNCE,
       [mailboxContract.address, config.owner],
     );
 
     const testRecipient = await this.deployer.deployContract(
-      'message_recipient',
+      StarknetContractName.MESSAGE_RECIPIENT,
       [defaultIsm || noopIsm],
     );
 
@@ -111,16 +126,12 @@ export class StarknetCoreModule {
     requiredHook: string,
   ) {
     const domainId = this.multiProvider.getDomainId(chain);
-    const mailboxAddress = await this.deployer.deployContract('mailbox', [
-      BigInt(domainId),
-      owner,
-      defaultIsm,
-      defaultHook,
-      requiredHook,
-    ]);
+    const mailboxAddress = await this.deployer.deployContract(
+      StarknetContractName.MAILBOX,
+      [BigInt(domainId), owner, defaultIsm, defaultHook, requiredHook],
+    );
 
-    const { abi } = getCompiledContract('mailbox');
-    return new Contract(abi, mailboxAddress, this.signer);
+    return getStarknetMailboxContract(mailboxAddress, this.signer);
   }
 
   async update(
@@ -165,7 +176,7 @@ export class StarknetCoreModule {
       );
 
       const merkleTreeHook = await this.deployer.deployContract(
-        'merkle_tree_hook',
+        StarknetContractName.MERKLE_TREE_HOOK,
         [args.mailboxContract.address, args.owner],
       );
 

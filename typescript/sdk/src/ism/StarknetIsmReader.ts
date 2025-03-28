@@ -1,7 +1,14 @@
-import { Account, CairoCustomEnum, Contract, num } from 'starknet';
+import { CairoCustomEnum, num } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
+import {
+  ChainNameOrId,
+  StarknetIsmType,
+  StarknetJsProvider,
+  getStarknetContract,
+} from '@hyperlane-xyz/sdk';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import { DerivedIsmConfig } from './EvmIsmReader.js';
 import { StarknetIsmContractName } from './starknet-utils.js';
@@ -14,38 +21,41 @@ import {
 
 export class StarknetIsmReader {
   protected readonly logger = rootLogger.child({ module: 'StarknetIsmReader' });
+  protected readonly provider: StarknetJsProvider['provider'];
 
-  constructor(protected readonly signer: Account) {}
-
-  private getContractAbi(ismType: keyof typeof StarknetIsmContractName) {
-    return getCompiledContract(StarknetIsmContractName[ismType]).abi;
+  constructor(
+    protected readonly multiProvider: MultiProtocolProvider,
+    protected readonly chain: ChainNameOrId,
+  ) {
+    this.provider = multiProvider.getStarknetProvider(this.chain);
   }
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
     try {
-      const ism = new Contract(
-        this.getContractAbi(IsmType.MERKLE_ROOT_MULTISIG), // fn module_type same across all isms
+      const ism = getStarknetContract(
+        StarknetIsmContractName[IsmType.MERKLE_ROOT_MULTISIG], // fn module_type same across all isms
         address,
-        this.signer,
+        this.provider,
       );
+
       const moduleType: CairoCustomEnum = await ism.module_type();
       const variant = moduleType.activeVariant();
       switch (variant) {
-        case 'AGGREGATION':
+        case StarknetIsmType.AGGREGATION:
           return this.deriveAggregationConfig(address);
-        case 'CCIP_READ':
+        case StarknetIsmType.CCIP_READ:
           throw new Error('CCIP_READ does not have a corresponding IsmType');
-        case 'LEGACY_MULTISIG':
+        case StarknetIsmType.LEGACY_MULTISIG:
           throw new Error('LEGACY_MULTISIG is deprecated and not supported');
-        case 'MERKLE_ROOT_MULTISIG':
+        case StarknetIsmType.MERKLE_ROOT_MULTISIG:
           return this.deriveMerkleRootMultisigConfig(address);
-        case 'MESSAGE_ID_MULTISIG':
+        case StarknetIsmType.MESSAGE_ID_MULTISIG:
           return this.deriveMessageIdMultisigConfig(address);
-        case 'NULL':
+        case StarknetIsmType.NULL:
           return this.deriveNullConfig(address);
-        case 'ROUTING':
+        case StarknetIsmType.ROUTING:
           return this.deriveRoutingConfig(address);
-        case 'UNUSED':
+        case StarknetIsmType.UNUSED:
           throw new Error('Error deriving NULL ISM type');
         default:
           throw new Error(`Unknown ISM ModuleType: ${variant}`);
@@ -59,10 +69,10 @@ export class StarknetIsmReader {
   private async deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
-    const ism = new Contract(
-      this.getContractAbi(IsmType.AGGREGATION),
+    const ism = getStarknetContract(
+      StarknetIsmContractName[IsmType.AGGREGATION],
       address,
-      this.signer,
+      this.provider,
     );
 
     const [modules, threshold] = await Promise.all([
@@ -89,10 +99,10 @@ export class StarknetIsmReader {
   private async deriveMerkleRootMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = new Contract(
-      this.getContractAbi(IsmType.MERKLE_ROOT_MULTISIG),
+    const ism = getStarknetContract(
+      StarknetIsmContractName[IsmType.MERKLE_ROOT_MULTISIG],
       address,
-      this.signer,
+      this.provider,
     );
 
     const [validators, threshold] = await Promise.all([
@@ -111,10 +121,10 @@ export class StarknetIsmReader {
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<DerivedIsmConfig> {
-    const ism = new Contract(
-      this.getContractAbi(IsmType.MESSAGE_ID_MULTISIG),
+    const ism = getStarknetContract(
+      StarknetIsmContractName[IsmType.MESSAGE_ID_MULTISIG],
       address,
-      this.signer,
+      this.provider,
     );
 
     const [validators, threshold] = await Promise.all([
@@ -140,10 +150,10 @@ export class StarknetIsmReader {
   private async deriveRoutingConfig(
     address: Address,
   ): Promise<WithAddress<RoutingIsmConfig>> {
-    const ism = new Contract(
-      this.getContractAbi(IsmType.ROUTING),
+    const ism = getStarknetContract(
+      StarknetIsmContractName[IsmType.ROUTING],
       address,
-      this.signer,
+      this.provider,
     );
 
     const [domains, owner] = await Promise.all([ism.domains(), ism.owner()]);

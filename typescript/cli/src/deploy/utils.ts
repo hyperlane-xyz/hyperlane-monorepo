@@ -8,6 +8,7 @@ import {
   IsmConfig,
   MultisigConfig,
   getLocalProvider,
+  getStarknetEtherContract,
   getStarknetHypERC20Contract,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -166,6 +167,7 @@ export async function prepareStarknetDeploy(
   await Promise.all(
     chains.map(async (chain: ChainName) => {
       const provider = multiProtocolProvider?.getStarknetProvider(chain);
+      assert(provider, `No provider found for ${chain}`);
       const address =
         userAddress ?? multiProtocolSigner?.getStarknetSigner(chain).address;
       assert(address, `No address found for ${chain}`);
@@ -173,7 +175,7 @@ export async function prepareStarknetDeploy(
       const nativeTokenAddress =
         multiProtocolProvider?.getChainMetadata(chain).nativeToken?.denom; // TODO: fetch default token
       assert(nativeTokenAddress, `No native token found for ${chain}`);
-      const etherContract = getStarknetHypERC20Contract(
+      const etherContract = getStarknetEtherContract(
         nativeTokenAddress,
         provider,
       );
@@ -201,8 +203,8 @@ export async function completeDeploy(
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (metadata?.protocol === ProtocolType.Starknet) {
-      // Handle Starknet chains differently
       const provider = multiProtocolProvider?.getStarknetProvider(chain);
+      assert(provider, `No provider found for ${chain}`);
       const address =
         userAddress ?? multiProtocolSigner?.getStarknetSigner(chain).address;
       assert(address, `No address found for ${chain}`);

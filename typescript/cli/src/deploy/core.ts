@@ -53,6 +53,7 @@ export async function runCoreDeploy(params: DeployParams) {
     registry,
     skipConfirmation,
     multiProvider,
+    multiProtocolProvider,
   } = context;
 
   // Select a dry-run chain if it's not supplied
@@ -123,6 +124,8 @@ export async function runCoreDeploy(params: DeployParams) {
         const starknetCoreModule = new StarknetCoreModule(
           account,
           multiProvider,
+          multiProtocolProvider!,
+          chain,
         );
         deployedAddresses = await starknetCoreModule.deploy({
           chain,

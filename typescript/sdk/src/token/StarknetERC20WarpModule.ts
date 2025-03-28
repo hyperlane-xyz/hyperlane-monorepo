@@ -8,7 +8,11 @@ import {
   uint256,
 } from 'starknet';
 
-import { TokenType, getStarknetHypERC20Contract } from '@hyperlane-xyz/sdk';
+import {
+  StarknetContractName,
+  TokenType,
+  getStarknetHypERC20Contract,
+} from '@hyperlane-xyz/sdk';
 import { ContractType } from '@hyperlane-xyz/starknet-core';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -66,7 +70,7 @@ export class StarknetERC20WarpModule {
       switch (type) {
         case TokenType.synthetic: {
           const tokenAddress = await deployer.deployContract(
-            'HypErc20',
+            StarknetContractName.HYP_ERC20,
             {
               decimals: tokenMetadata.decimals,
               mailbox: mailbox!,
@@ -84,7 +88,7 @@ export class StarknetERC20WarpModule {
         }
         case TokenType.native: {
           const tokenAddress = await deployer.deployContract(
-            'HypNative',
+            StarknetContractName.HYP_NATIVE,
             {
               mailbox: mailbox,
               native_token: PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[
@@ -102,7 +106,7 @@ export class StarknetERC20WarpModule {
 
         case TokenType.collateral: {
           const tokenAddress = await deployer.deployContract(
-            'HypErc20Collateral',
+            StarknetContractName.HYP_ERC20_COLLATERAL,
             {
               mailbox: mailbox!,
               // @ts-ignore
@@ -205,6 +209,10 @@ export class StarknetERC20WarpModule {
       if (receipt.isSuccess()) {
         this.logger.info(
           `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+        );
+      } else {
+        this.logger.error(
+          `Failed to enroll all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
         );
       }
     }

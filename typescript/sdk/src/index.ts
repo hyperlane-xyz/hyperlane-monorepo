@@ -714,8 +714,16 @@ export {
 } from './messaging/messageUtils.js';
 
 export {
+  StarknetContractName,
+  StarknetIsmType,
+  StarknetHookType,
+  getStarknetContract,
   getStarknetHypERC20Contract,
+  getStarknetHypERC20CollateralContract,
   getStarknetMailboxContract,
+  getStarknetHypNativeContract,
+  getStarknetEtherContract,
+  getStarknetIsmContract,
 } from './utils/starknet.js';
 
 export { MessageBus } from './bus/MessageBus.js';
