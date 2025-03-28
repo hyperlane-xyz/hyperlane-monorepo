@@ -807,7 +807,9 @@ impl PendingMessage {
         Ok(metadata)
     }
 
+    /// clear metadata cache
     fn clear_metadata(&mut self) {
+        tracing::debug!("Invalidating cached metadata");
         self.metadata = None;
     }
 }

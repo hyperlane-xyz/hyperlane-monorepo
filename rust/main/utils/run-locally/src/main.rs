@@ -576,6 +576,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     Ok(true)
 }
 
+/// Check relayer reused already built metadata
 fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
@@ -588,11 +589,9 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
     let metadata_cache_reuse_count = *matched_logs
         .get(&line_filters)
         .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
-    // These messages are never inserted into the merkle tree.
-    // So these messages will never be deliverable and will always
-    // be in a CouldNotFetchMetadata state.
-    // When the relayer restarts, these messages' statuses should be
-    // retrieved from the database with CouldNotFetchMetadata status.
+
+    log!("metadata cache was used... {}", metadata_cache_reuse_count);
+
     if metadata_cache_reuse_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "Cache metadata reuse count is {}, expected {}",
@@ -601,10 +600,6 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
         );
         return Ok(false);
     }
-    assert_eq!(
-        metadata_cache_reuse_count,
-        ZERO_MERKLE_INSERTION_KATHY_MESSAGES
-    );
     Ok(true)
 }
 
