@@ -95,7 +95,9 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
 /// A transaction submitter that uses the Jito API to submit transactions.
 #[derive(Debug, new)]
 pub struct JitoTransactionSubmitter {
+    /// Used for other operations
     default_provider: Arc<SealevelProvider>,
+    /// Used to submit transactions
     submit_provider: Arc<SealevelProvider>,
 }
 
