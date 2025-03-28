@@ -92,7 +92,7 @@ impl BuildingStage {
             if let Err(err) = self
                 .state
                 .payload_db
-                .set_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
+                .store_new_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
                 .await
             {
                 error!(
@@ -123,13 +123,26 @@ impl BuildingStage {
             if let Err(err) = self
                 .state
                 .payload_db
-                .set_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
+                .store_new_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
                 .await
             {
                 error!(
                     ?err,
                     payload_details = ?tx.payload_details(),
                     "Error updating payload status to `sent`"
+                );
+            }
+
+            if let Err(err) = self
+                .state
+                .payload_db
+                .store_tx_id_by_payload_id(payload_detail.id(), tx.id())
+                .await
+            {
+                error!(
+                    ?err,
+                    payload_details = ?tx.payload_details(),
+                    "Error storing transaction id in the database"
                 );
             }
         }

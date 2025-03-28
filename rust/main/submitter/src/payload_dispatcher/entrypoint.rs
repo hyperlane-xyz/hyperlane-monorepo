@@ -104,6 +104,21 @@ mod tests {
                 .insert(payload.id().clone(), payload);
             Ok(())
         }
+
+        async fn store_tx_id_by_payload_id(
+            &self,
+            _payload_id: &PayloadId,
+            _tx_id: &TransactionId,
+        ) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_tx_id_by_payload_id(
+            &self,
+            _payload_id: &PayloadId,
+        ) -> DbResult<Option<TransactionId>> {
+            todo!()
+        }
     }
 
     #[async_trait]
