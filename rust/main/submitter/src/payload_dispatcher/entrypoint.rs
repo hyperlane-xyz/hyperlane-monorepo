@@ -51,7 +51,7 @@ impl Entrypoint for PayloadDispatcherEntrypoint {
             .retrieve_payload_by_id(&payload_id)
             .await?;
         let status = payload
-            .map(|payload| payload.status())
+            .map(|payload| payload.status)
             .unwrap_or(PayloadStatus::NotFound);
         Ok(status)
     }
@@ -104,6 +104,21 @@ mod tests {
                 .insert(payload.id().clone(), payload);
             Ok(())
         }
+
+        async fn store_tx_id_by_payload_id(
+            &self,
+            _payload_id: &PayloadId,
+            _tx_id: &TransactionId,
+        ) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_tx_id_by_payload_id(
+            &self,
+            _payload_id: &PayloadId,
+        ) -> DbResult<Option<TransactionId>> {
+            todo!()
+        }
     }
 
     #[async_trait]
@@ -115,7 +130,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn store_transaction_by_id(&self, _tx: Transaction) -> DbResult<()> {
+        async fn store_transaction_by_id(&self, _tx: &Transaction) -> DbResult<()> {
             unimplemented!()
         }
     }
@@ -143,7 +158,7 @@ mod tests {
 
         // update the payload's status
         let new_status = PayloadStatus::Finalized;
-        payload.set_status(new_status.clone());
+        payload.status = new_status.clone();
         db.store_payload_by_id(payload).await.unwrap();
 
         // ensure the db entry was updated

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use solana_client::nonblocking::rpc_client::RpcClient;
 
-use crate::SealevelRpcClient;
+use crate::client::SealevelRpcClient;
 
 //#[tokio::test]
 async fn _test_get_block() {

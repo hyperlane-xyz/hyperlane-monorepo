@@ -6,10 +6,14 @@ use std::{collections::VecDeque, sync::Arc};
 use derive_new::new;
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
+use tracing::{error, info, warn};
 
-use crate::{payload::FullPayload, transaction::Transaction};
+use crate::{
+    payload::{DropReason, FullPayload, PayloadDetails, PayloadStatus},
+    transaction::Transaction,
+};
 
-use super::PayloadDispatcherState;
+use super::state::PayloadDispatcherState;
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -23,19 +27,77 @@ struct BuildingStage {
 }
 
 impl BuildingStage {
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self) {
         loop {
-            let payload = self.queue.lock().await.pop_front();
-            if let Some(payload) = payload {
-                let txs = self.state.adapter.build_transactions(vec![payload]).await?;
-                for tx in txs {
-                    self.inclusion_stage_sender.send(tx).await?;
+            // event-driven by the Building queue
+            let payload = match self.queue.lock().await.pop_front() {
+                Some(payload) => payload,
+                None => {
+                    // wait for the next payload to arrive
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    continue;
                 }
-            } else {
-                // wait for the next payload to arrive
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            };
+
+            let payloads = vec![payload];
+            let txs = match self.state.adapter.build_transactions(&payloads).await {
+                Err(err) => {
+                    error!(
+                        ?err,
+                        ?payloads,
+                        "Error building transactions. Dropping payloads"
+                    );
+                    let details_for_payloads: Vec<_> =
+                        payloads.into_iter().map(|p| p.details.clone()).collect();
+                    self.state
+                        .drop_payloads(&details_for_payloads, DropReason::UnhandledError)
+                        .await;
+                    continue;
+                }
+                Ok(txs) => txs,
+            };
+
+            for tx in txs {
+                if let Err(err) = self.state.simulate_tx(&tx).await {
+                    error!(
+                        ?err,
+                        payload_details = ?tx.payload_details,
+                        "Error simulating transaction. Dropping transaction"
+                    );
+                    // TODO: distinguish between network error and failed simulation
+                    self.drop_tx(&tx, DropReason::FailedSimulation).await;
+                    continue;
+                };
+                if let Err(err) = self.send_tx_to_inclusion_stage(tx.clone()).await {
+                    error!(
+                        ?err,
+                        payload_details = ?tx.payload_details,
+                        "Error sending transaction to inclusion stage"
+                    );
+                    self.drop_tx(&tx, DropReason::UnhandledError).await;
+                    continue;
+                } else {
+                    self.state.store_tx(&tx).await;
+                }
             }
         }
+    }
+
+    async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
+        // Transactions are only persisted if they are sent to the Inclusion Stage
+        // so the only thing to update in this stage is the payload status
+        self.state.drop_payloads(&tx.payload_details, reason).await;
+    }
+
+    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<()> {
+        if let Err(err) = self.inclusion_stage_sender.send(tx.clone()).await {
+            return Err(eyre::eyre!(
+                "Error sending transaction to Inclusion Stage: {:?}",
+                err
+            ));
+        }
+        info!(?tx, "Transaction sent to Inclusion Stage");
+        Ok(())
     }
 }
 
@@ -48,7 +110,6 @@ mod tests {
         chain_tx_adapter::AdaptsChain,
         payload::{self, FullPayload, PayloadDetails},
         payload_dispatcher::{
-            building_stage,
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
@@ -61,14 +122,14 @@ mod tests {
         sent_payload_count: usize,
         building_stage: &BuildingStage,
         receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
-    ) -> Result<Vec<PayloadDetails>> {
+    ) -> Vec<PayloadDetails> {
         // future that receives `sent_payload_count` payloads from the building stage
         let received_payloads = async {
             let mut received_payloads = Vec::new();
             while received_payloads.len() < sent_payload_count {
                 let tx_received = receiver.recv().await.unwrap();
-                let payload_details_received = tx_received.payload_details();
-                received_payloads.extend_from_slice(payload_details_received);
+                let payload_details_received = tx_received.payload_details;
+                received_payloads.extend_from_slice(&payload_details_received);
             }
             received_payloads
         };
@@ -79,12 +140,12 @@ mod tests {
             res = building_stage.run() => res,
             // this arm runs until all sent payloads are sent as txs
             payloads = received_payloads => {
-                return Ok(payloads);
+                return payloads;
             },
             // this arm is the timeout
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => Err(eyre::eyre!("Timeout")),
-        }?;
-        Err(eyre::eyre!("No transaction was sent to the receiver"))
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => panic!("Timeout"),
+        };
+        panic!("No transaction was sent to the receiver")
     }
 
     fn test_setup(
@@ -99,7 +160,11 @@ mod tests {
         mock_adapter
             .expect_build_transactions()
             .times(payloads_to_send)
-            .returning(|payloads| Ok(dummy_tx(payloads)));
+            .returning(|payloads| Ok(dummy_tx(payloads.to_vec())));
+        mock_adapter
+            .expect_simulate_tx()
+            .times(payloads_to_send)
+            .returning(|_| Ok(true));
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
         let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
@@ -117,12 +182,11 @@ mod tests {
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::default();
             queue.lock().await.push_back(payload_to_send.clone());
-            let payload_details_received = run_building_stage(1, &building_stage, &mut receiver)
-                .await
-                .unwrap();
+            let payload_details_received =
+                run_building_stage(1, &building_stage, &mut receiver).await;
             assert_eq!(
                 payload_details_received,
-                vec![payload_to_send.details().clone()]
+                vec![payload_to_send.details.clone()]
             );
         }
     }
@@ -141,12 +205,10 @@ mod tests {
 
         // send multiple payloads to the building stage and check that they are sent to the receiver in the same order
         let payload_details_received =
-            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver)
-                .await
-                .unwrap();
+            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
         let expected_payload_details = sent_payloads
             .iter()
-            .map(|payload| payload.details().clone())
+            .map(|payload| payload.details.clone())
             .collect::<Vec<_>>();
         assert_eq!(payload_details_received, expected_payload_details);
     }

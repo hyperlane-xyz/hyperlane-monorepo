@@ -1,6 +1,8 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 use eyre::Result;
 use uuid::Uuid;
@@ -21,7 +23,7 @@ pub trait AdaptsChain: Send + Sync {
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    async fn build_transactions(&self, payloads: Vec<FullPayload>) -> Result<Vec<Transaction>>;
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
@@ -34,6 +36,13 @@ pub trait AdaptsChain: Send + Sync {
 
     /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
     async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<Uuid>>;
+
+    /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
+    fn estimated_block_time(&self) -> Duration;
+
+    /// Returns the maximum batch size for this chain. Used to decide how many payloads to batch together, as well as
+    /// how many network calls to perform in parallel
+    fn max_batch_size(&self) -> usize;
 
     // methods below are excluded from the MVP
 
