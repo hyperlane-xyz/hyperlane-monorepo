@@ -63,13 +63,21 @@ impl BuildingStage {
 
             for tx in txs {
                 if let Err(err) = self.simulate_tx(&tx).await {
-                    error!(?err, "Error simulating transaction. Dropping transaction");
+                    error!(
+                        ?err,
+                        payload_details = ?tx.payload_details(),
+                        "Error simulating transaction. Dropping transaction"
+                    );
                     // TODO: distinguish between network error and failed simulation
                     self.drop_tx(&tx, DropReason::FailedSimulation).await;
                     continue;
                 };
                 if let Err(err) = self.send_tx_to_inclusion_stage(tx.clone()).await {
-                    error!(?err, "Error storing transaction in the database");
+                    error!(
+                        ?err,
+                        payload_details = ?tx.payload_details(),
+                        "Error sending transaction to inclusion stage"
+                    );
                     self.drop_tx(&tx, DropReason::UnhandledError).await;
                     continue;
                 } else {
@@ -87,19 +95,29 @@ impl BuildingStage {
                 .set_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
                 .await
             {
-                error!(?err, "Error updating payload status to `dropped`");
+                error!(
+                    ?err,
+                    payload_details = ?details,
+                    "Error updating payload status to `dropped`"
+                );
             }
             warn!(?details, "Payload dropped from Building Stage");
         }
     }
 
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
+        // Transactions are only persisted if they are sent to the Inclusion Stage
+        // so the only thing to update in this stage is the payload status
         self.drop_payloads(tx.payload_details(), reason).await;
     }
 
     async fn store_tx(&self, tx: &Transaction) {
         if let Err(err) = self.state.tx_db.store_transaction_by_id(tx).await {
-            error!(?err, "Error storing transaction in the database");
+            error!(
+                ?err,
+                payload_details = ?tx.payload_details(),
+                "Error storing transaction in the database"
+            );
         }
         for payload_detail in tx.payload_details() {
             if let Err(err) = self
@@ -108,7 +126,11 @@ impl BuildingStage {
                 .set_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
                 .await
             {
-                error!(?err, "Error updating payload status to `sent`");
+                error!(
+                    ?err,
+                    payload_details = ?tx.payload_details(),
+                    "Error updating payload status to `sent`"
+                );
             }
         }
     }
