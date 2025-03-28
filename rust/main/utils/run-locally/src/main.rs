@@ -583,15 +583,17 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
-    let line_filters = vec![USE_CACHE_METADATA_LOG];
+    let line_filters = vec![
+        vec![USE_CACHE_METADATA_LOG],
+        vec![INVALIDATE_CACHE_METADATA_LOG],
+    ];
 
     log!("Checking metadata cache was used...");
-    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+    let matched_logs = get_matching_lines(&relayer_logfile, line_filters.clone());
 
     let metadata_cache_reuse_count = *matched_logs
-        .get(&line_filters)
+        .get(&line_filters[0])
         .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
-
     if metadata_cache_reuse_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!(
             "Cache metadata reuse count is {}, expected {}",
@@ -601,15 +603,10 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
         return Ok(false);
     }
 
-    let line_filters = vec![INVALIDATE_CACHE_METADATA_LOG];
-
     log!("Checking invalidate metadata cache happened...");
-    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
-
     let invalidate_metadata_cache_count = *matched_logs
-        .get(&line_filters)
+        .get(&line_filters[1])
         .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
-
     if invalidate_metadata_cache_count == 0 {
         log!(
             "Invalidate cache metadata reuse count is {}, expected non-zero value",
