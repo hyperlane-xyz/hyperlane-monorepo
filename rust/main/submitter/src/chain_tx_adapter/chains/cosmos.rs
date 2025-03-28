@@ -51,4 +51,8 @@ impl AdaptsChain for CosmosTxAdapter {
     async fn reverted_payloads(&self, _tx: &Transaction) -> eyre::Result<Vec<Uuid>> {
         todo!()
     }
+
+    async fn estimated_block_time(&self) -> eyre::Result<std::time::Duration> {
+        todo!()
+    }
 }
