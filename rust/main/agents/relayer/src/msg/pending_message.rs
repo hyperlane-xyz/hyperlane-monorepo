@@ -252,16 +252,34 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
-        let mut metadata_bytes = match self.metadata.as_ref() {
-            // if metadata is already built and is not too stale
+        // If metadata is already built, check gas estimation works.
+        // If gas estimation fails, invalidate cache and rebuilt it again.
+        let tx_cost_estimate = match self.metadata.as_ref() {
+            Some(metadata) => match self
+                .ctx
+                .destination_mailbox
+                .process_estimate_costs(&self.message, &metadata)
+                .await
+            {
+                Ok(s) => Some(s),
+                Err(_) => {
+                    self.clear_metadata();
+                    None
+                }
+            },
+            None => None,
+        };
+
+        let metadata_bytes = match self.metadata.as_ref() {
             Some(metadata) => {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
-                metadata.to_vec()
+                metadata.clone()
             }
             _ => match self.build_metadata().await {
                 Ok(metadata) => {
-                    self.metadata = Some(metadata.to_vec());
-                    metadata.to_vec()
+                    let metadata_bytes = metadata.to_vec();
+                    self.metadata = Some(metadata_bytes.clone());
+                    metadata_bytes
                 }
                 Err(err) => {
                     return err;
@@ -269,49 +287,29 @@ impl PendingOperation for PendingMessage {
             },
         };
 
-        // first attempt at gas estimation
-        let mut tx_cost_estimate = self
-            .ctx
-            .destination_mailbox
-            .process_estimate_costs(&self.message, &metadata_bytes)
-            .await;
-
-        // if gas estimate fails, we want to retry building metadata,
-        // and try gas estimation again
-        if tx_cost_estimate.is_err() {
-            self.clear_metadata();
-            match self.build_metadata().await {
-                Ok(metadata) => {
-                    self.metadata = Some(metadata.to_vec());
-                    metadata_bytes = metadata.to_vec();
-
-                    // second attempt at gas estimation
-                    tx_cost_estimate = self
-                        .ctx
-                        .destination_mailbox
-                        .process_estimate_costs(&self.message, &metadata_bytes)
-                        .await;
-                }
-                Err(err) => {
-                    return err;
-                }
-            }
-        }
-
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
         // move onto the next tick.
         let tx_cost_estimate = match tx_cost_estimate {
-            Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(err) => {
-                let reason = self
-                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                    .await
-                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                self.clear_metadata();
-                return self.on_reprepare(Some(err), reason);
-            }
+            // reuse old gas cost estimate if it succeeded
+            Some(cost) => cost,
+            None => match self
+                .ctx
+                .destination_mailbox
+                .process_estimate_costs(&self.message, &metadata_bytes)
+                .await
+            {
+                Ok(cost) => cost,
+                Err(err) => {
+                    let reason = self
+                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                        .await
+                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                    self.clear_metadata();
+                    return self.on_reprepare(Some(err), reason);
+                }
+            },
         };
 
         // If the gas payment requirement hasn't been met, move to the next tick.
