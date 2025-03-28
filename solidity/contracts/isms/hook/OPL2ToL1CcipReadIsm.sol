@@ -32,6 +32,8 @@ contract OPL2ToL1CcipReadIsm is
     // the OP Portal contract on L1
     IOptimismPortal immutable opPortal;
 
+    error InvalidWithdrawal(bytes32 invalidHash, bytes32 correctHash);
+
     event ReceivedMessage(
         uint32 indexed origin,
         bytes32 indexed sender,
@@ -138,17 +140,13 @@ contract OPL2ToL1CcipReadIsm is
         bytes calldata _metadata,
         bytes calldata _message
     ) internal {
+        // TODO: remove, unnecessary
         bytes32 withdrawalHash = abi.decode(
             TokenMessage.metadata(_message.body()),
             (bytes32)
         );
 
-        // NOTE: this lets the Mailbox deliver the message
-        // even if the someone else call first portal.finalizeWithdrawalTransaction()
-        if (IOptimismPortal.finalizedWithdrawals(withdrawalHash)) {
-            return;
-        }
-
+        // TODO: derive the withdrawal hash from here
         (IOptimismPortal.WithdrawalTransaction memory _tx, , , ) = abi.decode(
             _metadata,
             (
@@ -159,6 +157,35 @@ contract OPL2ToL1CcipReadIsm is
             )
         );
 
+        bytes32 expectedWithdrawalhash = _hashWithdrawal(_tx);
+
+        if (withdrawalHash != expectedWithdrawalhash) {
+            revert InvalidWithdrawal(withdrawalHash, expectedWithdrawalhash);
+        }
+
+        // NOTE: this lets the Mailbox deliver the message
+        // even if the someone else call first portal.finalizeWithdrawalTransaction()
+        if (IOptimismPortal.finalizedWithdrawals(withdrawalHash)) {
+            return;
+        }
+
         opPortal.finalizeWithdrawalTransaction(_tx);
+    }
+
+    /// @dev Copied from Hashing.sol of Optimism
+    function _hashWithdrawal(
+        IOptimismPortal.WithdrawalTransaction memory _tx
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    _tx.nonce,
+                    _tx.sender,
+                    _tx.target,
+                    _tx.value,
+                    _tx.gasLimit,
+                    _tx.data
+                )
+            );
     }
 }
