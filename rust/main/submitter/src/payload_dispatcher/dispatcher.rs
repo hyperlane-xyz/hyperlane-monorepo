@@ -19,16 +19,18 @@ use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory};
 use crate::payload::PayloadDb;
 use crate::transaction::TransactionDb;
 
+use super::PayloadDispatcherState;
+
 /// Settings for `PayloadDispatcher`
 #[derive(Debug)]
 pub struct PayloadDispatcherSettings {
     // settings needed for the protocol-specific adapter
-    chain_conf: ChainConf,
+    pub chain_conf: ChainConf,
     /// settings needed for chain-specific adapter
-    raw_chain_conf: RawChainConf,
-    domain: HyperlaneDomain,
-    db_path: PathBuf,
-    metrics: CoreMetrics,
+    pub raw_chain_conf: RawChainConf,
+    pub domain: HyperlaneDomain,
+    pub db_path: PathBuf,
+    pub metrics: CoreMetrics,
 }
 
 pub struct PayloadDispatcher {

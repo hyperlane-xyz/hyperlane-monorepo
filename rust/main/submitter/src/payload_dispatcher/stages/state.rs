@@ -11,12 +11,13 @@ use hyperlane_base::{
 };
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
+use tracing::{error, info, instrument::Instrumented, warn};
 
 use crate::{
-    chain_tx_adapter::{AdaptsChain, ChainTxAdapterBuilder},
-    payload::{DropReason, PayloadDb, PayloadDetails},
-    transaction::TransactionDb,
+    chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
+    payload::{DropReason, PayloadDb, PayloadDetails, PayloadStatus},
+    payload_dispatcher::PayloadDispatcherSettings,
+    transaction::{Transaction, TransactionDb},
 };
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
@@ -40,7 +41,11 @@ impl PayloadDispatcherState {
     }
 
     pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
-        let adapter = ChainTxAdapterBuilder::build(&settings.chain_conf, &settings.raw_chain_conf);
+        let adapter = ChainTxAdapterFactory::build(
+            &settings.chain_conf,
+            &settings.raw_chain_conf,
+            &settings.metrics,
+        )?;
         let db = DB::from_path(&settings.db_path)?;
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
@@ -48,11 +53,11 @@ impl PayloadDispatcherState {
         Ok(Self::new(payload_db, tx_db, adapter))
     }
 
-    async fn drop_payloads(&self, details: &[PayloadDetails], reason: DropReason) {
+    pub(crate) async fn drop_payloads(&self, details: &[PayloadDetails], reason: DropReason) {
         for d in details {
             if let Err(err) = self
                 .payload_db
-                .store_new_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
+                .store_new_payload_status(&d.id, PayloadStatus::Dropped(reason.clone()))
                 .await
             {
                 error!(
@@ -65,42 +70,42 @@ impl PayloadDispatcherState {
         }
     }
 
-    async fn store_tx(&self, tx: &Transaction) {
+    pub(crate) async fn store_tx(&self, tx: &Transaction) {
         if let Err(err) = self.tx_db.store_transaction_by_id(tx).await {
             error!(
                 ?err,
-                payload_details = ?tx.payload_details(),
+                payload_details = ?tx.payload_details,
                 "Error storing transaction in the database"
             );
         }
-        for payload_detail in tx.payload_details() {
+        for payload_detail in &tx.payload_details {
             if let Err(err) = self
                 .payload_db
-                .store_new_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
+                .store_new_payload_status(&payload_detail.id, PayloadStatus::PendingInclusion)
                 .await
             {
                 error!(
                     ?err,
-                    payload_details = ?tx.payload_details(),
+                    payload_details = ?tx.payload_details,
                     "Error updating payload status to `sent`"
                 );
             }
 
             if let Err(err) = self
                 .payload_db
-                .store_tx_id_by_payload_id(payload_detail.id(), tx.id())
+                .store_tx_id_by_payload_id(&payload_detail.id, &tx.id)
                 .await
             {
                 error!(
                     ?err,
-                    payload_details = ?tx.payload_details(),
+                    payload_details = ?tx.payload_details,
                     "Error storing transaction id in the database"
                 );
             }
         }
     }
 
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<()> {
+    pub(crate) async fn simulate_tx(&self, tx: &Transaction) -> Result<()> {
         match self.adapter.simulate_tx(tx).await {
             Ok(true) => {
                 info!(?tx, "Transaction simulation succeeded");

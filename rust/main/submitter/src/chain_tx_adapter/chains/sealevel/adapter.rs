@@ -314,6 +314,14 @@ impl AdaptsChain for SealevelTxAdapter {
         // Dummy implementation of reverted payloads for Sealevel since we don't have batching for Sealevel
         Ok(Vec::new())
     }
+
+    fn estimated_block_time(&self) -> std::time::Duration {
+        todo!()
+    }
+
+    fn max_batch_size(&self) -> usize {
+        todo!()
+    }
 }
 
 #[cfg(test)]

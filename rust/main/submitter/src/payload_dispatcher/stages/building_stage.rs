@@ -13,7 +13,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::PayloadDispatcherState;
+use super::state::PayloadDispatcherState;
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -49,7 +49,8 @@ impl BuildingStage {
                     );
                     let details_for_payloads: Vec<_> =
                         payloads.into_iter().map(|p| p.details.clone()).collect();
-                    self.drop_payloads(&details_for_payloads, DropReason::UnhandledError)
+                    self.state
+                        .drop_payloads(&details_for_payloads, DropReason::UnhandledError)
                         .await;
                     continue;
                 }
@@ -57,7 +58,7 @@ impl BuildingStage {
             };
 
             for tx in txs {
-                if let Err(err) = self.simulate_tx(&tx).await {
+                if let Err(err) = self.state.simulate_tx(&tx).await {
                     error!(
                         ?err,
                         payload_details = ?tx.payload_details,
@@ -76,7 +77,7 @@ impl BuildingStage {
                     self.drop_tx(&tx, DropReason::UnhandledError).await;
                     continue;
                 } else {
-                    self.store_tx(&tx).await;
+                    self.state.store_tx(&tx).await;
                 }
             }
         }
@@ -85,7 +86,7 @@ impl BuildingStage {
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
         // Transactions are only persisted if they are sent to the Inclusion Stage
         // so the only thing to update in this stage is the payload status
-        self.drop_payloads(&tx.payload_details, reason).await;
+        self.state.drop_payloads(&tx.payload_details, reason).await;
     }
 
     async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<()> {
@@ -109,7 +110,6 @@ mod tests {
         chain_tx_adapter::AdaptsChain,
         payload::{self, FullPayload, PayloadDetails},
         payload_dispatcher::{
-            building_stage,
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
