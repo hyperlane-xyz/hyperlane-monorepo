@@ -31,7 +31,7 @@ use crate::chain_tx_adapter::chains::sealevel::{
     SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor,
 };
 use crate::chain_tx_adapter::AdaptsChain;
-use crate::payload::{FullPayload, VmSpecificPayloadData};
+use crate::payload::{FullPayload, PayloadDetails, VmSpecificPayloadData};
 use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
 
 const GAS_LIMIT: u32 = 42;
@@ -141,11 +141,11 @@ async fn test_build_transactions() {
     let expected = VmSpecificTxData::Svm(SealevelTxPrecursor::new(instruction(), estimate()));
 
     // when
-    let result = adapter.build_transactions(&[payload]).await;
+    let result = adapter.build_transactions(&[payload.clone()]).await;
 
     // then
     assert!(matches!(result, Ok(_)));
-    assert_eq!(expected, actual_data(result));
+    assert_eq!((payload.details().clone(), expected), actual(result));
 }
 
 #[tokio::test]
@@ -189,10 +189,13 @@ async fn test_tx_status() {
     assert!(matches!(status, TransactionStatus::Finalized));
 }
 
-fn actual_data(result: Result<Vec<Transaction>>) -> VmSpecificTxData {
+fn actual(result: Result<Vec<Transaction>>) -> (PayloadDetails, VmSpecificTxData) {
     let transactions = result.unwrap();
     let transaction = transactions.first().unwrap();
-    transaction.vm_specific_data().clone()
+    (
+        transaction.payload_details.first().unwrap().clone(),
+        transaction.vm_specific_data().clone(),
+    )
 }
 
 fn estimate() -> SealevelTxCostEstimate {
