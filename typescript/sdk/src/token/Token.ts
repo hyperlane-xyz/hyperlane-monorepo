@@ -260,14 +260,15 @@ export class Token implements IToken {
       const accountInfo = await svmProvider.getAccountInfo(
         new PublicKey(collateralAddressOrDenom),
       );
+
       assert(
         accountInfo,
         'collateralAddressOrDenom must be an existing account for Sealevel hyp collateral tokens',
       );
 
       assert(
-        accountInfo.owner === TOKEN_2022_PROGRAM_ID ||
-          accountInfo.owner === TOKEN_PROGRAM_ID,
+        accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ||
+          accountInfo.owner.equals(TOKEN_PROGRAM_ID),
         `collateralAddressOrDenom must be a token for Sealevel hyp collateral tokens`,
       );
 
@@ -279,7 +280,7 @@ export class Token implements IToken {
           token: collateralAddressOrDenom,
           mailbox,
         },
-        accountInfo.owner === TOKEN_2022_PROGRAM_ID,
+        accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID),
       );
     } else if (standard === TokenStandard.SealevelHypSynthetic) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
