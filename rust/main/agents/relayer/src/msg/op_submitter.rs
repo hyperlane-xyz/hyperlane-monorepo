@@ -428,7 +428,7 @@ async fn confirm_op(
 
     if matches!(
         destination.domain_protocol(),
-        HyperlaneDomainProtocol::Cosmos
+        HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative
     ) {
         // On cosmos chains, sleep for 1 sec (the finality period).
         // Otherwise we get `account sequence mismatch` errors, which have caused us
