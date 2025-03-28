@@ -264,13 +264,16 @@ impl PendingOperation for PendingMessage {
         };
         // If even this doesn't meet the gas payment requirement,
         // we skip the metadata building.
-        if self
+        let zero_cost_status = self
             .ctx
             .origin_gas_payment_enforcer
             .message_meets_gas_payment_requirement(&self.message, &zero_cost)
-            .await
-            .is_err()
-        {
+            .await;
+        if !matches!(zero_cost_status, Ok(GasPolicyStatus::PolicyMet(_))) {
+            warn!(
+                ?zero_cost_status,
+                "Message even with zero cost does not meet gas payment requirement"
+            );
             return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
         }
 
