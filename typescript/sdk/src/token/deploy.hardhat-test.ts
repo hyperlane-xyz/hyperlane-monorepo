@@ -116,7 +116,7 @@ describe('TokenDeployer', async () => {
 
     describe('HypERC20Checker', async () => {
       let checker: HypERC20Checker;
-
+      let app: HypERC20App;
       beforeEach(async () => {
         config[chain] = {
           ...config[chain],
@@ -126,7 +126,7 @@ describe('TokenDeployer', async () => {
         };
 
         const contractsMap = await deployer.deploy(config);
-        const app = new HypERC20App(contractsMap, multiProvider);
+        app = new HypERC20App(contractsMap, multiProvider);
         checker = new HypERC20Checker(multiProvider, app, config);
       });
 
@@ -140,9 +140,32 @@ describe('TokenDeployer', async () => {
           return;
         }
 
+        const previousOwner = await xerc20.owner();
         await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
         await checker.check();
         checker.expectViolations({
+          [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
+        });
+
+        // Create a new Checker and initialize it with config + ownerOverrides
+        const configWithOverrides = Object.fromEntries(
+          Object.entries(config).map(([chain, config]) => {
+            return [
+              chain,
+              {
+                ...config,
+                ownerOverrides: { collateralToken: previousOwner },
+              },
+            ];
+          }),
+        );
+        const checkerWithOwnerOverrides = new HypERC20Checker(
+          multiProvider,
+          app,
+          configWithOverrides,
+        );
+        await checkerWithOwnerOverrides.check();
+        checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
         });
       });
@@ -152,9 +175,32 @@ describe('TokenDeployer', async () => {
           return;
         }
 
+        const previousOwner = await admin.owner();
         await admin.transferOwnership(ethers.Wallet.createRandom().address);
         await checker.check();
         checker.expectViolations({
+          [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
+        });
+
+        // Create a new Checker and initialize it with config + ownerOverrides
+        const configWithOverrides = Object.fromEntries(
+          Object.entries(config).map(([chain, config]) => {
+            return [
+              chain,
+              {
+                ...config,
+                ownerOverrides: { collateralProxyAdmin: previousOwner },
+              },
+            ];
+          }),
+        );
+        const checkerWithOwnerOverrides = new HypERC20Checker(
+          multiProvider,
+          app,
+          configWithOverrides,
+        );
+        await checkerWithOwnerOverrides.check();
+        checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
         });
       });

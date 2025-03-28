@@ -38,6 +38,7 @@ async function main() {
 
   const routesToSkip: string[] = [
     WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
+    WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE,
   ];
 
   let warpIdsToCheck: string[];
