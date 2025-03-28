@@ -160,8 +160,8 @@ export class StarknetCoreModule {
     // Update required hook to MerkleTreeHook if specified
     if (expectedConfig.requiredHook) {
       this.logger.info(
-        `Deploying MerkleTreeHook with explicit owner (${args.owner}). Note: Unlike EVM where deployer becomes owner, ` +
-          `in Starknet the owner is specified during construction.`,
+        `Deploying MerkleTreeHook with explicit owner (${args.owner}). Note: Unlike EVM where deployer automatically becomes owner, ` +
+          `in Starknet the owner must be explicitly passed as a constructor parameter.`,
       );
 
       const merkleTreeHook = await this.deployer.deployContract(
