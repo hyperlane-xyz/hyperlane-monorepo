@@ -8,12 +8,7 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  assert,
-  intersection,
-  objFilter,
-  setEquality,
-} from '@hyperlane-xyz/utils';
+import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -26,7 +21,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -37,7 +32,11 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
-import { getWarpConfigs, getWarpCoreConfigOrExit } from '../utils/warp.js';
+import {
+  filterWarpConfigsToMatchingChains,
+  getWarpConfigs,
+  getWarpCoreConfigOrExit,
+} from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -375,69 +374,29 @@ export const check: CommandModuleWithContext<{
   handler: async ({ context, symbol, warp, warpRouteId, config }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    const { warpCoreConfig, warpDeployConfig: initialWarpDeployConfig } =
-      await getWarpConfigs({
-        context,
-        warpRouteId,
-        symbol,
-        warpDeployConfigPath: config,
-        warpCoreConfigPath: warp,
-      });
+    let { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
+    });
 
-    let warpDeployConfig = initialWarpDeployConfig;
-    let warpCoreConfigMutable = warpCoreConfig;
-
-    // First validate that warpCoreConfig chains match warpDeployConfig
-    const deployConfigChains = Object.keys(warpDeployConfig);
-    const coreConfigChains = warpCoreConfig.tokens.map((t) => t.chainName);
-
-    if (!setEquality(new Set(deployConfigChains), new Set(coreConfigChains))) {
-      logRed(
-        'Warning: Chain mismatch between warp core config and warp deploy config:',
-      );
-      logRed('──────────────────────');
-      logRed('Deploy config chains:');
-      deployConfigChains.forEach((chain) => logRed(`  - ${chain}`));
-      logRed('Core config chains:');
-      coreConfigChains.forEach((chain) => logRed(`  - ${chain}`));
-
-      const matchingChains = intersection(
-        new Set(deployConfigChains),
-        new Set(coreConfigChains),
-      );
-
-      if (matchingChains.size === 0) {
-        logRed('Error: No matching chains found between configs');
-        process.exit(1);
-      }
-
-      logRed(
-        `Continuing with check for matching chains: ${Array.from(
-          matchingChains,
-        ).join(', ')}\n`,
-      );
-
-      // Filter configs to only include matching chains
-      warpDeployConfig = Object.fromEntries(
-        Object.entries(warpDeployConfig).filter(([chain]) =>
-          matchingChains.has(chain),
-        ),
-      );
-      warpCoreConfigMutable.tokens = warpCoreConfigMutable.tokens.filter(
-        (token) => matchingChains.has(token.chainName),
-      );
-    }
+    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
+      warpDeployConfig,
+      warpCoreConfig,
+    ));
 
     // Get on-chain config
     const onChainWarpConfig = await getWarpRouteConfigsByCore({
       context,
-      warpCoreConfig: warpCoreConfigMutable,
+      warpCoreConfig,
     });
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
       warpDeployConfig as WarpRouteDeployConfigMailboxRequired,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfigMutable),
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     );
 
     await runWarpRouteCheck({

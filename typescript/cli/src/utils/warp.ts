@@ -2,7 +2,12 @@ import search from '@inquirer/search';
 
 import { warpRouteConfigToId } from '@hyperlane-xyz/registry';
 import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  intersection,
+  objFilter,
+  setEquality,
+} from '@hyperlane-xyz/utils';
 
 import {
   readWarpCoreConfig,
@@ -134,4 +139,69 @@ export async function getWarpConfigs({
     warpDeployConfig,
     warpCoreConfig,
   };
+}
+
+/**
+ * Compares chains between warp deploy and core configs, filters them to only include matching chains,
+ * and logs warnings if there are mismatches.
+ * @param warpDeployConfig The warp deployment configuration
+ * @param warpCoreConfig The warp core configuration
+ * @returns The filtered warp deploy and core configs containing only matching chains
+ */
+export function filterWarpConfigsToMatchingChains(
+  warpDeployConfig: WarpRouteDeployConfig,
+  warpCoreConfig: WarpCoreConfig,
+): {
+  warpDeployConfig: WarpRouteDeployConfig;
+  warpCoreConfig: WarpCoreConfig;
+} {
+  const deployConfigChains = Object.keys(warpDeployConfig);
+  const coreConfigChains = warpCoreConfig.tokens.map(
+    (t: { chainName: string }) => t.chainName,
+  );
+
+  const deploySet = new Set(deployConfigChains);
+  const coreSet = new Set(coreConfigChains);
+
+  if (!setEquality(deploySet, coreSet)) {
+    logRed(
+      'Warning: Chain mismatch between warp core config and warp deploy config:',
+    );
+    logRed('──────────────────────');
+    logRed('Deploy config chains:');
+    deployConfigChains.forEach((chain: string) => logRed(`  - ${chain}`));
+    logRed('Core config chains:');
+    coreConfigChains.forEach((chain: string) => logRed(`  - ${chain}`));
+
+    const matchingChains = intersection(deploySet, coreSet);
+    if (matchingChains.size === 0) {
+      logRed('Error: No matching chains found between configs');
+      process.exit(1);
+    }
+
+    logRed(
+      `Continuing with check for matching chains: ${Array.from(
+        matchingChains,
+      ).join(', ')}\n`,
+    );
+
+    // Filter configs to only include matching chains
+    const filteredWarpDeployConfig = objFilter(
+      warpDeployConfig,
+      (chain: string, _v): _v is any => matchingChains.has(chain),
+    );
+    const filteredWarpCoreConfig = {
+      ...warpCoreConfig,
+      tokens: warpCoreConfig.tokens.filter((token: { chainName: string }) =>
+        matchingChains.has(token.chainName),
+      ),
+    };
+
+    return {
+      warpDeployConfig: filteredWarpDeployConfig,
+      warpCoreConfig: filteredWarpCoreConfig,
+    };
+  }
+
+  return { warpDeployConfig, warpCoreConfig };
 }
