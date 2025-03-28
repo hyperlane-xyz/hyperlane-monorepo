@@ -35,7 +35,9 @@ contract HypERC20Collateral is FungibleTokenRouter {
 
     /**
      * @notice Constructor
+     *
      * @param erc20 Address of the token to keep as collateral
+     * @param _mailbox Address of the mailbox contract that will process and handle remote transfers for the `wrappedToken`.
      */
     constructor(
         address erc20,
@@ -46,6 +48,13 @@ contract HypERC20Collateral is FungibleTokenRouter {
         wrappedToken = IERC20(erc20);
     }
 
+    /**
+     * @notice Initializes the Hyperlane router
+     *
+     * @param _hook The post-dispatch hook contract.
+     * @param _interchainSecurityModule The interchain security module contract.
+     * @param _owner The owner of this contract.
+     */
     function initialize(
         address _hook,
         address _interchainSecurityModule,
