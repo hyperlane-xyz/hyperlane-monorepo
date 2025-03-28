@@ -14,7 +14,7 @@ pub type TransactionId = UniqueIdentifier;
 pub type SignerAddress = H256;
 
 /// Full details about a transaction
-#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
     pub id: TransactionId,
@@ -63,9 +63,8 @@ pub enum TransactionStatus {
 }
 
 // add nested enum entries as we add VMs
-#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    #[default]
     Evm,
     Svm(SealevelTxPrecursor),
     CosmWasm,

@@ -49,8 +49,12 @@ pub(crate) mod tests {
             .map(|payload| payload.details)
             .collect();
         let transaction = Transaction {
+            id: Default::default(),
+            hash: None,
+            vm_specific_data: VmSpecificTxData::Evm,
             payload_details: details,
-            ..Default::default()
+            status: Default::default(),
+            submission_attempts: 0,
         };
         vec![transaction]
     }
