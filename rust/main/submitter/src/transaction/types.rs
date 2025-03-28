@@ -29,24 +29,6 @@ pub struct Transaction {
     pub submission_attempts: u32,
 }
 
-impl Transaction {
-    pub fn id(&self) -> &TransactionId {
-        &self.id
-    }
-
-    pub fn hash(&self) -> Option<&H512> {
-        self.hash.as_ref()
-    }
-
-    pub fn payload_details(&self) -> &[PayloadDetails] {
-        &self.payload_details
-    }
-
-    pub fn vm_specific_data(&self) -> &VmSpecificTxData {
-        &self.vm_specific_data
-    }
-}
-
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum TransactionStatus {
     /// default state. If the tx appears dropped from the mempool, it goes back to this state

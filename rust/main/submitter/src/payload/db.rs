@@ -26,7 +26,7 @@ pub trait PayloadDb: Send + Sync {
             .retrieve_payload_by_id(id)
             .await?
             .ok_or(DbError::Other("Payload doesn't exist".to_owned()))?;
-        payload.set_status(status);
+        payload.status = status;
         self.store_payload_by_id(payload)
             .await
             .map_err(|err| DbError::Other(format!("Failed to store payload: {:?}", err)))?;

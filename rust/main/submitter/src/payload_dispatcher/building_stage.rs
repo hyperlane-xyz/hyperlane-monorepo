@@ -48,7 +48,7 @@ impl BuildingStage {
                         "Error building transactions. Dropping payloads"
                     );
                     let details_for_payloads: Vec<_> =
-                        payloads.into_iter().map(|p| p.details().clone()).collect();
+                        payloads.into_iter().map(|p| p.details.clone()).collect();
                     self.drop_payloads(&details_for_payloads, DropReason::UnhandledError)
                         .await;
                     continue;
@@ -60,7 +60,7 @@ impl BuildingStage {
                 if let Err(err) = self.simulate_tx(&tx).await {
                     error!(
                         ?err,
-                        payload_details = ?tx.payload_details(),
+                        payload_details = ?tx.payload_details,
                         "Error simulating transaction. Dropping transaction"
                     );
                     // TODO: distinguish between network error and failed simulation
@@ -70,7 +70,7 @@ impl BuildingStage {
                 if let Err(err) = self.send_tx_to_inclusion_stage(tx.clone()).await {
                     error!(
                         ?err,
-                        payload_details = ?tx.payload_details(),
+                        payload_details = ?tx.payload_details,
                         "Error sending transaction to inclusion stage"
                     );
                     self.drop_tx(&tx, DropReason::UnhandledError).await;
@@ -87,7 +87,7 @@ impl BuildingStage {
             if let Err(err) = self
                 .state
                 .payload_db
-                .set_payload_status(d.id(), PayloadStatus::Dropped(reason.clone()))
+                .set_payload_status(&d.id, PayloadStatus::Dropped(reason.clone()))
                 .await
             {
                 error!(
@@ -103,27 +103,27 @@ impl BuildingStage {
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
         // Transactions are only persisted if they are sent to the Inclusion Stage
         // so the only thing to update in this stage is the payload status
-        self.drop_payloads(tx.payload_details(), reason).await;
+        self.drop_payloads(&tx.payload_details, reason).await;
     }
 
     async fn store_tx(&self, tx: &Transaction) {
         if let Err(err) = self.state.tx_db.store_transaction_by_id(tx).await {
             error!(
                 ?err,
-                payload_details = ?tx.payload_details(),
+                payload_details = ?tx.payload_details,
                 "Error storing transaction in the database"
             );
         }
-        for payload_detail in tx.payload_details() {
+        for payload_detail in &tx.payload_details {
             if let Err(err) = self
                 .state
                 .payload_db
-                .set_payload_status(payload_detail.id(), PayloadStatus::PendingInclusion)
+                .set_payload_status(&payload_detail.id, PayloadStatus::PendingInclusion)
                 .await
             {
                 error!(
                     ?err,
-                    payload_details = ?tx.payload_details(),
+                    payload_details = ?tx.payload_details,
                     "Error updating payload status to `sent`"
                 );
             }
@@ -181,8 +181,8 @@ mod tests {
             let mut received_payloads = Vec::new();
             while received_payloads.len() < sent_payload_count {
                 let tx_received = receiver.recv().await.unwrap();
-                let payload_details_received = tx_received.payload_details();
-                received_payloads.extend_from_slice(payload_details_received);
+                let payload_details_received = tx_received.payload_details;
+                received_payloads.extend_from_slice(&payload_details_received);
             }
             received_payloads
         };
@@ -239,7 +239,7 @@ mod tests {
                 run_building_stage(1, &building_stage, &mut receiver).await;
             assert_eq!(
                 payload_details_received,
-                vec![payload_to_send.details().clone()]
+                vec![payload_to_send.details.clone()]
             );
         }
     }
@@ -261,7 +261,7 @@ mod tests {
             run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
         let expected_payload_details = sent_payloads
             .iter()
-            .map(|payload| payload.details().clone())
+            .map(|payload| payload.details.clone())
             .collect::<Vec<_>>();
         assert_eq!(payload_details_received, expected_payload_details);
     }

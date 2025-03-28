@@ -13,7 +13,7 @@ pub(crate) trait Instruction {
 
 impl Instruction for FullPayload {
     fn instruction(&self) -> &SealevelInstruction {
-        match self.data() {
+        match &self.data {
             VmSpecificPayloadData::Svm(payload) => &payload.instruction,
             _ => panic!(),
         }

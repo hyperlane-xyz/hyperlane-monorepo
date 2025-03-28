@@ -139,7 +139,7 @@ async fn test_build_transactions() {
     let adapter = adapter();
     let payload = payload();
     let data = VmSpecificTxData::Svm(SealevelTxPrecursor::new(instruction(), estimate()));
-    let expected = (payload.details().clone(), data);
+    let expected = (payload.details.clone(), data);
 
     // when
     let result = adapter.build_transactions(&[payload.clone()]).await;
@@ -198,7 +198,7 @@ fn payload_details_and_data_in_transaction(
     let transaction = transactions.first().unwrap();
     (
         transaction.payload_details.first().unwrap().clone(),
-        transaction.vm_specific_data().clone(),
+        transaction.vm_specific_data.clone(),
     )
 }
 

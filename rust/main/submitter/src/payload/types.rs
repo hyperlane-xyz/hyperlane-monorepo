@@ -17,20 +17,14 @@ type Address = H256;
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
-    id: PayloadId,
+    pub id: PayloadId,
 
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
-    metadata: String,
+    pub metadata: String,
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
-    success_criteria: Option<(Vec<u8>, Address)>,
-}
-
-impl PayloadDetails {
-    pub fn id(&self) -> &PayloadId {
-        &self.id
-    }
+    pub success_criteria: Option<(Vec<u8>, Address)>,
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
@@ -50,6 +44,12 @@ pub struct FullPayload {
     pub value: Option<U256>,
     /// will be up to the adapter to interpret this. Meant to help enforce the new igp social contract requirement (after 30 mins, stop enforcing any gas price caps)
     pub inclusion_soft_deadline: Option<DateTime<Utc>>,
+}
+
+impl FullPayload {
+    pub fn id(&self) -> &PayloadId {
+        &self.details.id
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
@@ -74,29 +74,6 @@ pub enum DropReason {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum RetryReason {
     Reorged,
-}
-
-impl FullPayload {
-    pub fn id(&self) -> &PayloadId {
-        &self.details.id
-    }
-
-    pub fn data(&self) -> &VmSpecificPayloadData {
-        &self.data
-    }
-
-    pub fn details(&self) -> &PayloadDetails {
-        &self.details
-    }
-
-    pub fn status(&self) -> PayloadStatus {
-        self.status.clone()
-    }
-
-    pub fn set_status(&mut self, status: PayloadStatus) -> &mut Self {
-        self.status = status;
-        self
-    }
 }
 
 // add nested enum entries as we add VMs

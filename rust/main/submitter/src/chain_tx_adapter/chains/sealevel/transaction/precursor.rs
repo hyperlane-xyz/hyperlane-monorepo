@@ -7,7 +7,7 @@ pub trait Precursor {
 
 impl Precursor for Transaction {
     fn precursor(&self) -> &SealevelTxPrecursor {
-        match self.vm_specific_data() {
+        match &self.vm_specific_data {
             VmSpecificTxData::Svm(precursor) => precursor,
             _ => panic!(),
         }
