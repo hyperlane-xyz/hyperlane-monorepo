@@ -455,7 +455,7 @@ export function getRenzoWarpConfigGenerator(params: {
                   ],
                 },
                 hook: getRenzoHook(defaultHook, chain, safes[chain]),
-                proxyAdmin: existingProxyAdmins?.[chain] ?? undefined,
+                proxyAdmin: existingProxyAdmins?.[chain] ?? undefined, // when 'undefined' yaml will not include the field
               },
             ];
 
