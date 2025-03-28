@@ -581,7 +581,7 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
-    let line_filters = vec![RETRIEVED_MESSAGE_LOG, "Reusing cached metadata"];
+    let line_filters = vec!["Reusing cached metadata"];
 
     log!("Checking metadata cache was used...");
     let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
