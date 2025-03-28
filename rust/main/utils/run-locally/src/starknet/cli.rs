@@ -48,7 +48,7 @@ impl StarknetCLI {
             .arg("keystore-password", self.keystore_password.clone())
             .arg("account", self.account_path.clone())
             .arg("rpc", self.rpc_addr.clone())
-            .arg("compiler-version", "2.6.2")
+            // .arg("compiler-version", "2.10.1")
             .run_with_output()
             .join();
 
