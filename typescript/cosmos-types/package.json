@@ -21,12 +21,12 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rimraf dist && tsc",
+    "build": "rm -rf ./dist && tsc",
     "format": "prettier --write .",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
-    "test": "exit 0"
+    "test": "echo \"no tests in cosmos-types\""
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
@@ -36,11 +36,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
-    "globals": "^15.14.0",
     "prettier": "^2.8.8",
-    "rimraf": "^6.0.1",
-    "ts-node": "^10.8.0",
-    "tslib": "^2.8.1",
     "typescript": "5.3.3",
     "typescript-eslint": "^8.23.0"
   },

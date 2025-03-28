@@ -1,4 +1,4 @@
-FROM bufbuild/buf:latest as BUILDER
+FROM bufbuild/buf:1.50.1 as BUILDER
 FROM node:20-alpine
 
 RUN npm install -g ts-proto@v1.181.2
@@ -19,9 +19,9 @@ RUN if ! getent passwd $USER_ID; then \
     adduser -D -u $USER_ID -G $(getent group $USER_GID | cut -d: -f1) myuser; \
     fi
 
-WORKDIR /app
-
 RUN apk add --no-cache git openssh-client
+
+WORKDIR /app
 
 COPY buf.gen.yaml ./
 
@@ -32,7 +32,9 @@ VOLUME /app/types
 ENTRYPOINT []
 
 # Use shell form of CMD
-CMD ["/bin/sh", "-c", "git clone https://github.com/bcp-innovations/hyperlane-cosmos.git && \
+CMD ["/bin/sh", "-c", "\
+    set -eo pipefail && \
+    git clone --depth 1 https://github.com/bcp-innovations/hyperlane-cosmos.git && \
     cp -rf hyperlane-cosmos/proto/* ./ && \
     rm -rf hyperlane-cosmos && \
     buf generate && \

@@ -2,4 +2,4 @@ services:
   proto-gen:
     build: .
     volumes:
-      - ../src/types:/app/types
+      - ./src/types:/app/types
