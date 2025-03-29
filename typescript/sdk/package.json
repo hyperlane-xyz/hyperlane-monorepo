@@ -22,6 +22,7 @@
     "pino": "^8.19.0",
     "starknet": "^6.23.1",
     "viem": "^2.21.45",
+    "zksync-ethers": "^5.10.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {
