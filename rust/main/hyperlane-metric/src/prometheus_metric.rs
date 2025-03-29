@@ -38,6 +38,18 @@ pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
+/// Expected label names for the metric.
+pub const METADATA_BUILD_COUNT_LABELS: &[&str] =
+    &["app_context", "origin", "destination", "status", "chain"];
+/// Help string for the metric.
+pub const METADATA_BUILD_COUNT_HELP: &str = "Total number of times metadata was build";
+
+/// Expected label names for the metric.
+pub const METADATA_BUILD_DURATION_LABELS: &[&str] =
+    &["app_context", "origin", "destination", "status", "chain"];
+/// Help string for the metric.
+pub const METADATA_BUILD_DURATION_HELP: &str = "Total number of times metadata was build";
+
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
 pub struct PrometheusClientMetrics {
