@@ -34,6 +34,7 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
             .route(message)
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
         self.base.build(module, message, params).await
     }
 }

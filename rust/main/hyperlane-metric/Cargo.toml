@@ -16,3 +16,5 @@ prometheus.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 url.workspace = true
+
+hyperlane-core = { path = "../hyperlane-core" }
