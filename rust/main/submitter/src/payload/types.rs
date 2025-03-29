@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
-use crate::chain_tx_adapter::SealevelPayload;
+use crate::{chain_tx_adapter::SealevelPayload, transaction::TransactionStatus};
 
 pub type PayloadId = UniqueIdentifier;
 type Address = H256;
@@ -56,10 +56,7 @@ impl FullPayload {
 pub enum PayloadStatus {
     #[default]
     ReadyToSubmit,
-    PendingInclusion,
-    Included,
-    Finalized,
-    NotFound,
+    InTransaction(TransactionStatus),
     Dropped(DropReason),
     Retry(RetryReason),
 }

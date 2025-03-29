@@ -1,10 +1,10 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, future::Future, sync::Arc, time::Duration};
 
 use derive_new::new;
-use eyre::Result;
+use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use tokio::{
     sync::{mpsc, Mutex},
@@ -13,11 +13,11 @@ use tokio::{
 use tracing::{error, info, info_span, Instrument};
 
 use crate::{
-    payload::FullPayload,
-    transaction::{Transaction, TransactionStatus},
+    payload::{FullPayload, PayloadStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus},
 };
 
-use super::PayloadDispatcherState;
+use super::{utils::retry_until_success, PayloadDispatcherState};
 
 pub type InclusionStagePool = Arc<Mutex<VecDeque<Transaction>>>;
 
@@ -76,7 +76,7 @@ impl InclusionStage {
     // - the statuses of txs and payloads are updated in the db. The `nonce` → `tx_uuid` store is updated as well
     // - submission errors are assumed to be network related, so txs are retried an indefinite number of times.
     //     - Open question: should we cap the number of retries? But if RPCs go down for 12h we may end up with all Payloads dropped from the Dispatcher. We’ll likely learn the answer as we operate this
-    // - If a transaction is dropped, updates the Transaction and Payload stores and the `payload_id` → `tx_uuid` mapping
+    // - If a transaction is dropped, updates the Transaction and Payload
     async fn process_txs(
         pool: &InclusionStagePool,
         finality_stage_sender: &mpsc::Sender<Transaction>,
@@ -88,32 +88,90 @@ impl InclusionStage {
             sleep(estimated_block_time).await;
 
             let pool_snapshot = pool.lock().await.clone();
-            for mut tx in pool_snapshot {
-                let tx_status = state.adapter.tx_status(&tx).await?;
-                if matches!(tx_status, TransactionStatus::Included) {
-                    // update tx status in db
-                    Self::update_tx_status(state, &mut tx, tx_status).await?;
-                    finality_stage_sender.send(tx).await?;
-                    continue;
-                }
-                if tx.submission_attempts == 0 {
-                    // simulate tx
-                    let success = state.adapter.simulate_tx(&tx).await?;
-                    if !success {
-                        continue;
-                    }
-                }
-                let simulated = state.adapter.simulate_tx(&tx).await?;
-                if simulated {
-                    state.adapter.submit(&mut tx).await?;
+            for tx in pool_snapshot {
+                if let Err(err) =
+                    Self::try_process_tx(tx.clone(), finality_stage_sender, state).await
+                {
+                    error!(?err, ?tx, "Error processing transaction. Skipping for now");
                 }
             }
         }
     }
 
-    async fn drop_tx(state: &PayloadDispatcherState, tx: &mut Transaction) -> Result<()> {
+    async fn try_process_tx(
+        mut tx: Transaction,
+        finality_stage_sender: &mpsc::Sender<Transaction>,
+        state: &PayloadDispatcherState,
+    ) -> Result<()> {
+        // - txs are checked for inclusion by calling `tx_status(transaction)`
+        // - txs that aren’t included AND newly received are simulated before submitting using `simulate_tx(tx)` on the ChainTxAdapter, and dropped if failing
+        // - `submit` is called on each tx, if they were not yet included in a block
+        // - reverted txs and their payload(s) are dropped
+        // - txs are sent to the Finality Stage if included in a block
+        // - the statuses of txs and payloads are updated in the db. The `nonce` → `tx_uuid` store is updated as well
+        // - submission errors are assumed to be network related, so txs are retried an indefinite number of times.
+        //     - Open question: should we cap the number of retries? But if RPCs go down for 12h we may end up with all Payloads dropped from the Dispatcher. We’ll likely learn the answer as we operate this
+        // - If a transaction is dropped, updates the Transaction and Payload
+        let tx_status = retry_until_success(
+            || state.adapter.tx_status(&tx),
+            "Querying transaction status",
+        )
+        .await;
+
+        if matches!(tx_status, TransactionStatus::Included) {
+            // update tx status in db
+            Self::update_tx_status(state, &mut tx, tx_status).await?;
+            let tx_id = tx.id.clone();
+            finality_stage_sender.send(tx).await?;
+            info!(?tx_id, "Transaction included in block");
+            return Ok(());
+        }
+        let simulation_success =
+            retry_until_success(|| state.adapter.simulate_tx(&tx), "Simulating transaction").await;
+        if !simulation_success {
+            Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation).await?;
+            return Err(eyre!("Transaction simulation failed"));
+        }
+
+        // successively calling `submit` will result in escalating gas price until the tx is accepted
+        // by the node.
+        // at this point, not all VMs return information about whether the tx was reverted.
+        // so dropping reverted payloads has to happen in the finality step
+        retry_until_success(
+            || {
+                let tx_clone = tx.clone();
+                async move {
+                    let mut tx_clone_inner = tx_clone.clone();
+                    state.adapter.submit(&mut tx_clone_inner).await
+                }
+            },
+            "Submitting transaction",
+        )
+        .await;
+
+        // update tx submission attempts
+        tx.submission_attempts += 1;
+        // update tx status in db
+        Self::update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
+
+        Ok(())
+    }
+
+    async fn drop_tx(
+        state: &PayloadDispatcherState,
+        tx: &mut Transaction,
+        reason: TxDropReason,
+    ) -> Result<()> {
         info!(?tx, "Dropping tx");
-        Self::update_tx_status(state, tx, TransactionStatus::DroppedByChain).await?;
+        let new_tx_status = TransactionStatus::Dropped(reason);
+        Self::update_tx_status(state, tx, new_tx_status.clone()).await?;
+        // drop the payloads as well
+        state
+            .update_status_for_payloads(
+                &tx.payload_details,
+                PayloadStatus::InTransaction(new_tx_status),
+            )
+            .await;
         Ok(())
     }
 

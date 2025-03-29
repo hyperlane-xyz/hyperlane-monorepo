@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{eyre, Result};
 
 use crate::{
     chain_tx_adapter::GasLimit,
@@ -52,8 +52,8 @@ impl Entrypoint for PayloadDispatcherEntrypoint {
             .await?;
         let status = payload
             .map(|payload| payload.status)
-            .unwrap_or(PayloadStatus::NotFound);
-        Ok(status)
+            .ok_or(eyre!("Payload not found"));
+        status
     }
 
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
@@ -157,7 +157,7 @@ mod tests {
         assert_eq!(status, PayloadStatus::ReadyToSubmit);
 
         // update the payload's status
-        let new_status = PayloadStatus::Finalized;
+        let new_status = PayloadStatus::InTransaction(TransactionStatus::Finalized);
         payload.status = new_status.clone();
         db.store_payload_by_id(payload).await.unwrap();
 

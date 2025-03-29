@@ -13,7 +13,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::state::PayloadDispatcherState;
+use super::{state::PayloadDispatcherState, utils::retry_until_success};
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -50,7 +50,10 @@ impl BuildingStage {
                     let details_for_payloads: Vec<_> =
                         payloads.into_iter().map(|p| p.details.clone()).collect();
                     self.state
-                        .drop_payloads(&details_for_payloads, DropReason::UnhandledError)
+                        .update_status_for_payloads(
+                            &details_for_payloads,
+                            PayloadStatus::Dropped(DropReason::UnhandledError),
+                        )
                         .await;
                     continue;
                 }
@@ -58,13 +61,17 @@ impl BuildingStage {
             };
 
             for tx in txs {
-                if let Err(err) = self.state.simulate_tx(&tx).await {
-                    error!(
-                        ?err,
+                let simulation_success = retry_until_success(
+                    || self.state.adapter.simulate_tx(&tx),
+                    "Simulating transaction",
+                )
+                .await;
+                if !simulation_success {
+                    warn!(
+                        ?tx,
                         payload_details = ?tx.payload_details,
-                        "Error simulating transaction. Dropping transaction"
+                        "Transaction simulation failed. Dropping transaction"
                     );
-                    // TODO: distinguish between network error and failed simulation
                     self.drop_tx(&tx, DropReason::FailedSimulation).await;
                     continue;
                 };
@@ -72,9 +79,8 @@ impl BuildingStage {
                     error!(
                         ?err,
                         payload_details = ?tx.payload_details,
-                        "Error sending transaction to inclusion stage"
+                        "Error sending transaction to inclusion stage. Skipping payloads for now"
                     );
-                    self.drop_tx(&tx, DropReason::UnhandledError).await;
                     continue;
                 } else {
                     self.state.store_tx(&tx).await;
@@ -86,7 +92,9 @@ impl BuildingStage {
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
         // Transactions are only persisted if they are sent to the Inclusion Stage
         // so the only thing to update in this stage is the payload status
-        self.state.drop_payloads(&tx.payload_details, reason).await;
+        self.state
+            .update_status_for_payloads(&tx.payload_details, PayloadStatus::Dropped(reason))
+            .await;
     }
 
     async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<()> {
