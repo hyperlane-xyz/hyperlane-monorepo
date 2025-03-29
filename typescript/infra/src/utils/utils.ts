@@ -290,10 +290,6 @@ export function getInfraPath() {
   return join(dirname(fileURLToPath(import.meta.url)), '../../');
 }
 
-export function inCIMode() {
-  return process.env.CI === 'true';
-}
-
 // Filter out chains that are not supported by the multiProvider
 // Filter out any value that is not a string e.g. remote domain metadata
 export function filterRemoteDomainMetadata(
