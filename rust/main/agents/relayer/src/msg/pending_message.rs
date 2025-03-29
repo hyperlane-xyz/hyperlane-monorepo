@@ -9,6 +9,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use hyperlane_metric::prometheus_metric::MetadataBuildMetric;
 use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
@@ -16,9 +17,9 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -277,10 +278,30 @@ impl PendingOperation for PendingMessage {
 
         let params = MessageMetadataBuildParams::default();
 
-        let metadata_bytes = match message_metadata_builder
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
             .build(ism_address, &self.message, params)
-            .await
-        {
+            .await;
+        let build_metadata_end = Instant::now();
+
+        let origin_chain = KnownHyperlaneDomain::try_from(self.message.origin).ok();
+        let dest_chain = KnownHyperlaneDomain::try_from(self.message.destination).ok();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            origin: origin_chain,
+            destination: dest_chain,
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end - build_metadata_start,
+        };
+
+        self.ctx
+            .metadata_builder
+            .get_metrics()
+            .client_metrics()
+            .insert_metadata_build_metric(metrics_params);
+
+        let metadata_bytes = match metadata_res {
             Ok(metadata) => {
                 let metadata_bytes = metadata.to_vec();
                 self.metadata = Some(metadata_bytes.clone());

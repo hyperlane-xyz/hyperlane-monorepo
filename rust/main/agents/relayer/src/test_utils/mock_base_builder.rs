@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use hyperlane_base::{settings::CheckpointSyncerBuildError, MultisigCheckpointSyncer};
+use hyperlane_base::{settings::CheckpointSyncerBuildError, CoreMetrics, MultisigCheckpointSyncer};
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
@@ -86,6 +86,9 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .app_context_classifier
             .as_ref()
             .expect("No mock app_context_classifier response set")
+    }
+    fn get_metrics(&self) -> &Arc<CoreMetrics> {
+        unimplemented!()
     }
 
     async fn get_proof(&self, _leaf_index: u32, _checkpoint: Checkpoint) -> eyre::Result<Proof> {

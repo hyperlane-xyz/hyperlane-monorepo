@@ -54,6 +54,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
+    fn get_metrics(&self) -> &Arc<CoreMetrics>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -83,6 +84,9 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     }
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier {
         &self.app_context_classifier
+    }
+    fn get_metrics(&self) -> &Arc<CoreMetrics> {
+        &self.metrics
     }
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
