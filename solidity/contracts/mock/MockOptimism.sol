@@ -72,4 +72,8 @@ contract MockOptimismPortal is IOptimismPortal {
         OutputRootProof memory _outputRootProof,
         bytes[] memory _withdrawalProof
     ) external {}
+
+    function finalizedWithdrawals(
+        bytes32 _withdrawalHash
+    ) external returns (bool value) {}
 }
