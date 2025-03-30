@@ -46,7 +46,7 @@ pub const METADATA_BUILD_COUNT_HELP: &str = "Total number of times metadata was 
 
 /// Expected label names for the metric.
 pub const METADATA_BUILD_DURATION_LABELS: &[&str] =
-    &["app_context", "origin", "destination", "status", "chain"];
+    &["app_context", "origin", "destination", "status"];
 /// Help string for the metric.
 pub const METADATA_BUILD_DURATION_HELP: &str = "Total number of times metadata was build";
 
@@ -142,6 +142,8 @@ impl PrometheusClientMetrics {
     /// Add metrics on how long metadata building took for
     /// a specific ISM
     pub fn insert_metadata_build_metric(&self, params: MetadataBuildMetric) {
+        println!("MetadataBuildMetric {:?}", params);
+
         let labels = hashmap! {
             "app_context" => params.app_context.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),
             "origin" => params.origin.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),

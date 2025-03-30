@@ -297,8 +297,7 @@ impl PendingOperation for PendingMessage {
 
         self.ctx
             .metadata_builder
-            .get_metrics()
-            .client_metrics()
+            .get_client_metrics()
             .insert_metadata_build_metric(metrics_params);
 
         let metadata_bytes = match metadata_res {
