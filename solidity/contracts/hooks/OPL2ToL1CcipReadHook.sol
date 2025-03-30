@@ -5,6 +5,7 @@ pragma solidity >=0.8.0;
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {TokenMessage} from "../token/libs/TokenMessage.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
@@ -74,6 +75,7 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
     function _getMessageBody(
         bytes calldata message
     ) internal view returns (bytes memory) {
-        return abi.encode(message.id());
+        // Body will contain the withdrawal hash already
+        return abi.encode(message.id(), TokenMessage.metadata(message.body()));
     }
 }
