@@ -1,7 +1,12 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::{collections::VecDeque, future::Future, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    future::Future,
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_new::new;
 use eyre::{eyre, Result};
@@ -14,12 +19,12 @@ use tracing::{error, info, info_span, Instrument};
 
 use crate::{
     payload::{FullPayload, PayloadStatus},
-    transaction::{DropReason as TxDropReason, Transaction, TransactionStatus},
+    transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
 };
 
 use super::{utils::retry_until_success, PayloadDispatcherState};
 
-pub type InclusionStagePool = Arc<Mutex<VecDeque<Transaction>>>;
+pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
 #[derive(new)]
 struct InclusionStage {
@@ -61,7 +66,8 @@ impl InclusionStage {
     ) -> Result<()> {
         loop {
             let tx = building_stage_receiver.recv().await.unwrap();
-            pool.lock().await.push_back(tx);
+            pool.lock().await.insert(tx.id.clone(), tx.clone());
+            info!(?tx, "Received transaction");
         }
     }
 
@@ -88,9 +94,9 @@ impl InclusionStage {
             sleep(estimated_block_time).await;
 
             let pool_snapshot = pool.lock().await.clone();
-            for tx in pool_snapshot {
+            for (_, tx) in pool_snapshot {
                 if let Err(err) =
-                    Self::try_process_tx(tx.clone(), finality_stage_sender, state).await
+                    Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
                 {
                     error!(?err, ?tx, "Error processing transaction. Skipping for now");
                 }
@@ -102,6 +108,7 @@ impl InclusionStage {
         mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &PayloadDispatcherState,
+        pool: &InclusionStagePool,
     ) -> Result<()> {
         // - txs are checked for inclusion by calling `tx_status(transaction)`
         // - txs that aren’t included AND newly received are simulated before submitting using `simulate_tx(tx)` on the ChainTxAdapter, and dropped if failing
@@ -124,6 +131,7 @@ impl InclusionStage {
             let tx_id = tx.id.clone();
             finality_stage_sender.send(tx).await?;
             info!(?tx_id, "Transaction included in block");
+            pool.lock().await.remove(&tx_id);
             return Ok(());
         }
         let simulation_success =

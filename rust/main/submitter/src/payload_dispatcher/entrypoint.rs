@@ -13,7 +13,7 @@ use super::{PayloadDispatcherSettings, PayloadDispatcherState};
 
 #[async_trait]
 pub trait Entrypoint {
-    async fn send_payload(&self, payloads: FullPayload) -> Result<()>;
+    async fn send_payload(&self, payloads: &FullPayload) -> Result<()>;
     async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus>;
     async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
 }
@@ -36,11 +36,8 @@ impl PayloadDispatcherEntrypoint {
 
 #[async_trait]
 impl Entrypoint for PayloadDispatcherEntrypoint {
-    async fn send_payload(&self, payload: FullPayload) -> Result<()> {
-        self.inner
-            .payload_db
-            .store_payload_by_id(payload.clone())
-            .await?;
+    async fn send_payload(&self, payload: &FullPayload) -> Result<()> {
+        self.inner.payload_db.store_payload_by_id(payload).await?;
         Ok(())
     }
 
@@ -97,11 +94,11 @@ mod tests {
             Ok(self.payloads.lock().unwrap().get(id).cloned())
         }
 
-        async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()> {
+        async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
             self.payloads
                 .lock()
                 .unwrap()
-                .insert(payload.id().clone(), payload);
+                .insert(payload.id().clone(), payload.clone());
             Ok(())
         }
 
@@ -151,7 +148,7 @@ mod tests {
         let mut payload = FullPayload::default();
         let payload_id = payload.id().clone();
 
-        entrypoint.send_payload(payload.clone()).await?;
+        entrypoint.send_payload(&payload).await?;
 
         let status = entrypoint.payload_status(payload_id.clone()).await?;
         assert_eq!(status, PayloadStatus::ReadyToSubmit);
@@ -159,7 +156,7 @@ mod tests {
         // update the payload's status
         let new_status = PayloadStatus::InTransaction(TransactionStatus::Finalized);
         payload.status = new_status.clone();
-        db.store_payload_by_id(payload).await.unwrap();
+        db.store_payload_by_id(&payload).await.unwrap();
 
         // ensure the db entry was updated
         let status = entrypoint.payload_status(payload_id.clone()).await?;

@@ -18,12 +18,12 @@ use super::{state::PayloadDispatcherState, utils::retry_until_success};
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
 #[derive(new)]
-struct BuildingStage {
+pub(crate) struct BuildingStage {
     /// This queue is the entrypoint and event driver of the Building Stage
     queue: BuildingStageQueue,
     /// This channel is the exitpoint of the Building Stage
     inclusion_stage_sender: mpsc::Sender<Transaction>,
-    state: PayloadDispatcherState,
+    pub(crate) state: PayloadDispatcherState,
 }
 
 impl BuildingStage {
@@ -75,16 +75,15 @@ impl BuildingStage {
                     self.drop_tx(&tx, DropReason::FailedSimulation).await;
                     continue;
                 };
-                if let Err(err) = self.send_tx_to_inclusion_stage(tx.clone()).await {
-                    error!(
-                        ?err,
-                        payload_details = ?tx.payload_details,
-                        "Error sending transaction to inclusion stage. Skipping payloads for now"
-                    );
-                    continue;
-                } else {
-                    self.state.store_tx(&tx).await;
-                }
+                // sending the transaction to the Inclusion Stage can only
+                // fail if the channel is at capacity. Retry until it succeeds.
+                // If the channel is dropped,
+                retry_until_success(
+                    || self.send_tx_to_inclusion_stage(tx.clone()),
+                    "Sending transaction to inclusion stage",
+                )
+                .await;
+                self.state.store_tx(&tx).await;
             }
         }
     }
@@ -116,12 +115,12 @@ mod tests {
 
     use crate::{
         chain_tx_adapter::AdaptsChain,
-        payload::{self, FullPayload, PayloadDetails},
+        payload::{self, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
-        transaction::Transaction,
+        transaction::{Transaction, TransactionStatus},
     };
 
     use super::{BuildingStage, BuildingStageQueue};
@@ -189,6 +188,7 @@ mod tests {
         // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::default();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
             queue.lock().await.push_back(payload_to_send.clone());
             let payload_details_received =
                 run_building_stage(1, &building_stage, &mut receiver).await;
@@ -196,6 +196,12 @@ mod tests {
                 payload_details_received,
                 vec![payload_to_send.details.clone()]
             );
+            assert_db_status_for_payloads(
+                &building_stage.state,
+                &payload_details_received,
+                PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+            )
+            .await;
         }
     }
 
@@ -207,6 +213,7 @@ mod tests {
         let mut sent_payloads = Vec::new();
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::default();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
             queue.lock().await.push_back(payload_to_send.clone());
             sent_payloads.push(payload_to_send);
         }
@@ -219,5 +226,34 @@ mod tests {
             .map(|payload| payload.details.clone())
             .collect::<Vec<_>>();
         assert_eq!(payload_details_received, expected_payload_details);
+        assert_db_status_for_payloads(
+            &building_stage.state,
+            &payload_details_received,
+            PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+        )
+        .await;
+    }
+
+    async fn initialize_payload_db(
+        payload_db: &Arc<dyn payload::PayloadDb>,
+        payload: &FullPayload,
+    ) {
+        payload_db.store_payload_by_id(payload).await.unwrap();
+    }
+
+    async fn assert_db_status_for_payloads(
+        state: &PayloadDispatcherState,
+        payloads: &[PayloadDetails],
+        expected_status: PayloadStatus,
+    ) {
+        for payload in payloads {
+            let payload_from_db = state
+                .payload_db
+                .retrieve_payload_by_id(&payload.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(payload_from_db.status, expected_status);
+        }
     }
 }
