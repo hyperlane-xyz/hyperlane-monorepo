@@ -21,14 +21,14 @@ pub(crate) mod tests {
 
         #[async_trait]
         impl AdaptsChain for Adapter {
-            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>>;
-            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>>;
-            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
-            async fn submit(&self, tx: &mut Transaction) -> Result<()>;
-            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus>;
-            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<uuid::Uuid>>;
+            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, DispatcherError>;
+            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>, DispatcherError>;
+            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, DispatcherError>;
+            async fn submit(&self, tx: &mut Transaction) -> Result<(), DispatcherError>;
+            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, DispatcherError>;
+            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<uuid::Uuid>, DispatcherError>;
             async fn nonce_gap_exists(&self) -> bool;
-            async fn replace_tx(&self, _tx: &Transaction) -> Result<()>;
+            async fn replace_tx(&self, _tx: &Transaction) -> Result<(), DispatcherError>;
             fn estimated_block_time(&self) -> std::time::Duration;
             fn max_batch_size(&self) -> usize;
         }

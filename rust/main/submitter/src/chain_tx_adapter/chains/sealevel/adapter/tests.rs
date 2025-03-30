@@ -26,13 +26,14 @@ use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_sealevel::fallback::SubmitSealevelRpc;
 use hyperlane_sealevel::{SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate};
 
-use crate::chain_tx_adapter::chains::sealevel::{
-    SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor,
-};
 use crate::chain_tx_adapter::AdaptsChain;
 use crate::chain_tx_adapter::{
     chains::sealevel::transaction::{TransactionFactory, Update},
     TxBuildingResult,
+};
+use crate::chain_tx_adapter::{
+    chains::sealevel::{SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor},
+    DispatcherError,
 };
 use crate::payload::{FullPayload, PayloadDetails, VmSpecificPayloadData};
 use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
@@ -195,7 +196,7 @@ async fn test_tx_status() {
 }
 
 fn payload_details_and_data_in_transaction(
-    result: Result<Vec<TxBuildingResult>>,
+    result: Result<Vec<TxBuildingResult>, DispatcherError>,
 ) -> (PayloadDetails, VmSpecificTxData) {
     let transactions = result.unwrap();
     let built_tx = transactions.first().unwrap();

@@ -5,7 +5,7 @@ use uuid::Uuid;
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 
 use crate::{
-    chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, GasLimit},
+    chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, DispatcherError, GasLimit},
     payload::FullPayload,
     transaction::{Transaction, TransactionStatus},
 };
@@ -26,27 +26,33 @@ impl EthereumTxAdapter {
 
 #[async_trait]
 impl AdaptsChain for EthereumTxAdapter {
-    async fn estimate_gas_limit(&self, _payload: &FullPayload) -> Result<Option<GasLimit>> {
+    async fn estimate_gas_limit(
+        &self,
+        _payload: &FullPayload,
+    ) -> Result<Option<GasLimit>, DispatcherError> {
         todo!()
     }
 
-    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>> {
+    async fn build_transactions(
+        &self,
+        _payloads: &[FullPayload],
+    ) -> Result<Vec<TxBuildingResult>, DispatcherError> {
         todo!()
     }
 
-    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool> {
+    async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, DispatcherError> {
         todo!()
     }
 
-    async fn submit(&self, _tx: &mut Transaction) -> Result<()> {
+    async fn submit(&self, _tx: &mut Transaction) -> Result<(), DispatcherError> {
         todo!()
     }
 
-    async fn tx_status(&self, _tx: &Transaction) -> Result<TransactionStatus> {
+    async fn tx_status(&self, _tx: &Transaction) -> Result<TransactionStatus, DispatcherError> {
         todo!()
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>> {
+    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>, DispatcherError> {
         todo!()
     }
 
