@@ -15,7 +15,7 @@ use super::{PayloadDispatcherSettings, PayloadDispatcherState};
 pub trait Entrypoint {
     async fn send_payload(&self, payloads: &FullPayload) -> Result<()>;
     async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus>;
-    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
+    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>>;
 }
 
 pub struct PayloadDispatcherEntrypoint {
@@ -47,13 +47,12 @@ impl Entrypoint for PayloadDispatcherEntrypoint {
             .payload_db
             .retrieve_payload_by_id(&payload_id)
             .await?;
-        let status = payload
+        payload
             .map(|payload| payload.status)
-            .ok_or(eyre!("Payload not found"));
-        status
+            .ok_or(eyre!("Payload not found"))
     }
 
-    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
+    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>> {
         self.inner.adapter.estimate_gas_limit(payload).await
     }
 }
@@ -202,13 +201,17 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimate_gas_limit()
-            .returning(move |_| Ok(mock_gas_limit));
+            .returning(move |_| Ok(Some(mock_gas_limit)));
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
         let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));
 
         let payload = FullPayload::default();
-        let gas_limit = entrypoint.estimate_gas_limit(&payload).await.unwrap();
+        let gas_limit = entrypoint
+            .estimate_gas_limit(&payload)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(gas_limit, mock_gas_limit);
     }

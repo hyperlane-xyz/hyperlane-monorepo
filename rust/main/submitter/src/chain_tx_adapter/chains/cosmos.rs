@@ -5,7 +5,7 @@ use uuid::Uuid;
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 
 use crate::{
-    chain_tx_adapter::{AdaptsChain, GasLimit},
+    chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, GasLimit},
     payload::FullPayload,
     transaction::{Transaction, TransactionStatus},
 };
@@ -26,11 +26,11 @@ impl CosmosTxAdapter {
 
 #[async_trait]
 impl AdaptsChain for CosmosTxAdapter {
-    async fn estimate_gas_limit(&self, _payload: &FullPayload) -> Result<GasLimit> {
+    async fn estimate_gas_limit(&self, _payload: &FullPayload) -> Result<Option<GasLimit>> {
         todo!()
     }
 
-    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Result<Vec<Transaction>> {
+    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>> {
         todo!()
     }
 

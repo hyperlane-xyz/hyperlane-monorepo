@@ -9,6 +9,7 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, warn};
 
 use crate::{
+    chain_tx_adapter::TxBuildingResult,
     payload::{DropReason, FullPayload, PayloadDetails, PayloadStatus},
     transaction::Transaction,
 };
@@ -40,27 +41,22 @@ impl BuildingStage {
             };
 
             let payloads = vec![payload];
-            let txs = match self.state.adapter.build_transactions(&payloads).await {
-                Err(err) => {
-                    error!(
-                        ?err,
-                        ?payloads,
-                        "Error building transactions. Dropping payloads"
-                    );
-                    let details_for_payloads: Vec<_> =
-                        payloads.into_iter().map(|p| p.details.clone()).collect();
+            let tx_building_results = retry_until_success(
+                || self.state.adapter.build_transactions(&payloads),
+                "Simulating transaction",
+            )
+            .await;
+
+            for TxBuildingResult { payloads, maybe_tx } in tx_building_results {
+                let Some(tx) = maybe_tx else {
                     self.state
                         .update_status_for_payloads(
-                            &details_for_payloads,
+                            &payloads,
                             PayloadStatus::Dropped(DropReason::UnhandledError),
                         )
                         .await;
                     continue;
-                }
-                Ok(txs) => txs,
-            };
-
-            for tx in txs {
+                };
                 let simulation_success = retry_until_success(
                     || self.state.adapter.simulate_tx(&tx),
                     "Simulating transaction",

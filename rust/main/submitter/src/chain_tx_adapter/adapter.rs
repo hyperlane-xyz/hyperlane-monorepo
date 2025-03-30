@@ -4,26 +4,39 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::Result;
 use uuid::Uuid;
 
 use hyperlane_core::U256;
 
 use crate::{
-    payload::FullPayload,
+    payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
 
 pub type GasLimit = U256;
 
+#[derive(new, Debug)]
+pub struct TxBuildingResult {
+    /// payload details for the payloads in this transaction
+    /// this is a vector because multiple payloads can be included in a single transaction
+    pub payloads: Vec<PayloadDetails>,
+    /// the transaction itself
+    /// this is an option because the transaction may have failed to be built
+    pub maybe_tx: Option<Transaction>,
+}
+
 /// The `AdaptsChain` trait is implemented by adapters for different VMs, stacks and chains, allowing the `PayloadDispatcher` to interact with them in a generic way.
 #[async_trait]
 pub trait AdaptsChain: Send + Sync {
     /// Simulates Payload and returns its gas limit. Called in the Building Stage (PayloadDispatcher)
-    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
+    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
+    // should this instead return tuples of (Option<Transaction>, PayloadDetails) to
+    // make it clear which payloads failed and should be dropped?
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;

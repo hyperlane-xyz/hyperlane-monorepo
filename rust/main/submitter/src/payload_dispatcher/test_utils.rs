@@ -21,8 +21,8 @@ pub(crate) mod tests {
 
         #[async_trait]
         impl AdaptsChain for Adapter {
-            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
-            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
+            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>>;
+            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>>;
             async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
             async fn submit(&self, tx: &mut Transaction) -> Result<()>;
             async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus>;
@@ -45,8 +45,8 @@ pub(crate) mod tests {
         (payload_db, tx_db)
     }
 
-    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<Transaction> {
-        let details = payloads
+    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<TxBuildingResult> {
+        let details: Vec<PayloadDetails> = payloads
             .into_iter()
             .map(|payload| payload.details)
             .collect();
@@ -54,10 +54,11 @@ pub(crate) mod tests {
             id: UniqueIdentifier::random(),
             hash: None,
             vm_specific_data: VmSpecificTxData::Evm,
-            payload_details: details,
+            payload_details: details.clone(),
             status: Default::default(),
             submission_attempts: 0,
         };
-        vec![transaction]
+        let tx_building_result = TxBuildingResult::new(details, Some(transaction));
+        vec![tx_building_result]
     }
 }

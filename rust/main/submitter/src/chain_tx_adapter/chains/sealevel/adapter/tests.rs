@@ -26,11 +26,14 @@ use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_sealevel::fallback::SubmitSealevelRpc;
 use hyperlane_sealevel::{SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate};
 
-use crate::chain_tx_adapter::chains::sealevel::transaction::{TransactionFactory, Update};
 use crate::chain_tx_adapter::chains::sealevel::{
     SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor,
 };
 use crate::chain_tx_adapter::AdaptsChain;
+use crate::chain_tx_adapter::{
+    chains::sealevel::transaction::{TransactionFactory, Update},
+    TxBuildingResult,
+};
 use crate::payload::{FullPayload, PayloadDetails, VmSpecificPayloadData};
 use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
 
@@ -94,11 +97,11 @@ impl SealevelProviderForSubmitter for MockProvider {
         _payer: &SealevelKeypair,
         _tx_submitter: &dyn TransactionSubmitter,
         _priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<SealevelTxCostEstimate> {
-        Ok(SealevelTxCostEstimate {
+    ) -> ChainResult<Option<SealevelTxCostEstimate>> {
+        Ok(Some(SealevelTxCostEstimate {
             compute_units: GAS_LIMIT,
             compute_unit_price_micro_lamports: 0,
-        })
+        }))
     }
 
     async fn wait_for_transaction_confirmation(
@@ -130,7 +133,7 @@ async fn test_estimate_gas_limit() {
 
     // then
     assert!(matches!(result, Ok(_)));
-    assert_eq!(expected, result.unwrap());
+    assert_eq!(expected, result.unwrap().unwrap());
 }
 
 #[tokio::test]
@@ -192,13 +195,14 @@ async fn test_tx_status() {
 }
 
 fn payload_details_and_data_in_transaction(
-    result: Result<Vec<Transaction>>,
+    result: Result<Vec<TxBuildingResult>>,
 ) -> (PayloadDetails, VmSpecificTxData) {
     let transactions = result.unwrap();
-    let transaction = transactions.first().unwrap();
+    let built_tx = transactions.first().unwrap();
+    let first_tx = built_tx.maybe_tx.clone().unwrap();
     (
-        transaction.payload_details.first().unwrap().clone(),
-        transaction.vm_specific_data.clone(),
+        first_tx.payload_details.first().unwrap().clone(),
+        first_tx.vm_specific_data.clone(),
     )
 }
 
