@@ -40,7 +40,7 @@ pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent m
 
 /// Expected label names for the metric.
 pub const METADATA_BUILD_COUNT_LABELS: &[&str] =
-    &["app_context", "origin", "destination", "status", "chain"];
+    &["app_context", "origin", "destination", "status"];
 /// Help string for the metric.
 pub const METADATA_BUILD_COUNT_HELP: &str = "Total number of times metadata was build";
 
@@ -151,7 +151,7 @@ impl PrometheusClientMetrics {
         if let Some(counter) = &self.metadata_build_count {
             counter.with(&labels).inc();
         };
-        if let Some(counter) = &self.request_duration_seconds {
+        if let Some(counter) = &self.metadata_build_duration {
             counter.with(&labels).inc_by(params.duration.as_secs_f64())
         };
     }
