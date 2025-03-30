@@ -32,6 +32,11 @@ contract OPL2ToL1CcipReadIsm is
     // the OP Portal contract on L1
     IOptimismPortal immutable opPortal;
 
+    // Raised when the withdrawal hash of the
+    // given transaction does not match the one
+    // included in the message
+    error InvalidWithdrawalHash(bytes32 invalidHash, bytes32 correctHash);
+
     event ReceivedMessage(
         uint32 indexed origin,
         bytes32 indexed sender,
@@ -76,9 +81,9 @@ contract OPL2ToL1CcipReadIsm is
         bytes calldata _message
     ) external override returns (bool) {
         if (_areWeMessageRecipient(_message)) {
-            _proveWithdrawal(_metadata);
+            _proveWithdrawal(_metadata, _message);
         } else {
-            _finalizeWithdrawal(_metadata);
+            _finalizeWithdrawal(_metadata, _message);
         }
 
         return true;
@@ -110,7 +115,18 @@ contract OPL2ToL1CcipReadIsm is
         return _message.recipient() == address(this).addressToBytes32();
     }
 
-    function _proveWithdrawal(bytes calldata _metadata) internal {
+    /// @dev We check the withdrawal hash here in order to prevent someone
+    /// DDoS-ing the message delivery by providing a message relative to a withdrawal X
+    /// and a valid proof relative to withdrawal Y
+    function _proveWithdrawal(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) internal {
+        (, bytes32 withdrawalHash) = abi.decode(
+            _message.body(),
+            (bytes32, bytes32)
+        );
+
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
             uint256 _disputeGameIndex,
@@ -126,6 +142,11 @@ contract OPL2ToL1CcipReadIsm is
                 )
             );
 
+        bytes32 expected = _hashWithdrawal(_tx);
+        if (withdrawalHash != expected) {
+            revert InvalidWithdrawalHash(withdrawalHash, expected);
+        }
+
         opPortal.proveWithdrawalTransaction(
             _tx,
             _disputeGameIndex,
@@ -134,21 +155,13 @@ contract OPL2ToL1CcipReadIsm is
         );
     }
 
+    /// @dev No need to do the same withdrawal hash check here as done
+    /// in _proveWithdrawal() since there's no risk of DoS here: checking
+    /// just if the withdrawal has been finalized already is enough
     function _finalizeWithdrawal(
         bytes calldata _metadata,
-        bytes calldata _message
+        bytes calldata /* _message */
     ) internal {
-        bytes32 withdrawalHash = abi.decode(
-            TokenMessage.metadata(_message.body()),
-            (bytes32)
-        );
-
-        // NOTE: this lets the Mailbox deliver the message
-        // even if the someone else call first portal.finalizeWithdrawalTransaction()
-        if (IOptimismPortal.finalizedWithdrawals(withdrawalHash)) {
-            return;
-        }
-
         (IOptimismPortal.WithdrawalTransaction memory _tx, , , ) = abi.decode(
             _metadata,
             (
@@ -159,6 +172,29 @@ contract OPL2ToL1CcipReadIsm is
             )
         );
 
+        bytes32 withdrawalHash = _hashWithdrawal(_tx);
+
+        if (opPortal.finalizedWithdrawals(withdrawalHash)) {
+            return;
+        }
+
         opPortal.finalizeWithdrawalTransaction(_tx);
+    }
+
+    /// @dev Copied from Hashing.sol of Optimism
+    function _hashWithdrawal(
+        IOptimismPortal.WithdrawalTransaction memory _tx
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    _tx.nonce,
+                    _tx.sender,
+                    _tx.target,
+                    _tx.value,
+                    _tx.gasLimit,
+                    _tx.data
+                )
+            );
     }
 }

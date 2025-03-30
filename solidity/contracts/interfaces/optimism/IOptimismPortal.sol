@@ -52,5 +52,7 @@ interface IOptimismPortal {
     ) external;
 
     /// @notice A list of withdrawal hashes which have been successfully finalized.
-    function finalizedWithdrawals(bytes32 _withdrawalHash) returns (bool);
+    function finalizedWithdrawals(
+        bytes32 _withdrawalHash
+    ) external returns (bool);
 }
