@@ -28,8 +28,6 @@ abstract contract ValueTransferBridgeNative is HypNative {
     // L1 domain where the withdrawal will be finalized
     uint32 public immutable l1Domain;
 
-    error NotImplemented();
-
     /**
      * @dev see MailboxClient's initializer for other configurables
      */
@@ -67,16 +65,6 @@ abstract contract ValueTransferBridgeNative is HypNative {
 
         quotes = new Quotes[](1);
         quotes[0] = Quotes(address(0), quoteAmount);
-    }
-
-    function transferRemote(
-        uint32 /* _destination */,
-        bytes32 /* _recipient */,
-        uint256 /* _amount */,
-        bytes calldata /* _hookMetadata */,
-        address /* _hook */
-    ) external payable override returns (bytes32) {
-        revert NotImplemented();
     }
 
     function _transferFromSender(
