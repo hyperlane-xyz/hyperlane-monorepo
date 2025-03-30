@@ -45,20 +45,24 @@ pub(crate) mod tests {
         (payload_db, tx_db)
     }
 
-    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<TxBuildingResult> {
+    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, success: bool) -> Vec<TxBuildingResult> {
         let details: Vec<PayloadDetails> = payloads
             .into_iter()
             .map(|payload| payload.details)
             .collect();
-        let transaction = Transaction {
-            id: UniqueIdentifier::random(),
-            hash: None,
-            vm_specific_data: VmSpecificTxData::Evm,
-            payload_details: details.clone(),
-            status: Default::default(),
-            submission_attempts: 0,
+        let maybe_transaction = if success {
+            Some(Transaction {
+                id: UniqueIdentifier::random(),
+                hash: None,
+                vm_specific_data: VmSpecificTxData::Evm,
+                payload_details: details.clone(),
+                status: Default::default(),
+                submission_attempts: 0,
+            })
+        } else {
+            None
         };
-        let tx_building_result = TxBuildingResult::new(details, Some(transaction));
+        let tx_building_result = TxBuildingResult::new(details, maybe_transaction);
         vec![tx_building_result]
     }
 }

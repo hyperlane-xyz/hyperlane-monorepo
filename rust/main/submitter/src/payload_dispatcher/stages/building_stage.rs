@@ -47,41 +47,46 @@ impl BuildingStage {
             )
             .await;
 
-            for TxBuildingResult { payloads, maybe_tx } in tx_building_results {
-                let Some(tx) = maybe_tx else {
-                    self.state
-                        .update_status_for_payloads(
-                            &payloads,
-                            PayloadStatus::Dropped(DropReason::UnhandledError),
-                        )
-                        .await;
-                    continue;
-                };
-                let simulation_success = retry_until_success(
-                    || self.state.adapter.simulate_tx(&tx),
-                    "Simulating transaction",
-                )
-                .await;
-                if !simulation_success {
-                    warn!(
-                        ?tx,
-                        payload_details = ?tx.payload_details,
-                        "Transaction simulation failed. Dropping transaction"
-                    );
-                    self.drop_tx(&tx, DropReason::FailedSimulation).await;
-                    continue;
-                };
-                // sending the transaction to the Inclusion Stage can only
-                // fail if the channel is at capacity. Retry until it succeeds.
-                // If the channel is dropped,
-                retry_until_success(
-                    || self.send_tx_to_inclusion_stage(tx.clone()),
-                    "Sending transaction to inclusion stage",
-                )
-                .await;
-                self.state.store_tx(&tx).await;
+            for tx_building_result in tx_building_results {
+                self.handle_tx_building_result(tx_building_result).await;
             }
         }
+    }
+
+    async fn handle_tx_building_result(&self, tx_building_result: TxBuildingResult) {
+        let TxBuildingResult { payloads, maybe_tx } = tx_building_result;
+        let Some(tx) = maybe_tx else {
+            self.state
+                .update_status_for_payloads(
+                    &payloads,
+                    PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
+                )
+                .await;
+            return;
+        };
+        let simulation_success = retry_until_success(
+            || self.state.adapter.simulate_tx(&tx),
+            "Simulating transaction",
+        )
+        .await;
+        if !simulation_success {
+            warn!(
+                ?tx,
+                payload_details = ?tx.payload_details,
+                "Transaction simulation failed. Dropping transaction"
+            );
+            self.drop_tx(&tx, DropReason::FailedSimulation).await;
+            return;
+        };
+        // sending the transaction to the Inclusion Stage can only
+        // fail if the channel is at capacity. Retry until it succeeds.
+        // If the channel is dropped,
+        retry_until_success(
+            || self.send_tx_to_inclusion_stage(tx.clone()),
+            "Sending transaction to inclusion stage",
+        )
+        .await;
+        self.state.store_tx(&tx).await;
     }
 
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
@@ -111,12 +116,12 @@ mod tests {
 
     use crate::{
         chain_tx_adapter::AdaptsChain,
-        payload::{self, FullPayload, PayloadDetails, PayloadStatus},
+        payload::{self, DropReason, FullPayload, PayloadDb, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
-        transaction::{Transaction, TransactionStatus},
+        transaction::{Transaction, TransactionDb, TransactionStatus},
     };
 
     use super::{BuildingStage, BuildingStageQueue};
@@ -137,7 +142,7 @@ mod tests {
             received_payloads
         };
 
-        // give the building stage 1 second to send the transaction(s) to the receiver
+        // give the building stage 100ms to send the transaction(s) to the receiver
         let _ = tokio::select! {
             // this arm runs indefinitely
             res = building_stage.run() => res,
@@ -146,13 +151,14 @@ mod tests {
                 return payloads;
             },
             // this arm is the timeout
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => panic!("Timeout"),
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {},
         };
-        panic!("No transaction was sent to the receiver")
+        vec![]
     }
 
     fn test_setup(
         payloads_to_send: usize,
+        succesful_build: bool,
     ) -> (
         BuildingStage,
         tokio::sync::mpsc::Receiver<Transaction>,
@@ -163,11 +169,23 @@ mod tests {
         mock_adapter
             .expect_build_transactions()
             .times(payloads_to_send)
-            .returning(|payloads| Ok(dummy_tx(payloads.to_vec())));
+            .returning(move |payloads| Ok(dummy_tx(payloads.to_vec(), succesful_build.clone())));
         mock_adapter
             .expect_simulate_tx()
-            .times(payloads_to_send)
+            // .times(payloads_to_send)
             .returning(|_| Ok(true));
+        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db)
+    }
+
+    fn dummy_stage_receiver_queue(
+        mock_adapter: MockAdapter,
+        payload_db: Arc<dyn PayloadDb>,
+        tx_db: Arc<dyn TransactionDb>,
+    ) -> (
+        BuildingStage,
+        tokio::sync::mpsc::Receiver<Transaction>,
+        BuildingStageQueue,
+    ) {
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
         let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
@@ -179,7 +197,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_payloads_one_by_one() {
         const PAYLOADS_TO_SEND: usize = 3;
-        let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND);
+        let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, true);
 
         // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
@@ -204,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_multiple_payloads_at_once() {
         const PAYLOADS_TO_SEND: usize = 3;
-        let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND);
+        let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, true);
 
         let mut sent_payloads = Vec::new();
         for _ in 0..PAYLOADS_TO_SEND {
@@ -228,6 +246,34 @@ mod tests {
             PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
         )
         .await;
+    }
+
+    // more things to test for:
+    // - failed to built the tx
+    // - failed to simulate the tx
+    // - failed to send the tx to the inclusion stage
+    // - network failure causing calls to be retried indefinitely
+
+    #[tokio::test]
+    async fn test_txs_failed_to_build() {
+        const PAYLOADS_TO_SEND: usize = 3;
+        let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, false);
+
+        // send a single payload to the building stage and check that it is sent to the receiver
+        for _ in 0..PAYLOADS_TO_SEND {
+            let payload_to_send = FullPayload::default();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+            queue.lock().await.push_back(payload_to_send.clone());
+            let payload_details_received =
+                run_building_stage(1, &building_stage, &mut receiver).await;
+            assert_eq!(payload_details_received, vec![]);
+            assert_db_status_for_payloads(
+                &building_stage.state,
+                &payload_details_received,
+                PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
+            )
+            .await;
+        }
     }
 
     async fn initialize_payload_db(

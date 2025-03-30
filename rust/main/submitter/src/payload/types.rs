@@ -63,6 +63,7 @@ pub enum PayloadStatus {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum DropReason {
+    FailedToBuildAsTransaction,
     FailedSimulation,
     Reverted,
     UnhandledError,
