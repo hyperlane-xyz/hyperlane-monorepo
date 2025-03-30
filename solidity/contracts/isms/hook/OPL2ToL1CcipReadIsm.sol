@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {Message} from "../../libs/Message.sol";
+import {TokenMessage} from "../../token/libs/TokenRouter.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
@@ -133,7 +134,21 @@ contract OPL2ToL1CcipReadIsm is
         );
     }
 
-    function _finalizeWithdrawal(bytes calldata _metadata) internal {
+    function _finalizeWithdrawal(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) internal {
+        bytes32 withdrawalHash = abi.decode(
+            TokenMessage.metadata(_message.body()),
+            (bytes32)
+        );
+
+        // NOTE: this lets the Mailbox deliver the message
+        // even if the someone else call first portal.finalizeWithdrawalTransaction()
+        if (IOptimismPortal.finalizedWithdrawals(withdrawalHash)) {
+            return;
+        }
+
         (IOptimismPortal.WithdrawalTransaction memory _tx, , , ) = abi.decode(
             _metadata,
             (
