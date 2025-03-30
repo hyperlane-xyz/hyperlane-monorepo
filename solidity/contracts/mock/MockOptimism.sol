@@ -42,6 +42,13 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
     function setPORTAL(address _portal) external {
         PORTAL = _portal;
     }
+
+    function baseGas(
+        bytes calldata _message,
+        uint32 _minGasLimit
+    ) external pure returns (uint64) {
+        return 0;
+    }
 }
 
 // mock deployment on L1
