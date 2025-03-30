@@ -50,6 +50,24 @@ impl FullPayload {
     pub fn id(&self) -> &PayloadId {
         &self.details.id
     }
+
+    #[cfg(test)]
+    pub fn random() -> Self {
+        let id = PayloadId::random();
+        let details = PayloadDetails {
+            id: id.clone(),
+            metadata: format!("payload-{}", id.to_string()),
+            success_criteria: None,
+        };
+        FullPayload {
+            details,
+            data: VmSpecificPayloadData::default(),
+            to: Address::zero(),
+            status: PayloadStatus::default(),
+            value: None,
+            inclusion_soft_deadline: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]

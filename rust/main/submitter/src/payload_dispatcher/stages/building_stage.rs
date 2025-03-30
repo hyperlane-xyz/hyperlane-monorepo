@@ -112,7 +112,7 @@ mod tests {
     use std::{collections::VecDeque, sync::Arc};
 
     use crate::{
-        chain_tx_adapter::AdaptsChain,
+        chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDb, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
             test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
@@ -122,6 +122,122 @@ mod tests {
     };
 
     use super::{BuildingStage, BuildingStageQueue};
+
+    #[tokio::test]
+    async fn test_send_payloads_one_by_one() {
+        const PAYLOADS_TO_SEND: usize = 3;
+        let succesful_build = true;
+        let successful_simulation = true;
+        let (building_stage, mut receiver, queue) =
+            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+
+        // send a single payload to the building stage and check that it is sent to the receiver
+        for _ in 0..PAYLOADS_TO_SEND {
+            let payload_to_send = FullPayload::random();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+            queue.lock().await.push_back(payload_to_send.clone());
+            let payload_details_received =
+                run_building_stage(1, &building_stage, &mut receiver).await;
+            assert_eq!(
+                payload_details_received,
+                vec![payload_to_send.details.clone()]
+            );
+            assert_db_status_for_payloads(
+                &building_stage.state,
+                &payload_details_received,
+                PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+            )
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_multiple_payloads_at_once() {
+        const PAYLOADS_TO_SEND: usize = 3;
+        let succesful_build = true;
+        let successful_simulation = true;
+        let (building_stage, mut receiver, queue) =
+            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+
+        let mut sent_payloads = Vec::new();
+        for _ in 0..PAYLOADS_TO_SEND {
+            let payload_to_send = FullPayload::random();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+            queue.lock().await.push_back(payload_to_send.clone());
+            sent_payloads.push(payload_to_send);
+        }
+
+        // send multiple payloads to the building stage and check that they are sent to the receiver in the same order
+        let payload_details_received =
+            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
+        let expected_payload_details = sent_payloads
+            .iter()
+            .map(|payload| payload.details.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(payload_details_received, expected_payload_details);
+        assert_db_status_for_payloads(
+            &building_stage.state,
+            &payload_details_received,
+            PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
+        )
+        .await;
+    }
+
+    // more things to test for:
+    // - failed to built the tx
+    // - failed to simulate the tx
+    // - failed to send the tx to the inclusion stage
+    // - network failure causing calls to be retried indefinitely
+
+    #[tokio::test]
+    async fn test_txs_failed_to_build() {
+        const PAYLOADS_TO_SEND: usize = 3;
+        let succesful_build = false;
+        let successful_simulation = true;
+        let (building_stage, mut receiver, queue) =
+            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+
+        // send a single payload to the building stage and check that it is sent to the receiver
+        for _ in 0..PAYLOADS_TO_SEND {
+            let payload_to_send = FullPayload::random();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+            queue.lock().await.push_back(payload_to_send.clone());
+            let payload_details_received =
+                run_building_stage(1, &building_stage, &mut receiver).await;
+            assert_eq!(payload_details_received, vec![]);
+            assert_db_status_for_payloads(
+                &building_stage.state,
+                &payload_details_received,
+                PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
+            )
+            .await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_txs_failed_simulation() {
+        const PAYLOADS_TO_SEND: usize = 3;
+        let succesful_build = true;
+        let successful_simulation = false;
+        let (building_stage, mut receiver, queue) =
+            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
+
+        // send a single payload to the building stage and check that it is sent to the receiver
+        for _ in 0..PAYLOADS_TO_SEND {
+            let payload_to_send = FullPayload::random();
+            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
+            queue.lock().await.push_back(payload_to_send.clone());
+            let payload_details_received =
+                run_building_stage(1, &building_stage, &mut receiver).await;
+            assert_eq!(payload_details_received, vec![]);
+            assert_db_status_for_payloads(
+                &building_stage.state,
+                &payload_details_received,
+                PayloadStatus::Dropped(DropReason::FailedSimulation),
+            )
+            .await;
+        }
+    }
 
     async fn run_building_stage(
         sent_payload_count: usize,
@@ -167,7 +283,9 @@ mod tests {
         mock_adapter
             .expect_build_transactions()
             .times(payloads_to_send)
-            .returning(move |payloads| Ok(dummy_tx(payloads.to_vec(), succesful_build.clone())));
+            .returning(move |payloads| {
+                Ok(dummy_built_tx(payloads.to_vec(), succesful_build.clone()))
+            });
         mock_adapter
             .expect_simulate_tx()
             // .times(payloads_to_send)
@@ -192,120 +310,19 @@ mod tests {
         (building_stage, receiver, queue)
     }
 
-    #[tokio::test]
-    async fn test_send_payloads_one_by_one() {
-        const PAYLOADS_TO_SEND: usize = 3;
-        let succesful_build = true;
-        let successful_simulation = true;
-        let (building_stage, mut receiver, queue) =
-            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
-
-        // send a single payload to the building stage and check that it is sent to the receiver
-        for _ in 0..PAYLOADS_TO_SEND {
-            let payload_to_send = FullPayload::default();
-            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
-            queue.lock().await.push_back(payload_to_send.clone());
-            let payload_details_received =
-                run_building_stage(1, &building_stage, &mut receiver).await;
-            assert_eq!(
-                payload_details_received,
-                vec![payload_to_send.details.clone()]
-            );
-            assert_db_status_for_payloads(
-                &building_stage.state,
-                &payload_details_received,
-                PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
-            )
-            .await;
-        }
-    }
-
-    #[tokio::test]
-    async fn test_send_multiple_payloads_at_once() {
-        const PAYLOADS_TO_SEND: usize = 3;
-        let succesful_build = true;
-        let successful_simulation = true;
-        let (building_stage, mut receiver, queue) =
-            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
-
-        let mut sent_payloads = Vec::new();
-        for _ in 0..PAYLOADS_TO_SEND {
-            let payload_to_send = FullPayload::default();
-            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
-            queue.lock().await.push_back(payload_to_send.clone());
-            sent_payloads.push(payload_to_send);
-        }
-
-        // send multiple payloads to the building stage and check that they are sent to the receiver in the same order
-        let payload_details_received =
-            run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
-        let expected_payload_details = sent_payloads
-            .iter()
-            .map(|payload| payload.details.clone())
-            .collect::<Vec<_>>();
-        assert_eq!(payload_details_received, expected_payload_details);
-        assert_db_status_for_payloads(
-            &building_stage.state,
-            &payload_details_received,
-            PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
-        )
-        .await;
-    }
-
-    // more things to test for:
-    // - failed to built the tx
-    // - failed to simulate the tx
-    // - failed to send the tx to the inclusion stage
-    // - network failure causing calls to be retried indefinitely
-
-    #[tokio::test]
-    async fn test_txs_failed_to_build() {
-        const PAYLOADS_TO_SEND: usize = 3;
-        let succesful_build = false;
-        let successful_simulation = true;
-        let (building_stage, mut receiver, queue) =
-            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
-
-        // send a single payload to the building stage and check that it is sent to the receiver
-        for _ in 0..PAYLOADS_TO_SEND {
-            let payload_to_send = FullPayload::default();
-            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
-            queue.lock().await.push_back(payload_to_send.clone());
-            let payload_details_received =
-                run_building_stage(1, &building_stage, &mut receiver).await;
-            assert_eq!(payload_details_received, vec![]);
-            assert_db_status_for_payloads(
-                &building_stage.state,
-                &payload_details_received,
-                PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
-            )
-            .await;
-        }
-    }
-
-    #[tokio::test]
-    async fn test_txs_failed_simulation() {
-        const PAYLOADS_TO_SEND: usize = 3;
-        let succesful_build = true;
-        let successful_simulation = false;
-        let (building_stage, mut receiver, queue) =
-            test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
-
-        // send a single payload to the building stage and check that it is sent to the receiver
-        for _ in 0..PAYLOADS_TO_SEND {
-            let payload_to_send = FullPayload::default();
-            initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
-            queue.lock().await.push_back(payload_to_send.clone());
-            let payload_details_received =
-                run_building_stage(1, &building_stage, &mut receiver).await;
-            assert_eq!(payload_details_received, vec![]);
-            assert_db_status_for_payloads(
-                &building_stage.state,
-                &payload_details_received,
-                PayloadStatus::Dropped(DropReason::FailedSimulation),
-            )
-            .await;
-        }
+    fn dummy_built_tx(payloads: Vec<FullPayload>, success: bool) -> Vec<TxBuildingResult> {
+        let details: Vec<PayloadDetails> = payloads
+            .clone()
+            .into_iter()
+            .map(|payload| payload.details)
+            .collect();
+        let maybe_transaction = if success {
+            Some(dummy_tx(payloads))
+        } else {
+            None
+        };
+        let tx_building_result = TxBuildingResult::new(details, maybe_transaction);
+        vec![tx_building_result]
     }
 
     async fn initialize_payload_db(

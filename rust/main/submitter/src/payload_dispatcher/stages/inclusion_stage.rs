@@ -35,7 +35,7 @@ struct InclusionStage {
 }
 
 impl InclusionStage {
-    pub async fn run(&'static mut self) {
+    pub async fn run(self) {
         let InclusionStage {
             pool,
             building_stage_receiver,
@@ -61,7 +61,7 @@ impl InclusionStage {
     }
 
     async fn receive_txs(
-        building_stage_receiver: &mut mpsc::Receiver<Transaction>,
+        mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
     ) -> Result<()> {
         loop {
@@ -84,9 +84,9 @@ impl InclusionStage {
     //     - Open question: should we cap the number of retries? But if RPCs go down for 12h we may end up with all Payloads dropped from the Dispatcher. We’ll likely learn the answer as we operate this
     // - If a transaction is dropped, updates the Transaction and Payload
     async fn process_txs(
-        pool: &InclusionStagePool,
-        finality_stage_sender: &mpsc::Sender<Transaction>,
-        state: &PayloadDispatcherState,
+        pool: InclusionStagePool,
+        finality_stage_sender: mpsc::Sender<Transaction>,
+        state: PayloadDispatcherState,
     ) -> Result<()> {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
@@ -96,7 +96,7 @@ impl InclusionStage {
             let pool_snapshot = pool.lock().await.clone();
             for (_, tx) in pool_snapshot {
                 if let Err(err) =
-                    Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
+                    Self::try_process_tx(tx.clone(), &finality_stage_sender, &state, &pool).await
                 {
                     error!(?err, ?tx, "Error processing transaction. Skipping for now");
                 }
@@ -192,5 +192,104 @@ impl InclusionStage {
         tx.status = new_status;
         state.tx_db.store_transaction_by_id(tx).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        payload::PayloadId,
+        payload_dispatcher::test_utils::tests::{dummy_tx, random_txs, tmp_dbs, MockAdapter},
+        transaction::{Transaction, TransactionId},
+    };
+    use eyre::Result;
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+
+    #[tokio::test]
+    async fn test_channel_txs_are_pushed_to_pool() {
+        const TXS_TO_PUSH: usize = 3;
+        let (sender, mut receiver) = mpsc::channel(TXS_TO_PUSH);
+        let pool = Arc::new(Mutex::new(HashMap::new()));
+
+        let random_txs = random_txs(TXS_TO_PUSH);
+        for tx in random_txs.iter() {
+            sender.send(tx.clone()).await.unwrap();
+        }
+        tokio::select! {
+            _ = InclusionStage::receive_txs(receiver, pool.clone()) => {
+            }
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+        }
+        for tx in random_txs.iter() {
+            let pool = pool.lock().await;
+            let transaction = pool.get(&tx.id).unwrap();
+            assert_eq!(transaction.id, tx.id);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_processing_txs() {
+        const TXS_TO_PROCESS: usize = 3;
+
+        // create inclusion stage
+        let (payload_db, tx_db) = tmp_dbs();
+        let (building_stage_sender, building_stage_receiver) = mpsc::channel(TXS_TO_PROCESS);
+        let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(TXS_TO_PROCESS);
+        let mock_adapter = MockAdapter::new();
+        let state = PayloadDispatcherState::new(payload_db, tx_db, Box::new(mock_adapter));
+        let pool = Arc::new(Mutex::new(HashMap::new()));
+        let mut inclusion_stage = InclusionStage::new(
+            pool.clone(),
+            building_stage_receiver,
+            finality_stage_sender,
+            state,
+        );
+
+        // create txs to process
+        let random_txs = random_txs(TXS_TO_PROCESS);
+        for tx in random_txs.iter() {
+            building_stage_sender.send(tx.clone()).await.unwrap();
+        }
+        let txs_received = run_stage(
+            TXS_TO_PROCESS,
+            inclusion_stage,
+            &mut finality_stage_receiver,
+        )
+        .await;
+    }
+
+    async fn run_stage(
+        sent_txs_count: usize,
+        stage: InclusionStage,
+        receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
+    ) -> Vec<Transaction> {
+        // future that receives `sent_payload_count` payloads from the building stage
+        let receiving_closure = async {
+            let mut received = Vec::new();
+            while received.len() < sent_txs_count {
+                let tx_received = receiver.recv().await.unwrap();
+                received.push(tx_received);
+            }
+            received
+        };
+
+        let stage = tokio::spawn(async move { stage.run().await });
+
+        // give the building stage 100ms to send the transaction(s) to the receiver
+        let _ = tokio::select! {
+            // this arm runs indefinitely
+            res = stage => res,
+            // this arm runs until all sent payloads are sent as txs
+            received = receiving_closure => {
+                return received;
+            },
+            // this arm is the timeout
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                return vec![]
+            },
+        };
+        vec![]
     }
 }
