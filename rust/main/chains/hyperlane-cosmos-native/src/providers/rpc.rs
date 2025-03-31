@@ -2,45 +2,38 @@ use std::future::Future;
 use std::time::Instant;
 
 use cosmrs::{
-    crypto::PublicKey,
     proto::cosmos::{
         auth::v1beta1::{BaseAccount, QueryAccountRequest, QueryAccountResponse},
         bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse},
         tx::v1beta1::{SimulateRequest, SimulateResponse, TxRaw},
     },
     rpc::HttpClient,
-    tx::{self, Fee, MessageExt, SequenceNumber, SignDoc, SignerInfo, SignerPublicKey},
-    AccountId, Any, Coin, Tx,
+    tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
+    Any, Coin,
 };
 use hyperlane_cosmos_rs::prost::Message;
 use tendermint::{hash::Algorithm, Hash};
 use tendermint_rpc::{
     client::CompatMode,
     endpoint::{
-        block::Response as BlockResponse,
-        block_results::Response as BlockResultsResponse,
-        broadcast::{tx_commit, tx_sync},
-        tx::Response as TxResponse,
+        block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
+        broadcast::tx_commit, tx::Response as TxResponse,
     },
     Client, Error,
 };
 use tonic::async_trait;
-use tracing::{debug, warn};
 
 use hyperlane_core::{
     h512_to_bytes,
     rpc_clients::{BlockNumberGetter, FallbackProvider},
-    utils::to_atto,
-    AccountAddressType, ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
+    ChainCommunicationError, ChainResult, FixedPointNumber, H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 use url::Url;
 
-use crate::{
-    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
-};
+use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use super::cosmos::CosmosFallbackProvider;
 

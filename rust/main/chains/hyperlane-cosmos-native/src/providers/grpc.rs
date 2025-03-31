@@ -1,8 +1,5 @@
-use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
-use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::{
-    GetLatestBlockRequest, GetNodeInfoRequest,
-};
+use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
     query_client::QueryClient as IsmQueryClient, QueryAnnouncedStorageLocationsRequest,
     QueryAnnouncedStorageLocationsResponse, QueryIsmRequest, QueryIsmResponse,
@@ -16,10 +13,10 @@ use hyperlane_cosmos_rs::hyperlane::core::v1::{
     QueryDeliveredRequest, QueryDeliveredResponse, QueryMailboxRequest, QueryMailboxResponse,
     QueryRecipientIsmRequest, QueryRecipientIsmResponse,
 };
-use itertools::Itertools;
 use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
+use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,

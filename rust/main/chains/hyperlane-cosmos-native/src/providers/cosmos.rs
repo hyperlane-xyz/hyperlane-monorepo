@@ -2,14 +2,6 @@ use std::ops::Deref;
 
 use cosmrs::{
     crypto::PublicKey,
-    proto::{
-        cosmos::{
-            auth::v1beta1::QueryAccountRequest,
-            bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse},
-            base::abci::v1beta1::TxResponse,
-        },
-        tendermint::types::Block,
-    },
     tx::{SequenceNumber, SignerInfo, SignerPublicKey},
     AccountId, Any, Coin, Tx,
 };
@@ -19,31 +11,23 @@ use hyperlane_cosmos_rs::{
     prost::{Message, Name},
 };
 use itertools::Itertools;
-use serde::{de::DeserializeOwned, Deserialize};
-use tendermint::{hash::Algorithm, Hash};
-use tendermint_rpc::{
-    client::CompatMode,
-    endpoint::{block, block_results, tx},
-    Client, HttpClient,
-};
 use time::OffsetDateTime;
 use tonic::async_trait;
-use tracing::{debug, trace, warn};
+use tracing::warn;
 
 use hyperlane_core::{
     h512_to_bytes,
     rpc_clients::{BlockNumberGetter, FallbackProvider},
-    utils::{self, to_atto},
+    utils::to_atto,
     AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
     ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, ReorgPeriod, TxnInfo,
-    TxnReceiptInfo, H256, H512, U256,
+    HyperlaneProviderError, RawHyperlaneMessage, ReorgPeriod, TxnInfo, TxnReceiptInfo, H256, H512,
+    U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
-    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, GrpcProvider,
-    HyperlaneCosmosError, Signer,
+    ConnectionConf, CosmosAccountId, CosmosAddress, GrpcProvider, HyperlaneCosmosError, Signer,
 };
 
 use super::RpcProvider;
@@ -91,7 +75,6 @@ impl CosmosNativeProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
         let rpc = RpcProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let grpc = GrpcProvider::new(conf.clone(), metrics, chain)?;
 
@@ -211,11 +194,11 @@ impl CosmosNativeProvider {
             .iter()
             .map(|si| self.convert_signer_info_into_account_id_and_nonce(si))
             // After the following we have a single Ok entry and, possibly, many Err entries
-            .filter_ok(|(a, s)| payer == a)
+            .filter_ok(|(a, _)| payer == a)
             // If we have Ok entry, use it since it is the payer, if not, use the first entry with error
             .find_or_first(|r| match r {
-                Ok((a, s)) => payer == a,
-                Err(e) => false,
+                Ok((a, _)) => payer == a,
+                Err(_) => false,
             })
             // If there were not any signer info with non-empty public key or no signers for the transaction,
             // we get None here
@@ -439,7 +422,7 @@ impl HyperlaneProvider for CosmosNativeProvider {
         Ok(tx_info)
     }
 
-    async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
+    async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         // TODO: check if the address is a recipient
         return Ok(true);
     }

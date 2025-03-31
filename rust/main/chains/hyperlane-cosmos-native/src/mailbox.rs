@@ -1,17 +1,16 @@
-use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any, Tx};
+use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, ContractLocator,
-    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
-    U256,
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
+    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, Signer};
+use crate::CosmosNativeProvider;
 
 /// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
@@ -164,7 +163,6 @@ impl Mailbox for CosmosNativeMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let hex_string = hex::encode(metadata);
         let any_encoded = self.encode_hyperlane_message(message, metadata)?;
         let gas_limit = self.provider.rpc().estimate_gas(vec![any_encoded]).await?;
 
@@ -177,7 +175,7 @@ impl Mailbox for CosmosNativeMailbox {
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
+    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
         todo!() // we dont need this for now
     }
 }

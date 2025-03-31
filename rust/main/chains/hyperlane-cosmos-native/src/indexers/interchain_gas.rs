@@ -1,5 +1,4 @@
 use std::ops::RangeInclusive;
-use std::sync::Arc;
 
 use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::GasPayment, prost::Name};
 use tendermint::abci::EventAttribute;

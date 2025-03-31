@@ -1,16 +1,11 @@
 /// TODO: copy pasted from `chains/hyperlane-cosmos/src/prometheus`
 /// refactore shared logic
 use std::future::Future;
-use std::num::NonZeroUsize;
-use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Instant;
 
-use derive_new::new;
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
-use pin_project::pin_project;
 use tonic::codegen::http::{Request, Response};
-use tonic::{Code, GrpcMethod};
+use tonic::GrpcMethod;
 use tower::Service;
 
 use super::metrics_future::MetricsChannelFuture;
@@ -57,7 +52,7 @@ where
     }
 
     fn call(&mut self, req: Request<I>) -> Self::Future {
-        let (service, method) = req
+        let (_, method) = req
             .extensions()
             .get::<GrpcMethod>()
             .map_or(("", ""), |gm| (gm.service(), gm.method()));

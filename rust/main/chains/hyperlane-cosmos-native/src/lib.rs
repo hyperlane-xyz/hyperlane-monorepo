@@ -2,9 +2,6 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-// TODO: Remove once we start filling things in
-#![allow(unused_variables)]
-#![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 
 mod error;
 mod indexers;
@@ -17,7 +14,8 @@ mod signers;
 mod trait_builder;
 mod validator_announce;
 
+use self::libs::*;
 pub use {
-    self::error::*, self::indexers::*, self::ism::*, self::libs::*, self::mailbox::*,
-    self::providers::*, self::signers::*, self::trait_builder::*, self::validator_announce::*,
+    self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,
+    self::signers::*, self::trait_builder::*, self::validator_announce::*,
 };

@@ -1,5 +1,5 @@
+use std::io::Cursor;
 use std::ops::RangeInclusive;
-use std::{io::Cursor, sync::Arc};
 
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::Dispatch;
@@ -13,10 +13,7 @@ use hyperlane_core::{
     Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{
-    ConnectionConf, CosmosNativeMailbox, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider,
-    Signer,
-};
+use crate::{CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
 use super::{CosmosEventIndexer, ParsedEvent};
 

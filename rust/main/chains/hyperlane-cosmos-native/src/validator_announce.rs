@@ -1,18 +1,16 @@
-use std::hash::Hash;
-
 use async_trait::async_trait;
-use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any};
+use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::MsgAnnounceValidator;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 
 use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Signable, SignedType,
-    TxOutcome, ValidatorAnnounce, H160, H256, U256,
+    Announcement, ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
+    ValidatorAnnounce, H160, H256, U256,
 };
 
-use crate::{signers::Signer, ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError};
+use crate::CosmosNativeProvider;
 
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
 #[derive(Debug)]
@@ -107,7 +105,10 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
         })
     }
 
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
+    async fn announce_tokens_needed(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> Option<U256> {
         // TODO: check user balance. For now, just try announcing and
         // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())

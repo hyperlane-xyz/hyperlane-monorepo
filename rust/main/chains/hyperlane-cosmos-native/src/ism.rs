@@ -11,10 +11,10 @@ use tonic::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    MultisigIsm, ReorgPeriod, H160, H256, U256,
+    MultisigIsm, H160, H256, U256,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, Signer};
+use crate::{CosmosNativeProvider, HyperlaneCosmosError};
 
 /// Cosmos Native ISM
 #[derive(Debug)]
@@ -90,8 +90,8 @@ impl InterchainSecurityModule for CosmosNativeIsm {
     /// succeeds.
     async fn dry_run_verify(
         &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         // NOTE: is only relevant for aggeration isms -> cosmos native does not support them yet
         Ok(Some(1.into()))
@@ -105,7 +105,7 @@ impl MultisigIsm for CosmosNativeIsm {
     /// Returns the validator and threshold needed to verify message
     async fn validators_and_threshold(
         &self,
-        message: &HyperlaneMessage,
+        _message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
         let ism = self.get_ism().await?;
         match ism.type_url.as_str() {

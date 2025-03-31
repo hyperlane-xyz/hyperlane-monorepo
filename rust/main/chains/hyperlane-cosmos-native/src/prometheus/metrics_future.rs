@@ -1,15 +1,13 @@
 /// TODO: copy pasted from `chains/hyperlane-cosmos/src/prometheus`
 /// refactore shared logic
 use std::future::Future;
-use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Instant;
 
-use derive_new::new;
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 use pin_project::pin_project;
-use tonic::codegen::http::{request, response};
+use tonic::codegen::http::response;
 use tonic::Code;
 
 /// This is only needed to capture the result of the future

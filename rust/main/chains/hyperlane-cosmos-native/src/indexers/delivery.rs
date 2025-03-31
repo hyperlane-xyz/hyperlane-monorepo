@@ -1,5 +1,4 @@
 use std::ops::RangeInclusive;
-use std::sync::Arc;
 
 use hyperlane_cosmos_rs::{hyperlane::core::v1::Process, prost::Name};
 use tendermint::abci::EventAttribute;
@@ -11,7 +10,7 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
+use crate::{CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
 use super::{CosmosEventIndexer, ParsedEvent};
 

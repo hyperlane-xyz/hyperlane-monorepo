@@ -1,5 +1,4 @@
 use std::ops::RangeInclusive;
-use std::sync::Arc;
 
 use hex::ToHex;
 use hyperlane_cosmos_rs::{
@@ -20,7 +19,7 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
+use crate::{CosmosNativeProvider, HyperlaneCosmosError, RpcProvider};
 
 use super::{CosmosEventIndexer, ParsedEvent};
 
@@ -86,7 +85,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
+        let (_, tree) = self.get_merkle_tree(reorg_period).await?;
         let branch = tree
             .leafs
             .iter()
@@ -96,7 +95,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
         let branch = branch.as_slice();
         let branch: [H256; 32] = match branch.try_into() {
             Ok(ba) => ba,
-            Err(e) => {
+            Err(_) => {
                 return Err(ChainCommunicationError::CustomError(
                     "Failed to convert incremental tree. expected branch length of 32".to_string(),
                 ))
@@ -117,7 +116,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        let (hook, tree) = self.get_merkle_tree(reorg_period).await?;
+        let (_, tree) = self.get_merkle_tree(reorg_period).await?;
         let root = H256::from_slice(&tree.root);
         let index = if tree.count == 0 { 0 } else { tree.count - 1 };
 

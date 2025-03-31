@@ -1,25 +1,22 @@
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
-use std::sync::Arc;
 
 use futures::future;
-use itertools::Itertools;
-use tendermint::abci::{Event, EventAttribute};
+use tendermint::abci::EventAttribute;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
-use tendermint_rpc::endpoint::block::Response as BlockResponse;
-use tendermint_rpc::endpoint::block_results::{self, Response as BlockResultsResponse};
 use tendermint_rpc::endpoint::tx;
-use tokio::task::JoinHandle;
+use tendermint_rpc::endpoint::{
+    block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
+};
 use tonic::async_trait;
-use tracing::{debug, error, event, trace, warn, Level};
+use tracing::{debug, trace, warn};
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, H256, H512, U256,
+    rpc_clients::BlockNumberGetter, ChainResult, Indexed, Indexer, LogMeta, H256, H512, U256,
 };
 
-use crate::{error, CosmosNativeProvider, RpcProvider};
+use crate::RpcProvider;
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
