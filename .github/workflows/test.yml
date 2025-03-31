@@ -21,6 +21,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   RUSTC_WRAPPER: sccache
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   yarn-install:

@@ -28,7 +28,7 @@
     "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4 && yarn prettier",
     "build": "turbo run build",
     "clean": "turbo run clean",
-    "prettier": "turbo run prettier --filter=[HEAD^1]",
+    "prettier": "turbo run prettier",
     "lint": "turbo run lint",
     "test": "turbo run test --continue",
     "test:ci": "turbo run test:ci",
