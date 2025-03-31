@@ -78,9 +78,6 @@ impl BuildingStage {
             self.drop_tx(&tx, DropReason::FailedSimulation).await;
             return;
         };
-        // sending the transaction to the Inclusion Stage can only
-        // fail if the channel is at capacity. Retry until it succeeds.
-        // If the channel is dropped,
         retry_until_success(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
@@ -193,7 +190,6 @@ mod tests {
         let (building_stage, mut receiver, queue) =
             test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
 
-        // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::random();
             initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
@@ -219,7 +215,6 @@ mod tests {
         let (building_stage, mut receiver, queue) =
             test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
 
-        // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::random();
             initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
