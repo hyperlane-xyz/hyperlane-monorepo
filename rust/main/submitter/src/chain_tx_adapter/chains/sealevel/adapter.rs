@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{bail, ContextCompat, Report, Result};
+use eyre::{bail, eyre, ContextCompat, Report, Result};
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_sdk::{
@@ -46,6 +46,7 @@ use crate::transaction::{
 pub struct SealevelTxAdapter {
     reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
+    max_batch_size: u32,
     client: Box<dyn SubmitSealevelRpc>,
     provider: Box<dyn SealevelProviderForSubmitter>,
     oracle: Box<dyn PriorityFeeOracle>,
@@ -102,10 +103,12 @@ impl SealevelTxAdapter {
     ) -> Result<Self> {
         let keypair = create_keypair(&conf)?;
         let reorg_period = conf.reorg_period.clone();
+        let max_batch_size = Self::batch_size(conf)?;
 
         Ok(Self {
             reorg_period,
             keypair,
+            max_batch_size,
             provider,
             client,
             oracle,
@@ -124,11 +127,20 @@ impl SealevelTxAdapter {
         Self {
             reorg_period: ReorgPeriod::default(),
             keypair: SealevelKeypair::default(),
+            max_batch_size: 1,
             provider,
             client,
             oracle,
             submitter,
         }
+    }
+
+    fn batch_size(conf: ChainConf) -> Result<u32> {
+        Ok(conf
+            .connection
+            .operation_batch_config()
+            .ok_or_else(|| eyre!("no operation batch config"))?
+            .max_batch_size)
     }
 
     async fn estimate(&self, precursor: SealevelTxPrecursor) -> ChainResult<SealevelTxPrecursor> {
@@ -319,8 +331,8 @@ impl AdaptsChain for SealevelTxAdapter {
         todo!()
     }
 
-    fn max_batch_size(&self) -> usize {
-        todo!()
+    fn max_batch_size(&self) -> u32 {
+        self.max_batch_size
     }
 }
 

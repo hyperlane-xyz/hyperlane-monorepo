@@ -54,7 +54,7 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    fn max_batch_size(&self) -> usize {
+    fn max_batch_size(&self) -> u32 {
         todo!()
     }
 }

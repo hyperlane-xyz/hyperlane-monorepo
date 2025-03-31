@@ -30,7 +30,7 @@ pub(crate) mod tests {
             async fn nonce_gap_exists(&self) -> bool;
             async fn replace_tx(&self, _tx: &Transaction) -> Result<()>;
             fn estimated_block_time(&self) -> std::time::Duration;
-            fn max_batch_size(&self) -> usize;
+            fn max_batch_size(&self) -> u32;
         }
     }
 
