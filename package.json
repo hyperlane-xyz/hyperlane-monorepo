@@ -52,6 +52,7 @@
     "undici": "^5.11",
     "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7",
     "@typechain/ethers-v5": "11.1.2",
-    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
+    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
+    "zksync-telemetry": "npm:empty-npm-package@1.0.0"
   }
 }
