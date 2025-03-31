@@ -60,15 +60,23 @@ contract OPL2ToL1CcipReadIsm is
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
+        bytes memory ccipReadCallData = _areWeMessageRecipient(_message)
+            ? abi.encodeWithSignature("getWithdrawalProof(bytes)", _message)
+            : abi.encodeWithSignature(
+                "getFinalizeWithdrawalTx(bytes)",
+                _message
+            );
+
         revert OffchainLookup(
             address(this),
             urls,
-            abi.encodeWithSignature("getOffchainData(bytes)", _message),
+            ccipReadCallData,
             OPL2ToL1CcipReadIsm.process.selector,
             _message
         );
     }
 
+    /// @dev called by the relayer when the off-chain data is ready
     function process(
         bytes calldata _metadata,
         bytes calldata _message
@@ -116,14 +124,14 @@ contract OPL2ToL1CcipReadIsm is
     }
 
     /// @dev We check the withdrawal hash here in order to prevent someone
-    /// DDoS-ing the message delivery by providing a message relative to a withdrawal X
+    /// DDoS-ing the transfer execution by providing a message relative to a legit withdrawal X
     /// and a valid proof relative to withdrawal Y
     function _proveWithdrawal(
         bytes calldata _metadata,
         bytes calldata _message
     ) internal {
         (, bytes32 withdrawalHash) = abi.decode(
-            _message.body(),
+            TokenMessage.metadata(_message.body()),
             (bytes32, bytes32)
         );
 
@@ -157,19 +165,14 @@ contract OPL2ToL1CcipReadIsm is
 
     /// @dev No need to do the same withdrawal hash check here as done
     /// in _proveWithdrawal() since there's no risk of DoS here: checking
-    /// just if the withdrawal has been finalized already is enough
+    /// if the withdrawal has been finalized already is enough
     function _finalizeWithdrawal(
         bytes calldata _metadata,
         bytes calldata /* _message */
     ) internal {
-        (IOptimismPortal.WithdrawalTransaction memory _tx, , , ) = abi.decode(
+        IOptimismPortal.WithdrawalTransaction memory _tx = abi.decode(
             _metadata,
-            (
-                IOptimismPortal.WithdrawalTransaction,
-                uint256,
-                IOptimismPortal.OutputRootProof,
-                bytes[]
-            )
+            (IOptimismPortal.WithdrawalTransaction)
         );
 
         bytes32 withdrawalHash = _hashWithdrawal(_tx);
