@@ -298,7 +298,7 @@ mod tests {
             .map(|payload| payload.details)
             .collect();
         let maybe_transaction = if success {
-            Some(dummy_tx(payloads))
+            Some(dummy_tx(payloads, TransactionStatus::PendingInclusion))
         } else {
             None
         };

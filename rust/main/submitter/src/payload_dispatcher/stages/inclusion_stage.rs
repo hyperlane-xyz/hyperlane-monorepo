@@ -299,8 +299,13 @@ mod tests {
             state,
         );
 
-        let txs_created =
-            create_random_txs_and_store_them(txs_to_process, &payload_db, &tx_db).await;
+        let txs_created = create_random_txs_and_store_them(
+            txs_to_process,
+            &payload_db,
+            &tx_db,
+            TransactionStatus::PendingInclusion,
+        )
+        .await;
         for tx in txs_created.iter() {
             building_stage_sender.send(tx.clone()).await.unwrap();
         }

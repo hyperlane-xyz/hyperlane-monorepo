@@ -69,10 +69,14 @@ impl FinalityStage {
         pool: FinalityStagePool,
     ) -> Result<(), DispatcherError> {
         loop {
-            let tx = inclusion_stage_receiver.recv().await.unwrap();
-            pool.lock().await.insert(tx.id.clone(), tx.clone());
-            info!(?tx, "Received transaction");
+            if let Some(tx) = inclusion_stage_receiver.recv().await {
+                pool.lock().await.insert(tx.id.clone(), tx.clone());
+                info!(?tx, "Received transaction");
+            } else {
+                sleep(Duration::from_millis(500)).await;
+            }
         }
+        Ok(())
     }
 
     async fn process_txs(
@@ -142,6 +146,7 @@ impl FinalityStage {
                     drop_reason,
                     building_stage_queue.clone(),
                     state,
+                    pool,
                 )
                 .await?;
             }
@@ -157,6 +162,7 @@ impl FinalityStage {
         drop_reason: TxDropReason,
         building_stage_queue: BuildingStageQueue,
         state: &PayloadDispatcherState,
+        pool: FinalityStagePool,
     ) -> Result<(), DispatcherError> {
         warn!(?tx, ?drop_reason, "Transaction was dropped");
         // push payloads in tx back to the building stage queue
@@ -192,6 +198,7 @@ impl FinalityStage {
                 building_stage_queue.lock().await.push_front(full_payload);
             }
         }
+        pool.lock().await.remove(&tx.id);
         Ok(())
     }
 }
@@ -200,9 +207,9 @@ impl FinalityStage {
 mod tests {
     use super::*;
     use crate::{
-        payload::{PayloadDb, PayloadId},
+        payload::{PayloadDb, PayloadDetails, PayloadId},
         payload_dispatcher::{
-            stages::building_stage,
+            stages::{building_stage, finality_stage},
             test_utils::tests::{
                 create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
                 MockAdapter,
@@ -218,7 +225,7 @@ mod tests {
     async fn test_process_included_txs() {}
 
     #[tokio::test]
-    async fn test_processing_included_txs() {
+    async fn test_processing_included_txs_no_reverted_payload() {
         const TXS_TO_PROCESS: usize = 3;
 
         let mut mock_adapter = MockAdapter::new();
@@ -234,10 +241,11 @@ mod tests {
             .expect_reverted_payloads()
             .returning(|_| Ok(vec![]));
 
-        let (txs_created, txs_received, tx_db, payload_db, pool) =
-            set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
+        let (txs_created, txs_received, tx_db, payload_db, pool, _) =
+            set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Included)
+                .await;
 
-        // assert_eq!(txs_received.len(), TXS_TO_PROCESS);
+        assert_eq!(txs_received.len(), TXS_TO_PROCESS);
         assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
@@ -248,80 +256,184 @@ mod tests {
         .await;
     }
 
-    // #[tokio::test]
-    // async fn test_unincluded_txs_reach_mempool() {
-    //     const TXS_TO_PROCESS: usize = 3;
+    #[tokio::test]
+    async fn test_processing_included_txs_some_reverted_payload() {
+        const TXS_TO_PROCESS: usize = 3;
 
-    //     let mut mock_adapter = MockAdapter::new();
-    //     mock_adapter
-    //         .expect_estimated_block_time()
-    //         .returning(|| Duration::from_millis(10));
+        let mut mock_adapter = MockAdapter::new();
+        mock_adapter
+            .expect_estimated_block_time()
+            .returning(|| Duration::from_millis(10));
 
-    //     mock_adapter
-    //         .expect_tx_status()
-    //         .returning(|_| Ok(TransactionStatus::PendingInclusion));
+        mock_adapter
+            .expect_tx_status()
+            .returning(|_| Ok(TransactionStatus::Included));
 
-    //     mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
+        let (payload_db, tx_db) = tmp_dbs();
 
-    //     mock_adapter.expect_submit().returning(|_| Ok(()));
+        let generated_txs = create_random_txs_and_store_them(
+            TXS_TO_PROCESS,
+            &payload_db,
+            &tx_db,
+            TransactionStatus::Included,
+        )
+        .await;
 
-    //     let (txs_created, txs_received, tx_db, payload_db, pool) =
-    //         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
+        let payloads_in_first_tx = generated_txs[0].payload_details.clone();
+        let payloads_in_first_tx_clone = payloads_in_first_tx.clone();
+        mock_adapter
+            .expect_reverted_payloads()
+            .returning(move |_| Ok(payloads_in_first_tx_clone.clone()));
 
-    //     assert_eq!(txs_received.len(), 0);
-    //     assert_txs_not_in_db(txs_created.clone(), &pool).await;
-    //     assert_tx_status(
-    //         txs_received.clone(),
-    //         &tx_db,
-    //         &payload_db,
-    //         TransactionStatus::Mempool,
-    //     )
-    //     .await;
-    // }
+        let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(TXS_TO_PROCESS);
 
-    // #[tokio::test]
-    // async fn test_failed_simulation() {
-    //     const TXS_TO_PROCESS: usize = 3;
+        let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
-    //     let mut mock_adapter = MockAdapter::new();
-    //     mock_adapter
-    //         .expect_estimated_block_time()
-    //         .returning(|| Duration::from_millis(10));
+        let state =
+            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
+        let pool = Arc::new(Mutex::new(HashMap::new()));
+        let finality_stage = FinalityStage::new(
+            pool.clone(),
+            inclusion_stage_receiver,
+            building_queue.clone(),
+            state,
+        );
 
-    //     mock_adapter
-    //         .expect_tx_status()
-    //         .returning(|_| Ok(TransactionStatus::PendingInclusion));
+        send_txs_to_channel(generated_txs.clone(), inclusion_stage_sender).await;
+        let txs_received = run_stage(TXS_TO_PROCESS, finality_stage, building_queue).await;
 
-    //     mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
+        assert_eq!(txs_received.len(), 0);
+        assert!(are_all_txs_in_pool(generated_txs.to_vec(), &pool).await);
+        assert_tx_status(
+            generated_txs[1..].to_vec(),
+            &tx_db,
+            &payload_db,
+            TransactionStatus::Included,
+        )
+        .await;
+        assert_payloads_status(
+            payloads_in_first_tx.clone(),
+            &payload_db,
+            PayloadStatus::Dropped(DropReason::Reverted),
+        );
+    }
 
-    //     let (txs_created, txs_received, tx_db, payload_db, pool) =
-    //         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
+    #[tokio::test]
+    async fn test_processing_finalized_txs() {
+        const TXS_TO_PROCESS: usize = 3;
 
-    //     assert_eq!(txs_received.len(), 0);
-    //     assert_txs_not_in_db(txs_created.clone(), &pool).await;
-    //     assert_tx_status(
-    //         txs_received.clone(),
-    //         &tx_db,
-    //         &payload_db,
-    //         TransactionStatus::Dropped(TxDropReason::FailedSimulation),
-    //     )
-    //     .await;
-    // }
+        let mut mock_adapter = MockAdapter::new();
+        mock_adapter
+            .expect_estimated_block_time()
+            .returning(|| Duration::from_millis(10));
+
+        mock_adapter
+            .expect_tx_status()
+            .returning(|_| Ok(TransactionStatus::Finalized));
+
+        let (txs_created, txs_received, tx_db, payload_db, pool, _) =
+            set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized)
+                .await;
+
+        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+        assert_tx_status(
+            txs_received.clone(),
+            &tx_db,
+            &payload_db,
+            TransactionStatus::Finalized,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_processing_dropped_txs() {
+        const TXS_TO_PROCESS: usize = 3;
+
+        let mut mock_adapter = MockAdapter::new();
+        mock_adapter
+            .expect_estimated_block_time()
+            .returning(|| Duration::from_millis(10));
+
+        mock_adapter
+            .expect_tx_status()
+            .returning(|_| Ok(TransactionStatus::Dropped(TxDropReason::DroppedByChain)));
+
+        let (txs_created, txs_received, tx_db, payload_db, pool, queue) =
+            set_up_test_and_run_stage(
+                mock_adapter,
+                TXS_TO_PROCESS,
+                TransactionStatus::Dropped(TxDropReason::DroppedByChain),
+            )
+            .await;
+
+        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+        assert_tx_status(
+            txs_received.clone(),
+            &tx_db,
+            &payload_db,
+            TransactionStatus::Dropped(TxDropReason::DroppedByChain),
+        )
+        .await;
+        assert_eq!(queue.lock().await.len(), TXS_TO_PROCESS);
+        for tx in txs_received {
+            let payloads = tx.payload_details.clone();
+            for payload in payloads {
+                let payload = payload_db
+                    .retrieve_payload_by_id(&payload.id)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(payload.status, PayloadStatus::ReadyToSubmit);
+            }
+        }
+    }
 
     async fn are_all_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
         let pool = pool.lock().await;
         txs.iter().all(|tx| pool.contains_key(&tx.id))
     }
 
+    async fn are_no_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
+        let pool = pool.lock().await;
+        txs.iter().all(|tx| !pool.contains_key(&tx.id))
+    }
+
     async fn set_up_test_and_run_stage(
         mock_adapter: MockAdapter,
         txs_to_process: usize,
+        tx_status: TransactionStatus,
     ) -> (
         Vec<Transaction>,
         Vec<Transaction>,
         Arc<dyn TransactionDb>,
         Arc<dyn PayloadDb>,
         FinalityStagePool,
+        BuildingStageQueue,
+    ) {
+        let (txs_created, tx_db, payload_db, pool, finality_stage, building_queue) =
+            set_up_test(mock_adapter, txs_to_process, tx_status).await;
+        let txs_received = run_stage(txs_to_process, finality_stage, building_queue.clone()).await;
+        (
+            txs_created,
+            txs_received,
+            tx_db,
+            payload_db,
+            pool,
+            building_queue,
+        )
+    }
+
+    async fn set_up_test(
+        mock_adapter: MockAdapter,
+        txs_to_process: usize,
+        tx_status: TransactionStatus,
+    ) -> (
+        Vec<Transaction>,
+        Arc<dyn TransactionDb>,
+        Arc<dyn PayloadDb>,
+        FinalityStagePool,
+        FinalityStage,
+        BuildingStageQueue,
     ) {
         let (payload_db, tx_db) = tmp_dbs();
         let (inclusion_stage_sender, inclusion_stage_receiver) = mpsc::channel(txs_to_process);
@@ -338,13 +450,26 @@ mod tests {
             state,
         );
 
-        let txs_created =
-            create_random_txs_and_store_them(txs_to_process, &payload_db, &tx_db).await;
-        for tx in txs_created.iter() {
-            inclusion_stage_sender.send(tx.clone()).await.unwrap();
+        let test_txs =
+            create_random_txs_and_store_them(txs_to_process, &payload_db, &tx_db, tx_status).await;
+        send_txs_to_channel(test_txs.clone(), inclusion_stage_sender).await;
+        (
+            test_txs,
+            tx_db,
+            payload_db,
+            pool,
+            finality_stage,
+            building_queue,
+        )
+    }
+
+    async fn send_txs_to_channel(
+        txs: Vec<Transaction>,
+        inclusion_stage_sender: mpsc::Sender<Transaction>,
+    ) {
+        for tx in txs {
+            inclusion_stage_sender.send(tx).await.unwrap();
         }
-        let txs_received = run_stage(txs_to_process, finality_stage, building_queue).await;
-        (txs_created, txs_received, tx_db, payload_db, pool)
     }
 
     async fn run_stage(
@@ -352,17 +477,23 @@ mod tests {
         stage: FinalityStage,
         building_stage_queue: BuildingStageQueue,
     ) -> Vec<Transaction> {
-        let stage = tokio::spawn(async move { stage.run().await });
+        let pool = stage.pool.clone();
+        let pool_before = pool.lock().await.clone();
+        let stage_task = tokio::spawn(async move { stage.run().await });
         // give the building stage 100ms to send the transaction(s) to the receiver
         let _ = tokio::select! {
             // this arm runs indefinitely
-            res = stage => res,
+            res = stage_task => res.unwrap(),
             // this arm is the timeout
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-                return vec![]
             },
         };
-        vec![]
+        let pool_after = pool.lock().await.clone();
+        pool_before
+            .iter()
+            .filter(|(id, _)| !pool_after.contains_key(id))
+            .map(|(_, tx)| tx.clone())
+            .collect::<Vec<_>>()
     }
 
     async fn assert_tx_status(
@@ -379,18 +510,26 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(tx_from_db.status, expected_status.clone());
+            assert_payloads_status(
+                tx_from_db.payload_details,
+                payload_db,
+                PayloadStatus::InTransaction(expected_status.clone()),
+            );
+        }
+    }
 
-            for detail in tx.payload_details.iter() {
-                let payload = payload_db
-                    .retrieve_payload_by_id(&detail.id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(
-                    payload.status,
-                    PayloadStatus::InTransaction(expected_status.clone())
-                );
-            }
+    async fn assert_payloads_status(
+        payloads: Vec<PayloadDetails>,
+        payload_db: &Arc<dyn PayloadDb>,
+        expected_status: PayloadStatus,
+    ) {
+        for payload in payloads {
+            let payload = payload_db
+                .retrieve_payload_by_id(&payload.id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(payload.status, expected_status.clone());
         }
     }
 }
