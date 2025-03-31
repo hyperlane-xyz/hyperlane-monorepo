@@ -20,20 +20,19 @@ import {
   defaultMultisigConfigs,
   multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../registry.js';
 
 import { igp } from './igp.js';
-import { owners } from './owners.js';
+import { ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
 export const core: ChainMap<CoreConfig> = objMap(
-  owners,
-  (local, ownerConfig) => {
+  ethereumChainOwners,
+  (local, owner) => {
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
       supportedChainNames
-        .filter((chain) => getChain(chain).protocol === ProtocolType.Ethereum)
         .filter((chain) => chain !== local)
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
@@ -69,7 +68,7 @@ export const core: ChainMap<CoreConfig> = objMap(
           threshold: 1,
         }),
       ),
-      ...ownerConfig,
+      ...owner,
     };
 
     // No static aggregation ISM support on zkSync
@@ -79,13 +78,13 @@ export const core: ChainMap<CoreConfig> = objMap(
         originMultisigs,
         (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
       ),
-      ...ownerConfig,
+      ...owner,
     });
 
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       paused: false,
-      ...ownerConfig,
+      ...owner,
     };
 
     // No static aggregation ISM support on zkSync
@@ -106,7 +105,7 @@ export const core: ChainMap<CoreConfig> = objMap(
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
       paused: false,
-      ...ownerConfig,
+      ...owner,
     };
 
     // No static aggregation hook support on zkSync
@@ -124,12 +123,12 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     const defaultHook: FallbackRoutingHookConfig = {
       type: HookType.FALLBACK_ROUTING,
-      ...ownerConfig,
+      ...owner,
       domains: defaultHookDomains,
       fallback: merkleHook,
     };
 
-    if (typeof ownerConfig.owner !== 'string') {
+    if (typeof owner.owner !== 'string') {
       throw new Error('beneficiary must be a string');
     }
 
@@ -144,15 +143,15 @@ export const core: ChainMap<CoreConfig> = objMap(
             type: HookType.PROTOCOL_FEE,
             maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
             protocolFee: BigNumber.from(0).toString(), // 0 wei of native token
-            beneficiary: ownerConfig.owner as Address,
-            ...ownerConfig,
+            beneficiary: owner.owner as Address,
+            ...owner,
           };
 
     return {
       defaultIsm,
       defaultHook,
       requiredHook,
-      ...ownerConfig,
+      ...owner,
     };
   },
 );

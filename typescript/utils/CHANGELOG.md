@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 9.2.1
+
+## 9.2.0
+
+## 9.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
 ## 8.9.0
 
 ### Minor Changes
