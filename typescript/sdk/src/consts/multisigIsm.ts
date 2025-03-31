@@ -617,6 +617,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  coti: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3c89379537f8beafc54e7e8ab4f8a1cf7974b9f0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   cotitestnet: {
     threshold: 1,
     validators: [
@@ -636,6 +646,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  deepbrainchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3825ea1e0591b58461cc4aa34867668260c0e6a8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1488,6 +1508,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  nibiru: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xba9779d84a8efba1c6bc66326d875c3611a24b24',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   odysseytestnet: {
     threshold: 1,
     validators: [
@@ -1507,6 +1537,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MITOSIS_VALIDATOR,
       { address: '0xfa94a494f01d1034b8cea025ca4c2a7e31ca39a1', alias: 'Oort' },
+    ],
+  },
+
+  opbnb: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x1bdf52749ef2411ab9c28742dea92f209e96c9c4',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1678,6 +1718,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  reactive: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x45768525f6c5ca2e4e7cc50d405370eadee2d624',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
