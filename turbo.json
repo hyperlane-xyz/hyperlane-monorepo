@@ -14,6 +14,7 @@
     "clean": {},
     "prettier": {},
     "lint": {},
-    "version:update": {}
+    "version:update": {},
+    "coverage": {}
   }
 }
