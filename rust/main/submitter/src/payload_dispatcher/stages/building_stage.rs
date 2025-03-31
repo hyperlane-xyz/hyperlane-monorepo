@@ -288,24 +288,7 @@ mod tests {
             .expect_simulate_tx()
             // .times(payloads_to_send)
             .returning(move |_| Ok(successful_simulation.clone()));
-        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db)
-    }
-
-    fn dummy_stage_receiver_queue(
-        mock_adapter: MockAdapter,
-        payload_db: Arc<dyn PayloadDb>,
-        tx_db: Arc<dyn TransactionDb>,
-    ) -> (
-        BuildingStage,
-        tokio::sync::mpsc::Receiver<Transaction>,
-        BuildingStageQueue,
-    ) {
-        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
-        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
-        let (sender, receiver) = tokio::sync::mpsc::channel(100);
-        let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
-        let building_stage = BuildingStage::new(queue.clone(), sender, state);
-        (building_stage, receiver, queue)
+        dummy_building_queue(mock_adapter, payload_db, tx_db)
     }
 
     fn dummy_built_tx(payloads: Vec<FullPayload>, success: bool) -> Vec<TxBuildingResult> {
@@ -337,5 +320,22 @@ mod tests {
                 .unwrap();
             assert_eq!(payload_from_db.status, expected_status);
         }
+    }
+
+    pub fn dummy_building_queue(
+        mock_adapter: MockAdapter,
+        payload_db: Arc<dyn PayloadDb>,
+        tx_db: Arc<dyn TransactionDb>,
+    ) -> (
+        BuildingStage,
+        tokio::sync::mpsc::Receiver<Transaction>,
+        BuildingStageQueue,
+    ) {
+        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
+        let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+        let building_stage = BuildingStage::new(queue.clone(), sender, state);
+        (building_stage, receiver, queue)
     }
 }
