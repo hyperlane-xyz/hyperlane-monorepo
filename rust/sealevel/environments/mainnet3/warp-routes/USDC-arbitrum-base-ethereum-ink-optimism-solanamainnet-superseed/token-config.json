@@ -42,6 +42,7 @@
     "name": "USD Coin",
     "symbol": "USDC",
     "foreignDeployment": "0xa7D6042eEf06E81168e640b5C41632eE5295227D",
-    "token": "0xc316c8252b5f2176d0135ebb0999e99296998f2e"
+    "token": "0xc316c8252b5f2176d0135ebb0999e99296998f2e",
+    "owner": "JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE"
   }
 }
