@@ -11,8 +11,10 @@ use super::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
-// The `nonce` → `tx_uuid` store is updated as well
 const NONCE_BY_TX_ID_STORAGE_PREFIX: &str = "nonce_by_tx_id_";
+
+const TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX: &str = "tx_index_by_id_";
+const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
 
 #[async_trait]
 pub trait TransactionDb: Send + Sync {
@@ -22,6 +24,26 @@ pub trait TransactionDb: Send + Sync {
 
     /// Store a transaction by its unique ID
     async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()>;
+
+    /// Retrieve a transaction by its unique ID
+    async fn retrieve_transaction_id_by_index(&self, index: u32)
+        -> DbResult<Option<TransactionId>>;
+
+    /// Retrieve a transaction by its unique ID
+    async fn retrieve_transaction_by_index(&self, index: u32) -> DbResult<Option<Transaction>> {
+        let id = self.retrieve_transaction_id_by_index(index).await?;
+        if let Some(id) = id {
+            self.retrieve_transaction_by_id(&id).await
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store the highest transaction index
+    async fn store_highest_index(&self, index: u32) -> DbResult<()>;
+
+    /// Retrieve the highest transaction index
+    async fn retrieve_highest_index(&self) -> DbResult<u32>;
 }
 
 #[async_trait]

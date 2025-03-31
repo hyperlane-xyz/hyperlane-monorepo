@@ -14,6 +14,8 @@ use super::{FullPayload, PayloadId, PayloadStatus};
 
 const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
 const TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX: &str = "transaction_id_by_payload_id_";
+const PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX: &str = "payload_index_by_id_";
+const HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX: &str = "highest_payload_index_";
 
 #[async_trait]
 pub trait PayloadDb: Send + Sync {
@@ -22,6 +24,25 @@ pub trait PayloadDb: Send + Sync {
 
     /// Store a payload by its unique ID
     async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()>;
+
+    /// Retrieve a payload by its unique ID
+    async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>>;
+
+    /// Retrieve a payload by its unique ID
+    async fn retrieve_payload_by_index(&self, index: u32) -> DbResult<Option<FullPayload>> {
+        let id = self.retrieve_payload_id_by_index(index).await?;
+        if let Some(id) = id {
+            self.retrieve_payload_by_id(&id).await
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store the highest payload index
+    async fn store_highest_index(&self, index: u32) -> DbResult<()>;
+
+    /// Retrieve the highest payload index
+    async fn retrieve_highest_index(&self) -> DbResult<u32>;
 
     /// Set the status of a payload by its unique ID. Performs one read (to first fetch the full payload) and one write.
     async fn store_new_payload_status(
@@ -59,6 +80,21 @@ impl PayloadDb for HyperlaneRocksDB {
     }
 
     async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
+        if self
+            .retrieve_payload_id_by_index(payload.index)
+            .await?
+            .is_none()
+        {
+            let highest_index = self.retrieve_highest_index().await?;
+            let payload_index = highest_index + 1;
+            self.store_highest_index(index).await?;
+            self.store_value_by_key(
+                PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX,
+                &payload_index,
+                &payload.id(),
+            )
+            .await?;
+        }
         self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), payload)
     }
 
@@ -79,6 +115,23 @@ impl PayloadDb for HyperlaneRocksDB {
         payload_id: &PayloadId,
     ) -> DbResult<Option<TransactionId>> {
         self.retrieve_value_by_key(TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX, payload_id)
+    }
+
+    async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>> {
+        self.retrieve_value_by_key(PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX, &index)
+    }
+
+    async fn store_highest_index(&self, index: u32) -> DbResult<()> {
+        // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
+        self.store_value_by_key(
+            HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX,
+            &bool::default(),
+            &index,
+        )
+    }
+
+    async fn retrieve_highest_index(&self) -> DbResult<u32> {
+        self.retrieve_value_by_key(HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX, &bool::default())
     }
 }
 
