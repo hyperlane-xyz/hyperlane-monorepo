@@ -655,7 +655,8 @@ impl PendingMessage {
         // with zero cost, we can skip the metadata building and gas estimation
         // altogether. This covers the case of a message that did not pay our IGP,
         // which may violate the gas payment enforcement policies depending on
-        // the configuration.
+        // the configuration, but also allows us to be tolerant of the configuration
+        // allowing no payment at all.
         let zero_cost = TxCostEstimate {
             gas_limit: U256::zero(),
             gas_price: FixedPointNumber::zero(),
