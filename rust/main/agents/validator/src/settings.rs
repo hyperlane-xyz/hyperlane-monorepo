@@ -18,8 +18,16 @@ use hyperlane_base::{
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
 };
+use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+
+/// Settings for RPCs
+#[derive(Debug)]
+pub struct RpcConfig {
+    pub url: String,
+    pub public: bool,
+}
 
 /// Settings for `Validator`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
@@ -42,6 +50,10 @@ pub struct ValidatorSettings {
     pub reorg_period: ReorgPeriod,
     /// How frequently to check for new checkpoints
     pub interval: Duration,
+    /// A list of RPCs that the validator uses
+    pub rpcs: Vec<RpcConfig>,
+    /// If the validator oped into public RPCs
+    pub allow_public_rpcs: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +77,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_key("originChainName")
             .parse_string()
             .end();
+
+        let allow_public_rpcs = p
+            .chain(&mut err)
+            .get_opt_key("allowPublicRpcs")
+            .parse_bool()
+            .unwrap_or(false);
 
         let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
 
@@ -127,6 +145,17 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_value("Invalid reorgPeriod")
             .unwrap_or(ReorgPeriod::from_blocks(1));
 
+        let chain = p
+            .chain(&mut err)
+            .get_key("chains")
+            .get_key(origin_chain_name)
+            .end()
+            .unwrap();
+
+        let mut rpcs = get_rpc_urls(&chain, "rpcUrls", &mut err);
+        // this is only relevant for cosmos
+        rpcs.extend(get_rpc_urls(&chain, "grpcUrls", &mut err));
+
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
@@ -145,8 +174,58 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             checkpoint_syncer,
             reorg_period,
             interval,
+            rpcs,
+            allow_public_rpcs,
         })
     }
+}
+
+/// Extracts all of the rpc urls
+///
+/// rpcKey is either grpcUrls or rpcUrls
+fn get_rpc_urls(
+    chain: &ValueParser,
+    rpc_key: &str,
+    err: &mut ConfigParsingError,
+) -> Vec<RpcConfig> {
+    // struct looks like the following
+    // ```rust
+    // {
+    //   rpc: [
+    //     {
+    //       "http": "http://my-rpc-url.com",
+    //       "public": true
+    //     }
+    //   ]
+    // }
+    // ```
+    chain
+        .chain(err)
+        .get_opt_key(rpc_key)
+        .into_array_iter()
+        .map(|urls| {
+            urls.filter_map(|v| {
+                let public = v
+                    .chain(err)
+                    .get_opt_key("public")
+                    .parse_bool()
+                    .unwrap_or(false);
+                let url: Option<&str> = v.chain(err).get_key("http").parse_string().end();
+                match url {
+                    Some(url) if public => Some(RpcConfig {
+                        url: url.to_owned(),
+                        public: true,
+                    }),
+                    Some(url) => Some(RpcConfig {
+                        url: url.to_owned(),
+                        public: false,
+                    }),
+                    _ => None,
+                }
+            })
+            .collect_vec()
+        })
+        .unwrap_or_default()
 }
 
 /// Expects ValidatorAgentConfig.checkpointSyncer
