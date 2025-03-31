@@ -9079,9 +9079,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@matterlabs/hardhat-zksync-solc@npm:^1.2.5":
-  version: 1.2.5
-  resolution: "@matterlabs/hardhat-zksync-solc@npm:1.2.5"
+"@matterlabs/hardhat-zksync-solc@npm:1.2.6":
+  version: 1.2.6
+  resolution: "@matterlabs/hardhat-zksync-solc@npm:1.2.6"
   dependencies:
     "@nomiclabs/hardhat-docker": "npm:^2.0.2"
     chai: "npm:^4.3.4"
@@ -9096,11 +9096,11 @@ __metadata:
     undici: "npm:^6.18.2"
   peerDependencies:
     hardhat: ^2.22.5
-  checksum: 10/0452ad5504258fad2f2d10be40cc79bb0e65d3470af75f70f60e4a94bb92f238031a13587cda51a0dfd77ef1cb028145088e2628a02db6d7a5ac721bf2816bf0
+  checksum: 10/0c400dbe371569ac7cb33ca646c231b9d223d3825854fc3873618b8bc9e5b637f9e7837e9e3461e51e025911516c12760474b37544d2917807abec1a2361d2b6
   languageName: node
   linkType: hard
 
-"@matterlabs/hardhat-zksync-verify@npm:^1.6.0":
+"@matterlabs/hardhat-zksync-verify@npm:1.7.1":
   version: 1.7.1
   resolution: "@matterlabs/hardhat-zksync-verify@npm:1.7.1"
   dependencies:
