@@ -104,15 +104,35 @@ impl InclusionStage {
         )
         .await;
 
-        if matches!(tx_status, TransactionStatus::Included) {
-            // update tx status in db
-            Self::update_tx_status(state, &mut tx, tx_status).await?;
-            let tx_id = tx.id.clone();
-            finality_stage_sender.send(tx).await?;
-            info!(?tx_id, "Transaction included in block");
-            pool.lock().await.remove(&tx_id);
-            return Ok(());
+        match tx_status {
+            TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
+                return Self::process_pending_tx(tx, state, pool).await;
+            }
+            TransactionStatus::Included => {
+                Self::update_tx_status(state, &mut tx, tx_status).await?;
+                let tx_id = tx.id.clone();
+                finality_stage_sender.send(tx).await?;
+                info!(?tx_id, "Transaction included in block");
+                pool.lock().await.remove(&tx_id);
+                return Ok(());
+            }
+            TransactionStatus::Finalized | TransactionStatus::Dropped(_) => {
+                error!(
+                    ?tx,
+                    ?tx_status,
+                    "Transaction has invalid status for inclusion stage"
+                );
+            }
         }
+
+        Ok(())
+    }
+
+    async fn process_pending_tx(
+        mut tx: Transaction,
+        state: &PayloadDispatcherState,
+        pool: &InclusionStagePool,
+    ) -> Result<()> {
         let simulation_success =
             retry_until_success(|| state.adapter.simulate_tx(&tx), "Simulating transaction").await;
         if !simulation_success {
@@ -141,7 +161,6 @@ impl InclusionStage {
         // update tx status in db
         Self::update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
         pool.lock().await.remove(&tx.id);
-
         Ok(())
     }
 
