@@ -9,7 +9,7 @@ use std::{
 };
 
 use cli::SimApp;
-use constants::{BINARY_NAME, KEY_CHAIN_VALIDATOR, KEY_RELAYER, KEY_VALIDATOR, PREFIX};
+use constants::{ALICE_HEX, BINARY_NAME, KEY_CHAIN_VALIDATOR, KEY_RELAYER, KEY_VALIDATOR, PREFIX};
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use tempfile::tempdir;
@@ -51,40 +51,37 @@ impl Drop for CosmosNativeStack {
     }
 }
 
-// right now we only test two chains that communicate with each other
-// we send a one uhyp from node1 -> node2, this will result in a wrapped uhyp on node2
-// we send a one uhyp from node2 -> node1, this will result in a wrapped uhyp on node1
+/// right now we only test two chains that communicate with each other
+///
+/// we send a one uhyp from node1 -> node2, this will result in a wrapped uhyp on node2
+/// we send a one uhyp from node2 -> node1, this will result in a wrapped uhyp on node1
 fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
-    // TODO: make this dynamic
-    // NOTE: we have to pad the address to 32 bytes
-    // this is the alice address in hex
-    let account = "0x0000000000000000000000004200dacc2961e425f687ecF7571b5FF32B6Fe808";
     node1.chain.remote_transfer(
         KEY_CHAIN_VALIDATOR.0,
         &node1.contracts.tokens[0],
         &node2.domain.to_string(),
-        account,
+        ALICE_HEX,
         1000000u32,
     );
     node2.chain.remote_transfer(
         KEY_CHAIN_VALIDATOR.0,
-        &node1.contracts.tokens[0],
+        &node2.contracts.tokens[0],
         &node1.domain.to_string(),
-        account,
+        ALICE_HEX,
         1000000u32,
     );
     node1.chain.remote_transfer(
         KEY_CHAIN_VALIDATOR.0,
         &node1.contracts.tokens[0],
         &node2.domain.to_string(),
-        account,
+        ALICE_HEX,
         1000000u32,
     );
     node2.chain.remote_transfer(
         KEY_CHAIN_VALIDATOR.0,
-        &node1.contracts.tokens[0],
+        &node2.contracts.tokens[0],
         &node1.domain.to_string(),
-        account,
+        ALICE_HEX,
         1000000u32,
     );
 
@@ -261,7 +258,7 @@ fn run_locally() {
             let mut node = SimApp::new(hypd.to_owned(), node_dir, i);
             node.init();
             let handle = node.start();
-            let contracts = node.deploy(
+            let contracts = node.deploy_and_configure_contracts(
                 &format!("{}", domain_start + i),
                 &format!("{}", domain_start + (i + 1) % node_count),
             );

@@ -137,7 +137,11 @@ impl SimApp {
         sleep(Duration::from_secs(1)); // wait for the block to mined
     }
 
-    pub fn deploy(&self, local_domain: &str, destination_domain: &str) -> Contracts {
+    pub fn deploy_and_configure_contracts(
+        &self,
+        local_domain: &str,
+        destination_domain: &str,
+    ) -> Contracts {
         log!("deploying hyperlane for domain: {} ...", destination_domain);
 
         // TODO: parse tx response and get created ids from that

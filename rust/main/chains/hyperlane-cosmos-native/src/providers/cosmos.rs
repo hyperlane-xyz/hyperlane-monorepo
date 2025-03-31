@@ -117,7 +117,7 @@ impl CosmosNativeProvider {
         &self.grpc
     }
 
-    /// todo
+    /// Get the block number according to the reorg period
     pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<u32> {
         let height = self.rpc.get_block_number().await? as u32;
         match reorg {
@@ -128,8 +128,9 @@ impl CosmosNativeProvider {
         }
     }
 
-    fn check_msg_process(tx: &Tx) -> ChainResult<Option<H256>> {
-        // check for all transfer messages
+    /// parses the message recipient if the transaction contains a MsgProcessMessage
+    fn parse_msg_process_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
+        // check for all messages processes
         let remote_transfers: Vec<Any> = tx
             .body
             .messages
@@ -138,7 +139,7 @@ impl CosmosNativeProvider {
             .cloned()
             .collect();
 
-        // right now one transaction can include max. one transfer
+        // right now one transaction can include max. one process
         if remote_transfers.len() > 1 {
             let msg = "transaction contains multiple execution messages";
             Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
@@ -157,16 +158,9 @@ impl CosmosNativeProvider {
         }
     }
 
-    // extract the contract address from the tx
-    // the tx is either a MsgPorcessMessage on the destination or a MsgRemoteTransfer on the origin
-    // we check for both tx types, if both are missing or an error occurred while parsing we return the error
-    fn contract(tx: &Tx) -> ChainResult<H256> {
-        // first check for the process message
-        if let Some(recipient) = Self::check_msg_process(tx)? {
-            return Ok(recipient);
-        }
-
-        // check for all transfer messages
+    /// parses the message recipient if the transaction contains a MsgRemoteTransfer
+    fn parse_msg_remote_trasnfer_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
+        // check for all remote transfers
         let remote_transfers: Vec<Any> = tx
             .body
             .messages
@@ -187,7 +181,25 @@ impl CosmosNativeProvider {
         let result =
             MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
         let recipient: H256 = result.recipient.parse()?;
-        Ok(recipient)
+        Ok(Some(recipient))
+    }
+
+    // extract the message recipient contract address from the tx
+    // the tx is either a MsgPorcessMessage on the destination or a MsgRemoteTransfer on the origin
+    // we check for both tx types, if both are missing or an error occurred while parsing we return the error
+    fn parse_tx_message_recipient(tx: &Tx) -> ChainResult<H256> {
+        // first check for the process message
+        if let Some(recipient) = Self::parse_msg_process_recipient(tx)? {
+            return Ok(recipient);
+        }
+        // if not found check for the remote transfer
+        if let Some(recipient) = Self::parse_msg_remote_trasnfer_recipient(tx)? {
+            return Ok(recipient);
+        }
+        // if both are missing we return an error
+        Err(HyperlaneCosmosError::ParsingFailed(
+            "transaction does not contain any process message or remote transfer".to_owned(),
+        ))?
     }
 
     fn search_payer_in_signer_infos(
@@ -401,7 +413,7 @@ impl HyperlaneProvider for CosmosNativeProvider {
         let response = self.rpc.get_tx(hash).await?;
         let tx = Tx::from_bytes(&response.tx)?;
 
-        let contract = Self::contract(&tx)?;
+        let contract = Self::parse_tx_message_recipient(&tx)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         let hash: H256 = H256::from_slice(&h512_to_bytes(hash));

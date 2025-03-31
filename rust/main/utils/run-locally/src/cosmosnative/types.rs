@@ -89,7 +89,7 @@ impl AgentConfig {
             metrics_port: node.metrics,
             mailbox: node.contracts.mailbox.clone(),
             interchain_gas_paymaster: node.contracts.igp.clone(),
-            validator_announce: node.contracts.mailbox.clone(),
+            validator_announce: node.contracts.mailbox.clone(), // there is no dedicated validator_announce in cosmos, the mailbox includes that logic
             merkle_tree_hook: node.contracts.merkle_tree_hook.clone(),
             protocol: "cosmosnative".to_owned(),
             chain_id: CHAIN_ID.to_owned(),
