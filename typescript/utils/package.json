@@ -40,7 +40,7 @@
   "prepublish": "yarn build",
   "scripts": {
     "dev": "tsc -w",
-    "build": "tsc",
+    "build": "tsc --excludeFiles \"**/*.test.ts\"",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
     "lint": "eslint -c ./eslint.config.mjs",
@@ -49,7 +49,10 @@
     "test:ci": "yarn test"
   },
   "type": "module",
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./eslint-rules": "./dist/eslint-rules/index.js"
+  },
   "types": "./dist/index.d.ts",
   "files": [
     "/dist"
