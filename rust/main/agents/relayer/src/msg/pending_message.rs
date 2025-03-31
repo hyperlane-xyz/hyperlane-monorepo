@@ -646,9 +646,12 @@ impl PendingMessage {
     /// A preflight check to see if a message could possibly meet
     /// a gas payment requirement prior to undertaking expensive operations
     /// like metadata building or gas estimation.
+    /// If the message does not meet the gas payment requirement,
+    /// Err(PendingOperationResult) is returned, with the PendingOperationResult intended
+    /// to be propagated up by the prepare fn.
     async fn meets_gas_payment_requirement_preflight_check(
         &mut self,
-    ) -> Result<bool, PendingOperationResult> {
+    ) -> Result<(), PendingOperationResult> {
         // We test if the message may meet the gas payment requirement
         // with the most simple tx cost estimate: one that has zero cost
         // whatsoever. If the message does not meet the gas payment requirement
@@ -665,12 +668,12 @@ impl PendingMessage {
 
         self.meets_gas_payment_requirement(&zero_cost)
             .await
-            // If we received a gas_limit, the pre-flight check passed
-            .map(|_| true)
+            // No need to surface the gas_limit if it's met, an Ok(()) suffices
+            .map(|_| ())
     }
 
     /// Returns the gas limit if the message meets the gas payment requirement,
-    /// otherwise returns an Err(PendingOperationResult), with the result intended
+    /// otherwise returns an Err(PendingOperationResult), with the PendingOperationResult intended
     /// to be propagated up by the prepare fn.
     async fn meets_gas_payment_requirement(
         &mut self,
