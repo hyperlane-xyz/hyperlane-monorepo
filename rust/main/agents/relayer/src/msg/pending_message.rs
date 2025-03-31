@@ -253,12 +253,9 @@ impl PendingOperation for PendingMessage {
         // Perform a preflight check to see if we can short circuit the gas
         // payment requirement check early without performing expensive
         // operations like metadata building or gas estimation.
-        if !self.meets_gas_payment_requirement_preflight_check(message) {
-            warn!(
-                ?zero_cost_status,
-                "Message does not meet the gas payment requirement preflight check"
-            );
-            return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
+        if let Err(op_result) = self.meets_gas_payment_requirement_preflight_check().await {
+            info!("Message does not meet the gas payment requirement preflight check");
+            return op_result;
         }
 
         let ism_address = match self
@@ -358,28 +355,14 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        // If the gas payment requirement hasn't been met, move to the next tick.
-        let gas_limit = match self
-            .ctx
-            .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
-            .await
-        {
+        // Get the gas_limit if the gas payment requirement has been met,
+        // otherwise return a PendingOperationResult and move on.
+        let gas_limit = match self.meets_gas_payment_requirement(&tx_cost_estimate).await {
             Ok(gas_limit) => gas_limit,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingGasRequirement);
+            Err(op_result) => {
+                info!("Message does not meet the gas payment requirement after gas estimation");
+                return op_result;
             }
-        };
-
-        let gas_limit = match gas_limit {
-            GasPolicyStatus::NoPaymentFound => {
-                return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound)
-            }
-            GasPolicyStatus::PolicyNotMet => {
-                return self
-                    .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet)
-            }
-            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -664,9 +647,8 @@ impl PendingMessage {
     /// a gas payment requirement prior to undertaking expensive operations
     /// like metadata building or gas estimation.
     async fn meets_gas_payment_requirement_preflight_check(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> Result<bool> {
+        &mut self,
+    ) -> Result<bool, PendingOperationResult> {
         // We test if the message may meet the gas payment requirement
         // with the most simple tx cost estimate: one that has zero cost
         // whatsoever. If the message does not meet the gas payment requirement
@@ -681,12 +663,43 @@ impl PendingMessage {
         };
         // If even this doesn't meet the gas payment requirement,
         // we skip the metadata building.
-        let zero_cost_status = self
+        self.meets_gas_payment_requirement(&zero_cost)
+            .await
+            // If we received a gas_limit, the pre-flight check passed
+            .map(|_| true)
+    }
+
+    async fn meets_gas_payment_requirement(
+        &mut self,
+        tx_cost_estimate: &TxCostEstimate,
+    ) -> Result<U256, PendingOperationResult> {
+        let gas_limit = match self
             .ctx
             .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, &zero_cost)
-            .await;
-        matches!(zero_cost_status, Ok(GasPolicyStatus::PolicyMet(_)))
+            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .await
+        {
+            Ok(gas_limit) => gas_limit,
+            Err(err) => {
+                return Err(
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingGasRequirement)
+                );
+            }
+        };
+
+        let gas_limit = match gas_limit {
+            GasPolicyStatus::NoPaymentFound => {
+                return Err(self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound))
+            }
+            GasPolicyStatus::PolicyNotMet => {
+                return Err(
+                    self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet)
+                )
+            }
+            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
+        };
+
+        Ok(gas_limit)
     }
 
     fn on_reprepare<E: Debug>(
@@ -873,7 +886,6 @@ impl MessageSubmissionMetrics {
 mod test {
     use std::{
         fmt::Debug,
-        str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
     };
