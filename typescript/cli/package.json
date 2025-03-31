@@ -48,6 +48,9 @@
     "prettier": "^2.8.8",
     "typescript": "5.3.3"
   },
+  "resolutions": {
+    "zksync-telemetry": "npm:empty-npm-package@1.0.0"
+  },
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
     "build": "yarn version:update && tsc && yarn bundle",
