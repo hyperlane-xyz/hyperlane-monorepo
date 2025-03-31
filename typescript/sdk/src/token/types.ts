@@ -44,7 +44,6 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.fastCollateral,
       TokenType.collateralUri,
       TokenType.intent,
-      TokenType.intentNative,
     ]),
     token: z
       .string()
