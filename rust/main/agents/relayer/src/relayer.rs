@@ -787,6 +787,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                estimated_block_time: 1,
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {
                     mailbox: H256::from_slice(

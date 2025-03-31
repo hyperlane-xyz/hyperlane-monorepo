@@ -44,9 +44,10 @@ use crate::transaction::{
 };
 
 pub struct SealevelTxAdapter {
+    estimated_block_time: u64,
+    max_batch_size: u32,
     reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
-    max_batch_size: u32,
     client: Box<dyn SubmitSealevelRpc>,
     provider: Box<dyn SealevelProviderForSubmitter>,
     oracle: Box<dyn PriorityFeeOracle>,
@@ -101,14 +102,16 @@ impl SealevelTxAdapter {
         oracle: Box<dyn PriorityFeeOracle>,
         submitter: Box<dyn TransactionSubmitter>,
     ) -> Result<Self> {
-        let keypair = create_keypair(&conf)?;
+        let estimated_block_time = conf.estimated_block_time;
         let reorg_period = conf.reorg_period.clone();
-        let max_batch_size = Self::batch_size(conf)?;
+        let max_batch_size = Self::batch_size(&conf)?;
+        let keypair = create_keypair(&conf)?;
 
         Ok(Self {
+            estimated_block_time,
+            max_batch_size,
             reorg_period,
             keypair,
-            max_batch_size,
             provider,
             client,
             oracle,
@@ -125,9 +128,10 @@ impl SealevelTxAdapter {
         submitter: Box<dyn TransactionSubmitter>,
     ) -> Self {
         Self {
+            estimated_block_time: 1,
+            max_batch_size: 1,
             reorg_period: ReorgPeriod::default(),
             keypair: SealevelKeypair::default(),
-            max_batch_size: 1,
             provider,
             client,
             oracle,
@@ -135,7 +139,7 @@ impl SealevelTxAdapter {
         }
     }
 
-    fn batch_size(conf: ChainConf) -> Result<u32> {
+    fn batch_size(conf: &ChainConf) -> Result<u32> {
         Ok(conf
             .connection
             .operation_batch_config()
@@ -328,7 +332,7 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     fn estimated_block_time(&self) -> std::time::Duration {
-        todo!()
+        std::time::Duration::new(self.estimated_block_time, 0)
     }
 
     fn max_batch_size(&self) -> u32 {
