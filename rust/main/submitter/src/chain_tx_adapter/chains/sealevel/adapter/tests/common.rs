@@ -15,6 +15,7 @@ use solana_transaction_status::{
     EncodedTransactionWithStatusMeta, UiConfirmedBlock,
 };
 
+use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_sealevel::fallback::SubmitSealevelRpc;
 use hyperlane_sealevel::{
@@ -130,6 +131,24 @@ pub fn adapter() -> SealevelTxAdapter {
         Box::new(oracle),
         Box::new(submitter),
     )
+}
+
+pub fn adapter_config(conf: ChainConf) -> SealevelTxAdapter {
+    let raw_conf = RawChainConf::default();
+    let client = mock_client();
+    let oracle = MockOracle::new();
+    let provider = MockProvider {};
+    let submitter = mock_submitter();
+
+    SealevelTxAdapter::new_internal(
+        conf,
+        raw_conf,
+        Box::new(client),
+        Box::new(provider),
+        Box::new(oracle),
+        Box::new(submitter),
+    )
+    .unwrap()
 }
 
 fn mock_submitter() -> MockSubmitter {
