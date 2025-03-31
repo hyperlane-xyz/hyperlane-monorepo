@@ -221,9 +221,6 @@ mod tests {
     use tokio::sync::mpsc;
 
     #[tokio::test]
-    async fn test_process_included_txs() {}
-
-    #[tokio::test]
     async fn test_processing_included_txs_no_reverted_payload() {
         const TXS_TO_PROCESS: usize = 3;
 
@@ -278,6 +275,7 @@ mod tests {
         )
         .await;
 
+        // these payloads will be reported as reverted
         let payloads_in_first_tx = generated_txs[0].payload_details.clone();
         let payloads_in_first_tx_clone = payloads_in_first_tx.clone();
         mock_adapter
@@ -303,6 +301,7 @@ mod tests {
 
         assert_eq!(txs_received.len(), 0);
         assert!(are_all_txs_in_pool(generated_txs.to_vec(), &pool).await);
+        // non-reverted payload txs are still pending finality
         assert_tx_status(
             generated_txs[1..].to_vec(),
             &tx_db,
@@ -310,6 +309,7 @@ mod tests {
             TransactionStatus::Included,
         )
         .await;
+        // reverted payloads are dropped
         assert_payloads_status(
             payloads_in_first_tx.clone(),
             &payload_db,
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_processing_dropped_txs() {
+    async fn test_processing_reorged_txs() {
         const TXS_TO_PROCESS: usize = 3;
 
         let mut mock_adapter = MockAdapter::new();
@@ -354,6 +354,7 @@ mod tests {
             .expect_estimated_block_time()
             .returning(|| Duration::from_millis(10));
 
+        // report all txs as reorged
         mock_adapter
             .expect_tx_status()
             .returning(|_| Ok(TransactionStatus::Dropped(TxDropReason::DroppedByChain)));
@@ -366,6 +367,7 @@ mod tests {
             )
             .await;
 
+        // the finality pool becomes empty
         assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
@@ -374,17 +376,16 @@ mod tests {
             TransactionStatus::Dropped(TxDropReason::DroppedByChain),
         )
         .await;
+
+        // all payloads are in the building stage queue
         assert_eq!(queue.lock().await.len(), TXS_TO_PROCESS);
         for tx in txs_received {
-            let payloads = tx.payload_details.clone();
-            for payload in payloads {
-                let payload = payload_db
-                    .retrieve_payload_by_id(&payload.id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(payload.status, PayloadStatus::ReadyToSubmit);
-            }
+            assert_payloads_status(
+                tx.payload_details.clone(),
+                &payload_db,
+                PayloadStatus::ReadyToSubmit,
+            )
+            .await;
         }
     }
 
