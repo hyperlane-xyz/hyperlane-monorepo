@@ -661,8 +661,7 @@ impl PendingMessage {
             gas_price: FixedPointNumber::zero(),
             l2_gas_limit: None,
         };
-        // If even this doesn't meet the gas payment requirement,
-        // we skip the metadata building.
+
         self.meets_gas_payment_requirement(&zero_cost)
             .await
             // If we received a gas_limit, the pre-flight check passed
