@@ -253,7 +253,7 @@ impl PendingOperation for PendingMessage {
         }
 
         // If metadata is already built, check gas estimation works.
-        // If gas estimation fails, invalidate cache and rebuilt it again.
+        // If gas estimation fails, invalidate cache and rebuild it again.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => match self
                 .ctx
