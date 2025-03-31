@@ -55,7 +55,6 @@ import type {
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
-  SealevelHypSyntheticAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
