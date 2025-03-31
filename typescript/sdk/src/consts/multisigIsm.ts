@@ -258,18 +258,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  astarzkevm: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x89ecdd6caf138934bf3a2fb7b323984d72fd66de',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   aurora: {
     threshold: 2,
     validators: [

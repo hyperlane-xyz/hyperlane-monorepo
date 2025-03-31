@@ -36,9 +36,6 @@
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
-  "astarzkevm": {
-    "validators": ["0x89ecdd6caf138934bf3a2fb7b323984d72fd66de"]
-  },
   "aurora": {
     "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
   },
