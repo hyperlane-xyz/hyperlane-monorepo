@@ -669,6 +669,9 @@ impl PendingMessage {
             .map(|_| true)
     }
 
+    /// Returns the gas limit if the message meets the gas payment requirement,
+    /// otherwise returns an Err(PendingOperationResult), with the result intended
+    /// to be propagated up by the prepare fn.
     async fn meets_gas_payment_requirement(
         &mut self,
         tx_cost_estimate: &TxCostEstimate,
