@@ -18,8 +18,9 @@ use tokio::{
 use tracing::{error, info, info_span, warn, Instrument};
 
 use crate::{
+    chain_tx_adapter::DispatcherError,
     payload::{DropReason, FullPayload, PayloadStatus},
-    payload_dispatcher::test_utils::tests::update_tx_status,
+    payload_dispatcher::stages::utils::update_tx_status,
     transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
 };
 
@@ -41,7 +42,7 @@ impl FinalityStage {
     pub async fn run(self) {
         let FinalityStage {
             pool,
-            inclusion_stage_receiver: finality_stage_receiver,
+            inclusion_stage_receiver,
             building_stage_queue,
             state,
         } = self;
@@ -66,7 +67,7 @@ impl FinalityStage {
     async fn receive_txs(
         mut inclusion_stage_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), DispatcherError> {
         loop {
             let tx = inclusion_stage_receiver.recv().await.unwrap();
             pool.lock().await.insert(tx.id.clone(), tx.clone());
@@ -78,7 +79,7 @@ impl FinalityStage {
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: PayloadDispatcherState,
-    ) -> Result<()> {
+    ) -> Result<(), DispatcherError> {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
             // evaluate the pool every block
@@ -86,8 +87,13 @@ impl FinalityStage {
 
             let pool_snapshot = pool.lock().await.clone();
             for (_, tx) in pool_snapshot {
-                if let Err(err) =
-                    Self::try_process_tx(tx.clone(), &building_stage_queue, &state, &pool).await
+                if let Err(err) = Self::try_process_tx(
+                    tx.clone(),
+                    pool.clone(),
+                    building_stage_queue.clone(),
+                    &state,
+                )
+                .await
                 {
                     error!(?err, ?tx, "Error processing transaction. Skipping for now");
                 }
@@ -99,8 +105,8 @@ impl FinalityStage {
         mut tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
-        state: PayloadDispatcherState,
-    ) -> Result<()> {
+        state: &PayloadDispatcherState,
+    ) -> Result<(), DispatcherError> {
         let tx_status = retry_until_success(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
@@ -122,66 +128,70 @@ impl FinalityStage {
                         PayloadStatus::Dropped(DropReason::Reverted),
                     )
                     .await;
-                return Ok(());
             }
             TransactionStatus::Finalized => {
                 // update tx status in db
-                update_tx_status(&state, &mut tx, tx_status).await?;
+                update_tx_status(state, &mut tx, tx_status).await?;
                 let tx_id = tx.id.clone();
                 info!(?tx_id, "Transaction is finalized");
                 pool.lock().await.remove(&tx_id);
-                return Ok(());
             }
             TransactionStatus::Dropped(drop_reason) => {
-                warn!(?tx, ?drop_reason, "Transaction was dropped");
-                // push payloads in tx back to the building stage queue
-                update_tx_status(
-                    &state,
-                    &mut tx,
-                    TransactionStatus::Dropped(TxDropReason::DroppedByChain),
+                Self::handle_dropped_transaction(
+                    tx.clone(),
+                    drop_reason,
+                    building_stage_queue.clone(),
+                    state,
                 )
                 .await?;
-                let payloads = tx.payload_details.clone();
-                for payload in payloads.iter() {
-                    if let Some(full_payload) = state
-                        .payload_db
-                        .retrieve_payload_by_id(&payload.id)
-                        .await
-                        .ok()
-                        .flatten()
-                    {
-                        // update payload status in db
-                        state
-                            .update_status_for_payloads(
-                                &[payload.clone()],
-                                PayloadStatus::ReadyToSubmit,
-                            )
-                            .await;
-                        // cannot remove a record from the db, so
-                        // just link the payload to the null tx id
-                        state
-                            .payload_db
-                            .store_tx_id_by_payload_id(
-                                &payload_detail.id,
-                                &TransactionId::default(),
-                            )
-                            .await?;
-                        info!(
-                            ?payload,
-                            "Pushing payload to the front of the building stage queue"
-                        );
-                        building_stage_queue.push_front(payload.clone());
-                    }
-                }
-                return Ok(());
             }
-            TransactionStatus::PendingInclusion
-            | TransactionStatus::Mempool
-            | TransactionStatus::PendingInclusion => {
+            TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 error!(?tx, "Transaction should not be in the finality stage.");
             }
-        };
+        }
+        Ok(())
+    }
 
+    async fn handle_dropped_transaction(
+        mut tx: Transaction,
+        drop_reason: TxDropReason,
+        building_stage_queue: BuildingStageQueue,
+        state: &PayloadDispatcherState,
+    ) -> Result<(), DispatcherError> {
+        warn!(?tx, ?drop_reason, "Transaction was dropped");
+        // push payloads in tx back to the building stage queue
+        update_tx_status(
+            state,
+            &mut tx,
+            TransactionStatus::Dropped(TxDropReason::DroppedByChain),
+        )
+        .await?;
+        let payloads = tx.payload_details.clone();
+        for payload in payloads.iter() {
+            if let Some(full_payload) = state
+                .payload_db
+                .retrieve_payload_by_id(&payload.id)
+                .await
+                .ok()
+                .flatten()
+            {
+                // update payload status in db
+                state
+                    .update_status_for_payloads(&[payload.clone()], PayloadStatus::ReadyToSubmit)
+                    .await;
+                // cannot remove a record from the db, so
+                // just link the payload to the null tx id
+                state
+                    .payload_db
+                    .store_tx_id_by_payload_id(&payload.id, &TransactionId::default())
+                    .await?;
+                info!(
+                    ?payload,
+                    "Pushing payload to the front of the building stage queue"
+                );
+                building_stage_queue.lock().await.push_front(full_payload);
+            }
+        }
         Ok(())
     }
 }

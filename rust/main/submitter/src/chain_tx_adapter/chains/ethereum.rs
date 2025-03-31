@@ -6,7 +6,7 @@ use hyperlane_base::settings::{ChainConf, RawChainConf};
 
 use crate::{
     chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, DispatcherError, GasLimit},
-    payload::FullPayload,
+    payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
 

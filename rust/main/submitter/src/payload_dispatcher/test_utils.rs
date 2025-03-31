@@ -82,15 +82,4 @@ pub(crate) mod tests {
     ) {
         payload_db.store_payload_by_id(payload).await.unwrap();
     }
-
-    pub(crate) async fn update_tx_status(
-        state: &PayloadDispatcherState,
-        tx: &mut Transaction,
-        new_status: TransactionStatus,
-    ) -> Result<()> {
-        info!(?tx, ?new_status, "Updating tx status");
-        tx.status = new_status;
-        state.store_tx(tx).await;
-        Ok(())
-    }
 }

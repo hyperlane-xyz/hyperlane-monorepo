@@ -1,9 +1,14 @@
 use std::{future::Future, time::Duration};
 
 use tokio::time::sleep;
-use tracing::error;
+use tracing::{error, info};
 
-use crate::{chain_tx_adapter::DispatcherError, transaction::Transaction};
+use crate::{
+    chain_tx_adapter::DispatcherError,
+    transaction::{Transaction, TransactionStatus},
+};
+
+use super::PayloadDispatcherState;
 
 pub async fn retry_until_success<F, T, Fut>(f: F, action: &str) -> T
 where
@@ -19,4 +24,15 @@ where
             }
         }
     }
+}
+
+pub async fn update_tx_status(
+    state: &PayloadDispatcherState,
+    tx: &mut Transaction,
+    new_status: TransactionStatus,
+) -> Result<(), DispatcherError> {
+    info!(?tx, ?new_status, "Updating tx status");
+    tx.status = new_status;
+    state.store_tx(tx).await;
+    Ok(())
 }

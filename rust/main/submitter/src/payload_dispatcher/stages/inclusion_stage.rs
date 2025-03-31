@@ -22,7 +22,10 @@ use crate::{
     transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
 };
 
-use super::{utils::retry_until_success, PayloadDispatcherState};
+use super::{
+    utils::{retry_until_success, update_tx_status},
+    PayloadDispatcherState,
+};
 
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
@@ -106,7 +109,7 @@ impl InclusionStage {
 
         if matches!(tx_status, TransactionStatus::Included) {
             // update tx status in db
-            Self::update_tx_status(state, &mut tx, tx_status).await?;
+            update_tx_status(state, &mut tx, tx_status).await?;
             let tx_id = tx.id.clone();
             finality_stage_sender.send(tx).await?;
             info!(?tx_id, "Transaction included in block");
@@ -139,7 +142,7 @@ impl InclusionStage {
         // update tx submission attempts
         tx.submission_attempts += 1;
         // update tx status in db
-        Self::update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
+        update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
         pool.lock().await.remove(&tx.id);
 
         Ok(())
@@ -153,7 +156,7 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Dropping tx");
         let new_tx_status = TransactionStatus::Dropped(reason);
-        Self::update_tx_status(state, tx, new_tx_status.clone()).await?;
+        update_tx_status(state, tx, new_tx_status.clone()).await?;
         // drop the payloads as well
         state
             .update_status_for_payloads(
@@ -162,17 +165,6 @@ impl InclusionStage {
             )
             .await;
         pool.lock().await.remove(&tx.id);
-        Ok(())
-    }
-
-    async fn update_tx_status(
-        state: &PayloadDispatcherState,
-        tx: &mut Transaction,
-        new_status: TransactionStatus,
-    ) -> Result<()> {
-        info!(?tx, ?new_status, "Updating tx status");
-        tx.status = new_status;
-        state.store_tx(tx).await;
         Ok(())
     }
 }
