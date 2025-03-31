@@ -10,7 +10,6 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
-// TODO: Update to use their safes
 const owners = {
   ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   superseed: '0x6652010BaCE855DF870D427daA6141c313994929',
