@@ -114,7 +114,7 @@ impl CosmosNativeProvider {
     /// parses the message recipient if the transaction contains a MsgProcessMessage
     fn parse_msg_process_recipient(tx: &Tx) -> ChainResult<Option<H256>> {
         // check for all messages processes
-        let remote_transfers: Vec<Any> = tx
+        let processed_messages: Vec<Any> = tx
             .body
             .messages
             .iter()
@@ -123,12 +123,12 @@ impl CosmosNativeProvider {
             .collect();
 
         // right now one transaction can include max. one process
-        if remote_transfers.len() > 1 {
+        if processed_messages.len() > 1 {
             let msg = "transaction contains multiple execution messages";
             Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
         }
 
-        let msg = remote_transfers.first();
+        let msg = processed_messages.first();
         match msg {
             Some(msg) => {
                 let result = MsgProcessMessage::decode(msg.value.as_slice())
