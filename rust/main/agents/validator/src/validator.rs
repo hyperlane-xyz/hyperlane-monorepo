@@ -3,19 +3,22 @@ use std::{sync::Arc, time::Duration};
 use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
+use ethers::utils::keccak256;
 use eyre::{eyre, Result};
 
 use futures_util::future::try_join_all;
 use itertools::Itertools;
+use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
+    git_sha,
     metrics::AgentMetrics,
     settings::ChainConf,
-    AgentMetadata, BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer,
-    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, RuntimeMetrics,
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
+    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
 
@@ -53,7 +56,32 @@ pub struct Validator {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
-    agent_metadata: AgentMetadata,
+    agent_metadata: ValidatorMetadata,
+}
+
+/// Metadata for `validator`
+#[derive(Debug, Serialize)]
+pub struct ValidatorMetadata {
+    git_sha: String,
+    rpcs: Vec<H256>,
+    allows_public_rpcs: bool,
+}
+
+impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
+    /// Create a new instance of the agent metadata from the settings
+    fn build_metadata(settings: &ValidatorSettings) -> ValidatorMetadata {
+        // Hash all the RPCs for the metadata
+        let rpcs = settings
+            .rpcs
+            .iter()
+            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
+            .collect();
+        ValidatorMetadata {
+            git_sha: git_sha(),
+            rpcs,
+            allows_public_rpcs: settings.allow_public_rpcs,
+        }
+    }
 }
 
 #[async_trait]
@@ -61,9 +89,10 @@ impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
 
     type Settings = ValidatorSettings;
+    type Metadata = ValidatorMetadata;
 
     async fn from_settings(
-        agent_metadata: AgentMetadata,
+        agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -332,11 +361,10 @@ impl Validator {
     }
 
     async fn metadata(&self) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(&self.agent_metadata)?;
         self.checkpoint_syncer
-            .write_metadata(&self.agent_metadata)
-            .await?;
-
-        Ok(())
+            .write_metadata(&serialized_metadata)
+            .await
     }
 
     async fn announce(&self) -> Result<()> {
