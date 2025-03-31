@@ -97,43 +97,40 @@ export class WarpCore {
     );
     // Connect tokens together
     parsedConfig.tokens.forEach((config, i) => {
+      const isIntentBased =
+        config.standard === TokenStandard.EvmIntent ||
+        config.standard === TokenStandard.EvmIntentNative;
+
       for (const connection of config.connections || []) {
-        const token1 = tokens[i];
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
-        const token2 = tokens.find((t) => {
-          if (t.chainName !== chainName) {
-            return false;
-          }
 
-          if (
-            token1.standard === TokenStandard.EvmIntent ||
-            token1.standard === TokenStandard.EvmIntentNative
-          ) {
-            if (
-              t.standard === TokenStandard.EvmIntent ||
-              t.standard === TokenStandard.EvmIntentNative
-            ) {
-              if (t.standard === TokenStandard.EvmIntent) {
-                return t.collateralAddressOrDenom === addressOrDenom;
-              }
-              if (t.standard === TokenStandard.EvmIntentNative) {
-                return true;
-              }
-            }
-            return false;
-          } else {
-            return t.addressOrDenom === addressOrDenom;
-          }
+        const connectedToken = tokens.find((token) => {
+          if (token.chainName !== chainName) return false;
+
+          const tokenIsIntentBased =
+            token.standard === TokenStandard.EvmIntent ||
+            token.standard === TokenStandard.EvmIntentNative;
+
+          if (!isIntentBased && !tokenIsIntentBased)
+            return token.addressOrDenom === addressOrDenom;
+
+          // intent-based tokens
+          if (token.standard === TokenStandard.EvmIntent)
+            return token.collateralAddressOrDenom === addressOrDenom;
+
+          return true;
         });
+
         assert(
-          token2,
+          connectedToken,
           `Connected token not found: ${chainName} ${addressOrDenom}`,
         );
-        token1.addConnection({
+
+        tokens[i].addConnection({
           ...connection,
-          token: token2,
+          token: connectedToken,
         });
       }
     });
