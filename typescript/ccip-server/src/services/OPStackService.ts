@@ -1,5 +1,5 @@
 import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
-import { ethers, providers } from 'ethers';
+import { BytesLike, ethers, providers } from 'ethers';
 
 import { HyperlaneService } from './HyperlaneService';
 import { RPCService } from './RPCService';
@@ -49,14 +49,10 @@ class OPStackService {
     return this.crossChainMessenger.toLowLevelMessage(resolved);
   }
 
-  /**
-   * Gets the account and single storage proof from eth_getProof
-   * @param transactionHash Transaction containing the MessagePassed event
-   * @returns The encoded
-   */
-  async getOffchainData([message]: ethers.utils.Result): Promise<Array<any>> {
+  async getWithdrawalAndProofFromMessage(message: BytesLike): Promise<any> {
     const messageId: string = ethers.utils.keccak256(message);
-    console.log(`getOffchainData[${messageId}]`);
+    console.log(`Getting withdrawal and proof for ${messageId}`);
+
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
         messageId,
@@ -72,10 +68,23 @@ class OPStackService {
       txHash,
     );
 
-    const withdrawal = await this.getWithdrawalTransactionFromReceipt(receipt);
-    // See cross-chain-messenger.ts 'proveMessage' fn on Optimism SDK
-    const proof = await this.crossChainMessenger.getBedrockMessageProof(
-      receipt,
+    return Promise.all([
+      this.getWithdrawalTransactionFromReceipt(receipt),
+      this.crossChainMessenger.getBedrockMessageProof(receipt),
+    ]);
+  }
+
+  /**
+   * Gets the account and single storage proof from eth_getProof
+   * @param transactionHash Transaction containing the MessagePassed event
+   * @returns The encoded
+   */
+  async getWithdrawalProof([message]: ethers.utils.Result): Promise<
+    Array<any>
+  > {
+    console.log('getWithdrawalProof');
+    const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
+      message,
     );
 
     const args = [
@@ -97,21 +106,30 @@ class OPStackService {
       proof.withdrawalProof,
     ] as const;
 
-    // TODO: remove
-    const _proof = [
-      ethers.utils.defaultAbiCoder.encode(
-        [
-          'tuple(uint256,address,address,uint256,uint256,bytes)',
-          'uint256',
-          'tuple(bytes32,bytes32,bytes32,bytes32)',
-          'bytes[]',
-        ],
-        args,
-      ),
-    ];
-    // TODO: remove
-    console.info(`Proof[${messageId}]`, _proof);
-    console.log(`Message[${messageId}]`, message);
+    return [...args];
+  }
+
+  /**
+   * Gets the account and single storage proof from eth_getProof
+   * @param transactionHash Transaction containing the MessagePassed event
+   * @returns The encoded
+   */
+  async getFinalizeWithdrawalTx([message]: ethers.utils.Result): Promise<
+    Array<any>
+  > {
+    console.log('getFinalizeWithdrawalTx');
+    const [withdrawal] = await this.getWithdrawalAndProofFromMessage(message);
+
+    const args = [
+      [
+        withdrawal.messageNonce,
+        withdrawal.sender,
+        withdrawal.target,
+        withdrawal.value,
+        withdrawal.minGasLimit,
+        withdrawal.message,
+      ],
+    ] as const;
 
     return [...args];
   }

@@ -33,8 +33,15 @@ server.add(ProofsServiceAbi, [
 
 server.add(OPStackServiceAbi, [
   {
-    type: 'getOffchainData',
-    func: opStackService.getOffchainData.bind(opStackService),
+    type: 'getWithdrawalProof',
+    func: opStackService.getWithdrawalProof.bind(opStackService),
+  },
+]);
+
+server.add(OPStackServiceAbi, [
+  {
+    type: 'getFinalizeWithdrawalTx',
+    func: opStackService.getFinalizeWithdrawalTx.bind(opStackService),
   },
 ]);
 
