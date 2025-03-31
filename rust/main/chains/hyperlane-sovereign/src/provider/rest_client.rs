@@ -700,7 +700,7 @@ impl SovereignRestClient {
         #[derive(Clone, Debug, Deserialize)]
         struct TransactionConsumption {
             base_fee: Option<Vec<u32>>,
-            gas_price: Option<Vec<u32>>,
+            gas_price: Option<Vec<String>>,
             _priority_fee: Option<u32>,
             _remaining_funds: Option<u32>,
         }
@@ -743,6 +743,12 @@ impl SovereignRestClient {
                 .first()
                 .ok_or_else(|| {
                     ChainCommunicationError::CustomError(String::from("Failed to get item(0)"))
+                })?
+                .parse::<u32>()
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to parse gas_price: {e:?}"
+                    ))
                 })?,
         );
 
@@ -1085,5 +1091,78 @@ impl SovereignRestClient {
     // @Validator Announce
     pub fn _announce_tokens_needed(&self) -> Option<U256> {
         todo!("Not yet implemented")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const ISM_ADDRESS: &str = "sov1kljj6q26lwdm2mqej4tjp9j0rf5tr2afdfafg4z89ynmu0t74wc";
+
+    #[test]
+    fn test_try_h256_to_string() {
+        let input =
+            H256::from_str("0x00000000000000000000000014dc79964da2c08b23698b3d3cc7ca32193d9955")
+                .unwrap();
+        let res = try_h256_to_string(input).unwrap();
+        assert_eq!(
+            String::from("0x14dc79964da2c08b23698b3d3cc7ca32193d9955"),
+            res
+        );
+    }
+
+    #[test]
+    fn test_try_h256_to_string_too_short() {
+        let input =
+            H256::from_str("0x000000000000000000000000000000000000000000000000000000000000beef")
+                .unwrap();
+        let res = try_h256_to_string(input).unwrap();
+        assert_eq!(
+            String::from("0x000000000000000000000000000000000000beef"),
+            res
+        );
+    }
+
+    #[test]
+    fn test_try_h256_to_string_too_long() {
+        let input =
+            H256::from_str("000000000e0a2a203f9eaeb092e74d1d7bb03aa3bb03b06eee292753772e7054")
+                .unwrap();
+        let res = try_h256_to_string(input);
+        assert_eq!(true, res.is_err())
+    }
+
+    #[test]
+    fn test_to_bech32_left_padded_ok() {
+        let address =
+            H256::from_str("0x00000000b7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be")
+                .unwrap();
+        let res = to_bech32(address).unwrap();
+        let address = String::from(ISM_ADDRESS);
+        assert_eq!(address, res)
+    }
+
+    #[test]
+    fn test_to_bech32_right_padded_err() {
+        let address =
+            H256::from_str("0xb7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be00000000")
+                .unwrap();
+        assert!(to_bech32(address).is_err())
+    }
+
+    #[test]
+    fn test_from_bech32() {
+        let res = from_bech32(ISM_ADDRESS).unwrap();
+        let address =
+            H256::from_str("0x00000000b7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be")
+                .unwrap();
+        assert_eq!(address, res)
+    }
+
+    #[test]
+    fn test_from_bech32_err() {
+        let incorrect_address = "sov1kljj6q26lwdm2mqej4tyuiuhjp9j0rf5tr2afdfafg4z89ynmu0t74wc";
+        assert!(from_bech32(incorrect_address).is_err())
     }
 }

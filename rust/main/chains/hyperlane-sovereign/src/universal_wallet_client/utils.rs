@@ -68,7 +68,7 @@ pub async fn get_simulate_json_query(
             "body":{
                 "details":{
                     "chain_id":message.destination,
-                    "max_fee":100_000_000,
+                    "max_fee":"100000000",
                     "max_priority_fee_bips":0
                 },
                 "encoded_call_message":encoded_call_message,
