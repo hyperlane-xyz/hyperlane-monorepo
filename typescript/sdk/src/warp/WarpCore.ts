@@ -97,22 +97,40 @@ export class WarpCore {
     );
     // Connect tokens together
     parsedConfig.tokens.forEach((config, i) => {
+      const isIntentBased =
+        config.standard === TokenStandard.EvmIntent ||
+        config.standard === TokenStandard.EvmIntentNative;
+
       for (const connection of config.connections || []) {
-        const token1 = tokens[i];
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
-        const token2 = tokens.find(
-          (t) =>
-            t.chainName === chainName && t.addressOrDenom === addressOrDenom,
-        );
+
+        const connectedToken = tokens.find((token) => {
+          if (token.chainName !== chainName) return false;
+
+          const tokenIsIntentBased =
+            token.standard === TokenStandard.EvmIntent ||
+            token.standard === TokenStandard.EvmIntentNative;
+
+          if (!isIntentBased && !tokenIsIntentBased)
+            return token.addressOrDenom === addressOrDenom;
+
+          // intent-based tokens
+          if (token.standard === TokenStandard.EvmIntent)
+            return token.collateralAddressOrDenom === addressOrDenom;
+
+          return true;
+        });
+
         assert(
-          token2,
+          connectedToken,
           `Connected token not found: ${chainName} ${addressOrDenom}`,
         );
-        token1.addConnection({
+
+        tokens[i].addConnection({
           ...connection,
-          token: token2,
+          token: connectedToken,
         });
       }
     });
@@ -317,12 +335,14 @@ export class WarpCore {
     sender,
     recipient,
     interchainFee,
+    fillDeadline,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     interchainFee?: TokenAmount;
+    fillDeadline?: number;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -330,7 +350,11 @@ export class WarpCore {
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
-    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
+    const hypAdapter = token.getHypAdapter(
+      this.multiProvider,
+      destinationName,
+      fillDeadline,
+    );
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
