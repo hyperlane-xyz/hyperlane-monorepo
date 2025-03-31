@@ -115,7 +115,7 @@ mod tests {
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDb, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
-            test_utils::tests::{dummy_tx, tmp_dbs, MockAdapter},
+            test_utils::tests::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
         transaction::{Transaction, TransactionDb, TransactionStatus},
@@ -149,6 +149,7 @@ mod tests {
             )
             .await;
         }
+        assert_eq!(queue.lock().await.len(), 0);
     }
 
     #[tokio::test]
@@ -181,13 +182,8 @@ mod tests {
             PayloadStatus::InTransaction(TransactionStatus::PendingInclusion),
         )
         .await;
+        assert_eq!(queue.lock().await.len(), 0);
     }
-
-    // more things to test for:
-    // - failed to built the tx
-    // - failed to simulate the tx
-    // - failed to send the tx to the inclusion stage
-    // - network failure causing calls to be retried indefinitely
 
     #[tokio::test]
     async fn test_txs_failed_to_build() {
@@ -212,6 +208,7 @@ mod tests {
             )
             .await;
         }
+        assert_eq!(queue.lock().await.len(), 0);
     }
 
     #[tokio::test]
@@ -237,6 +234,7 @@ mod tests {
             )
             .await;
         }
+        assert_eq!(queue.lock().await.len(), 0);
     }
 
     async fn run_building_stage(
@@ -323,13 +321,6 @@ mod tests {
         };
         let tx_building_result = TxBuildingResult::new(details, maybe_transaction);
         vec![tx_building_result]
-    }
-
-    async fn initialize_payload_db(
-        payload_db: &Arc<dyn payload::PayloadDb>,
-        payload: &FullPayload,
-    ) {
-        payload_db.store_payload_by_id(payload).await.unwrap();
     }
 
     async fn assert_db_status_for_payloads(

@@ -60,9 +60,26 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn random_txs(num: usize) -> Vec<Transaction> {
-        (0..num)
-            .map(|_| dummy_tx(vec![FullPayload::random()]))
-            .collect::<Vec<_>>()
+    pub(crate) async fn create_random_txs_and_store_them(
+        num: usize,
+        payload_db: &Arc<dyn PayloadDb>,
+        tx_db: &Arc<dyn TransactionDb>,
+    ) -> Vec<Transaction> {
+        let mut txs = Vec::new();
+        for _ in 0..num {
+            let payload = FullPayload::random();
+            payload_db.store_payload_by_id(&payload).await.unwrap();
+            let tx = dummy_tx(vec![payload]);
+            tx_db.store_transaction_by_id(&tx).await.unwrap();
+            txs.push(tx);
+        }
+        txs
+    }
+
+    pub(crate) async fn initialize_payload_db(
+        payload_db: &Arc<dyn PayloadDb>,
+        payload: &FullPayload,
+    ) {
+        payload_db.store_payload_by_id(payload).await.unwrap();
     }
 }
