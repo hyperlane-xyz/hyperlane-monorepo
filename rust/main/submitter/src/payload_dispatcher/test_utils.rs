@@ -26,7 +26,7 @@ pub(crate) mod tests {
             async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, DispatcherError>;
             async fn submit(&self, tx: &mut Transaction) -> Result<(), DispatcherError>;
             async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, DispatcherError>;
-            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<uuid::Uuid>, DispatcherError>;
+            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, DispatcherError>;
             async fn nonce_gap_exists(&self) -> bool;
             async fn replace_tx(&self, _tx: &Transaction) -> Result<(), DispatcherError>;
             fn estimated_block_time(&self) -> std::time::Duration;
@@ -81,5 +81,16 @@ pub(crate) mod tests {
         payload: &FullPayload,
     ) {
         payload_db.store_payload_by_id(payload).await.unwrap();
+    }
+
+    pub(crate) async fn update_tx_status(
+        state: &PayloadDispatcherState,
+        tx: &mut Transaction,
+        new_status: TransactionStatus,
+    ) -> Result<()> {
+        info!(?tx, ?new_status, "Updating tx status");
+        tx.status = new_status;
+        state.store_tx(tx).await;
+        Ok(())
     }
 }

@@ -32,7 +32,6 @@ use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::chains::sealevel::SealevelTxPrecursor;
 use crate::chain_tx_adapter::{
     adapter::TxBuildingResult,
     chains::sealevel::conf::{create_keypair, get_connection_conf},
@@ -46,6 +45,7 @@ use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
     SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,
 };
+use crate::{chain_tx_adapter::chains::sealevel::SealevelTxPrecursor, payload::PayloadDetails};
 
 pub struct SealevelTxAdapter {
     reorg_period: ReorgPeriod,
@@ -344,7 +344,10 @@ impl AdaptsChain for SealevelTxAdapter {
         }
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>, DispatcherError> {
+    async fn reverted_payloads(
+        &self,
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, DispatcherError> {
         // Dummy implementation of reverted payloads for Sealevel since we don't have batching for Sealevel
         Ok(Vec::new())
     }

@@ -52,7 +52,10 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>, DispatcherError> {
+    async fn reverted_payloads(
+        &self,
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, DispatcherError> {
         todo!()
     }
 
