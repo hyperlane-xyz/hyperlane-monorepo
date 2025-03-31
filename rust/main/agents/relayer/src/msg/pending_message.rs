@@ -16,9 +16,9 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -26,7 +26,7 @@ use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -44,6 +44,12 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
+const ECO_SENDER: &[u8] = &[
+    216, 144, 214, 106, 14, 37, 48, 51, 93, 16, 179, 222, 181, 200, 236, 142, 161, 218, 185, 84,
+];
+
+/// 1 day
+pub const STALE_METADATA_SECS: u64 = 60 * 60 * 24;
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -94,7 +100,7 @@ pub struct PendingMessage {
     submission_outcome: Option<TxOutcome>,
     #[new(default)]
     #[serde(skip_serializing)]
-    metadata: Option<Vec<u8>>,
+    metadata: Option<(Vec<u8>, Instant)>,
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
@@ -250,81 +256,51 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
-        let ism_address = match self
-            .ctx
-            .destination_mailbox
-            .recipient_ism(self.message.recipient)
-            .await
-        {
-            Ok(ism_address) => ism_address,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress);
+        // If it's the Eco sender...
+        if self.message.sender == H160::from_slice(ECO_SENDER).into() {
+            // Let's test if the message may meet the gas payment requirement
+            // before we even try to build the metadata.
+            let dummy_estimate = TxCostEstimate {
+                gas_limit: U256::zero(),
+                gas_price: FixedPointNumber::zero(),
+                l2_gas_limit: None,
+            };
+            // If even this doesn't meet the gas payment requirement,
+            // we skip the metadata building.
+            let status = self
+                .ctx
+                .origin_gas_payment_enforcer
+                .message_meets_gas_payment_requirement(&self.message, &dummy_estimate)
+                .await;
+            if !matches!(status, Ok(GasPolicyStatus::PolicyMet(_))) {
+                tracing::debug!(
+                    ?status,
+                    "Skipping metadata building because gas payment requirement is not met"
+                );
+                // Arbitrarily increase the retries for these to make it retried less frequently
+                self.set_retries(self.num_retries + 3);
+                return self
+                    .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
             }
-        };
+        }
 
-        let message_metadata_builder = match MessageMetadataBuilder::new(
-            self.ctx.metadata_builder.clone(),
-            ism_address,
-            &self.message,
-        )
-        .await
-        {
-            Ok(message_metadata_builder) => message_metadata_builder,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder);
+        let metadata_bytes = match self.metadata.as_ref() {
+            // if metadata is already built and is not too stale
+            Some((metadata, built_time))
+                if Instant::now().duration_since(*built_time).as_secs() < STALE_METADATA_SECS =>
+            {
+                tracing::debug!("Reusing cached metadata");
+                metadata.to_vec()
             }
-        };
-
-        let params = MessageMetadataBuildParams::default();
-
-        let metadata_bytes = match message_metadata_builder
-            .build(ism_address, &self.message, params)
-            .await
-        {
-            Ok(metadata) => {
-                let metadata_bytes = metadata.to_vec();
-                self.metadata = Some(metadata_bytes.clone());
-                metadata_bytes
-            }
-            Err(err) => {
-                match &err {
-                    MetadataBuildError::FailedToBuild(_) => {
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::CouldNotFetch => {
-                        return self
-                            .on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
-                    }
-                    // If the metadata building is refused, we still allow it to be retried later.
-                    MetadataBuildError::Refused(reason) => {
-                        warn!(?reason, "Metadata building refused");
-                        return self
-                            .on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
-                    }
-                    // These errors cannot be recovered from, so we drop them
-                    MetadataBuildError::UnsupportedModuleType(reason) => {
-                        warn!(?reason, "Unsupported module type");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::MaxIsmDepthExceeded(depth) => {
-                        warn!(depth, "Max ISM depth reached");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::MaxIsmCountReached(count) => {
-                        warn!(count, "Max ISM count reached");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::AggregationThresholdNotMet(threshold) => {
-                        warn!(threshold, "Aggregation threshold not met");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata);
-                    }
+            _ => match self.build_metadata().await {
+                Ok(metadata) => {
+                    self.metadata = Some((metadata.to_vec(), Instant::now()));
+                    metadata.to_vec()
                 }
-            }
+                Err(err) => {
+                    return err;
+                }
+            },
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -343,6 +319,7 @@ impl PendingOperation for PendingMessage {
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
                     .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                self.clear_metadata();
                 return self.on_reprepare(Some(err), reason);
             }
         };
@@ -381,6 +358,7 @@ impl PendingOperation for PendingMessage {
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 // TODO: consider dropping instead of repreparing in this case
+                self.clear_metadata();
                 return self.on_reprepare::<String>(None, ReprepareReason::ExceedsMaxGasLimit);
             }
         }
@@ -405,7 +383,7 @@ impl PendingOperation for PendingMessage {
             .expect("Pending message must be prepared before it can be submitted");
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
-        if let Some(metadata) = self.metadata.as_ref() {
+        if let Some((metadata, _)) = self.metadata.as_ref() {
             if self
                 .ctx
                 .destination_mailbox
@@ -417,6 +395,7 @@ impl PendingOperation for PendingMessage {
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
                     .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                self.clear_metadata();
                 return self.on_reprepare::<String>(None, reason);
             }
         }
@@ -435,6 +414,7 @@ impl PendingOperation for PendingMessage {
             }
             Err(e) => {
                 error!(error=?e, "Error when processing message");
+                self.clear_metadata();
                 return PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting);
             }
         }
@@ -791,6 +771,78 @@ impl PendingMessage {
             None => None,
         }
     }
+
+    async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
+        let ism_address = match self
+            .ctx
+            .destination_mailbox
+            .recipient_ism(self.message.recipient)
+            .await
+        {
+            Ok(ism_address) => ism_address,
+            Err(err) => {
+                return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
+            }
+        };
+
+        let message_metadata_builder = match MessageMetadataBuilder::new(
+            self.ctx.metadata_builder.clone(),
+            ism_address,
+            &self.message,
+        )
+        .await
+        {
+            Ok(message_metadata_builder) => message_metadata_builder,
+            Err(err) => {
+                return Err(
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
+                );
+            }
+        };
+
+        let params = MessageMetadataBuildParams::default();
+
+        let metadata = message_metadata_builder
+            .build(ism_address, &self.message, params)
+            .await
+            .map_err(|err| match &err {
+                MetadataBuildError::FailedToBuild(_) => {
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::CouldNotFetch => {
+                    self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+                }
+                // If the metadata building is refused, we still allow it to be retried later.
+                MetadataBuildError::Refused(reason) => {
+                    warn!(?reason, "Metadata building refused");
+                    self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
+                }
+                // These errors cannot be recovered from, so we drop them
+                MetadataBuildError::UnsupportedModuleType(reason) => {
+                    warn!(?reason, "Unsupported module type");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                    warn!(depth, "Max ISM depth reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::MaxIsmCountReached(count) => {
+                    warn!(count, "Max ISM count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                    warn!(threshold, "Aggregation threshold not met");
+                    self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+                }
+            })?;
+        Ok(metadata)
+    }
+
+    /// clear metadata cache
+    fn clear_metadata(&mut self) {
+        tracing::debug!("Invalidating cached metadata");
+        self.metadata = None;
+    }
 }
 
 #[derive(Debug)]
@@ -833,6 +885,7 @@ impl MessageSubmissionMetrics {
 mod test {
     use std::{
         fmt::Debug,
+        str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
     };
@@ -841,7 +894,7 @@ mod test {
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use crate::msg::pending_message::{DEFAULT_MAX_MESSAGE_RETRIES, ECO_SENDER};
 
     use super::PendingMessage;
 
@@ -1122,5 +1175,14 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
+    }
+
+    #[test]
+    fn test_eco_sender() {
+        let eco_sender = H160::from_slice(ECO_SENDER);
+        assert_eq!(
+            eco_sender,
+            H160::from_str("0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954").unwrap()
+        );
     }
 }

@@ -401,7 +401,11 @@ fn main() -> ExitCode {
     test_passed = wait_for_condition(
         &config,
         loop_start,
-        || Ok(relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?),
+        || {
+            Ok(relayer_restart_invariants_met()?
+                && relayer_reorg_handling_invariants_met()?
+                && relayer_cached_metadata_invariant_met()?)
+        },
         || !SHUTDOWN.load(Ordering::Relaxed),
         || long_running_processes_exited_check(&mut state),
     );
@@ -569,6 +573,33 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
         no_metadata_message_count,
         ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     );
+    Ok(true)
+}
+
+/// Check relayer reused already built metadata
+fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
+    let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+    let relayer_logfile = File::open(log_file_path).unwrap();
+
+    let line_filters = vec!["Reusing cached metadata"];
+
+    log!("Checking metadata cache was used...");
+    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+
+    let metadata_cache_reuse_count = *matched_logs
+        .get(&line_filters)
+        .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
+
+    log!("metadata cache was used... {}", metadata_cache_reuse_count);
+
+    if metadata_cache_reuse_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+        log!(
+            "Cache metadata reuse count is {}, expected {}",
+            metadata_cache_reuse_count,
+            ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+        );
+        return Ok(false);
+    }
     Ok(true)
 }
 
