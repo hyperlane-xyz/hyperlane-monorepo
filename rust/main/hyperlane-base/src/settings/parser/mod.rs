@@ -135,7 +135,7 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
-    // measured in fractional seconds
+    // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)
         .get_opt_key("blocks")
