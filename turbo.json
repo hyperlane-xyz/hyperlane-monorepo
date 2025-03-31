@@ -9,14 +9,11 @@
       "dependsOn": ["build", "^test:ci"]
     },
     "test": {
-      "dependsOn": ["build"],
-      "cache": false
+      "dependsOn": ["build"]
     },
     "clean": {},
     "prettier": {},
     "lint": {},
-    "version:update": {
-      "cache": false
-    }
+    "version:update": {}
   }
 }
