@@ -35,7 +35,6 @@ export class StarknetERC20WarpModule {
   ) {}
 
   public async deployToken(): Promise<ChainMap<string>> {
-    // TODO: manage this in a multi-protocol way, for now works as we just support native-synthetic pair
     const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       this.multiProvider,
       this.config,

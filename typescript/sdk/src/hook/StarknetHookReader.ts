@@ -72,7 +72,6 @@ export class StarknetHookReader {
   private async deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
-    // TODO: assertHookType
     return {
       type: HookType.MERKLE_TREE,
       address,
@@ -207,7 +206,6 @@ export class StarknetHookReader {
   private async deriveMailboxDefaultHookConfig(
     address: Address,
   ): Promise<WithAddress<MailboxDefaultHookConfig>> {
-    // TODO: assertHookType
     return {
       type: HookType.MAILBOX_DEFAULT,
       address,
