@@ -13,6 +13,10 @@ npm install @hyperlane-xyz/cosmos-types
 yarn add @hyperlane-xyz/cosmos-types
 ```
 
+## Setup
+
+Before contributing make sure docker is installed and running which is needed for the type generation. Furthermore Node 18 or newer is required.
+
 ## Contribute
 
 First you need to install the dependencies by running `yarn install`.
