@@ -55,7 +55,6 @@ import type {
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
-  SealevelHypSyntheticAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
@@ -114,20 +113,13 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.EvmNative) {
       return new EvmNativeTokenAdapter(chainName, multiProvider, {});
-    } else if (standard === TokenStandard.SealevelSpl) {
-      return new SealevelTokenAdapter(
-        chainName,
-        multiProvider,
-        { token: addressOrDenom },
-        false,
-      );
-    } else if (standard === TokenStandard.SealevelSpl2022) {
-      return new SealevelTokenAdapter(
-        chainName,
-        multiProvider,
-        { token: addressOrDenom },
-        true,
-      );
+    } else if (
+      standard === TokenStandard.SealevelSpl ||
+      standard === TokenStandard.SealevelSpl2022
+    ) {
+      return new SealevelTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (standard === TokenStandard.SealevelNative) {
       return new SealevelNativeTokenAdapter(chainName, multiProvider, {});
     } else if (standard === TokenStandard.CosmosIcs20) {
@@ -230,47 +222,25 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.SealevelHypNative) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      return new SealevelHypNativeAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          mailbox,
-        },
-        false,
-      );
-    } else if (standard === TokenStandard.SealevelHypCollateral) {
+      return new SealevelHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        mailbox,
+      });
+    } else if (
+      standard === TokenStandard.SealevelHypCollateral ||
+      standard === TokenStandard.SealevelHypSynthetic
+    ) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
         collateralAddressOrDenom,
         `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
       );
-      return new SealevelHypCollateralAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          token: collateralAddressOrDenom,
-          mailbox,
-        },
-        false,
-      );
-    } else if (standard === TokenStandard.SealevelHypSynthetic) {
-      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
-      assert(
-        collateralAddressOrDenom,
-        `collateralAddressOrDenom required for Sealevel hyp synthetic tokens`,
-      );
-      return new SealevelHypSyntheticAdapter(
-        chainName,
-        multiProvider,
-        {
-          warpRouter: addressOrDenom,
-          token: collateralAddressOrDenom,
-          mailbox,
-        },
-        false,
-      );
+
+      return new SealevelHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
     } else if (standard === TokenStandard.CwHypNative) {
       return new CwHypNativeAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
