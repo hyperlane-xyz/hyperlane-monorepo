@@ -56,36 +56,25 @@ impl Drop for CosmosNativeStack {
 /// we send a one uhyp from node1 -> node2, this will result in a wrapped uhyp on node2
 /// we send a one uhyp from node2 -> node1, this will result in a wrapped uhyp on node1
 fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
-    node1.chain.remote_transfer(
-        KEY_CHAIN_VALIDATOR.0,
-        &node1.contracts.tokens[0],
-        &node2.domain.to_string(),
-        ALICE_HEX,
-        1000000u32,
-    );
-    node2.chain.remote_transfer(
-        KEY_CHAIN_VALIDATOR.0,
-        &node2.contracts.tokens[0],
-        &node1.domain.to_string(),
-        ALICE_HEX,
-        1000000u32,
-    );
-    node1.chain.remote_transfer(
-        KEY_CHAIN_VALIDATOR.0,
-        &node1.contracts.tokens[0],
-        &node2.domain.to_string(),
-        ALICE_HEX,
-        1000000u32,
-    );
-    node2.chain.remote_transfer(
-        KEY_CHAIN_VALIDATOR.0,
-        &node2.contracts.tokens[0],
-        &node1.domain.to_string(),
-        ALICE_HEX,
-        1000000u32,
-    );
-
-    return 4;
+    (0..2)
+        .map(|_| {
+            node1.chain.remote_transfer(
+                KEY_CHAIN_VALIDATOR.0,
+                &node1.contracts.tokens[0],
+                &node2.domain.to_string(),
+                ALICE_HEX,
+                1000000u32,
+            );
+            node2.chain.remote_transfer(
+                KEY_CHAIN_VALIDATOR.0,
+                &node2.contracts.tokens[0],
+                &node1.domain.to_string(),
+                ALICE_HEX,
+                1000000u32,
+            );
+            2u32
+        })
+        .sum()
 }
 
 #[apply(as_task)]
