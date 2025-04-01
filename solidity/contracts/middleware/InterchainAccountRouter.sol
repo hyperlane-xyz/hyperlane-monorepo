@@ -380,7 +380,32 @@ contract InterchainAccountRouter is Router {
                 _origin,
                 _owner.addressToBytes32(),
                 _router.addressToBytes32(),
-                _ism
+                _ism,
+                bytes32(0)
+            );
+    }
+
+    /*
+     * @notice Returns and deploys (if not already) an interchain account
+     * @param _origin The remote origin domain of the interchain account
+     * @param _owner The remote owner of the interchain account
+     * @param _router The remote origin InterchainAccountRouter
+     * @param _ism The local address of the ISM
+     * @return The address of the interchain account
+     */
+    function getDeployedInterchainAccount(
+        uint32 _origin,
+        bytes32 _owner,
+        bytes32 _router,
+        address _ism
+    ) public returns (OwnableMulticall) {
+        return
+            getDeployedInterchainAccount(
+                _origin,
+                _owner,
+                _router,
+                _ism,
+                bytes32(0)
             );
     }
 
@@ -396,18 +421,20 @@ contract InterchainAccountRouter is Router {
         uint32 _origin,
         bytes32 _owner,
         bytes32 _router,
-        address _ism
+        address _ism,
+        bytes32 _userSalt
     ) public returns (OwnableMulticall) {
-        bytes32 _salt = _getSalt(
+        bytes32 _deploySalt = _getSalt(
             _origin,
             _owner,
             _router,
-            _ism.addressToBytes32()
+            _ism.addressToBytes32(),
+            _userSalt
         );
-        address payable _account = _getLocalInterchainAccount(_salt);
+        address payable _account = _getLocalInterchainAccount(_deploySalt);
         if (!Address.isContract(_account)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
-            _account = payable(Create2.deploy(0, _salt, _bytecode));
+            _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
             accountOwners[_account] = AccountOwner(_origin, _owner);
             emit InterchainAccountCreated(_origin, _owner, _ism, _account);
         }
@@ -432,7 +459,13 @@ contract InterchainAccountRouter is Router {
         return
             OwnableMulticall(
                 _getLocalInterchainAccount(
-                    _getSalt(_origin, _owner, _router, _ism.addressToBytes32())
+                    _getSalt(
+                        _origin,
+                        _owner,
+                        _router,
+                        _ism.addressToBytes32(),
+                        bytes32(0)
+                    )
                 )
             );
     }
@@ -475,7 +508,8 @@ contract InterchainAccountRouter is Router {
             localDomain,
             _owner.addressToBytes32(),
             address(this).addressToBytes32(),
-            _ism.addressToBytes32()
+            _ism.addressToBytes32(),
+            bytes32(0)
         );
         return Create2.computeAddress(_salt, _bytecodeHash, _router);
     }
@@ -650,15 +684,20 @@ contract InterchainAccountRouter is Router {
      * @param _owner The remote owner of the interchain account
      * @param _router The remote origin InterchainAccountRouter
      * @param _ism The local address of the ISM
+     * @param _userSalt Salt provided by the user, allows control over account derivation.
      * @return The CREATE2 salt used for deploying the interchain account
      */
     function _getSalt(
         uint32 _origin,
         bytes32 _owner,
         bytes32 _router,
-        bytes32 _ism
+        bytes32 _ism,
+        bytes32 _userSalt
     ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_origin, _owner, _router, _ism));
+        return
+            keccak256(
+                abi.encodePacked(_origin, _owner, _router, _ism, _userSalt)
+            );
     }
 
     /**
