@@ -28,6 +28,7 @@ pub struct MockBaseMetadataBuilderResponses {
     /// responses.
     /// In order to fix this in tests, the mock ISMs are built with specific addresses
     /// in place. And gets responses from this based on the address.
+    #[allow(clippy::type_complexity)]
     pub build_ism:
         Arc<Mutex<HashMap<H256, VecDeque<eyre::Result<Box<dyn InterchainSecurityModule>>>>>>,
     pub build_routing_ism: ResponseList<eyre::Result<Box<dyn RoutingIsm>>>,

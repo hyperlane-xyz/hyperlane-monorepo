@@ -392,8 +392,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
@@ -421,8 +420,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
@@ -450,8 +448,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert!(*(params.ism_count.lock().await) <= 4);
         assert!(logs_contain("Max ISM depth reached ism_depth=2"));
@@ -478,8 +475,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert_eq!(*(params.ism_count.lock().await), 5);
         assert!(logs_contain("Max ISM count reached ism_count=5"));
