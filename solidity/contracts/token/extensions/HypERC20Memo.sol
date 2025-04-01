@@ -2,15 +2,17 @@
 pragma solidity >=0.8.0;
 
 import {HypERC20} from "../HypERC20.sol";
+import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 
 /**
  * @title Hyperlane ERC20 router extending HypERC20 with opaque memos
  * @author Dymension
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypERC20Memo is HypERC20 {
+contract HypERC20Memo is FungibleTokenRouter {
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
+    HypERC20 public immutable wrapped;
 
     constructor(
         uint8 __decimals,
