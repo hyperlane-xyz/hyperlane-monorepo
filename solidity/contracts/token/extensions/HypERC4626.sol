@@ -30,9 +30,10 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @title Hyperlane ERC20 Rebasing Token
  * @author Abacus Works
  * @notice This contract implements a rebasing token that reflects yields from the origin chain
- * @dev Amounts in message and balance storage mapping are shares of the collateralizing ERC4626
- * @dev ERC20 internal accounting is in shares, but the public interface is in assets
-        This includes `balanceOf`, `totalSupply`, `transfer`, `transferFrom`, and `approve`.
+ * @dev Messages contain amounts as shares of ERC4626 and exchange rate of assets per share.
+ * @dev internal ERC20 balances storage mapping is in share units
+ * @dev internal ERC20 allowances storage mapping is in asset units
+ * @dev public ERC20 interface is in asset units
  */
 contract HypERC4626 is HypERC20 {
     using Math for uint256;
@@ -57,7 +58,32 @@ contract HypERC4626 is HypERC20 {
         _disableInitializers();
     }
 
-    // =========== ERC20 Public Interface ============
+    // ============ Public Functions ============
+
+    /// Override transfer to handle underlying amounts while using shares internally
+    /// @inheritdoc ERC20Upgradeable
+    /// @dev the Transfer event emitted from ERC20Upgradeable will be in terms of shares not assets, so it may be misleading
+    function transfer(
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        _transfer(_msgSender(), to, assetsToShares(amount));
+        return true;
+    }
+
+    /// Override transferFrom to handle underlying amounts while using shares internally
+    /// @inheritdoc ERC20Upgradeable
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        address spender = _msgSender();
+        uint256 shares = assetsToShares(amount);
+        _spendAllowance(sender, spender, amount);
+        _transfer(sender, recipient, shares);
+        return true;
+    }
 
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
@@ -75,12 +101,12 @@ contract HypERC4626 is HypERC20 {
 
     /// This function provides the total supply in terms of shares
     function totalShares() public view returns (uint256) {
-        return ERC20Upgradeable.totalSupply();
+        return super.totalSupply();
     }
 
     ///  This returns the balance of the account in terms of shares
     function shareBalanceOf(address account) public view returns (uint256) {
-        return ERC20Upgradeable.balanceOf(account);
+        return super.balanceOf(account);
     }
 
     function assetsToShares(uint256 _amount) public view returns (uint256) {
@@ -89,35 +115,6 @@ contract HypERC4626 is HypERC20 {
 
     function sharesToAssets(uint256 _shares) public view returns (uint256) {
         return _shares.mulDiv(exchangeRate, PRECISION);
-    }
-
-    // =========== ERC20 internal accounting ===========
-    function _transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual override {
-        ERC20Upgradeable._transfer(from, to, assetsToShares(amount));
-    }
-
-    function _spendAllowance(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal virtual override {
-        ERC20Upgradeable._spendAllowance(
-            owner,
-            spender,
-            assetsToShares(amount)
-        );
-    }
-
-    function _approve(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal virtual override {
-        ERC20Upgradeable._approve(owner, spender, assetsToShares(amount));
     }
 
     // @inheritdoc HypERC20
@@ -159,7 +156,6 @@ contract HypERC4626 is HypERC20 {
                 emit ExchangeRateUpdated(exchangeRate, rateUpdateNonce);
             }
         }
-
-        TokenRouter._handle(_origin, _sender, _message);
+        super._handle(_origin, _sender, _message);
     }
 }
