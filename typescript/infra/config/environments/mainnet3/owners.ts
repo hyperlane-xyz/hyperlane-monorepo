@@ -114,7 +114,6 @@ export const icas: Partial<
   // Aug 26, 2024 batch
   // ----------------------------------------------------------
   astar: '0x6b241544eBa7d89B51b72DF85a0342dAa37371Ca',
-  // astarzkevm: '0x526c6DAee1175A1A2337E703B63593acb327Dde4',
   bitlayer: '0xe6239316cA60814229E801fF0B9DD71C9CA29008',
   coredao: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
   dogechain: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
