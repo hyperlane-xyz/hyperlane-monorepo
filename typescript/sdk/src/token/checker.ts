@@ -45,7 +45,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const contracts = this.app.getContracts(chain);
     const expectedConfig = this.configMap[chain];
 
-    // This
+    // This is used to trigger checks for collateralProxyAdmin or collateralToken
     const hasCollateralProxyOverrides =
       expectedConfig.ownerOverrides?.collateralProxyAdmin ||
       expectedConfig.ownerOverrides?.collateralToken;
