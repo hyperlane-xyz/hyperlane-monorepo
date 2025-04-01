@@ -76,7 +76,6 @@ impl FinalityStage {
                 sleep(Duration::from_millis(500)).await;
             }
         }
-        Ok(())
     }
 
     async fn process_txs(
@@ -222,9 +221,6 @@ mod tests {
     use tokio::sync::mpsc;
 
     #[tokio::test]
-    async fn test_process_included_txs() {}
-
-    #[tokio::test]
     async fn test_processing_included_txs_no_reverted_payload() {
         const TXS_TO_PROCESS: usize = 3;
 
@@ -241,14 +237,14 @@ mod tests {
             .expect_reverted_payloads()
             .returning(|_| Ok(vec![]));
 
-        let (txs_created, txs_received, tx_db, payload_db, pool, _) =
+        let (txs_created, txs_removed_from_pool, tx_db, payload_db, pool, _) =
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Included)
                 .await;
 
-        assert_eq!(txs_received.len(), TXS_TO_PROCESS);
+        assert_eq!(txs_removed_from_pool.len(), 0);
         assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
-            txs_received.clone(),
+            txs_removed_from_pool.clone(),
             &tx_db,
             &payload_db,
             TransactionStatus::Included,
@@ -279,6 +275,7 @@ mod tests {
         )
         .await;
 
+        // these payloads will be reported as reverted
         let payloads_in_first_tx = generated_txs[0].payload_details.clone();
         let payloads_in_first_tx_clone = payloads_in_first_tx.clone();
         mock_adapter
@@ -300,10 +297,11 @@ mod tests {
         );
 
         send_txs_to_channel(generated_txs.clone(), inclusion_stage_sender).await;
-        let txs_received = run_stage(TXS_TO_PROCESS, finality_stage, building_queue).await;
+        let txs_received = run_stage(finality_stage).await;
 
         assert_eq!(txs_received.len(), 0);
         assert!(are_all_txs_in_pool(generated_txs.to_vec(), &pool).await);
+        // non-reverted payload txs are still pending finality
         assert_tx_status(
             generated_txs[1..].to_vec(),
             &tx_db,
@@ -311,11 +309,13 @@ mod tests {
             TransactionStatus::Included,
         )
         .await;
+        // reverted payloads are dropped
         assert_payloads_status(
             payloads_in_first_tx.clone(),
             &payload_db,
             PayloadStatus::Dropped(DropReason::Reverted),
-        );
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_processing_dropped_txs() {
+    async fn test_processing_reorged_txs() {
         const TXS_TO_PROCESS: usize = 3;
 
         let mut mock_adapter = MockAdapter::new();
@@ -354,6 +354,7 @@ mod tests {
             .expect_estimated_block_time()
             .returning(|| Duration::from_millis(10));
 
+        // report all txs as reorged
         mock_adapter
             .expect_tx_status()
             .returning(|_| Ok(TransactionStatus::Dropped(TxDropReason::DroppedByChain)));
@@ -366,6 +367,7 @@ mod tests {
             )
             .await;
 
+        // the finality pool becomes empty
         assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
@@ -374,17 +376,16 @@ mod tests {
             TransactionStatus::Dropped(TxDropReason::DroppedByChain),
         )
         .await;
+
+        // all payloads are in the building stage queue
         assert_eq!(queue.lock().await.len(), TXS_TO_PROCESS);
         for tx in txs_received {
-            let payloads = tx.payload_details.clone();
-            for payload in payloads {
-                let payload = payload_db
-                    .retrieve_payload_by_id(&payload.id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(payload.status, PayloadStatus::ReadyToSubmit);
-            }
+            assert_payloads_status(
+                tx.payload_details.clone(),
+                &payload_db,
+                PayloadStatus::ReadyToSubmit,
+            )
+            .await;
         }
     }
 
@@ -412,7 +413,7 @@ mod tests {
     ) {
         let (txs_created, tx_db, payload_db, pool, finality_stage, building_queue) =
             set_up_test(mock_adapter, txs_to_process, tx_status).await;
-        let txs_received = run_stage(txs_to_process, finality_stage, building_queue.clone()).await;
+        let txs_received = run_stage(finality_stage).await;
         (
             txs_created,
             txs_received,
@@ -472,11 +473,7 @@ mod tests {
         }
     }
 
-    async fn run_stage(
-        sent_txs_count: usize,
-        stage: FinalityStage,
-        building_stage_queue: BuildingStageQueue,
-    ) -> Vec<Transaction> {
+    async fn run_stage(stage: FinalityStage) -> Vec<Transaction> {
         let pool = stage.pool.clone();
         let pool_before = pool.lock().await.clone();
         let stage_task = tokio::spawn(async move { stage.run().await });
@@ -514,7 +511,8 @@ mod tests {
                 tx_from_db.payload_details,
                 payload_db,
                 PayloadStatus::InTransaction(expected_status.clone()),
-            );
+            )
+            .await;
         }
     }
 
