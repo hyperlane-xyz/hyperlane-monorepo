@@ -799,12 +799,12 @@ contract HypERC20ScaledTest is HypTokenTest {
 contract HypERC20MemoTest is HypTokenTest {
     using TypeCasts for address;
 
-    HypERC20 internal erc20Token;
+    HypERC20Memo internal erc20Token;
 
     function setUp() public override {
         super.setUp();
 
-        HypERC20 implementation = new HypERC20(
+        HypERC20Memo implementation = new HypERC20Memo(
             DECIMALS,
             SCALE,
             address(localMailbox)
@@ -813,7 +813,7 @@ contract HypERC20MemoTest is HypTokenTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC20.initialize.selector,
+                HypERC20Memo.initialize.selector,
                 TOTAL_SUPPLY,
                 NAME,
                 SYMBOL,
@@ -822,8 +822,8 @@ contract HypERC20MemoTest is HypTokenTest {
                 address(this)
             )
         );
-        localToken = HypERC20(address(proxy));
-        erc20Token = HypERC20(address(proxy));
+        localToken = HypERC20Memo(address(proxy));
+        erc20Token = HypERC20Memo(address(proxy));
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
