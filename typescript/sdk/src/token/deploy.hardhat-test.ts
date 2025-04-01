@@ -34,6 +34,22 @@ import {
 
 const chain = TestChainName.test1;
 
+function addOverridesToConfig(
+  config: WarpRouteDeployConfigMailboxRequired,
+  owner: Address,
+): WarpRouteDeployConfigMailboxRequired {
+  return Object.fromEntries(
+    Object.entries(config).map(([chain, config]) => {
+      return [
+        chain,
+        {
+          ...config,
+          ownerOverrides: { collateralProxyAdmin: owner },
+        },
+      ];
+    }),
+  );
+}
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
@@ -148,17 +164,7 @@ describe('TokenDeployer', async () => {
         });
 
         // Create a new Checker and initialize it with config + ownerOverrides
-        const configWithOverrides = Object.fromEntries(
-          Object.entries(config).map(([chain, config]) => {
-            return [
-              chain,
-              {
-                ...config,
-                ownerOverrides: { collateralToken: previousOwner },
-              },
-            ];
-          }),
-        );
+        const configWithOverrides = addOverridesToConfig(config, previousOwner);
         const checkerWithOwnerOverrides = new HypERC20Checker(
           multiProvider,
           app,
@@ -183,17 +189,7 @@ describe('TokenDeployer', async () => {
         });
 
         // Create a new Checker and initialize it with config + ownerOverrides
-        const configWithOverrides = Object.fromEntries(
-          Object.entries(config).map(([chain, config]) => {
-            return [
-              chain,
-              {
-                ...config,
-                ownerOverrides: { collateralProxyAdmin: previousOwner },
-              },
-            ];
-          }),
-        );
+        const configWithOverrides = addOverridesToConfig(config, previousOwner);
         const checkerWithOwnerOverrides = new HypERC20Checker(
           multiProvider,
           app,
