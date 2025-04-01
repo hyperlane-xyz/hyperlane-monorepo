@@ -11,7 +11,7 @@ use crate::chain_tx_adapter::AdaptsChain;
 #[test]
 fn test_configuration_fields() {
     // given
-    let expected_estimated_block_time = 2;
+    let expected_estimated_block_time = Duration::from_secs_f64(2.6);
     let expected_max_batch_size = 43;
     let expected_reorg_period = ReorgPeriod::Blocks(NonZeroU32::new(42).unwrap());
 
@@ -20,7 +20,7 @@ fn test_configuration_fields() {
         signer: Some(SignerConf::HexKey {
             key: Default::default(),
         }),
-        estimated_block_time: expected_estimated_block_time,
+        estimated_block_time: expected_estimated_block_time.clone(),
         reorg_period: expected_reorg_period.clone(),
         addresses: Default::default(),
         connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
@@ -41,13 +41,10 @@ fn test_configuration_fields() {
     // when
     let estimated_block_time = adapter.estimated_block_time();
     let max_batch_size = adapter.max_batch_size();
-    let reorg_period = adapter.reorg_period;
+    let reorg_period = adapter.reorg_period.clone();
 
     // then
-    assert_eq!(
-        estimated_block_time,
-        Duration::new(expected_estimated_block_time, 0)
-    );
+    assert_eq!(estimated_block_time, &expected_estimated_block_time);
     assert_eq!(max_batch_size, expected_max_batch_size);
     assert_eq!(reorg_period, expected_reorg_period);
 }

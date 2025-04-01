@@ -50,7 +50,7 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    fn estimated_block_time(&self) -> std::time::Duration {
+    fn estimated_block_time(&self) -> &std::time::Duration {
         todo!()
     }
 

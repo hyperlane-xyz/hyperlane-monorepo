@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::{bail, eyre, ContextCompat, Report, Result};
@@ -44,7 +45,7 @@ use crate::transaction::{
 };
 
 pub struct SealevelTxAdapter {
-    estimated_block_time: u64,
+    estimated_block_time: Duration,
     max_batch_size: u32,
     reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
@@ -128,7 +129,7 @@ impl SealevelTxAdapter {
         submitter: Box<dyn TransactionSubmitter>,
     ) -> Self {
         Self {
-            estimated_block_time: 1,
+            estimated_block_time: Duration::from_secs(1),
             max_batch_size: 1,
             reorg_period: ReorgPeriod::default(),
             keypair: SealevelKeypair::default(),
@@ -331,8 +332,8 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(Vec::new())
     }
 
-    fn estimated_block_time(&self) -> std::time::Duration {
-        std::time::Duration::new(self.estimated_block_time, 0)
+    fn estimated_block_time(&self) -> &Duration {
+        &self.estimated_block_time
     }
 
     fn max_batch_size(&self) -> u32 {

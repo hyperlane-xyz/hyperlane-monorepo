@@ -7,6 +7,7 @@
 use std::{
     collections::{HashMap, HashSet},
     default::Default,
+    time::Duration,
 };
 
 use convert_case::{Case, Casing};
@@ -134,12 +135,14 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
+    // measured in fractional seconds
     let estimated_block_time = chain
         .chain(&mut err)
         .get_opt_key("blocks")
         .get_key("estimateBlockTime")
         .parse_value("Invalid estimateBlockTime")
-        .unwrap_or(1u64);
+        .map(Duration::from_secs_f64)
+        .unwrap_or(Duration::from_secs(1));
 
     let reorg_period = chain
         .chain(&mut err)
