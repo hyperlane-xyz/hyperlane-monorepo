@@ -27,6 +27,7 @@ import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchH
 
 import {Router} from "../../contracts/client/Router.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {HypERC20Memo} from "../../contracts/token/extensions/HypERC20Memo.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
@@ -792,5 +793,102 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
 
         _handleLocalTransfer(TRANSFER_AMT);
+    }
+}
+
+contract HypERC20MemoTest is HypTokenTest {
+    using TypeCasts for address;
+
+    HypERC20 internal erc20Token;
+
+    function setUp() public override {
+        super.setUp();
+
+        HypERC20 implementation = new HypERC20(
+            DECIMALS,
+            SCALE,
+            address(localMailbox)
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(address(noopHook)),
+                address(igp),
+                address(this)
+            )
+        );
+        localToken = HypERC20(address(proxy));
+        erc20Token = HypERC20(address(proxy));
+
+        erc20Token.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+        erc20Token.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testInitialize_revert_ifAlreadyInitialized() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        erc20Token.initialize(
+            TOTAL_SUPPLY,
+            NAME,
+            SYMBOL,
+            address(address(noopHook)),
+            address(igp),
+            BOB
+        );
+    }
+
+    function testTotalSupply() public view {
+        assertEq(erc20Token.totalSupply(), TOTAL_SUPPLY);
+    }
+
+    function testDecimals() public view {
+        assertEq(erc20Token.decimals(), DECIMALS);
+    }
+
+    function testLocalTransfers() public {
+        assertEq(erc20Token.balanceOf(ALICE), 1000e18);
+        assertEq(erc20Token.balanceOf(BOB), 0);
+
+        vm.prank(ALICE);
+        erc20Token.transfer(BOB, 100e18);
+        assertEq(erc20Token.balanceOf(ALICE), 900e18);
+        assertEq(erc20Token.balanceOf(BOB), 100e18);
+    }
+
+    function testRemoteTransfer() public {
+        remoteToken.enrollRemoteRouter(
+            ORIGIN,
+            address(localToken).addressToBytes32()
+        );
+        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+
+    function testRemoteTransfer_invalidAmount() public {
+        vm.expectRevert("ERC20: burn amount exceeds balance");
+        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT * 11);
+        assertEq(erc20Token.balanceOf(ALICE), 1000e18);
+    }
+
+    function testRemoteTransfer_withCustomGasConfig() public {
+        _setCustomGasConfig();
+
+        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
+        _performRemoteTransferAndGas(
+            REQUIRED_VALUE,
+            TRANSFER_AMT,
+            GAS_LIMIT * igp.gasPrice()
+        );
+        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 }
