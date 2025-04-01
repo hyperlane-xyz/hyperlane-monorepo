@@ -457,6 +457,33 @@ contract InterchainAccountRouter is Router {
         address _ism
     ) public view returns (OwnableMulticall) {
         return
+            getLocalInterchainAccount(
+                _origin,
+                _owner,
+                _router,
+                _ism,
+                bytes32(0)
+            );
+    }
+
+    /**
+     * @notice Returns the local address of a remotely owned interchain account
+     * @dev This interchain account is not guaranteed to have been deployed
+     * @param _origin The remote origin domain of the interchain account
+     * @param _owner The remote owner of the interchain account
+     * @param _router The remote InterchainAccountRouter
+     * @param _ism The local address of the ISM
+     * @param _userSalt A user provided salt. Allows control over account derivation.
+     * @return The local address of the interchain account
+     */
+    function getLocalInterchainAccount(
+        uint32 _origin,
+        bytes32 _owner,
+        bytes32 _router,
+        address _ism,
+        bytes32 _userSalt
+    ) public view returns (OwnableMulticall) {
+        return
             OwnableMulticall(
                 _getLocalInterchainAccount(
                     _getSalt(
@@ -464,7 +491,7 @@ contract InterchainAccountRouter is Router {
                         _owner,
                         _router,
                         _ism.addressToBytes32(),
-                        bytes32(0)
+                        _userSalt
                     )
                 )
             );
