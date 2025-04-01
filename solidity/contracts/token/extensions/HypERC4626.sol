@@ -110,6 +110,7 @@ contract HypERC4626 is HypERC20 {
     }
 
     // @inheritdoc ERC20Upgradeable
+    // @dev Amount specified by user is in assets, but the internal accounting is in shares
     function _transfer(
         address _from,
         address _to,
