@@ -61,16 +61,13 @@
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
   },
   "files": [
-    "./dist",
+    "./cli-bundle",
     "./examples",
     "package.json"
   ],
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "type": "module",
-  "exports": {
-    ".": "./dist/src/index.js"
-  },
   "engines": {
     "node": ">=16"
   },
