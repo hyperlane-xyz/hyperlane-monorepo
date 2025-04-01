@@ -149,13 +149,11 @@ impl PayloadDb for HyperlaneRocksDB {
     }
 
     async fn store_payload_id_by_index(&self, index: u32, payload_id: &PayloadId) -> DbResult<()> {
-        // return the default value (0) if no index has been stored yet
         self.store_value_by_key(PAYLOAD_ID_BY_INDEX_STORAGE_PREFIX, &index, payload_id)
     }
 
-    async fn retrieve_payload_id_by_index(&self, id: u32) -> DbResult<Option<PayloadId>> {
-        // return the default value (0) if no index has been stored yet
-        self.retrieve_value_by_key(HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX, &bool::default())
+    async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>> {
+        self.retrieve_value_by_key(HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX, &index)
     }
 }
 
