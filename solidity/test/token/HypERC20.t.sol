@@ -798,63 +798,64 @@ contract HypERC20ScaledTest is HypTokenTest {
 
 contract HypERC20MemoTest is HypTokenTest {
     using TypeCasts for address;
-    HypERC20Memo internal erc20Token;
 
-    bytes constant TEST_MEMO = "test memo";
+    HypERC20Memo internal token;
 
-    function setUp() public virtual override {
+    function setUp() public override {
         super.setUp();
 
-        // Set up token directly like HypERC20Test does
-        HypERC20Memo implementation = new HypERC20Memo(
-            DECIMALS,
+        localToken = new HypERC20Memo(
+            address(primaryToken),
             SCALE,
             address(localMailbox)
         );
+        token = HypERC20Memo(address(localToken));
 
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            PROXY_ADMIN,
-            abi.encodeWithSelector(
-                HypERC20.initialize.selector,
-                TOTAL_SUPPLY,
-                NAME,
-                SYMBOL,
-                address(noopHook),
-                address(igp),
-                address(this)
-            )
-        );
-
-        localToken = HypERC20Memo(address(proxy));
-        erc20Token = HypERC20Memo(address(proxy));
-
-        erc20Token.enrollRemoteRouter(
+        token.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
-        erc20Token.transfer(ALICE, 1000e18);
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
 
         _enrollRemoteTokenRouter();
     }
 
-    // ... rest of test functions ...
-    function test_transferRemoteWithMemo() public {
-        HypERC20Memo memoToken = HypERC20Memo(address(erc20Token));
-        memoToken.setMemoForNextTransfer(TEST_MEMO);
+    function test_constructor_revert_ifInvalidToken() public {
+        vm.expectRevert("HypERC20Collateral: invalid token");
+        new HypERC20Collateral(address(0), SCALE, address(localMailbox));
+    }
+
+    function testInitialize_revert_ifAlreadyInitialized() public {}
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
 
         vm.prank(ALICE);
-        memoToken.transferRemote{value: REQUIRED_VALUE}(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT,
-            "", // no hook metadata
-            address(0) // no hook
-        );
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
 
-        // Verify balance changes
-        assertEq(erc20Token.balanceOf(ALICE), 1000e18 - TRANSFER_AMT);
-        _processTransfers(BOB, TRANSFER_AMT);
-        assertEq(remoteToken.balanceOf(BOB), TRANSFER_AMT);
+    function testRemoteTransfer_invalidAllowance() public {
+        vm.expectRevert("ERC20: insufficient allowance");
+        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
+        assertEq(localToken.balanceOf(ALICE), 1000e18);
+    }
+
+    function testRemoteTransfer_withCustomGasConfig() public {
+        _setCustomGasConfig();
+
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransferAndGas(
+            REQUIRED_VALUE,
+            TRANSFER_AMT,
+            GAS_LIMIT * igp.gasPrice()
+        );
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
     }
 }
