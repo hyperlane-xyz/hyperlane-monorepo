@@ -7730,6 +7730,7 @@ __metadata:
     tsx: "npm:^4.19.1"
     typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
     typescript: "npm:5.3.3"
+    zksync-ethers: "npm:^5.10.0"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
