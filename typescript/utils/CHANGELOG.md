@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 10.0.0
+
+### Minor Changes
+
+- b8d95fc95: implement custom ESLint rule for restricted imports from exports
+
 ## 9.2.1
 
 ## 9.2.0
