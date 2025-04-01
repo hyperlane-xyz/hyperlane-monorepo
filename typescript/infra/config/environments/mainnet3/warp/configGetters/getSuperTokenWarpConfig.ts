@@ -84,7 +84,9 @@ const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
   worldchain: '0x998238aF5A2DDC7ae08Dbe4B60b82EF63A1538cd',
 };
 
-const productionOwnerOverridesByChain: ChainMap<Record<string, string>> = {
+const productionOwnerOverridesByChain: ChainMap<
+  Record<'collateralToken' | 'collateralProxyAdmin', string>
+> = {
   celo: {
     collateralToken: productionOwnerByChain.celo,
     collateralProxyAdmin: productionOwnerByChain.celo,

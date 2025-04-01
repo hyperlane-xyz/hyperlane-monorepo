@@ -43,22 +43,25 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
     const contracts = this.app.getContracts(chain);
+    const expectedConfig = this.configMap[chain];
+
+    // This
+    const hasCollateralProxyOverrides =
+      expectedConfig.ownerOverrides?.collateralProxyAdmin ||
+      expectedConfig.ownerOverrides?.collateralToken;
 
     if (
-      isCollateralTokenConfig(this.configMap[chain]) ||
-      isXERC20TokenConfig(this.configMap[chain])
+      (isCollateralTokenConfig(this.configMap[chain]) ||
+        isXERC20TokenConfig(this.configMap[chain])) &&
+      hasCollateralProxyOverrides
     ) {
       let collateralToken = await this.getCollateralToken(chain);
 
       const provider = this.multiProvider.getProvider(chain);
 
       // XERC20s are Ownable
-      const expectedConfig = this.configMap[chain];
 
-      if (
-        expectedConfig.type === TokenType.XERC20Lockbox &&
-        expectedConfig.ownerOverrides?.collateralToken
-      ) {
+      if (expectedConfig.type === TokenType.XERC20Lockbox) {
         const lockbox = IXERC20Lockbox__factory.connect(
           expectedConfig.token,
           provider,
@@ -73,19 +76,13 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         );
       }
 
-      if (
-        expectedConfig.type === TokenType.XERC20 &&
-        expectedConfig.ownerOverrides?.collateralToken
-      ) {
+      if (expectedConfig.type === TokenType.XERC20) {
         contracts['collateralToken'] = Ownable__factory.connect(
           collateralToken.address,
           provider,
         );
       }
-      if (
-        (await isProxy(provider, collateralToken.address)) &&
-        expectedConfig.ownerOverrides?.collateralProxyAdmin
-      ) {
+      if (await isProxy(provider, collateralToken.address)) {
         const admin = await proxyAdmin(provider, collateralToken.address);
         contracts['collateralProxyAdmin'] = ProxyAdmin__factory.connect(
           admin,
