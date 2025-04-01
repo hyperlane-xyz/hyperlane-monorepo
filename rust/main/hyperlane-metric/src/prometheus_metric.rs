@@ -216,3 +216,47 @@ impl PrometheusConfigExt for PrometheusConfig {
         PrometheusConfig::chain_name(&self.chain)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use url::Url;
+
+    use super::{ChainInfo, ClientConnectionType, PrometheusConfig, PrometheusConfigExt};
+
+    #[test]
+    fn test_node_host() {
+        let urls = [
+            "https://rpc.example.com/1235/1243243",
+            "https://grpc.example.com:5432/123453",
+            "https://grpc.abc.com",
+            "https://abcd.efg.higk.example.xyz:443",
+            "grpc.example.com:443",
+            "grpc2.example.com:234/chain/12345",
+            "grpc3.example.com:234/",
+        ];
+
+        let expected = [
+            "rpc.example.com:443",
+            "grpc.example.com:5432",
+            "grpc.abc.com:443",
+            "abcd.efg.higk.example.xyz:443",
+            "grpc.example.com:443",
+            "grpc2.example.com:234",
+            "grpc3.example.com:234",
+        ];
+
+        for (url, expected) in urls.into_iter().zip(expected.into_iter()) {
+            let url = Url::parse(url).expect("Failed to parse URL");
+            let config = PrometheusConfig::from_url(
+                &url,
+                ClientConnectionType::Rpc,
+                Some(ChainInfo {
+                    name: Some("neutron".to_string()),
+                }),
+            );
+
+            let actual = config.node_host();
+            assert_eq!(actual, expected);
+        }
+    }
+}

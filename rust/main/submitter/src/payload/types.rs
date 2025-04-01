@@ -1,11 +1,14 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use chrono::{DateTime, Utc};
 use std::ops::Deref;
+
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
+
+use crate::chain_tx_adapter::SealevelPayload;
 
 pub type PayloadId = UniqueIdentifier;
 type Address = H256;
@@ -14,33 +17,39 @@ type Address = H256;
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub struct PayloadDetails {
     /// unique payload identifier
-    id: PayloadId,
+    pub id: PayloadId,
 
     /// to be printed in logs for easier debugging. This may include the Hyperlane Message ID
-    metadata: String,
+    pub metadata: String,
 
     // unused field in MVP
     /// view calls for checking if batch subcalls reverted. EVM-specific for now.
-    success_criteria: Option<(Vec<u8>, Address)>,
+    pub success_criteria: Option<(Vec<u8>, Address)>,
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
-    details: PayloadDetails,
+    pub details: PayloadDetails,
     /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
-    data: Vec<u8>,
+    pub data: VmSpecificPayloadData,
     /// defaults to the hyperlane mailbox
-    to: Address,
+    pub to: Address,
     /// defaults to `ReadyToSubmit`
-    status: PayloadStatus,
+    pub status: PayloadStatus,
 
     // unused fields in MVP
     // always None initially
-    value: Option<U256>,
+    pub value: Option<U256>,
     /// will be up to the adapter to interpret this. Meant to help enforce the new igp social contract requirement (after 30 mins, stop enforcing any gas price caps)
-    inclusion_soft_deadline: Option<DateTime<Utc>>,
+    pub inclusion_soft_deadline: Option<DateTime<Utc>>,
+}
+
+impl FullPayload {
+    pub fn id(&self) -> &PayloadId {
+        &self.details.id
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
@@ -59,6 +68,7 @@ pub enum PayloadStatus {
 pub enum DropReason {
     FailedSimulation,
     Reverted,
+    UnhandledError,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
@@ -66,16 +76,11 @@ pub enum RetryReason {
     Reorged,
 }
 
-impl FullPayload {
-    pub fn id(&self) -> &PayloadId {
-        &self.details.id
-    }
-
-    pub fn status(&self) -> PayloadStatus {
-        self.status.clone()
-    }
-
-    pub fn set_status(&mut self, status: PayloadStatus) {
-        self.status = status;
-    }
+// add nested enum entries as we add VMs
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum VmSpecificPayloadData {
+    #[default]
+    Evm,
+    Svm(SealevelPayload),
+    CosmWasm,
 }
