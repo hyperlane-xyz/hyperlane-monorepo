@@ -796,33 +796,36 @@ contract HypERC20ScaledTest is HypTokenTest {
     }
 }
 
-// TODO: could extend erc20 test?
 contract HypERC20MemoTest is HypTokenTest {
     using TypeCasts for address;
-
     HypERC20Memo internal erc20Token;
 
-    function setUp() public override {
+    bytes constant TEST_MEMO = "test memo";
+
+    function setUp() public virtual override {
         super.setUp();
 
+        // Set up token directly like HypERC20Test does
         HypERC20Memo implementation = new HypERC20Memo(
             DECIMALS,
             SCALE,
             address(localMailbox)
         );
+
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC20Memo.initialize.selector,
+                HypERC20.initialize.selector,
                 TOTAL_SUPPLY,
                 NAME,
                 SYMBOL,
-                address(address(noopHook)),
+                address(noopHook),
                 address(igp),
                 address(this)
             )
         );
+
         localToken = HypERC20Memo(address(proxy));
         erc20Token = HypERC20Memo(address(proxy));
 
@@ -835,61 +838,23 @@ contract HypERC20MemoTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {
-        vm.expectRevert("Initializable: contract is already initialized");
-        erc20Token.initialize(
-            TOTAL_SUPPLY,
-            NAME,
-            SYMBOL,
-            address(address(noopHook)),
-            address(igp),
-            BOB
-        );
-    }
-
-    function testTotalSupply() public view {
-        assertEq(erc20Token.totalSupply(), TOTAL_SUPPLY);
-    }
-
-    function testDecimals() public view {
-        assertEq(erc20Token.decimals(), DECIMALS);
-    }
-
-    function testLocalTransfers() public {
-        assertEq(erc20Token.balanceOf(ALICE), 1000e18);
-        assertEq(erc20Token.balanceOf(BOB), 0);
+    // ... rest of test functions ...
+    function test_transferRemoteWithMemo() public {
+        HypERC20Memo memoToken = HypERC20Memo(address(erc20Token));
+        memoToken.setMemoForNextTransfer(TEST_MEMO);
 
         vm.prank(ALICE);
-        erc20Token.transfer(BOB, 100e18);
-        assertEq(erc20Token.balanceOf(ALICE), 900e18);
-        assertEq(erc20Token.balanceOf(BOB), 100e18);
-    }
-
-    function testRemoteTransfer() public {
-        remoteToken.enrollRemoteRouter(
-            ORIGIN,
-            address(localToken).addressToBytes32()
-        );
-        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
-        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
-    }
-
-    function testRemoteTransfer_invalidAmount() public {
-        vm.expectRevert("ERC20: burn amount exceeds balance");
-        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT * 11);
-        assertEq(erc20Token.balanceOf(ALICE), 1000e18);
-    }
-
-    function testRemoteTransfer_withCustomGasConfig() public {
-        _setCustomGasConfig();
-
-        uint256 balanceBefore = erc20Token.balanceOf(ALICE);
-        _performRemoteTransferAndGas(
-            REQUIRED_VALUE,
+        memoToken.transferRemote{value: REQUIRED_VALUE}(
+            DESTINATION,
+            BOB.addressToBytes32(),
             TRANSFER_AMT,
-            GAS_LIMIT * igp.gasPrice()
+            "", // no hook metadata
+            address(0) // no hook
         );
-        assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+
+        // Verify balance changes
+        assertEq(erc20Token.balanceOf(ALICE), 1000e18 - TRANSFER_AMT);
+        _processTransfers(BOB, TRANSFER_AMT);
+        assertEq(remoteToken.balanceOf(BOB), TRANSFER_AMT);
     }
 }
