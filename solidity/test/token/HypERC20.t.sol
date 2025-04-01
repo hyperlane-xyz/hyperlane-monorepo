@@ -796,6 +796,7 @@ contract HypERC20ScaledTest is HypTokenTest {
     }
 }
 
+// TODO: could extend erc20 test?
 contract HypERC20MemoTest is HypTokenTest {
     using TypeCasts for address;
 

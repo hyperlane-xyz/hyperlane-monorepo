@@ -9,7 +9,8 @@ import {HypERC20} from "../HypERC20.sol";
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract HypERC20Memo is HypERC20 {
-    bytes private _pendingMemo;
+    mapping(address => mapping(uint256 => bytes)) private _memos;
+    mapping(address => uint256) private _nonces;
 
     constructor(
         uint8 __decimals,
@@ -17,29 +18,21 @@ contract HypERC20Memo is HypERC20 {
         address _mailbox
     ) HypERC20(__decimals, _scale, _mailbox) {}
 
-    function transferRemoteWithMemo(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        bytes calldata _memo
-    ) external payable returns (bytes32) {
-        require(_pendingMemo.length == 0, "Transfer in progress");
-
-        _pendingMemo = _memo;
-        bytes32 messageId = super.transferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-        delete _pendingMemo;
-        return messageId;
+    function setMemoForNextTransfer(bytes calldata memo) external {
+        require(memo.length <= 2048, "memo too long");
+        _memos[msg.sender][_nonces[msg.sender]] = memo;
     }
 
     function _transferFromSender(
         uint256 _amount
     ) internal override returns (bytes memory) {
         super._transferFromSender(_amount);
-        bytes memory memo = _pendingMemo;
+
+        bytes memory memo = _memos[msg.sender][_nonces[msg.sender]];
+
+        delete _memos[msg.sender][_nonces[msg.sender]];
+        _nonces[msg.sender]++;
+
         return memo;
     }
 }
