@@ -9619,6 +9619,7 @@ dependencies = [
  "chrono",
  "derive-new",
  "eyre",
+ "futures-util",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-sealevel",

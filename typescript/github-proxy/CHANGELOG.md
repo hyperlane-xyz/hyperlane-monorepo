@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 10.0.0
+
 ## 9.2.1
 
 ## 9.2.0
