@@ -735,11 +735,6 @@ const blacklistedMessageIds = [
 
 // Blacklist matching list intended to be used by all contexts.
 const blacklist: MatchingList = [
-  {
-    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
-    // A temporary measure to prevent some wasted effort on our relayer.
-    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
-  },
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
@@ -754,7 +749,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28ca872-20250331-100202',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -790,7 +785,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8ab7c80-20250326-191115',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -824,7 +819,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c4f0f2-20250326-180331',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     gasPaymentEnforcement,
