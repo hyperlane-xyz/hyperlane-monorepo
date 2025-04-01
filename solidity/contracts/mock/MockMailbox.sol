@@ -11,6 +11,7 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 import {TestIsm} from "../test/TestIsm.sol";
 import {TestPostDispatchHook} from "../test/TestPostDispatchHook.sol";
+import {TokenMessage} from "../token/libs/TokenMessage.sol";
 
 contract MockMailbox is Mailbox {
     using Message for bytes;
@@ -49,6 +50,7 @@ contract MockMailbox is Mailbox {
             recipientAddress,
             messageBody
         );
+
         bytes32 id = super.dispatch(
             destinationDomain,
             recipientAddress,

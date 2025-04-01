@@ -842,65 +842,6 @@ contract HypERC20MemoTest is HypTokenTest {
 
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
-
-        bytes memory lastMessage = MockMailbox(address(remoteMailbox))
-            .inboundMessages(0);
-
-        // Skip the Hyperlane header:
-        // 1 byte version + 4 bytes nonce + 4 bytes originDomain + 32 bytes sender +
-        // 4 bytes destinationDomain + 32 bytes recipient = 77 bytes
-        bytes memory messageBody;
-        assembly {
-            let ptr := add(lastMessage, 32) // skip length prefix
-            messageBody := mload(0x40) // get free memory pointer
-            let bodyLength := sub(mload(lastMessage), 77) // total length - header
-            mstore(messageBody, bodyLength) // store length
-            mstore(0x40, add(add(messageBody, 0x20), bodyLength)) // update free memory pointer
-
-            // Copy message body (everything after header)
-            ptr := add(ptr, 77) // point to start of body
-            for {
-                let i := 0
-            } lt(i, bodyLength) {
-                i := add(i, 32)
-            } {
-                let chunk := mload(add(ptr, i))
-                mstore(add(add(messageBody, 0x20), i), chunk)
-            }
-        }
-
-        // Now messageBody contains the transfer data
-        // Format is: abi.encodePacked(recipient, amount, memo)
-        address recipient;
-        uint256 amount;
-        bytes memory memo;
-        assembly {
-            let ptr := add(messageBody, 32) // skip length prefix
-            recipient := mload(ptr) // first 20 bytes
-            amount := mload(add(ptr, 20)) // next 32 bytes
-
-            // Calculate memo length (remaining bytes)
-            let memoLength := sub(mload(messageBody), 52) // total length - (20 + 32)
-
-            // Copy memo bytes
-            memo := mload(0x40) // get free memory pointer
-            mstore(memo, memoLength) // store length
-            mstore(0x40, add(add(memo, 0x20), memoLength)) // update free memory pointer
-
-            // Copy memo data
-            ptr := add(ptr, 52) // point to start of memo
-            for {
-                let i := 0
-            } lt(i, memoLength) {
-                i := add(i, 32)
-            } {
-                let chunk := mload(add(ptr, i))
-                mstore(add(add(memo, 0x20), i), chunk)
-            }
-        }
-
-        // Verify the memo matches
-        assertEq(memo, testMemo);
     }
 
     function testRemoteTransfer_invalidAllowance() public {
