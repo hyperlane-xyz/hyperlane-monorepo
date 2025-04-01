@@ -14,6 +14,6 @@ export const PROTOCOL_TO_LOGO: Record<
   [ProtocolType.Ethereum]: EthereumLogo,
   [ProtocolType.Sealevel]: SolanaLogo,
   [ProtocolType.Cosmos]: CosmosLogo,
-  [ProtocolType.CosmosNative]: CosmosLogo,
+  [ProtocolType.CosmosModule]: CosmosLogo,
   [ProtocolType.Starknet]: StarknetLogo,
 };

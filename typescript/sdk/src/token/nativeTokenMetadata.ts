@@ -22,7 +22,7 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Atom',
     symbol: 'ATOM',
   },
-  [ProtocolType.CosmosNative]: {
+  [ProtocolType.CosmosModule]: {
     decimals: 6,
     denom: 'uatom',
     name: 'Atom',

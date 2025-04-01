@@ -86,7 +86,7 @@ export function useAccounts(
         [ProtocolType.Ethereum]: evmAccountInfo,
         [ProtocolType.Sealevel]: solAccountInfo,
         [ProtocolType.Cosmos]: cosmAccountInfo,
-        [ProtocolType.CosmosNative]: cosmAccountInfo,
+        [ProtocolType.CosmosModule]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
       },
       readyAccounts,
@@ -158,7 +158,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Ethereum]: evmWallet,
       [ProtocolType.Sealevel]: solWallet,
       [ProtocolType.Cosmos]: cosmosWallet,
-      [ProtocolType.CosmosNative]: cosmosWallet,
+      [ProtocolType.CosmosModule]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
     }),
     [evmWallet, solWallet, cosmosWallet, starknetWallet],
@@ -176,7 +176,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Ethereum]: onConnectEthereum,
       [ProtocolType.Sealevel]: onConnectSolana,
       [ProtocolType.Cosmos]: onConnectCosmos,
-      [ProtocolType.CosmosNative]: onConnectCosmos,
+      [ProtocolType.CosmosModule]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
     }),
     [onConnectEthereum, onConnectSolana, onConnectCosmos, onConnectStarknet],
@@ -214,8 +214,8 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Cosmos,
         disconnectCosmos,
       ),
-      [ProtocolType.CosmosNative]: onClickDisconnect(
-        ProtocolType.CosmosNative,
+      [ProtocolType.CosmosModule]: onClickDisconnect(
+        ProtocolType.CosmosModule,
         disconnectCosmos,
       ),
       [ProtocolType.Starknet]: onClickDisconnect(
@@ -250,7 +250,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Ethereum]: evmChain,
         [ProtocolType.Sealevel]: solChain,
         [ProtocolType.Cosmos]: cosmChain,
-        [ProtocolType.CosmosNative]: cosmChain,
+        [ProtocolType.CosmosModule]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
       },
       readyChains,
@@ -287,7 +287,7 @@ export function useTransactionFns(
         sendTransaction: onSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
-      [ProtocolType.CosmosNative]: {
+      [ProtocolType.CosmosModule]: {
         sendTransaction: onSendCosmTx,
         switchNetwork: onSwitchCosmNetwork,
       },
