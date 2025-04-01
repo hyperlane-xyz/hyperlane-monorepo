@@ -2866,10 +2866,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": {
-          "amount": "0.03",
-          "decimals": 1
-        }
+        "amount": "0.03"
       },
       "index": {
         "chunk": 10,

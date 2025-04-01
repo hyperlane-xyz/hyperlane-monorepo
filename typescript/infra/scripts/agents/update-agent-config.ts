@@ -80,7 +80,9 @@ export async function writeAgentConfig(
             const amount =
               environment === 'mainnet3'
                 ? mainnet3GasPrices[chain as keyof typeof mainnet3GasPrices]
-                : testnet4GasPrices[chain as keyof typeof testnet4GasPrices];
+                    .amount
+                : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
+                    .amount;
             return [chain, { gasPrice: { denom, amount } }];
           }
         }),
