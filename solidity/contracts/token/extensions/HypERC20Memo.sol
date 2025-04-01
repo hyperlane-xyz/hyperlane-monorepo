@@ -26,7 +26,7 @@ contract HypERC20Memo is HypERC20 {
         require(_pendingMemo.length == 0, "Transfer in progress");
 
         _pendingMemo = _memo;
-        bytes32 messageId = super._transferRemote(
+        bytes32 messageId = super.transferRemote(
             _destination,
             _recipient,
             _amount
