@@ -833,9 +833,50 @@ contract HypERC20MemoTest is HypTokenTest {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
 
         vm.prank(ALICE);
+        bytes memory testMemo = "test memo";
+
         primaryToken.approve(address(localToken), TRANSFER_AMT);
+
+        // Set memo before transfer
+        HypERC20Memo(address(localToken)).setMemoForNextTransfer(testMemo);
+
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+
+        // Check memo was included in message
+        bytes memory message = remoteMailbox.inboundMessages(0);
+        bytes memory body;
+
+        assembly {
+            // Get the length of the message
+            let messageLength := mload(message)
+            // Get the length of the body (everything after 77 bytes)
+            let bodyLength := sub(messageLength, 77)
+            // Create a new bytes array for the body
+            body := mload(0x40)
+            mstore(body, bodyLength)
+            // Copy the body bytes
+            let src := add(add(message, 0x20), 77)
+            let dest := add(body, 0x20)
+            for {
+                let i := 0
+            } lt(i, bodyLength) {
+                i := add(i, 0x20)
+            } {
+                mstore(add(dest, i), mload(add(src, i)))
+            }
+            mstore(0x40, add(add(body, 0x20), bodyLength))
+        }
+
+        // Unpack the token message components
+        (bytes32 recipient, uint256 amount, bytes memory metadata) = abi.decode(
+            body,
+            (bytes32, uint256, bytes)
+        );
+
+        assertEq(recipient, BOB.addressToBytes32());
+        assertEq(amount, TRANSFER_AMT);
+        assertEq(metadata, testMemo);
     }
 
     function testRemoteTransfer_invalidAllowance() public {
