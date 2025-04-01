@@ -1198,6 +1198,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  kyvetestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   linea: {
     threshold: 2,
     validators: [
