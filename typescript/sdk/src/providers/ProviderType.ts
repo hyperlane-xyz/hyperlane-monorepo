@@ -48,7 +48,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
-  [ProtocolType.CosmosModule]: ProviderType.CosmJsWasm,
+  [ProtocolType.CosmosNative]: ProviderType.CosmJsWasm,
   [ProtocolType.Starknet]: ProviderType.Starknet,
 };
 
@@ -73,7 +73,7 @@ type ProtocolTypesMapping = {
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
   };
-  [ProtocolType.CosmosModule]: {
+  [ProtocolType.CosmosNative]: {
     transaction: CosmJsWasmTransaction;
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
