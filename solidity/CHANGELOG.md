@@ -1,5 +1,22 @@
 # @hyperlane-xyz/core
 
+## 6.1.0
+
+### Minor Changes
+
+- cd0424595: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+### Patch Changes
+
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/utils@11.0.0
+
 ## 6.0.4
 
 ### Patch Changes
