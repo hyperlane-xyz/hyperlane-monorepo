@@ -1,6 +1,6 @@
 ---
-'@hyperlane-xyz/sdk': minor
-'@hyperlane-xyz/core': minor
+'@hyperlane-xyz/sdk': major
+'@hyperlane-xyz/core': major
 ---
 
 Remove unused FastTokenRouter
