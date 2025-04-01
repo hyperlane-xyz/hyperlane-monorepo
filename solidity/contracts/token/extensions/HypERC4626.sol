@@ -60,31 +60,6 @@ contract HypERC4626 is HypERC20 {
 
     // ============ Public Functions ============
 
-    /// Override transfer to handle underlying amounts while using shares internally
-    /// @inheritdoc ERC20Upgradeable
-    /// @dev the Transfer event emitted from ERC20Upgradeable will be in terms of shares not assets, so it may be misleading
-    function transfer(
-        address to,
-        uint256 amount
-    ) public virtual override returns (bool) {
-        _transfer(_msgSender(), to, assetsToShares(amount));
-        return true;
-    }
-
-    /// Override transferFrom to handle underlying amounts while using shares internally
-    /// @inheritdoc ERC20Upgradeable
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) public virtual override returns (bool) {
-        address spender = _msgSender();
-        uint256 shares = assetsToShares(amount);
-        _spendAllowance(sender, spender, amount);
-        _transfer(sender, recipient, shares);
-        return true;
-    }
-
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
     function totalSupply() public view virtual override returns (uint256) {
@@ -132,6 +107,15 @@ contract HypERC4626 is HypERC20 {
     ) internal view virtual override returns (uint256) {
         return
             FungibleTokenRouter._outboundAmount(assetsToShares(_localAmount));
+    }
+
+    // @inheritdoc ERC20Upgradeable
+    function _transfer(
+        address _from,
+        address _to,
+        uint256 _amount
+    ) internal virtual override {
+        super._transfer(_from, _to, assetsToShares(_amount));
     }
 
     // `_inboundAmount` implementation reused from `FungibleTokenRouter` unchanged because message
