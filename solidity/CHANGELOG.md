@@ -1,5 +1,13 @@
 # @hyperlane-xyz/core
 
+## 6.0.4
+
+### Patch Changes
+
+- fff9cbf57: pin zksync deps from ccip package
+- Updated dependencies [b8d95fc95]
+  - @hyperlane-xyz/utils@10.0.0
+
 ## 6.0.3
 
 ### Patch Changes
