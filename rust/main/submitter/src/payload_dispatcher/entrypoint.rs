@@ -125,6 +125,41 @@ mod tests {
         ) -> DbResult<Option<TransactionId>> {
             todo!()
         }
+
+        async fn retrieve_payload_index_by_id(
+            &self,
+            payload_id: &PayloadId,
+        ) -> DbResult<Option<u32>> {
+            todo!()
+        }
+
+        async fn store_payload_id_by_index(
+            &self,
+            index: u32,
+            payload_id: &PayloadId,
+        ) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>> {
+            todo!()
+        }
+
+        async fn store_highest_index(&self, index: u32) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_highest_index(&self) -> DbResult<u32> {
+            todo!()
+        }
+
+        async fn store_payload_index_by_id(
+            &self,
+            index: u32,
+            payload_id: &PayloadId,
+        ) -> DbResult<()> {
+            todo!()
+        }
     }
 
     #[async_trait]
@@ -138,6 +173,44 @@ mod tests {
 
         async fn store_transaction_by_id(&self, _tx: &Transaction) -> DbResult<()> {
             unimplemented!()
+        }
+
+        async fn retrieve_transaction_id_by_index(
+            &self,
+            index: u32,
+        ) -> DbResult<Option<TransactionId>> {
+            todo!()
+        }
+
+        async fn store_highest_index(&self, index: u32) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_highest_index(&self) -> DbResult<u32> {
+            todo!()
+        }
+
+        async fn store_transaction_id_by_index(
+            &self,
+            index: u32,
+            tx_id: &TransactionId,
+        ) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_transaction_index_by_id(
+            &self,
+            id: &TransactionId,
+        ) -> DbResult<Option<u32>> {
+            todo!()
+        }
+
+        async fn store_transaction_index_by_id(
+            &self,
+            index: u32,
+            tx_id: &TransactionId,
+        ) -> DbResult<()> {
+            todo!()
         }
     }
 

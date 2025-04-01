@@ -14,6 +14,7 @@ const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 const NONCE_BY_TX_ID_STORAGE_PREFIX: &str = "nonce_by_tx_id_";
 
 const TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX: &str = "tx_index_by_id_";
+const TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX: &str = "tx_id_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
 
 #[async_trait]
@@ -25,9 +26,25 @@ pub trait TransactionDb: Send + Sync {
     /// Store a transaction by its unique ID
     async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()>;
 
+    /// Store a transaction by its unique ID
+    async fn retrieve_transaction_index_by_id(&self, id: &TransactionId) -> DbResult<Option<u32>>;
+
+    async fn store_transaction_index_by_id(
+        &self,
+        index: u32,
+        tx_id: &TransactionId,
+    ) -> DbResult<()>;
+
     /// Retrieve a transaction by its unique ID
     async fn retrieve_transaction_id_by_index(&self, index: u32)
         -> DbResult<Option<TransactionId>>;
+
+    /// Retrieve a transaction by its unique ID
+    async fn store_transaction_id_by_index(
+        &self,
+        index: u32,
+        tx_id: &TransactionId,
+    ) -> DbResult<()>;
 
     /// Retrieve a transaction by its unique ID
     async fn retrieve_transaction_by_index(&self, index: u32) -> DbResult<Option<Transaction>> {
@@ -56,7 +73,60 @@ impl TransactionDb for HyperlaneRocksDB {
     }
 
     async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()> {
+        if self
+            .retrieve_transaction_index_by_id(&tx.id)
+            .await?
+            .is_none()
+        {
+            let highest_index = self.retrieve_highest_index().await?;
+            let tx_index = highest_index + 1;
+            self.store_highest_index(tx_index).await?;
+            self.store_transaction_id_by_index(tx_index, &tx.id).await?;
+            self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, &tx_index, &tx.id)?;
+        }
         self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, &tx.id, tx)
+    }
+
+    async fn retrieve_transaction_index_by_id(&self, id: &TransactionId) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, id)
+    }
+
+    async fn store_highest_index(&self, index: u32) -> DbResult<()> {
+        // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
+        self.store_value_by_key(
+            HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX,
+            &bool::default(),
+            &index,
+        )
+    }
+
+    async fn retrieve_highest_index(&self) -> DbResult<u32> {
+        // return the default value (0) if no index has been stored yet
+        self.retrieve_value_by_key(HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX, &bool::default())
+            .map(|index| index.unwrap_or_default())
+    }
+
+    async fn store_transaction_id_by_index(
+        &self,
+        index: u32,
+        tx_id: &TransactionId,
+    ) -> DbResult<()> {
+        self.store_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, tx_id, &index)
+    }
+
+    async fn store_transaction_index_by_id(
+        &self,
+        index: u32,
+        tx_id: &TransactionId,
+    ) -> DbResult<()> {
+        self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, &index, tx_id)
+    }
+
+    async fn retrieve_transaction_id_by_index(
+        &self,
+        index: u32,
+    ) -> DbResult<Option<TransactionId>> {
+        self.retrieve_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index)
     }
 }
 
