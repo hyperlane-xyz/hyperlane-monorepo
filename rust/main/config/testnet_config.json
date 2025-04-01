@@ -2839,6 +2839,63 @@
       "testRecipient": "0x86abe4c3493A1eE0Aa42f0231b5594D42aBdA36e",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0xF8E6c1222049AAb68E410E43242449994Cb64996"
+    },
+    "kyvetestnet": {
+      "bech32Prefix": "kyve",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.kyve.network/kaon",
+          "family": "other",
+          "name": "Ping.Pub",
+          "url": "https://explorer.kyve.network/kaon"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 6,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "tkyve",
+      "chainId": "kaon-1",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "KYVE",
+        "url": "https://kyve.network"
+      },
+      "displayName": "KYVE Testnet",
+      "domainId": 1262571342,
+      "gasPrice": {
+        "denom": "tkyve",
+        "amount": {
+          "amount": "0.03",
+          "decimals": 1
+        }
+      },
+      "index": {
+        "chunk": 10,
+        "from": 11470395
+      },
+      "isTestnet": true,
+      "name": "kyvetestnet",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "tkyve",
+        "name": "KYVE",
+        "symbol": "KYVE"
+      },
+      "protocol": "cosmos",
+      "restUrls": [
+        {
+          "http": "https://api.kaon.kyve.network"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://rpc.kaon.kyve.network"
+        }
+      ],
+      "slip44": 118,
+      "technicalStack": "other"
     }
   },
   "kyvetestnet": {
