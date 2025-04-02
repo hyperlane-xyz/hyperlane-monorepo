@@ -9,7 +9,7 @@ import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { DerivedHookConfig } from '../hook/EvmHookReader.js';
+import { DerivedHookConfig } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,

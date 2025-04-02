@@ -31,7 +31,8 @@ import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
 } from '../contracts/types.js';
-import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { DerivedHookConfig } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';

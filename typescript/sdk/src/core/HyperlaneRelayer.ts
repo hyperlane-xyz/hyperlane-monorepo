@@ -15,8 +15,8 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { HookConfigSchema } from '../hook/types.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
