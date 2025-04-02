@@ -33,16 +33,20 @@ use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::chains::sealevel::conf::{create_keypair, get_connection_conf};
-use crate::chain_tx_adapter::chains::sealevel::transaction::{
-    Precursor, TransactionFactory, Update,
+use crate::chain_tx_adapter::{
+    adapter::TxBuildingResult,
+    chains::sealevel::conf::{create_keypair, get_connection_conf},
 };
-use crate::chain_tx_adapter::chains::sealevel::SealevelTxPrecursor;
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit};
 use crate::payload::{FullPayload, VmSpecificPayloadData};
 use crate::transaction::{
     SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,
 };
+use crate::{
+    chain_tx_adapter::chains::sealevel::transaction::{Precursor, TransactionFactory, Update},
+    error::SubmitterError,
+};
+use crate::{chain_tx_adapter::chains::sealevel::SealevelTxPrecursor, payload::PayloadDetails};
 
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
@@ -148,8 +152,11 @@ impl SealevelTxAdapter {
             .max_batch_size)
     }
 
-    async fn estimate(&self, precursor: SealevelTxPrecursor) -> ChainResult<SealevelTxPrecursor> {
-        let estimate = self
+    async fn estimate(
+        &self,
+        precursor: SealevelTxPrecursor,
+    ) -> ChainResult<Option<SealevelTxPrecursor>> {
+        let Some(estimate) = self
             .provider
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
@@ -157,8 +164,14 @@ impl SealevelTxAdapter {
                 &*self.submitter,
                 &*self.oracle,
             )
-            .await?;
-        Ok(SealevelTxPrecursor::new(precursor.instruction, estimate))
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(SealevelTxPrecursor::new(
+            precursor.instruction,
+            estimate,
+        )))
     }
 
     async fn create_unsigned_transaction(
@@ -200,15 +213,23 @@ impl SealevelTxAdapter {
 
 #[async_trait]
 impl AdaptsChain for SealevelTxAdapter {
-    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
+    async fn estimate_gas_limit(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<Option<GasLimit>, SubmitterError> {
         info!(?payload, "estimating payload");
         let not_estimated = SealevelTxPrecursor::from_payload(payload);
-        let estimated = self.estimate(not_estimated).await?;
+        let Some(estimated) = self.estimate(not_estimated).await? else {
+            return Ok(None);
+        };
         info!(?payload, ?estimated, "estimated payload");
-        Ok(estimated.estimate.compute_units.into())
+        Ok(Some(estimated.estimate.compute_units.into()))
     }
 
-    async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>> {
+    async fn build_transactions(
+        &self,
+        payloads: &[FullPayload],
+    ) -> Result<Vec<TxBuildingResult>, SubmitterError> {
         info!(?payloads, "building transactions for payloads");
         let payloads_and_precursors = payloads
             .iter()
@@ -217,16 +238,22 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let estimated = self.estimate(not_estimated).await?;
+            let Some(estimated) = self.estimate(not_estimated).await? else {
+                transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
+                continue;
+            };
             let transaction = TransactionFactory::build(payload, estimated);
-            transactions.push(transaction);
+            transactions.push(TxBuildingResult::new(
+                vec![payload.details.clone()],
+                Some(transaction),
+            ))
         }
 
         info!(?payloads, ?transactions, "built transactions for payloads");
         Ok(transactions)
     }
 
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool> {
+    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError> {
         info!(?tx, "simulating transaction");
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
@@ -239,10 +266,15 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(success)
     }
 
-    async fn submit(&self, tx: &mut Transaction) -> Result<()> {
+    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         info!(?tx, "submitting transaction");
         let not_estimated = tx.precursor();
-        let estimated = self.estimate(not_estimated.clone()).await?;
+        // TODO: the `estimate` call shouldn't happen here - the `Transaction` argument should already contain the precursor,
+        // set in the `build_transactions` method
+        let estimated = self
+            .estimate(not_estimated.clone())
+            .await?
+            .ok_or(eyre::eyre!("The transaction failed to be simulated"))?;
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
         let signature = self
             .submitter
@@ -275,13 +307,15 @@ impl AdaptsChain for SealevelTxAdapter {
         info!(?tx, "confirmed transaction with commitment level processed");
 
         if !executed {
-            bail!("Process transaction is not confirmed with commitment level processed")
+            return Err(SubmitterError::TxSubmissionError(
+                "Process transaction is not confirmed with commitment level processed".to_string(),
+            ));
         }
 
         Ok(())
     }
 
-    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus> {
+    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
         info!(?tx, "checking status of transaction");
 
         let h512 = tx.hash.ok_or(eyre::eyre!(
@@ -327,7 +361,10 @@ impl AdaptsChain for SealevelTxAdapter {
         }
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>> {
+    async fn reverted_payloads(
+        &self,
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
         // Dummy implementation of reverted payloads for Sealevel since we don't have batching for Sealevel
         Ok(Vec::new())
     }
