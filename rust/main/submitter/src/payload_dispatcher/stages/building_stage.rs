@@ -135,7 +135,7 @@ mod tests {
         };
 
         // give the building stage 1 second to send the transaction(s) to the receiver
-        let _ = tokio::select! {
+        tokio::select! {
             // this arm runs indefinitely
             res = building_stage.run() => res,
             // this arm runs until all sent payloads are sent as txs
