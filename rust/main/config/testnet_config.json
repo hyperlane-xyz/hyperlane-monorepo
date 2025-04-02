@@ -2037,6 +2037,49 @@
         "from": 86008
       }
     },
+    "kyvealpha": {
+      "bech32Prefix": "kyve",
+      "blockExplorers": [],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 5,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "ukyve",
+      "chainId": "kyve-alpha",
+      "contractAddressBytes": 20,
+      "displayName": "KYVEAlpha",
+      "domainId": 75898669,
+      "gasCurrencyCoinGeckoId": "kyve-network",
+      "gasPrice": {
+        "amount": "0.02",
+        "denom": "ukyve"
+      },
+      "interchainGasPaymaster": "0x5b97fe8b2b8b2ef118e6540ce2ee38b68ee9d1250d43ac53febef300300c345c",
+      "mailbox": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "merkleTreeHook": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "name": "kyvealpha",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "ukyve",
+        "name": "KYVE",
+        "symbol": "KYVE"
+      },
+      "protocol": "cosmosnative",
+      "apiUrls": [
+        {
+          "http": "http://3.75.39.208:1318"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "http://3.75.39.208:26670"
+        }
+      ],
+      "validatorAnnounce": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "technicalStack": "other",
+      "isTestnet": true
+    },
     "sonicsvmtestnet": {
       "blockExplorers": [
         {

@@ -1,5 +1,14 @@
 # @hyperlane-xyz/cli
 
+## 11.0.0
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+
 ## 10.0.0
 
 ### Patch Changes
