@@ -133,7 +133,7 @@ async fn test_estimate_gas_limit() {
     let result = adapter.estimate_gas_limit(&payload).await;
 
     // then
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
     assert_eq!(expected, result.unwrap().unwrap());
 }
 
@@ -149,7 +149,7 @@ async fn test_build_transactions() {
     let result = adapter.build_transactions(&[payload.clone()]).await;
 
     // then
-    assert!(matches!(result, Ok(_)));
+    assert!(result.is_ok());
     let actual = payload_details_and_data_in_transaction(result);
     assert_eq!(expected, actual);
 }
@@ -234,7 +234,7 @@ fn mock_submitter() -> MockSubmitter {
     let mut submitter = MockSubmitter::new();
     submitter
         .expect_send_transaction()
-        .returning(move |_, _| Ok(signature.clone()));
+        .returning(move |_, _| Ok(signature));
     submitter
         .expect_wait_for_transaction_confirmation()
         .returning(move |_| Ok(()));
@@ -297,11 +297,11 @@ fn payload() -> FullPayload {
     let data = VmSpecificPayloadData::Svm(SealevelPayload {
         instruction: instruction(),
     });
-    let payload = FullPayload {
+
+    FullPayload {
         data,
         ..Default::default()
-    };
-    payload
+    }
 }
 
 fn precursor() -> SealevelTxPrecursor {
