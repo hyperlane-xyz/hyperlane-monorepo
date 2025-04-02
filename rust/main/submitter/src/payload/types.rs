@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
-use crate::chain_tx_adapter::SealevelPayload;
+use crate::{chain_tx_adapter::SealevelPayload, transaction::TransactionStatus};
 
 pub type PayloadId = UniqueIdentifier;
 type Address = H256;
@@ -50,22 +50,38 @@ impl FullPayload {
     pub fn id(&self) -> &PayloadId {
         &self.details.id
     }
+
+    #[cfg(test)]
+    pub fn random() -> Self {
+        let id = PayloadId::random();
+        let details = PayloadDetails {
+            id: id.clone(),
+            metadata: format!("payload-{}", id.to_string()),
+            success_criteria: None,
+        };
+        FullPayload {
+            details,
+            data: VmSpecificPayloadData::default(),
+            to: Address::zero(),
+            status: PayloadStatus::default(),
+            value: None,
+            inclusion_soft_deadline: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Default)]
 pub enum PayloadStatus {
     #[default]
     ReadyToSubmit,
-    PendingInclusion,
-    Included,
-    Finalized,
-    NotFound,
+    InTransaction(TransactionStatus),
     Dropped(DropReason),
     Retry(RetryReason),
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum DropReason {
+    FailedToBuildAsTransaction,
     FailedSimulation,
     Reverted,
     UnhandledError,

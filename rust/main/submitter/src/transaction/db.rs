@@ -11,6 +11,9 @@ use super::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
+// The `nonce` → `tx_uuid` store is updated as well
+const NONCE_BY_TX_ID_STORAGE_PREFIX: &str = "nonce_by_tx_id_";
+
 #[async_trait]
 pub trait TransactionDb: Send + Sync {
     /// Retrieve a transaction by its unique ID
