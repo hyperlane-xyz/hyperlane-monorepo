@@ -32,6 +32,7 @@ impl ChainTxAdapterFactory {
                 metrics,
             )?),
             Cosmos => Box::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
+            CosmosNative => todo!(),
         };
 
         Ok(adapter)
