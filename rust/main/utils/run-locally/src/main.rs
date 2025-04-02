@@ -62,6 +62,9 @@ mod cosmos;
 #[cfg(feature = "sealevel")]
 mod sealevel;
 
+#[cfg(feature = "cosmosnative")]
+mod cosmosnative;
+
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
     fs::create_dir_all(dir).unwrap();

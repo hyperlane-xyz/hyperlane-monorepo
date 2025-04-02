@@ -1,5 +1,22 @@
 # @hyperlane-xyz/sdk
 
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+### Minor Changes
+
+- 888d180b6: Fixes a small bug when initializing a token adapter that caused the wrong adapter to be chosen when interacting with svm chains + add new warp ids for new soon wr deployments
+
+### Patch Changes
+
+- Updated dependencies [cd0424595]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/core@6.1.0
+  - @hyperlane-xyz/utils@11.0.0
+
 ## 10.0.0
 
 ### Major Changes
