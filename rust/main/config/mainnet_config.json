@@ -930,7 +930,7 @@
       "proxyAdmin": "0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659",
       "rpcUrls": [
         {
-          "http": "https://rpc.ankr.com/eth"
+          "http": "https://eth.llamarpc.com"
         },
         {
           "http": "https://ethereum.publicnode.com"
