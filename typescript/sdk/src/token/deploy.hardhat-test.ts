@@ -151,46 +151,57 @@ describe('TokenDeployer', async () => {
         checker.expectEmpty();
       });
 
-      it(`should check owner of collateral`, async () => {
+      it(`should not output "collateralToken" violation when ownerOverrides is unset`, async () => {
         if (type !== TokenType.XERC20) {
           return;
         }
 
-        const previousOwner = await xerc20.owner();
         await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
         await checker.check();
         checker.expectViolations({
           [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
         });
+      });
 
-        // Create a new Checker and initialize it with config + ownerOverrides
+      it('should output "collateralToken" violation when ownerOverrides.collateralToken is set', async () => {
+        if (type !== TokenType.XERC20) {
+          return;
+        }
+        const previousOwner = await xerc20.owner();
         const configWithOverrides = addOverridesToConfig(config, {
           collateralToken: previousOwner,
         });
+
         const checkerWithOwnerOverrides = new HypERC20Checker(
           multiProvider,
           app,
           configWithOverrides,
         );
+
+        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
         await checkerWithOwnerOverrides.check();
         checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
         });
       });
 
-      it(`should check owner of collateral proxyAdmin`, async () => {
+      it(`should not output "collateralProxyAdmin" violation when ownerOverrides is unset`, async () => {
         if (type !== TokenType.XERC20) {
           return;
         }
 
-        const previousOwner = await admin.owner();
         await admin.transferOwnership(ethers.Wallet.createRandom().address);
         await checker.check();
         checker.expectViolations({
           [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
         });
+      });
 
-        // Create a new Checker and initialize it with config + ownerOverrides
+      it('should output "collateralProxyAdmin" violation when ownerOverrides.collateralProxyAdmin is set', async () => {
+        if (type !== TokenType.XERC20) {
+          return;
+        }
+        const previousOwner = await admin.owner();
         const configWithOverrides = addOverridesToConfig(config, {
           collateralProxyAdmin: previousOwner,
         });
@@ -199,6 +210,8 @@ describe('TokenDeployer', async () => {
           app,
           configWithOverrides,
         );
+
+        await admin.transferOwnership(ethers.Wallet.createRandom().address);
         await checkerWithOwnerOverrides.check();
         checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
