@@ -81,14 +81,25 @@ impl TransactionDb for HyperlaneRocksDB {
             let highest_index = self.retrieve_highest_index().await?;
             let tx_index = highest_index + 1;
             self.store_highest_index(tx_index).await?;
+            self.store_transaction_index_by_id(tx_index, &tx.id).await?;
             self.store_transaction_id_by_index(tx_index, &tx.id).await?;
-            self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, &tx_index, &tx.id)?;
         }
         self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, &tx.id, tx)
     }
 
-    async fn retrieve_transaction_index_by_id(&self, id: &TransactionId) -> DbResult<Option<u32>> {
-        self.retrieve_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, id)
+    async fn retrieve_transaction_index_by_id(
+        &self,
+        tx_id: &TransactionId,
+    ) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, tx_id)
+    }
+
+    async fn store_transaction_index_by_id(
+        &self,
+        index: u32,
+        tx_id: &TransactionId,
+    ) -> DbResult<()> {
+        self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, tx_id, &index)
     }
 
     async fn store_highest_index(&self, index: u32) -> DbResult<()> {
@@ -111,15 +122,7 @@ impl TransactionDb for HyperlaneRocksDB {
         index: u32,
         tx_id: &TransactionId,
     ) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, tx_id, &index)
-    }
-
-    async fn store_transaction_index_by_id(
-        &self,
-        index: u32,
-        tx_id: &TransactionId,
-    ) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_INDEX_BY_ID_STORAGE_PREFIX, &index, tx_id)
+        self.store_value_by_key(TRANSACTION_ID_BY_INDEX_STORAGE_PREFIX, &index, tx_id)
     }
 
     async fn retrieve_transaction_id_by_index(
@@ -155,5 +158,63 @@ impl Decode for Transaction {
                 format!("Failed to deserialize. Error: {}", err),
             ))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+
+    use crate::payload::FullPayload;
+    use crate::payload_dispatcher::test_utils::dummy_tx;
+    use crate::transaction::TransactionStatus;
+
+    use super::TransactionDb;
+
+    fn tmp_db() -> Arc<dyn TransactionDb> {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let domain = KnownHyperlaneDomain::Arbitrum.into();
+        let rocksdb = Arc::new(HyperlaneRocksDB::new(&domain, db));
+        rocksdb
+    }
+
+    #[tokio::test]
+    async fn test_index_is_set_correctly() {
+        let num_txs = 10;
+        let db = tmp_db();
+
+        for i in 0..num_txs {
+            let payload = FullPayload::random();
+            let mut tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
+
+            // storing to this new tx ID for the first time should create a new
+            db.store_transaction_by_id(&tx).await.unwrap();
+            let expected_index = i + 1;
+            let retrieved_tx = db
+                .retrieve_transaction_by_index(expected_index as u32)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(retrieved_tx, tx);
+            let highest_index = db.retrieve_highest_index().await.unwrap();
+            assert_eq!(highest_index, expected_index as u32);
+
+            // storing to this new tx ID again should not create a new
+            // highest index
+            tx.status = TransactionStatus::Included;
+            db.store_transaction_by_id(&tx).await.unwrap();
+            let retrieved_tx = db
+                .retrieve_transaction_by_index(expected_index as u32)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(retrieved_tx, tx);
+            let highest_index = db.retrieve_highest_index().await.unwrap();
+            assert_eq!(highest_index, expected_index as u32);
+        }
     }
 }

@@ -130,7 +130,7 @@ impl PayloadDb for HyperlaneRocksDB {
     }
 
     async fn store_payload_index_by_id(&self, index: u32, payload_id: &PayloadId) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX, &index, payload_id)
+        self.store_value_by_key(PAYLOAD_INDEX_BY_ID_STORAGE_PREFIX, payload_id, &index)
     }
 
     async fn store_highest_index(&self, index: u32) -> DbResult<()> {
@@ -153,7 +153,7 @@ impl PayloadDb for HyperlaneRocksDB {
     }
 
     async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>> {
-        self.retrieve_value_by_key(HIGHEST_PAYLOAD_INDEX_STORAGE_PREFIX, &index)
+        self.retrieve_value_by_key(PAYLOAD_ID_BY_INDEX_STORAGE_PREFIX, &index)
     }
 }
 
@@ -182,5 +182,63 @@ impl Decode for FullPayload {
                 format!("Failed to deserialize. Error: {}", err),
             ))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+
+    use crate::{
+        payload::{FullPayload, PayloadStatus},
+        transaction::TransactionStatus,
+    };
+
+    use super::PayloadDb;
+
+    fn tmp_db() -> Arc<dyn PayloadDb> {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let domain = KnownHyperlaneDomain::Arbitrum.into();
+        let rocksdb = Arc::new(HyperlaneRocksDB::new(&domain, db));
+        rocksdb
+    }
+
+    #[tokio::test]
+    async fn test_index_is_set_correctly() {
+        let num_payloads = 10;
+        let db = tmp_db();
+
+        for i in 0..num_payloads {
+            let mut payload = FullPayload::random();
+
+            // storing to this new payload ID for the first time should create a new
+            // highest index
+            db.store_payload_by_id(&payload).await.unwrap();
+            let expected_payload_index = (i + 1) as u32;
+            let retrieved_payload = db
+                .retrieve_payload_by_index(expected_payload_index)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(retrieved_payload, payload);
+            let highest_index = db.retrieve_highest_index().await.unwrap();
+            assert_eq!(highest_index, expected_payload_index);
+
+            // storing to this payload ID again should not create a new highest index
+            payload.status = PayloadStatus::InTransaction(TransactionStatus::PendingInclusion);
+            db.store_payload_by_id(&payload).await.unwrap();
+            let retrieved_payload = db
+                .retrieve_payload_by_index(expected_payload_index)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(retrieved_payload, payload);
+            let highest_index = db.retrieve_highest_index().await.unwrap();
+            assert_eq!(highest_index, expected_payload_index);
+        }
     }
 }

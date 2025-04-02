@@ -81,7 +81,7 @@ mod tests {
     use super::*;
     use crate::chain_tx_adapter::*;
     use crate::payload::*;
-    use crate::payload_dispatcher::test_utils::tests::MockAdapter;
+    use crate::payload_dispatcher::test_utils::MockAdapter;
     use crate::transaction::*;
 
     struct MockDb {

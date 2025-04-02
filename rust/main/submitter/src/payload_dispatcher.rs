@@ -5,7 +5,8 @@ mod db_loader;
 mod dispatcher;
 mod entrypoint;
 mod stages;
-mod test_utils;
+#[cfg(test)]
+pub mod test_utils;
 
 pub use db_loader::*;
 pub use dispatcher::*;

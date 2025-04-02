@@ -174,7 +174,7 @@ mod tests {
     use super::*;
     use crate::{
         payload::{PayloadDb, PayloadId},
-        payload_dispatcher::test_utils::tests::{
+        payload_dispatcher::test_utils::{
             create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
         },
         transaction::{Transaction, TransactionDb, TransactionId},

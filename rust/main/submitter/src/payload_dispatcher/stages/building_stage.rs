@@ -115,7 +115,7 @@ mod tests {
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDb, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
-            test_utils::tests::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
+            test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
             PayloadDispatcherState,
         },
         transaction::{Transaction, TransactionDb, TransactionStatus},
