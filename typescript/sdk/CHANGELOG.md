@@ -1,5 +1,42 @@
 # @hyperlane-xyz/sdk
 
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+### Minor Changes
+
+- 888d180b6: Fixes a small bug when initializing a token adapter that caused the wrong adapter to be chosen when interacting with svm chains + add new warp ids for new soon wr deployments
+
+### Patch Changes
+
+- Updated dependencies [cd0424595]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/core@6.1.0
+  - @hyperlane-xyz/utils@11.0.0
+
+## 10.0.0
+
+### Major Changes
+
+- 4fd5623b8: Fixes a bug where `SealevelHypCollateralAdapter` initialization logic erroneously set the `isSpl2022` property to false.
+
+  It updates the `Token.getHypAdapter` and `Token.getAdapter` methods to be async so that before creating an instance of the `SealevelHypCollateralAdapter` class, the collateral account info can be retrieved on chain to set the correct spl standard.
+
+### Minor Changes
+
+- 7dbf7e4fa: Deploy to cotitestnet, plumetestnet2, modetestnet.
+- 28ca87293: Deploy to coti, deepbrainchain, nibiru, opbnb, reactive.
+
+### Patch Changes
+
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [fff9cbf57]
+  - @hyperlane-xyz/utils@10.0.0
+  - @hyperlane-xyz/core@6.0.4
+
 ## 9.2.1
 
 ### Patch Changes
@@ -14,6 +51,7 @@
 
 - 7fe739d52: Update default ISMs with new validators for infinityvm, plume, fuse. Add gas buffer when deploying Interchain Accounts. Add gas buffer when transferring ownership of contracts in HyperlaneDeployer. Migrate safe signing from signTransactionHash -> signTypedData.
 - 3e66e8f12: Utils for fetching Starknet chains
+- 4f08670d8: Remove totalSupply from TokenMetadata and introduce initialSupply for synthetic warp routes
 
 ### Patch Changes
 
