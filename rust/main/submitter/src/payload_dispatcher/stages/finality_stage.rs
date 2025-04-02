@@ -33,7 +33,7 @@ pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 #[derive(new)]
 struct FinalityStage {
     pool: FinalityStagePool,
-    inclusion_stage_receiver: mpsc::Receiver<Transaction>,
+    tx_receiver: mpsc::Receiver<Transaction>,
     building_stage_queue: BuildingStageQueue,
     state: PayloadDispatcherState,
 }
@@ -42,14 +42,13 @@ impl FinalityStage {
     pub async fn run(self) {
         let FinalityStage {
             pool,
-            inclusion_stage_receiver,
+            tx_receiver,
             building_stage_queue,
             state,
         } = self;
         let futures = vec![
             tokio::spawn(
-                Self::receive_txs(inclusion_stage_receiver, pool.clone())
-                    .instrument(info_span!("receive_txs")),
+                Self::receive_txs(tx_receiver, pool.clone()).instrument(info_span!("receive_txs")),
             ),
             tokio::spawn(
                 Self::process_txs(pool, building_stage_queue, state)
@@ -65,15 +64,16 @@ impl FinalityStage {
     }
 
     async fn receive_txs(
-        mut inclusion_stage_receiver: mpsc::Receiver<Transaction>,
+        mut tx_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
     ) -> Result<(), DispatcherError> {
         loop {
-            if let Some(tx) = inclusion_stage_receiver.recv().await {
+            if let Some(tx) = tx_receiver.recv().await {
                 pool.lock().await.insert(tx.id.clone(), tx.clone());
                 info!(?tx, "Received transaction");
             } else {
-                sleep(Duration::from_millis(500)).await;
+                error!("Inclusion stage channel closed");
+                return Err(DispatcherError::ChannelClosed);
             }
         }
     }
