@@ -19,5 +19,5 @@ async fn test_estimate_gas_limit() {
 
     // then
     assert!(result.is_ok());
-    assert_eq!(expected, result.unwrap());
+    assert_eq!(expected, result.unwrap().unwrap());
 }
