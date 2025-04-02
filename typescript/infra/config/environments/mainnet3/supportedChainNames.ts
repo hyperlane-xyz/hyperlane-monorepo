@@ -13,7 +13,6 @@ export const mainnet3SupportedChainNames = [
   'artela',
   'arthera',
   'astar',
-  'astarzkevm',
   'aurora',
   'bouncebit',
   'flame',
