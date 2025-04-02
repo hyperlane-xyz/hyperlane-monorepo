@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use hyperlane_base::settings::{ChainConf, ChainConnectionConf, SignerConf};
 use hyperlane_core::config::OperationBatchConfig;
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod};
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod, SubmitterType};
 
 use crate::chain_tx_adapter::chains::sealevel::adapter::tests::common::adapter_config;
 use crate::chain_tx_adapter::AdaptsChain;
@@ -20,6 +20,7 @@ fn test_configuration_fields() {
         signer: Some(SignerConf::HexKey {
             key: Default::default(),
         }),
+        submitter: SubmitterType::Lander,
         estimated_block_time: expected_estimated_block_time.clone(),
         reorg_period: expected_reorg_period.clone(),
         addresses: Default::default(),
