@@ -7,5 +7,5 @@ pragma solidity >=0.6.11;
  **/
 abstract contract PackageVersioned {
     // GENERATED CODE - DO NOT EDIT
-    string public constant PACKAGE_VERSION = "6.0.4";
+    string public constant PACKAGE_VERSION = "6.1.0";
 }
