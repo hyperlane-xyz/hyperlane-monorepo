@@ -79,7 +79,7 @@ impl InclusionStage {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
             // evaluate the pool every block
-            sleep(estimated_block_time).await;
+            sleep(*estimated_block_time).await;
 
             let pool_snapshot = pool.lock().await.clone();
             for (_, tx) in pool_snapshot {
@@ -218,7 +218,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         mock_adapter
             .expect_tx_status()
@@ -245,7 +245,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         mock_adapter
             .expect_tx_status()
@@ -276,7 +276,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         mock_adapter
             .expect_tx_status()
