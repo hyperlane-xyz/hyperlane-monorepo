@@ -18,7 +18,7 @@ use tokio::{
 use tracing::{error, info, info_span, warn, Instrument};
 
 use crate::{
-    chain_tx_adapter::DispatcherError,
+    error::SubmitterError,
     payload::{DropReason, FullPayload, PayloadStatus},
     payload_dispatcher::stages::utils::update_tx_status,
     transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
@@ -31,7 +31,7 @@ use super::{
 pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
 #[derive(new)]
-struct FinalityStage {
+pub struct FinalityStage {
     pool: FinalityStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     building_stage_queue: BuildingStageQueue,
@@ -66,14 +66,14 @@ impl FinalityStage {
     async fn receive_txs(
         mut tx_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
-    ) -> Result<(), DispatcherError> {
+    ) -> Result<(), SubmitterError> {
         loop {
             if let Some(tx) = tx_receiver.recv().await {
                 pool.lock().await.insert(tx.id.clone(), tx.clone());
                 info!(?tx, "Received transaction");
             } else {
                 error!("Inclusion stage channel closed");
-                return Err(DispatcherError::ChannelClosed);
+                return Err(SubmitterError::ChannelClosed);
             }
         }
     }
@@ -82,11 +82,11 @@ impl FinalityStage {
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: PayloadDispatcherState,
-    ) -> Result<(), DispatcherError> {
+    ) -> Result<(), SubmitterError> {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
             // evaluate the pool every block
-            sleep(estimated_block_time).await;
+            sleep(*estimated_block_time).await;
 
             let pool_snapshot = pool.lock().await.clone();
             for (_, tx) in pool_snapshot {
@@ -109,7 +109,7 @@ impl FinalityStage {
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: &PayloadDispatcherState,
-    ) -> Result<(), DispatcherError> {
+    ) -> Result<(), SubmitterError> {
         let tx_status = retry_until_success(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
@@ -162,7 +162,7 @@ impl FinalityStage {
         building_stage_queue: BuildingStageQueue,
         state: &PayloadDispatcherState,
         pool: FinalityStagePool,
-    ) -> Result<(), DispatcherError> {
+    ) -> Result<(), SubmitterError> {
         warn!(?tx, ?drop_reason, "Transaction was dropped");
         // push payloads in tx back to the building stage queue
         update_tx_status(
@@ -227,7 +227,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         mock_adapter
             .expect_tx_status()
@@ -259,7 +259,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         mock_adapter
             .expect_tx_status()
@@ -325,7 +325,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         mock_adapter
             .expect_tx_status()
@@ -352,7 +352,7 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimated_block_time()
-            .returning(|| Duration::from_millis(10));
+            .return_const(Duration::from_millis(10));
 
         // report all txs as reorged
         mock_adapter

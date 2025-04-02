@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use eyre::{eyre, Result};
 
 use crate::{
-    chain_tx_adapter::{DispatcherError, GasLimit},
+    chain_tx_adapter::GasLimit,
+    error::SubmitterError,
     payload::{FullPayload, PayloadId, PayloadStatus},
 };
 
@@ -13,13 +14,12 @@ use super::{PayloadDispatcherSettings, PayloadDispatcherState};
 
 #[async_trait]
 pub trait Entrypoint {
-    async fn send_payload(&self, payloads: &FullPayload) -> Result<(), DispatcherError>;
-    async fn payload_status(&self, payload_id: PayloadId)
-        -> Result<PayloadStatus, DispatcherError>;
+    async fn send_payload(&self, payloads: &FullPayload) -> Result<(), SubmitterError>;
+    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, SubmitterError>;
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, DispatcherError>;
+    ) -> Result<Option<GasLimit>, SubmitterError>;
 }
 
 pub struct PayloadDispatcherEntrypoint {
@@ -40,15 +40,12 @@ impl PayloadDispatcherEntrypoint {
 
 #[async_trait]
 impl Entrypoint for PayloadDispatcherEntrypoint {
-    async fn send_payload(&self, payload: &FullPayload) -> Result<(), DispatcherError> {
+    async fn send_payload(&self, payload: &FullPayload) -> Result<(), SubmitterError> {
         self.inner.payload_db.store_payload_by_id(payload).await?;
         Ok(())
     }
 
-    async fn payload_status(
-        &self,
-        payload_id: PayloadId,
-    ) -> Result<PayloadStatus, DispatcherError> {
+    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, SubmitterError> {
         let payload = self
             .inner
             .payload_db
@@ -56,13 +53,13 @@ impl Entrypoint for PayloadDispatcherEntrypoint {
             .await?;
         payload
             .map(|payload| payload.status)
-            .ok_or(DispatcherError::PayloadNotFound)
+            .ok_or(SubmitterError::PayloadNotFound)
     }
 
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, DispatcherError> {
+    ) -> Result<Option<GasLimit>, SubmitterError> {
         self.inner.adapter.estimate_gas_limit(payload).await
     }
 }

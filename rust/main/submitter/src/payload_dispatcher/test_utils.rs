@@ -12,6 +12,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::chain_tx_adapter::*;
+    use crate::error::SubmitterError;
     use crate::payload::*;
     use crate::transaction::*;
 
@@ -21,16 +22,16 @@ pub(crate) mod tests {
 
         #[async_trait]
         impl AdaptsChain for Adapter {
-            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, DispatcherError>;
-            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>, DispatcherError>;
-            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, DispatcherError>;
-            async fn submit(&self, tx: &mut Transaction) -> Result<(), DispatcherError>;
-            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, DispatcherError>;
-            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, DispatcherError>;
+            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, SubmitterError>;
+            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
+            async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
+            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;
             async fn nonce_gap_exists(&self) -> bool;
-            async fn replace_tx(&self, _tx: &Transaction) -> Result<(), DispatcherError>;
-            fn estimated_block_time(&self) -> std::time::Duration;
-            fn max_batch_size(&self) -> usize;
+            async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError>;
+            fn estimated_block_time(&self) -> &std::time::Duration;
+            fn max_batch_size(&self) -> u32;
         }
     }
 
