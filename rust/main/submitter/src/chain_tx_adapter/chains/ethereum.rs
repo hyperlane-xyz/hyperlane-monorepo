@@ -50,11 +50,11 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    fn estimated_block_time(&self) -> std::time::Duration {
+    fn estimated_block_time(&self) -> &std::time::Duration {
         todo!()
     }
 
-    fn max_batch_size(&self) -> usize {
+    fn max_batch_size(&self) -> u32 {
         todo!()
     }
 }
