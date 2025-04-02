@@ -65,9 +65,10 @@ impl InclusionStage {
         pool: InclusionStagePool,
     ) -> Result<()> {
         loop {
-            let tx = building_stage_receiver.recv().await.unwrap();
-            pool.lock().await.insert(tx.id.clone(), tx.clone());
-            info!(?tx, "Received transaction");
+            if let Some(tx) = building_stage_receiver.recv().await {
+                pool.lock().await.insert(tx.id.clone(), tx.clone());
+                info!(?tx, "Received transaction");
+            }
         }
     }
 
@@ -106,17 +107,18 @@ impl InclusionStage {
 
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
+                info!(tx_id = ?tx.id, ?tx_status, "Transaction is pending inclusion");
                 return Self::process_pending_tx(tx, state, pool).await;
             }
-            TransactionStatus::Included => {
-                Self::update_tx_status(state, &mut tx, tx_status).await?;
+            TransactionStatus::Included | TransactionStatus::Finalized => {
+                Self::update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_id = tx.id.clone();
                 finality_stage_sender.send(tx).await?;
-                info!(?tx_id, "Transaction included in block");
+                info!(?tx_id, ?tx_status, "Transaction included in block");
                 pool.lock().await.remove(&tx_id);
                 return Ok(());
             }
-            TransactionStatus::Finalized | TransactionStatus::Dropped(_) => {
+            TransactionStatus::Dropped(_) => {
                 error!(
                     ?tx,
                     ?tx_status,
