@@ -7,28 +7,20 @@ use std::time::Duration;
 use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
-use hyperlane_core::total_estimated_cost;
-use hyperlane_core::BatchResult;
-use hyperlane_core::ConfirmReason::*;
-use hyperlane_core::PendingOperation;
-use hyperlane_core::PendingOperationStatus;
-use hyperlane_core::ReprepareReason;
-use itertools::Either;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use prometheus::{IntCounter, IntGaugeVec};
-use tokio::sync::broadcast::Sender;
-use tokio::sync::mpsc;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
-use tracing::{info, warn};
+use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
+use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    PendingOperationResult, QueueOperation, TxOutcome,
+    total_estimated_cost, BatchResult, ChainCommunicationError, ChainResult, ConfirmReason::*,
+    HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation, PendingOperationResult,
+    PendingOperationStatus, QueueOperation, ReprepareReason, SubmitterType, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -94,6 +86,8 @@ pub const SUBMITTER_QUEUE_COUNT: usize = 3;
 pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
+    /// Chain configuration
+    conf: ChainConf,
     /// Receiver for new messages to submit.
     rx: Option<mpsc::UnboundedReceiver<QueueOperation>>,
     /// Metrics for serial submitter.
@@ -110,6 +104,7 @@ pub struct SerialSubmitter {
 impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
+        conf: ChainConf,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
         retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
@@ -134,6 +129,7 @@ impl SerialSubmitter {
 
         Self {
             domain,
+            conf,
             // Using Options so that method which needs it can take from struct
             rx: Some(rx),
             metrics,
@@ -149,27 +145,39 @@ impl SerialSubmitter {
         self.prepare_queue.queue.clone()
     }
 
-    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
+    pub fn spawn(self) -> JoinHandle<()> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
         let task_monitor = self.task_monitor.clone();
         let name = Self::task_name("", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
-            .spawn(TaskMonitor::instrument(&task_monitor, async move {
-                self.run().await
-            }))
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move { self.run().await }.instrument(span),
+            ))
             .expect("spawning tokio task from Builder is infallible")
-            .instrument(span)
     }
 
     async fn run(mut self) {
+        use SubmitterType::{Classic, Lander};
+
         let rx_prepare = self.rx.take().expect("rx should be initialised");
+
+        let submit_task = match self.conf.submitter {
+            Classic => self.create_classic_submit_task(),
+            Lander => self.create_lander_submit_task(),
+        };
+
+        let confirm_task = match self.conf.submitter {
+            Classic => self.create_classic_confirm_task(),
+            Lander => self.create_lander_confirm_task(),
+        };
 
         let tasks = [
             self.create_receive_task(rx_prepare),
             self.create_prepare_task(),
-            self.create_submit_task(),
-            self.create_confirm_task(),
+            submit_task,
+            confirm_task,
         ];
 
         if let Err(err) = try_join_all(tasks).await {
@@ -213,13 +221,13 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_submit_task(&self) -> JoinHandle<()> {
-        let name = Self::task_name("submit::", &self.domain);
+    fn create_classic_submit_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("submit_classic::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
-                submit_task(
+                submit_classic_task(
                     self.domain.clone(),
                     self.prepare_queue.clone(),
                     self.submit_queue.clone(),
@@ -231,13 +239,48 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_confirm_task(&self) -> JoinHandle<()> {
-        let name = Self::task_name("confirm::", &self.domain);
+    fn create_classic_confirm_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("confirm_classic::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
-                confirm_task(
+                confirm_classic_task(
+                    self.domain.clone(),
+                    self.prepare_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
+                    self.metrics.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_lander_submit_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("submit_lander::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                submit_lander_task(
+                    self.domain.clone(),
+                    self.prepare_queue.clone(),
+                    self.submit_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
+                    self.metrics.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_lander_confirm_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("confirm_lander::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                confirm_lander_task(
                     self.domain.clone(),
                     self.prepare_queue.clone(),
                     self.confirm_queue.clone(),
@@ -346,7 +389,7 @@ async fn prepare_task(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn submit_task(
+async fn submit_classic_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -374,6 +417,23 @@ async fn submit_task(
                     .await;
             }
         }
+    }
+}
+
+#[instrument(skip_all, fields(%_domain))]
+async fn submit_lander_task(
+    _domain: HyperlaneDomain,
+    mut _prepare_queue: OpQueue,
+    mut submit_queue: OpQueue,
+    mut _confirm_queue: OpQueue,
+    max_batch_size: u32,
+    _metrics: SerialSubmitterMetrics,
+) {
+    let recv_limit = max_batch_size as usize;
+    loop {
+        let mut _batch = submit_queue.pop_many(recv_limit).await;
+
+        // TODO iterate though batch and submit transactions
     }
 }
 
@@ -438,7 +498,7 @@ async fn confirm_op(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn confirm_task(
+async fn confirm_classic_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
@@ -476,6 +536,29 @@ async fn confirm_task(
             // before checking again to prevent burning CPU
             sleep(Duration::from_millis(500)).await;
         }
+    }
+}
+
+#[instrument(skip_all, fields(%_domain))]
+async fn confirm_lander_task(
+    _domain: HyperlaneDomain,
+    _prepare_queue: OpQueue,
+    mut confirm_queue: OpQueue,
+    max_batch_size: u32,
+    _metrics: SerialSubmitterMetrics,
+) {
+    let recv_limit = max_batch_size as usize;
+    loop {
+        // Pick the next message to try confirming.
+        let batch = confirm_queue.pop_many(recv_limit).await;
+
+        if batch.is_empty() {
+            // queue is empty so give some time before checking again to prevent burning CPU
+            sleep(Duration::from_millis(200)).await;
+            continue;
+        }
+
+        // TODO iterate through batch and confirm delivery
     }
 }
 

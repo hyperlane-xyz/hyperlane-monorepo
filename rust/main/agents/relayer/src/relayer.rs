@@ -348,6 +348,7 @@ impl BaseAgent for Relayer {
             send_channels.insert(dest_domain.id(), send_channel);
             let serial_submitter = SerialSubmitter::new(
                 dest_domain.clone(),
+                dest_conf.clone(),
                 receive_channel,
                 &sender,
                 SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
@@ -791,6 +792,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                submitter: Default::default(),
                 estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {
