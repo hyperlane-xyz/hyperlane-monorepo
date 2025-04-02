@@ -11,14 +11,17 @@ use super::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 
+// The `nonce` → `tx_uuid` store is updated as well
+const NONCE_BY_TX_ID_STORAGE_PREFIX: &str = "nonce_by_tx_id_";
+
 #[async_trait]
-pub trait TransactionDb {
+pub trait TransactionDb: Send + Sync {
     /// Retrieve a transaction by its unique ID
     async fn retrieve_transaction_by_id(&self, id: &TransactionId)
         -> DbResult<Option<Transaction>>;
 
     /// Store a transaction by its unique ID
-    async fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()>;
+    async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()>;
 }
 
 #[async_trait]
@@ -30,8 +33,8 @@ impl TransactionDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, id)
     }
 
-    async fn store_transaction_by_id(&self, tx: Transaction) -> DbResult<()> {
-        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, tx.id(), &tx)
+    async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()> {
+        self.store_value_by_key(TRANSACTION_BY_ID_STORAGE_PREFIX, &tx.id, tx)
     }
 }
 
