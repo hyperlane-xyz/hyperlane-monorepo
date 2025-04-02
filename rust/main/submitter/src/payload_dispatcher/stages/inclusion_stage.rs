@@ -29,7 +29,7 @@ pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 #[derive(new)]
 struct InclusionStage {
     pool: InclusionStagePool,
-    building_stage_receiver: mpsc::Receiver<Transaction>,
+    tx_receiver: mpsc::Receiver<Transaction>,
     finality_stage_sender: mpsc::Sender<Transaction>,
     state: PayloadDispatcherState,
 }
@@ -38,14 +38,13 @@ impl InclusionStage {
     pub async fn run(self) {
         let InclusionStage {
             pool,
-            building_stage_receiver,
+            tx_receiver,
             finality_stage_sender,
             state,
         } = self;
         let futures = vec![
             tokio::spawn(
-                Self::receive_txs(building_stage_receiver, pool.clone())
-                    .instrument(info_span!("receive_txs")),
+                Self::receive_txs(tx_receiver, pool.clone()).instrument(info_span!("receive_txs")),
             ),
             tokio::spawn(
                 Self::process_txs(pool, finality_stage_sender, state)
