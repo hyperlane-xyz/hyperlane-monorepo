@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
@@ -25,6 +27,8 @@ use hyperlane_metric::prometheus_metric::{
 use crate::prometheus::metrics_channel::MetricsChannel;
 use crate::{ConnectionConf, HyperlaneCosmosError};
 
+const REQUEST_TIMEOUT: u64 = 30;
+
 /// Grpc Provider
 #[derive(Clone, Debug)]
 pub struct GrpcProvider {
@@ -40,7 +44,8 @@ struct CosmosGrpcClient {
 impl BlockNumberGetter for CosmosGrpcClient {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         let mut client = ServiceClient::new(self.channel.clone());
-        let request = tonic::Request::new(GetLatestBlockRequest {});
+        let mut request = tonic::Request::new(GetLatestBlockRequest {});
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         let response = client
             .get_latest_block(request)
             .await
