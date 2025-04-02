@@ -27,22 +27,28 @@ pub enum LoadingOutcome {
 #[derive(Debug)]
 struct DbIterator<T> {
     low_index_iter: DirectionalIndexIterator<T>,
-    high_index_iter: DirectionalIndexIterator<T>,
+    high_index_iter: Option<DirectionalIndexIterator<T>>,
     // here for debugging purposes
     _metadata: String,
 }
 
 impl<T: LoadableFromDb + Debug> DbIterator<T> {
     #[instrument(skip(loader), ret)]
-    async fn new(loader: Arc<T>, metadata: String) -> Self {
+    async fn new(loader: Arc<T>, metadata: String, only_load_backward: bool) -> Self {
         let high_index = loader.highest_index().await.ok();
-        let high_index_iter = DirectionalIndexIterator::new(
-            // If the high nonce is None, we start from the beginning
-            high_index.unwrap_or_default().into(),
-            IndexDirection::High,
-            loader.clone(),
-            metadata.clone(),
-        );
+        let high_index_iter = if only_load_backward {
+            None
+        } else {
+            let high_index_iter = DirectionalIndexIterator::new(
+                // If the high nonce is None, we start from the beginning
+                high_index.unwrap_or_default().into(),
+                IndexDirection::High,
+                loader.clone(),
+                metadata.clone(),
+            );
+            Some(high_index_iter)
+        };
+
         let mut low_index_iter = DirectionalIndexIterator::new(
             high_index,
             IndexDirection::Low,
@@ -67,11 +73,14 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
     async fn try_load_next_item(&mut self) -> Result<(), DispatcherError> {
         // Always prioritize advancing the the high nonce iterator, as
         // we have a preference for higher nonces
-        if let Some(LoadingOutcome::Loaded) = self.high_index_iter.try_load_item().await? {
-            // If we have a high nonce item, we can process it
-            self.high_index_iter.iterate();
-            return Ok(());
+        if let Some(high_index_iter) = &mut self.high_index_iter {
+            if let Some(LoadingOutcome::Loaded) = high_index_iter.try_load_item().await? {
+                // If we have a high nonce item, we can process it
+                high_index_iter.iterate();
+                return Ok(());
+            }
         }
+
         // Low nonce messages are only processed if the high nonce iterator
         // can't make any progress
         if let Some(LoadingOutcome::Loaded) = self.low_index_iter.try_load_item().await? {
