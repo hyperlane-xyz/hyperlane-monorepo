@@ -32,7 +32,8 @@ import {
   HyperlaneContracts,
 } from '../contracts/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { DerivedIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
