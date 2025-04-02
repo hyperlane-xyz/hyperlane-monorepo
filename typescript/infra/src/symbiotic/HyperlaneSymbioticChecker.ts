@@ -1,328 +1,342 @@
+import { BigNumber } from '@ethersproject/bignumber';
+import { Provider } from '@ethersproject/providers';
+
 import {
-  IBaseSlasher,
+  AccessControl__factory,
   IBaseSlasher__factory,
-  IBurnerRouter,
   IBurnerRouter__factory,
-  IDefaultStakerRewards,
   IDefaultStakerRewards__factory,
-  INetworkRestakeDelegator,
   INetworkRestakeDelegator__factory,
-  IVaultTokenized,
   IVaultTokenized__factory,
-  TimelockController,
+  Ownable__factory,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import {
-  CheckerViolation,
-  MultiProvider,
-  ViolationType,
-} from '@hyperlane-xyz/sdk';
+import { CheckerViolation, MultiProvider } from '@hyperlane-xyz/sdk';
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 enum SymbioticViolationType {
   State = 'State',
+  AccessControl = 'AccessControl',
 }
 
 interface SymbioticViolation extends CheckerViolation {
-  type: SymbioticViolationType | ViolationType;
+  type: SymbioticViolationType;
   contractName: string;
   referenceField: string;
+  account?: string;
 }
 
 interface SymbioticConfig {
   chain: string;
-  // network: {
-  //   address: string;
-  // };
-  accessManager: {
+  network: {
     address: string;
   };
-  collateral: {
+  accessManager: {
     address: string;
   };
   vault: {
     address: string;
-    epochDuration?: number;
+    epochDuration: number;
   };
-  slasher: {
+  // delegator: {
+  //   networkLimit?: any;
+  //   operatorNetworkShares?: any;
+  // };
+  rewards: {
     address: string;
-  };
-  delegator: {
-    address: string;
-    networkLimit?: any;
-    operatorNetworkShares?: any;
+    adminFee: number;
   };
   burner: {
-    address: string;
+    owner: string;
   };
-  // rewards: {
-  //   address: string;
-  //   adminFee?: any;
-  // };
+}
+
+export interface DerivedContracts {
+  slasher: string;
+  delegator: string;
+  burnerRouter: string;
+  collateral: string;
 }
 
 export class SymbioticChecker {
   readonly violations: CheckerViolation[] = [];
+  private provider: Provider;
+  private logger = rootLogger.child({ module: 'SymbioticChecker' });
 
   constructor(
     readonly multiProvider: MultiProvider,
     readonly config: SymbioticConfig,
-  ) {}
-
-  async check(): Promise<void> {
-    const provider = this.multiProvider.getProvider(this.config.chain);
-
-    const vault = IVaultTokenized__factory.connect(
-      this.config.vault.address,
-      provider,
-    );
-    const delegator = INetworkRestakeDelegator__factory.connect(
-      this.config.delegator.address,
-      provider,
-    );
-    const slasher = IBaseSlasher__factory.connect(
-      this.config.slasher.address,
-      provider,
-    );
-    const burnerRouter = IBurnerRouter__factory.connect(
-      this.config.burner.address,
-      provider,
-    );
-    // const rewards = IDefaultStakerRewards__factory.connect(
-    //   this.config.rewards.address,
-    //   provider,
-    // );
-
-    // const network = TimelockController__factory.connect(
-    //   this.config.network.address,
-    //   provider,
-    // );
-
-    await this.checkVault(vault);
-    await this.checkDelegator(delegator);
-    await this.checkSlasher(slasher);
-    await this.checkBurner(burnerRouter);
-    // await this.checkRewards(rewards);
-    // await this.checkNetwork(network);
+    readonly derivedContractAddresses: DerivedContracts,
+  ) {
+    this.provider = this.multiProvider.getProvider(this.config.chain);
   }
 
-  private async checkVault(vault: IVaultTokenized): Promise<void> {
-    const actualCollateral = await vault.collateral();
-    if (!eqAddress(actualCollateral, this.config.collateral.address)) {
-      this.addViolation({
-        chain: this.config.chain,
-        type: SymbioticViolationType.State,
-        contractName: 'vault',
-        referenceField: 'collateral',
-        actual: actualCollateral,
-        expected: this.config.collateral.address,
-      });
-    }
+  static async deriveContractAddresses(
+    chain: string,
+    multiProvider: MultiProvider,
+    vaultAddress: string,
+  ): Promise<DerivedContracts> {
+    const provider = multiProvider.getProvider(chain);
+    const vault = IVaultTokenized__factory.connect(vaultAddress, provider);
+    return {
+      slasher: await vault.slasher(),
+      delegator: await vault.delegator(),
+      burnerRouter: await vault.burner(),
+      collateral: await vault.collateral(),
+    };
+  }
 
-    const actualSlasher = await vault.slasher();
-    if (!eqAddress(actualSlasher, this.config.slasher.address)) {
-      this.addViolation({
-        chain: this.config.chain,
-        type: SymbioticViolationType.State,
-        contractName: 'vault',
-        referenceField: 'slasher',
-        actual: actualSlasher,
-        expected: this.config.slasher.address,
-      });
-    }
+  async check(): Promise<void> {
+    await this.checkVault();
+    await this.checkDelegator();
+    await this.checkSlasher();
+    await this.checkBurner();
+    await this.checkRewards();
+    await this.checkNetwork();
+  }
 
-    const actualDelegator = await vault.delegator();
-    if (!eqAddress(actualDelegator, this.config.delegator.address)) {
-      this.addViolation({
-        chain: this.config.chain,
-        type: SymbioticViolationType.State,
-        contractName: 'vault',
-        referenceField: 'delegator',
-        actual: actualDelegator,
-        expected: this.config.delegator.address,
-      });
-    }
-
-    const actualBurner = await vault.burner();
-    if (!eqAddress(actualBurner, this.config.burner.address)) {
-      this.addViolation({
-        chain: this.config.chain,
-        type: SymbioticViolationType.State,
-        contractName: 'vault',
-        referenceField: 'burner',
-        actual: actualBurner,
-        expected: this.config.burner.address,
-      });
-    }
+  private async checkVault(): Promise<void> {
+    const vault = IVaultTokenized__factory.connect(
+      this.config.vault.address,
+      this.provider,
+    );
 
     const actualEpochDuration = await vault.epochDuration();
     if (actualEpochDuration !== this.config.vault.epochDuration) {
-      this.addViolation({
+      const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'vault',
         referenceField: 'epochDuration',
         actual: actualEpochDuration,
         expected: this.config.vault.epochDuration,
-      });
+      };
+      this.addViolation(violation);
     }
 
-    // TODO add AccessControl checks
-    //   `hasRole(bytes32 role, address account)` -
-    //     `DEPOSIT_WHITELIST_SET_ROLE()` -
-    //     `DEPOSITOR_WHITELIST_ROLE()` -
-    //     `IS_DEPOSIT_LIMIT_SET_ROLE()` -
-    //     `DEPOSIT_LIMIT_SET_ROLE()`;
+    const roleIds = {
+      depositWhitelistSetter: await vault.DEPOSIT_WHITELIST_SET_ROLE(),
+      depositWhitelist: await vault.DEPOSITOR_WHITELIST_ROLE(),
+      isDepositLimitSetter: await vault.IS_DEPOSIT_LIMIT_SET_ROLE(),
+      depositLimitSetter: await vault.DEPOSIT_LIMIT_SET_ROLE(),
+    };
+
+    await this.checkAccessControl(
+      this.config.vault.address,
+      'vault',
+      roleIds,
+      this.config.accessManager.address,
+    );
   }
 
-  private async checkDelegator(
-    delegator: INetworkRestakeDelegator,
-  ): Promise<void> {
+  private async checkDelegator(): Promise<void> {
+    const delegator = INetworkRestakeDelegator__factory.connect(
+      this.derivedContractAddresses.delegator,
+      this.provider,
+    );
+
     const actualVault = await delegator.vault();
     if (!eqAddress(actualVault, this.config.vault.address)) {
-      this.addViolation({
+      const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'delegator',
         referenceField: 'vault',
         actual: actualVault,
         expected: this.config.vault.address,
-      });
+      };
+      this.addViolation(violation);
     }
 
     // TODO subnetwork checks
 
-    // TODO add AccessControl checks
-    // `hasRole(bytes32 role, address acount)` -
-    //   `NETWORK_LIMIT_SET_ROLE()` -
-    //   `OPERATOR_NETWORK_SHARES_SET_ROLE()`;
+    const roleIds = {
+      networkLimitSetter: await delegator.NETWORK_LIMIT_SET_ROLE(),
+      operatorNetworkSharesSetter:
+        await delegator.OPERATOR_NETWORK_SHARES_SET_ROLE(),
+    };
+
+    await this.checkAccessControl(
+      this.derivedContractAddresses.delegator,
+      'delegator',
+      roleIds,
+      this.config.accessManager.address,
+    );
   }
 
-  private async checkSlasher(slasher: IBaseSlasher): Promise<void> {
+  private async checkSlasher(): Promise<void> {
+    const slasher = IBaseSlasher__factory.connect(
+      this.derivedContractAddresses.slasher,
+      this.provider,
+    );
+
     const actualVault = await slasher.vault();
     if (!eqAddress(actualVault, this.config.vault.address)) {
-      this.addViolation({
+      const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'slasher',
         referenceField: 'vault',
         actual: actualVault,
         expected: this.config.vault.address,
-      });
+      };
+      this.addViolation(violation);
     }
 
     const isBurnerHook = await slasher.isBurnerHook();
     if (!isBurnerHook) {
-      this.addViolation({
+      const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'slasher',
         referenceField: 'isBurnerHook',
         actual: false,
         expected: true,
-      });
+      };
+      this.addViolation(violation);
     }
   }
 
-  private async checkBurner(burnerRouter: IBurnerRouter): Promise<void> {
-    // TODO
-    // `collateral()` done
-    // `networkReceiver(address network)` done
-    // `owner()`
+  private async checkBurner(): Promise<void> {
+    const burnerRouter = IBurnerRouter__factory.connect(
+      this.derivedContractAddresses.burnerRouter,
+      this.provider,
+    );
 
     const actualCollateral = await burnerRouter.collateral();
-    if (!eqAddress(actualCollateral, this.config.collateral.address)) {
-      this.addViolation({
+
+    if (
+      !eqAddress(actualCollateral, this.derivedContractAddresses.collateral)
+    ) {
+      const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'burner',
         referenceField: 'collateral',
         actual: actualCollateral,
-        expected: this.config.collateral.address,
-      });
+        expected: this.derivedContractAddresses.collateral,
+      };
+      this.addViolation(violation);
     }
 
-    // const actualNetworkReceiver = await burnerRouter.networkReceiver(
-    //   this.config.network.address,
-    // );
-    // if (!eqAddress(actualNetworkReceiver, this.config.slasher.address)) {
-    //   this.addViolation({
-    //     chain: this.config.chain,
-    //     type: SymbioticViolationType.State,
-    //     contractName: 'burner',
-    //     referenceField: 'networkReceiver',
-    //     actual: actualNetworkReceiver,
-    //     expected: this.config.slasher.address,
-    //   });
-    // }
+    const actualNetworkReceiver = await burnerRouter.networkReceiver(
+      this.config.network.address,
+    );
+    if (
+      !eqAddress(actualNetworkReceiver, this.derivedContractAddresses.slasher)
+    ) {
+      const violation: SymbioticViolation = {
+        chain: this.config.chain,
+        type: SymbioticViolationType.State,
+        contractName: 'burner',
+        referenceField: 'networkReceiver',
+        actual: actualNetworkReceiver,
+        expected: this.derivedContractAddresses.slasher,
+      };
+      this.addViolation(violation);
+    }
+
+    const ownableBurner = Ownable__factory.connect(
+      this.derivedContractAddresses.burnerRouter,
+      this.provider,
+    );
+    const owner = await ownableBurner.owner();
+    if (!eqAddress(owner, this.config.burner.owner)) {
+      const violation: SymbioticViolation = {
+        chain: this.config.chain,
+        type: SymbioticViolationType.State,
+        contractName: 'burner',
+        referenceField: 'owner',
+        actual: owner,
+        expected: this.config.burner.owner,
+      };
+      this.addViolation(violation);
+    }
   }
 
-  // private async checkRewards(rewards: IDefaultStakerRewards): Promise<void> {
-  //   const actualVault = await rewards.VAULT();
-  //   if (!eqAddress(actualVault, this.config.vault.address)) {
-  //     this.addViolation({
-  //       chain: this.config.chain,
-  //       type: SymbioticViolationType.State,
-  //       contractName: 'rewards',
-  //       referenceField: 'vault',
-  //       actual: actualVault,
-  //       expected: this.config.vault.address,
-  //     });
-  //   }
+  private async checkRewards(): Promise<void> {
+    // TODO: remove try catch when we have the correct address for the rewards contract
+    const rewards = IDefaultStakerRewards__factory.connect(
+      this.config.rewards.address,
+      this.provider,
+    );
 
-  //   const actualAdminFee = await rewards.adminFee();
-  //   console.log('actualAdminFee', actualAdminFee);
-  //   if (actualAdminFee !== this.config.rewards.adminFee) {
-  //     this.addViolation({
-  //       chain: this.config.chain,
-  //       type: SymbioticViolationType.State,
-  //       contractName: 'rewards',
-  //       referenceField: 'adminFee',
-  //       actual: actualAdminFee,
-  //       expected: this.config.rewards.adminFee,
-  //     });
-  //   }
+    let actualVault: string;
+    try {
+      actualVault = await rewards.VAULT();
+      if (!eqAddress(actualVault, this.config.vault.address)) {
+        const violation: SymbioticViolation = {
+          chain: this.config.chain,
+          type: SymbioticViolationType.State,
+          contractName: 'rewards',
+          referenceField: 'vault',
+          actual: actualVault,
+          expected: this.config.vault.address,
+        };
+        this.addViolation(violation);
+      }
+    } catch (e) {
+      this.logger.error(`Error reading vault from rewards contract: ${e}`);
+    }
 
-  //   // TODO
-  //   // `hasRole(bytes32 role, address acount)` -
-  //   //   `ADMIN_FEE_CLAIM_ROLE()` -
-  //   //   `ADMIN_FEE_SET_ROLE()`;
-  // }
+    let actualAdminFee: BigNumber;
+    try {
+      actualAdminFee = await rewards.adminFee();
+      const expectedAdminFee = BigNumber.from(this.config.rewards.adminFee);
+      if (actualAdminFee.toString() !== expectedAdminFee.toString()) {
+        const violation: SymbioticViolation = {
+          chain: this.config.chain,
+          type: SymbioticViolationType.State,
+          contractName: 'rewards',
+          referenceField: 'adminFee',
+          actual: actualAdminFee.toString(),
+          expected: expectedAdminFee.toString(),
+        };
+        this.addViolation(violation);
+      }
+    } catch (e) {
+      this.logger.error(`Error reading adminFee from rewards contract: ${e}`);
+    }
 
-  // private async checkNetwork(network: TimelockController): Promise<void> {
-  //   const roleIds = {
-  //     executor: await network.EXECUTOR_ROLE(),
-  //     proposer: await network.PROPOSER_ROLE(),
-  //     canceller: await network.CANCELLER_ROLE(),
-  //     admin: await network.TIMELOCK_ADMIN_ROLE(),
-  //   };
+    try {
+      const roleIds = {
+        adminFeeClaim: await rewards.ADMIN_FEE_CLAIM_ROLE(),
+        adminFeeSet: await rewards.ADMIN_FEE_SET_ROLE(),
+      };
 
-  //   type RoleKey = keyof typeof roleIds;
+      await this.checkAccessControl(
+        this.config.rewards.address,
+        'rewards',
+        roleIds,
+        this.config.accessManager.address,
+      );
+    } catch (e) {
+      this.logger.error(`Error checking access control for rewards: ${e}`);
+    }
+  }
 
-  //   // TODO: Define expected roles in config
-  //   const expectedRoles: Record<RoleKey, string> = {
-  //     executor: this.config.accessManager.address,
-  //     proposer: this.config.accessManager.address,
-  //     canceller: this.config.accessManager.address,
-  //     admin: this.config.accessManager.address,
-  //   };
+  private async checkNetwork(): Promise<void> {
+    const network = TimelockController__factory.connect(
+      this.config.network.address,
+      this.provider,
+    );
 
-  //   for (const [role, account] of Object.entries(expectedRoles)) {
-  //     const hasRole = await network.hasRole(roleIds[role as RoleKey], account);
-  //     if (!hasRole) {
-  //       this.addViolation({
-  //         chain: this.config.chain,
-  //         type: SymbioticViolationType.State,
-  //         contractName: 'network',
-  //         referenceField: `hasRole(${role})`,
-  //         actual: false,
-  //         expected: true,
-  //       });
-  //     }
-  //   }
-  // }
+    const roleIds = {
+      executor: await network.EXECUTOR_ROLE(),
+      proposer: await network.PROPOSER_ROLE(),
+      canceller: await network.CANCELLER_ROLE(),
+      admin: await network.TIMELOCK_ADMIN_ROLE(),
+    };
 
-  private addViolation(violation: SymbioticViolation): void {
+    await this.checkAccessControl(
+      this.config.network.address,
+      'network',
+      roleIds,
+      this.config.accessManager.address,
+    );
+  }
+
+  private addViolation(violation: CheckerViolation): void {
     this.violations.push(violation);
   }
 
@@ -336,13 +350,44 @@ export class SymbioticChecker {
   logViolationsTable(): void {
     if (this.violations.length > 0) {
       console.table(this.violations, [
+        'type',
+        'chain',
         'contractName',
         'referenceField',
+        'account',
         'actual',
         'expected',
       ]);
     } else {
       console.info('Symbiotic Checker found no violations');
+    }
+  }
+
+  private async checkAccessControl(
+    contractAddress: string,
+    contractName: string,
+    roleIds: Record<string, string>,
+    account: string,
+  ): Promise<void> {
+    const accessControl = AccessControl__factory.connect(
+      contractAddress,
+      this.provider,
+    );
+
+    for (const [role, roleId] of Object.entries(roleIds)) {
+      const hasRole = await accessControl.hasRole(roleId, account);
+      if (!hasRole) {
+        const violation: SymbioticViolation = {
+          type: SymbioticViolationType.AccessControl,
+          chain: this.config.chain,
+          account,
+          actual: false,
+          expected: true,
+          contractName,
+          referenceField: role,
+        };
+        this.addViolation(violation);
+      }
     }
   }
 }

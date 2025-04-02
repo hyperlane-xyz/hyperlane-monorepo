@@ -1,38 +1,44 @@
 import { Contexts } from '../../config/contexts.js';
-import { ETHEREUM_DEPLOYER_ADDRESS } from '../../config/environments/testnet4/owners.js';
 import { Role } from '../../src/roles.js';
 import { SymbioticChecker } from '../../src/symbiotic/HyperlaneSymbioticChecker.js';
 import { getArgs, withContext } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// TODO: this is a temporary, will define this in a config file
+// TODO:
+// rewards contract address is wrong?
+// delegator subnetwork checks
+
+// STAGING DEPLOYMENT Addresses
+const ACCESS_MANAGER = '0xfad1c94469700833717fa8a3017278bc1ca8031c';
+const VAULT = '0xF56179944D867469612D138c74F1dE979D3faC72';
+const NETWORK = '0x44ea7acf8785d9274047e05c249ba80f7ff79d36';
+const REWARDS = '0x2aDe4CDD4DCECD4FdE76dfa99d61bC8c1940f2CE'; // don't think this is the correct address for the staging deployment
+
+// TODO: will replace this hardcoded config with the actual config based on the environment
+// hardcoded staging config
 const config = {
   chain: 'sepolia',
-  // network: {
-  //   address: '0x0000000000000000000000000000000000000000',
-  // },
-  accessManager: {
-    address: ETHEREUM_DEPLOYER_ADDRESS,
+  network: {
+    address: NETWORK,
   },
-  collateral: {
-    address: '0x1e111DF35aD11B3d18e5b5E9A7fd4Ed8dc841011',
+  accessManager: {
+    address: ACCESS_MANAGER,
   },
   vault: {
-    address: '0xF56179944D867469612D138c74F1dE979D3faC72',
+    address: VAULT,
     epochDuration: 604800,
   },
-  slasher: {
-    address: '0x2cB6a0B85A1c6a1d293EA9541d0E7425cA950B46',
-  },
-  delegator: {
-    address: '0x597E165bB91254723Df1A61dDF6AD814267c6D9C',
+  rewards: {
+    address: REWARDS,
+    adminFee: 1000000, // dummy value
   },
   burner: {
-    address: '0x7a3527cd4Ae873bE48581cA52a46574488C04cDe',
+    owner: ACCESS_MANAGER,
   },
-  // rewards: {
-  //   address: '0x0000000000000000000000000000000000000000',
-  // },
+  // delegator: {
+  //   networkLimit;
+  //   operatorNetworkShares;
+  // };,
 };
 
 async function main() {
@@ -48,7 +54,18 @@ async function main() {
     [config.chain],
   );
 
-  const checker = new SymbioticChecker(multiProvider, config);
+  const derivedContractAddresses =
+    await SymbioticChecker.deriveContractAddresses(
+      config.chain,
+      multiProvider,
+      config.vault.address,
+    );
+
+  const checker = new SymbioticChecker(
+    multiProvider,
+    config,
+    derivedContractAddresses,
+  );
   await checker.check();
   checker.logViolationsTable();
   checker.expectEmpty();

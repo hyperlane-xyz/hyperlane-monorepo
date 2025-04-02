@@ -41,7 +41,7 @@ async function main() {
 
   const proxyAdminAddress = await fetchProxyAdmin(
     provider,
-    '0x1e111DF35aD11B3d18e5b5E9A7fd4Ed8dc841011',
+    HYPER_TOKEN_SEPOLIA,
   );
 
   const proxyAdmin = ProxyAdmin__factory.connect(proxyAdminAddress, provider);
