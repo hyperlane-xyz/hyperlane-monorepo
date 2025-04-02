@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
   HypTokenConfig,
@@ -12,42 +10,14 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
-// TODO: Update to use their safes
 const owners = {
-  ethereum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
-  superseed: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
-  base: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
-  ink: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
-  optimism: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
-  arbitrum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
-  solanamainnet: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-};
-
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
-
-export const getEthereumSuperseedCBBTCWarpConfig = async (
-  routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    owner: owners.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.cbBTC,
-    interchainSecurityModule: ISM_CONFIG,
-  };
-
-  const superseed: HypTokenRouterConfig = {
-    ...routerConfig.superseed,
-    owner: owners.superseed,
-    type: TokenType.collateralFiat,
-    token: '0x6f36dbd829de9b7e077db8a35b480d4329ceb331',
-    interchainSecurityModule: ISM_CONFIG,
-  };
-
-  return {
-    ethereum,
-    superseed,
-  };
+  ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  superseed: '0x6652010BaCE855DF870D427daA6141c313994929',
+  base: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  ink: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  optimism: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  arbitrum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
 };
 
 export const getEthereumSuperseedUSDCWarpConfig = async (

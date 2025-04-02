@@ -53,7 +53,7 @@ export enum WarpRouteIds {
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
   BobaBsquaredSoneiumSwellUBTC = 'UBTC/boba-bsquared-soneium-swell',
-  EthereumSuperseedCBBTC = 'CBBTC/ethereum-superseed',
+  BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
   EthereumSuperseedUSDC = 'USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed',
   EthereumFormUSDT = 'USDT/ethereum-form',
   EthereumFormUSDC = 'USDC/ethereum-form',
@@ -70,6 +70,7 @@ export enum WarpRouteIds {
   SolanaSoonSOL = 'SOL/solanamainnet-soon',
   SolanaSonicsvmSOL = 'SOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSONIC = 'SONIC/solanamainnet-sonicsvm',
+  SolanaSonicsvmSPICE = 'SPICE/solanamainnet-sonicsvm',
   SolanaSonicsvmUSDC = 'USDC/solanamainnet-sonicsvm',
   SolanaSonicsvmUSDT = 'USDT/solanamainnet-sonicsvm',
   SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',
@@ -88,4 +89,10 @@ export enum WarpRouteIds {
   BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
+  // Soon Routes
+  SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
+  SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
+  SolanaSoonMEW = 'MEW/solanamainnet-soon',
+  SolanaSoonPnut = 'Pnut/solanamainnet-soon',
+  SolanaSoonWIF = 'WIF/solanamainnet-soon',
 }

@@ -24,7 +24,6 @@ import {
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -43,7 +42,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
@@ -53,6 +52,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -62,11 +62,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: true,
     infinityvmmonza: true,
     inksepolia: true,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -85,7 +85,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
@@ -95,6 +95,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -104,11 +105,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: false,
     infinityvmmonza: true,
     inksepolia: true,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -127,7 +128,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: false,
     basesepolia: true,
@@ -137,6 +138,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: false,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -146,11 +148,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: false,
     infinityvmmonza: true,
     inksepolia: true,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -252,7 +254,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8c3e983-20250310-144838',
+      tag: '8d76c56-20250328-185250',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -263,10 +265,6 @@ const hyperlane: RootAgentConfig = {
           helloWorld[Contexts.Hyperlane].addresses,
         ),
       },
-      {
-        name: 'plumetestnet_sepolia_eth',
-        matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
-      },
     ],
     resources: relayerResources,
   },
@@ -274,7 +272,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c57bfe-20250307-120826',
+      tag: '8d76c56-20250328-185250',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -283,7 +281,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'af7146e-20250314-172005',
+      tag: '8d76c56-20250328-185250',
     },
     resources: scraperResources,
   },

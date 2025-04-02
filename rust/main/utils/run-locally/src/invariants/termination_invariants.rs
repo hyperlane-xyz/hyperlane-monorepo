@@ -268,7 +268,7 @@ pub fn provider_metrics_invariant_met(
 
     if request_count < expected_request_count {
         log!(
-            "Provider only has {} request count, expected {}",
+            "hyperlane_request_count {} count, expected {}",
             request_count,
             expected_request_count,
         );
@@ -287,7 +287,7 @@ pub fn provider_metrics_invariant_met(
 
     if provider_create_count < expected_request_count {
         log!(
-            "Provider only has {} count, expected at least {}",
+            "hyperlane_provider_create_count only has {} count, expected at least {}",
             provider_create_count,
             expected_request_count
         );

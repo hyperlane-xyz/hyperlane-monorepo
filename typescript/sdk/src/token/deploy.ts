@@ -231,7 +231,6 @@ abstract class TokenDeployer<
             name,
             symbol,
             decimals,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
           });
         }
 
