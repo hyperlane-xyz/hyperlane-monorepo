@@ -36,6 +36,12 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
     #[instrument(skip(loader), ret)]
     async fn new(loader: Arc<T>, metadata: String, only_load_backward: bool) -> Self {
         let high_index = loader.highest_index().await.ok();
+        let mut low_index_iter = DirectionalIndexIterator::new(
+            high_index,
+            IndexDirection::Low,
+            loader.clone(),
+            metadata.clone(),
+        );
         let high_index_iter = if only_load_backward {
             None
         } else {
@@ -43,20 +49,14 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                 // If the high nonce is None, we start from the beginning
                 high_index.unwrap_or_default().into(),
                 IndexDirection::High,
-                loader.clone(),
+                loader,
                 metadata.clone(),
             );
+            // Decrement the low index to avoid processing the same index twice
+            low_index_iter.iterate();
             Some(high_index_iter)
         };
 
-        let mut low_index_iter = DirectionalIndexIterator::new(
-            high_index,
-            IndexDirection::Low,
-            loader,
-            metadata.clone(),
-        );
-        // Decrement the low index to avoid processing the same index
-        low_index_iter.iterate();
         debug!(
             ?low_index_iter,
             ?high_index_iter,
@@ -142,5 +142,108 @@ impl<T: LoadableFromDb + Debug> DirectionalIndexIterator<T> {
             return Ok(None);
         };
         Ok(Some(self.loader.load(item).await?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use solana_sdk::nonce::state;
+    use tokio::sync::Mutex;
+
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    struct MockDbState {
+        data: HashMap<u32, String>,
+        highest_index: u32,
+    }
+
+    #[derive(Debug, Clone)]
+    struct MockDb {
+        state: Arc<Mutex<MockDbState>>,
+    }
+
+    impl MockDb {
+        fn new() -> Self {
+            Self {
+                state: Arc::new(Mutex::new(MockDbState {
+                    data: HashMap::new(),
+                    highest_index: 0,
+                })),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LoadableFromDb for MockDb {
+        type Item = String;
+
+        async fn highest_index(&self) -> Result<u32, DispatcherError> {
+            let state = self.state.lock().await;
+            Ok(state.highest_index)
+        }
+
+        async fn retrieve_by_index(
+            &self,
+            index: u32,
+        ) -> Result<Option<Self::Item>, DispatcherError> {
+            let state = self.state.lock().await;
+            Ok(state.data.get(&index).cloned())
+        }
+
+        async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, DispatcherError> {
+            debug!("Loading item: {:?}", item);
+            Ok(LoadingOutcome::Loaded)
+        }
+    }
+
+    async fn set_up_state(only_load_backward: bool) -> DbIterator<MockDb> {
+        let db = Arc::new(MockDb::new());
+        let metadata = "Test Metadata".to_string();
+
+        // Simulate adding items to the database
+        {
+            let mut state = db.state.lock().await;
+
+            state.data.insert(1, "Item 1".to_string());
+            state.data.insert(2, "Item 2".to_string());
+            state.highest_index = 2;
+        }
+        DbIterator::new(db.clone(), metadata.clone(), only_load_backward).await
+    }
+
+    #[tokio::test]
+    async fn test_db_iterator_forward_backward() {
+        let only_load_backward = false;
+        let mut iterator = set_up_state(only_load_backward).await;
+
+        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 1);
+        assert_eq!(
+            *iterator
+                .high_index_iter
+                .as_ref()
+                .unwrap()
+                .index
+                .as_ref()
+                .unwrap(),
+            2
+        );
+        iterator.try_load_next_item().await.unwrap();
+        assert_eq!(iterator.low_index_iter.index, Some(1));
+        assert_eq!(iterator.high_index_iter.unwrap().index, Some(3));
+    }
+
+    #[tokio::test]
+    async fn test_db_iterator_only_backward() {
+        let only_load_backward = true;
+        let mut iterator = set_up_state(only_load_backward).await;
+
+        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 2);
+        assert!(iterator.high_index_iter.is_none());
+        iterator.try_load_next_item().await.unwrap();
+        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 1);
+        assert!(iterator.high_index_iter.is_none());
     }
 }
