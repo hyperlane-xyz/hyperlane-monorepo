@@ -12,7 +12,7 @@ import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
 import { HookConfigSchema } from '../hook/types.js';
-import { IsmConfigSchema } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
@@ -21,6 +21,14 @@ export type RouterAddress = {
 };
 
 export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
+
+export type DerivedMailboxClientConfig = Omit<
+  MailboxClientConfig,
+  'interchainSecurityModule'
+> & {
+  interchainSecurityModule: string | DerivedIsmConfig;
+};
+
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
 export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;
 

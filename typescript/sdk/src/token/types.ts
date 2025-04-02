@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType } from '../hook/types.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { GasRouterConfigSchema } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
@@ -133,6 +133,17 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema,
 );
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
+
+export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
+  Omit<z.infer<typeof GasRouterConfigSchema>, 'interchainSecurityModule'> & {
+    interchainSecurityModule: string | DerivedIsmConfig;
+  };
+
+export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
+  return typeof config.interchainSecurityModule === 'string'
+    ? config.interchainSecurityModule
+    : config.interchainSecurityModule.address;
+}
 
 const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema.extend({
