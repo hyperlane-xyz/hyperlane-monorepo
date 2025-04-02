@@ -11,7 +11,7 @@ import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
-import { HookConfigSchema } from '../hook/types.js';
+import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
@@ -22,12 +22,16 @@ export type RouterAddress = {
 
 export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
 
-export type DerivedMailboxClientConfig = Omit<
-  MailboxClientConfig,
-  'interchainSecurityModule'
-> & {
+export type DerivedMailboxClientFields = {
+  hook: string | DerivedHookConfig;
   interchainSecurityModule: string | DerivedIsmConfig;
 };
+
+export type DerivedMailboxClientConfig = Omit<
+  MailboxClientConfig,
+  keyof DerivedMailboxClientFields
+> &
+  DerivedMailboxClientFields;
 
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
 export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;

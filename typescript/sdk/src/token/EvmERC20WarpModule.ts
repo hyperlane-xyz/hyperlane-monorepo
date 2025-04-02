@@ -34,7 +34,6 @@ import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
-import { DerivedHookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -47,6 +46,7 @@ import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  derivedHookAddress,
   derivedIsmAddress,
 } from './types.js';
 
@@ -354,8 +354,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const actualDeployedHook = (actualConfig.hook as DerivedHookConfig)
-      ?.address;
+    const actualDeployedHook = derivedHookAddress(actualConfig);
 
     // Try to deploy or update Hook with the expected config
     const {
@@ -497,7 +496,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
   async updateExistingHook(
     expectedConfig: HypTokenRouterConfig,
-    actualConfig: HypTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
   ): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
@@ -514,7 +513,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           ...extractIsmAndHookFactoryAddresses(this.args.addresses),
           mailbox: actualConfig.mailbox,
           proxyAdmin: actualConfig.proxyAdmin?.address,
-          deployedHook: (actualConfig.hook as DerivedHookConfig).address,
+          deployedHook: derivedHookAddress(actualConfig),
         },
       },
       this.ccipContractCache,
