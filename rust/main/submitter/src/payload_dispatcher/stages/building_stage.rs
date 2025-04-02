@@ -9,7 +9,8 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, warn};
 
 use crate::{
-    chain_tx_adapter::{DispatcherError, TxBuildingResult},
+    chain_tx_adapter::TxBuildingResult,
+    error::SubmitterError,
     payload::{DropReason, FullPayload, PayloadDetails, PayloadStatus},
     transaction::Transaction,
 };
@@ -94,9 +95,9 @@ impl BuildingStage {
             .await;
     }
 
-    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<(), DispatcherError> {
+    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<(), SubmitterError> {
         if let Err(err) = self.inclusion_stage_sender.send(tx.clone()).await {
-            return Err(DispatcherError::ChannelSendFailure(err));
+            return Err(SubmitterError::ChannelSendFailure(err));
         }
         info!(?tx, "Transaction sent to Inclusion Stage");
         Ok(())

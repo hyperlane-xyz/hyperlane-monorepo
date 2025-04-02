@@ -12,11 +12,10 @@ use uuid::Uuid;
 use hyperlane_core::U256;
 
 use crate::{
+    error::SubmitterError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
-
-use super::DispatcherError;
 
 pub type GasLimit = U256;
 
@@ -37,7 +36,7 @@ pub trait AdaptsChain: Send + Sync {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, DispatcherError>;
+    ) -> Result<Option<GasLimit>, SubmitterError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
     // should this instead return tuples of (Option<Transaction>, PayloadDetails) to
@@ -45,19 +44,19 @@ pub trait AdaptsChain: Send + Sync {
     async fn build_transactions(
         &self,
         payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, DispatcherError>;
+    ) -> Result<Vec<TxBuildingResult>, SubmitterError>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, DispatcherError>;
+    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
 
     /// Sets / escalates gas price, sets nonce / blockhash and broadcasts the Transaction. Even if broadcasting fails, the Transaction struct remains mutated with the new estimates. Called in the Inclusion Stage (PayloadDispatcher)
-    async fn submit(&self, tx: &mut Transaction) -> Result<(), DispatcherError>;
+    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
 
     /// Queries the chain by txhash to get the tx status. Called in the Inclusion Stage and Finality Stage of the PayloadDispatcher
-    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, DispatcherError>;
+    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
 
     /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
-    async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<Uuid>, DispatcherError>;
+    async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<Uuid>, SubmitterError>;
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> Duration;
@@ -74,7 +73,7 @@ pub trait AdaptsChain: Send + Sync {
     }
 
     /// Replaces calldata in this tx with a transfer-to-self, to use its payload(s) for filling a nonce gap
-    async fn replace_tx(&self, _tx: &Transaction) -> Result<(), DispatcherError> {
+    async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError> {
         todo!()
     }
 }

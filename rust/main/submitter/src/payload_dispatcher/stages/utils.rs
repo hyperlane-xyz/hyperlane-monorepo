@@ -3,12 +3,12 @@ use std::{future::Future, time::Duration};
 use tokio::time::sleep;
 use tracing::error;
 
-use crate::{chain_tx_adapter::DispatcherError, transaction::Transaction};
+use crate::{error::SubmitterError, transaction::Transaction};
 
 pub async fn retry_until_success<F, T, Fut>(f: F, action: &str) -> T
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Result<T, DispatcherError>>,
+    Fut: Future<Output = Result<T, SubmitterError>>,
 {
     loop {
         match f().await {

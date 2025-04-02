@@ -31,12 +31,12 @@ use crate::chain_tx_adapter::{
     chains::sealevel::transaction::{TransactionFactory, Update},
     TxBuildingResult,
 };
-use crate::chain_tx_adapter::{
-    chains::sealevel::{SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor},
-    DispatcherError,
-};
 use crate::payload::{FullPayload, PayloadDetails, VmSpecificPayloadData};
 use crate::transaction::{SignerAddress, Transaction, TransactionStatus, VmSpecificTxData};
+use crate::{
+    chain_tx_adapter::chains::sealevel::{SealevelPayload, SealevelTxAdapter, SealevelTxPrecursor},
+    error::SubmitterError,
+};
 
 const GAS_LIMIT: u32 = 42;
 
@@ -196,7 +196,7 @@ async fn test_tx_status() {
 }
 
 fn payload_details_and_data_in_transaction(
-    result: Result<Vec<TxBuildingResult>, DispatcherError>,
+    result: Result<Vec<TxBuildingResult>, SubmitterError>,
 ) -> (PayloadDetails, VmSpecificTxData) {
     let transactions = result.unwrap();
     let built_tx = transactions.first().unwrap();

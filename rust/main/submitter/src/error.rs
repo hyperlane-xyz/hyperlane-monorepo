@@ -5,7 +5,7 @@ use hyperlane_base::db::DbError;
 use crate::transaction::Transaction;
 
 #[derive(Debug, thiserror::Error)]
-pub enum DispatcherError {
+pub enum SubmitterError {
     #[error("Network error: {0}")]
     NetworkError(String),
     #[error("Transaction error: {0}")]
