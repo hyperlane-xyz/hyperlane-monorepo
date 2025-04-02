@@ -38,11 +38,11 @@ pub trait AdaptsChain: Send + Sync {
     async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<Uuid>>;
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
-    fn estimated_block_time(&self) -> Duration;
+    fn estimated_block_time(&self) -> &Duration;
 
     /// Returns the maximum batch size for this chain. Used to decide how many payloads to batch together, as well as
     /// how many network calls to perform in parallel
-    fn max_batch_size(&self) -> usize;
+    fn max_batch_size(&self) -> u32;
 
     // methods below are excluded from the MVP
 
