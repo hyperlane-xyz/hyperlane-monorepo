@@ -69,6 +69,7 @@ export const relayerCommand: CommandModuleWithContext<
       [ProtocolType.Starknet]: [],
       [ProtocolType.Cosmos]: [],
       [ProtocolType.Sealevel]: [],
+      [ProtocolType.CosmosNative]: [],
     };
 
     const cores: {
