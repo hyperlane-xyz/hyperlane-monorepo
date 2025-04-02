@@ -3,7 +3,8 @@ use eyre::Result;
 use crate::chain_tx_adapter::chains::sealevel::adapter::tests::common::{
     adapter, estimate, instruction, payload,
 };
-use crate::chain_tx_adapter::{AdaptsChain, SealevelTxPrecursor};
+use crate::chain_tx_adapter::{AdaptsChain, SealevelTxPrecursor, TxBuildingResult};
+use crate::error::SubmitterError;
 use crate::payload::PayloadDetails;
 use crate::transaction::{Transaction, VmSpecificTxData};
 
@@ -25,12 +26,17 @@ async fn test_build_transactions() {
 }
 
 fn payload_details_and_data_in_transaction(
-    result: Result<Vec<Transaction>>,
+    result: Result<Vec<TxBuildingResult>, SubmitterError>,
 ) -> (PayloadDetails, VmSpecificTxData) {
     let transactions = result.unwrap();
     let transaction = transactions.first().unwrap();
     (
-        transaction.payload_details.first().unwrap().clone(),
-        transaction.vm_specific_data.clone(),
+        transaction.payloads.first().unwrap().clone(),
+        transaction
+            .maybe_tx
+            .clone()
+            .unwrap()
+            .vm_specific_data
+            .clone(),
     )
 }
