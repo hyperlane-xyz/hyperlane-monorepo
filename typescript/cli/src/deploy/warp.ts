@@ -41,6 +41,7 @@ import {
   TxSubmitterType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   attachContractsMap,
