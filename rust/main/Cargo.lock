@@ -9685,6 +9685,7 @@ dependencies = [
  "solana-sdk",
  "solana-transaction-status",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
  "uuid 1.11.0",

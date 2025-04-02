@@ -2,10 +2,11 @@
 #![allow(dead_code)]
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{eyre, Result};
 
 use crate::{
     chain_tx_adapter::GasLimit,
+    error::SubmitterError,
     payload::{FullPayload, PayloadId, PayloadStatus},
 };
 
@@ -13,9 +14,12 @@ use super::{PayloadDispatcherSettings, PayloadDispatcherState};
 
 #[async_trait]
 pub trait Entrypoint {
-    async fn send_payload(&self, payloads: FullPayload) -> Result<()>;
-    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus>;
-    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
+    async fn send_payload(&self, payloads: &FullPayload) -> Result<(), SubmitterError>;
+    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, SubmitterError>;
+    async fn estimate_gas_limit(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<Option<GasLimit>, SubmitterError>;
 }
 
 pub struct PayloadDispatcherEntrypoint {
@@ -36,27 +40,26 @@ impl PayloadDispatcherEntrypoint {
 
 #[async_trait]
 impl Entrypoint for PayloadDispatcherEntrypoint {
-    async fn send_payload(&self, payload: FullPayload) -> Result<()> {
-        self.inner
-            .payload_db
-            .store_payload_by_id(payload.clone())
-            .await?;
+    async fn send_payload(&self, payload: &FullPayload) -> Result<(), SubmitterError> {
+        self.inner.payload_db.store_payload_by_id(payload).await?;
         Ok(())
     }
 
-    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus> {
+    async fn payload_status(&self, payload_id: PayloadId) -> Result<PayloadStatus, SubmitterError> {
         let payload = self
             .inner
             .payload_db
             .retrieve_payload_by_id(&payload_id)
             .await?;
-        let status = payload
+        payload
             .map(|payload| payload.status)
-            .unwrap_or(PayloadStatus::NotFound);
-        Ok(status)
+            .ok_or(SubmitterError::PayloadNotFound)
     }
 
-    async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit> {
+    async fn estimate_gas_limit(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<Option<GasLimit>, SubmitterError> {
         self.inner.adapter.estimate_gas_limit(payload).await
     }
 }
@@ -97,11 +100,11 @@ mod tests {
             Ok(self.payloads.lock().unwrap().get(id).cloned())
         }
 
-        async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()> {
+        async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
             self.payloads
                 .lock()
                 .unwrap()
-                .insert(payload.id().clone(), payload);
+                .insert(payload.id().clone(), payload.clone());
             Ok(())
         }
 
@@ -151,15 +154,15 @@ mod tests {
         let mut payload = FullPayload::default();
         let payload_id = payload.id().clone();
 
-        entrypoint.send_payload(payload.clone()).await?;
+        entrypoint.send_payload(&payload).await?;
 
         let status = entrypoint.payload_status(payload_id.clone()).await?;
         assert_eq!(status, PayloadStatus::ReadyToSubmit);
 
         // update the payload's status
-        let new_status = PayloadStatus::Finalized;
+        let new_status = PayloadStatus::InTransaction(TransactionStatus::Finalized);
         payload.status = new_status.clone();
-        db.store_payload_by_id(payload).await.unwrap();
+        db.store_payload_by_id(&payload).await.unwrap();
 
         // ensure the db entry was updated
         let status = entrypoint.payload_status(payload_id.clone()).await?;
@@ -205,13 +208,17 @@ mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimate_gas_limit()
-            .returning(move |_| Ok(mock_gas_limit));
+            .returning(move |_| Ok(Some(mock_gas_limit)));
         let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
         let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));
 
         let payload = FullPayload::default();
-        let gas_limit = entrypoint.estimate_gas_limit(&payload).await.unwrap();
+        let gas_limit = entrypoint
+            .estimate_gas_limit(&payload)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(gas_limit, mock_gas_limit);
     }
