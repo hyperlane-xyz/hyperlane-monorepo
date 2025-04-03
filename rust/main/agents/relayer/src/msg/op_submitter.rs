@@ -22,6 +22,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason, SubmitterType, TxOutcome,
 };
+use submitter::{FullPayload, PayloadId};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
@@ -434,7 +435,7 @@ async fn submit_lander_task(
         let batch = submit_queue.pop_many(recv_limit).await;
 
         for op in batch.into_iter() {
-            let _payload = match op.payload().await {
+            let operation_payload = match op.payload().await {
                 Ok(payload) => payload,
                 Err(_) => {
                     prepare_queue
@@ -448,6 +449,15 @@ async fn submit_lander_task(
                     continue;
                 }
             };
+
+            let message_id = op.id();
+            let metadata = "payload-".to_owned() + &message_id.to_string();
+            let mailbox = op
+                .try_get_mailbox()
+                .expect("Operation should contain Mailbox address")
+                .address();
+            let _payload =
+                FullPayload::new(PayloadId::random(), metadata, operation_payload, mailbox);
         }
 
         // TODO iterate though batch and submit transactions
