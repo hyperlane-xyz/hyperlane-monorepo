@@ -166,6 +166,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         None
     }
+
+    /// Creates payload for the operation
+    async fn payload(&self) -> ChainResult<Vec<u8>>;
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
@@ -262,6 +265,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "ApplicationReport({0})")]
     /// Application report
     ApplicationReport(ApplicationReport),
+    #[strum(to_string = "Failed to create payload for message and metadata")]
+    /// Failed to create payload for message and metadata
+    ErrorCreatingPayload,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

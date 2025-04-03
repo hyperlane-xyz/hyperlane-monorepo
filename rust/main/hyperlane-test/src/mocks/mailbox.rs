@@ -106,8 +106,12 @@ impl Mailbox for MockMailboxContract {
         self.process_estimate_costs(message, metadata)
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        self.process_calldata(message, metadata)
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        Ok(self.process_calldata(message, metadata))
     }
 }
 

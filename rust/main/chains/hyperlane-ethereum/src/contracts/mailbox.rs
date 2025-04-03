@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
@@ -27,9 +26,7 @@ use hyperlane_core::{
 
 use crate::error::HyperlaneEthereumError;
 use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
-use crate::interfaces::i_mailbox::{
-    IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
-};
+use crate::interfaces::i_mailbox::{IMailbox as EthereumMailboxInternal, IMAILBOX_ABI};
 use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{call_with_reorg_period, fill_tx_gas_params, report_tx};
 use crate::{
@@ -593,13 +590,12 @@ where
         })
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        let process_call = ProcessCall {
-            message: RawHyperlaneMessage::from(message).to_vec().into(),
-            metadata: metadata.to_vec().into(),
-        };
-
-        AbiEncode::encode(process_call)
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        todo!()
     }
 }
 
