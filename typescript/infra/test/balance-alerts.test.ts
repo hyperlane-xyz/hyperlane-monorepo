@@ -14,7 +14,11 @@ import {
 } from '../src/infrastructure/monitoring/grafana.js';
 import { readJSONAtPath } from '../src/utils/utils.js';
 
-describe('Balance Alert Thresholds', () => {
+const DEFAULT_TIMEOUT = 30_000;
+
+describe('Balance Alert Thresholds', async function () {
+  this.timeout(DEFAULT_TIMEOUT);
+
   it('should have matching thresholds between Grafana alerts and threshold config files', async () => {
     const saToken = await fetchGrafanaServiceAccountToken();
     const alertsToCheck = Object.values(AlertType);
@@ -25,7 +29,6 @@ describe('Balance Alert Thresholds', () => {
       const alertRule = await retryAsync(
         () => fetchGrafanaAlert(alert, saToken),
         3, // 3 attempts
-        1000, // 1 second base retry time
       );
       const existingQuery = alertRule.queries[0];
 
