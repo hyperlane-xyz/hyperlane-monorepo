@@ -61,7 +61,8 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<HashSet<String>>>(
                 chains_names_to_scrape.clone(),
                 "Parsing base config",
-            ).await
+            )
+            .await
             .take_config_err(&mut err);
 
         let db = p

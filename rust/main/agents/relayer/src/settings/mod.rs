@@ -129,7 +129,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<HashSet<String>>>(
                 relay_chain_names.clone(),
                 "Parsing base config",
-            ).await
+            )
+            .await
             .take_config_err(&mut err);
 
         let db = p

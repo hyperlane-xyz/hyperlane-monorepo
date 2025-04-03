@@ -159,7 +159,14 @@ fn parse_chain(
         .unwrap_or(ReorgPeriod::from_blocks(1));
 
     let chain_rpc_urls = rpc_urls.get(&chain_id.unwrap_or_default());
-    let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", chain_rpc_urls, &mut err);
+    let rpcs = parse_base_and_override_urls(
+        &chain,
+        "rpcUrls",
+        "customRpcUrls",
+        "http",
+        chain_rpc_urls,
+        &mut err,
+    );
 
     let from = chain
         .chain(&mut err)
@@ -498,7 +505,8 @@ fn parse_urls(
                     .end()
             })
             .collect_vec()
-        }).unwrap_or_default()
+        })
+        .unwrap_or_default()
 }
 
 fn parse_custom_urls(

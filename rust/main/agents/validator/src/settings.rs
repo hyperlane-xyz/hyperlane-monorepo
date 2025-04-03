@@ -74,7 +74,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<HashSet<String>>>(
                 origin_chain_name_set,
                 "Expected valid base agent configuration",
-            ).await
+            )
+            .await
             .take_config_err(&mut err);
 
         let origin_chain = if let (Some(base), Some(origin_chain_name)) = (&base, origin_chain_name)
@@ -92,7 +93,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
                 "Expected valid validator configuration",
-            ).await
+            )
+            .await
             .end();
 
         let db = p
