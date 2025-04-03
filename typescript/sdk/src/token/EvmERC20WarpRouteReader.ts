@@ -85,8 +85,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       remoteRouters,
       proxyAdmin,
       destinationGas,
-      type,
-    } as DerivedTokenRouterConfig;
+    };
   }
 
   /**
