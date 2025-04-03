@@ -79,7 +79,7 @@ impl GrpcProvider {
                     .map(|e| e.timeout(Duration::from_secs(REQUEST_TIMEOUT)))
                     .map(|e| e.connect_timeout(Duration::from_secs(REQUEST_TIMEOUT)))
                     .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
-                    .map(|m| CosmosGrpcClient::new(m))
+                    .map(CosmosGrpcClient::new)
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect::<Result<Vec<CosmosGrpcClient>, _>>()
