@@ -1,5 +1,7 @@
 import { expect } from 'chai';
 
+import { retryAsync } from '@hyperlane-xyz/utils';
+
 import { THRESHOLD_CONFIG_PATH } from '../src/config/funding/balances.js';
 import {
   AlertType,
@@ -20,7 +22,11 @@ describe('Balance Alert Thresholds', () => {
 
     for (const alert of alertsToCheck) {
       // Fetch alert rule from Grafana
-      const alertRule = await fetchGrafanaAlert(alert, saToken);
+      const alertRule = await retryAsync(
+        () => fetchGrafanaAlert(alert, saToken),
+        3, // 3 attempts
+        1000, // 1 second base retry time
+      );
       const existingQuery = alertRule.queries[0];
 
       // Parse current thresholds from the query
@@ -55,7 +61,8 @@ describe('Balance Alert Thresholds', () => {
     if (mismatches.length > 0) {
       expect.fail(
         'Found mismatches between Grafana alerts and config files:\n' +
-          mismatches.join('\n'),
+          mismatches.join('\n') +
+          '\nonce your threshold changes have been review, run the write-alerts script to update the grafana queries',
       );
     }
   });
