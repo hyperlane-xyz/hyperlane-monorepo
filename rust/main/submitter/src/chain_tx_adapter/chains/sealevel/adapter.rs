@@ -38,7 +38,7 @@ use crate::chain_tx_adapter::{
     chains::sealevel::conf::{create_keypair, get_connection_conf},
 };
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit};
-use crate::payload::{FullPayload, VmSpecificPayloadData};
+use crate::payload::FullPayload;
 use crate::transaction::{
     SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,
 };
