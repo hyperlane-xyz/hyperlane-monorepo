@@ -356,7 +356,12 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         address _owner
     ) external view returns (address) {
-        return getRemoteInterchainAccount(_destination, _owner, bytes32(0));
+        return
+            getRemoteInterchainAccount(
+                _destination,
+                _owner,
+                InterchainAccountMessage.EMPTY_SALT
+            );
     }
 
     /**
@@ -401,7 +406,7 @@ contract InterchainAccountRouter is Router {
                 _owner.addressToBytes32(),
                 _router.addressToBytes32(),
                 _ism,
-                bytes32(0)
+                InterchainAccountMessage.EMPTY_SALT
             );
     }
 
@@ -425,7 +430,7 @@ contract InterchainAccountRouter is Router {
                 _owner,
                 _router,
                 _ism,
-                bytes32(0)
+                InterchainAccountMessage.EMPTY_SALT
             );
     }
 
@@ -482,7 +487,7 @@ contract InterchainAccountRouter is Router {
                 _owner,
                 _router,
                 _ism,
-                bytes32(0)
+                InterchainAccountMessage.EMPTY_SALT
             );
     }
 
@@ -532,7 +537,13 @@ contract InterchainAccountRouter is Router {
         address _router,
         address _ism
     ) public view returns (address) {
-        return getRemoteInterchainAccount(_owner, _router, _ism, bytes32(0));
+        return
+            getRemoteInterchainAccount(
+                _owner,
+                _router,
+                _ism,
+                InterchainAccountMessage.EMPTY_SALT
+            );
     }
 
     /**
@@ -719,7 +730,11 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         bytes32 _address
     ) internal override {
-        _enrollRemoteRouterAndIsm(_destination, _address, bytes32(0));
+        _enrollRemoteRouterAndIsm(
+            _destination,
+            _address,
+            InterchainAccountMessage.EMPTY_SALT
+        );
     }
 
     // ============ Private Functions ============
@@ -747,8 +762,8 @@ contract InterchainAccountRouter is Router {
         bytes32 _ism
     ) private {
         require(
-            routers(_destination) == bytes32(0) &&
-                isms[_destination] == bytes32(0),
+            routers(_destination) == InterchainAccountMessage.EMPTY_SALT &&
+                isms[_destination] == InterchainAccountMessage.EMPTY_SALT,
             "router and ISM defaults are immutable once set"
         );
         Router._enrollRemoteRouter(_destination, _router);
@@ -768,7 +783,10 @@ contract InterchainAccountRouter is Router {
         bytes32 _ism,
         bytes memory _body
     ) private returns (bytes32) {
-        require(_router != bytes32(0), "no router specified for destination");
+        require(
+            _router != InterchainAccountMessage.EMPTY_SALT,
+            "no router specified for destination"
+        );
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
             mailbox.dispatch{value: msg.value}(
@@ -795,7 +813,10 @@ contract InterchainAccountRouter is Router {
         bytes memory _body,
         bytes memory _hookMetadata
     ) private returns (bytes32) {
-        require(_router != bytes32(0), "no router specified for destination");
+        require(
+            _router != InterchainAccountMessage.EMPTY_SALT,
+            "no router specified for destination"
+        );
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
             mailbox.dispatch{value: msg.value}(

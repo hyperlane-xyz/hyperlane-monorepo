@@ -13,6 +13,8 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 library InterchainAccountMessage {
     using TypeCasts for bytes32;
 
+    bytes32 internal constant EMPTY_SALT = bytes32(0);
+
     /**
      * @notice Returns formatted (packed) InterchainAccountMessage
      * @dev This function should only be used in memory message construction.
@@ -37,7 +39,7 @@ library InterchainAccountMessage {
                 TypeCasts.addressToBytes32(_owner),
                 _ism,
                 _calls,
-                bytes32(0) // Salts are expected when decoding.
+                EMPTY_SALT // Salts are expected when decoding.
             );
     }
 
@@ -70,7 +72,7 @@ library InterchainAccountMessage {
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
-        return encode(_owner, _ism, _calls, bytes32(0));
+        return encode(_owner, _ism, _calls, EMPTY_SALT);
     }
 
     /**
