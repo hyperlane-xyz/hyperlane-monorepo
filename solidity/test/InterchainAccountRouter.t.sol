@@ -808,7 +808,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         environment.processNextPendingMessage();
     }
 
-    function testSalts() public {
+    function testDifferentSalts() public {
         address owner = address(this);
 
         ica = destinationIcaRouter.getDeployedInterchainAccount(
@@ -828,5 +828,27 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
                 keccak256("i am a different salt")
             );
         assertNotEq(address(ica), address(ica2));
+    }
+
+    function testEqualSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("salt1")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("salt1")
+            );
+        assertEq(address(ica), address(ica2));
     }
 }
