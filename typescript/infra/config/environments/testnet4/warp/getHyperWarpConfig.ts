@@ -1,12 +1,9 @@
 import { HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { ETHEREUM_DEPLOYER_ADDRESS } from '../owners.js';
-
-// use VYPER alias for obfuscation
 const tokenConfig = {
-  name: 'Vyper Token',
-  symbol: 'VYPER',
+  name: 'Hyper Token',
+  symbol: 'HYPER',
   decimals: 18,
 };
 
