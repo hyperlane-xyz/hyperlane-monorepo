@@ -17,8 +17,6 @@ use crate::{
     transaction::{Transaction, TransactionStatus},
 };
 
-use super::DispatcherError;
-
 pub type GasLimit = U256;
 
 #[derive(new, Debug)]
@@ -39,6 +37,8 @@ pub trait AdaptsChain: Send + Sync {
         &self,
         payload: &FullPayload,
     ) -> Result<Option<GasLimit>, SubmitterError>;
+
+    /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
     async fn build_transactions(
         &self,
         payloads: &[FullPayload],

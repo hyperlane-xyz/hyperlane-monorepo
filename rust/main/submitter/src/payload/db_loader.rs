@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tracing::trace;
 
 use crate::{
-    chain_tx_adapter::DispatcherError,
+    error::SubmitterError,
     payload_dispatcher::{BuildingStageQueue, LoadableFromDb, LoadingOutcome},
 };
 
@@ -19,15 +19,15 @@ pub struct PayloadDbLoader {
 impl LoadableFromDb for PayloadDbLoader {
     type Item = FullPayload;
 
-    async fn highest_index(&self) -> Result<u32, DispatcherError> {
+    async fn highest_index(&self) -> Result<u32, SubmitterError> {
         Ok(self.db.retrieve_highest_index().await?)
     }
 
-    async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, DispatcherError> {
+    async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, SubmitterError> {
         Ok(self.db.retrieve_payload_by_index(index).await?)
     }
 
-    async fn load(&self, item: FullPayload) -> Result<LoadingOutcome, DispatcherError> {
+    async fn load(&self, item: FullPayload) -> Result<LoadingOutcome, SubmitterError> {
         match item.status {
             PayloadStatus::ReadyToSubmit | PayloadStatus::Retry(_) => {
                 self.building_stage_queue.lock().await.push_back(item);

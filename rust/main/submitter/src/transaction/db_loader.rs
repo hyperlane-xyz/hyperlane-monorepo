@@ -5,7 +5,7 @@ use tokio::sync::mpsc::Sender;
 use tracing::trace;
 
 use crate::{
-    chain_tx_adapter::DispatcherError,
+    error::SubmitterError,
     payload_dispatcher::{LoadableFromDb, LoadingOutcome},
 };
 
@@ -21,15 +21,15 @@ pub struct TransactionDbLoader {
 impl LoadableFromDb for TransactionDbLoader {
     type Item = Transaction;
 
-    async fn highest_index(&self) -> Result<u32, DispatcherError> {
+    async fn highest_index(&self) -> Result<u32, SubmitterError> {
         Ok(self.db.retrieve_highest_index().await?)
     }
 
-    async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, DispatcherError> {
+    async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, SubmitterError> {
         Ok(self.db.retrieve_transaction_by_index(index).await?)
     }
 
-    async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, DispatcherError> {
+    async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, SubmitterError> {
         match item.status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 self.inclusion_stage_sender.send(item).await?;

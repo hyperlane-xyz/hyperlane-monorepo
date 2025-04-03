@@ -13,15 +13,15 @@ use hyperlane_base::db::DbResult;
 use tokio::time::sleep;
 use tracing::{debug, instrument};
 
-use crate::chain_tx_adapter::DispatcherError;
+use crate::error::SubmitterError;
 
 #[async_trait]
 pub trait LoadableFromDb {
     type Item: Sized;
 
-    async fn highest_index(&self) -> Result<u32, DispatcherError>;
-    async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, DispatcherError>;
-    async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, DispatcherError>;
+    async fn highest_index(&self) -> Result<u32, SubmitterError>;
+    async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, SubmitterError>;
+    async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, SubmitterError>;
 }
 
 pub enum LoadingOutcome {
@@ -75,7 +75,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         }
     }
 
-    async fn try_load_next_item(&mut self) -> Result<LoadingOutcome, DispatcherError> {
+    async fn try_load_next_item(&mut self) -> Result<LoadingOutcome, SubmitterError> {
         // Always prioritize advancing the the high nonce iterator, as
         // we have a preference for higher nonces
         if let Some(high_index_iter) = &mut self.high_index_iter {
@@ -96,7 +96,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         Ok(LoadingOutcome::Skipped)
     }
 
-    pub async fn load_from_db(&mut self) -> Result<(), DispatcherError> {
+    pub async fn load_from_db(&mut self) -> Result<(), SubmitterError> {
         loop {
             if let LoadingOutcome::Skipped = self.try_load_next_item().await? {
                 if self.high_index_iter.is_none() {
@@ -152,7 +152,7 @@ impl<T: LoadableFromDb + Debug> DirectionalIndexIterator<T> {
         }
     }
 
-    async fn try_load_item(&self) -> Result<Option<LoadingOutcome>, DispatcherError> {
+    async fn try_load_item(&self) -> Result<Option<LoadingOutcome>, SubmitterError> {
         let Some(index) = self.index else {
             return Ok(None);
         };
@@ -198,7 +198,7 @@ mod tests {
     impl LoadableFromDb for MockDb {
         type Item = String;
 
-        async fn highest_index(&self) -> Result<u32, DispatcherError> {
+        async fn highest_index(&self) -> Result<u32, SubmitterError> {
             let state = self.state.lock().await;
             Ok(state.highest_index)
         }
@@ -206,12 +206,12 @@ mod tests {
         async fn retrieve_by_index(
             &self,
             index: u32,
-        ) -> Result<Option<Self::Item>, DispatcherError> {
+        ) -> Result<Option<Self::Item>, SubmitterError> {
             let state = self.state.lock().await;
             Ok(state.data.get(&index).cloned())
         }
 
-        async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, DispatcherError> {
+        async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, SubmitterError> {
             debug!("Loading item: {:?}", item);
             Ok(LoadingOutcome::Loaded)
         }
