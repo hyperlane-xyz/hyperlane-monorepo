@@ -276,13 +276,13 @@ impl<'v> ValueParser<'v> {
     }
 
     /// Use FromRawConf to parse a value.
-    pub fn parse_from_raw_config<O, T, F>(&self, filter: F, ctx: &'static str) -> ConfigResult<O>
+    pub async fn parse_from_raw_config<O, T, F>(&self, filter: F, ctx: &'static str) -> ConfigResult<O>
     where
         O: FromRawConf<T, F>,
-        T: Debug + DeserializeOwned,
-        F: Default,
+        T: Debug + DeserializeOwned + Send + 'static,
+        F: Default + Send + 'static,
     {
-        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter)
+        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter).await
     }
 }
 
@@ -350,13 +350,18 @@ impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {
         )
     }
 
-    pub fn parse_from_raw_config<O, T, F>(self, filter: F, ctx: &'static str) -> ParseChain<'e, O>
+    pub async fn parse_from_raw_config<O, T, F>(self, filter: F, ctx: &'static str) -> ParseChain<'e, O>
     where
         O: FromRawConf<T, F>,
-        T: Debug + DeserializeOwned,
-        F: Default,
+        T: Debug + DeserializeOwned + Send + 'static,
+        F: Default + Send + 'static,
     {
-        self.and_then(|v| v.parse_from_raw_config::<O, T, F>(filter, ctx))
+        let parsed = match self.0 {
+            Some(v) => v.parse_from_raw_config::<O, T, F>(filter, ctx).await.take_config_err(self.1),
+            None => None,
+        };
+
+        ParseChain(parsed, self.1)
     }
 }
 

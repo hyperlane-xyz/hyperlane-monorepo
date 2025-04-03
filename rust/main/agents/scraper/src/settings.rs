@@ -6,6 +6,7 @@
 
 use std::{collections::HashSet, default::Default};
 
+use async_trait::async_trait;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::Context;
 use hyperlane_base::{
@@ -38,8 +39,9 @@ struct RawScraperSettings(Value);
 
 impl_loadable_from_settings!(Scraper, RawScraperSettings -> ScraperSettings);
 
+#[async_trait]
 impl FromRawConf<RawScraperSettings> for ScraperSettings {
-    fn from_config_filtered(
+    async fn from_config_filtered(
         raw: RawScraperSettings,
         cwp: &ConfigPath,
         _filter: (),
@@ -48,18 +50,18 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let chains_names_to_scrape: Option<HashSet<&str>> = p
+        let chains_names_to_scrape: Option<HashSet<String>> = p
             .chain(&mut err)
             .get_key("chainsToScrape")
             .parse_string()
             .end()
-            .map(|s| s.split(',').collect());
+            .map(|s| s.split(',').map(str::to_owned).collect());
 
         let base = p
-            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
-                chains_names_to_scrape.as_ref(),
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<HashSet<String>>>(
+                chains_names_to_scrape.clone(),
                 "Parsing base config",
-            )
+            ).await
             .take_config_err(&mut err);
 
         let db = p
@@ -73,7 +75,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             chains
                 .into_iter()
                 .filter_map(|chain| {
-                    base.lookup_domain(chain)
+                    base.lookup_domain(chain.as_str())
                         .context("Missing configuration for a chain in `chainsToScrape`")
                         .into_config_result(|| cwp + "chains_to_scrape")
                         .take_config_err(&mut err)

@@ -23,10 +23,11 @@ pub struct HyperlaneAgentCore {
 }
 
 /// Settings of an agent defined from configuration
+#[async_trait]
 pub trait LoadableFromSettings: AsRef<Settings> + Sized {
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn load() -> ConfigResult<Self>;
+    async fn load() -> ConfigResult<Self>;
 }
 
 /// A fundamental agent which does not make any assumptions about the tools
@@ -86,7 +87,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
 
     let agent_metadata = AgentMetadata::new(git_sha);
 
-    let settings = A::Settings::load()?;
+    let settings = A::Settings::load().await?;
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;

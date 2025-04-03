@@ -6,6 +6,7 @@
 
 use std::{collections::HashSet, path::PathBuf, time::Duration};
 
+use axum::async_trait;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
@@ -50,8 +51,9 @@ struct RawValidatorSettings(Value);
 
 impl_loadable_from_settings!(Validator, RawValidatorSettings -> ValidatorSettings);
 
+#[async_trait]
 impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
-    fn from_config_filtered(
+    async fn from_config_filtered(
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
@@ -66,13 +68,13 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_string()
             .end();
 
-        let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
+        let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s.to_owned()]));
 
         let base: Option<Settings> = p
-            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
-                origin_chain_name_set.as_ref(),
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<HashSet<String>>>(
+                origin_chain_name_set,
                 "Expected valid base agent configuration",
-            )
+            ).await
             .take_config_err(&mut err);
 
         let origin_chain = if let (Some(base), Some(origin_chain_name)) = (&base, origin_chain_name)
@@ -90,7 +92,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
                 "Expected valid validator configuration",
-            )
+            ).await
             .end();
 
         let db = p

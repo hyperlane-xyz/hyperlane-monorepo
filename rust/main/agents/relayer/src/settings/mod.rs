@@ -6,6 +6,7 @@
 
 use std::{collections::HashSet, path::PathBuf};
 
+use axum::async_trait;
 use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use ethers::utils::hex;
@@ -106,8 +107,9 @@ struct RawRelayerSettings(Value);
 
 impl_loadable_from_settings!(Relayer, RawRelayerSettings -> RelayerSettings);
 
+#[async_trait]
 impl FromRawConf<RawRelayerSettings> for RelayerSettings {
-    fn from_config_filtered(
+    async fn from_config_filtered(
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
@@ -116,18 +118,18 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let relay_chain_names: Option<HashSet<&str>> = p
+        let relay_chain_names: Option<HashSet<String>> = p
             .chain(&mut err)
             .get_key("relayChains")
             .parse_string()
             .end()
-            .map(|v| v.split(',').collect());
+            .map(|v| v.split(',').map(str::to_owned).collect());
 
         let base = p
-            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
-                relay_chain_names.as_ref(),
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<HashSet<String>>>(
+                relay_chain_names.clone(),
                 "Parsing base config",
-            )
+            ).await
             .take_config_err(&mut err);
 
         let db = p
@@ -285,7 +287,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .unwrap_or_default()
             .into_iter()
             .filter_map(|chain| {
-                base.lookup_domain(chain)
+                base.lookup_domain(chain.as_str())
                     .context("Missing configuration for a chain in `relayChains`")
                     .into_config_result(|| cwp + "relay_chains")
                     .take_config_err(&mut err)

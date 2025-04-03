@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use axum::async_trait;
 use convert_case::{Case, Casing};
 use ethers::providers::{Http, Middleware, Provider};
 use eyre::{eyre, Context};
@@ -43,11 +44,12 @@ const DEFAULT_CHUNK_SIZE: u32 = 1999;
 #[serde(transparent)]
 pub struct RawAgentConf(Value);
 
-impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
+#[async_trait]
+impl FromRawConf<RawAgentConf, Option<HashSet<String>>> for Settings {
     async fn from_config_filtered(
         raw: RawAgentConf,
         cwp: &ConfigPath,
-        filter: Option<&HashSet<&str>>,
+        filter: Option<HashSet<String>>,
     ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
 
@@ -383,6 +385,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 #[serde(transparent)]
 pub struct RawAgentSignerConf(Value);
 
+#[async_trait]
 impl FromRawConf<RawAgentSignerConf> for SignerConf {
     async fn from_config_filtered(
         raw: RawAgentSignerConf,
