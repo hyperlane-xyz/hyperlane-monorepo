@@ -90,7 +90,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
-
     needs: [yarn-install]
     timeout-minutes: 10
     steps:
