@@ -175,10 +175,6 @@ are merged. Auto-redeploys will be implemented at some future date.
 
 ### Architecture
 
-The on-chain portions of Hyperlane are written in Solidity. The rust portions are
-exclusively off-chain. Later, there may be on-chain rust for Near/Solana/
-Polkadot.
-
 Hyperlane will be managed by a number of small off-chain programs ("agents"). Each
 of these will have a specific role. We want these roles to be simple, and
 easily described. Each of these agents will connect to a home chain and any
