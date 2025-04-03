@@ -1,6 +1,12 @@
 import { ethers } from 'ethers';
 
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
@@ -76,3 +82,29 @@ export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig =
       polygon,
     };
   };
+
+// Create a GnosisSafeBuilder Strategy for each safe address
+export function getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfigGenerator(
+  ezEthSafes: Record<string, string>,
+) {
+  return (): ChainSubmissionStrategy => {
+    return Object.fromEntries(
+      Object.entries(ezEthSafes).map(([chain, safeAddress]) => [
+        chain,
+        {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            version: '1.0',
+            chain,
+            safeAddress,
+          },
+        },
+      ]),
+    );
+  };
+}
+
+export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig =
+  getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfigGenerator(
+    safeOwners,
+  );
