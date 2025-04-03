@@ -485,7 +485,7 @@ fn parse_urls(
     key: &str,
     protocol: &str,
     err: &mut ConfigParsingError,
-) -> Option<Vec<Url>> {
+) -> Vec<Url> {
     chain
         .chain(err)
         .get_key(key)
@@ -498,7 +498,7 @@ fn parse_urls(
                     .end()
             })
             .collect_vec()
-        })
+        }).unwrap_or_default()
 }
 
 fn parse_custom_urls(
@@ -528,10 +528,10 @@ fn parse_base_and_override_urls(
 ) -> Vec<Url> {
     let base = parse_urls(chain, base_key, protocol, err);
     let overrides = parse_custom_urls(chain, override_key, err);
-    let combined = match rpc_urls {
-        Some(rpc_urls) => overrides.unwrap_or(base.unwrap_or(rpc_urls.to_vec())),
-        None => Vec::new(),
-    };
+    let mut combined = overrides.unwrap_or(base);
+    if let Some(rpc_urls) = rpc_urls {
+        combined.extend(rpc_urls.into_iter().cloned());
+    }
 
     if combined.is_empty() {
         err.push(
