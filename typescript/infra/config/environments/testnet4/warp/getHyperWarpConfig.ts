@@ -14,6 +14,14 @@ const mailboxes = {
   optimismsepolia: '0x6966b0E55883d49BFB24539356a2f8A673E02039',
 };
 
+const owners = {
+  sepolia: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+  // get-owner-ica output for sepolia owner
+  arbitrumsepolia: '0xDFd80Ae8E7282B372798fEF8240E5f10Ed37EAe8',
+  basesepolia: '0xb3F1ec53A32dC92065285fF57db946ceF6E33971',
+  optimismsepolia: '0x6B72e2aCCd5Af2C0Be4CDDA4fE193e30263e8052',
+};
+
 const initialSupply = {
   sepolia: '1000000000000000000', // 1e18
   arbitrumsepolia: 0,
@@ -28,7 +36,7 @@ export const warpRouteConfig = objMap(
   (chain, amount): HypTokenRouterConfig => ({
     type:
       chain === COLLATERAL_CHAIN ? TokenType.hyperToken : TokenType.synthetic,
-    owner: ETHEREUM_DEPLOYER_ADDRESS,
+    owner: owners[chain],
     mailbox: mailboxes[chain],
     totalSupply: amount,
     ...tokenConfig,
@@ -37,28 +45,27 @@ export const warpRouteConfig = objMap(
 
 // TODO: configure proxy admin to be reused?
 export const stakedWarpRouteConfig = objMap(
-  mailboxes,
-  (chain, mailbox): HypTokenRouterConfig => {
-    const config = {
-      owner: ETHEREUM_DEPLOYER_ADDRESS,
-      mailbox,
-      name: `Staked ${tokenConfig.name}`,
-      symbol: `st${tokenConfig.symbol}`,
-      decimals: tokenConfig.decimals,
+  warpRouteConfig,
+  (chain, config): HypTokenRouterConfig => {
+    const tokenConfig = {
+      name: `Staked ${config.name}`,
+      symbol: `st${config.symbol}`,
     };
 
     if (chain === COLLATERAL_CHAIN) {
       return {
+        ...config,
+        ...tokenConfig,
         type: TokenType.collateralVaultRebase,
         // symbiotic compound staker rewards
         token: '0x2aDe4CDD4DCECD4FdE76dfa99d61bC8c1940f2CE',
-        ...config,
       };
     } else {
       return {
+        ...config,
+        ...tokenConfig,
         type: TokenType.syntheticRebase,
         collateralChainName: COLLATERAL_CHAIN,
-        ...config,
       };
     }
   },
