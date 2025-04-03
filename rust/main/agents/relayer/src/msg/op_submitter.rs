@@ -435,53 +435,51 @@ async fn submit_lander_task(
     let recv_limit = max_batch_size as usize;
     loop {
         let batch = submit_queue.pop_many(recv_limit).await;
-
         for op in batch.into_iter() {
-            let operation_payload = match op.payload().await {
-                Ok(payload) => payload,
-                Err(e) => {
-                    error!(?e, "Error creating payload");
-                    prepare_queue
-                        .push(
-                            op,
-                            Some(PendingOperationStatus::Retry(
-                                ReprepareReason::ErrorCreatingPayload,
-                            )),
-                        )
-                        .await;
-                    continue;
-                }
-            };
-
-            let message_id = op.id();
-            let metadata = message_id.to_string();
-            let mailbox = op
-                .try_get_mailbox()
-                .expect("Operation should contain Mailbox address")
-                .address();
-            let payload =
-                FullPayload::new(PayloadId::random(), metadata, operation_payload, mailbox);
-
-            let result = entrypoint.send_payload(&payload).await;
-
-            if let Err(e) = result {
-                error!(?e, "Error sending payload");
-                prepare_queue
-                    .push(
-                        op,
-                        Some(PendingOperationStatus::Retry(
-                            ReprepareReason::ErrorSubmitting,
-                        )),
-                    )
-                    .await;
-                continue;
-            }
-
-            confirm_op(op, &confirm_queue, &metrics).await
+            submit_via_lander(op, &entrypoint, &prepare_queue, &confirm_queue, &metrics).await;
         }
-
-        // TODO store mapping from message id to payload id to database
     }
+}
+
+async fn submit_via_lander(
+    op: QueueOperation,
+    entrypoint: &Arc<PayloadDispatcherEntrypoint>,
+    prepare_queue: &OpQueue,
+    confirm_queue: &OpQueue,
+    metrics: &SerialSubmitterMetrics,
+) {
+    use PendingOperationStatus::Retry;
+
+    let operation_payload = match op.payload().await {
+        Ok(p) => p,
+        Err(e) => {
+            error!(?e, "Error creating payload");
+            let status = Retry(ReprepareReason::ErrorCreatingPayload);
+            prepare_queue.push(op, Some(status)).await;
+            return;
+        }
+    };
+
+    let message_id = op.id();
+    let metadata = message_id.to_string();
+    let mailbox = op
+        .try_get_mailbox()
+        .expect("Operation should contain Mailbox address")
+        .address();
+    let payload = FullPayload::new(PayloadId::random(), metadata, operation_payload, mailbox);
+
+    let result = entrypoint.send_payload(&payload).await;
+
+    if let Err(e) = result {
+        error!(?e, "Error sending payload");
+        let status = Retry(ReprepareReason::ErrorSubmitting);
+        prepare_queue.push(op, Some(status)).await;
+        return;
+    }
+
+    // TODO store mapping from message id to payload id to database
+
+    confirm_op(op, confirm_queue, metrics).await;
 }
 
 #[instrument(skip(prepare_queue, confirm_queue, metrics), ret, level = "debug")]
