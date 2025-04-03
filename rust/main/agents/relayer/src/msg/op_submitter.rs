@@ -423,7 +423,7 @@ async fn submit_classic_task(
 #[instrument(skip_all, fields(%_domain))]
 async fn submit_lander_task(
     _domain: HyperlaneDomain,
-    mut _prepare_queue: OpQueue,
+    prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
     mut _confirm_queue: OpQueue,
     max_batch_size: u32,
@@ -431,7 +431,24 @@ async fn submit_lander_task(
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
-        let mut _batch = submit_queue.pop_many(recv_limit).await;
+        let batch = submit_queue.pop_many(recv_limit).await;
+
+        for op in batch.into_iter() {
+            let _payload = match op.payload().await {
+                Ok(payload) => payload,
+                Err(_) => {
+                    prepare_queue
+                        .push(
+                            op,
+                            Some(PendingOperationStatus::Retry(
+                                ReprepareReason::ErrorCreatingPayload,
+                            )),
+                        )
+                        .await;
+                    continue;
+                }
+            };
+        }
 
         // TODO iterate though batch and submit transactions
     }

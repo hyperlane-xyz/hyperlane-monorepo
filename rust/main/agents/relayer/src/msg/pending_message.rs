@@ -536,6 +536,18 @@ impl PendingOperation for PendingMessage {
     fn set_metric(&mut self, metric: Arc<IntGauge>) {
         self.metric = Some(metric);
     }
+
+    async fn payload(&self) -> ChainResult<Vec<u8>> {
+        let mailbox = &self.ctx.destination_mailbox;
+        let message = &self.message;
+        let submission_data = self
+            .submission_data
+            .as_ref()
+            .expect("Pending message must be prepared before it can be submitted");
+        let metadata = &submission_data.metadata;
+        let payload = mailbox.process_calldata(message, metadata).await?;
+        Ok(payload)
+    }
 }
 
 impl PendingMessage {
