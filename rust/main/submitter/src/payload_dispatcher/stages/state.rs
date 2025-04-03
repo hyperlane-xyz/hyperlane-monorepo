@@ -21,7 +21,6 @@ use crate::{
 };
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
-#[derive(Clone)]
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,

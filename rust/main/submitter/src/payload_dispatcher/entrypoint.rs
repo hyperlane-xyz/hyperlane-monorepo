@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 
 use async_trait::async_trait;
-use derive_new::new;
 use eyre::{eyre, Result};
 
 use crate::{
