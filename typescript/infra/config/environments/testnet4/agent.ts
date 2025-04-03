@@ -301,10 +301,8 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: 'c779642-20250402-104107',
     },
-    whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
     resources: relayerResources,
   },
   validators: {
