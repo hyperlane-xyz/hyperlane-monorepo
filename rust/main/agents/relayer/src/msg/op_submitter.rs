@@ -604,6 +604,7 @@ async fn confirm_lander_task(
         }
 
         // TODO iterate through batch and confirm delivery
+        // TODO check if message was delivered via Mailbox.delivered()
     }
 }
 
