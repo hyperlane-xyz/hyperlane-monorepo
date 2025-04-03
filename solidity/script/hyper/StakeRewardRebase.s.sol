@@ -13,7 +13,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {IVault} from "../../contracts/interfaces/network/vault/IVault.sol";
 import {ICompoundStakerRewards} from "../../contracts/interfaces/network/rewards/ICompoundStakerRewards.sol";
-import {IStakerRewards} from "../../contracts/interfaces/network/rewards/IStakerRewards.sol";
+import {IDefaultStakerRewards} from "../../contracts/interfaces/network/rewards/IDefaultStakerRewards.sol";
+import {INetworkMiddlewareService} from "../../contracts/interfaces/network/service/INetworkMiddlewareService.sol";
+import {INetworkRegistry} from "../../contracts/interfaces/network/INetworkRegistry.sol";
 
 import "forge-std/StdCheats.sol";
 
@@ -32,7 +34,7 @@ contract StakeRewardRebase is Script, StdCheats {
     HyperToken public collateral;
     HypERC4626Collateral public stakedCollateral;
     IVault public vault;
-    IStakerRewards public rewards;
+    IDefaultStakerRewards public rewards;
     ICompoundStakerRewards compoundStakerRewards;
 
     uint256 rebaseFork;
@@ -48,7 +50,9 @@ contract StakeRewardRebase is Script, StdCheats {
         compoundStakerRewards = ICompoundStakerRewards(
             address(stakedCollateral.vault())
         );
-        rewards = compoundStakerRewards.rewards();
+        rewards = IDefaultStakerRewards(
+            address(compoundStakerRewards.rewards())
+        );
         vault = compoundStakerRewards.vault();
 
         collateral = HyperToken(vault.collateral());
@@ -125,17 +129,27 @@ contract StakeRewardRebase is Script, StdCheats {
             .handleNextInboundMessage();
         assert(rebasingSynthetic.balanceOf(msg.sender) == stakeAmount);
 
-        // address network = address(this);
+        vm.selectFork(stakeFork);
+        INetworkMiddlewareService middlewareService = INetworkMiddlewareService(
+            rewards.NETWORK_MIDDLEWARE_SERVICE()
+        );
 
-        // TODO:
-        // uint256 rewardAmount = 3000;
-        // rewards.distributeRewards(
-        //     network,
-        //     address(collateral),
-        //     rewardAmount,
-        //     abi.encode(uint48(block.timestamp), 0)
-        // );
-        // 1. distribute staking rewards
+        INetworkRegistry(middlewareService.NETWORK_REGISTRY())
+            .registerNetwork();
+        address network = address(this);
+        middlewareService.setMiddleware(network);
+
+        uint256 rewardAmount = 3000;
+        collateral.approve(address(rewards), rewardAmount);
+
+        uint48 timestamp = uint48(block.timestamp - 1);
+        rewards.distributeRewards(
+            network,
+            address(collateral),
+            rewardAmount,
+            abi.encode(timestamp, 0, bytes(""), bytes(""))
+        );
+
         // 2. compound rewards
         // 3. rebase the synthetic token
         // 4. assert the balance has increased
