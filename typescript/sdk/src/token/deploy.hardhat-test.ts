@@ -27,7 +27,10 @@ import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { HypTokenRouterConfig, WarpRouteDeployConfig } from './types.js';
+import {
+  HypTokenRouterConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
 
 const chain = TestChainName.test1;
 
@@ -36,11 +39,12 @@ describe('TokenDeployer', async () => {
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: WarpRouteDeployConfig;
+  let config: WarpRouteDeployConfigMailboxRequired;
   let token: Address;
   let xerc20: XERC20Test;
   let erc20: ERC20Test;
   let admin: ProxyAdmin;
+  const totalSupply = '100000';
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -59,14 +63,13 @@ describe('TokenDeployer', async () => {
         name: chain,
         symbol: `u${chain}`,
         decimals: 18,
-        totalSupply: '100000',
         ...c,
       }),
     );
   });
 
   beforeEach(async () => {
-    const { name, decimals, symbol, totalSupply } = config[chain];
+    const { name, decimals, symbol } = config[chain];
     const implementation = await new XERC20Test__factory(signer).deploy(
       name!,
       symbol!,

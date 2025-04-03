@@ -1,5 +1,30 @@
 # @hyperlane-xyz/utils
 
+## 10.0.0
+
+### Minor Changes
+
+- b8d95fc95: implement custom ESLint rule for restricted imports from exports
+
+## 9.2.1
+
+## 9.2.0
+
+## 9.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 3518f8901: Add ZERO_ADDRESS_HEX_32 constant.
+
 ## 8.8.1
 
 ## 8.8.0

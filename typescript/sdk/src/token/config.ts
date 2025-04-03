@@ -26,4 +26,4 @@ export const gasOverhead = (tokenType: TokenType): number => {
 };
 
 export const NON_ZERO_SENDER_ADDRESS =
-  '0x0000000000000000000000000000000000000001';
+  '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';

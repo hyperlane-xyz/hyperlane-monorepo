@@ -17,7 +17,6 @@ export const WarpRouteDeployConfigSchemaErrors = {
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
-  totalSupply: z.string().or(z.number()),
   decimals: z.number().optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
@@ -84,11 +83,8 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema.omit({
-  totalSupply: true,
-})
-  .partial()
-  .extend({
+export const CollateralRebaseTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
   });
 export const isCollateralRebaseTokenConfig = isCompliant(
@@ -97,6 +93,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
+  initialSupply: z.string().or(z.number()).optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
@@ -132,8 +129,18 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
 );
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
+const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
+  GasRouterConfigSchema.extend({
+    mailbox: z.string().optional(),
+  }),
+);
+
+export type HypTokenRouterConfigMailboxOptional = z.infer<
+  typeof HypTokenRouterConfigMailboxOptionalSchema
+>;
+
 export const WarpRouteDeployConfigSchema = z
-  .record(HypTokenRouterConfigSchema)
+  .record(HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
@@ -226,8 +233,21 @@ export const WarpRouteDeployConfigSchema = z
 
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
+const _RequiredMailboxSchema = z.record(
+  z.object({
+    mailbox: z.string(),
+  }),
+);
+
+export const WarpRouteDeployConfigMailboxRequiredSchema =
+  WarpRouteDeployConfigSchema.and(_RequiredMailboxSchema);
+
+export type WarpRouteDeployConfigMailboxRequired = z.infer<
+  typeof WarpRouteDeployConfigMailboxRequiredSchema
+>;
+
 function isCollateralRebasePairedCorrectly(
-  warpRouteDeployConfig: Record<string, HypTokenRouterConfig>,
+  warpRouteDeployConfig: WarpRouteDeployConfig,
 ): boolean {
   // Filter out all the non-collateral rebase configs to check if they are only synthetic rebase tokens
   const otherConfigs = Object.entries(warpRouteDeployConfig).filter(
@@ -250,7 +270,7 @@ function isCollateralRebasePairedCorrectly(
 type CCIPContractExistsMap = ChainMap<Set<ChainName>>;
 
 function getCCIPConfigMaps(
-  warpRouteDeployConfig: Record<string, HypTokenRouterConfig>,
+  warpRouteDeployConfig: Record<string, HypTokenRouterConfigMailboxOptional>,
 ): {
   ccipHookMap: CCIPContractExistsMap;
   ccipIsmMap: CCIPContractExistsMap;
