@@ -20,7 +20,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.01",
+    "amount": "0.068903",
     "decimals": 9
   },
   "arbitrumnova": {
@@ -43,10 +43,6 @@
     "amount": "779.371350051",
     "decimals": 9
   },
-  "astarzkevm": {
-    "amount": "0.00526",
-    "decimals": 9
-  },
   "aurora": {
     "amount": "0.07",
     "decimals": 9
@@ -60,7 +56,7 @@
     "decimals": 9
   },
   "avalanche": {
-    "amount": "1.000000001",
+    "amount": "1.46913265",
     "decimals": 9
   },
   "b3": {
@@ -68,11 +64,11 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.003385416",
+    "amount": "0.002901959",
     "decimals": 9
   },
   "berachain": {
-    "amount": "0.000000122",
+    "amount": "0.002338637",
     "decimals": 9
   },
   "bitlayer": {
@@ -80,7 +76,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.001147347",
+    "amount": "0.002047803",
     "decimals": 9
   },
   "bob": {
@@ -127,8 +123,16 @@
     "amount": "0.0005",
     "decimals": 9
   },
+  "coti": {
+    "amount": "0.005000007",
+    "decimals": 9
+  },
   "cyber": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "deepbrainchain": {
+    "amount": "10.0",
     "decimals": 9
   },
   "degenchain": {
@@ -152,7 +156,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "1",
+    "amount": "1.718727762",
     "decimals": 9
   },
   "everclear": {
@@ -256,11 +260,11 @@
     "decimals": 9
   },
   "lumia": {
-    "amount": "1.0",
+    "amount": "1.71",
     "decimals": 9
   },
   "lumiaprism": {
-    "amount": "1.0",
+    "amount": "1.71",
     "decimals": 9
   },
   "mantapacific": {
@@ -315,8 +319,16 @@
     "amount": "0.0053",
     "decimals": 1
   },
+  "nibiru": {
+    "amount": "1000.0",
+    "decimals": 9
+  },
   "oortmainnet": {
     "amount": "100.0",
+    "decimals": 9
+  },
+  "opbnb": {
+    "amount": "0.001",
     "decimals": 9
   },
   "optimism": {
@@ -336,11 +348,11 @@
     "decimals": 9
   },
   "polygon": {
-    "amount": "45.761584081",
+    "amount": "91.760798759",
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.01",
+    "amount": "0.0257",
     "decimals": 9
   },
   "polynomialfi": {
@@ -359,6 +371,10 @@
     "amount": "0.15",
     "decimals": 9
   },
+  "reactive": {
+    "amount": "1.001",
+    "decimals": 9
+  },
   "real": {
     "amount": "0.022",
     "decimals": 9
@@ -372,7 +388,7 @@
     "decimals": 9
   },
   "ronin": {
-    "amount": "20.0",
+    "amount": "21.0",
     "decimals": 9
   },
   "rootstockmainnet": {
@@ -404,7 +420,7 @@
     "decimals": 1
   },
   "soneium": {
-    "amount": "0.028181006",
+    "amount": "0.069907155",
     "decimals": 9
   },
   "sonic": {

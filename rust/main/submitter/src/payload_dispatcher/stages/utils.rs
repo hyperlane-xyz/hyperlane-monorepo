@@ -4,7 +4,7 @@ use tokio::time::sleep;
 use tracing::{error, info};
 
 use crate::{
-    chain_tx_adapter::DispatcherError,
+    error::SubmitterError,
     transaction::{Transaction, TransactionStatus},
 };
 
@@ -13,7 +13,7 @@ use super::PayloadDispatcherState;
 pub async fn retry_until_success<F, T, Fut>(f: F, action: &str) -> T
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Result<T, DispatcherError>>,
+    Fut: Future<Output = Result<T, SubmitterError>>,
 {
     loop {
         match f().await {
@@ -30,7 +30,7 @@ pub async fn update_tx_status(
     state: &PayloadDispatcherState,
     tx: &mut Transaction,
     new_status: TransactionStatus,
-) -> Result<(), DispatcherError> {
+) -> Result<(), SubmitterError> {
     info!(?tx, ?new_status, "Updating tx status");
     tx.status = new_status;
     state.store_tx(tx).await;

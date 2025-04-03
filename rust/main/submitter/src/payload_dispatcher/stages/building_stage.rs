@@ -9,7 +9,8 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, warn};
 
 use crate::{
-    chain_tx_adapter::{DispatcherError, TxBuildingResult},
+    chain_tx_adapter::TxBuildingResult,
+    error::SubmitterError,
     payload::{DropReason, FullPayload, PayloadDetails, PayloadStatus},
     transaction::Transaction,
 };
@@ -78,9 +79,6 @@ impl BuildingStage {
             self.drop_tx(&tx, DropReason::FailedSimulation).await;
             return;
         };
-        // sending the transaction to the Inclusion Stage can only
-        // fail if the channel is at capacity. Retry until it succeeds.
-        // If the channel is dropped,
         retry_until_success(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
@@ -97,9 +95,9 @@ impl BuildingStage {
             .await;
     }
 
-    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<(), DispatcherError> {
+    async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> Result<(), SubmitterError> {
         if let Err(err) = self.inclusion_stage_sender.send(tx.clone()).await {
-            return Err(DispatcherError::ChannelSendFailure(err));
+            return Err(SubmitterError::ChannelSendFailure(err));
         }
         info!(?tx, "Transaction sent to Inclusion Stage");
         Ok(())
@@ -193,7 +191,6 @@ mod tests {
         let (building_stage, mut receiver, queue) =
             test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
 
-        // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::random();
             initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
@@ -219,7 +216,6 @@ mod tests {
         let (building_stage, mut receiver, queue) =
             test_setup(PAYLOADS_TO_SEND, succesful_build, successful_simulation);
 
-        // send a single payload to the building stage and check that it is sent to the receiver
         for _ in 0..PAYLOADS_TO_SEND {
             let payload_to_send = FullPayload::random();
             initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
@@ -254,8 +250,7 @@ mod tests {
         };
 
         // give the building stage 100ms to send the transaction(s) to the receiver
-        let _ = tokio::select! {
-            // this arm runs indefinitely
+        tokio::select! {
             res = building_stage.run() => res,
             // this arm runs until all sent payloads are sent as txs
             payloads = received_payloads => {
@@ -288,7 +283,24 @@ mod tests {
             .expect_simulate_tx()
             // .times(payloads_to_send)
             .returning(move |_| Ok(successful_simulation.clone()));
-        dummy_building_queue(mock_adapter, payload_db, tx_db)
+        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db)
+    }
+
+    fn dummy_stage_receiver_queue(
+        mock_adapter: MockAdapter,
+        payload_db: Arc<dyn PayloadDb>,
+        tx_db: Arc<dyn TransactionDb>,
+    ) -> (
+        BuildingStage,
+        tokio::sync::mpsc::Receiver<Transaction>,
+        BuildingStageQueue,
+    ) {
+        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
+        let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+        let building_stage = BuildingStage::new(queue.clone(), sender, state);
+        (building_stage, receiver, queue)
     }
 
     fn dummy_built_tx(payloads: Vec<FullPayload>, success: bool) -> Vec<TxBuildingResult> {
@@ -320,22 +332,5 @@ mod tests {
                 .unwrap();
             assert_eq!(payload_from_db.status, expected_status);
         }
-    }
-
-    pub fn dummy_building_queue(
-        mock_adapter: MockAdapter,
-        payload_db: Arc<dyn PayloadDb>,
-        tx_db: Arc<dyn TransactionDb>,
-    ) -> (
-        BuildingStage,
-        tokio::sync::mpsc::Receiver<Transaction>,
-        BuildingStageQueue,
-    ) {
-        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
-        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
-        let (sender, receiver) = tokio::sync::mpsc::channel(100);
-        let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
-        let building_stage = BuildingStage::new(queue.clone(), sender, state);
-        (building_stage, receiver, queue)
     }
 }
