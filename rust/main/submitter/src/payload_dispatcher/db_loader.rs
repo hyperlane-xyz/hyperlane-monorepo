@@ -3,12 +3,14 @@
 
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use std::time::Duration;
 
 use derive_new::new;
 use hyperlane_base::db::HyperlaneDb;
 
 use async_trait::async_trait;
 use hyperlane_base::db::DbResult;
+use tokio::time::sleep;
 use tracing::{debug, instrument};
 
 use crate::chain_tx_adapter::DispatcherError;
@@ -73,14 +75,14 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         }
     }
 
-    async fn try_load_next_item(&mut self) -> Result<(), DispatcherError> {
+    async fn try_load_next_item(&mut self) -> Result<LoadingOutcome, DispatcherError> {
         // Always prioritize advancing the the high nonce iterator, as
         // we have a preference for higher nonces
         if let Some(high_index_iter) = &mut self.high_index_iter {
             if let Some(LoadingOutcome::Loaded) = high_index_iter.try_load_item().await? {
                 // If we have a high nonce item, we can process it
                 high_index_iter.iterate();
-                return Ok(());
+                return Ok(LoadingOutcome::Loaded);
             }
         }
 
@@ -89,9 +91,22 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         if let Some(LoadingOutcome::Loaded) = self.low_index_iter.try_load_item().await? {
             // If we have a low nonce item, we can process it
             self.low_index_iter.iterate();
-            return Ok(());
+            return Ok(LoadingOutcome::Loaded);
         }
-        Ok(())
+        Ok(LoadingOutcome::Skipped)
+    }
+
+    pub async fn load_from_db(&mut self) -> Result<(), DispatcherError> {
+        loop {
+            if let LoadingOutcome::Skipped = self.try_load_next_item().await? {
+                if self.high_index_iter.is_none() {
+                    // If we are only loading backward, we have processed all items
+                    return Ok(());
+                }
+                // sleep to wait for new items to be added
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
     }
 }
 
@@ -202,7 +217,10 @@ mod tests {
         }
     }
 
-    async fn set_up_state(only_load_backward: bool) -> DbIterator<MockDb> {
+    async fn set_up_state(
+        only_load_backward: bool,
+        num_items: usize,
+    ) -> (DbIterator<MockDb>, Arc<MockDb>) {
         let db = Arc::new(MockDb::new());
         let metadata = "Test Metadata".to_string();
 
@@ -210,17 +228,22 @@ mod tests {
         {
             let mut state = db.state.lock().await;
 
-            state.data.insert(1, "Item 1".to_string());
-            state.data.insert(2, "Item 2".to_string());
-            state.highest_index = 2;
+            for i in 1..=num_items {
+                state.data.insert(i as u32, format!("Item {}", i));
+            }
+            state.highest_index = num_items as u32;
         }
-        DbIterator::new(db.clone(), metadata.clone(), only_load_backward).await
+        (
+            DbIterator::new(db.clone(), metadata.clone(), only_load_backward).await,
+            db,
+        )
     }
 
     #[tokio::test]
     async fn test_db_iterator_forward_backward() {
         let only_load_backward = false;
-        let mut iterator = set_up_state(only_load_backward).await;
+        let num_db_insertions = 2;
+        let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
         assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 1);
         assert_eq!(
@@ -241,12 +264,68 @@ mod tests {
     #[tokio::test]
     async fn test_db_iterator_only_backward() {
         let only_load_backward = true;
-        let mut iterator = set_up_state(only_load_backward).await;
+        let num_db_insertions = 2;
+        let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
         assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 2);
         assert!(iterator.high_index_iter.is_none());
         iterator.try_load_next_item().await.unwrap();
         assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 1);
         assert!(iterator.high_index_iter.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_load_from_db_finishes_if_only_loading_backward() {
+        let only_load_backward = true;
+        let num_db_insertions = 5;
+        let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
+
+        iterator.load_from_db().await.unwrap();
+        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 0);
+        assert!(iterator.high_index_iter.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_load_from_db_keeps_running_if_forward_backward() {
+        let only_load_backward = false;
+        let num_db_insertions: u32 = 5;
+        let (mut iterator, db) = set_up_state(only_load_backward, num_db_insertions as usize).await;
+        // this future is used to assert that the iterator keeps running
+        // and doesn't finish loading from the db
+        let first_assertion_and_state_change = async {
+            sleep(Duration::from_millis(100)).await;
+            {
+                let mut state = db.state.lock().await;
+                let new_num_db_insertions = num_db_insertions + 1;
+                state.data.insert(
+                    (new_num_db_insertions) as u32,
+                    format!("Item {}", new_num_db_insertions),
+                );
+                state.highest_index = new_num_db_insertions as u32;
+            }
+
+            // now sleep for a bit to let the iterator process the new item
+            sleep(Duration::from_millis(1100)).await;
+        };
+
+        tokio::select! {
+            _ = iterator.load_from_db() => {
+                panic!("Loading from db finished although the high iterator should've kept waiting for new items");
+            }
+            _ = first_assertion_and_state_change => {
+            }
+        };
+
+        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 0);
+        assert_eq!(
+            *iterator
+                .high_index_iter
+                .as_ref()
+                .unwrap()
+                .index
+                .as_ref()
+                .unwrap(),
+            num_db_insertions + 2
+        );
     }
 }
