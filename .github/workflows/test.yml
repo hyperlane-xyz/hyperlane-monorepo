@@ -69,15 +69,6 @@ jobs:
           # check out full history
           fetch-depth: 0
 
-      - name: yarn-cache
-        uses: buildjet/cache@v4
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          fail-on-cache-miss: true
-
       # Build required before linting or the intra-monorepo package cycle checking won't work
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
@@ -274,7 +265,7 @@ jobs:
         with:
           prefix-key: 'v3-rust-e2e'
           shared-key: ${{ matrix.e2e-type }}
-          cache-provider: 'buildjet'
+          cache-provider: 'github'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
