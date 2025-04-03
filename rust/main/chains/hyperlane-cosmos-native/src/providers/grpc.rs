@@ -94,6 +94,7 @@ impl GrpcProvider {
         height: Option<u32>,
     ) -> tonic::Request<T> {
         let mut request = request.into_request();
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         if let Some(height) = height {
             request
                 .metadata_mut()
