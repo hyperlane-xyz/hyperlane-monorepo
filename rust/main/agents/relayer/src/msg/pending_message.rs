@@ -543,7 +543,7 @@ impl PendingOperation for PendingMessage {
         let submission_data = self
             .submission_data
             .as_ref()
-            .expect("Pending message must be prepared before it can be submitted");
+            .expect("Pending message must be prepared before we can create payload for it");
         let metadata = &submission_data.metadata;
         let payload = mailbox.process_calldata(message, metadata).await?;
         Ok(payload)
