@@ -3,8 +3,8 @@ use hyperlane_core::U256;
 use crate::chain_tx_adapter::chains::sealevel::adapter::tests::common::{
     adapter, payload, GAS_LIMIT,
 };
-use crate::chain_tx_adapter::{AdaptsChain, SealevelPayload};
-use crate::payload::{FullPayload, VmSpecificPayloadData};
+use crate::chain_tx_adapter::AdaptsChain;
+use crate::payload::FullPayload;
 
 #[tokio::test]
 async fn test_estimate_gas_limit() {

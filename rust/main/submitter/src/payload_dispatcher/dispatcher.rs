@@ -30,7 +30,7 @@ pub struct PayloadDispatcherSettings {
     pub raw_chain_conf: RawChainConf,
     pub domain: HyperlaneDomain,
     pub db_path: PathBuf,
-    pub metrics: CoreMetrics,
+    pub metrics: Arc<CoreMetrics>,
 }
 
 pub struct PayloadDispatcher {

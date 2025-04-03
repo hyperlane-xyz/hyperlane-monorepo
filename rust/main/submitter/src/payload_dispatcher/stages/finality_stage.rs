@@ -287,7 +287,7 @@ mod tests {
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
         let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
+            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
         let pool = Arc::new(Mutex::new(HashMap::new()));
         let finality_stage = FinalityStage::new(
             pool.clone(),
@@ -442,7 +442,7 @@ mod tests {
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
         let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
+            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
         let pool = Arc::new(Mutex::new(HashMap::new()));
         let finality_stage = FinalityStage::new(
             pool.clone(),

@@ -13,16 +13,15 @@ use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
-use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     total_estimated_cost, BatchResult, ChainCommunicationError, ChainResult, ConfirmReason::*,
     HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, QueueOperation, ReprepareReason, SubmitterType, TxOutcome,
+    PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
 };
-use submitter::{FullPayload, PayloadId};
+use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
@@ -83,12 +82,9 @@ pub const SUBMITTER_QUEUE_COUNT: usize = 3;
 /// eligible for submission, we should be working on it within reason. This
 /// must be balanced with the cost of making RPCs that will almost certainly
 /// fail and potentially block new messages from being sent immediately.
-#[derive(Debug)]
 pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
-    /// Chain configuration
-    conf: ChainConf,
     /// Receiver for new messages to submit.
     rx: Option<mpsc::UnboundedReceiver<QueueOperation>>,
     /// Metrics for serial submitter.
@@ -100,17 +96,18 @@ pub struct SerialSubmitter {
     prepare_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
+    payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
 }
 
 impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
-        conf: ChainConf,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
         retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
+        payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
     ) -> Self {
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
@@ -130,7 +127,6 @@ impl SerialSubmitter {
 
         Self {
             domain,
-            conf,
             // Using Options so that method which needs it can take from struct
             rx: Some(rx),
             metrics,
@@ -139,6 +135,7 @@ impl SerialSubmitter {
             prepare_queue,
             submit_queue,
             confirm_queue,
+            payload_dispatcher_entrypoint,
         }
     }
 
@@ -160,18 +157,18 @@ impl SerialSubmitter {
     }
 
     async fn run(mut self) {
-        use SubmitterType::{Classic, Lander};
-
         let rx_prepare = self.rx.take().expect("rx should be initialised");
 
-        let submit_task = match self.conf.submitter {
-            Classic => self.create_classic_submit_task(),
-            Lander => self.create_lander_submit_task(),
+        let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
+
+        let submit_task = match &entrypoint {
+            None => self.create_classic_submit_task(),
+            Some(entrypoint) => self.create_lander_submit_task(entrypoint.clone()),
         };
 
-        let confirm_task = match self.conf.submitter {
-            Classic => self.create_classic_confirm_task(),
-            Lander => self.create_lander_confirm_task(),
+        let confirm_task = match &entrypoint {
+            None => self.create_classic_confirm_task(),
+            Some(_) => self.create_lander_confirm_task(),
         };
 
         let tasks = [
@@ -182,7 +179,7 @@ impl SerialSubmitter {
         ];
 
         if let Err(err) = try_join_all(tasks).await {
-            tracing::error!(
+            error!(
                 error=?err,
                 domain=?self.domain,
                 "SerialSubmitter task panicked for domain"
@@ -257,13 +254,17 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_submit_task(&self) -> JoinHandle<()> {
+    fn create_lander_submit_task(
+        &self,
+        entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    ) -> JoinHandle<()> {
         let name = Self::task_name("submit_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
                 submit_lander_task(
+                    entrypoint,
                     self.domain.clone(),
                     self.prepare_queue.clone(),
                     self.submit_queue.clone(),
@@ -423,12 +424,13 @@ async fn submit_classic_task(
 
 #[instrument(skip_all, fields(%_domain))]
 async fn submit_lander_task(
+    entrypoint: Arc<PayloadDispatcherEntrypoint>,
     _domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
-    mut _confirm_queue: OpQueue,
+    confirm_queue: OpQueue,
     max_batch_size: u32,
-    _metrics: SerialSubmitterMetrics,
+    metrics: SerialSubmitterMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -437,7 +439,8 @@ async fn submit_lander_task(
         for op in batch.into_iter() {
             let operation_payload = match op.payload().await {
                 Ok(payload) => payload,
-                Err(_) => {
+                Err(e) => {
+                    error!(?e, "Error creating payload");
                     prepare_queue
                         .push(
                             op,
@@ -451,16 +454,33 @@ async fn submit_lander_task(
             };
 
             let message_id = op.id();
-            let metadata = "payload-".to_owned() + &message_id.to_string();
+            let metadata = message_id.to_string();
             let mailbox = op
                 .try_get_mailbox()
                 .expect("Operation should contain Mailbox address")
                 .address();
-            let _payload =
+            let payload =
                 FullPayload::new(PayloadId::random(), metadata, operation_payload, mailbox);
+
+            let result = entrypoint.send_payload(&payload).await;
+
+            if let Err(e) = result {
+                error!(?e, "Error sending payload");
+                prepare_queue
+                    .push(
+                        op,
+                        Some(PendingOperationStatus::Retry(
+                            ReprepareReason::ErrorSubmitting,
+                        )),
+                    )
+                    .await;
+                continue;
+            }
+
+            confirm_op(op, &confirm_queue, &metrics).await
         }
 
-        // TODO iterate though batch and submit transactions
+        // TODO store mapping from message id to payload id to database
     }
 }
 
@@ -502,7 +522,7 @@ async fn submit_single_operation(
 
 async fn confirm_op(
     mut op: QueueOperation,
-    confirm_queue: &mut OpQueue,
+    confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
     let destination = op.destination_domain().clone();
