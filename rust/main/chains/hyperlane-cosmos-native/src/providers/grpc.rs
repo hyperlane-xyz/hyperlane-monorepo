@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use derive_new::new;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
@@ -35,7 +36,7 @@ pub struct GrpcProvider {
     fallback: FallbackProvider<CosmosGrpcClient, CosmosGrpcClient>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 struct CosmosGrpcClient {
     channel: MetricsChannel<Channel>,
 }
@@ -75,13 +76,10 @@ impl GrpcProvider {
                 let metrics_config =
                     PrometheusConfig::from_url(url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
-                    .map(|e| {
-                        let metrics_channel =
-                            MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config);
-                        CosmosGrpcClient {
-                            channel: metrics_channel,
-                        }
-                    })
+                    .map(|e| e.timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| e.connect_timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
+                    .map(|m| CosmosGrpcClient::new(m))
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect::<Result<Vec<CosmosGrpcClient>, _>>()

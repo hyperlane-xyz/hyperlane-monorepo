@@ -329,11 +329,10 @@ impl WasmGrpcProvider {
                 let metrics_config =
                     PrometheusConfig::from_url(&url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
-                    .map(|e| {
-                        let metrics_channel =
-                            MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config);
-                        CosmosChannel::new(metrics_channel, url)
-                    })
+                    .map(|e| e.timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| e.connect_timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
+                    .map(|m| CosmosChannel::new(m, url))
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect();
