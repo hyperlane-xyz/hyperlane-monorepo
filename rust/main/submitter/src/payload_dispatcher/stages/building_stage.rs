@@ -295,7 +295,7 @@ mod tests {
         tokio::sync::mpsc::Receiver<Transaction>,
         BuildingStageQueue,
     ) {
-        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
         let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));

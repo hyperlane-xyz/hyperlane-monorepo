@@ -30,9 +30,10 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
-    QueueOperation, ValidatorAnnounce, H512, U256,
+    QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use submitter::{PayloadDispatcherEntrypoint, PayloadDispatcherSettings};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -94,6 +95,7 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
+    payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint>,
 }
 
 impl Debug for Relayer {
@@ -148,6 +150,13 @@ impl BaseAgent for Relayer {
 
         let validator_announces =
             Self::build_validator_announces(&settings, &core_metrics, &chain_metrics).await;
+
+        let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
+            &settings,
+            core_metrics.clone(),
+            &chain_metrics,
+        )
+        .await;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
@@ -315,6 +324,7 @@ impl BaseAgent for Relayer {
             chain_metrics,
             runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
+            payload_dispatcher_entrypoints: dispatcher_entrypoints,
         })
     }
 
@@ -346,9 +356,12 @@ impl BaseAgent for Relayer {
         for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
+
+            let payload_dispatcher_entrypoint =
+                self.payload_dispatcher_entrypoints.remove(dest_domain);
+
             let serial_submitter = SerialSubmitter::new(
                 dest_domain.clone(),
-                dest_conf.clone(),
                 receive_channel,
                 &sender,
                 SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
@@ -359,6 +372,7 @@ impl BaseAgent for Relayer {
                     .map(|c| c.max_batch_size)
                     .unwrap_or(1),
                 task_monitor.clone(),
+                payload_dispatcher_entrypoint,
             );
             prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
 
@@ -703,6 +717,36 @@ impl Relayer {
                 }
             })
             .collect()
+    }
+
+    /// Helper function to build and return a hashmap of payload dispatchers.
+    /// Any chains that fail to build payload dispatcher will not be included
+    /// in the hashmap. Errors will be logged and chain metrics
+    /// will be updated for chains that fail to build payload dispatcher.
+    pub async fn build_payload_dispatcher_entrypoints(
+        settings: &RelayerSettings,
+        core_metrics: Arc<CoreMetrics>,
+        chain_metrics: &ChainMetrics,
+    ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
+        settings.destination_chains.iter()
+            .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
+            .map(|chain| (chain.clone(), PayloadDispatcherSettings {
+                chain_conf: settings.chains[&chain.to_string()].clone(),
+                raw_chain_conf: Default::default(),
+                domain: chain.clone(),
+                db_path: settings.db.clone(),
+                metrics: core_metrics.clone(),
+            }))
+            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s)))
+            .filter_map(|(chain, result)| match result {
+                Ok(entrypoint) => Some((chain, entrypoint)),
+                Err(err) => {
+                    error!(?err, origin=?chain, "Critical error when building payload dispatcher endpoint");
+                    chain_metrics.set_critical_error(chain.name(), true);
+                    None
+                }
+            })
+            .collect::<HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint>>()
     }
 
     /// Helper function to build and return a hashmap of validator announces.

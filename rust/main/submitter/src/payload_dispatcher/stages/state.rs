@@ -21,17 +21,18 @@ use crate::{
 };
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
+#[derive(Clone)]
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
-    pub(crate) adapter: Box<dyn AdaptsChain>,
+    pub(crate) adapter: Arc<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {
     pub fn new(
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
-        adapter: Box<dyn AdaptsChain>,
+        adapter: Arc<dyn AdaptsChain>,
     ) -> Self {
         Self {
             payload_db,
