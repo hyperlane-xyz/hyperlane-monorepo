@@ -1,5 +1,51 @@
 # @hyperlane-xyz/widgets
 
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+
+## 10.0.0
+
+### Patch Changes
+
+- Updated dependencies [7dbf7e4fa]
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [28ca87293]
+- Updated dependencies [4fd5623b8]
+  - @hyperlane-xyz/sdk@10.0.0
+  - @hyperlane-xyz/utils@10.0.0
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
+## 9.2.0
+
+### Minor Changes
+
+- 3e66e8f12: Utils for fetching Starknet chains
+
+### Patch Changes
+
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
 ## 9.1.0
 
 ### Patch Changes

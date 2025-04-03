@@ -1,50 +1,53 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
-use hyperlane_base::settings::Settings;
-use hyperlane_core::HyperlaneDomain;
+use derive_new::new;
+use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
+
+use hyperlane_base::{
+    db::{HyperlaneRocksDB, DB},
+    settings::{ChainConf, RawChainConf},
+    CoreMetrics,
+};
+use hyperlane_core::HyperlaneDomain;
+
+use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory};
+use crate::payload::PayloadDb;
+use crate::transaction::TransactionDb;
+
+use super::PayloadDispatcherState;
 
 /// Settings for `PayloadDispatcher`
 #[derive(Debug)]
 pub struct PayloadDispatcherSettings {
-    // settings needed for the adapter
-    base: Settings,
-    /// Follow how `Settings` is parsed from `RawAgentConf` to parse custom fields
-    /// https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/ff0d4af74ecc586ef0c036e37fa4cf9c2ba5050e/rust/main/hyperlane-base/tests/chain_config.rs#L82
-    // raw_json_settings: RawAgentConf,
-    domain: HyperlaneDomain,
-
-    db_path: PathBuf,
+    // settings needed for the protocol-specific adapter
+    pub chain_conf: ChainConf,
+    /// settings needed for chain-specific adapter
+    pub raw_chain_conf: RawChainConf,
+    pub domain: HyperlaneDomain,
+    pub db_path: PathBuf,
+    pub metrics: CoreMetrics,
 }
 
-pub struct PayloadDispatcherState {
-    // db: DispatcherDb,
-    // adapter: Box<dyn AdaptsChain>
-}
-
-impl PayloadDispatcherState {
-    pub fn new(_settings: PayloadDispatcherSettings) -> Self {
-        // create the adapter
-        Self {}
-    }
-}
 pub struct PayloadDispatcher {
     inner: PayloadDispatcherState,
 }
 
 impl PayloadDispatcher {
-    pub fn new(settings: PayloadDispatcherSettings) -> Self {
-        Self {
-            inner: PayloadDispatcherState::new(settings),
-        }
+    pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
+        Ok(Self {
+            inner: PayloadDispatcherState::try_from_settings(settings)?,
+        })
     }
 
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
+        // TODO: here
         // create the submit queue and channels for the Dispatcher stages
+
         // spawn the DbLoader with references to the submit queue and channels
         // spawn the 3 stages using the adapter, db, queue and channels
         todo!()

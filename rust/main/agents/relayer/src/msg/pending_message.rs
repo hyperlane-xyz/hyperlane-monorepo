@@ -16,9 +16,9 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -44,6 +44,12 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
+
+/// The outcome of a gas payment requirement check.
+enum GasPaymentRequirementOutcome {
+    MeetsRequirement(U256),
+    RequirementNotMet(PendingOperationResult),
+}
 
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
@@ -250,6 +256,16 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
+        // Perform a preflight check to see if we can short circuit the gas
+        // payment requirement check early without performing expensive
+        // operations like metadata building or gas estimation.
+        if let GasPaymentRequirementOutcome::RequirementNotMet(op_result) =
+            self.meets_gas_payment_requirement_preflight_check().await
+        {
+            info!("Message does not meet the gas payment requirement preflight check");
+            return op_result;
+        }
+
         let ism_address = match self
             .ctx
             .destination_mailbox
@@ -347,28 +363,14 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        // If the gas payment requirement hasn't been met, move to the next tick.
-        let gas_limit = match self
-            .ctx
-            .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
-            .await
-        {
-            Ok(gas_limit) => gas_limit,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingGasRequirement);
+        // Get the gas_limit if the gas payment requirement has been met,
+        // otherwise return a PendingOperationResult and move on.
+        let gas_limit = match self.meets_gas_payment_requirement(&tx_cost_estimate).await {
+            GasPaymentRequirementOutcome::MeetsRequirement(gas_limit) => gas_limit,
+            GasPaymentRequirementOutcome::RequirementNotMet(op_result) => {
+                info!("Message does not meet the gas payment requirement after gas estimation");
+                return op_result;
             }
-        };
-
-        let gas_limit = match gas_limit {
-            GasPolicyStatus::NoPaymentFound => {
-                return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound)
-            }
-            GasPolicyStatus::PolicyNotMet => {
-                return self
-                    .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet)
-            }
-            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -649,6 +651,70 @@ impl PendingMessage {
         PendingOperationStatus::FirstPrepareAttempt
     }
 
+    /// A preflight check to see if a message could possibly meet
+    /// a gas payment requirement prior to undertaking expensive operations
+    /// like metadata building or gas estimation.
+    /// If the message does not meet the gas payment requirement,
+    /// Err(PendingOperationResult) is returned, with the PendingOperationResult intended
+    /// to be propagated up by the prepare fn.
+    async fn meets_gas_payment_requirement_preflight_check(
+        &mut self,
+    ) -> GasPaymentRequirementOutcome {
+        // We test if the message may meet the gas payment requirement
+        // with the most simple tx cost estimate: one that has zero cost
+        // whatsoever. If the message does not meet the gas payment requirement
+        // with zero cost, we can skip the metadata building and gas estimation
+        // altogether. This covers the case of a message that did not pay our IGP,
+        // which may violate the gas payment enforcement policies depending on
+        // the configuration, but also allows us to be tolerant of the configuration
+        // allowing no payment at all.
+        let zero_cost = TxCostEstimate {
+            gas_limit: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
+            l2_gas_limit: None,
+        };
+
+        self.meets_gas_payment_requirement(&zero_cost).await
+    }
+
+    /// Returns the gas limit if the message meets the gas payment requirement,
+    /// otherwise returns an Err(PendingOperationResult), with the PendingOperationResult intended
+    /// to be propagated up by the prepare fn.
+    async fn meets_gas_payment_requirement(
+        &mut self,
+        tx_cost_estimate: &TxCostEstimate,
+    ) -> GasPaymentRequirementOutcome {
+        let gas_limit = match self
+            .ctx
+            .origin_gas_payment_enforcer
+            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .await
+        {
+            Ok(gas_limit) => gas_limit,
+            Err(err) => {
+                return GasPaymentRequirementOutcome::RequirementNotMet(
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingGasRequirement),
+                );
+            }
+        };
+
+        let gas_limit = match gas_limit {
+            GasPolicyStatus::NoPaymentFound => {
+                return GasPaymentRequirementOutcome::RequirementNotMet(
+                    self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound),
+                )
+            }
+            GasPolicyStatus::PolicyNotMet => {
+                return GasPaymentRequirementOutcome::RequirementNotMet(
+                    self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet),
+                )
+            }
+            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
+        };
+
+        GasPaymentRequirementOutcome::MeetsRequirement(gas_limit)
+    }
+
     fn on_reprepare<E: Debug>(
         &mut self,
         err: Option<E>,
@@ -737,11 +803,13 @@ impl PendingMessage {
     ) -> Option<Duration> {
         Some(Duration::from_secs(match num_retries {
             i if i < 1 => return None,
-            i if (1..10).contains(&i) => 10,
-            i if (10..15).contains(&i) => 90,
-            i if (15..25).contains(&i) => 60 * 2,
-            // linearly increase from 2min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => (i as u64 - 23) * 90,
+            1 => 5,
+            2 => 10,
+            3 => 30,
+            4 => 60,
+            i if (5..25).contains(&i) => 60 * 3,
+            // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
+            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
             // wait 30min for the next 5 attempts
             i if (40..45).contains(&i) => 60 * 30,
             // wait 60min for the next 5 attempts
@@ -835,6 +903,7 @@ mod test {
         time::{Duration, Instant},
     };
 
+    use chrono::TimeDelta;
     use hyperlane_base::db::*;
     use hyperlane_core::*;
 
@@ -1059,5 +1128,65 @@ mod test {
         );
 
         assert_eq!(num_retries, expected_retries);
+    }
+
+    /// Make sure DEFAULT_MAX_MESSAGE_RETRIES takes around 2 weeks to reach
+    /// so that messages doesn't getting dropped earlier than expected
+    #[test]
+    fn check_default_max_message_retries() {
+        let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
+            .filter_map(|i| {
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+            })
+            .sum();
+
+        // Have a window that is acceptable for "around 2 weeks".
+        // Give or take 1 day.
+        let max_backoff_duration = chrono::Duration::weeks(2)
+            .checked_add(&TimeDelta::days(1))
+            .expect("Failed to compute duration")
+            .to_std()
+            .expect("Failed to convert TimeDelta to Duration");
+        let min_backoff_duration = chrono::Duration::weeks(2)
+            .checked_sub(&TimeDelta::days(1))
+            .expect("Failed to compute duration")
+            .to_std()
+            .expect("Failed to convert TimeDelta to Duration");
+
+        assert!(total_backoff_duration < max_backoff_duration);
+        assert!(total_backoff_duration > min_backoff_duration);
+    }
+
+    /// Chainlink's CCIP is known to take upwards of 25mins to
+    /// process.
+    /// So make sure we have a couple of retries around 25-30min range.
+    /// In this test case, we define "couple of retries" = 2
+    #[test]
+    fn check_ccip_retry() {
+        let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
+            .filter_map(|i| {
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+            })
+            .collect();
+
+        let cumulative_backoff_durations: Vec<Duration> = backoff_durations
+            .into_iter()
+            .scan(Duration::from_secs(0), |acc, x| {
+                *acc += x;
+                Some(*acc)
+            })
+            .collect();
+
+        // 25 mins
+        let min_backoff_duration = Duration::from_secs(60 * 25);
+        // 30 mins
+        let max_backoff_duration = Duration::from_secs(60 * 30);
+
+        let num_retries_in_range = cumulative_backoff_durations
+            .into_iter()
+            .filter(|d| *d >= min_backoff_duration && *d <= max_backoff_duration)
+            .count();
+
+        assert_eq!(num_retries_in_range, 2);
     }
 }
