@@ -538,7 +538,9 @@ fn parse_base_and_override_urls(
     let overrides = parse_custom_urls(chain, override_key, err);
     let mut combined = overrides.unwrap_or(base);
     if let Some(rpc_urls) = rpc_urls {
-        combined.extend(rpc_urls.into_iter().cloned());
+        let mut new_combined = rpc_urls.clone();
+        new_combined.extend(combined.into_iter());
+        combined = new_combined;
     }
 
     if combined.is_empty() {
