@@ -90,7 +90,7 @@ export class StarknetHypSyntheticAdapter
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
-    return { amount: BigInt(0) };
+    return { amount: 0n };
   }
 
   async populateTransferRemoteTx({
@@ -104,7 +104,7 @@ export class StarknetHypSyntheticAdapter
       destination,
       recipient,
       BigInt(weiAmountOrId.toString()),
-      BigInt(0),
+      0n,
       nonOption,
       nonOption,
     );
