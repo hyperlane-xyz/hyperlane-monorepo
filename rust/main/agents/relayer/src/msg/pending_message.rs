@@ -577,6 +577,10 @@ impl PendingOperation for PendingMessage {
         let payload = mailbox.process_calldata(message, metadata).await?;
         Ok(payload)
     }
+
+    fn on_reprepare_ex(&mut self, reason: ReprepareReason) -> PendingOperationResult {
+        self.on_reprepare::<String>(None, reason)
+    }
 }
 
 impl PendingMessage {
