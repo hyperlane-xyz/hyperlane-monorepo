@@ -27,7 +27,7 @@ pub(crate) mod tests {
             async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
             async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
             async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
-            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<uuid::Uuid>, SubmitterError>;
+            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;
             async fn nonce_gap_exists(&self) -> bool;
             async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError>;
             fn estimated_block_time(&self) -> &std::time::Duration;
@@ -46,7 +46,7 @@ pub(crate) mod tests {
         (payload_db, tx_db)
     }
 
-    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Transaction {
+    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) -> Transaction {
         let details: Vec<PayloadDetails> = payloads
             .into_iter()
             .map(|payload| payload.details)
@@ -56,7 +56,7 @@ pub(crate) mod tests {
             hash: None,
             vm_specific_data: VmSpecificTxData::Evm,
             payload_details: details.clone(),
-            status: Default::default(),
+            status,
             submission_attempts: 0,
         }
     }
@@ -65,12 +65,14 @@ pub(crate) mod tests {
         num: usize,
         payload_db: &Arc<dyn PayloadDb>,
         tx_db: &Arc<dyn TransactionDb>,
+        status: TransactionStatus,
     ) -> Vec<Transaction> {
         let mut txs = Vec::new();
         for _ in 0..num {
-            let payload = FullPayload::random();
+            let mut payload = FullPayload::random();
+            payload.status = PayloadStatus::InTransaction(status.clone());
             payload_db.store_payload_by_id(&payload).await.unwrap();
-            let tx = dummy_tx(vec![payload]);
+            let tx = dummy_tx(vec![payload], status.clone());
             tx_db.store_transaction_by_id(&tx).await.unwrap();
             txs.push(tx);
         }

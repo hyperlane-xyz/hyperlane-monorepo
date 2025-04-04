@@ -16,6 +16,8 @@ pub enum SubmitterError {
     TxReverted,
     #[error("Failed to send over a channel {0}")]
     ChannelSendFailure(#[from] tokio::sync::mpsc::error::SendError<Transaction>),
+    #[error("Channel closed")]
+    ChannelClosed,
     #[error("{0}")]
     EyreError(#[from] eyre::Report),
     #[error("Payload not found")]
