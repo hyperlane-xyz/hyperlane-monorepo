@@ -897,7 +897,7 @@ impl PendingMessage {
 
     /// clear metadata cache
     fn clear_metadata(&mut self) {
-        tracing::debug!(INVALIDATE_CACHE_METADATA_LOG);
+        tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
     }
 }
