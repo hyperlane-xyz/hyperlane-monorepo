@@ -4,7 +4,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert, diffObjMerge, rootLogger } from '@hyperlane-xyz/utils';
+import { diffObjMerge, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
