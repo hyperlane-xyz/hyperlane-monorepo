@@ -687,9 +687,9 @@ async fn confirm_lander_task(
             })
             .collect::<Vec<_>>();
 
-        let results = join_all(payload_status_futures).await;
+        let payload_status_results = join_all(payload_status_futures).await;
 
-        let confirm_futures = results
+        let confirm_futures = payload_status_results
             .into_iter()
             .map(|(op, r)| match r {
                 Ok(s) => (op, from_payload_status_into_result_for_confirmation(&s)),
@@ -718,7 +718,17 @@ async fn confirm_lander_task(
             })
             .collect::<Vec<_>>();
 
-        join_all(confirm_futures).await;
+        let confirm_results = join_all(confirm_futures).await;
+        if confirm_results.iter().all(|result| {
+            matches!(
+                result,
+                PendingOperationResult::NotReady | PendingOperationResult::Confirm(_)
+            )
+        }) {
+            // None of the operations are ready, so wait for a little bit
+            // before checking again to prevent burning CPU
+            sleep(Duration::from_millis(500)).await;
+        }
     }
 }
 
