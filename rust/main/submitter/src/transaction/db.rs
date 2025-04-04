@@ -26,27 +26,28 @@ pub trait TransactionDb: Send + Sync {
     /// Store a transaction by its unique ID
     async fn store_transaction_by_id(&self, tx: &Transaction) -> DbResult<()>;
 
-    /// Store a transaction by its unique ID
+    /// Retrieve a transaction's index by its unique ID
     async fn retrieve_transaction_index_by_id(&self, id: &TransactionId) -> DbResult<Option<u32>>;
 
+    /// Store a transaction's index by its unique ID
     async fn store_transaction_index_by_id(
         &self,
         index: u32,
         tx_id: &TransactionId,
     ) -> DbResult<()>;
 
-    /// Retrieve a transaction by its unique ID
+    /// Retrieve a transaction's unique ID by its index
     async fn retrieve_transaction_id_by_index(&self, index: u32)
         -> DbResult<Option<TransactionId>>;
 
-    /// Retrieve a transaction by its unique ID
+    /// Store a transaction's unique ID by its index
     async fn store_transaction_id_by_index(
         &self,
         index: u32,
         tx_id: &TransactionId,
     ) -> DbResult<()>;
 
-    /// Retrieve a transaction by its unique ID
+    /// Retrieve a transaction by its index
     async fn retrieve_transaction_by_index(&self, index: u32) -> DbResult<Option<Transaction>> {
         let id = self.retrieve_transaction_id_by_index(index).await?;
         if let Some(id) = id {

@@ -26,18 +26,19 @@ pub trait PayloadDb: Send + Sync {
     /// Store a payload by its unique ID
     async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()>;
 
-    /// Retrieve a payload by its unique ID
+    /// Retrieve a payload index by its unique ID
     async fn retrieve_payload_index_by_id(&self, payload_id: &PayloadId) -> DbResult<Option<u32>>;
 
+    /// Store a payload index by the payload's unique ID
     async fn store_payload_index_by_id(&self, index: u32, payload_id: &PayloadId) -> DbResult<()>;
 
-    /// Retrieve a payload by its unique ID
+    /// Retrieve a payload's unique ID by its index
     async fn retrieve_payload_id_by_index(&self, index: u32) -> DbResult<Option<PayloadId>>;
 
-    /// Store a payload ID by its index
+    /// Store a payload's unique ID by the payload's index
     async fn store_payload_id_by_index(&self, index: u32, payload_id: &PayloadId) -> DbResult<()>;
 
-    /// Retrieve a payload by its unique ID
+    /// Retrieve a payload by its index
     async fn retrieve_payload_by_index(&self, index: u32) -> DbResult<Option<FullPayload>> {
         let id = self.retrieve_payload_id_by_index(index).await?;
         if let Some(id) = id {
