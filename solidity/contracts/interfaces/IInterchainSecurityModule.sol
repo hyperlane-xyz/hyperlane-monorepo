@@ -12,6 +12,7 @@ interface IInterchainSecurityModule {
         NULL, // used with relayer carrying no metadata
         CCIP_READ,
         ARB_L2_TO_L1,
+        BLOCKHASH,
         WEIGHTED_MERKLE_ROOT_MULTISIG,
         WEIGHTED_MESSAGE_ID_MULTISIG,
         OP_L2_TO_L1
