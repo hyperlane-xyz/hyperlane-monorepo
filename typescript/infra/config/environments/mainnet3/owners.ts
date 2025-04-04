@@ -114,7 +114,6 @@ export const icas: Partial<
   // Aug 26, 2024 batch
   // ----------------------------------------------------------
   astar: '0x6b241544eBa7d89B51b72DF85a0342dAa37371Ca',
-  astarzkevm: '0x526c6DAee1175A1A2337E703B63593acb327Dde4',
   bitlayer: '0xe6239316cA60814229E801fF0B9DD71C9CA29008',
   coredao: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
   dogechain: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
@@ -239,6 +238,14 @@ export const icas: Partial<
   // ----------------------------------------------------------
   infinityvm: '0x35460c519b7C71d49C64F060dF89AbAE463F3b9a',
   plume: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
+
+  // Mar 31, 2025 batch
+  // ----------------------------------------------------------
+  coti: '0x294589E4913A132A49F7830a2A219363A25c0529',
+  deepbrainchain: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
+  // nibiru: '0x40cD75e80d04663FAe0CE30687504074F163C346', // temporary while looking into decimals
+  opbnb: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
+  reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';

@@ -12,6 +12,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::chain_tx_adapter::*;
+    use crate::error::SubmitterError;
     use crate::payload::*;
     use crate::transaction::*;
 
@@ -21,16 +22,16 @@ pub(crate) mod tests {
 
         #[async_trait]
         impl AdaptsChain for Adapter {
-            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<GasLimit>;
-            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<Transaction>>;
-            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool>;
-            async fn submit(&self, tx: &mut Transaction) -> Result<()>;
-            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus>;
-            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<uuid::Uuid>>;
+            async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, SubmitterError>;
+            async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+            async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
+            async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
+            async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+            async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;
             async fn nonce_gap_exists(&self) -> bool;
-            async fn replace_tx(&self, _tx: &Transaction) -> Result<()>;
-            fn estimated_block_time(&self) -> std::time::Duration;
-            fn max_batch_size(&self) -> usize;
+            async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError>;
+            fn estimated_block_time(&self) -> &std::time::Duration;
+            fn max_batch_size(&self) -> u32;
         }
     }
 
@@ -45,19 +46,43 @@ pub(crate) mod tests {
         (payload_db, tx_db)
     }
 
-    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>) -> Vec<Transaction> {
-        let details = payloads
+    pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) -> Transaction {
+        let details: Vec<PayloadDetails> = payloads
             .into_iter()
             .map(|payload| payload.details)
             .collect();
-        let transaction = Transaction {
+        Transaction {
             id: UniqueIdentifier::random(),
             hash: None,
             vm_specific_data: VmSpecificTxData::Evm,
-            payload_details: details,
-            status: Default::default(),
+            payload_details: details.clone(),
+            status,
             submission_attempts: 0,
-        };
-        vec![transaction]
+        }
+    }
+
+    pub(crate) async fn create_random_txs_and_store_them(
+        num: usize,
+        payload_db: &Arc<dyn PayloadDb>,
+        tx_db: &Arc<dyn TransactionDb>,
+        status: TransactionStatus,
+    ) -> Vec<Transaction> {
+        let mut txs = Vec::new();
+        for _ in 0..num {
+            let mut payload = FullPayload::random();
+            payload.status = PayloadStatus::InTransaction(status.clone());
+            payload_db.store_payload_by_id(&payload).await.unwrap();
+            let tx = dummy_tx(vec![payload], status.clone());
+            tx_db.store_transaction_by_id(&tx).await.unwrap();
+            txs.push(tx);
+        }
+        txs
+    }
+
+    pub(crate) async fn initialize_payload_db(
+        payload_db: &Arc<dyn PayloadDb>,
+        payload: &FullPayload,
+    ) {
+        payload_db.store_payload_by_id(payload).await.unwrap();
     }
 }

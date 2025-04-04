@@ -89,4 +89,10 @@ export enum WarpRouteIds {
   BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
+  // Soon Routes
+  SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
+  SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
+  SolanaSoonMEW = 'MEW/solanamainnet-soon',
+  SolanaSoonPnut = 'Pnut/solanamainnet-soon',
+  SolanaSoonWIF = 'WIF/solanamainnet-soon',
 }
