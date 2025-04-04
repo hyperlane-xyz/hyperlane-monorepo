@@ -36,12 +36,13 @@ use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
+    metrics::message_submission::MessageSubmissionMetrics,
     msg::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
-        pending_message::{MessageContext, MessageSubmissionMetrics},
+        pending_message::MessageContext,
         processor::{MessageProcessor, MessageProcessorMetrics},
     },
     server::{self as relayer_server},

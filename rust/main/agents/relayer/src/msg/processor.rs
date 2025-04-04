@@ -425,6 +425,7 @@ mod test {
 
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
+        metrics::message_submission::MessageSubmissionMetrics,
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},

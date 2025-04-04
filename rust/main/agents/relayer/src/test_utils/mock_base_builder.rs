@@ -8,7 +8,6 @@ use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
 };
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::msg::metadata::{BuildsBaseMetadata, IsmAwareAppContextClassifier};
 
@@ -87,9 +86,6 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .app_context_classifier
             .as_ref()
             .expect("No mock app_context_classifier response set")
-    }
-    fn get_client_metrics(&self) -> PrometheusClientMetrics {
-        PrometheusClientMetrics::default()
     }
 
     async fn get_proof(&self, _leaf_index: u32, _checkpoint: Checkpoint) -> eyre::Result<Proof> {

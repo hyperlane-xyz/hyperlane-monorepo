@@ -1,9 +1,6 @@
 //! A wrapper around a JsonRpcClient to give insight at the request level. This
 //! was designed specifically for use with the quorum provider.
-use std::{
-    fmt::Debug,
-    time::{Duration, Instant},
-};
+use std::{fmt::Debug, time::Instant};
 
 use derive_builder::Builder;
 use maplit::hashmap;
@@ -36,18 +33,6 @@ pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] =
     &["provider_node", "connection", "chain", "method", "status"];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
-
-/// Expected label names for the metric.
-pub const METADATA_BUILD_COUNT_LABELS: &[&str] =
-    &["app_context", "origin", "destination", "status"];
-/// Help string for the metric.
-pub const METADATA_BUILD_COUNT_HELP: &str = "Total number of times metadata was build";
-
-/// Expected label names for the metric.
-pub const METADATA_BUILD_DURATION_LABELS: &[&str] =
-    &["app_context", "origin", "destination", "status"];
-/// Help string for the metric.
-pub const METADATA_BUILD_DURATION_HELP: &str = "Total number of times metadata was build";
 
 /// Container for all the relevant rpc client metrics.
 #[derive(Clone, Builder, Default)]
@@ -136,13 +121,6 @@ impl std::fmt::Debug for PrometheusClientMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PrometheusClientMetrics")
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct MetadataBuildMetric {
-    pub app_context: Option<String>,
-    pub success: bool,
-    pub duration: Duration,
 }
 
 /// Some basic information about a chain.

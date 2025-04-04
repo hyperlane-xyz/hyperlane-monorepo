@@ -291,7 +291,15 @@ pub fn provider_metrics_invariant_met(
         return Ok(false);
     }
 
-    let metadata_build_hashmap: HashMap<&str, &str> = hashmap! {};
+    let metadata_build_hashmap: HashMap<&str, &str> = HashMap::new();
+
+    let res: Vec<u32> = fetch_metric(
+        relayer_port,
+        "hyperlane_metadata_build_count",
+        &metadata_build_hashmap,
+    )?;
+    log!("Res: {:?}", res);
+
     let metadata_build_count = fetch_metric(
         relayer_port,
         "hyperlane_metadata_build_count",
