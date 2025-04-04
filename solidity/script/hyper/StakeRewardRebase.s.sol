@@ -95,7 +95,7 @@ contract StakeRewardRebase is Script, StdCheats {
     }
 
     function run() external {
-        uint256 transferAmount = 1000;
+        uint256 transferAmount = 1e15;
 
         vm.selectFork(stakeFork);
         uint256 fee = collateral.quoteGasPayment(rebaseDomainId);
@@ -111,7 +111,7 @@ contract StakeRewardRebase is Script, StdCheats {
         assert(synthetic.balanceOf(msg.sender) == transferAmount);
 
         vm.selectFork(stakeFork);
-        uint256 stakeAmount = 2000;
+        uint256 stakeAmount = 2e15;
         collateral.approve(address(vault), stakeAmount);
         vault.deposit(address(this), stakeAmount);
 
@@ -139,9 +139,10 @@ contract StakeRewardRebase is Script, StdCheats {
         address network = address(this);
         middlewareService.setMiddleware(network);
 
-        uint256 rewardAmount = 3000;
+        uint256 rewardAmount = 3e15;
         collateral.approve(address(rewards), rewardAmount);
 
+        // 1. distribute rewards
         uint48 timestamp = uint48(block.timestamp - 1);
         rewards.distributeRewards(
             network,
@@ -151,7 +152,22 @@ contract StakeRewardRebase is Script, StdCheats {
         );
 
         // 2. compound rewards
+        compoundStakerRewards.compound(network, 1);
+
         // 3. rebase the synthetic token
+        vm.deal(address(this), fee);
+        stakedCollateral.rebase{value: fee}(
+            rebaseDomainId,
+            bytes(""),
+            address(0)
+        );
+
         // 4. assert the balance has increased
+        vm.selectFork(rebaseFork);
+        MockMailbox(address(rebasingSynthetic.mailbox()))
+            .handleNextInboundMessage();
+
+        uint256 newBalance = rebasingSynthetic.balanceOf(msg.sender);
+        require(newBalance > stakeAmount, "Rebase did not increase balance");
     }
 }
