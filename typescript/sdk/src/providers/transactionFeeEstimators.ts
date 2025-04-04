@@ -294,12 +294,12 @@ export function estimateTransactionFee({
   }
 }
 
-// Starknet does not support gas estimation without an account
-// TODO: Figure out a way to inject an account
+// Starknet does not support gas estimation without starknet account
+// TODO: Figure out a way to inject starknet account
 export async function estimateTransactionFeeStarknet({
-  transaction,
-  provider,
-  sender,
+  transaction: _transaction,
+  provider: _provider,
+  sender: _sender,
 }: {
   transaction: StarknetJsTransaction;
   provider: StarknetJsProvider;
