@@ -591,9 +591,9 @@ async fn confirm_classic_task(
             )
         });
         let op_results = join_all(futures).await;
-        if op_results.iter().all(|op| {
+        if op_results.iter().all(|op_result| {
             matches!(
-                op,
+                op_result,
                 PendingOperationResult::NotReady | PendingOperationResult::Confirm(_)
             )
         }) {
