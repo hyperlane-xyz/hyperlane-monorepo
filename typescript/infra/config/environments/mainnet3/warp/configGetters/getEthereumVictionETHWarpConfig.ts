@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -12,8 +12,8 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 export const getEthereumVictionETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const viction: HypTokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  const viction: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.viction,
     ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
@@ -24,7 +24,7 @@ export const getEthereumVictionETHWarpConfig = async (
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const ethereum: HypTokenRouterConfig = {
+  const ethereum: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.native,

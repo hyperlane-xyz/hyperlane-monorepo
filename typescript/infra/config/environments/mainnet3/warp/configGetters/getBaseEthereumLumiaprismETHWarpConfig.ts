@@ -1,6 +1,10 @@
 import { ethers } from 'ethers';
 
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfigMailboxOptional,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
@@ -15,22 +19,22 @@ const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
 export const getBaseEthereumLumiaprismETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const base: HypTokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  const base: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.base,
     owner: safeOwners.base,
     type: TokenType.native,
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const ethereum: HypTokenRouterConfig = {
+  const ethereum: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.ethereum,
     owner: safeOwners.ethereum,
     type: TokenType.native,
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const lumiaprism: HypTokenRouterConfig = {
+  const lumiaprism: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.lumiaprism,
     owner: safeOwners.lumiaprism,
     type: TokenType.synthetic,

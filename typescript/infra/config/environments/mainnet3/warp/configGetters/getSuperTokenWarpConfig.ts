@@ -4,7 +4,7 @@ import {
   ChainMap,
   HookConfig,
   HookType,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   IsmConfig,
   IsmType,
   TokenType,
@@ -388,7 +388,7 @@ function generateSuperTokenConfig(
   rateLimitPerSecondPerChain: ChainMap<string>,
   extraLockboxes?: ChainMap<{ lockbox: Address; limits: XERC20LimitConfig }[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
-): ChainMap<HypTokenRouterConfig> {
+): ChainMap<HypTokenRouterConfigMailboxOptional> {
   return Object.fromEntries(
     deploymentChains.map((chain) => [
       chain,
@@ -435,7 +435,7 @@ function generateSuperTokenConfig(
 // ref: https://www.notion.so/hyperlanexyz/Cross-chain-USDT-1926d35200d6804bbdb1dfd2042e1f19?pvs=4#1936d35200d680af9c05f6133d7bb9f7
 export const getSuperTokenStagingWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   return generateSuperTokenConfig(
     routerConfig,
     stagingOwnerByChain,
@@ -449,7 +449,7 @@ export const getSuperTokenStagingWarpConfig = async (
 
 export const getSuperTokenProductionWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   return generateSuperTokenConfig(
     routerConfig,
     productionOwnerByChain,

@@ -1,6 +1,6 @@
 import {
   ChainMap,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -17,10 +17,10 @@ const evmOwner = '0xD1D943c09b9C3355207ce8c85aB1c4558f6Cd851';
 export async function getArbitrumEthereumSolanaTreasureSMOLWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> {
   const name = 'SMOL';
   const symbol = 'SMOL';
-  const tokenConfig: ChainMap<HypTokenRouterConfig> = {
+  const tokenConfig: ChainMap<HypTokenRouterConfigMailboxOptional> = {
     solanamainnet: {
       ...routerConfig.solanamainnet,
       type: TokenType.synthetic,

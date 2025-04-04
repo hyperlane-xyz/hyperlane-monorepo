@@ -1,7 +1,7 @@
 import {
   ChainMap,
   HypTokenConfig,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -22,50 +22,50 @@ const owners = {
 
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ethereum: HypTokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  const ethereum: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.ethereum,
     owner: owners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
   };
 
-  const superseed: HypTokenRouterConfig = {
+  const superseed: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.superseed,
     owner: owners.superseed,
     type: TokenType.collateralFiat,
     token: '0xc316c8252b5f2176d0135ebb0999e99296998f2e',
   };
 
-  const arbitrum: HypTokenRouterConfig = {
+  const arbitrum: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.arbitrum,
     owner: owners.arbitrum,
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
   };
 
-  const base: HypTokenRouterConfig = {
+  const base: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.base,
     owner: owners.base,
     type: TokenType.collateral,
     token: tokens.base.USDC,
   };
 
-  const optimism: HypTokenRouterConfig = {
+  const optimism: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.optimism,
     owner: owners.optimism,
     type: TokenType.collateral,
     token: tokens.optimism.USDC,
   };
 
-  const ink: HypTokenRouterConfig = {
+  const ink: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.ink,
     owner: owners.ink,
     type: TokenType.collateral,
     token: tokens.ink.USDCe,
   };
 
-  const solanamainnet: HypTokenRouterConfig = {
+  const solanamainnet: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.solanamainnet,
     owner: owners.solanamainnet,
     type: TokenType.collateral,
@@ -86,7 +86,7 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
 
 export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   const { ethereum, superseed, arbitrum, base, optimism, ink, solanamainnet } =
     await getEthereumSuperseedUSDCWarpConfig(routerConfig);
 

@@ -4,6 +4,7 @@ import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   MultiProvider,
   OwnableConfig,
   WarpRouteDeployConfig,
@@ -68,7 +69,7 @@ type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
-) => Promise<ChainMap<HypTokenRouterConfig>>;
+) => Promise<ChainMap<HypTokenRouterConfigMailboxOptional>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
@@ -181,19 +182,20 @@ export async function getWarpConfig(
   envConfig: EnvironmentConfig,
   warpRouteId: string,
   registryUris = [DEFAULT_REGISTRY_URI],
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
     multiProvider,
   );
   // Strip the owners from the router config
-  const routerConfigWithoutOwner = objMap(routerConfig, (_chain, config) => {
+  const routerConfigWithOmissions = objMap(routerConfig, (_chain, config) => {
     const {
+      mailbox: _mailbox,
       owner: _owner,
       ownerOverrides: _ownerOverrides,
-      ...configWithoutOwner
+      ...configWithOmissions
     } = config;
-    return configWithoutOwner;
+    return configWithOmissions;
   });
   // Isolate the owners from the router config
   const abacusWorksEnvOwnerConfig = objMap(routerConfig, (_chain, config) => {
@@ -207,14 +209,14 @@ export async function getWarpConfig(
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (warpConfigGetter) {
     return warpConfigGetter(
-      routerConfigWithoutOwner,
+      routerConfigWithOmissions,
       abacusWorksEnvOwnerConfig,
       warpRouteId,
     );
   }
 
   return getConfigFromMergedRegistry(
-    routerConfigWithoutOwner,
+    routerConfigWithOmissions,
     abacusWorksEnvOwnerConfig,
     warpRouteId,
     registryUris,

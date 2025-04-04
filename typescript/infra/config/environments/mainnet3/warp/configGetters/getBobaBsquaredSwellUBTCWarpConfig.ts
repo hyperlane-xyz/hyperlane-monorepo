@@ -1,4 +1,8 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfigMailboxOptional,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
@@ -15,28 +19,24 @@ const safeOwners: ChainMap<Address> = {
 
 export const getBobaBsquaredSoneiumSwellUBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const boba: HypTokenRouterConfig = {
-    mailbox: routerConfig.boba.mailbox,
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  const boba: HypTokenRouterConfigMailboxOptional = {
     owner: safeOwners.boba,
     type: TokenType.synthetic,
   };
 
-  const bsquared: HypTokenRouterConfig = {
-    mailbox: routerConfig.bsquared.mailbox,
+  const bsquared: HypTokenRouterConfigMailboxOptional = {
     owner: safeOwners.bsquared,
     type: TokenType.collateral,
     token: tokens.bsquared.uBTC,
   };
 
-  const soneium: HypTokenRouterConfig = {
-    mailbox: routerConfig.soneium.mailbox,
+  const soneium: HypTokenRouterConfigMailboxOptional = {
     owner: safeOwners.soneium,
     type: TokenType.synthetic,
   };
 
-  const swell: HypTokenRouterConfig = {
-    mailbox: routerConfig.swell.mailbox,
+  const swell: HypTokenRouterConfigMailboxOptional = {
     owner: safeOwners.swell,
     type: TokenType.synthetic,
   };

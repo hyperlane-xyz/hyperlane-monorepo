@@ -1,4 +1,8 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfigMailboxOptional,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
@@ -13,15 +17,15 @@ const safeOwners: ChainMap<Address> = {
 
 export const getBscHyperevmEnzoBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const bsc: HypTokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  const bsc: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.bsc,
     owner: safeOwners.bsc,
     type: TokenType.collateral,
     token: tokens.bsc.enzoBTC,
   };
 
-  const hyperevm: HypTokenRouterConfig = {
+  const hyperevm: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.hyperevm,
     owner: safeOwners.hyperevm,
     type: TokenType.synthetic,

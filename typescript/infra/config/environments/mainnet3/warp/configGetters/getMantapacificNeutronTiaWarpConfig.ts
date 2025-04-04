@@ -1,6 +1,6 @@
 import {
   ChainMap,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -10,16 +10,16 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 export const getMantapacificNeutronTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   const neutronRouter =
     '0xc5fc6899019cb4a7649981d89eb7b1a0929d0a85b2d41802f3315129ad4b581a';
 
   // @ts-ignore - foreignDeployment configs don't conform to the HypTokenRouterConfig
-  const neutron: HypTokenRouterConfig = {
+  const neutron: HypTokenRouterConfigMailboxOptional = {
     foreignDeployment: neutronRouter,
   };
 
-  const mantapacific: HypTokenRouterConfig = {
+  const mantapacific: HypTokenRouterConfigMailboxOptional = {
     ...routerConfig.mantapacific,
     ...abacusWorksEnvOwnerConfig.mantapacific,
     type: TokenType.synthetic,

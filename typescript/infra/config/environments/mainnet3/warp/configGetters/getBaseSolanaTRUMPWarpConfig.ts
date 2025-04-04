@@ -1,6 +1,6 @@
 import {
   ChainMap,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -12,10 +12,10 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 export const getTrumpchainTRUMPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   const name = 'OFFICIAL TRUMP';
   const symbol = 'TRUMP';
-  const tokenConfig: ChainMap<HypTokenRouterConfig> = {
+  const tokenConfig: ChainMap<HypTokenRouterConfigMailboxOptional> = {
     solanamainnet: {
       ...routerConfig.solanamainnet,
       type: TokenType.collateral,
@@ -45,7 +45,7 @@ export const getTrumpchainTRUMPWarpConfig = async (
 export const getTRUMPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   const name = 'OFFICIAL TRUMP';
   const symbol = 'TRUMP';
   const syntheticToken = {
@@ -53,7 +53,7 @@ export const getTRUMPWarpConfig = async (
     symbol,
     decimals: 18,
   };
-  const tokenConfig: ChainMap<HypTokenRouterConfig> = {
+  const tokenConfig: ChainMap<HypTokenRouterConfigMailboxOptional> = {
     solanamainnet: {
       ...routerConfig.solanamainnet,
       type: TokenType.collateral,

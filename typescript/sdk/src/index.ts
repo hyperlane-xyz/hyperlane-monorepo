@@ -601,6 +601,7 @@ export {
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   HypTokenRouterConfigSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,

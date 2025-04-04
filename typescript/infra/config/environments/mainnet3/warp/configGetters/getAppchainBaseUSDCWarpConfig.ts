@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfig,
+  HypTokenRouterConfigMailboxOptional,
   IsmConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -20,18 +20,16 @@ const safeOwners: ChainMap<Address> = {
 
 export const getAppChainBaseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
   const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero; // Use the default ISM
 
-  const appchain: HypTokenRouterConfig = {
-    mailbox: routerConfig.appchain.mailbox,
+  const appchain: HypTokenRouterConfigMailboxOptional = {
     owner: safeOwners.appchain,
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const base: HypTokenRouterConfig = {
-    mailbox: routerConfig.base.mailbox,
+  const base: HypTokenRouterConfigMailboxOptional = {
     owner: safeOwners.base,
     type: TokenType.collateral,
     token: tokens.base.USDC,
