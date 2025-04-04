@@ -39,39 +39,36 @@ contract BlockHashIsm is IInterchainSecurityModule {
         expectedOriginMailbox = _expectedOriginMailbox;
     }
 
+    function addressToBytes32(address a) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(a)));
+    }
+
     function verify(
         bytes calldata metadata,
         bytes calldata message
     ) external view override returns (bool) {
-        // Metadata = abi.encode(blockHeight, rlpEncodedHeader).
-        (uint256 blockHeight, bytes memory rlpHeader) = abi.decode(
-            metadata,
-            (uint256, bytes)
-        );
-
-        // Compute hash of the RLP header.
-        bytes32 computedHeaderHash = keccak256(rlpHeader);
-
-        // Get expected hash from oracle.
-        uint256 expectedHash = oracle.blockHash(blockHeight);
-
-        if (bytes32(expectedHash) != computedHeaderHash) {
-            return false;
+        // Decode to calldata for better gas efficiency.
+        uint256 blockHeight;
+        assembly {
+            blockHeight := calldataload(metadata.offset)
         }
+        bytes calldata rlpHeader = metadata[32:];
 
-        // Validate that message.origin matches oracle.origin.
-        if (Message.origin(message) != oracle.origin()) {
-            return false;
-        }
+        // Cache oracle to avoid multiple external calls.
+        IBlockHashOracle _oracle = oracle;
+
+        // Validate origin chain ID and originMailbox first
+        if (Message.origin(message) != _oracle.origin()) return false;
 
         // Validate that message.originMailbox matches expected origin mailbox.
-        if (
-            Message.sender(message) !=
-            bytes32(uint256(uint160(expectedOriginMailbox)))
-        ) {
+        if (Message.sender(message) != addressToBytes32(expectedOriginMailbox))
             return false;
-        }
 
-        return true;
+        // Only hash header if origin checks pass.
+        bytes32 computedHeaderHash = keccak256(rlpHeader);
+        // Get expected hash from oracle.
+        uint256 expectedHash = _oracle.blockHash(blockHeight);
+
+        return bytes32(expectedHash) == computedHeaderHash;
     }
 }
