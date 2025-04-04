@@ -31,7 +31,7 @@ use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -296,23 +296,9 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let params = MessageMetadataBuildParams::default();
-
-        let build_metadata_start = Instant::now();
-        let metadata_res = message_metadata_builder
-            .build(ism_address, &self.message, params)
+        let metadata_res = self
+            .build_metadata(&message_metadata_builder, ism_address)
             .await;
-        let build_metadata_end = Instant::now();
-
-        let metrics_params = MetadataBuildMetric {
-            app_context: self.app_context.clone(),
-            success: metadata_res.is_ok(),
-            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
-        };
-
-        self.ctx
-            .metrics
-            .insert_metadata_build_metric(metrics_params);
 
         let metadata_bytes = match metadata_res {
             Ok(metadata) => {
@@ -874,6 +860,32 @@ impl PendingMessage {
             }
             None => None,
         }
+    }
+
+    async fn build_metadata(
+        &self,
+        message_metadata_builder: &MessageMetadataBuilder,
+        ism_address: H256,
+    ) -> Result<Metadata, MetadataBuildError> {
+        let params = MessageMetadataBuildParams::default();
+
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
+            .build(ism_address, &self.message, params)
+            .await;
+        let build_metadata_end = Instant::now();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
+        };
+
+        self.ctx
+            .metrics
+            .insert_metadata_build_metric(metrics_params);
+
+        metadata_res
     }
 }
 
