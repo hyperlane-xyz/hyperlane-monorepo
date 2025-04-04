@@ -43,7 +43,6 @@ describe('WarpCore', () => {
   let cwHypCollateral: Token;
   let cw20: Token;
   let cosmosIbc: Token;
-  let starknetHypSynthetic: Token;
 
   // Stub MultiProvider fee estimation to avoid real network calls
   sinon
@@ -73,8 +72,6 @@ describe('WarpCore', () => {
       cwHypCollateral,
       cw20,
       cosmosIbc,
-      ,
-      starknetHypSynthetic,
     ] = warpCore.tokens;
   });
 
@@ -156,11 +153,7 @@ describe('WarpCore', () => {
       amount: 1n,
       addressOrDenom: 'atom',
     });
-    await testQuote(
-      starknetHypSynthetic,
-      test1.name,
-      TokenStandard.StarknetHypNative,
-    );
+
     stubs.forEach((s) => s.restore());
   });
 

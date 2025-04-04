@@ -229,13 +229,17 @@ export class WarpCore {
       interchainFee,
     });
 
+    // Starknet does not support gas estimation without starknet account
+    const getStarknetGasEstimate = () => {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    };
+
+    if (originToken.protocol === ProtocolType.Starknet) {
+      return getStarknetGasEstimate();
+    }
+
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
-      // Starknet does not support gas estimation without starknet account
-      if (originToken.protocol === ProtocolType.Starknet) {
-        return { gasUnits: 0, gasPrice: 0, fee: 0 };
-      }
-
       try {
         return this.multiProvider.estimateTransactionFee({
           chainNameOrId: originMetadata.name,
@@ -267,12 +271,6 @@ export class WarpCore {
         provider,
         gasUnits: EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
       });
-    } else if (
-      txs.length === 2 &&
-      originToken.protocol === ProtocolType.Starknet
-    ) {
-      // Starknet does not support gas estimation without starknet account
-      return { gasUnits: 0, gasPrice: 0, fee: 0 };
     } else {
       throw new Error('Cannot estimate local gas for multiple transactions');
     }
