@@ -465,6 +465,8 @@ mod test {
         MessageSubmissionMetrics {
             last_known_nonce: IntGauge::new("last_known_nonce_gauge", "help string").unwrap(),
             messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
+            metadata_build_count: None,
+            metadata_build_duration: None,
         }
     }
 

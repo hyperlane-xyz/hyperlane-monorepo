@@ -9,17 +9,21 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_metric::prometheus_metric::MetadataBuildMetric;
-use prometheus::{IntCounter, IntGauge};
+use hyperlane_metric::prometheus_metric::{
+    MetadataBuildMetric, METADATA_BUILD_COUNT_HELP, METADATA_BUILD_COUNT_LABELS,
+    METADATA_BUILD_DURATION_HELP, METADATA_BUILD_DURATION_LABELS,
+};
+use maplit::hashmap;
+use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain,
-    Mailbox, MessageSubmissionData, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -300,20 +304,14 @@ impl PendingOperation for PendingMessage {
             .await;
         let build_metadata_end = Instant::now();
 
-        let origin_chain = KnownHyperlaneDomain::try_from(self.message.origin).ok();
-        let dest_chain = KnownHyperlaneDomain::try_from(self.message.destination).ok();
-
         let metrics_params = MetadataBuildMetric {
             app_context: self.app_context.clone(),
-            origin: origin_chain,
-            destination: dest_chain,
             success: metadata_res.is_ok(),
             duration: build_metadata_end - build_metadata_start,
         };
 
         self.ctx
-            .metadata_builder
-            .get_client_metrics()
+            .metrics
             .insert_metadata_build_metric(metrics_params);
 
         let metadata_bytes = match metadata_res {
@@ -881,9 +879,18 @@ impl PendingMessage {
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
+    // Origin and destination chain names
+    pub origin: String,
+    pub destination: String,
+
     // Fields are public for testing purposes
     pub last_known_nonce: IntGauge,
     pub messages_processed: IntCounter,
+
+    /// Number of times we've built metadata
+    pub metadata_build_count: Option<IntCounterVec>,
+    /// Total number of seconds spent building different types of metadata.
+    pub metadata_build_duration: Option<CounterVec>,
 }
 
 impl MessageSubmissionMetrics {
@@ -895,6 +902,8 @@ impl MessageSubmissionMetrics {
         let origin = origin.name();
         let destination = destination.name();
         Self {
+            origin: origin.to_string(),
+            destination: destination.to_string(),
             last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
                 origin,
@@ -903,7 +912,38 @@ impl MessageSubmissionMetrics {
             messages_processed: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin, destination]),
+            metadata_build_count: metrics
+                .new_int_counter(
+                    "metadata_build_count",
+                    METADATA_BUILD_COUNT_HELP,
+                    METADATA_BUILD_COUNT_LABELS,
+                )
+                .ok(),
+            metadata_build_duration: metrics
+                .new_counter(
+                    "metadata_build_duration",
+                    METADATA_BUILD_DURATION_HELP,
+                    METADATA_BUILD_DURATION_LABELS,
+                )
+                .ok(),
         }
+    }
+
+    /// Add metrics on how long metadata building took for
+    /// a specific ISM
+    pub fn insert_metadata_build_metric(&self, params: MetadataBuildMetric) {
+        let labels = hashmap! {
+            "app_context" => params.app_context.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),
+            "origin" => self.origin.as_str(),
+            "destination" => self.destination.as_str(),
+            "status" => if params.success { "success" } else { "failure" },
+        };
+        if let Some(counter) = &self.metadata_build_count {
+            counter.with(&labels).inc();
+        };
+        if let Some(counter) = &self.metadata_build_duration {
+            counter.with(&labels).inc_by(params.duration.as_secs_f64())
+        };
     }
 
     fn update_nonce(&self, msg: &HyperlaneMessage) {

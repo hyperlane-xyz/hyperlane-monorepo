@@ -1,10 +1,9 @@
 use eyre::Result;
 use hyperlane_metric::prometheus_metric::{
-    PrometheusClientMetrics, PrometheusClientMetricsBuilder, METADATA_BUILD_COUNT_HELP,
-    METADATA_BUILD_COUNT_LABELS, METADATA_BUILD_DURATION_HELP, METADATA_BUILD_DURATION_LABELS,
-    PROVIDER_CREATE_COUNT_HELP, PROVIDER_CREATE_COUNT_LABELS, PROVIDER_DROP_COUNT_HELP,
-    PROVIDER_DROP_COUNT_LABELS, REQUEST_COUNT_HELP, REQUEST_COUNT_LABELS,
-    REQUEST_DURATION_SECONDS_HELP, REQUEST_DURATION_SECONDS_LABELS,
+    PrometheusClientMetrics, PrometheusClientMetricsBuilder, PROVIDER_CREATE_COUNT_HELP,
+    PROVIDER_CREATE_COUNT_LABELS, PROVIDER_DROP_COUNT_HELP, PROVIDER_DROP_COUNT_LABELS,
+    REQUEST_COUNT_HELP, REQUEST_COUNT_LABELS, REQUEST_DURATION_SECONDS_HELP,
+    REQUEST_DURATION_SECONDS_LABELS,
 };
 
 use crate::CoreMetrics;
@@ -32,16 +31,6 @@ pub(crate) fn create_json_rpc_client_metrics(
             "provider_drop_count",
             PROVIDER_DROP_COUNT_HELP,
             PROVIDER_DROP_COUNT_LABELS,
-        )?)
-        .metadata_build_count(metrics.new_int_counter(
-            "metadata_build_count",
-            METADATA_BUILD_COUNT_HELP,
-            METADATA_BUILD_COUNT_LABELS,
-        )?)
-        .metadata_build_duration(metrics.new_counter(
-            "metadata_build_duration",
-            METADATA_BUILD_DURATION_HELP,
-            METADATA_BUILD_DURATION_LABELS,
         )?)
         .build()?)
 }

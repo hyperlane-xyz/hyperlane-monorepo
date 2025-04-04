@@ -6,7 +6,6 @@ use std::{
 };
 
 use derive_builder::Builder;
-use hyperlane_core::KnownHyperlaneDomain;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{Deserialize, Serialize};
@@ -86,14 +85,6 @@ pub struct PrometheusClientMetrics {
     ///   might still be an "error" but not one with the transport layer.
     #[builder(setter(into, strip_option), default)]
     pub request_duration_seconds: Option<CounterVec>,
-
-    /// Total number of seconds spent building different types of metadata.
-    #[builder(setter(into, strip_option), default)]
-    pub metadata_build_duration: Option<CounterVec>,
-
-    /// Number of times we've built metadata
-    #[builder(setter(into, strip_option), default)]
-    pub metadata_build_count: Option<IntCounterVec>,
 }
 
 impl PrometheusClientMetrics {
@@ -138,25 +129,6 @@ impl PrometheusClientMetrics {
                 .inc_by((Instant::now() - start).as_secs_f64())
         };
     }
-
-    /// Add metrics on how long metadata building took for
-    /// a specific ISM
-    pub fn insert_metadata_build_metric(&self, params: MetadataBuildMetric) {
-        println!("MetadataBuildMetric {:?}", params);
-
-        let labels = hashmap! {
-            "app_context" => params.app_context.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),
-            "origin" => params.origin.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),
-            "destination" => params.destination.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),
-            "status" => if params.success { "success" } else { "failure" },
-        };
-        if let Some(counter) = &self.metadata_build_count {
-            counter.with(&labels).inc();
-        };
-        if let Some(counter) = &self.metadata_build_duration {
-            counter.with(&labels).inc_by(params.duration.as_secs_f64())
-        };
-    }
 }
 
 /// Just so we can derive Debug for other structs that use this
@@ -169,8 +141,6 @@ impl std::fmt::Debug for PrometheusClientMetrics {
 #[derive(Clone, Debug)]
 pub struct MetadataBuildMetric {
     pub app_context: Option<String>,
-    pub origin: Option<KnownHyperlaneDomain>,
-    pub destination: Option<KnownHyperlaneDomain>,
     pub success: bool,
     pub duration: Duration,
 }
