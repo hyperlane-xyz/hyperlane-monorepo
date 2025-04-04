@@ -53,31 +53,21 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
 
     const bsc: HypTokenRouterConfig = {
       ...routerConfig.bsc,
-      owner,
-      proxyAdmin: {
-        owner,
-      },
+      owner: owner,
       type: TokenType.synthetic,
     };
 
     const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
-      owner,
-      proxyAdmin: {
-        owner,
-      },
+      owner: owner,
       type: TokenType.collateral,
       token: '0xD9343a049D5DBd89CD19DC6BcA8c48fB3a0a42a7',
     };
 
     const lumia: HypTokenRouterConfig = {
       ...routerConfig.lumiaprism,
-      owner,
+      owner: owner,
       type: TokenType.native,
-      proxyAdmin: {
-        owner: owner,
-        address: '0xBC53dACd8c0ac0d2bAC461479EAaf5519eCC8853',
-      },
     };
 
     const optimism: HypTokenRouterConfig = {
