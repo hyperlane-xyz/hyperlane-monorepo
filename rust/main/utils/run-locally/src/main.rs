@@ -589,8 +589,6 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
     log!("Checking invalidate metadata cache happened...");
     let matched_logs = get_matching_lines(&relayer_logfile, line_filters.clone());
 
-    log!("matched_logs: {:?}", matched_logs);
-
     let invalidate_metadata_cache_count = *matched_logs
         .get(&line_filters[0])
         .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;

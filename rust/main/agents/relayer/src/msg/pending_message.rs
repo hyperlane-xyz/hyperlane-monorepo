@@ -272,7 +272,6 @@ impl PendingOperation for PendingMessage {
         // If gas estimation fails, invalidate cache and rebuild it again.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
-                tracing::debug!(USE_CACHE_METADATA_LOG);
                 match self
                     .ctx
                     .destination_mailbox
