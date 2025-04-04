@@ -1,6 +1,7 @@
 #![allow(clippy::doc_markdown)] // TODO: `rustc` 1.80.1 clippy issue
 #![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
 
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,7 +22,9 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
 };
-use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
+use submitter::{
+    Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId, PayloadStatus, SubmitterError,
+};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
@@ -168,7 +171,7 @@ impl SerialSubmitter {
 
         let confirm_task = match &entrypoint {
             None => self.create_classic_confirm_task(),
-            Some(_) => self.create_lander_confirm_task(),
+            Some(entrypoint) => self.create_lander_confirm_task(entrypoint.clone()),
         };
 
         let tasks = [
@@ -276,13 +279,17 @@ impl SerialSubmitter {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    fn create_lander_confirm_task(&self) -> JoinHandle<()> {
+    fn create_lander_confirm_task(
+        &self,
+        entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    ) -> JoinHandle<()> {
         let name = Self::task_name("confirm_lander::", &self.domain);
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &self.task_monitor,
                 confirm_lander_task(
+                    entrypoint,
                     self.domain.clone(),
                     self.prepare_queue.clone(),
                     self.confirm_queue.clone(),
@@ -425,7 +432,7 @@ async fn submit_classic_task(
 #[instrument(skip_all, fields(%_domain))]
 async fn submit_lander_task(
     entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    _domain: HyperlaneDomain,
+    _domain: HyperlaneDomain, // used for instrumentation only
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
     confirm_queue: OpQueue,
@@ -442,22 +449,18 @@ async fn submit_lander_task(
 }
 
 async fn submit_via_lander(
-    mut op: QueueOperation,
+    op: QueueOperation,
     entrypoint: &Arc<PayloadDispatcherEntrypoint>,
     prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
-    use PendingOperationStatus::Retry;
-
     let operation_payload = match op.payload().await {
         Ok(p) => p,
         Err(e) => {
             let reason = ReprepareReason::ErrorCreatingPayload;
-            let status = Retry(reason.clone());
-            let result = op.on_reprepare_ex(reason);
-            warn!(?e, ?status, ?result, "Error creating payload");
-            prepare_queue.push(op, Some(status)).await;
+            let msg = "Error creating payload";
+            prepare_op(op, prepare_queue, e, msg, reason).await;
             return;
         }
     };
@@ -474,16 +477,29 @@ async fn submit_via_lander(
 
     if let Err(e) = result {
         let reason = ReprepareReason::ErrorSubmitting;
-        let status = Retry(reason.clone());
-        let result = op.on_reprepare_ex(reason);
-        warn!(?e, ?status, ?result, "Error sending payload");
-        prepare_queue.push(op, Some(status)).await;
+        let msg = "Error sending payload";
+        prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
 
     // TODO store mapping from message id to payload id to database
 
     confirm_op(op, confirm_queue, metrics).await;
+}
+
+async fn prepare_op(
+    mut op: QueueOperation,
+    prepare_queue: &OpQueue,
+    e: impl Debug,
+    msg: &str,
+    reason: ReprepareReason,
+) {
+    use PendingOperationStatus::Retry;
+
+    let status = Retry(reason.clone());
+    let result = op.on_reprepare_ex(reason);
+    warn!(?e, ?status, ?result, msg);
+    prepare_queue.push(op, Some(status)).await;
 }
 
 #[instrument(skip(prepare_queue, confirm_queue, metrics), ret, level = "debug")]
@@ -588,13 +604,68 @@ async fn confirm_classic_task(
     }
 }
 
-#[instrument(skip_all, fields(%_domain))]
+fn from_payload_status_into_result_for_confirmation(
+    status: &PayloadStatus,
+) -> PendingOperationResult {
+    use submitter::PayloadDropReason::{
+        FailedSimulation, FailedToBuildAsTransaction, Reverted, UnhandledError,
+    };
+    use submitter::PayloadRetryReason::Reorged;
+    use submitter::PayloadStatus::{
+        Dropped as PayloadDropped, InTransaction, ReadyToSubmit, Retry,
+    };
+    use submitter::TransactionStatus::{
+        Dropped as TransactionDropped, Finalized, Included, Mempool, PendingInclusion,
+    };
+
+    use PendingOperationResult::*;
+
+    match status {
+        ReadyToSubmit => Confirm(SubmittedBySelf),
+        InTransaction(t) => match t {
+            Included | Mempool | PendingInclusion => Confirm(SubmittedBySelf),
+            TransactionDropped(_) => Reprepare(ReprepareReason::RevertedOrReorged),
+            Finalized => Success,
+        },
+        PayloadDropped(d) => match d {
+            FailedToBuildAsTransaction => Drop,
+            FailedSimulation | UnhandledError => Reprepare(ReprepareReason::ErrorEstimatingGas),
+            Reverted => Reprepare(ReprepareReason::RevertedOrReorged),
+        },
+        Retry(r) => match r {
+            Reorged => Reprepare(ReprepareReason::RevertedOrReorged),
+        },
+    }
+}
+
+fn from_submitter_error_into_result_for_confirmation(
+    error: &SubmitterError,
+) -> PendingOperationResult {
+    use submitter::SubmitterError::*;
+
+    use PendingOperationResult::*;
+
+    match error {
+        NetworkError(_) | TxAlreadyExists => Confirm(SubmittedBySelf),
+        TxReverted => Reprepare(ReprepareReason::RevertedOrReorged),
+        TxSubmissionError(_)
+        | ChannelSendFailure(_)
+        | ChannelClosed
+        | EyreError(_)
+        | PayloadNotFound
+        | DbError(_)
+        | ChainCommunicationError(_) => Reprepare(ReprepareReason::ErrorSubmitting),
+    }
+}
+
+#[instrument(skip_all, fields(%domain))]
 async fn confirm_lander_task(
-    _domain: HyperlaneDomain,
-    _prepare_queue: OpQueue,
+    entrypoint: Arc<PayloadDispatcherEntrypoint>,
+    domain: HyperlaneDomain,
+    prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
-    _metrics: SerialSubmitterMetrics,
+    metrics: SerialSubmitterMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -607,8 +678,47 @@ async fn confirm_lander_task(
             continue;
         }
 
-        // TODO iterate through batch and confirm delivery
-        // TODO check if message was delivered via Mailbox.delivered()
+        let payload_status_futures = batch
+            .into_iter()
+            .map(|op| {
+                // TODO find payload id by message id
+                let payload_id = PayloadId::random();
+                async { (op, entrypoint.payload_status(payload_id).await) }
+            })
+            .collect::<Vec<_>>();
+
+        let results = join_all(payload_status_futures).await;
+
+        let confirm_futures = results
+            .into_iter()
+            .map(|(op, r)| match r {
+                Ok(s) => (op, from_payload_status_into_result_for_confirmation(&s)),
+                Err(e) => (op, from_submitter_error_into_result_for_confirmation(&e)),
+            })
+            .map(|(op, r)| async {
+                if let PendingOperationResult::Success = r {
+                    confirm_operation(
+                        op,
+                        domain.clone(),
+                        prepare_queue.clone(),
+                        confirm_queue.clone(),
+                        metrics.clone(),
+                    )
+                    .await
+                } else {
+                    process_confirm_result(
+                        op,
+                        prepare_queue.clone(),
+                        confirm_queue.clone(),
+                        metrics.clone(),
+                        r,
+                    )
+                    .await
+                }
+            })
+            .collect::<Vec<_>>();
+
+        join_all(confirm_futures).await;
     }
 }
 
@@ -623,6 +733,16 @@ async fn confirm_operation(
     debug_assert_eq!(*op.destination_domain(), domain);
 
     let operation_result = op.confirm().await;
+    process_confirm_result(op, prepare_queue, confirm_queue, metrics, operation_result).await
+}
+
+async fn process_confirm_result(
+    op: QueueOperation,
+    prepare_queue: OpQueue,
+    confirm_queue: OpQueue,
+    metrics: SerialSubmitterMetrics,
+    operation_result: PendingOperationResult,
+) -> PendingOperationResult {
     match &operation_result {
         PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
