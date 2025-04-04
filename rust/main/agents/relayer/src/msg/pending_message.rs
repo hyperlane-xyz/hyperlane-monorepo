@@ -307,7 +307,7 @@ impl PendingOperation for PendingMessage {
         let metrics_params = MetadataBuildMetric {
             app_context: self.app_context.clone(),
             success: metadata_res.is_ok(),
-            duration: build_metadata_end - build_metadata_start,
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
         };
 
         self.ctx
