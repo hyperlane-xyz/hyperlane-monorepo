@@ -9,10 +9,13 @@ import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { DerivedHookConfig } from '../hook/EvmHookReader.js';
-import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
+import { DerivedHookConfig } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { AggregationIsmConfig, IsmType } from '../ism/types.js';
+import {
+  AggregationIsmConfig,
+  DerivedIsmConfig,
+  IsmType,
+} from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';

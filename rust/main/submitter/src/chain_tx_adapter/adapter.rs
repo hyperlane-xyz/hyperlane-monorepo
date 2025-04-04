@@ -56,7 +56,10 @@ pub trait AdaptsChain: Send + Sync {
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
 
     /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
-    async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<Uuid>, SubmitterError>;
+    async fn reverted_payloads(
+        &self,
+        tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError>;
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;
