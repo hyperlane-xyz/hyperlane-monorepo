@@ -56,35 +56,41 @@ Contracts are organized into three categories:
 1. Clone the repository
 2. Install dependencies: `yarn install`
 
-### Workflow
+### Build Process
 
-#### 1. Fetching Contract Artifacts
-
-The Cairo contracts are automatically fetched from GitHub releases during the build process. The version is determined by the `version` field in `package.json`:
+The build process combines multiple steps in a specific order:
 
 ```bash
-yarn prepare-contracts
+yarn build
+```
+
+This command runs:
+
+1. TypeScript compilation (`tsc`)
+2. Fetching contract artifacts from GitHub (`fetch-contracts`)
+3. Generating TypeScript artifacts from Cairo contracts (`generate-artifacts`)
+
+All build output is placed in the `dist` directory.
+
+### Individual Build Steps
+
+You can also run the individual build steps separately:
+
+#### Fetching Contract Artifacts
+
+```bash
+yarn fetch-contracts
 ```
 
 This downloads the contract artifacts from the [Astraly Labs Hyperlane Starknet repository](https://github.com/astraly-labs/hyperlane_starknet).
 
-#### 2. Generating TypeScript Artifacts
-
-Generate TypeScript artifacts from the Cairo contracts:
+#### Generating TypeScript Artifacts
 
 ```bash
 yarn generate-artifacts
 ```
 
 This creates JavaScript and TypeScript declaration files in the `dist/artifacts` directory.
-
-#### 3. Building the Project
-
-```bash
-yarn build
-```
-
-This runs TypeScript compilation, contract preparation, and artifact generation. Build output is placed in the `dist` directory.
 
 ## License
 
