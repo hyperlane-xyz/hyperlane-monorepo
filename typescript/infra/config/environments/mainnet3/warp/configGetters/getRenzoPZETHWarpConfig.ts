@@ -5,7 +5,6 @@ import {
   ezEthSafes,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
-  ownerOverrides,
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
 
@@ -29,6 +28,16 @@ export const pzEthChainsToDeploy = [
 const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
 const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
 export const pzEthTokenPrices = pick(renzoTokenPrices, pzEthChainsToDeploy);
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+  ethereum: {
+    address: '0x4f4671Ce69c9af15e33eB7Cf6D1358d1B39Af3bF',
+    owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  },
+  zircuit: {
+    address: '0x8b789B4A56675240c9f0985B467752b870c75711',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
+};
 
 export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: pzEthChainsToDeploy,
@@ -37,5 +46,5 @@ export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: pzEthAddresses,
   xERC20Lockbox: pzEthProductionLockbox,
   tokenPrices: pzEthTokenPrices,
-  ownerOverrides: pick(ownerOverrides, pzEthChainsToDeploy),
+  existingProxyAdmins: existingProxyAdmins,
 });

@@ -1,7 +1,6 @@
 import { parseEther } from 'ethers/lib/utils.js';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { berachain, ethereum, unichain } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -275,53 +274,54 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
   };
 
-// This overrides the HyperlaneAppChecker.checkOwnership
-// This is used because proxyAdmins.owner (timelock) differ from warp route owner
-export const ownerOverrides: ChainMap<Record<string, Address>> = {
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   arbitrum: {
-    collateralProxyAdmin: '0xfC67503Ab4DF366C19858A13c3f8a68781c64DD5',
+    address: '0xdcB558d5C0F9A35C53Fa343c77eD0d346576e2Cf',
+    owner: ezEthSafes.arbitrum,
   },
   optimism: {
-    collateralProxyAdmin: '0x34A8bCbbBb6265435fB5a44e71d67c899CcC67F6',
+    address: '0xa50910ae66Df6A5F8e85dac032FD45BC2b7be6fF',
+    owner: ezEthSafes.optimism,
   },
   base: {
-    collateralProxyAdmin: '0x9efC12575C54B6D3DB2Bd11F4D3cDF4D1225B651',
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: ezEthSafes.base,
   },
   blast: {
-    collateralProxyAdmin: '0x4D7572040B84b41a6AA2efE4A93eFFF182388F88',
+    address: '0xA26F8cE2E21A503bf9e18c213965d7BC14997F48',
+    owner: ezEthSafes.blast,
   },
   bsc: {
-    collateralProxyAdmin: '0x3e0053D211b501732E999D6399b7e79610f7550B',
+    address: '0x486b39378f99f073A3043C6Aabe8666876A8F3C5',
+    owner: ezEthSafes.bsc,
   },
   mode: {
-    collateralProxyAdmin: '0x47b161ed66aB28876E44e284F5B112c332c0F103',
-  },
-  linea: {
-    collateralProxyAdmin: '0xbbB685D609B6a0fbc2f6647De51fCa1F2D02D30e',
-  },
-  ethereum: {
-    collateralProxyAdmin: '0x81F6e9914136Da1A1d3b1eFd14F7E0761c3d4cc7',
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.mode,
   },
   fraxtal: {
-    collateralProxyAdmin: '0x34A8bCbbBb6265435fB5a44e71d67c899CcC67F6',
+    address: '0x8bB69721B4E9b9df08bEdaeaA193008C7317Db59',
+    owner: ezEthSafes.fraxtal,
+  },
+  linea: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.linea,
+  },
+  ethereum: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.ethereum,
   },
   zircuit: {
-    collateralProxyAdmin: '0x4D7572040B84b41a6AA2efE4A93eFFF182388F88',
-  },
-  taiko: {
-    collateralProxyAdmin: '0x727368aAA4F866Db2E47bed9dBCe50E54E7331f5',
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: ezEthSafes.zircuit,
   },
   sei: {
-    collateralProxyAdmin: '0x14984137855729dcbd65e7AC561fF9a8973e4Dea',
+    address: '0x33219fEF24C198d979F05d692a17507E41a0A73e',
+    owner: ezEthSafes.sei,
   },
-  swell: {
-    collateralProxyAdmin: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
-  },
-  unichain: {
-    collateralProxyAdmin: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
-  },
-  berachain: {
-    collateralProxyAdmin: '0x4D7572040B84b41a6AA2efE4A93eFFF182388F88',
+  taiko: {
+    address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
+    owner: ezEthSafes.taiko,
   },
 };
 
@@ -332,7 +332,7 @@ export function getRenzoWarpConfigGenerator(params: {
   xERC20Addresses: Record<string, string>;
   xERC20Lockbox: string;
   tokenPrices: ChainMap<string>;
-  ownerOverrides?: ChainMap<Record<string, Address>>;
+  existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
 }) {
   const {
     chainsToDeploy,
@@ -341,7 +341,7 @@ export function getRenzoWarpConfigGenerator(params: {
     xERC20Addresses,
     xERC20Lockbox,
     tokenPrices,
-    ownerOverrides,
+    existingProxyAdmins,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -443,7 +443,7 @@ export function getRenzoWarpConfigGenerator(params: {
                   ],
                 },
                 hook: getRenzoHook(defaultHook, chain, safes[chain]),
-                ownerOverrides: ownerOverrides?.[chain] ?? undefined, // when 'undefined' yaml will not include the field
+                proxyAdmin: existingProxyAdmins?.[chain] ?? undefined, // when 'undefined' yaml will not include the field
               },
             ];
 
@@ -464,7 +464,7 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
-  ownerOverrides,
+  existingProxyAdmins: existingProxyAdmins,
 });
 
 // Create a GnosisSafeBuilder Strategy for each safe address
