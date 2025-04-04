@@ -1,3 +1,5 @@
+import { PermitTransferFromData } from '@uniswap/permit2-sdk';
+
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { TokenMetadata } from '../types.js';
@@ -9,6 +11,13 @@ export interface TransferParams {
   fromAccountOwner?: Address;
   // Required for Solana
   fromTokenAccount?: Address;
+}
+
+export interface SignatureEIP721Params {
+  weiAmountOrId: Numberish;
+  fromAccountOwner: Address;
+  spender: Address;
+  deadline: Numberish;
 }
 
 export interface TransferRemoteParams extends TransferParams {
@@ -41,6 +50,12 @@ export interface ITokenAdapter<Tx> {
   ): Promise<boolean>;
   populateApproveTx(params: TransferParams): Promise<Tx>;
   populateTransferTx(params: TransferParams): Promise<Tx>;
+}
+
+export interface IEvmTokenAdapter<Tx> extends ITokenAdapter<Tx> {
+  populatePermit2Signature(
+    params: SignatureEIP721Params,
+  ): Promise<PermitTransferFromData>;
 }
 
 export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {

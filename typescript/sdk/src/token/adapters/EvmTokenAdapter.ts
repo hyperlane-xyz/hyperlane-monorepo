@@ -1,3 +1,10 @@
+import {
+  AllowanceProvider,
+  PERMIT2_ADDRESS,
+  PermitTransferFrom,
+  PermitTransferFromData,
+  SignatureTransfer,
+} from '@uniswap/permit2-sdk';
 import { BigNumber, PopulatedTransaction } from 'ethers';
 
 import {
@@ -32,6 +39,7 @@ import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  IEvmTokenAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
@@ -39,6 +47,7 @@ import {
   IXERC20VSAdapter,
   InterchainGasQuote,
   RateLimitMidPoint,
+  SignatureEIP721Params,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -97,7 +106,7 @@ export class EvmNativeTokenAdapter
 // Interacts with ERC20/721 contracts
 export class EvmTokenAdapter<T extends ERC20 = ERC20>
   extends EvmNativeTokenAdapter
-  implements ITokenAdapter<PopulatedTransaction>
+  implements IEvmTokenAdapter<PopulatedTransaction>
 {
   public readonly contract: T;
 
@@ -160,6 +169,42 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   async getTotalSupply(): Promise<bigint> {
     const totalSupply = await this.contract.totalSupply();
     return totalSupply.toBigInt();
+  }
+
+  async populatePermit2Signature({
+    weiAmountOrId,
+    fromAccountOwner,
+    spender,
+    deadline,
+  }: SignatureEIP721Params): Promise<PermitTransferFromData> {
+    const allowanceProvider = new AllowanceProvider(
+      this.getProvider(),
+      PERMIT2_ADDRESS,
+    );
+
+    const chainId = Number(this.multiProvider.tryGetChainId(this.chainName));
+    const token = this.contract.address;
+    const nonce = await allowanceProvider.getNonce(
+      token,
+      fromAccountOwner,
+      spender,
+    );
+
+    const permit: PermitTransferFrom = {
+      permitted: {
+        token,
+        amount: weiAmountOrId.toString(),
+      },
+      spender,
+      nonce: nonce + 1,
+      deadline,
+    };
+
+    return SignatureTransfer.getPermitData(
+      permit,
+      PERMIT2_ADDRESS,
+      chainId,
+    ) as PermitTransferFromData;
   }
 }
 
