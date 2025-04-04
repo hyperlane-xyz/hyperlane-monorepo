@@ -4,7 +4,6 @@ import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
-  HypTokenRouterConfigMailboxOptional,
   MultiProvider,
   OwnableConfig,
   WarpRouteDeployConfig,
@@ -69,7 +68,7 @@ type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
-) => Promise<ChainMap<HypTokenRouterConfigMailboxOptional>>;
+) => Promise<ChainMap<HypTokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
@@ -182,7 +181,7 @@ export async function getWarpConfig(
   envConfig: EnvironmentConfig,
   warpRouteId: string,
   registryUris = [DEFAULT_REGISTRY_URI],
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> {
+): Promise<ChainMap<HypTokenRouterConfig>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
     multiProvider,
@@ -190,7 +189,6 @@ export async function getWarpConfig(
   // Strip the owners from the router config
   const routerConfigWithOmissions = objMap(routerConfig, (_chain, config) => {
     const {
-      mailbox: _mailbox,
       owner: _owner,
       ownerOverrides: _ownerOverrides,
       ...configWithOmissions

@@ -79,7 +79,4 @@ export const tokens = {
   },
 };
 
-export type RouterConfigWithoutOwner = Omit<
-  RouterConfig,
-  keyof OwnableConfig | 'mailbox'
->;
+export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;
