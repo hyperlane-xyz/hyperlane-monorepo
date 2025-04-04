@@ -5,7 +5,7 @@ import * as types from '@hyperlane-xyz/cosmos-types';
 // they can differ, in that instance the amino
 // converters can be overridden here by adding the
 // methods "toJSON" and "fromJSON".
-export const REGISTRY = {
+export const COSMOS_MODULE_MESSAGE_REGISTRY = {
   // Core transactions
   MsgCreateMailbox: {
     proto: {
