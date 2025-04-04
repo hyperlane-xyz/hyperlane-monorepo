@@ -230,12 +230,8 @@ export class WarpCore {
     });
 
     // Starknet does not support gas estimation without starknet account
-    const getStarknetGasEstimate = () => {
-      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
-    };
-
     if (originToken.protocol === ProtocolType.Starknet) {
-      return getStarknetGasEstimate();
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
     }
 
     // Typically the transfers require a single transaction
