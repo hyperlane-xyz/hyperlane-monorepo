@@ -94,4 +94,8 @@ export enum WarpRouteIds {
   SolanaSoonMEW = 'MEW/solanamainnet-soon',
   SolanaSoonPnut = 'Pnut/solanamainnet-soon',
   SolanaSoonWIF = 'WIF/solanamainnet-soon',
+  SolanaSoonPOPCAT = 'POPCAT/solanamainnet-soon',
+  SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
+  SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
+  SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 }
