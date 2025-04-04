@@ -221,7 +221,7 @@ jobs:
       # - on the main branch
       # - PR with changes to ./rust
       # - PR with changes to this workflow
-      - name: Check for Rust file changes using GitHub CLI
+      - name: Check for Rust file changes
         id: check-rust-changes
         env:
           GH_TOKEN: ${{ github.token }}
