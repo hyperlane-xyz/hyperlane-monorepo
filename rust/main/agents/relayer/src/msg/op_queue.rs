@@ -169,7 +169,7 @@ pub mod test {
     use hyperlane_core::{
         ChainResult, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
         HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
-        TryBatchAs, TxOutcome, H256, U256,
+        ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
     };
 
     use crate::{
@@ -372,6 +372,10 @@ pub mod test {
         }
 
         async fn payload(&self) -> ChainResult<Vec<u8>> {
+            todo!()
+        }
+
+        fn on_reprepare_ex(&mut self, _: ReprepareReason) -> PendingOperationResult {
             todo!()
         }
     }
