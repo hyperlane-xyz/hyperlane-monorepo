@@ -15,17 +15,17 @@ import {
   connectComet,
 } from '@cosmjs/tendermint-rpc';
 
+import { CoreExtension, setupCoreExtension } from '../hyperlane/core/query.js';
 import {
-  CoreExtension,
   InterchainSecurityExtension,
-  PostDispatchExtension,
-  COSMOS_MODULE_MESSAGE_REGISTRY as R,
-  WarpExtension,
-  setupCoreExtension,
   setupInterchainSecurityExtension,
+} from '../hyperlane/interchain_security/query.js';
+import {
+  PostDispatchExtension,
   setupPostDispatchExtension,
-  setupWarpExtension,
-} from '../index.js';
+} from '../hyperlane/post_dispatch/query.js';
+import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
+import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry/registry.js';
 
 export type HyperlaneQueryClient = QueryClient &
   BankExtension &
