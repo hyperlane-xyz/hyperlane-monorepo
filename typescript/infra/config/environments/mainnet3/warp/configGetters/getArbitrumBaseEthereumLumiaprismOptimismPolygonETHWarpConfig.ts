@@ -1,18 +1,13 @@
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  ChainSubmissionStrategy,
-  HypTokenRouterConfig,
-  TokenType,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 const safeOwners: ChainMap<Address> = {
   arbitrum: '0xc8A9Dea7359Bd6FDCAD3B8EDE108416C25cF4CE9',
@@ -83,28 +78,5 @@ export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig =
     };
   };
 
-// Create a GnosisSafeBuilder Strategy for each safe address
-export function getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfigGenerator(
-  ezEthSafes: Record<string, string>,
-) {
-  return (): ChainSubmissionStrategy => {
-    return Object.fromEntries(
-      Object.entries(ezEthSafes).map(([chain, safeAddress]) => [
-        chain,
-        {
-          submitter: {
-            type: TxSubmitterType.GNOSIS_TX_BUILDER,
-            version: '1.0',
-            chain,
-            safeAddress,
-          },
-        },
-      ]),
-    );
-  };
-}
-
 export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig =
-  getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfigGenerator(
-    safeOwners,
-  );
+  getGnosisSafeBuilderStrategyConfigGenerator(safeOwners);
