@@ -169,6 +169,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// Creates payload for the operation
     async fn payload(&self) -> ChainResult<Vec<u8>>;
+
+    /// Public version of on_reprepare method
+    fn on_reprepare_ex(&mut self, reason: ReprepareReason) -> PendingOperationResult;
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]

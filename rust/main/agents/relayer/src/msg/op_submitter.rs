@@ -442,7 +442,7 @@ async fn submit_lander_task(
 }
 
 async fn submit_via_lander(
-    op: QueueOperation,
+    mut op: QueueOperation,
     entrypoint: &Arc<PayloadDispatcherEntrypoint>,
     prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
@@ -453,8 +453,10 @@ async fn submit_via_lander(
     let operation_payload = match op.payload().await {
         Ok(p) => p,
         Err(e) => {
-            error!(?e, "Error creating payload");
-            let status = Retry(ReprepareReason::ErrorCreatingPayload);
+            let reason = ReprepareReason::ErrorCreatingPayload;
+            let status = Retry(reason.clone());
+            let result = op.on_reprepare_ex(reason);
+            warn!(?e, ?status, ?result, "Error creating payload");
             prepare_queue.push(op, Some(status)).await;
             return;
         }
@@ -471,8 +473,10 @@ async fn submit_via_lander(
     let result = entrypoint.send_payload(&payload).await;
 
     if let Err(e) = result {
-        error!(?e, "Error sending payload");
-        let status = Retry(ReprepareReason::ErrorSubmitting);
+        let reason = ReprepareReason::ErrorSubmitting;
+        let status = Retry(reason.clone());
+        let result = op.on_reprepare_ex(reason);
+        warn!(?e, ?status, ?result, "Error sending payload");
         prepare_queue.push(op, Some(status)).await;
         return;
     }
