@@ -1,4 +1,5 @@
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
@@ -22,11 +23,12 @@ async function main() {
       warpRouteId,
     );
 
-    const registryConfig: WarpRouteDeployConfig = Object.fromEntries(
-      Object.entries(warpConfigs).map(([chain, config]) => {
+    const registryConfig: WarpRouteDeployConfig = objMap(
+      warpConfigs,
+      (chain, config) => {
         const { mailbox: _mailbox, ...rest } = config;
-        return [chain, { ...rest }];
-      }),
+        return rest;
+      },
     );
 
     const configFileName = `${warpRouteId}-deploy.yaml`;
