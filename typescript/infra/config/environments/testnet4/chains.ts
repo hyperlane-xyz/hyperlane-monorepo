@@ -1,5 +1,6 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -17,6 +18,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     transactionOverrides: {
       gasPrice: 8 * 10 ** 9, // 8 gwei
     },
+  },
+  kyvetestnet: {
+    transactionOverrides: {
+      gasPrice: '2.0',
+    },
+    protocol: ProtocolType.CosmosNative,
   },
   // deploy-only overrides
   // scrollsepolia: {
