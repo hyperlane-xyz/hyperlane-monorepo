@@ -34,6 +34,14 @@ check_dependencies() {
     done
 }
 
+check_if_contracts_exist() {
+    if [[ -d "$TARGET_DIR" ]] && [[ "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]]; then
+        log_success "Contracts already present in $TARGET_DIR, skipping fetch"
+        return 0
+    fi
+    return 1
+}
+
 verify_version_exists() {
     local version=$1
     if ! curl --output /dev/null --silent --head --fail "${GITHUB_RELEASES_API}/tags/${version}"; then
@@ -118,6 +126,11 @@ main() {
     
     check_dependencies
     
+    # Skip if contracts already exist
+    if check_if_contracts_exist; then
+        exit 0
+    fi
+
     log_success "Using version ${VERSION} from package.json"
     verify_version_exists "$VERSION"
 
