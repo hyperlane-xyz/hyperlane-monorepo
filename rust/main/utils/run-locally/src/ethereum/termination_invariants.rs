@@ -33,7 +33,8 @@ pub fn termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched: total_messages_expected,
-        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+            + FAILED_MESSAGE_COUNT,
         non_matching_igp_message_count: 0,
         double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
     };
