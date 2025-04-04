@@ -2,7 +2,7 @@ import { EncodeObject } from '@cosmjs/proto-signing';
 
 import { coreTx } from '@hyperlane-xyz/cosmos-types';
 
-import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../../registry/registry.js';
+import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../../registry.js';
 
 export interface MsgCreateMailboxEncodeObject extends EncodeObject {
   readonly typeUrl: typeof R.MsgCreateMailbox.proto.type;

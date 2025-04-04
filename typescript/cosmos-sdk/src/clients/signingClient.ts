@@ -50,7 +50,7 @@ import {
   MsgUnrollRemoteRouterEncodeObject,
 } from '../hyperlane/warp/messages.js';
 import { setupWarpExtension } from '../hyperlane/warp/query.js';
-import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry/registry.js';
+import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
 import { HyperlaneQueryClient } from './client.js';
 

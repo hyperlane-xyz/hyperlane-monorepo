@@ -25,7 +25,7 @@ import {
   setupPostDispatchExtension,
 } from '../hyperlane/post_dispatch/query.js';
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
-import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry/registry.js';
+import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
 export type HyperlaneQueryClient = QueryClient &
   BankExtension &

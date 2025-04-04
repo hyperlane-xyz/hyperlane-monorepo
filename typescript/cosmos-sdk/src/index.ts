@@ -1,7 +1,7 @@
 export * from './clients/client.js';
 export * from './clients/signingClient.js';
 
-export * from './registry/registry.js';
+export * from './registry.js';
 
 export * from './hyperlane/core/messages.js';
 export * from './hyperlane/core/query.js';
