@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use derive_new::new;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
@@ -25,13 +28,15 @@ use hyperlane_metric::prometheus_metric::{
 use crate::prometheus::metrics_channel::MetricsChannel;
 use crate::{ConnectionConf, HyperlaneCosmosError};
 
+const REQUEST_TIMEOUT: u64 = 30;
+
 /// Grpc Provider
 #[derive(Clone, Debug)]
 pub struct GrpcProvider {
     fallback: FallbackProvider<CosmosGrpcClient, CosmosGrpcClient>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 struct CosmosGrpcClient {
     channel: MetricsChannel<Channel>,
 }
@@ -40,7 +45,8 @@ struct CosmosGrpcClient {
 impl BlockNumberGetter for CosmosGrpcClient {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
         let mut client = ServiceClient::new(self.channel.clone());
-        let request = tonic::Request::new(GetLatestBlockRequest {});
+        let mut request = tonic::Request::new(GetLatestBlockRequest {});
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         let response = client
             .get_latest_block(request)
             .await
@@ -70,13 +76,10 @@ impl GrpcProvider {
                 let metrics_config =
                     PrometheusConfig::from_url(url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
-                    .map(|e| {
-                        let metrics_channel =
-                            MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config);
-                        CosmosGrpcClient {
-                            channel: metrics_channel,
-                        }
-                    })
+                    .map(|e| e.timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| e.connect_timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
+                    .map(CosmosGrpcClient::new)
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect::<Result<Vec<CosmosGrpcClient>, _>>()
@@ -91,6 +94,7 @@ impl GrpcProvider {
         height: Option<u32>,
     ) -> tonic::Request<T> {
         let mut request = request.into_request();
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         if let Some(height) = height {
             request
                 .metadata_mut()
