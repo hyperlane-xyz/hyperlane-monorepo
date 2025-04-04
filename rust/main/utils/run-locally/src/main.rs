@@ -92,6 +92,7 @@ const ETH_VALIDATOR_KEYS: &[&str] = &[
 const AGENT_BIN_PATH: &str = "target/debug";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
+const FAILED_MESSAGE_COUNT: u32 = 1;
 
 const RELAYER_METRICS_PORT: &str = "9092";
 const SCRAPER_METRICS_PORT: &str = "9093";
@@ -324,6 +325,16 @@ fn main() -> ExitCode {
         // will cause double insertions to occur, which should be handled correctly
         .arg("required-hook", "merkleTreeHook");
     kathy_env_double_insertion.clone().run().join();
+
+    // Send a messsage thats guaranteed to fail
+    let kathy_failed_tx = Program::new("yarn")
+        .working_dir(&ts_infra_path)
+        .cmd("kathy")
+        .arg("messages", FAILED_MESSAGE_COUNT.to_string())
+        .arg("timeout", "1000")
+        .arg("body", "0xfa11ed")
+        .arg("required-hook", "merkleTreeHook");
+    kathy_failed_tx.clone().run().join();
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {

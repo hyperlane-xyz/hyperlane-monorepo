@@ -7,7 +7,7 @@ use crate::invariants::{
 };
 use crate::logging::log;
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
-use crate::{RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
+use crate::{FAILED_MESSAGE_COUNT, RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -19,7 +19,7 @@ pub fn termination_invariants_met(
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
 
     // this is total messages expected to be delivered
-    let total_messages_expected = eth_messages_expected;
+    let total_messages_expected = eth_messages_expected + FAILED_MESSAGE_COUNT;
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.

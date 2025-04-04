@@ -128,6 +128,11 @@ function getArgs() {
       default: false,
       describe: 'Mine forever after sending messages',
     })
+    .option('body', {
+      type: 'string',
+      default: '0x1234',
+      describe: 'send custom body',
+    })
     .option('singleOrigin', {
       type: 'string',
       default: undefined,
@@ -160,59 +165,16 @@ function getArgs() {
     }).argv;
 }
 
-async function sendFailMessage(data: {
-  core: HyperlaneCore;
-  multiProvider: MultiProvider;
-  source: TestChainName;
-  destination: TestChainName;
-  recipient: TestSendReceiver;
-  mailbox: Mailbox;
-}) {
-  const { core, multiProvider, source, destination, recipient, mailbox } = data;
-
-  const remoteId = multiProvider.getDomainId(destination);
-
-  // tx that is hardcoded to fail in
-  // solidity/contracts/test/TestSendReceiver.sol
-  const body = '0xfa11ed';
-  const message = formatMessage(
-    1,
-    0,
-    multiProvider.getDomainId(source),
-    recipient.address,
-    remoteId,
-    recipient.address,
-    body,
-  );
-
-  const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
-    remoteId,
-    addressToBytes32(recipient.address),
-    message,
-  );
-  await mailbox['dispatch(uint32,bytes32,bytes)'](
-    remoteId,
-    addressToBytes32(recipient.address),
-    message,
-    {
-      value: quote,
-    },
-  );
-  console.log(
-    `send to ${recipient.address} on ${destination} via mailbox ${
-      mailbox.address
-    } on ${source} with nonce ${
-      (await mailbox.nonce()) - 1
-    } and quote ${quote.toString()}`,
-  );
-  console.log(await chainSummary(core, source));
-  console.log(await chainSummary(core, destination));
-}
-
 async function main() {
   const args = await getArgs();
-  const { timeout, defaultHook, requiredHook, mineforever, singleOrigin } =
-    args;
+  const {
+    timeout,
+    defaultHook,
+    requiredHook,
+    mineforever,
+    singleOrigin,
+    body,
+  } = args;
   let messages = args.messages;
 
   // Limit the test chains to a subset of the known chains
@@ -244,15 +206,6 @@ async function main() {
   const recipientF = new TestSendReceiver__factory(signer.connect(provider));
   const recipient = await recipientF.deploy();
   await recipient.deployTransaction.wait();
-
-  await sendFailMessage({
-    core,
-    multiProvider,
-    source: TestChainName.test1,
-    destination: TestChainName.test2,
-    recipient,
-    mailbox: core.getContracts(TestChainName.test1).mailbox,
-  });
 
   //  Generate artificial traffic
   const run_forever = messages === 0;
@@ -302,7 +255,7 @@ async function main() {
       recipient.address,
       multiProvider.getDomainId(remote),
       recipient.address,
-      '0x1234',
+      body,
     );
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
