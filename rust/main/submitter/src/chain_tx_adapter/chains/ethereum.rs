@@ -7,7 +7,7 @@ use hyperlane_base::settings::{ChainConf, RawChainConf};
 use crate::{
     chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, GasLimit},
     error::SubmitterError,
-    payload::FullPayload,
+    payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
 
@@ -53,7 +53,10 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>, SubmitterError> {
+    async fn reverted_payloads(
+        &self,
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
         todo!()
     }
 
