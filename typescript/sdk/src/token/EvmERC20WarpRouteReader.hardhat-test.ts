@@ -26,7 +26,6 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -34,6 +33,7 @@ import { ChainMap } from '../types.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
+import { derivedIsmAddress } from './types.js';
 
 describe('ERC20WarpRouterReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -155,9 +155,9 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(
-      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
-    ).to.be.equal(await mailbox.defaultIsm());
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.collateral) {
@@ -205,9 +205,9 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(
-      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
-    ).to.be.equal(await mailbox.defaultIsm());
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.XERC20) {
@@ -255,9 +255,9 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(
-      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
-    ).to.be.equal(await mailbox.defaultIsm());
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.XERC20) {

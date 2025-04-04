@@ -82,7 +82,7 @@ impl SimApp {
             .arg("rpc.pprof_laddr", &self.pprof_addr) // default is localhost:6060
             .arg("log_level", "panic")
             .spawn("SIMAPP", None);
-        sleep(Duration::from_secs(2));
+        sleep(Duration::from_secs(5));
         node
     }
 

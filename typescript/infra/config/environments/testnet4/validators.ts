@@ -522,5 +522,16 @@ export const validatorChainConfig = (
         'plumetestnet2',
       ),
     },
+
+    kyvetestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('kyvetestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5'],
+        },
+        'kyvetestnet',
+      ),
+    },
   };
 };

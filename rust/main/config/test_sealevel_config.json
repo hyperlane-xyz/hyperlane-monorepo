@@ -11,6 +11,7 @@
       "protocol": "sealevel",
       "blocks": {
         "reorgPeriod": 0,
+        "estimateBlockTime": 0.4,
         "confirmations": 0
       },
       "rpcUrls": [
@@ -34,6 +35,7 @@
       "protocol": "sealevel",
       "blocks": {
         "reorgPeriod": 0,
+        "estimateBlockTime": 0.4,
         "confirmations": 0
       },
       "rpcUrls": [

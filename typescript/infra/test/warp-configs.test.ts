@@ -15,7 +15,7 @@ import {
 const { expect } = chai;
 chai.use(chaiAsPromised);
 chai.should();
-const DEFAULT_TIMEOUT = 60000;
+const DEFAULT_TIMEOUT = 100000;
 
 const warpIdsToSkip = [
   'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',

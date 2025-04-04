@@ -21,7 +21,7 @@ pub trait PayloadDb: Send + Sync {
     async fn retrieve_payload_by_id(&self, id: &PayloadId) -> DbResult<Option<FullPayload>>;
 
     /// Store a payload by its unique ID
-    async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()>;
+    async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()>;
 
     /// Set the status of a payload by its unique ID. Performs one read (to first fetch the full payload) and one write.
     async fn store_new_payload_status(
@@ -34,7 +34,7 @@ pub trait PayloadDb: Send + Sync {
             .await?
             .ok_or(DbError::Other("Payload doesn't exist".to_owned()))?;
         payload.status = new_status;
-        self.store_payload_by_id(payload)
+        self.store_payload_by_id(&payload)
             .await
             .map_err(|err| DbError::Other(format!("Failed to store payload: {:?}", err)))?;
         Ok(())
@@ -58,8 +58,8 @@ impl PayloadDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, id)
     }
 
-    async fn store_payload_by_id(&self, payload: FullPayload) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), &payload)
+    async fn store_payload_by_id(&self, payload: &FullPayload) -> DbResult<()> {
+        self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), payload)
     }
 
     async fn store_tx_id_by_payload_id(

@@ -1,4 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 use axum::async_trait;
 use ethers::prelude::Selector;
@@ -69,6 +71,8 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// The estimated block time, i.e. the average time the next block is added to the chain
+    pub estimated_block_time: Duration,
     /// The reorg period of the chain, i.e. the number of blocks until finality
     pub reorg_period: ReorgPeriod,
     /// Addresses of contracts on the chain

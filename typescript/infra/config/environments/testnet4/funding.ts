@@ -49,6 +49,7 @@ export const keyFunderConfig: KeyFunderConfig<
     hyperliquidevmtestnet: '0.1',
     infinityvmmonza: '0',
     inksepolia: '0.1',
+    kyvetestnet: '0',
     modetestnet: '0.05',
     monadtestnet: '0.1',
     odysseytestnet: '0.1',
