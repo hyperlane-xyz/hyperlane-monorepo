@@ -326,7 +326,7 @@ fn main() -> ExitCode {
         .arg("required-hook", "merkleTreeHook");
     kathy_env_double_insertion.clone().run().join();
 
-    // Send a messsage thats guaranteed to fail
+    // Send a message that's guaranteed to fail
     let kathy_failed_tx = Program::new("yarn")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
