@@ -1,10 +1,6 @@
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  HypTokenRouterConfigMailboxOptional,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
@@ -22,7 +18,7 @@ const ownersByChain: ChainMap<Address> = {
 
 export const getMintSolanaMintWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   return {
     solanamainnet: {
       ...routerConfig.solanamainnet,

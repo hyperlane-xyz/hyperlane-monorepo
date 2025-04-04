@@ -1,10 +1,6 @@
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  HypTokenRouterConfigMailboxOptional,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
@@ -20,8 +16,8 @@ const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
 export const getEthereumFormFORMWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
-  const ethereum: HypTokenRouterConfigMailboxOptional = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: formSafes.ethereum,
     type: TokenType.collateral,
@@ -29,7 +25,7 @@ export const getEthereumFormFORMWarpConfig = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const form: HypTokenRouterConfigMailboxOptional = {
+  const form: HypTokenRouterConfig = {
     ...routerConfig.form,
     owner: formSafes.form,
     type: TokenType.synthetic,

@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   IsmConfig,
   OwnableConfig,
   TokenType,
@@ -16,10 +16,10 @@ import {
 export const getBaseZeroNetworkCBBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
-  const base: HypTokenRouterConfigMailboxOptional = {
+  const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     ...abacusWorksEnvOwnerConfig.base,
     proxyAdmin: {
@@ -31,7 +31,7 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const zeronetwork: HypTokenRouterConfigMailboxOptional = {
+  const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
     ...abacusWorksEnvOwnerConfig.zeronetwork,
     proxyAdmin: {

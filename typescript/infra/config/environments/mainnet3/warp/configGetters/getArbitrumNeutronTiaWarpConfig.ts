@@ -1,6 +1,6 @@
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -10,11 +10,11 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 export const getArbitrumNeutronTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const neutronRouter =
     '910926c4cf95d107237a9cf0b3305fe9c81351ebcba3d218ceb0e4935d92ceac';
 
-  const neutron: HypTokenRouterConfigMailboxOptional = {
+  const neutron: HypTokenRouterConfig = {
     ...routerConfig.neutron,
     ...abacusWorksEnvOwnerConfig.neutron,
     type: TokenType.collateral,
@@ -23,7 +23,7 @@ export const getArbitrumNeutronTiaWarpConfig = async (
     foreignDeployment: neutronRouter,
   };
 
-  const arbitrum: HypTokenRouterConfigMailboxOptional = {
+  const arbitrum: HypTokenRouterConfig = {
     ...routerConfig.arbitrum,
     ...abacusWorksEnvOwnerConfig.arbitrum,
     type: TokenType.synthetic,

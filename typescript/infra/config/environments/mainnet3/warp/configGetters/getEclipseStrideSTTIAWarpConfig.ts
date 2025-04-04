@@ -1,6 +1,6 @@
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -15,8 +15,8 @@ const strideOwner = 'stride1k8c2m5cn322akk5wy8lpt87dd2f4yh9azg7jlh';
 export const getEclipseStrideTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
-  const eclipsemainnet: HypTokenRouterConfigMailboxOptional = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...abacusWorksEnvOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
@@ -24,7 +24,7 @@ export const getEclipseStrideTiaWarpConfig = async (
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   };
 
-  const stride: HypTokenRouterConfigMailboxOptional = {
+  const stride: HypTokenRouterConfig = {
     ...routerConfig.stride,
     ...getOwnerConfigForAddress(strideOwner),
     type: TokenType.collateral,

@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   IsmConfig,
   OwnableConfig,
   TokenType,
@@ -17,10 +17,10 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
   async (
     routerConfig: ChainMap<RouterConfigWithoutOwner>,
     abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-  ): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  ): Promise<ChainMap<HypTokenRouterConfig>> => {
     const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
-    const arbitrum: HypTokenRouterConfigMailboxOptional = {
+    const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
       ...abacusWorksEnvOwnerConfig.arbitrum,
       proxyAdmin: {
@@ -32,7 +32,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const ethereum: HypTokenRouterConfigMailboxOptional = {
+    const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
       ...abacusWorksEnvOwnerConfig.ethereum,
       proxyAdmin: {
@@ -44,7 +44,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const mantle: HypTokenRouterConfigMailboxOptional = {
+    const mantle: HypTokenRouterConfig = {
       ...routerConfig.mantle,
       ...abacusWorksEnvOwnerConfig.mantle,
       proxyAdmin: {
@@ -56,7 +56,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const mode: HypTokenRouterConfigMailboxOptional = {
+    const mode: HypTokenRouterConfig = {
       ...routerConfig.mode,
       ...abacusWorksEnvOwnerConfig.mode,
       proxyAdmin: {
@@ -68,7 +68,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const polygon: HypTokenRouterConfigMailboxOptional = {
+    const polygon: HypTokenRouterConfig = {
       ...routerConfig.polygon,
       ...abacusWorksEnvOwnerConfig.polygon,
       proxyAdmin: {
@@ -80,7 +80,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const scroll: HypTokenRouterConfigMailboxOptional = {
+    const scroll: HypTokenRouterConfig = {
       ...routerConfig.scroll,
       ...abacusWorksEnvOwnerConfig.scroll,
       proxyAdmin: {
@@ -92,7 +92,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const zeronetwork: HypTokenRouterConfigMailboxOptional = {
+    const zeronetwork: HypTokenRouterConfig = {
       ...routerConfig.zeronetwork,
       ...abacusWorksEnvOwnerConfig.zeronetwork,
       proxyAdmin: {

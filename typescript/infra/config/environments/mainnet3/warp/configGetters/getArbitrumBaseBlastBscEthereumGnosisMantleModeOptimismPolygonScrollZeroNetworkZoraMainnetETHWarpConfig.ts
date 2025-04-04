@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   IsmConfig,
   OwnableConfig,
   TokenType,
@@ -21,10 +21,10 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
   async (
     routerConfig: ChainMap<RouterConfigWithoutOwner>,
     abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-  ): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  ): Promise<ChainMap<HypTokenRouterConfig>> => {
     const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
-    const arbitrum: HypTokenRouterConfigMailboxOptional = {
+    const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       // TODO: remove once we transfer ownership of the proxy admin
@@ -34,21 +34,21 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const base: HypTokenRouterConfigMailboxOptional = {
+    const base: HypTokenRouterConfig = {
       ...routerConfig.base,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const blast: HypTokenRouterConfigMailboxOptional = {
+    const blast: HypTokenRouterConfig = {
       ...routerConfig.blast,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const bsc: HypTokenRouterConfigMailboxOptional = {
+    const bsc: HypTokenRouterConfig = {
       ...routerConfig.bsc,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
@@ -56,14 +56,14 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const ethereum: HypTokenRouterConfigMailboxOptional = {
+    const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const gnosis: HypTokenRouterConfigMailboxOptional = {
+    const gnosis: HypTokenRouterConfig = {
       ...routerConfig.gnosis,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
@@ -71,7 +71,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const mantle: HypTokenRouterConfigMailboxOptional = {
+    const mantle: HypTokenRouterConfig = {
       ...routerConfig.mantle,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
@@ -79,21 +79,21 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const mode: HypTokenRouterConfigMailboxOptional = {
+    const mode: HypTokenRouterConfig = {
       ...routerConfig.mode,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const optimism: HypTokenRouterConfigMailboxOptional = {
+    const optimism: HypTokenRouterConfig = {
       ...routerConfig.optimism,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const polygon: HypTokenRouterConfigMailboxOptional = {
+    const polygon: HypTokenRouterConfig = {
       ...routerConfig.polygon,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
@@ -101,28 +101,28 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const scroll: HypTokenRouterConfigMailboxOptional = {
+    const scroll: HypTokenRouterConfig = {
       ...routerConfig.scroll,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const zeronetwork: HypTokenRouterConfigMailboxOptional = {
+    const zeronetwork: HypTokenRouterConfig = {
       ...routerConfig.zeronetwork,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const zoramainnet: HypTokenRouterConfigMailboxOptional = {
+    const zoramainnet: HypTokenRouterConfig = {
       ...routerConfig.zoramainnet,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const lisk: HypTokenRouterConfigMailboxOptional = {
+    const lisk: HypTokenRouterConfig = {
       ...routerConfig.lisk,
       ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.synthetic,

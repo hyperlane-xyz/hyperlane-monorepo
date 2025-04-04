@@ -7,7 +7,7 @@ import {
   ChainSubmissionStrategy,
   HookConfig,
   HookType,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   IsmType,
   MultisigConfig,
   TokenType,
@@ -343,7 +343,7 @@ export function getRenzoWarpConfigGenerator(params: {
     tokenPrices,
     existingProxyAdmins,
   } = params;
-  return async (): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+  return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
     const multiProvider = await config.getMultiProvider();
     const registry = await getMainnet3Registry();
@@ -394,12 +394,10 @@ export function getRenzoWarpConfigGenerator(params: {
       );
     }
 
-    const tokenConfig = Object.fromEntries<HypTokenRouterConfigMailboxOptional>(
+    const tokenConfig = Object.fromEntries<HypTokenRouterConfig>(
       await Promise.all(
         chainsToDeploy.map(
-          async (
-            chain,
-          ): Promise<[string, HypTokenRouterConfigMailboxOptional]> => {
+          async (chain): Promise<[string, HypTokenRouterConfig]> => {
             const addresses = await registry.getChainAddresses(chain);
             assert(addresses, 'No addresses in Registry');
             const { mailbox } = addresses;
@@ -409,7 +407,7 @@ export function getRenzoWarpConfigGenerator(params: {
               multiProvider.getProvider(chain),
             );
             const defaultHook = await mailboxContract.defaultHook();
-            const ret: [string, HypTokenRouterConfigMailboxOptional] = [
+            const ret: [string, HypTokenRouterConfig] = [
               chain,
               {
                 isNft: false,
@@ -423,6 +421,7 @@ export function getRenzoWarpConfigGenerator(params: {
                     : xERC20Addresses[chain],
                 owner: safes[chain],
                 gas: warpRouteOverheadGas,
+                mailbox,
                 interchainSecurityModule: {
                   type: IsmType.AGGREGATION,
                   threshold: 2,

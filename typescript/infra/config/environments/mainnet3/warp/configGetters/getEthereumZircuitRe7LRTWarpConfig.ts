@@ -2,7 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
+  OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -20,8 +21,8 @@ const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
 export const getEthereumZircuitRe7LRTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
-  const ethereum: HypTokenRouterConfigMailboxOptional = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: Re7Safes.ethereum,
     type: TokenType.collateral,
@@ -29,7 +30,7 @@ export const getEthereumZircuitRe7LRTWarpConfig = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const zircuit: HypTokenRouterConfigMailboxOptional = {
+  const zircuit: HypTokenRouterConfig = {
     ...routerConfig.zircuit,
     owner: Re7Safes.zircuit,
     type: TokenType.synthetic,

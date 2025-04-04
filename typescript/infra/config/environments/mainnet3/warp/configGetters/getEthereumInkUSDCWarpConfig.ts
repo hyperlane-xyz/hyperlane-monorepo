@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -17,8 +17,8 @@ const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 export const getEthereumInkUSDCConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
-  const ethereum: HypTokenRouterConfigMailboxOptional = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: abacusWorksEnvOwnerConfig.ethereum.owner,
     proxyAdmin: {
@@ -30,7 +30,7 @@ export const getEthereumInkUSDCConfig = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const ink: HypTokenRouterConfigMailboxOptional = {
+  const ink: HypTokenRouterConfig = {
     ...routerConfig.ink,
     owner: abacusWorksEnvOwnerConfig.ink.owner,
     proxyAdmin: {

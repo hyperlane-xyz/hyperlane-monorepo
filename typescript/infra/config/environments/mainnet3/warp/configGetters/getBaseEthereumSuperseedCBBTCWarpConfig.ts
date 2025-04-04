@@ -1,8 +1,4 @@
-import {
-  ChainMap,
-  HypTokenRouterConfigMailboxOptional,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
@@ -17,22 +13,22 @@ const owners = {
 
 export const getBaseEthereumSuperseedCBBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
-  const base: HypTokenRouterConfigMailboxOptional = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     owner: owners.base,
     type: TokenType.collateral,
     token: tokens.base.cbBTC,
   };
 
-  const ethereum: HypTokenRouterConfigMailboxOptional = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: owners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.cbBTC,
   };
 
-  const superseed: HypTokenRouterConfigMailboxOptional = {
+  const superseed: HypTokenRouterConfig = {
     ...routerConfig.superseed,
     owner: owners.superseed,
     type: TokenType.collateralFiat,

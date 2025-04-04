@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
   buildAggregationIsmConfigs,
@@ -17,14 +17,14 @@ import {
 export const getAncient8EthereumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
     ['ancient8'],
     defaultMultisigConfigs,
   ).ancient8;
 
-  const ethereum: HypTokenRouterConfigMailboxOptional = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
@@ -36,7 +36,7 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
   };
 
-  const ancient8: HypTokenRouterConfigMailboxOptional = {
+  const ancient8: HypTokenRouterConfig = {
     ...routerConfig.ancient8,
     ...abacusWorksEnvOwnerConfig.ancient8,
     type: TokenType.synthetic,

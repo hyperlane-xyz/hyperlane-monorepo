@@ -1,8 +1,4 @@
-import {
-  ChainMap,
-  HypTokenRouterConfigMailboxOptional,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
@@ -16,15 +12,15 @@ const turtleOwners = {
 
 export const getEthereumLineaTurtleWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfigMailboxOptional>> => {
-  const ethereum: HypTokenRouterConfigMailboxOptional = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: turtleOwners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.Turtle,
   };
 
-  const linea: HypTokenRouterConfigMailboxOptional = {
+  const linea: HypTokenRouterConfig = {
     ...routerConfig.linea,
     owner: turtleOwners.linea,
     type: TokenType.synthetic,
