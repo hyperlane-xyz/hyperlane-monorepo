@@ -17,15 +17,15 @@ async function main() {
   for (const warpRouteId of warpIdsToCheck) {
     console.log(`Generating Warp config for ${warpRouteId}`);
 
-    const warpConfigs = await getWarpConfig(
+    const warpConfig = await getWarpConfig(
       multiProvider,
       envConfig,
       warpRouteId,
     );
 
     const registryConfig: WarpRouteDeployConfig = objMap(
-      warpConfigs,
-      (chain, config) => {
+      warpConfig,
+      (_, config) => {
         const { mailbox: _mailbox, ...rest } = config;
         return rest;
       },
