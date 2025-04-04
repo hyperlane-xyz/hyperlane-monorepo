@@ -1,4 +1,8 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  ChainSubmissionStrategy,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 
 import {
   CheckpointSyncerType,
@@ -66,3 +70,28 @@ export const validatorBaseConfigsFn =
       chain,
       addresses[context],
     );
+
+/**
+ * Create a GnosisSafeBuilder Strategy for each safe address
+ * @param safes Safe addresses for strategy
+ * @returns GnosisSafeBuilder Strategy for each safe address
+ */
+export function getGnosisSafeBuilderStrategyConfigGenerator(
+  safes: Record<string, string>,
+) {
+  return (): ChainSubmissionStrategy => {
+    return Object.fromEntries(
+      Object.entries(safes).map(([chain, safeAddress]) => [
+        chain,
+        {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            version: '1.0',
+            chain,
+            safeAddress,
+          },
+        },
+      ]),
+    );
+  };
+}
