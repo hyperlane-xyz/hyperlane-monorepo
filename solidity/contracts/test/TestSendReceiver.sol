@@ -15,6 +15,7 @@ contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
+    uint256 public constant BODY_OFFSET = 77;
 
     event Handled(bytes32 blockHash);
 
@@ -53,11 +54,9 @@ contract TestSendReceiver is IMessageRecipient {
         bytes calldata message
     ) external payable override {
         bytes32 blockHash = previousBlockHash();
-        bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
-
+        bytes memory body = message[BODY_OFFSET:];
         bytes memory hardcodedFail = hex"fa11ed";
-        require(keccak256(message) != keccak256(hardcodedFail));
-        require(!isBlockHashEndIn0, "block hash ends in 0");
+        require(keccak256(body) != keccak256(hardcodedFail));
         emit Handled(blockHash);
     }
 

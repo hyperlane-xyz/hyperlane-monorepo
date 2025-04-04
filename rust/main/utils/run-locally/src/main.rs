@@ -295,6 +295,15 @@ fn main() -> ExitCode {
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
 
+    // Send a message that's guaranteed to fail
+    let kathy_failed_tx = Program::new("yarn")
+        .working_dir(&ts_infra_path)
+        .cmd("kathy")
+        .arg("messages", FAILED_MESSAGE_COUNT.to_string())
+        .arg("timeout", "1000")
+        .arg("body", "0xfa11ed");
+    kathy_failed_tx.clone().run().join();
+
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
         .working_dir(&ts_infra_path)
@@ -325,16 +334,6 @@ fn main() -> ExitCode {
         // will cause double insertions to occur, which should be handled correctly
         .arg("required-hook", "merkleTreeHook");
     kathy_env_double_insertion.clone().run().join();
-
-    // Send a message that's guaranteed to fail
-    let kathy_failed_tx = Program::new("yarn")
-        .working_dir(&ts_infra_path)
-        .cmd("kathy")
-        .arg("messages", FAILED_MESSAGE_COUNT.to_string())
-        .arg("timeout", "1000")
-        .arg("body", "0xfa11ed")
-        .arg("required-hook", "merkleTreeHook");
-    kathy_failed_tx.clone().run().join();
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
