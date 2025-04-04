@@ -231,8 +231,8 @@ export class WarpCore {
 
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
+      // Starknet does not support gas estimation without starknet account
       if (originToken.protocol === ProtocolType.Starknet) {
-        this.logger.info(`Skipping gas estimation for Starknet`);
         return { gasUnits: 0, gasPrice: 0, fee: 0 };
       }
 
@@ -271,7 +271,7 @@ export class WarpCore {
       txs.length === 2 &&
       originToken.protocol === ProtocolType.Starknet
     ) {
-      this.logger.info(`Skipping gas estimation for Starknet`);
+      // Starknet does not support gas estimation without starknet account
       return { gasUnits: 0, gasPrice: 0, fee: 0 };
     } else {
       throw new Error('Cannot estimate local gas for multiple transactions');
