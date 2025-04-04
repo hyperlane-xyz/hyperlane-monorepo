@@ -18,6 +18,10 @@ import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
 import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
 import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAppchainBaseUSDCWarpConfig.js';
+import {
+  getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
+  getLUMIAGnosisSafeBuilderStrategyConfig,
+} from './environments/mainnet3/warp/configGetters/getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig.js';
 import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
 import { getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
 import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBscEthereumMantleModePolygonScrollZeronetworkUSDTWarpConfig.js';
@@ -122,6 +126,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BscHyperevmEnzoBTC]: getBscHyperevmEnzoBTCWarpConfig,
   [WarpRouteIds.BscHyperevmSTBTC]: getBscHyperevmSTBTCWarpConfig,
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
+  [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
+    getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -130,6 +136,8 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRenzoGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
     getRenzoGnosisSafeBuilderStagingStrategyConfig,
+  [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
+    getLUMIAGnosisSafeBuilderStrategyConfig,
 };
 
 /**
