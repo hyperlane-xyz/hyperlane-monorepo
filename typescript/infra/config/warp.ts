@@ -187,13 +187,13 @@ export async function getWarpConfig(
     multiProvider,
   );
   // Strip the owners from the router config
-  const routerConfigWithOmissions = objMap(routerConfig, (_chain, config) => {
+  const routerConfigWithoutOwner = objMap(routerConfig, (_chain, config) => {
     const {
       owner: _owner,
       ownerOverrides: _ownerOverrides,
-      ...configWithOmissions
+      ...configWithoutOwner
     } = config;
-    return configWithOmissions;
+    return configWithoutOwner;
   });
   // Isolate the owners from the router config
   const abacusWorksEnvOwnerConfig = objMap(routerConfig, (_chain, config) => {
@@ -207,14 +207,14 @@ export async function getWarpConfig(
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (warpConfigGetter) {
     return warpConfigGetter(
-      routerConfigWithOmissions,
+      routerConfigWithoutOwner,
       abacusWorksEnvOwnerConfig,
       warpRouteId,
     );
   }
 
   return getConfigFromMergedRegistry(
-    routerConfigWithOmissions,
+    routerConfigWithoutOwner,
     abacusWorksEnvOwnerConfig,
     warpRouteId,
     registryUris,
