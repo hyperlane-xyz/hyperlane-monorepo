@@ -9,7 +9,12 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use prometheus::{IntCounter, IntGauge};
+use hyperlane_metric::prometheus_metric::{
+    MetadataBuildMetric, METADATA_BUILD_COUNT_HELP, METADATA_BUILD_COUNT_LABELS,
+    METADATA_BUILD_DURATION_HELP, METADATA_BUILD_DURATION_LABELS,
+};
+use maplit::hashmap;
+use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
@@ -26,7 +31,7 @@ use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -291,12 +296,11 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let params = MessageMetadataBuildParams::default();
+        let metadata_res = self
+            .build_metadata(&message_metadata_builder, ism_address)
+            .await;
 
-        let metadata_bytes = match message_metadata_builder
-            .build(ism_address, &self.message, params)
-            .await
-        {
+        let metadata_bytes = match metadata_res {
             Ok(metadata) => {
                 let metadata_bytes = metadata.to_vec();
                 self.metadata = Some(metadata_bytes.clone());
@@ -857,13 +861,48 @@ impl PendingMessage {
             None => None,
         }
     }
+
+    async fn build_metadata(
+        &self,
+        message_metadata_builder: &MessageMetadataBuilder,
+        ism_address: H256,
+    ) -> Result<Metadata, MetadataBuildError> {
+        let params = MessageMetadataBuildParams::default();
+
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
+            .build(ism_address, &self.message, params)
+            .await;
+        let build_metadata_end = Instant::now();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
+        };
+
+        self.ctx
+            .metrics
+            .insert_metadata_build_metric(metrics_params);
+
+        metadata_res
+    }
 }
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
+    // Origin and destination chain names
+    pub origin: String,
+    pub destination: String,
+
     // Fields are public for testing purposes
     pub last_known_nonce: IntGauge,
     pub messages_processed: IntCounter,
+
+    /// Number of times we've built metadata
+    pub metadata_build_count: Option<IntCounterVec>,
+    /// Total number of seconds spent building different types of metadata.
+    pub metadata_build_duration: Option<CounterVec>,
 }
 
 impl MessageSubmissionMetrics {
@@ -875,6 +914,8 @@ impl MessageSubmissionMetrics {
         let origin = origin.name();
         let destination = destination.name();
         Self {
+            origin: origin.to_string(),
+            destination: destination.to_string(),
             last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
                 origin,
@@ -883,7 +924,38 @@ impl MessageSubmissionMetrics {
             messages_processed: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin, destination]),
+            metadata_build_count: metrics
+                .new_int_counter(
+                    "metadata_build_count",
+                    METADATA_BUILD_COUNT_HELP,
+                    METADATA_BUILD_COUNT_LABELS,
+                )
+                .ok(),
+            metadata_build_duration: metrics
+                .new_counter(
+                    "metadata_build_duration",
+                    METADATA_BUILD_DURATION_HELP,
+                    METADATA_BUILD_DURATION_LABELS,
+                )
+                .ok(),
         }
+    }
+
+    /// Add metrics on how long metadata building took for
+    /// a specific ISM
+    pub fn insert_metadata_build_metric(&self, params: MetadataBuildMetric) {
+        let labels = hashmap! {
+            "app_context" => params.app_context.as_ref().map(|s| s.as_str()).unwrap_or("Unknown"),
+            "origin" => self.origin.as_str(),
+            "destination" => self.destination.as_str(),
+            "status" => if params.success { "success" } else { "failure" },
+        };
+        if let Some(counter) = &self.metadata_build_count {
+            counter.with(&labels).inc();
+        };
+        if let Some(counter) = &self.metadata_build_duration {
+            counter.with(&labels).inc_by(params.duration.as_secs_f64())
+        };
     }
 
     fn update_nonce(&self, msg: &HyperlaneMessage) {
