@@ -6,8 +6,9 @@
   "homepage": "https://www.hyperlane.xyz",
   "license": "Apache-2.0",
   "scripts": {
+    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
     "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
-    "build": "tsc && ./scripts/fetch-contracts-release.sh && yarn generate-artifacts",
+    "build": "tsc && yarn fetch-contracts && yarn generate-artifacts",
     "clean": "rm -rf ./dist ./release",
     "lint": "eslint -c ./eslint.config.mjs .",
     "prettier": "prettier --write ./src ./scripts ./package.json"
