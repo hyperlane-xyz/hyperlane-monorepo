@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
 
-use super::{Transaction, TransactionId};
+use crate::transaction::{Transaction, TransactionId};
 
 const TRANSACTION_BY_ID_STORAGE_PREFIX: &str = "transaction_by_id_";
 

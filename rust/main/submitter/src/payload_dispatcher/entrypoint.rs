@@ -79,6 +79,8 @@ mod tests {
     use crate::chain_tx_adapter::*;
     use crate::payload::*;
     use crate::payload_dispatcher::test_utils::MockAdapter;
+    use crate::payload_dispatcher::PayloadDb;
+    use crate::payload_dispatcher::TransactionDb;
     use crate::transaction::*;
 
     struct MockDb {

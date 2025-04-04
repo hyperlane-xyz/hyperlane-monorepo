@@ -8,9 +8,10 @@ use eyre::eyre;
 use hyperlane_base::db::{DbError, DbResult, HyperlaneRocksDB};
 use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlaneProtocolError};
 
-use crate::transaction::TransactionId;
-
-use super::{FullPayload, PayloadId, PayloadStatus};
+use crate::{
+    payload::{FullPayload, PayloadId, PayloadStatus},
+    transaction::TransactionId,
+};
 
 const PAYLOAD_BY_ID_STORAGE_PREFIX: &str = "payload_by_id_";
 const TRANSACTION_ID_BY_PAYLOAD_ID_STORAGE_PREFIX: &str = "transaction_id_by_payload_id_";

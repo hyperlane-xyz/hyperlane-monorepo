@@ -7,9 +7,10 @@ use tracing::trace;
 use crate::{
     error::SubmitterError,
     payload_dispatcher::{LoadableFromDb, LoadingOutcome},
+    transaction::{Transaction, TransactionStatus},
 };
 
-use super::{Transaction, TransactionDb, TransactionStatus};
+use super::TransactionDb;
 
 pub struct TransactionDbLoader {
     db: Arc<dyn TransactionDb>,

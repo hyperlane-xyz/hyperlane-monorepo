@@ -5,10 +5,11 @@ use tracing::trace;
 
 use crate::{
     error::SubmitterError,
+    payload::{FullPayload, PayloadStatus},
     payload_dispatcher::{BuildingStageQueue, LoadableFromDb, LoadingOutcome},
 };
 
-use super::{FullPayload, PayloadDb, PayloadStatus};
+use super::PayloadDb;
 
 pub struct PayloadDbLoader {
     db: Arc<dyn PayloadDb>,

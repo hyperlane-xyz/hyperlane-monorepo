@@ -111,12 +111,12 @@ mod tests {
 
     use crate::{
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
-        payload::{self, DropReason, FullPayload, PayloadDb, PayloadDetails, PayloadStatus},
+        payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
             test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
-            PayloadDispatcherState,
+            PayloadDb, PayloadDispatcherState, TransactionDb,
         },
-        transaction::{Transaction, TransactionDb, TransactionStatus},
+        transaction::{Transaction, TransactionStatus},
     };
 
     use super::{BuildingStage, BuildingStageQueue};
