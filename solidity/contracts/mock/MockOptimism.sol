@@ -42,6 +42,13 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
     function setPORTAL(address _portal) external {
         PORTAL = _portal;
     }
+
+    function baseGas(
+        bytes calldata _message,
+        uint32 _minGasLimit
+    ) external pure returns (uint64) {
+        return 0;
+    }
 }
 
 // mock deployment on L1
@@ -58,4 +65,15 @@ contract MockOptimismPortal is IOptimismPortal {
         );
         CallLib.call(call);
     }
+
+    function proveWithdrawalTransaction(
+        WithdrawalTransaction memory _tx,
+        uint256 _disputeGameIndex,
+        OutputRootProof memory _outputRootProof,
+        bytes[] memory _withdrawalProof
+    ) external {}
+
+    function finalizedWithdrawals(
+        bytes32 _withdrawalHash
+    ) external returns (bool value) {}
 }
