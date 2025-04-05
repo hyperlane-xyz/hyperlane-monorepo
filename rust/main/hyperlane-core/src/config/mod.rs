@@ -5,6 +5,7 @@
 
 use std::fmt::{Debug, Display, Formatter};
 
+use async_trait::async_trait;
 pub use config_path::ConfigPath;
 use eyre::Report;
 pub use str_or_int::{StrOrInt, StrOrIntParseError};
@@ -32,16 +33,17 @@ pub struct OperationBatchConfig {
 }
 
 /// A trait that allows for constructing `Self` from a raw config type.
+#[async_trait]
 pub trait FromRawConf<T, F = NoFilter>: Sized
 where
-    T: Debug,
-    F: Default,
+    T: Debug + Send + 'static,
+    F: Default + Send,
 {
     /// Construct `Self` from a raw config type.
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
-    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
-        Self::from_config_filtered(raw, cwp, F::default())
+    async fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
+        Self::from_config_filtered(raw, cwp, F::default()).await
     }
 
     /// Construct `Self` from a raw config type with a filter to limit what
@@ -49,35 +51,37 @@ where
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
     /// - `filter` can define what config paths are parsed
-    fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
+    async fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
 }
 
 /// A trait that allows for converting a raw config type into a "parsed" type.
-pub trait IntoParsedConf<F: Default>: Debug + Sized {
+#[async_trait]
+pub trait IntoParsedConf<F: Default + Send + 'static>: Debug + Sized + Send + 'static {
     /// Parse the config with a filter to limit what config paths are used.
-    fn parse_config_with_filter<O: FromRawConf<Self, F>>(
+    async fn parse_config_with_filter<O: FromRawConf<Self, F>>(
         self,
         cwp: &ConfigPath,
         filter: F,
     ) -> ConfigResult<O>;
 
     /// Parse the config.
-    fn parse_config<O: FromRawConf<Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
-        self.parse_config_with_filter(cwp, F::default())
+    async fn parse_config<O: FromRawConf<Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
+        self.parse_config_with_filter(cwp, F::default()).await
     }
 }
 
+#[async_trait]
 impl<S, F> IntoParsedConf<F> for S
 where
-    S: Debug,
-    F: Default,
+    S: Debug + Send + 'static,
+    F: Default + Send + 'static,
 {
-    fn parse_config_with_filter<O: FromRawConf<S, F>>(
+    async fn parse_config_with_filter<O: FromRawConf<S, F>>(
         self,
         cwp: &ConfigPath,
         filter: F,
     ) -> ConfigResult<O> {
-        O::from_config_filtered(self, cwp, filter)
+        O::from_config_filtered(self, cwp, filter).await
     }
 }
 
