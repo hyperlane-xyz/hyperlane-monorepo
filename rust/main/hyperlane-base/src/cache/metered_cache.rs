@@ -23,12 +23,14 @@ pub struct MeteredCacheConfig {
 pub struct MeteredCacheMetrics {
     /// The amount of calls which returned a cached result.
     /// - `cache_name`: the name of the cache.
+    /// - `chain`: the name of the chain.
     /// - `method`: the call stored in the cache.
     /// - `status`: the status of the call.
     #[builder(setter(into, strip_option), default)]
     pub hit_count: Option<IntCounterVec>,
     /// The amount of calls which did not return a cached result.
     /// - `cache_name`: the name of the cache.
+    /// - `chain`: the name of the chain.
     /// - `method`: the call stored in the cache.
     /// - `status`: the status of the call.
     #[builder(setter(into, strip_option), default)]
@@ -38,12 +40,12 @@ pub struct MeteredCacheMetrics {
 /// Expected label names for the metric.
 pub const HIT_COUNT_HELP: &str = "Number of cache hits";
 /// Help string for the metric.
-pub const HIT_COUNT_LABELS: &[&str] = &["cache_name", "method", "status"];
+pub const HIT_COUNT_LABELS: &[&str] = &["cache_name", "chain", "method", "status"];
 
 /// Expected label names for the metric.
 pub const MISS_COUNT_HELP: &str = "Number of cache misses";
 /// Help string for the metric.
-pub const MISS_COUNT_LABELS: &[&str] = &["cache_name", "method", "status"];
+pub const MISS_COUNT_LABELS: &[&str] = &["cache_name", "chain", "method", "status"];
 
 /// A Cache wrapper that instruments the cache calls with metrics.
 #[derive(new, Debug, Clone)]
@@ -86,6 +88,7 @@ where
 
         let labels = hashmap! {
             "cache_name" => self.config.cache_name.as_str(),
+            "chain" => domain_name,
             "method" => method,
             "status" => if result.is_ok() { "success" } else { "failure" }
         };
