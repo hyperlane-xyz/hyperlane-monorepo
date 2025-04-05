@@ -5,8 +5,12 @@ use futures_util::future::join_all;
 use derive_new::new;
 use itertools::{Either, Itertools};
 use tracing::{info, instrument};
+#[cfg(not(test))]
+use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
-use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
+use hyperlane_core::{
+    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
+};
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
@@ -116,6 +120,54 @@ impl AggregationIsmMetadataBuilder {
         }
         Ok(Self::n_cheapest_metas(metas_and_gas, threshold))
     }
+
+    /// Returns modules and threshold from the aggregation ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `modules_and_threshold` matches
+    /// the name of the method `modules_and_threshold`.
+    #[cfg(not(test))]
+    async fn call_modules_and_threshold(
+        &self,
+        ism: Box<dyn AggregationIsm>,
+        message: &HyperlaneMessage,
+    ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
+        let ism_domain = ism.domain().name();
+        let fn_key = "modules_and_threshold";
+        let call_params = (ism.address(), message);
+
+        let cache_result = self
+            .base_builder()
+            .cache()
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &call_params)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok()
+            .flatten();
+
+        match cache_result {
+            Some(result) => Ok(result),
+            None => {
+                let result = ism
+                    .modules_and_threshold(message)
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+                self.base_builder()
+                    .cache()
+                    .cache_call_result(ism_domain, fn_key, &call_params, &result)
+                    .await
+                    .map_err(|err| {
+                        warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                    })
+                    .ok();
+                Ok(result)
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -133,6 +185,11 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .build_aggregation_ism(ism_address)
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+        #[cfg(not(test))]
+        let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
+        // TODO For Jeff to fix, RE: feat: add ism limit (#5567)
+        #[cfg(test)]
         let (ism_addresses, threshold) = ism
             .modules_and_threshold(message)
             .await

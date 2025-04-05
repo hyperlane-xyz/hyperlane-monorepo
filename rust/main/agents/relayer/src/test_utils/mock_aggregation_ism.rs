@@ -21,6 +21,12 @@ pub struct MockAggregationIsm {
     pub responses: MockAggregationIsmResponses,
 }
 
+impl MockAggregationIsm {
+    pub fn set_domain(&mut self, domain: HyperlaneDomain) {
+        self.responses.domain = Some(domain);
+    }
+}
+
 #[async_trait::async_trait]
 impl AggregationIsm for MockAggregationIsm {
     async fn modules_and_threshold(

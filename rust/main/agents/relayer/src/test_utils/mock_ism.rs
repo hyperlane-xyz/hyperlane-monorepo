@@ -39,6 +39,10 @@ impl MockInterchainSecurityModule {
             address,
         }
     }
+
+    pub fn set_domain(&mut self, domain: HyperlaneDomain) {
+        self.responses.domain = Some(domain);
+    }
 }
 
 #[async_trait::async_trait]

@@ -3,7 +3,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use hyperlane_base::{settings::CheckpointSyncerBuildError, MultisigCheckpointSyncer};
+use hyperlane_base::{
+    cache::{LocalCache, MeteredCache},
+    settings::CheckpointSyncerBuildError,
+    MultisigCheckpointSyncer,
+};
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
@@ -18,6 +22,7 @@ pub struct MockBaseMetadataBuilderResponses {
     pub origin_domain: Option<HyperlaneDomain>,
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
+    pub cache: Option<MeteredCache<LocalCache>>,
     pub get_proof: ResponseList<eyre::Result<Proof>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
@@ -86,6 +91,12 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .app_context_classifier
             .as_ref()
             .expect("No mock app_context_classifier response set")
+    }
+    fn cache(&self) -> &MeteredCache<LocalCache> {
+        self.responses
+            .cache
+            .as_ref()
+            .expect("No mock cache response set")
     }
 
     async fn get_proof(&self, _leaf_index: u32, _checkpoint: Checkpoint) -> eyre::Result<Proof> {

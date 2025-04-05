@@ -21,6 +21,12 @@ pub struct MockRoutingIsm {
     pub responses: MockRoutingIsmResponses,
 }
 
+impl MockRoutingIsm {
+    pub fn set_domain(&mut self, domain: HyperlaneDomain) {
+        self.responses.domain = Some(domain);
+    }
+}
+
 #[async_trait::async_trait]
 impl RoutingIsm for MockRoutingIsm {
     async fn route(&self, _message: &HyperlaneMessage) -> ChainResult<H256> {
