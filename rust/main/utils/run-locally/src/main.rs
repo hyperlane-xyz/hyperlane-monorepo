@@ -301,7 +301,7 @@ fn main() -> ExitCode {
         .cmd("kathy")
         .arg("messages", FAILED_MESSAGE_COUNT.to_string())
         .arg("timeout", "1000")
-        .arg("body", "0xfa11ed");
+        .arg("body", "0xfa17ed");
     kathy_failed_tx.clone().run().join();
 
     // Send half the kathy messages before starting the rest of the agents

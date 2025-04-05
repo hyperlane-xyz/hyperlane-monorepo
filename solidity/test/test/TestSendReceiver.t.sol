@@ -95,11 +95,11 @@ contract TestSendReceiverTest is Test {
     event Handled(bytes32 blockhash);
 
     function testHandle() public {
-        vm.expectRevert("fa11ed body");
+        vm.expectRevert("fa17ed body");
         testSendReceiver.handle(
             0,
             address(testSendReceiver).addressToBytes32(),
-            "0xfa11ed"
+            "0xfa17ed"
         );
     }
 }
