@@ -701,15 +701,15 @@ impl PendingMessage {
     async fn get_from_cache<U: DeserializeOwned>(
         &self,
         contract_address: Option<H256>,
-        method: &str,
+        fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
     ) -> Option<U> {
         self.ctx
             .cache
-            .get_cached_call_result::<U>(contract_address, method, fn_params)
+            .get_cached_call_result::<U>(contract_address, fn_key, fn_params)
             .await
             .map_err(|err| {
-                warn!(error=?err, "Error checking cache stored {:?} result", method);
+                warn!(error=?err, "Error checking cache stored {:?} result", fn_key);
                 err
             })
             .ok()
@@ -719,17 +719,17 @@ impl PendingMessage {
     async fn store_to_cache(
         &self,
         contract_address: Option<H256>,
-        method: &str,
+        fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
     ) {
         if let Err(err) = self
             .ctx
             .cache
-            .cache_call_result(contract_address, method, fn_params, result)
+            .cache_call_result(contract_address, fn_key, fn_params, result)
             .await
         {
-            warn!(error=?err, "Error caching {:?} result", method);
+            warn!(error=?err, "Error caching {:?} result", fn_key);
         }
     }
     /// A preflight check to see if a message could possibly meet
