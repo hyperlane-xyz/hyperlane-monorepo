@@ -95,6 +95,10 @@ export const RpcUrlSchema = z.object({
     .describe(
       'Default retry settings to be used by a provider such as MultiProvider.',
     ),
+  public: z
+    .boolean()
+    .optional()
+    .describe('Flag if the RPC is publicly available.'),
 });
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;

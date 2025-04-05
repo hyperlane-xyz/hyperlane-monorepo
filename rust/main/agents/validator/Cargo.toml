@@ -27,6 +27,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing.workspace = true
+itertools.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "agent",
