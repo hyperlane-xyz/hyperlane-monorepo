@@ -3,9 +3,10 @@ use std::{sync::Arc, time::Duration};
 use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
-use eyre::Result;
+use eyre::{eyre, Result};
 
 use futures_util::future::try_join_all;
+use itertools::Itertools;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
@@ -73,6 +74,16 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
+        // Check for public rpcs in the config
+        if settings.rpcs.iter().any(|x| x.public) && !settings.allow_public_rpcs {
+            return Err(
+                eyre!(
+                    "Public RPC endpoints detected: {}. Using public RPCs can compromise security and reliability. If you understand the risks and still want to proceed, set `--allowPublicRpcs true`. We strongly recommend using private RPC endpoints for production validators.",
+                    settings.rpcs.iter().filter_map(|x| if x.public { Some(x.url.clone()) } else { None }).join(", ")
+                )
+            );
+        }
+
         let db = DB::from_path(&settings.db)?;
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
