@@ -1,5 +1,19 @@
 # @hyperlane-xyz/infra
 
+## 11.1.0
+
+### Minor Changes
+
+- d478ffd08: updated warp ids and added new soon routes
+
+### Patch Changes
+
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+  - @hyperlane-xyz/sdk@11.1.0
+  - @hyperlane-xyz/helloworld@11.1.0
+  - @hyperlane-xyz/utils@11.1.0
+
 ## 11.0.0
 
 ### Minor Changes

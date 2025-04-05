@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 11.1.0
+
+### Minor Changes
+
+- 4d3738d14: Update Checker to only check collateralToken and collateralProxyAdmin if provided in ownerOverrides
+- 07321f6f0: ZKSync Provider types with builders
+
+### Patch Changes
+
+- Updated dependencies [07321f6f0]
+  - @hyperlane-xyz/core@6.2.0
+  - @hyperlane-xyz/utils@11.1.0
+
 ## 11.0.0
 
 ### Major Changes
