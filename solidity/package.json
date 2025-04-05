@@ -12,7 +12,11 @@
     "@matterlabs/hardhat-zksync-verify": "1.7.1",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
-    "fx-portal": "^1.0.3"
+    "bn.js": "^5.2.1",
+    "fx-portal": "^1.0.3",
+    "rlp": "^3.0.0",
+    "solidity-rlp": "^2.0.8",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",
@@ -21,6 +25,7 @@
     "@typechain/ethers-v5": "^11.1.2",
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
+    "@types/bn.js": "^5",
     "@types/node": "^18.14.5",
     "chai": "^4.5.0",
     "eslint": "^9.15.0",
