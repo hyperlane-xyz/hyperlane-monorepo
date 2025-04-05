@@ -26,6 +26,8 @@ pub struct BaseCache {
     cache: Cache<String, (String, Expiration), RandomState>,
 }
 
+const MAX_CACHE_CAPACITY: u64 = 50 * 1024 * 1024; // 50MB
+
 /// The result type for cache operations, which can return a `CacheError`
 pub type CacheResult<T> = std::result::Result<T, CacheError>;
 
@@ -36,6 +38,7 @@ impl BaseCache {
             .name(name)
             .expire_after(DynamicExpiry {})
             .eviction_policy(EvictionPolicy::lru())
+            .max_capacity(MAX_CACHE_CAPACITY)
             .build();
         Self { cache }
     }
