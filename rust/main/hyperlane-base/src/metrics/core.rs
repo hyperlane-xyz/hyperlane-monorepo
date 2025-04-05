@@ -53,6 +53,9 @@ pub struct CoreMetrics {
 
     latest_checkpoint: IntGaugeVec,
 
+    metadata_build_count: IntCounterVec,
+    metadata_build_duration: CounterVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
@@ -225,6 +228,26 @@ impl CoreMetrics {
             registry
         )?;
 
+        let metadata_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_build_count"),
+                "Total number of times metadata was build",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let metadata_build_duration = register_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_build_duration"),
+                "Duration of metadata build times",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -248,6 +271,9 @@ impl CoreMetrics {
             messages_processed_count,
 
             latest_checkpoint,
+
+            metadata_build_count,
+            metadata_build_duration,
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
@@ -498,6 +524,30 @@ impl CoreMetrics {
     ///   span or event occurred. e.g. module path.
     pub fn span_count(&self) -> IntCounterVec {
         self.span_counts.clone()
+    }
+
+    /// The number of metadata built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `status`: success or failure
+    pub fn metadata_build_count(&self) -> IntCounterVec {
+        self.metadata_build_count.clone()
+    }
+
+    /// The durations of metadata build by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `status`: success or failure
+    pub fn metadata_build_duration(&self) -> CounterVec {
+        self.metadata_build_duration.clone()
     }
 
     /// Counts of tracing (logging framework) span events.

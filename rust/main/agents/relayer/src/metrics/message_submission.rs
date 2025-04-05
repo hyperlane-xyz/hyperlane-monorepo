@@ -6,18 +6,6 @@ use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 
-/// Expected label names for the metric.
-pub const METADATA_BUILD_COUNT_LABELS: &[&str] =
-    &["app_context", "origin", "destination", "status"];
-/// Help string for the metric.
-pub const METADATA_BUILD_COUNT_HELP: &str = "Total number of times metadata was build";
-
-/// Expected label names for the metric.
-pub const METADATA_BUILD_DURATION_LABELS: &[&str] =
-    &["app_context", "origin", "destination", "status"];
-/// Help string for the metric.
-pub const METADATA_BUILD_DURATION_HELP: &str = "Total number of times metadata was build";
-
 #[derive(Clone, Debug)]
 pub struct MetadataBuildMetric {
     pub app_context: Option<String>,
@@ -36,9 +24,9 @@ pub struct MessageSubmissionMetrics {
     pub messages_processed: IntCounter,
 
     /// Number of times we've built metadata
-    pub metadata_build_count: Option<IntCounterVec>,
+    pub metadata_build_count: IntCounterVec,
     /// Total number of seconds spent building different types of metadata.
-    pub metadata_build_duration: Option<CounterVec>,
+    pub metadata_build_duration: CounterVec,
 }
 
 impl MessageSubmissionMetrics {
@@ -60,20 +48,8 @@ impl MessageSubmissionMetrics {
             messages_processed: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin, destination]),
-            metadata_build_count: metrics
-                .new_int_counter(
-                    "metadata_build_count",
-                    METADATA_BUILD_COUNT_HELP,
-                    METADATA_BUILD_COUNT_LABELS,
-                )
-                .ok(),
-            metadata_build_duration: metrics
-                .new_counter(
-                    "metadata_build_duration",
-                    METADATA_BUILD_DURATION_HELP,
-                    METADATA_BUILD_DURATION_LABELS,
-                )
-                .ok(),
+            metadata_build_count: metrics.metadata_build_count(),
+            metadata_build_duration: metrics.metadata_build_duration(),
         }
     }
 
@@ -83,17 +59,13 @@ impl MessageSubmissionMetrics {
         let labels = hashmap! {
             "app_context" => params.app_context.as_deref().unwrap_or("Unknown"),
             "origin" => self.origin.as_str(),
-            "destination" => self.destination.as_str(),
+            "remote" => self.destination.as_str(),
             "status" => if params.success { "success" } else { "failure" },
         };
-        if let Some(counter) = &self.metadata_build_count {
-            tracing::debug!("Incrementing labels count");
-            counter.with(&labels).inc();
-        };
-        if let Some(counter) = &self.metadata_build_duration {
-            tracing::debug!("Incrementing labels duration");
-            counter.with(&labels).inc_by(params.duration.as_secs_f64())
-        };
+        self.metadata_build_count.with(&labels).inc();
+        self.metadata_build_duration
+            .with(&labels)
+            .inc_by(params.duration.as_secs_f64());
     }
 
     pub fn update_nonce(&self, msg: &HyperlaneMessage) {
