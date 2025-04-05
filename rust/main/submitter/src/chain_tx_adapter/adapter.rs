@@ -39,8 +39,6 @@ pub trait AdaptsChain: Send + Sync {
     ) -> Result<Option<GasLimit>, SubmitterError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    // should this instead return tuples of (Option<Transaction>, PayloadDetails) to
-    // make it clear which payloads failed and should be dropped?
     async fn build_transactions(
         &self,
         payloads: &[FullPayload],

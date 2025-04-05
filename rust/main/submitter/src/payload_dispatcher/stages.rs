@@ -4,4 +4,5 @@ mod inclusion_stage;
 mod state;
 mod utils;
 
+pub use building_stage::BuildingStageQueue;
 pub use state::*;
