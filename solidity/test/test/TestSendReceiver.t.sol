@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
+import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestSendReceiver} from "../../contracts/test/TestSendReceiver.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -96,10 +97,20 @@ contract TestSendReceiverTest is Test {
 
     function testHandle() public {
         vm.expectRevert("fa17ed body");
+
+        bytes memory message = abi.encodePacked(
+            uint8(0),
+            uint32(0),
+            uint32(0),
+            bytes32(0),
+            uint32(0),
+            bytes32(0),
+            hex"fa17ed"
+        );
         testSendReceiver.handle(
             0,
             address(testSendReceiver).addressToBytes32(),
-            "0xfa17ed"
+            message
         );
     }
 }
