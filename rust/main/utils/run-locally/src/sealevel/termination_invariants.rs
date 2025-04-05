@@ -7,6 +7,7 @@ use crate::{
     invariants::{
         provider_metrics_invariant_met, relayer_termination_invariants_met,
         scraper_termination_invariants_met, RelayerTerminationInvariantParams,
+        ScraperTerminationInvariantParams,
     },
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
@@ -42,6 +43,7 @@ pub fn termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
+        failed_message_count: 0,
         submitter_queue_length_expected: sol_messages_with_non_matching_igp,
         non_matching_igp_message_count: 0,
         double_insertion_message_count: sol_messages_with_non_matching_igp,
@@ -55,11 +57,13 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if !scraper_termination_invariants_met(
+    let params = ScraperTerminationInvariantParams {
         gas_payment_events_count,
         total_messages_dispatched,
-        total_messages_expected,
-    )? {
+        delivered_messages_scraped_expected: total_messages_expected,
+    };
+
+    if !scraper_termination_invariants_met(params)? {
         return Ok(false);
     }
 

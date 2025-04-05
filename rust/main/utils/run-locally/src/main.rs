@@ -92,6 +92,7 @@ const ETH_VALIDATOR_KEYS: &[&str] = &[
 const AGENT_BIN_PATH: &str = "target/debug";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
+const FAILED_MESSAGE_COUNT: u32 = 1;
 
 const RELAYER_METRICS_PORT: &str = "9092";
 const SCRAPER_METRICS_PORT: &str = "9093";
@@ -293,6 +294,15 @@ fn main() -> ExitCode {
         .run()
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
+
+    // Send a message that's guaranteed to fail
+    let kathy_failed_tx = Program::new("yarn")
+        .working_dir(&ts_infra_path)
+        .cmd("kathy")
+        .arg("messages", FAILED_MESSAGE_COUNT.to_string())
+        .arg("timeout", "1000")
+        .arg("body", "0xfa17ed");
+    kathy_failed_tx.clone().run().join();
 
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
@@ -588,8 +598,6 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
 
     log!("Checking invalidate metadata cache happened...");
     let matched_logs = get_matching_lines(&relayer_logfile, line_filters.clone());
-
-    log!("matched_logs: {:?}", matched_logs);
 
     let invalidate_metadata_cache_count = *matched_logs
         .get(&line_filters[0])

@@ -15,6 +15,8 @@ contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
+    // taken from Message.sol
+    uint256 public constant BODY_OFFSET = 77;
 
     event Handled(bytes32 blockHash);
 
@@ -47,10 +49,15 @@ contract TestSendReceiver is IMessageRecipient {
         );
     }
 
-    function handle(uint32, bytes32, bytes calldata) external payable override {
+    function handle(
+        uint32,
+        bytes32,
+        bytes calldata message
+    ) external payable override {
         bytes32 blockHash = previousBlockHash();
-        bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
-        require(!isBlockHashEndIn0, "block hash ends in 0");
+        bytes memory body = message[BODY_OFFSET:];
+        bytes memory hardcodedFail = hex"fa17ed";
+        require(keccak256(body) != keccak256(hardcodedFail), "fa17ed body");
         emit Handled(blockHash);
     }
 
