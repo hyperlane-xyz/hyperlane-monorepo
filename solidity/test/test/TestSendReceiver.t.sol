@@ -4,7 +4,6 @@ pragma solidity >=0.8.0;
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestSendReceiver} from "../../contracts/test/TestSendReceiver.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
