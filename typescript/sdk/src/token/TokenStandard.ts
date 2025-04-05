@@ -186,11 +186,9 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.collateralVault]: TokenStandard.EvmHypOwnerCollateral,
   [TokenType.collateralVaultRebase]: TokenStandard.EvmHypRebaseCollateral,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
-  [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
-  [TokenType.fastSynthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
 };
 
