@@ -56,7 +56,7 @@ contract TestSendReceiver is IMessageRecipient {
         bytes32 blockHash = previousBlockHash();
         bytes memory body = message[BODY_OFFSET:];
         bytes memory hardcodedFail = hex"fa11ed";
-        require(keccak256(body) != keccak256(hardcodedFail));
+        require(keccak256(body) != keccak256(hardcodedFail), "fa11ed body");
         emit Handled(blockHash);
     }
 
