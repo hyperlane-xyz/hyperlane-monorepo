@@ -186,12 +186,14 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    recipient,
     senderPubKey,
     interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
+    recipient?: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
   }): Promise<TransactionFeeEstimate> {
@@ -212,9 +214,10 @@ export class WarpCore {
       return { gasUnits: 0, gasPrice: 0, fee: Number(defaultQuote.amount) };
     }
 
+    // TODO: DOES NOT WORK FOR STARKNET
     // Form transactions to estimate local gas with
-    const recipient = convertToProtocolAddress(
-      sender,
+    const recipientAddress = convertToProtocolAddress(
+      recipient ?? sender, // TODO: get recipient instead of sender
       destinationMetadata.protocol,
       destinationMetadata.bech32Prefix,
     );
@@ -222,9 +225,14 @@ export class WarpCore {
       originTokenAmount: originToken.amount(1),
       destination,
       sender,
-      recipient,
+      recipient: recipientAddress,
       interchainFee,
     });
+
+    // Starknet does not support gas estimation without starknet account
+    if (originToken.protocol === ProtocolType.Starknet) {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    }
 
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
@@ -273,12 +281,14 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    recipient,
     senderPubKey,
     interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
+    recipient?: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
   }): Promise<TokenAmount> {
@@ -297,6 +307,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee,
     });
@@ -596,6 +607,7 @@ export class WarpCore {
       originTokenAmount,
       destination,
       sender,
+      recipient,
       senderPubKey,
     );
     if (balancesError) return balancesError;
@@ -711,6 +723,7 @@ export class WarpCore {
     originTokenAmount: TokenAmount,
     destination: ChainNameOrId,
     sender: Address,
+    recipient: Address,
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
@@ -748,6 +761,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee: interchainQuote,
     });
