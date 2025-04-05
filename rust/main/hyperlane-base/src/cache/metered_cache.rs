@@ -7,8 +7,6 @@ use maplit::hashmap;
 use prometheus::IntCounterVec;
 use serde::{de::DeserializeOwned, Serialize};
 
-use hyperlane_core::H256;
-
 use crate::cache::FunctionCallCache;
 
 use super::{CacheResult, Expiration};
@@ -62,19 +60,19 @@ where
 {
     async fn cache_call_result(
         &self,
-        contract_address: Option<H256>,
-        method: &str,
+        domain_name: &str,
+        fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
     ) -> CacheResult<Expiration> {
         self.inner
-            .cache_call_result(contract_address, method, fn_params, result)
+            .cache_call_result(domain_name, fn_key, fn_params, result)
             .await
     }
 
     async fn get_cached_call_result<T>(
         &self,
-        contract_address: Option<H256>,
+        domain_name: &str,
         method: &str,
         fn_params: &(impl Serialize + Send + Sync),
     ) -> CacheResult<Option<T>>
@@ -83,7 +81,7 @@ where
     {
         let result = self
             .inner
-            .get_cached_call_result::<T>(contract_address, method, fn_params)
+            .get_cached_call_result::<T>(domain_name, method, fn_params)
             .await;
 
         let labels = hashmap! {

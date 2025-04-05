@@ -133,14 +133,14 @@ impl AggregationIsmMetadataBuilder {
         ism: Box<dyn AggregationIsm>,
         message: &HyperlaneMessage,
     ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
-        let contract_address = Some(ism.address());
-        let ism_domain = ism.domain().id();
-        let fn_key = format!("modules_and_threshold_{}", ism_domain);
+        let ism_domain = ism.domain().name();
+        let fn_key = "modules_and_threshold";
+        let call_params = (ism.address(), message);
 
         let cache_result = self
             .base_builder()
             .cache()
-            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, &fn_key, message)
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &call_params)
             .await
             .map_err(|err| {
                 warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -158,7 +158,7 @@ impl AggregationIsmMetadataBuilder {
 
                 self.base_builder()
                     .cache()
-                    .cache_call_result(contract_address, &fn_key, message, &result)
+                    .cache_call_result(ism_domain, fn_key, &call_params, &result)
                     .await
                     .map_err(|err| {
                         warn!(error = %err, "Error when caching call result for {:?}", fn_key);

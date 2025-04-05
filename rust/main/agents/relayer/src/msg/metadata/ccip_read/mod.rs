@@ -46,19 +46,14 @@ impl CcipReadIsmMetadataBuilder {
         ism: Box<dyn CcipReadIsm>,
         message: &HyperlaneMessage,
     ) -> Result<OffchainLookup, MetadataBuildError> {
-        let contract_address = Some(ism.address());
-        let ism_domain = ism.domain().id();
-        let fn_key = format!("get_offchain_verify_info_{}", ism_domain);
-        let parsed_message = RawHyperlaneMessage::from(message).to_vec();
+        let ism_domain = ism.domain().name();
+        let fn_key = "get_offchain_verify_info";
+        let call_params = (ism.address(), RawHyperlaneMessage::from(message).to_vec());
 
         let info_from_cache = self
             .base_builder()
             .cache()
-            .get_cached_call_result::<SerializedOffchainLookup>(
-                contract_address,
-                &fn_key,
-                &parsed_message,
-            )
+            .get_cached_call_result::<SerializedOffchainLookup>(ism_domain, fn_key, &call_params)
             .await
             .map_err(|err| {
                 warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -99,9 +94,9 @@ impl CcipReadIsmMetadataBuilder {
         self.base_builder()
             .cache()
             .cache_call_result(
-                contract_address,
-                &fn_key,
-                &parsed_message,
+                ism_domain,
+                fn_key,
+                &call_params,
                 &SerializedOffchainLookup::from(info.clone()),
             )
             .await

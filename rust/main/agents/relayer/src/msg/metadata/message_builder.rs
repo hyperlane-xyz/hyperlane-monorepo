@@ -100,14 +100,14 @@ impl MessageMetadataBuilder {
         &self,
         ism: &dyn InterchainSecurityModule,
     ) -> Result<ModuleType, MetadataBuildError> {
-        let contract_address = Some(ism.address());
-        let ism_domain = ism.domain().id();
-        let fn_key = format!("module_type_{}", ism_domain);
+        let ism_domain = ism.domain().name();
+        let fn_key = "module_type";
+        let call_params = (ism.address(), NoParams);
 
         match self
             .base_builder()
             .cache()
-            .get_cached_call_result::<ModuleType>(contract_address, &fn_key, &NoParams)
+            .get_cached_call_result::<ModuleType>(ism_domain, fn_key, &call_params)
             .await
             .map_err(|err| {
                 warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -124,7 +124,7 @@ impl MessageMetadataBuilder {
 
                 self.base_builder()
                     .cache()
-                    .cache_call_result(contract_address, &fn_key, &NoParams, &module_type)
+                    .cache_call_result(ism_domain, fn_key, &call_params, &module_type)
                     .await
                     .map_err(|err| {
                         warn!(error = %err, "Error when caching call result for {:?}", fn_key);

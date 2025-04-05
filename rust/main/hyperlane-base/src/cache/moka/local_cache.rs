@@ -3,8 +3,6 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 
-use hyperlane_core::H256;
-
 use crate::cache::FunctionCallCache;
 
 use super::{BaseCache, CacheResult, Expiration, ExpirationType};
@@ -25,26 +23,26 @@ impl FunctionCallCache for LocalCache {
     /// Cache a call result with the given parameters
     async fn cache_call_result(
         &self,
-        contract_address: Option<H256>,
+        domain_name: &str,
         method: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
     ) -> CacheResult<Expiration> {
-        let key = (contract_address, method, fn_params);
+        let key = (domain_name, method, fn_params);
         self.0.set(&key, result, ExpirationType::Default).await
     }
 
     /// Get a cached call result with the given parameters
     async fn get_cached_call_result<T>(
         &self,
-        contract_address: Option<H256>,
+        domain_name: &str,
         method: &str,
         fn_params: &(impl Serialize + Send + Sync),
     ) -> CacheResult<Option<T>>
     where
         T: DeserializeOwned,
     {
-        let key = (contract_address, method, fn_params);
+        let key = (domain_name, method, fn_params);
         let value = self.0.get::<T>(&key).await?;
 
         match value {

@@ -12,8 +12,6 @@ pub use metered_cache::{
 };
 pub use moka::{CacheResult, Expiration, LocalCache};
 
-use hyperlane_core::H256;
-
 /// Should be used as the `fn_params` when the function has no parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoParams;
@@ -24,8 +22,8 @@ pub trait FunctionCallCache: Send + Sync {
     /// Cache a call result with the given parameters
     async fn cache_call_result(
         &self,
-        contract_address: Option<H256>,
-        method: &str,
+        domain_name: &str,
+        fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
     ) -> CacheResult<Expiration>;
@@ -33,7 +31,7 @@ pub trait FunctionCallCache: Send + Sync {
     /// Get a cached call result with the given parameters
     async fn get_cached_call_result<T>(
         &self,
-        contract_address: Option<H256>,
+        domain_name: &str,
         method: &str,
         fn_params: &(impl Serialize + Send + Sync),
     ) -> CacheResult<Option<T>>

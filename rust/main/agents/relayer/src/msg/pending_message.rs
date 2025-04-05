@@ -629,15 +629,15 @@ impl PendingMessage {
     /// Implicit contract in this method: function name `is_contract` matches
     /// the name of the method `is_contract`.
     async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
-        let contract_address = None;
-        let dest_domain = self.ctx.destination_mailbox.domain().id();
-        let fn_key = format!("is_contract_{}", dest_domain);
+        let mailbox = self.ctx.destination_mailbox.clone();
+        let domain_name = mailbox.domain().name();
+        let fn_key = "is_contract";
         let fn_params = self.message.recipient;
         let provider = self.ctx.destination_mailbox.provider();
 
         // Check cache for recipient contract status
         if let Some(is_contract) = self
-            .get_from_cache::<bool>(contract_address, &fn_key, &fn_params)
+            .get_from_cache::<bool>(domain_name, fn_key, &fn_params)
             .await
         {
             return Ok(is_contract);
@@ -652,7 +652,7 @@ impl PendingMessage {
         })?;
 
         // Cache the recipient contract status
-        self.store_to_cache(contract_address, &fn_key, &fn_params, &is_contract)
+        self.store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
             .await;
 
         Ok(is_contract)
@@ -665,14 +665,13 @@ impl PendingMessage {
     /// Implicit contract in this method: function name `recipient_ism` matches
     /// the name of the method `recipient_ism`.
     async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
-        let contract_address = None;
-        let domain = self.ctx.destination_mailbox.domain().id();
-        let fn_key = format!("recipient_ism_{}", domain);
+        let domain = self.ctx.destination_mailbox.domain().name();
+        let fn_key = "recipient_ism";
         let fn_params = self.message.recipient;
 
         // Check cache for recipient ISM address
         if let Some(ism_address) = self
-            .get_from_cache::<H256>(contract_address, &fn_key, &fn_params)
+            .get_from_cache::<H256>(domain, fn_key, &fn_params)
             .await
         {
             return Ok(ism_address);
@@ -692,7 +691,7 @@ impl PendingMessage {
         };
 
         // Cache the recipient ISM address
-        self.store_to_cache(contract_address, &fn_key, &fn_params, &ism_address)
+        self.store_to_cache(domain, fn_key, &fn_params, &ism_address)
             .await;
 
         Ok(ism_address)
@@ -700,13 +699,13 @@ impl PendingMessage {
 
     async fn get_from_cache<U: DeserializeOwned>(
         &self,
-        contract_address: Option<H256>,
+        domain_name: &str,
         fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
     ) -> Option<U> {
         self.ctx
             .cache
-            .get_cached_call_result::<U>(contract_address, fn_key, fn_params)
+            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
             .await
             .map_err(|err| {
                 warn!(error=?err, ?fn_key, "Error checking cache stored result");
@@ -718,7 +717,7 @@ impl PendingMessage {
 
     async fn store_to_cache(
         &self,
-        contract_address: Option<H256>,
+        domain_name: &str,
         fn_key: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
@@ -726,7 +725,7 @@ impl PendingMessage {
         if let Err(err) = self
             .ctx
             .cache
-            .cache_call_result(contract_address, fn_key, fn_params, result)
+            .cache_call_result(domain_name, fn_key, fn_params, result)
             .await
         {
             warn!(error=?err, ?fn_key, "Error caching result");
