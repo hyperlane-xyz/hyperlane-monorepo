@@ -62,7 +62,7 @@ impl Expiration {
         let expiration = self.as_duration()?;
         let created_at = match Utc.timestamp_opt(self.created_at as i64, 0) {
             LocalResult::Single(time) => time,
-            LocalResult::Ambiguous(easliest, _) => easliest,
+            LocalResult::Ambiguous(earliest, _) => earliest,
             LocalResult::None => return None,
         };
         let now = Utc::now();
