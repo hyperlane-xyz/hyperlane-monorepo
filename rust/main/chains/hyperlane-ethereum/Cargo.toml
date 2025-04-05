@@ -32,6 +32,7 @@ url.workspace = true
 
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 

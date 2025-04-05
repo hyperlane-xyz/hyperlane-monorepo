@@ -15,14 +15,12 @@ export const getTrumpchainTRUMPWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const name = 'OFFICIAL TRUMP';
   const symbol = 'TRUMP';
-  const totalSupply = 0;
   const tokenConfig: ChainMap<HypTokenRouterConfig> = {
     solanamainnet: {
       ...routerConfig.solanamainnet,
       type: TokenType.collateral,
       name,
       symbol,
-      totalSupply,
       token: '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN',
       owner: DEPLOYER,
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
@@ -34,7 +32,6 @@ export const getTrumpchainTRUMPWarpConfig = async (
       name,
       symbol,
       decimals: 18,
-      totalSupply,
       owner: DEPLOYER,
       proxyAdmin: {
         owner: DEPLOYER,
@@ -51,11 +48,9 @@ export const getTRUMPWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const name = 'OFFICIAL TRUMP';
   const symbol = 'TRUMP';
-  const totalSupply = 0;
   const syntheticToken = {
     name,
     symbol,
-    totalSupply,
     decimals: 18,
   };
   const tokenConfig: ChainMap<HypTokenRouterConfig> = {
@@ -64,7 +59,6 @@ export const getTRUMPWarpConfig = async (
       type: TokenType.collateral,
       name,
       symbol,
-      totalSupply,
       token: '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN',
       owner: DEPLOYER,
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,

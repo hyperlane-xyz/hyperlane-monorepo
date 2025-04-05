@@ -12,9 +12,6 @@
   "astar": {
     "validators": ["0x50792eee9574f1bcd002e2c6dddf2aa73b04e254"]
   },
-  "astarzkevm": {
-    "validators": ["0x71e0a93f84548765cafc64d787eede19eea1ab06"]
-  },
   "avalanche": {
     "validators": [
       "0x2c7cf6d1796e37676ba95f056ff21bf536c6c2d3",
@@ -141,6 +138,13 @@
       "0xcaa9c6e6efa35e4a8b47565f3ce98845fa638bf3"
     ]
   },
+  "neutron": {
+    "validators": [
+      "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
+      "0xb825c1bd020cb068f477b320f591b32e26814b5b",
+      "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
+    ]
+  },
   "oortmainnet": {
     "validators": ["0x83f406ff315e90ae9589fa7786bf700e7c7a06f1"]
   },
@@ -214,12 +218,5 @@
   },
   "zetachain": {
     "validators": ["0xa13d146b47242671466e4041f5fe68d22a2ffe09"]
-  },
-  "neutron": {
-    "validators": [
-      "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
-      "0xb825c1bd020cb068f477b320f591b32e26814b5b",
-      "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
-    ]
   }
 }

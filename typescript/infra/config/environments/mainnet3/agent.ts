@@ -19,10 +19,12 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   MetricAppContext,
+  consistentSenderRecipientMatchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
+import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
@@ -34,8 +36,6 @@ import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresse
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
-import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
-import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -67,12 +67,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     appchain: true,
     arbitrum: true,
     arbitrumnova: true,
+    arcadia: true,
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
-    flame: true,
     avalanche: true,
     b3: true,
     base: true,
@@ -81,6 +80,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    bouncebit: true,
     bsc: true,
     bsquared: true,
     celo: true,
@@ -90,7 +90,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -100,6 +102,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     evmos: true,
     fantom: true,
+    flame: true,
     flare: true,
     flowmainnet: true,
     form: true,
@@ -112,8 +115,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     guru: true,
     harmony: true,
     hemi: true,
+    hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -136,19 +141,24 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
+    ronin: true,
     rootstockmainnet: true,
     sanko: true,
     scroll: true,
@@ -160,8 +170,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonic: true,
     sonicsvm: true,
     soon: true,
+    sophon: true,
+    story: true,
     stride: false,
-    // subtensor: true,
+    subtensor: true,
     superseed: true,
     superpositionmainnet: true,
     swell: true,
@@ -193,14 +205,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     alephzeroevmmainnet: true,
     apechain: true,
     appchain: true,
+    arcadia: true,
     arbitrum: true,
     arbitrumnova: true,
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
-    flame: true,
     avalanche: true,
     b3: true,
     base: true,
@@ -209,6 +220,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    bouncebit: true,
     bsc: true,
     bsquared: true,
     celo: true,
@@ -218,7 +230,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -228,6 +242,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     evmos: true,
     fantom: true,
+    flame: true,
     flare: true,
     flowmainnet: true,
     form: true,
@@ -240,8 +255,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     guru: true,
     harmony: true,
     hemi: true,
+    hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -263,21 +280,25 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     morph: true,
     nero: true,
-    // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
-    neutron: false,
+    neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
+    ronin: true,
     rootstockmainnet: true,
     sanko: true,
     scroll: true,
@@ -289,8 +310,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonic: true,
     sonicsvm: true,
     soon: true,
+    sophon: true,
+    story: true,
     stride: true,
-    // subtensor: true,
+    subtensor: true,
     superseed: true,
     superpositionmainnet: true,
     swell: true,
@@ -324,10 +347,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     appchain: true,
     arbitrum: true,
     arbitrumnova: true,
+    arcadia: true,
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -337,6 +360,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    bouncebit: true,
     bsc: true,
     bsquared: true,
     celo: true,
@@ -346,7 +370,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -369,8 +395,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     guru: true,
     harmony: true,
     hemi: true,
+    hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvm: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -393,19 +421,24 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
+    ronin: true,
     rootstockmainnet: true,
     sanko: true,
     scroll: true,
@@ -417,8 +450,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonic: true,
     sonicsvm: true,
     soon: true,
+    sophon: true,
+    story: true,
     stride: true,
-    // subtensor: true,
+    subtensor: true,
     superseed: true,
     superpositionmainnet: true,
     swell: true,
@@ -444,6 +479,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zksync: true,
     zoramainnet: true,
   },
+};
+
+// Chains not in our core set of supported chains, and supported ONLY by the scraper
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
+  forma: true,
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
@@ -516,6 +556,16 @@ const contextBase = {
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
+      {
+        originDomain: getDomainId('infinityvm'),
+        destinationDomain: getDomainId('solanamainnet'),
+      },
+    ],
+  },
+  {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
@@ -523,6 +573,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
+      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
+      // outside of Solana are ignored.
+      { originDomain: getDomainId('infinityvm') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -566,11 +619,20 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     {
       name: 'velo_message_module',
-      matchingList: routerMatchingList(veloMessageModuleAddresses),
+      // Almost all messages to / from this address relate to the Velo Message Module.
+      // The only exception is Metal, which had an initial misconfiguration that the Velo
+      // team resolved with a different contract deploy. We can still only match on this address
+      // as Metal is the only exception, so it's always receiving from or sending messages to this address.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xF385603a12Be8b7B885222329c581FDD1C30071D',
+      ),
     },
     {
       name: 'velo_token_bridge',
-      matchingList: routerMatchingList(veloTokenBridgeAddresses),
+      // All messages to / from this address relate to the Velo Token Bridge.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xA7287a56C01ac8Baaf8e7B662bDB41b10889C7A6',
+      ),
     },
     {
       // https://github.com/bgd-labs/aave-delivery-infrastructure?tab=readme-ov-file#deployed-addresses
@@ -592,8 +654,8 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
-    cpu: '14000m',
-    memory: '28G',
+    cpu: '20000m',
+    memory: '55G',
   },
 };
 
@@ -663,12 +725,17 @@ const blacklistedMessageIds = [
   '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
   '0xad52d640ed71b4363731a78becc8ad1d4aa8549a290c554e48281196478ade83',
   '0x984994d247edd9967182ba91b236a4e10223ef66e3b96259f06f2b7c7fbd8176',
+
+  // oUSDT dest with zero'd out limits
+  '0x2ebe41a3c35efaba191765da61b4445d5a01764603bc4635d3d3f62ce65df7d8',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
-const blacklist: MatchingList = blacklistedMessageIds.map((messageId) => ({
-  messageId,
-}));
+const blacklist: MatchingList = [
+  ...blacklistedMessageIds.map((messageId) => ({
+    messageId,
+  })),
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -679,7 +746,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0f8f4b4-20250217-143730',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -689,17 +756,18 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '349c581-20250205-155855',
+      tag: '8ab7c80-20250326-191115',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
   },
   scraper: {
+    scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '349c581-20250205-155855',
+      tag: '8ab7c80-20250326-191115',
     },
     resources: scraperResources,
   },
@@ -714,7 +782,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '214a8d7-20250213-183108',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -748,7 +816,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '214a8d7-20250213-183108',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     gasPaymentEnforcement,

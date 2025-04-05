@@ -189,27 +189,20 @@ fn filter_by_relevancy(
         None => return None, // If account keys do not contain the given PDA account, transaction is not relevant
     };
 
-    let program_maybe = instructions
+    let found = instructions
         .into_iter()
-        .find(|instruction| instruction.program_id_index == program_index);
+        // If program does not contain call into program, the program is not relevant
+        .filter(|instruction| instruction.program_id_index == program_index)
+        // If program does not operate on the given PDA account, the program is not relevant
+        .filter(|instruction| instruction.accounts.contains(&pda_account_index))
+        // If we cannot decode program data, the program is not relevant
+        .filter_map(|instruction| from_base58(&instruction.data).ok())
+        // If the call into program is not the specified instruction, the program is not relevant
+        // There should be none or one relevant program in the transaction
+        .any(|instruction_data| is_specified_instruction(&instruction_data));
 
-    let program = match program_maybe {
-        Some(p) => p,
-        None => return None, // If transaction does not contain call into program, transaction is not relevant
-    };
-
-    // If program does not operate on the given PDA account, transaction is not relevant
-    if !program.accounts.contains(&pda_account_index) {
-        return None;
-    }
-
-    let instruction_data = match from_base58(&program.data) {
-        Ok(d) => d,
-        Err(_) => return None, // If we cannot decode instruction data, transaction is not relevant
-    };
-
-    // If the call into program is not the specified instruction, transaction is not relevant
-    if !is_specified_instruction(&instruction_data) {
+    if !found {
+        // No relevant program was found, so, transaction is not relevant
         return None;
     }
 

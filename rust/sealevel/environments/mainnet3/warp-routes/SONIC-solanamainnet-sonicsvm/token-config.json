@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "SonicxvLud67EceaEzCLRnMTBqzYUUYNr93DBkBdDES",
+    "owner": "9hixEzn9pBzYG1MVWNq3jAuG7RP3vBT5ijN4UFWDVsfD"
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Sonic SVM",
+    "symbol": "SONIC",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/63ae6c0a0415d480c00880e64ec8a9c3724b4e37/deployments/warp_routes/SONIC/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": "G8v8LHQw2pWuJiQbbPRHehsNEneMkCzRHz7vSPP2ttiZ"
+  }
+}

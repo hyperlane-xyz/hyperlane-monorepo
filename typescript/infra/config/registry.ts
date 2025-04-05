@@ -7,12 +7,16 @@ import {
   PartialRegistry,
   warpConfigToWarpAddresses,
 } from '@hyperlane-xyz/registry';
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
+import {
+  FileSystemRegistry,
+  getRegistry as getMergedRegistry,
+} from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -108,6 +112,32 @@ export function getWarpAddresses(
   warpRouteId: string,
 ): ChainMap<ChainAddresses> {
   const warpCoreConfig = getWarpCoreConfig(warpRouteId);
+  return warpConfigToWarpAddresses(warpCoreConfig);
+}
+
+export async function getWarpCoreConfigFromMergedRegistry(
+  warpRouteId: string,
+  registryUris: string[],
+): Promise<WarpCoreConfig> {
+  const registry = getMergedRegistry({ registryUris, enableProxy: true });
+  const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
+
+  if (!warpRouteConfig) {
+    throw new Error(
+      `Warp route config for ${warpRouteId} not found in registry`,
+    );
+  }
+  return warpRouteConfig;
+}
+
+export async function getWarpAddressesFromMergedRegistry(
+  warpRouteId: string,
+  registryUris: string[],
+): Promise<ChainMap<ChainAddresses>> {
+  const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
+    warpRouteId,
+    registryUris,
+  );
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
 

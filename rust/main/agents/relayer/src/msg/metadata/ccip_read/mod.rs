@@ -1,25 +1,28 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-mod cache_types;
-
 use async_trait::async_trait;
+use cache_types::SerializedOffchainLookup;
 use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
-use eyre::Context;
+use hyperlane_base::cache::FunctionCallCache;
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, RawHyperlaneMessage, H256,
 };
 use hyperlane_ethereum::OffchainLookup;
 
-use cache_types::SerializedOffchainLookup;
+use super::{
+    base::{MessageMetadataBuildParams, MetadataBuildError},
+    message_builder::MessageMetadataBuilder,
+    Metadata, MetadataBuilder,
+};
 
-use super::{base::MessageMetadataBuilder, Metadata, MetadataBuilder};
+mod cache_types;
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -40,67 +43,93 @@ impl CcipReadIsmMetadataBuilder {
     /// the name of the method `get_offchain_verify_info`.
     async fn call_get_offchain_verify_info(
         &self,
-        ism: &dyn CcipReadIsm,
+        ism: Box<dyn CcipReadIsm>,
         message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<OffchainLookup>> {
+    ) -> Result<OffchainLookup, MetadataBuildError> {
         let contract_address = Some(ism.address());
         let ism_domain = ism.domain().id();
         let fn_key = format!("get_offchain_verify_info_{}", ism_domain);
         let parsed_message = RawHyperlaneMessage::from(message).to_vec();
 
         let info_from_cache = self
+            .base_builder()
+            .cache()
             .get_cached_call_result::<SerializedOffchainLookup>(
                 contract_address,
                 &fn_key,
                 &parsed_message,
             )
-            .await;
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok()
+            .flatten();
 
         let info: OffchainLookup = match info_from_cache {
             Some(info) => info.into(),
             None => {
-                let response = ism.get_offchain_verify_info(parsed_message.clone()).await;
+                let response = ism
+                    .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())
+                    .await;
+
                 match response {
                     Ok(_) => {
                         info!("incorrectly configured getOffchainVerifyInfo, expected revert");
-                        return Ok(None);
+                        return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
-                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+")?;
+                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+")
+                            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
                         if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
-                            OffchainLookup::decode(hex_decode(&matching[0][2..])?)?
+                            let hex_val = hex_decode(&matching[0][2..]).map_err(|err| {
+                                MetadataBuildError::FailedToBuild(err.to_string())
+                            })?;
+                            OffchainLookup::decode(hex_val)
+                                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
                         } else {
-                            info!("unable to parse custom error out of revert");
-                            return Ok(None);
+                            info!(?raw_error, "unable to parse custom error out of revert");
+                            return Err(MetadataBuildError::CouldNotFetch);
                         }
                     }
                 }
             }
         };
 
-        self.cache_call_result(
-            contract_address,
-            &fn_key,
-            &parsed_message,
-            &SerializedOffchainLookup::from(info.clone()),
-        )
-        .await;
+        self.base_builder()
+            .cache()
+            .cache_call_result(
+                contract_address,
+                &fn_key,
+                &parsed_message,
+                &SerializedOffchainLookup::from(info.clone()),
+            )
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok();
 
-        Ok(Some(info))
+        Ok(info)
     }
 }
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self, message))]
-    async fn build(&self, ism_address: H256, message: &HyperlaneMessage) -> eyre::Result<Metadata> {
-        const CTX: &str = "When fetching CcipRead metadata";
-        let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
+    #[instrument(err, skip(self, message, _params))]
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        _params: MessageMetadataBuildParams,
+    ) -> Result<Metadata, MetadataBuildError> {
+        let ism = self
+            .base_builder()
+            .build_ccip_read_ism(ism_address)
+            .await
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-        let info = match self.call_get_offchain_verify_info(&ism, message).await? {
-            Some(info) => info,
-            None => return Ok(Metadata::CouldNotFetch),
-        };
+        let info = self.call_get_offchain_verify_info(ism, message).await?;
 
         for url in info.urls.iter() {
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
@@ -121,9 +150,12 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                     .header("Content-Type", "application/json")
                     .json(&body)
                     .send()
-                    .await?
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
             } else {
-                reqwest::get(interpolated_url).await?
+                reqwest::get(interpolated_url)
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
             };
 
             let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
@@ -131,8 +163,9 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             match json {
                 Ok(result) => {
                     // remove leading 0x which hex_decode doesn't like
-                    let metadata = hex_decode(&result.data[2..])?;
-                    return Ok(Metadata::Found(metadata));
+                    let metadata = hex_decode(&result.data[2..])
+                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                    return Ok(Metadata::new(metadata));
                 }
                 Err(_err) => {
                     // try the next URL
@@ -141,6 +174,6 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         }
 
         // No metadata endpoints or endpoints down
-        Ok(Metadata::CouldNotFetch)
+        Err(MetadataBuildError::CouldNotFetch)
     }
 }

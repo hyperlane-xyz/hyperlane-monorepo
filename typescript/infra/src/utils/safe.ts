@@ -32,12 +32,12 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
+  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   const safeSdk: Safe.default = await retryAsync(
     () => getSafe(chain, multiProvider, safeAddress),
     5,
     1000,
   );
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 
@@ -101,12 +101,13 @@ export async function createSafeTransaction(
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
   onlyCalls?: boolean,
+  nonce?: number,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
     onlyCalls,
-    options: { nonce: nextNonce },
+    options: { nonce: nonce ?? nextNonce },
   });
 }
 
@@ -119,7 +120,7 @@ export async function proposeSafeTransaction(
   signer: ethers.Signer,
 ): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-  const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+  const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
 
   await safeService.proposeTransaction({

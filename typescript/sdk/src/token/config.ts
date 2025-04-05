@@ -12,6 +12,7 @@ export enum TokenType {
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
+  // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
 }
 
@@ -26,3 +27,6 @@ export const gasOverhead = (tokenType: TokenType): number => {
       return 68_000;
   }
 };
+
+export const NON_ZERO_SENDER_ADDRESS =
+  '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';

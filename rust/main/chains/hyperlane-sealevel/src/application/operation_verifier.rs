@@ -1,6 +1,6 @@
-use std::collections::HashSet;
 use std::future::Future;
 use std::io::Cursor;
+use std::{collections::HashSet, sync::Arc};
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -20,7 +20,7 @@ use crate::SealevelProvider;
 
 const NATIVE_WARP_ROUTE_PREFIX: &str = "SOL/";
 // Native SOL warp routers
-// from https://github.com/hyperlane-xyz/hyperlane-registry/tree/359bd01a99cf3c9f2f938c4bc200c5261e2f5bc1/deployments/warp_routes/SOL
+// from https://github.com/hyperlane-xyz/hyperlane-registry/tree/7f605c771cc2ef1fb9f2200605c0885bb453c6d3/deployments/warp_routes/SOL
 lazy_static! {
     static ref NATIVE_WARP_ROUTES: HashSet<H256> = {
         HashSet::from([
@@ -28,6 +28,7 @@ lazy_static! {
             hex_or_base58_to_h256("BXKDfnNkgUNVT5uCfk36sv2GDtK6RwAt9SLbGiKzZkih").unwrap(),
             hex_or_base58_to_h256("7KD647mgysBeEt6PSrv2XYktkSNLzear124oaMENp8SY").unwrap(),
             hex_or_base58_to_h256("GPFwRQ5Cw6dTWnmappUKJt76DD8yawxPx28QugfCaGaA").unwrap(),
+            hex_or_base58_to_h256("4CMbJtieJ7EboZZGSbXTQjW5i2sL638jFvE3dWTYG3SK").unwrap(),
         ])
     };
 }
@@ -35,7 +36,7 @@ lazy_static! {
 /// Application operation verifier for Sealevel
 #[derive(new)]
 pub struct SealevelApplicationOperationVerifier {
-    provider: SealevelProvider,
+    provider: Arc<SealevelProvider>,
 }
 
 #[async_trait]
@@ -115,7 +116,7 @@ impl SealevelApplicationOperationVerifier {
 
     async fn minimum_balance(&self) -> Option<U256> {
         self.provider
-            .rpc()
+            .rpc_client()
             // We assume that account will contain no data
             .get_minimum_balance_for_rent_exemption(0)
             .await
@@ -128,8 +129,8 @@ impl SealevelApplicationOperationVerifier {
 
         match self
             .provider
-            .rpc()
-            .get_account_option_with_finalized_commitment(&pubkey)
+            .rpc_client()
+            .get_account_option_with_finalized_commitment(pubkey)
             .await
         {
             Ok(Some(_)) => Ok(true),
