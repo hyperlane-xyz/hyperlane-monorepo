@@ -709,7 +709,7 @@ impl PendingMessage {
             .get_cached_call_result::<U>(contract_address, fn_key, fn_params)
             .await
             .map_err(|err| {
-                warn!(error=?err, "Error checking cache stored {:?} result", fn_key);
+                warn!(error=?err, ?fn_key, "Error checking cache stored result");
                 err
             })
             .ok()
@@ -729,7 +729,7 @@ impl PendingMessage {
             .cache_call_result(contract_address, fn_key, fn_params, result)
             .await
         {
-            warn!(error=?err, "Error caching {:?} result", fn_key);
+            warn!(error=?err, ?fn_key, "Error caching result");
         }
     }
     /// A preflight check to see if a message could possibly meet
