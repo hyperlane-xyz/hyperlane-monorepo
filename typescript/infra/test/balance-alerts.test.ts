@@ -65,7 +65,7 @@ describe('Balance Alert Thresholds', async function () {
       expect.fail(
         'Found mismatches between Grafana alerts and config files:\n' +
           mismatches.join('\n') +
-          '\nonce your threshold changes have been review, run the write-alerts script to update the grafana queries',
+          '\nThis is either due to your branch being out of date with the main branch or you have made changes to the threshold config files. Once your changes to the threshold config files have been reviewed, run the write-alerts script to update the grafana queries',
       );
     }
   });
