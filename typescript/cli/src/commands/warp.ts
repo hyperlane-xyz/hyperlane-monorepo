@@ -62,6 +62,7 @@ export const warpCommand: CommandModule = {
       .command(deploy)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -395,6 +396,17 @@ export const check: CommandModuleWithContext<{
       warpRouteConfig: expandedWarpDeployConfig,
     });
 
+    process.exit(0);
+  },
+};
+
+export const rebalancer: CommandModuleWithContext<{}> = {
+  command: 'rebalancer',
+  describe: 'Starts the warp route collateral rebalancer',
+  builder: {},
+  handler: async () => {
+    logCommandHeader('Hyperlane Warp Rebalancer');
+    logGreen('ok');
     process.exit(0);
   },
 };

@@ -161,6 +161,10 @@ export function hyperlaneWarpSendRelay(
         --amount ${value}`;
 }
 
+export function hyperlaneWarpRebalancer(): ProcessPromise {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer`;
+}
+
 /**
  * Reads the Warp route deployment config to specified output path.
  * @param warpCorePath path to warp core
