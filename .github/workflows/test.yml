@@ -88,6 +88,9 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
+    env:
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
+    needs: [yarn-install]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -379,6 +382,7 @@ jobs:
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
       MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
       TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
+
 
     timeout-minutes: 10
     strategy:
