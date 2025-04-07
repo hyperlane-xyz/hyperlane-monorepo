@@ -178,6 +178,22 @@ impl SimApp {
             "1",
         ]);
 
+        // create routing ism and configure it to use the merkle tree ism just created
+        // cmd is following: create-routing
+        // expected ism address: 0x726f757465725f69736d00000000000000000000000000010000000000000001
+        self.tx(vec!["hyperlane", "ism", "create-routing"]);
+
+        // configure the routing ism to use the merkle tree ism
+        // cmd is following: set-routing-ism-domain [routing-ism-id] [domain] [ism-id]
+        self.tx(vec![
+            "hyperlane",
+            "ism",
+            "set-routing-ism-domain",
+            "0x726f757465725f69736d00000000000000000000000000010000000000000001",
+            destination_domain,
+            "0x726f757465725f69736d00000000000000000000000000040000000000000000",
+        ]);
+
         // create mailbox
         // cmd is following: default-ism local-domain
         // expected mailbox address: 0x68797065726c616e650000000000000000000000000000000000000000000000
@@ -185,7 +201,7 @@ impl SimApp {
             "hyperlane",
             "mailbox",
             "create",
-            "0x726f757465725f69736d00000000000000000000000000040000000000000000",
+            "0x726f757465725f69736d00000000000000000000000000010000000000000001",
             local_domain,
         ]);
 
