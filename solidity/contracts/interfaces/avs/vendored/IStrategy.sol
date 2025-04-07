@@ -104,4 +104,10 @@ interface IStrategy {
 
     /// @notice Returns either a brief string explaining the strategy's goal & purpose, or a link to metadata that explains in more detail.
     function explanation() external view returns (string memory);
+
+    function strategyManager() external view returns (address);
+}
+
+interface IStrategyFactory {
+    function deployedStrategies(IERC20 token) external view returns (IStrategy);
 }
