@@ -14,6 +14,7 @@ import { assert } from './validation.js';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
+const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -30,11 +31,12 @@ const COSMOS_FACTORY_TOKEN_REGEX = new RegExp(
 const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
-const STARKNET_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
+const STARKNET_TX_HASH_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 
 const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
 const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
+const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -56,7 +58,7 @@ export function isAddressCosmos(address: Address) {
 }
 
 export function isAddressStarknet(address: Address) {
-  return !!validateAndParseAddress(address);
+  return STARKNET_ADDRESS_REGEX.test(address);
 }
 
 export function getAddressProtocolType(address: Address) {
@@ -263,7 +265,8 @@ export function isZeroishAddress(address: Address) {
   return (
     EVM_ZEROISH_ADDRESS_REGEX.test(address) ||
     SEALEVEL_ZEROISH_ADDRESS_REGEX.test(address) ||
-    COSMOS_ZEROISH_ADDRESS_REGEX.test(address)
+    COSMOS_ZEROISH_ADDRESS_REGEX.test(address) ||
+    STARKNET_ZEROISH_ADDRESS_REGEX.test(address)
   );
 }
 
