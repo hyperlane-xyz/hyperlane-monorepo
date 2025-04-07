@@ -36,7 +36,7 @@ contract HypERC721Collateral is TokenRouter {
     }
 
     function ownerOf(uint256 _tokenId) external view returns (address) {
-        return IERC721(wrappedToken).ownerOf(_tokenId);
+        return wrappedToken.ownerOf(_tokenId);
     }
 
     /**
@@ -46,7 +46,7 @@ contract HypERC721Collateral is TokenRouter {
     function balanceOf(
         address _account
     ) external view override returns (uint256) {
-        return IERC721(wrappedToken).balanceOf(_account);
+        return wrappedToken.balanceOf(_account);
     }
 
     /**
