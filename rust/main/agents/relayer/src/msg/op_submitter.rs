@@ -437,7 +437,7 @@ async fn submit_classic_task(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[instrument(skip_all, fields(%_domain))]
+#[instrument(skip_all, fields(domain=%_domain))]
 async fn submit_lander_task(
     entrypoint: Arc<PayloadDispatcherEntrypoint>,
     _domain: HyperlaneDomain, // used for instrumentation only
@@ -668,9 +668,9 @@ fn from_submitter_error_into_result_for_confirmation(
     use PendingOperationResult::*;
 
     match error {
-        NetworkError(_) | TxAlreadyExists => Confirm(SubmittedBySelf),
+        TxAlreadyExists | TxSubmissionError(_) => Confirm(SubmittedBySelf),
         TxReverted => Reprepare(ReprepareReason::RevertedOrReorged),
-        TxSubmissionError(_)
+        NetworkError(_)
         | ChannelSendFailure(_)
         | ChannelClosed
         | EyreError(_)
