@@ -851,4 +851,43 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             );
         assertEq(address(ica), address(ica2));
     }
+
+    function testFuzz_callRemoteWithCustomHook(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+
+        originIcaRouter = deployProxiedIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            icaIsm,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        vm.expectCall(
+            address(customHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+
+        // act
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data, value),
+            new bytes(0),
+            bytes32(0),
+            customHook
+        );
+    }
 }
