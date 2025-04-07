@@ -22,6 +22,7 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
+import { HyperlaneRebalancer } from '../rebalancer/rebalancer.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -402,12 +403,20 @@ export const check: CommandModuleWithContext<{
 
 export const rebalancer: CommandModuleWithContext<{}> = {
   command: 'rebalancer',
-  describe: 'Starts the warp route collateral rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
   builder: {},
   handler: async () => {
-    logCommandHeader('Hyperlane Warp Rebalancer');
-    logGreen('ok');
-    process.exit(0);
+    const rebalancer = new HyperlaneRebalancer();
+
+    log('Starting rebalancer ...');
+    rebalancer.start();
+
+    process.once('SIGINT', () => {
+      log('Stopping rebalancer ...');
+      rebalancer.stop();
+
+      process.exit(0);
+    });
   },
 };
 
