@@ -196,7 +196,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
         amount: weiAmountOrId.toString(),
       },
       spender,
-      nonce: nonce + 1,
+      nonce,
       deadline,
     };
 
