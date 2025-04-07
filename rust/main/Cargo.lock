@@ -4586,6 +4586,7 @@ dependencies = [
  "futures-util",
  "hyperlane-core",
  "hyperlane-cosmos",
+ "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-fuel",
  "hyperlane-metric",
@@ -4714,6 +4715,59 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-cosmos-native"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.21.7",
+ "bech32 0.11.0",
+ "cosmrs",
+ "crypto",
+ "derive-new",
+ "futures",
+ "hex 0.4.3",
+ "http 1.2.0",
+ "hyper 0.14.30",
+ "hyper-tls",
+ "hyperlane-core",
+ "hyperlane-cosmos-rs",
+ "hyperlane-cosmwasm-interface",
+ "hyperlane-metric",
+ "itertools 0.12.1",
+ "once_cell",
+ "pin-project",
+ "protobuf",
+ "ripemd",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "sha256",
+ "tendermint",
+ "tendermint-rpc",
+ "thiserror",
+ "time",
+ "tokio",
+ "tonic 0.12.3",
+ "tower 0.5.2",
+ "tracing",
+ "tracing-futures",
+ "url",
+]
+
+[[package]]
+name = "hyperlane-cosmos-rs"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0354da8627e2110442d445e55df8cff1d73c67e6e62e2af401fb53122e92b65e"
+dependencies = [
+ "cosmrs",
+ "prost 0.13.4",
+ "serde",
+ "tendermint-proto",
+ "tonic 0.12.3",
+]
+
+[[package]]
 name = "hyperlane-cosmwasm-interface"
 version = "0.0.6-rc6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4819,6 +4873,8 @@ dependencies = [
  "bincode",
  "borsh 0.9.3",
  "derive-new",
+ "ed25519-dalek 1.0.1",
+ "eyre",
  "hyperlane-core",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
@@ -7534,6 +7590,7 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-cosmos",
+ "hyperlane-cosmos-native",
  "hyperlane-cosmwasm-interface",
  "jobserver",
  "k256 0.13.4",
@@ -9615,12 +9672,18 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "derive-new",
  "eyre",
+ "futures-util",
  "hyperlane-base",
  "hyperlane-core",
+ "hyperlane-sealevel",
  "mockall",
  "serde",
  "serde_json",
+ "solana-client",
+ "solana-sdk",
+ "solana-transaction-status",
  "tempfile",
  "thiserror",
  "tokio",

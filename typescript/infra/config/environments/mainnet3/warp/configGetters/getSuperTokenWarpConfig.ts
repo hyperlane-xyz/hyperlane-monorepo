@@ -84,6 +84,55 @@ const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
   worldchain: '0x998238aF5A2DDC7ae08Dbe4B60b82EF63A1538cd',
 };
 
+const productionOwnerOverridesByChain: ChainMap<
+  Record<'collateralToken' | 'collateralProxyAdmin', string>
+> = {
+  celo: {
+    collateralToken: productionOwnerByChain.celo,
+    collateralProxyAdmin: productionOwnerByChain.celo,
+  },
+  optimism: {
+    collateralToken: productionOwnerByChain.optimism,
+    collateralProxyAdmin: productionOwnerByChain.optimism,
+  },
+  base: {
+    collateralToken: productionOwnerByChain.base,
+    collateralProxyAdmin: productionOwnerByChain.base,
+  },
+  unichain: {
+    collateralToken: productionOwnerByChain.unichain,
+    collateralProxyAdmin: productionOwnerByChain.unichain,
+  },
+  ink: {
+    collateralToken: productionOwnerByChain.ink,
+    collateralProxyAdmin: productionOwnerByChain.ink,
+  },
+  soneium: {
+    collateralToken: productionOwnerByChain.soneium,
+    collateralProxyAdmin: productionOwnerByChain.soneium,
+  },
+  mode: {
+    collateralToken: productionOwnerByChain.mode,
+    collateralProxyAdmin: productionOwnerByChain.mode,
+  },
+  fraxtal: {
+    collateralToken: productionOwnerByChain.fraxtal,
+    collateralProxyAdmin: productionOwnerByChain.fraxtal,
+  },
+  superseed: {
+    collateralToken: productionOwnerByChain.superseed,
+    collateralProxyAdmin: productionOwnerByChain.superseed,
+  },
+  lisk: {
+    collateralToken: productionOwnerByChain.lisk,
+    collateralProxyAdmin: productionOwnerByChain.lisk,
+  },
+  worldchain: {
+    collateralToken: productionOwnerByChain.worldchain,
+    collateralProxyAdmin: productionOwnerByChain.worldchain,
+  },
+};
+
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
 const productionXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
@@ -338,6 +387,7 @@ function generateSuperTokenConfig(
   bufferCapPerChain: ChainMap<string>,
   rateLimitPerSecondPerChain: ChainMap<string>,
   extraLockboxes?: ChainMap<{ lockbox: Address; limits: XERC20LimitConfig }[]>,
+  ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
   return Object.fromEntries(
     deploymentChains.map((chain) => [
@@ -375,6 +425,8 @@ function generateSuperTokenConfig(
         // This provides flexibility to use different hooks based on transfer amounts
         // If a destination chain is not CCIP enabled, then we use the default hook
         hook: generateHookConfig(chain, ownerByChain, amountRoutingThreshold),
+        // This is used to explicitly check the owners of each key (e.g. collateralProxyAdmin).
+        ownerOverrides: ownerOverridesByChain?.[chain] ?? undefined,
       },
     ]),
   );
@@ -406,5 +458,6 @@ export const getSuperTokenProductionWarpConfig = async (
     productionBufferCapByChain,
     productionRateLimitByChain,
     productionExtraLockboxes,
+    productionOwnerOverridesByChain,
   );
 };

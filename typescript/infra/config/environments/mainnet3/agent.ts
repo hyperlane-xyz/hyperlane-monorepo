@@ -19,6 +19,7 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   MetricAppContext,
+  consistentSenderRecipientMatchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
@@ -35,8 +36,6 @@ import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresse
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
-import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
-import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -72,7 +71,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -92,7 +90,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -118,7 +118,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -141,7 +141,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
@@ -152,6 +154,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
@@ -208,7 +211,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -228,7 +230,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -254,7 +258,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -277,7 +281,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
@@ -288,6 +294,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
@@ -344,7 +351,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -364,7 +370,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -390,7 +398,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -413,7 +421,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
@@ -424,6 +434,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
@@ -608,11 +619,20 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     {
       name: 'velo_message_module',
-      matchingList: routerMatchingList(veloMessageModuleAddresses),
+      // Almost all messages to / from this address relate to the Velo Message Module.
+      // The only exception is Metal, which had an initial misconfiguration that the Velo
+      // team resolved with a different contract deploy. We can still only match on this address
+      // as Metal is the only exception, so it's always receiving from or sending messages to this address.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xF385603a12Be8b7B885222329c581FDD1C30071D',
+      ),
     },
     {
       name: 'velo_token_bridge',
-      matchingList: routerMatchingList(veloTokenBridgeAddresses),
+      // All messages to / from this address relate to the Velo Token Bridge.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xA7287a56C01ac8Baaf8e7B662bDB41b10889C7A6',
+      ),
     },
     {
       // https://github.com/bgd-labs/aave-delivery-infrastructure?tab=readme-ov-file#deployed-addresses
@@ -712,11 +732,6 @@ const blacklistedMessageIds = [
 
 // Blacklist matching list intended to be used by all contexts.
 const blacklist: MatchingList = [
-  {
-    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
-    // A temporary measure to prevent some wasted effort on our relayer.
-    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
-  },
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
@@ -731,7 +746,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f887ebf-20250321-173043',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -741,7 +756,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'f5174e6-20250310-182921',
+      tag: '8ab7c80-20250326-191115',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -752,7 +767,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a76dd09-20250325-111203',
+      tag: '8ab7c80-20250326-191115',
     },
     resources: scraperResources,
   },
@@ -767,7 +782,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f887ebf-20250321-173043',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -801,7 +816,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cc3af7d-20250304-172021',
+      tag: '45739bd-20250401-014114',
     },
     blacklist,
     gasPaymentEnforcement,

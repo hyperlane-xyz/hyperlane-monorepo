@@ -2,21 +2,12 @@ name: rust
 
 on:
   # Triggers the workflow on pushes to main branch
-  # only if rust/** or .github/workflows/rust.yml is changed
   push:
     branches: [main]
-    paths:
-      - 'rust/main/**'
-      - 'rust/sealevel/**'
-      - .github/workflows/rust.yml
-  # Triggers the workflow on pull requests
-  # only if rust/** or .github/workflows/rust.yml is changed
+  # Triggers on pull requests
   pull_request:
-    branches: [main]
-    paths:
-      - 'rust/main/**'
-      - 'rust/sealevel/**'
-      - .github/workflows/rust.yml
+    branches:
+      - '*'
   merge_group:
   workflow_dispatch:
 

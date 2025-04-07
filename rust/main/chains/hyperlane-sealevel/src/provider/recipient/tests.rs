@@ -33,7 +33,7 @@ fn test_identify_recipient_in_complex_transaction(
     let json = read_json(transaction_file);
     let transaction = transaction(&json);
     let mailbox_address = decode_h256(mailbox).unwrap();
-    let provider = RecipientProvider::new(&vec![mailbox_address]);
+    let provider = RecipientProvider::new(&[mailbox_address]);
 
     let warp_route_address = decode_h256(warp_route).unwrap();
 
@@ -51,7 +51,7 @@ fn test_identify_recipient_in_igp_transaction() {
     let transaction = transaction_with_igp();
     let igp_master = "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp";
     let igp_master_address = decode_h256(igp_master).unwrap();
-    let provider = RecipientProvider::new(&vec![igp_master_address]);
+    let provider = RecipientProvider::new(&[igp_master_address]);
 
     let igp_address = decode_h256("GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U").unwrap();
 
@@ -69,7 +69,7 @@ fn test_identify_recipient_in_alternative_igp_transaction() {
     let transaction = transaction_with_alternative_igp();
     let igp_master = "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp";
     let igp_master_address = decode_h256(igp_master).unwrap();
-    let provider = RecipientProvider::new(&vec![igp_master_address]);
+    let provider = RecipientProvider::new(&[igp_master_address]);
 
     let igp_address = decode_h256("GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U").unwrap();
 
@@ -87,7 +87,7 @@ fn test_failure_to_identify_recipient_transaction_with_native() {
     let transaction = transaction_with_native_programs_only();
     let igp_master = "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp";
     let igp_master_address = decode_h256(igp_master).unwrap();
-    let provider = RecipientProvider::new(&vec![igp_master_address]);
+    let provider = RecipientProvider::new(&[igp_master_address]);
 
     // when
     let recipient = provider.recipient(&H512::zero(), &transaction);

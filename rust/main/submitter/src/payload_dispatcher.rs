@@ -4,5 +4,9 @@
 mod dispatcher;
 mod entrypoint;
 
+mod stages;
+mod test_utils;
+
 pub use dispatcher::*;
 pub use entrypoint::*;
+pub use stages::*;
