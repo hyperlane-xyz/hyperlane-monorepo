@@ -40,8 +40,16 @@ pub enum TransactionStatus {
     Included,
     /// in a block older than the configured `reorgPeriod`
     Finalized,
+    /// the tx was drop either by the submitter or by the chain
+    Dropped(DropReason),
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum DropReason {
     /// currently only assigned when a reorg is detected
     DroppedByChain,
+    /// dropped by the submitter
+    FailedSimulation,
 }
 
 // add nested enum entries as we add VMs
