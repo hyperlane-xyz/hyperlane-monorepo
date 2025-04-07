@@ -360,6 +360,12 @@ impl BaseAgent for Relayer {
             let payload_dispatcher_entrypoint =
                 self.payload_dispatcher_entrypoints.remove(dest_domain);
 
+            let db = self
+                .dbs
+                .get(dest_domain)
+                .expect("DB should be created for every chain")
+                .clone();
+
             let serial_submitter = SerialSubmitter::new(
                 dest_domain.clone(),
                 receive_channel,
@@ -373,6 +379,7 @@ impl BaseAgent for Relayer {
                     .unwrap_or(1),
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
+                db,
             );
             prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
 

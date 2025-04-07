@@ -3,17 +3,18 @@ use eyre::{bail, Result};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    Decode, Encode, GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
-    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
-    MerkleTreeInsertion, PendingOperationStatus, H256,
+    identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
+    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
 };
 
-use super::{DbError, TypedDB, DB};
 use crate::db::{
     storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
     HyperlaneDb,
 };
+
+use super::{DbError, TypedDB, DB};
 
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
@@ -655,6 +656,21 @@ impl HyperlaneDb for HyperlaneRocksDB {
     fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>> {
         // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
         self.retrieve_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default())
+    }
+
+    fn store_payload_id_by_message_id(
+        &self,
+        _message_id: &H256,
+        _payload_id: &UniqueIdentifier,
+    ) -> DbResult<()> {
+        todo!()
+    }
+
+    fn retrieve_payload_id_by_message_id(
+        &self,
+        _message_id: &H256,
+    ) -> DbResult<Option<UniqueIdentifier>> {
+        todo!()
     }
 }
 

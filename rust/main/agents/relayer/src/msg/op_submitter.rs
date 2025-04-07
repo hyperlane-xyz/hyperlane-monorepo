@@ -16,6 +16,7 @@ use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     total_estimated_cost, BatchResult, ChainCommunicationError, ChainResult, ConfirmReason::*,
@@ -100,9 +101,11 @@ pub struct SerialSubmitter {
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
     payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
+    db: Arc<dyn HyperlaneDb>,
 }
 
 impl SerialSubmitter {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
@@ -111,6 +114,7 @@ impl SerialSubmitter {
         max_batch_size: u32,
         task_monitor: TaskMonitor,
         payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
+        db: HyperlaneRocksDB,
     ) -> Self {
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
@@ -139,6 +143,7 @@ impl SerialSubmitter {
             submit_queue,
             confirm_queue,
             payload_dispatcher_entrypoint,
+            db: Arc::new(db),
         }
     }
 
@@ -274,6 +279,7 @@ impl SerialSubmitter {
                     self.confirm_queue.clone(),
                     self.max_batch_size,
                     self.metrics.clone(),
+                    self.db.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -295,6 +301,7 @@ impl SerialSubmitter {
                     self.confirm_queue.clone(),
                     self.max_batch_size,
                     self.metrics.clone(),
+                    self.db.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -429,6 +436,7 @@ async fn submit_classic_task(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, fields(%_domain))]
 async fn submit_lander_task(
     entrypoint: Arc<PayloadDispatcherEntrypoint>,
@@ -438,12 +446,21 @@ async fn submit_lander_task(
     confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
+    db: Arc<dyn HyperlaneDb>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
         let batch = submit_queue.pop_many(recv_limit).await;
         for op in batch.into_iter() {
-            submit_via_lander(op, &entrypoint, &prepare_queue, &confirm_queue, &metrics).await;
+            submit_via_lander(
+                op,
+                &entrypoint,
+                &prepare_queue,
+                &confirm_queue,
+                &metrics,
+                db.clone(),
+            )
+            .await;
         }
     }
 }
@@ -454,6 +471,7 @@ async fn submit_via_lander(
     prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
+    db: Arc<dyn HyperlaneDb>,
 ) {
     let operation_payload = match op.payload().await {
         Ok(p) => p,
@@ -471,18 +489,22 @@ async fn submit_via_lander(
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")
         .address();
-    let payload = FullPayload::new(PayloadId::random(), metadata, operation_payload, mailbox);
+    let payload_id = PayloadId::random();
+    let payload = FullPayload::new(payload_id, metadata, operation_payload, mailbox);
 
-    let result = entrypoint.send_payload(&payload).await;
-
-    if let Err(e) = result {
+    if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;
         let msg = "Error sending payload";
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
 
-    // TODO store mapping from message id to payload id to database
+    if let Err(e) = db.store_payload_id_by_message_id(&message_id, &payload.details.id) {
+        let reason = ReprepareReason::ErrorStoringPayloadIdByMessageId;
+        let msg = "Error storing mapping from message id to payload id";
+        prepare_op(op, prepare_queue, e, msg, reason).await;
+        return;
+    }
 
     confirm_op(op, confirm_queue, metrics).await;
 }
@@ -666,6 +688,7 @@ async fn confirm_lander_task(
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
+    db: Arc<dyn HyperlaneDb>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -680,10 +703,21 @@ async fn confirm_lander_task(
 
         let payload_status_futures = batch
             .into_iter()
-            .map(|op| {
-                // TODO find payload id by message id
-                let payload_id = PayloadId::random();
-                async { (op, entrypoint.payload_status(payload_id).await) }
+            .map(|op| async {
+                let message_id = op.id();
+                let result = if let Ok(Some(p)) = db.retrieve_payload_id_by_message_id(&message_id)
+                {
+                    match entrypoint.payload_status(p).await {
+                        Ok(s) => from_payload_status_into_result_for_confirmation(&s),
+                        Err(e) => from_submitter_error_into_result_for_confirmation(&e),
+                    }
+                } else {
+                    PendingOperationResult::Reprepare(
+                        ReprepareReason::ErrorRetrievingPayloadIdByMessageId,
+                    )
+                };
+
+                (op, result)
             })
             .collect::<Vec<_>>();
 
@@ -691,10 +725,6 @@ async fn confirm_lander_task(
 
         let confirm_futures = payload_status_results
             .into_iter()
-            .map(|(op, r)| match r {
-                Ok(s) => (op, from_payload_status_into_result_for_confirmation(&s)),
-                Err(e) => (op, from_submitter_error_into_result_for_confirmation(&e)),
-            })
             .map(|(op, r)| async {
                 if let PendingOperationResult::Success = r {
                     confirm_operation(
