@@ -118,7 +118,7 @@ describe('TokenDeployer', async () => {
     TokenType.collateral,
     TokenType.synthetic,
     TokenType.XERC20,
-  ]) {
+  ] as const) {
     const token = () => {
       switch (type) {
         case TokenType.XERC20:
