@@ -20,9 +20,9 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
     /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
      *
-     * @dev The `_mintAmount` parameter is mostly used for a brand new NFT that want to exists only as a warp route.
-     * In other words, the entire warp route is deployed with HypLSP8, and no HypLSP8Collateral.
-     * This enables to create an instantly bridgable NFT, by deploying the contract, minting and distributing the token supply.
+     * @dev The `_mintAmount` parameter is used for creating a new NFT collection that will exist only as a warp route.
+     * In other words, the entire warp route is deployed with HypERC721, and no HypERC721Collateral.
+     * This enables creating an instantly bridgeable NFT by deploying the contract and minting the initial token supply.
      * For existing NFT collections that already exist on the source chain, set this parameter to 0.
      *
      * @param _mintAmount The amount of NFTs to mint to `msg.sender`.
@@ -30,7 +30,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
      * @param _symbol The symbol of the token.
      * @param _hook The post-dispatch hook contract.
      * @param _interchainSecurityModule The interchain security module contract.
-     * @param _owner The this contract.
+     * @param _owner The owner of this contract.
      */
     function initialize(
         uint256 _mintAmount,
