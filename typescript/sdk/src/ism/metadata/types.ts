@@ -1,8 +1,8 @@
 import type { providers } from 'ethers';
 
 import type { DispatchedMessage } from '../../core/types.js';
-import type { DerivedHookConfig } from '../../hook/EvmHookReader.js';
-import type { DerivedIsmConfig } from '../EvmIsmReader.js';
+import type { DerivedHookConfig } from '../../hook/types.js';
+import type { DerivedIsmConfig } from '../types.js';
 
 import type { AggregationMetadata } from './aggregation.js';
 import type { ArbL2ToL1Metadata } from './arbL2ToL1.js';

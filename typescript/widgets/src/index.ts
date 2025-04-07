@@ -133,6 +133,7 @@ export {
   useSolanaWalletDetails,
 } from './walletIntegrations/solana.js';
 export {
+  getStarknetChains,
   useStarknetAccount,
   useStarknetActiveChain,
   useStarknetConnectFn,

@@ -472,6 +472,7 @@ mod test {
         ChainConf {
             domain: domain.clone(),
             signer: Default::default(),
+            estimated_block_time: Duration::from_secs_f64(1.1),
             reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
