@@ -1,11 +1,44 @@
 import * as types from '@hyperlane-xyz/cosmos-types';
 
+type RawCosmosModuleMessageRegistry<T> = {
+  [Key in keyof Omit<
+    T,
+    'protobufPackage' | 'MsgServiceName' | 'MsgClientImpl'
+  >]: {
+    proto: {
+      type: string;
+      converter: T[Key];
+    };
+    amino?: {
+      type: string;
+      converter?: T[Key];
+    };
+  };
+};
+
+type CoreCosmosModuleMesageRegistry = RawCosmosModuleMessageRegistry<
+  typeof types.coreTx
+>;
+type IsmCosmosModuleMessafeRegistry = RawCosmosModuleMessageRegistry<
+  typeof types.isTx
+>;
+type PostDispatchCosmosModuleMessageRegistry = RawCosmosModuleMessageRegistry<
+  typeof types.pdTx
+>;
+type WarpTransactionCosmosModuleMessageRegistry =
+  RawCosmosModuleMessageRegistry<typeof types.warpTx>;
+
+type CosmosModuleMessageRegistry = CoreCosmosModuleMesageRegistry &
+  IsmCosmosModuleMessafeRegistry &
+  PostDispatchCosmosModuleMessageRegistry &
+  WarpTransactionCosmosModuleMessageRegistry;
+
 // amino converters can be null by default since the
 // converters for proto can be taken. In rare cases
 // they can differ, in that instance the amino
 // converters can be overridden here by adding the
 // methods "toJSON" and "fromJSON".
-export const COSMOS_MODULE_MESSAGE_REGISTRY = {
+export const COSMOS_MODULE_MESSAGE_REGISTRY: CosmosModuleMessageRegistry = {
   // Core transactions
   MsgCreateMailbox: {
     proto: {
@@ -14,17 +47,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateMailbox' as const,
-      converter: null,
     },
   },
   MsgCreateMailboxResponse: {
     proto: {
       type: '/hyperlane.core.v1.MsgCreateMailboxResponse' as const,
       converter: types.coreTx.MsgCreateMailboxResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgSetMailbox: {
@@ -34,17 +62,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgSetMailbox' as const,
-      converter: null,
     },
   },
   MsgSetMailboxResponse: {
     proto: {
       type: '/hyperlane.core.v1.MsgSetMailboxResponse' as const,
       converter: types.coreTx.MsgSetMailboxResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgProcessMessage: {
@@ -54,17 +77,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgProcessMessage' as const,
-      converter: null,
     },
   },
   MsgProcessMessageResponse: {
     proto: {
       type: '/hyperlane.core.v1.MsgProcessMessageResponse' as const,
       converter: types.coreTx.MsgProcessMessageResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
 
@@ -76,17 +94,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateMessageIdMultisigIsm' as const,
-      converter: null,
     },
   },
   MsgCreateMessageIdMultisigIsmResponse: {
     proto: {
       type: '/hyperlane.core.interchain_security.v1.MsgCreateMessageIdMultisigIsmResponse' as const,
       converter: types.isTx.MsgCreateMessageIdMultisigIsmResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgCreateMerkleRootMultisigIsm: {
@@ -96,17 +109,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateMerkleRootMultisigIsm' as const,
-      converter: null,
     },
   },
   MsgCreateMerkleRootMultisigIsmResponse: {
     proto: {
       type: '/hyperlane.core.interchain_security.v1.MsgCreateMerkleRootMultisigIsmResponse' as const,
       converter: types.isTx.MsgCreateMerkleRootMultisigIsmResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgCreateNoopIsm: {
@@ -116,17 +124,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateNoopIsm' as const,
-      converter: null,
     },
   },
   MsgCreateNoopIsmResponse: {
     proto: {
       type: '/hyperlane.core.interchain_security.v1.MsgCreateNoopIsmResponse' as const,
       converter: types.isTx.MsgCreateNoopIsmResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgAnnounceValidator: {
@@ -136,17 +139,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgAnnounceValidator' as const,
-      converter: null,
     },
   },
   MsgAnnounceValidatorResponse: {
     proto: {
       type: '/hyperlane.core.interchain_security.v1.MsgAnnounceValidatorResponse' as const,
       converter: types.isTx.MsgAnnounceValidatorResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
 
@@ -158,17 +156,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateIgp' as const,
-      converter: null,
     },
   },
   MsgCreateIgpResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgCreateIgpResponse' as const,
       converter: types.pdTx.MsgCreateIgpResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgSetIgpOwner: {
@@ -178,17 +171,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgSetIgpOwner' as const,
-      converter: null,
     },
   },
   MsgSetIgpOwnerResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgSetIgpOwnerResponse' as const,
       converter: types.pdTx.MsgSetIgpOwnerResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgSetDestinationGasConfig: {
@@ -198,17 +186,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgSetDestinationGasConfig' as const,
-      converter: null,
     },
   },
   MsgSetDestinationGasConfigResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgSetDestinationGasConfigResponse' as const,
       converter: types.pdTx.MsgSetDestinationGasConfigResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgPayForGas: {
@@ -218,17 +201,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgPayForGas' as const,
-      converter: null,
     },
   },
   MsgPayForGasResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgPayForGasResponse' as const,
       converter: types.pdTx.MsgPayForGasResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgClaim: {
@@ -238,17 +216,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgClaim' as const,
-      converter: null,
     },
   },
   MsgClaimResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgClaimResponse' as const,
       converter: types.pdTx.MsgClaimResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgCreateMerkleTreeHook: {
@@ -258,17 +231,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateMerkleTreeHook' as const,
-      converter: null,
     },
   },
   MsgCreateMerkleTreeHookResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgCreateMerkleTreeHookResponse' as const,
       converter: types.pdTx.MsgCreateMerkleTreeHookResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgCreateNoopHook: {
@@ -278,17 +246,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/v1/MsgCreateNoopHook' as const,
-      converter: null,
     },
   },
   MsgCreateNoopHookResponse: {
     proto: {
       type: '/hyperlane.core.post_dispatch.v1.MsgCreateNoopHookResponse' as const,
       converter: types.pdTx.MsgCreateNoopHookResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
 
@@ -300,17 +263,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/warp/v1/MsgCreateCollateralToken' as const,
-      converter: null,
     },
   },
   MsgCreateCollateralTokenResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgCreateCollateralTokenResponse' as const,
       converter: types.warpTx.MsgCreateCollateralTokenResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgCreateSyntheticToken: {
@@ -320,17 +278,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/warp/v1/MsgCreateSyntheticToken' as const,
-      converter: null,
     },
   },
   MsgCreateSyntheticTokenResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgCreateSyntheticTokenResponse' as const,
       converter: types.warpTx.MsgCreateSyntheticTokenResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgSetToken: {
@@ -340,17 +293,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/warp/v1/MsgSetToken' as const,
-      converter: null,
     },
   },
   MsgSetTokenResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgSetTokenResponse' as const,
       converter: types.warpTx.MsgSetTokenResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgEnrollRemoteRouter: {
@@ -360,17 +308,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/warp/v1/MsgEnrollRemoteRouter' as const,
-      converter: null,
     },
   },
   MsgEnrollRemoteRouterResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgEnrollRemoteRouterResponse' as const,
       converter: types.warpTx.MsgEnrollRemoteRouterResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgUnrollRemoteRouter: {
@@ -380,17 +323,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/warp/v1/MsgUnrollRemoteRouter' as const,
-      converter: null,
     },
   },
   MsgUnrollRemoteRouterResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgUnrollRemoteRouterResponse' as const,
       converter: types.warpTx.MsgUnrollRemoteRouterResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
   MsgRemoteTransfer: {
@@ -400,17 +338,12 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY = {
     },
     amino: {
       type: 'hyperlane/warp/v1/MsgRemoteTransfer' as const,
-      converter: null,
     },
   },
   MsgRemoteTransferResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgRemoteTransferResponse' as const,
       converter: types.warpTx.MsgRemoteTransferResponse,
-    },
-    amino: {
-      type: '',
-      converter: null,
     },
   },
 };
