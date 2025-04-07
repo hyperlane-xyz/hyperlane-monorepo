@@ -11,6 +11,7 @@ export enum TokenConnectionType {
   Hyperlane = 'hyperlane',
   Ibc = 'ibc',
   IbcHyperlane = 'ibc-hyperlane', // a.k.a. one-click two-hop
+  EvmKhalaniIntent = 'evm-khalani-intent',
 }
 
 interface TokenConnectionBase {
@@ -37,10 +38,17 @@ export interface IbcToHyperlaneTokenConnection extends TokenConnectionBase {
   intermediateRouterAddress: Address;
 }
 
+export interface EvmKhalaniIntentTokenConnection extends TokenConnectionBase {
+  type: TokenConnectionType.EvmKhalaniIntent;
+  mToken: string;
+  mTokenChainId: number;
+}
+
 export type TokenConnection =
   | HyperlaneTokenConnection
   | IbcTokenConnection
-  | IbcToHyperlaneTokenConnection;
+  | IbcToHyperlaneTokenConnection
+  | EvmKhalaniIntentTokenConnection;
 
 const TokenConnectionRegex = /^(.+)|(.+)|(.+)$/;
 
@@ -52,6 +60,14 @@ export const TokenConnectionConfigSchema = z
     type: z.literal(TokenConnectionType.Hyperlane).optional(),
     token: z.string().regex(TokenConnectionRegex),
   })
+  .or(
+    z.object({
+      type: z.literal(TokenConnectionType.EvmKhalaniIntent),
+      token: z.string().regex(TokenConnectionRegex),
+      mToken: z.string().regex(TokenConnectionRegex),
+      mTokenChainId: z.number().positive(),
+    }),
+  )
   .or(
     z.object({
       type: z.literal(TokenConnectionType.Ibc),

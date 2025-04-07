@@ -107,3 +107,7 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
     bridge: Address,
   ): Promise<Tx>;
 }
+
+export interface IEvmKhalaniIntentTokenAdapter<Tx> extends ITokenAdapter<Tx> {
+  // TODO: add KhalaniIntentTokenAdapter
+}

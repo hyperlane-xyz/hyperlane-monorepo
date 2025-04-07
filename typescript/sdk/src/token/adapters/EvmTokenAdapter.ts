@@ -39,6 +39,7 @@ import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  IEvmKhalaniIntentTokenAdapter,
   IEvmTokenAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
@@ -713,5 +714,18 @@ export class EvmXERC20VSAdapter
       rateLimitPerSecond: rateLimitPerSecond.toString(),
       bridge,
     });
+  }
+}
+
+export class EvmKhalaniIntentTokenAdapter
+  extends EvmTokenAdapter
+  implements IEvmKhalaniIntentTokenAdapter<PopulatedTransaction>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
   }
 }

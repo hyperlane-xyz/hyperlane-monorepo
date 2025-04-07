@@ -23,7 +23,7 @@ export enum TokenStandard {
   EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
-
+  EvmKhalaniIntent = 'EvmKhalaniIntent',
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
   SealevelSpl2022 = 'SealevelSpl2022',
@@ -69,6 +69,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypXERC20Lockbox: ProtocolType.Ethereum,
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
+  EvmKhalaniIntent: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,

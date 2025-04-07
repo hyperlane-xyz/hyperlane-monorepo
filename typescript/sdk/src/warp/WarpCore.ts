@@ -379,6 +379,38 @@ export class WarpCore {
   }
 
   /**
+   * Gets a list of populated actions required to transfer a token to a remote chain
+   * The difference from getTransferRemoteTxs is that this returns a list non-fixed actions
+   * It might include, a mixed list of signatures or transactions that the user needs to sign
+   */
+  async getTransferRemoteSteps({
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    interchainFee,
+  }: {
+    originTokenAmount: TokenAmount;
+    destination: ChainNameOrId;
+    sender: Address;
+    recipient: Address;
+    interchainFee?: TokenAmount;
+  }): Promise<Array<WarpTypedTransaction>> {
+    const transactions: Array<WarpTypedTransaction> = [];
+
+    // TODO: implement list of actions required to transfer the token
+    this.logger.info({
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+      interchainFee,
+    });
+
+    return transactions;
+  }
+
+  /**
    * Fetch local and interchain fee estimates for a remote transfer
    */
   async estimateTransferRemoteFees({

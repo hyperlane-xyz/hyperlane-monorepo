@@ -50,6 +50,7 @@ export type RouteBlacklist = Array<{
 export enum WarpTxCategory {
   Approval = 'approval',
   Transfer = 'transfer',
+  Signature = 'signature',
 }
 
 export type WarpTypedTransaction = TypedTransaction & {
