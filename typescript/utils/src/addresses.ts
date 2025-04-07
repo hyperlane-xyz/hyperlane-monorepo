@@ -1,6 +1,12 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { Wallet, utils as ethersUtils } from 'ethers';
+import {
+  addAddressPadding,
+  encode,
+  num,
+  validateAndParseAddress,
+} from 'starknet';
 
 import { isNullish } from './typeof.js';
 import { Address, HexString, ProtocolType } from './types.js';
@@ -24,6 +30,7 @@ const COSMOS_FACTORY_TOKEN_REGEX = new RegExp(
 const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
+const STARKNET_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
 
 const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
@@ -48,6 +55,10 @@ export function isAddressCosmos(address: Address) {
   );
 }
 
+export function isAddressStarknet(address: Address) {
+  return !!validateAndParseAddress(address);
+}
+
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
@@ -56,6 +67,8 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Cosmos;
   } else if (isAddressSealevel(address)) {
     return ProtocolType.Sealevel;
+  } else if (isAddressStarknet(address)) {
+    return ProtocolType.Starknet;
   } else {
     return undefined;
   }
@@ -112,12 +125,22 @@ export function isValidAddressCosmos(address: Address) {
   }
 }
 
+export function isValidAddressStarknet(address: Address) {
+  try {
+    const isValid = address && validateAndParseAddress(address);
+    return !!isValid;
+  } catch {
+    return false;
+  }
+}
+
 export function isValidAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
       [ProtocolType.Ethereum]: isValidAddressEvm,
       [ProtocolType.Sealevel]: isValidAddressSealevel,
       [ProtocolType.Cosmos]: isValidAddressCosmos,
+      [ProtocolType.Starknet]: isValidAddressStarknet,
     },
     address,
     false,
@@ -152,6 +175,14 @@ export function normalizeAddressCosmos(address: Address) {
   }
 }
 
+export function normalizeAddressStarknet(address: Address) {
+  if (isZeroishAddress(address)) return address;
+  try {
+    return validateAndParseAddress(address);
+  } catch {
+    return address;
+  }
+}
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
@@ -177,6 +208,10 @@ export function eqAddressCosmos(a1: Address, a2: Address) {
   return normalizeAddressCosmos(a1) === normalizeAddressCosmos(a2);
 }
 
+export function eqAddressStarknet(a1: Address, a2: Address) {
+  return normalizeAddressStarknet(a1) === normalizeAddressStarknet(a2);
+}
+
 export function eqAddress(a1: Address, a2: Address) {
   const p1 = getAddressProtocolType(a1);
   const p2 = getAddressProtocolType(a2);
@@ -186,6 +221,7 @@ export function eqAddress(a1: Address, a2: Address) {
       [ProtocolType.Ethereum]: (_a1) => eqAddressEvm(_a1, a2),
       [ProtocolType.Sealevel]: (_a1) => eqAddressSol(_a1, a2),
       [ProtocolType.Cosmos]: (_a1) => eqAddressCosmos(_a1, a2),
+      [ProtocolType.Starknet]: (_a1) => eqAddressStarknet(_a1, a2),
     },
     a1,
     false,
@@ -205,6 +241,10 @@ export function isValidTransactionHashCosmos(input: string) {
   return COSMOS_TX_HASH_REGEX.test(input);
 }
 
+export function isValidTransactionHashStarknet(input: string) {
+  return STARKNET_TX_HASH_REGEX.test(input);
+}
+
 export function isValidTransactionHash(input: string, protocol: ProtocolType) {
   if (protocol === ProtocolType.Ethereum) {
     return isValidTransactionHashEvm(input);
@@ -212,6 +252,8 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
     return isValidTransactionHashSealevel(input);
   } else if (protocol === ProtocolType.Cosmos) {
     return isValidTransactionHashCosmos(input);
+  } else if (protocol === ProtocolType.Starknet) {
+    return isValidTransactionHashStarknet(input);
   } else {
     return false;
   }
@@ -266,6 +308,11 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
   return fromBech32(address).data;
 }
 
+export function addressToBytesStarknet(address: Address): Uint8Array {
+  const normalizedAddress = validateAndParseAddress(address);
+  return num.hexToBytes(normalizedAddress);
+}
+
 export function addressToBytes(
   address: Address,
   protocol?: ProtocolType,
@@ -275,6 +322,7 @@ export function addressToBytes(
       [ProtocolType.Ethereum]: addressToBytesEvm,
       [ProtocolType.Sealevel]: addressToBytesSol,
       [ProtocolType.Cosmos]: addressToBytesCosmos,
+      [ProtocolType.Starknet]: addressToBytesStarknet,
     },
     address,
     new Uint8Array(),
@@ -343,6 +391,11 @@ export function bytesToAddressCosmos(
   return toBech32(prefix, bytes);
 }
 
+export function bytesToAddressStarknet(bytes: Uint8Array): Address {
+  const hexString = encode.buf2hex(bytes);
+  return addAddressPadding(hexString);
+}
+
 export function bytesToProtocolAddress(
   bytes: Uint8Array,
   toProtocol: ProtocolType,
@@ -358,6 +411,8 @@ export function bytesToProtocolAddress(
     return bytesToAddressSol(bytes);
   } else if (toProtocol === ProtocolType.Cosmos) {
     return bytesToAddressCosmos(bytes, prefix!);
+  } else if (toProtocol === ProtocolType.Starknet) {
+    return bytesToAddressStarknet(bytes);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);
   }
