@@ -2,6 +2,7 @@
 
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
+#![allow(unexpected_cfgs)]
 
 use std::{
     ops::{Div, Mul},
