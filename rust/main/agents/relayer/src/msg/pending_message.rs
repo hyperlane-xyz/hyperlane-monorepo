@@ -272,14 +272,16 @@ impl PendingOperation for PendingMessage {
         // If gas estimation fails, invalidate cache and rebuild it again.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
-                tracing::debug!(USE_CACHE_METADATA_LOG);
                 match self
                     .ctx
                     .destination_mailbox
                     .process_estimate_costs(&self.message, metadata)
                     .await
                 {
-                    Ok(s) => Some(s),
+                    Ok(s) => {
+                        tracing::debug!(USE_CACHE_METADATA_LOG);
+                        Some(s)
+                    }
                     Err(_) => {
                         self.clear_metadata();
                         None
@@ -917,7 +919,7 @@ impl PendingMessage {
 
     /// clear metadata cache
     fn clear_metadata(&mut self) {
-        tracing::debug!(INVALIDATE_CACHE_METADATA_LOG);
+        tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
     }
 }
