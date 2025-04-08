@@ -538,6 +538,26 @@ impl PendingOperation for PendingMessage {
     fn set_metric(&mut self, metric: Arc<IntGauge>) {
         self.metric = Some(metric);
     }
+
+    async fn payload(&self) -> ChainResult<Vec<u8>> {
+        let mailbox = &self.ctx.destination_mailbox;
+        let message = &self.message;
+        let submission_data = self
+            .submission_data
+            .as_ref()
+            .expect("Pending message must be prepared before we can create payload for it");
+        let metadata = &submission_data.metadata;
+        let payload = mailbox.process_calldata(message, metadata).await?;
+        Ok(payload)
+    }
+
+    fn on_reprepare(
+        &mut self,
+        err: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult {
+        self.on_reprepare(err, reason)
+    }
 }
 
 impl PendingMessage {
@@ -950,7 +970,7 @@ mod test {
 
     use chrono::TimeDelta;
     use hyperlane_base::db::*;
-    use hyperlane_core::*;
+    use hyperlane_core::{identifiers::UniqueIdentifier, *};
 
     use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
 
@@ -1067,7 +1087,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-
+            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
         }
     }
 

@@ -195,11 +195,14 @@ impl InclusionStage {
 mod tests {
     use super::*;
     use crate::{
-        payload::{PayloadDb, PayloadId},
-        payload_dispatcher::test_utils::tests::{
-            create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
+        payload_dispatcher::{
+            test_utils::{
+                create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
+                MockAdapter,
+            },
+            PayloadDb, TransactionDb,
         },
-        transaction::{Transaction, TransactionDb, TransactionId},
+        transaction::{Transaction, TransactionId},
     };
     use eyre::Result;
     use std::sync::Arc;
@@ -314,7 +317,7 @@ mod tests {
         let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(txs_to_process);
 
         let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
+            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
         let pool = Arc::new(Mutex::new(HashMap::new()));
         let inclusion_stage = InclusionStage::new(
             pool.clone(),
