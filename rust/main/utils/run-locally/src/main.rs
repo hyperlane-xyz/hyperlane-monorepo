@@ -34,10 +34,7 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use relayer::msg::pending_message::{
-    // INVALIDATE_CACHE_METADATA_LOG,
-    RETRIEVED_MESSAGE_LOG,
-};
+use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
 use utils::get_ts_infra_path;
@@ -409,7 +406,9 @@ fn main() -> ExitCode {
         loop_start,
         || {
             Ok(
-                relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?, // && relayer_cached_metadata_invariant_met()?
+                relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?,
+                // TODO: fix and uncomment
+                // && relayer_cached_metadata_invariant_met()?
             )
         },
         || !SHUTDOWN.load(Ordering::Relaxed),
@@ -583,6 +582,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
 }
 
 /// Check relayer reused already built metadata
+/// TODO: fix
 // fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
 //     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
 //     let relayer_logfile = File::open(log_file_path).unwrap();
