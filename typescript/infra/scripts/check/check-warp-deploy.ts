@@ -4,8 +4,15 @@ import { Gauge, Registry } from 'prom-client';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
-import { getWarpAddresses } from '../../config/registry.js';
-import { warpConfigGetterMap } from '../../config/warp.js';
+import {
+  DEFAULT_REGISTRY_URI,
+  getWarpAddresses,
+  getWarpAddressesFromMergedRegistry,
+} from '../../config/registry.js';
+import {
+  getWarpConfigMapFromMergedRegistry,
+  warpConfigGetterMap,
+} from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -26,6 +33,7 @@ async function main() {
     context,
     pushMetrics,
     interactive,
+    registry,
   } = await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -47,17 +55,26 @@ async function main() {
     console.log(chalk.yellow('Skipping the following warp routes:'));
     routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
 
-    warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
-      (warpRouteId) => !routesToSkip.includes(warpRouteId),
-    );
+    warpIdsToCheck = Object.keys(
+      await getWarpConfigMapFromMergedRegistry(
+        registry ?? [DEFAULT_REGISTRY_URI],
+      ),
+    ).filter((warpRouteId) => !routesToSkip.includes(warpRouteId));
   }
 
   // Determine which chains have warp configs
-  const chainsWithWarpConfigs = warpIdsToCheck.reduce((chains, warpRouteId) => {
-    const warpAddresses = getWarpAddresses(warpRouteId);
-    Object.keys(warpAddresses).forEach((chain) => chains.add(chain));
-    return chains;
-  }, new Set<ChainName>());
+  const chainsWithWarpConfigs = new Set<ChainName>();
+  await Promise.all(
+    warpIdsToCheck.map(async (warpRouteId) => {
+      const warpAddresses = await getWarpAddressesFromMergedRegistry(
+        warpRouteId,
+        registry ?? [DEFAULT_REGISTRY_URI],
+      );
+      Object.keys(warpAddresses).forEach((chain) =>
+        chainsWithWarpConfigs.add(chain),
+      );
+    }),
+  );
 
   console.log(
     `Found warp configs for chains: ${Array.from(chainsWithWarpConfigs).join(
@@ -93,6 +110,7 @@ async function main() {
         fork,
         false,
         multiProvider,
+        registry,
       );
 
       await governor.check();
