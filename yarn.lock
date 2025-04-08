@@ -7738,7 +7738,26 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
+"@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
+  dependencies:
+    "@cosmjs/stargate": "npm:^0.32.4"
+    "@eslint/js": "npm:^9.15.0"
+    "@hyperlane-xyz/cosmos-types": "npm:11.0.0"
+    "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
+    "@typescript-eslint/parser": "npm:^8.1.6"
+    eslint: "npm:^9.15.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-import-resolver-typescript: "npm:^3.6.3"
+    eslint-plugin-import: "npm:^2.31.0"
+    prettier: "npm:^2.8.8"
+    typescript: "npm:5.3.3"
+    typescript-eslint: "npm:^8.23.0"
+  languageName: unknown
+  linkType: soft
+
+"@hyperlane-xyz/cosmos-types@npm:11.0.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types"
   dependencies:
@@ -7950,6 +7969,7 @@ __metadata:
     typescript: "npm:5.3.3"
     viem: "npm:^2.21.45"
     yaml: "npm:2.4.5"
+    zksync-ethers: "npm:^5.10.0"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"

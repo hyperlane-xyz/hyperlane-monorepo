@@ -790,18 +790,6 @@ export const validatorChainConfig = (
         'astar',
       ),
     },
-    astarzkevm: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('astarzkevm'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x89ecdd6caf138934bf3a2fb7b323984d72fd66de'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'astarzkevm',
-      ),
-    },
     bitlayer: {
       interval: 5,
       reorgPeriod: getReorgPeriod('bitlayer'),
