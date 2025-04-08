@@ -15,9 +15,9 @@ use tracing::{error, info, instrument::Instrumented, warn};
 
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
-    payload::{DropReason, PayloadDb, PayloadDetails, PayloadStatus},
-    payload_dispatcher::PayloadDispatcherSettings,
-    transaction::{Transaction, TransactionDb},
+    payload::{DropReason, PayloadDetails, PayloadStatus},
+    payload_dispatcher::{PayloadDb, PayloadDispatcherSettings, TransactionDb},
+    transaction::Transaction,
 };
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
