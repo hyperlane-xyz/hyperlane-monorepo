@@ -16,8 +16,6 @@ use hyperlane_base::{
 use hyperlane_core::HyperlaneDomain;
 
 use crate::chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory};
-use crate::payload::PayloadDb;
-use crate::transaction::TransactionDb;
 
 use super::PayloadDispatcherState;
 
@@ -30,7 +28,7 @@ pub struct PayloadDispatcherSettings {
     pub raw_chain_conf: RawChainConf,
     pub domain: HyperlaneDomain,
     pub db_path: PathBuf,
-    pub metrics: CoreMetrics,
+    pub metrics: Arc<CoreMetrics>,
 }
 
 pub struct PayloadDispatcher {

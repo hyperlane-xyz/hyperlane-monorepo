@@ -15,23 +15,23 @@ use tracing::{error, info, instrument::Instrumented, warn};
 
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
-    payload::{DropReason, PayloadDb, PayloadDetails, PayloadStatus},
-    payload_dispatcher::PayloadDispatcherSettings,
-    transaction::{Transaction, TransactionDb},
+    payload::{DropReason, PayloadDetails, PayloadStatus},
+    payload_dispatcher::{PayloadDb, PayloadDispatcherSettings, TransactionDb},
+    transaction::Transaction,
 };
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
-    pub(crate) adapter: Box<dyn AdaptsChain>,
+    pub(crate) adapter: Arc<dyn AdaptsChain>,
 }
 
 impl PayloadDispatcherState {
     pub fn new(
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
-        adapter: Box<dyn AdaptsChain>,
+        adapter: Arc<dyn AdaptsChain>,
     ) -> Self {
         Self {
             payload_db,

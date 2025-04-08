@@ -111,12 +111,12 @@ mod tests {
 
     use crate::{
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
-        payload::{self, DropReason, FullPayload, PayloadDb, PayloadDetails, PayloadStatus},
+        payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
-            test_utils::tests::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
-            PayloadDispatcherState,
+            test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
+            PayloadDb, PayloadDispatcherState, TransactionDb,
         },
-        transaction::{Transaction, TransactionDb, TransactionStatus},
+        transaction::{Transaction, TransactionStatus},
     };
 
     use super::{BuildingStage, BuildingStageQueue};
@@ -295,7 +295,7 @@ mod tests {
         tokio::sync::mpsc::Receiver<Transaction>,
         BuildingStageQueue,
     ) {
-        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
         let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
