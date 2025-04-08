@@ -14,7 +14,7 @@ const safeOwners: Record<string, string> = {
   base: '0xcEC53d6fF9B4C7b8E77f0C0D3f8828Bb872f2377',
   bsc: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
   ethereum: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
-  lumia: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
+  lumiaprism: '0xa86C4AF592ddAa676f53De278dE9cfCD52Ae6B39',
   optimism: '0x914931eBb5638108651455F50C1F784d3E5fd3EC',
   polygon: '0x7a412dD3812369226cd42023FC9301A66788122e',
 };
@@ -59,7 +59,7 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
 
     const lumiaprism: HypTokenRouterConfig = {
       ...routerConfig.lumiaprism,
-      owner: safeOwners.lumia,
+      owner: safeOwners.lumiaprism,
       type: TokenType.native,
     };
 
