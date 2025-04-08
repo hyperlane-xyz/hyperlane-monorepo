@@ -363,6 +363,8 @@ impl Validator {
                         "Validator has announced signature storage location"
                     );
 
+                    self.core_metrics.set_announced(self.origin_chain.clone());
+
                     break;
                 }
                 info!(
