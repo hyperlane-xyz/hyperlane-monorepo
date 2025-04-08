@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {Message} from "../libs/Message.sol";
 
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
@@ -16,7 +15,6 @@ contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
-    uint256 public constant BODY_OFFSET = 77;
 
     event Handled(bytes32 blockHash);
 

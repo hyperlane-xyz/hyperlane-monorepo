@@ -113,21 +113,13 @@ contract TestSendReceiverTest is Test {
     }
 
     function testHandle_withHardcodedBody() public {
-        vm.expectRevert("failMessageBody");
-        testSendReceiver.handle(
-            0,
-            address(testSendReceiver).addressToBytes32(),
-            "failMessageBody"
-        );
-    }
+        bytes memory hardcodedFail = "failMessageBody";
 
-    function testHandle_withHardcodedBodyHex() public {
         vm.expectRevert("failMessageBody");
         testSendReceiver.handle(
             0,
             address(testSendReceiver).addressToBytes32(),
-            // failMessageBody but hex value
-            hex"6661696c4d657373616765426f6479"
+            hardcodedFail
         );
     }
 }
