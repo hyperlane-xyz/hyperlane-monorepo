@@ -462,6 +462,12 @@ impl BaseAgent for Relayer {
                 )
                 .await,
             );
+            tasks.push(self.run_message_processor(
+                origin,
+                send_channels.clone(),
+                task_monitor.clone(),
+            ));
+            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs", "Relayer startup duration measurement");
 
@@ -484,18 +490,6 @@ impl BaseAgent for Relayer {
         );
         tasks.push(server_task);
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started relayer server", "Relayer startup duration measurement");
-
-        // each message process attempts to send messages from a chain
-        start_entity_init = Instant::now();
-        for origin in &self.origin_chains {
-            tasks.push(self.run_message_processor(
-                origin,
-                send_channels.clone(),
-                task_monitor.clone(),
-            ));
-            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
-        }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message and merkle tree processors", "Relayer startup duration measurement");
 
         tasks.push(self.runtime_metrics.spawn());
 
