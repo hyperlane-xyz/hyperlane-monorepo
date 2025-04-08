@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
   ChainSubmissionStrategy,
@@ -10,18 +8,16 @@ import {
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
-// Lumia Team
-const owner = '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863';
-
 const safeOwners: Record<string, string> = {
   arbitrum: '0xc8A9Dea7359Bd6FDCAD3B8EDE108416C25cF4CE9',
   avalanche: '0x6d5Cd9e6EB9a2E74bF9857c53aA44F659f0Cc332',
   base: '0xcEC53d6fF9B4C7b8E77f0C0D3f8828Bb872f2377',
+  bsc: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
+  ethereum: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
+  lumia: '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863',
   optimism: '0x914931eBb5638108651455F50C1F784d3E5fd3EC',
   polygon: '0x7a412dD3812369226cd42023FC9301A66788122e',
 };
-
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
 export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig =
   async (
@@ -30,7 +26,6 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
     const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
       owner: safeOwners.arbitrum,
-      interchainSecurityModule: ISM_CONFIG,
       type: TokenType.synthetic,
       symbol: 'LUMIA',
     };
@@ -38,7 +33,6 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
     const avalanche: HypTokenRouterConfig = {
       ...routerConfig.avalanche,
       owner: safeOwners.avalanche,
-      interchainSecurityModule: ISM_CONFIG,
       type: TokenType.synthetic,
       symbol: 'LUMIA',
     };
@@ -46,34 +40,32 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
     const base: HypTokenRouterConfig = {
       ...routerConfig.base,
       owner: safeOwners.base,
-      interchainSecurityModule: ISM_CONFIG,
       type: TokenType.synthetic,
       symbol: 'LUMIA',
     };
 
     const bsc: HypTokenRouterConfig = {
       ...routerConfig.bsc,
-      owner: owner,
+      owner: safeOwners.bsc,
       type: TokenType.synthetic,
     };
 
     const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
-      owner: owner,
+      owner: safeOwners.ethereum,
       type: TokenType.collateral,
       token: '0xD9343a049D5DBd89CD19DC6BcA8c48fB3a0a42a7',
     };
 
-    const lumia: HypTokenRouterConfig = {
+    const lumiaprism: HypTokenRouterConfig = {
       ...routerConfig.lumiaprism,
-      owner: owner,
+      owner: safeOwners.lumia,
       type: TokenType.native,
     };
 
     const optimism: HypTokenRouterConfig = {
       ...routerConfig.optimism,
       owner: safeOwners.optimism,
-      interchainSecurityModule: ISM_CONFIG,
       type: TokenType.synthetic,
       symbol: 'LUMIA',
     };
@@ -81,7 +73,6 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
     const polygon: HypTokenRouterConfig = {
       ...routerConfig.polygon,
       owner: safeOwners.polygon,
-      interchainSecurityModule: ISM_CONFIG,
       type: TokenType.synthetic,
       symbol: 'LUMIA',
     };
@@ -92,7 +83,7 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
       base,
       bsc,
       ethereum,
-      lumia,
+      lumiaprism,
       optimism,
       polygon,
     };
