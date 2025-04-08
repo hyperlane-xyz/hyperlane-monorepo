@@ -51,8 +51,9 @@ pub fn relayer_termination_invariants_met(
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != submitter_queue_length_expected {
         log!(
-            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
-            lengths
+            "Relayer queues contain more messages than expected. Lengths: {:?}, expected {}",
+            lengths,
+            submitter_queue_length_expected
         );
         return Ok(false);
     };

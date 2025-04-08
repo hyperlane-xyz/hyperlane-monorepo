@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {Message} from "../libs/Message.sol";
 
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
@@ -15,7 +16,6 @@ contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
     uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
-    // taken from Message.sol
     uint256 public constant BODY_OFFSET = 77;
 
     event Handled(bytes32 blockHash);
@@ -52,12 +52,18 @@ contract TestSendReceiver is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes calldata message
+        bytes calldata _messageBody
     ) external payable override {
+        bytes memory hardcodedFail = "failMessageBody";
+        require(
+            keccak256(_messageBody) != keccak256(hardcodedFail),
+            "failMessageBody"
+        );
+
         bytes32 blockHash = previousBlockHash();
-        bytes memory body = message[BODY_OFFSET:];
-        bytes memory hardcodedFail = hex"fa17ed";
-        require(keccak256(body) != keccak256(hardcodedFail), "fa17ed body");
+        bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
+        require(!isBlockHashEndIn0, "block hash ends in 0");
+
         emit Handled(blockHash);
     }
 

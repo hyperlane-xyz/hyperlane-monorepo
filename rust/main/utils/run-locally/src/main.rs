@@ -296,12 +296,14 @@ fn main() -> ExitCode {
     state.push_agent(scraper_env.spawn("SCR", None));
 
     // Send a message that's guaranteed to fail
+    // "failMessageBody" hex value is 0x6661696c4d657373616765426f6479
+    let fail_message_body = format!("0x{}", hex::encode("failMessageBody"));
     let kathy_failed_tx = Program::new("yarn")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", FAILED_MESSAGE_COUNT.to_string())
         .arg("timeout", "1000")
-        .arg("body", "0xfa17ed");
+        .arg("body", fail_message_body.as_str());
     kathy_failed_tx.clone().run().join();
 
     // Send half the kathy messages before starting the rest of the agents

@@ -248,24 +248,15 @@ async function main() {
       await setIgpConfig(remoteId, signer, provider, mailbox, addresses, local);
     }
 
-    const message = formatMessage(
-      1,
-      0,
-      multiProvider.getDomainId(local),
-      recipient.address,
-      multiProvider.getDomainId(remote),
-      recipient.address,
-      body,
-    );
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      message,
+      body,
     );
     await mailbox['dispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      message,
+      body,
       {
         value: quote,
       },

@@ -94,22 +94,40 @@ contract TestSendReceiverTest is Test {
 
     event Handled(bytes32 blockhash);
 
-    function testHandle() public {
-        vm.expectRevert("fa17ed body");
+    function testHandle(uint256 blockNumber) public {
+        vm.assume(blockNumber > 0);
+        vm.roll(blockNumber);
 
-        bytes memory message = abi.encodePacked(
-            uint8(0),
-            uint32(0),
-            uint32(0),
-            bytes32(0),
-            uint32(0),
-            bytes32(0),
-            hex"fa17ed"
-        );
+        // previousBlockHash() = blockhash(n-1)
+        if (uint256(blockhash(blockNumber - 1)) % 16 == 0) {
+            vm.expectRevert("block hash ends in 0"); // blockhash(n-1) ends in 0
+        } else {
+            vm.expectEmit(true, true, true, false, address(testSendReceiver)); // Process
+            emit Handled(bytes32(blockNumber - 1));
+        }
         testSendReceiver.handle(
             0,
             address(testSendReceiver).addressToBytes32(),
-            message
+            "0x1234"
+        );
+    }
+
+    function testHandle_withHardcodedBody() public {
+        vm.expectRevert("failMessageBody");
+        testSendReceiver.handle(
+            0,
+            address(testSendReceiver).addressToBytes32(),
+            "failMessageBody"
+        );
+    }
+
+    function testHandle_withHardcodedBodyHex() public {
+        vm.expectRevert("failMessageBody");
+        testSendReceiver.handle(
+            0,
+            address(testSendReceiver).addressToBytes32(),
+            // failMessageBody but hex value
+            hex"6661696c4d657373616765426f6479"
         );
     }
 }

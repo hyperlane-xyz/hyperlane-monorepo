@@ -278,7 +278,10 @@ impl PendingOperation for PendingMessage {
                     .process_estimate_costs(&self.message, metadata)
                     .await
                 {
-                    Ok(s) => Some(s),
+                    Ok(s) => {
+                        tracing::debug!(USE_CACHE_METADATA_LOG);
+                        Some(s)
+                    }
                     Err(_) => {
                         self.clear_metadata();
                         None
