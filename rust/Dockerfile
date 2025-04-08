@@ -1,65 +1,64 @@
-# syntax=docker/dockerfile:experimental
+# syntax=docker/dockerfile:1.4
 
-FROM rust:1.80.1 as builder
-WORKDIR /usr/src
-
-# 1a: Prepare for static linking
+# -------- Base Image with Tools --------
+FROM rust:1.80.1 AS base
 RUN apt-get update && \
-    apt-get dist-upgrade -y && \
     apt-get install -y musl-tools clang && \
-    rustup target add x86_64-unknown-linux-musl
+    rustup target add x86_64-unknown-linux-musl && \
+    cargo install --locked sccache
 
-RUN mkdir -p rust/main
-RUN mkdir -p rust/sealevel
+ENV RUSTC_WRAPPER=sccache
+ENV SCCACHE_DIR=/sccache
 
-# Add workspace to workdir
-COPY rust/main/agents rust/main/agents
-COPY rust/main/applications rust/main/applications
-COPY rust/main/chains rust/main/chains
-COPY rust/main/hyperlane-base rust/main/hyperlane-base
-COPY rust/main/hyperlane-core rust/main/hyperlane-core
-COPY rust/main/hyperlane-metric rust/main/hyperlane-metric
-COPY rust/main/hyperlane-test rust/main/hyperlane-test
-COPY rust/main/submitter rust/main/submitter
-COPY rust/main/ethers-prometheus rust/main/ethers-prometheus
-COPY rust/main/utils rust/main/utils
-COPY rust/sealevel rust/sealevel
+# -------- Builder Stage --------
+FROM base AS builder
 
-COPY rust/main/Cargo.toml rust/main/.
-COPY rust/main/Cargo.lock rust/main/.
-
-# Required for VERGEN_GIT_SHA to be populated
-COPY .git .git
-
+# Workspace root
 WORKDIR /usr/src/rust/main
 
-# Build binaries
-RUN \
-    RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
+# Required for vergen/git metadata
+COPY .git ../../.git
+
+# Copy all main crates and workspace files into correct subpaths
+COPY rust/main/agents ./agents
+COPY rust/main/applications ./applications
+COPY rust/main/chains ./chains
+COPY rust/main/ethers-prometheus ./ethers-prometheus
+COPY rust/main/hyperlane-base ./hyperlane-base
+COPY rust/main/hyperlane-core ./hyperlane-core
+COPY rust/main/hyperlane-metric ./hyperlane-metric
+COPY rust/main/hyperlane-test ./hyperlane-test
+COPY rust/main/submitter ./submitter
+COPY rust/main/utils ./utils
+COPY rust/main/Cargo.toml ./
+COPY rust/main/Cargo.lock ./
+
+# Copy sealevel workspace into correct relative location
+COPY rust/sealevel ../sealevel
+
+# Build binaries and stage them
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
+    RUSTFLAGS="--cfg tokio_unstable" \
+    cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp /usr/src/rust/main/target/release/validator /release && \
-    cp /usr/src/rust/main/target/release/relayer /release && \
-    cp /usr/src/rust/main/target/release/scraper /release
+    cp target/release/validator /release && \
+    cp target/release/relayer /release && \
+    cp target/release/scraper /release
 
-## 2: Copy the binaries to release image
+# -------- Runtime Image --------
 FROM ubuntu:22.04
-RUN apt-get update && \
-    apt-get install -y \
-        openssl \
-        ca-certificates \
-        tini && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
-RUN mkdir -p /app/config
 COPY rust/main/config /app/config
 COPY --from=builder /release/* .
 
-RUN chmod 777 /app &&  \
-    mkdir /usr/share/hyperlane/ && \
-    chmod 1000 /usr/share/hyperlane && \
-    mkdir /data/ && \
-    chown -R 1000 /data/
+RUN apt-get update && \
+    apt-get install -y openssl ca-certificates tini && \
+    rm -rf /var/lib/apt/lists/* && \
+    chmod 777 /app && \
+    mkdir -p /usr/share/hyperlane && chmod 1000 /usr/share/hyperlane && \
+    mkdir -p /data && chown -R 1000 /data
 
 USER 1000
 ENTRYPOINT ["tini", "--"]
