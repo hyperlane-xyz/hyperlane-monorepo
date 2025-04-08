@@ -344,10 +344,11 @@ mod test {
         AgentMetadata,
     };
     use hyperlane_core::{
-        test_utils::dummy_domain, GasPaymentKey, HyperlaneChain, HyperlaneContract,
-        HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainGasPayment,
-        InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion, PendingOperationStatus,
-        ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId, H160, H256,
+        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey, HyperlaneChain,
+        HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion,
+        PendingOperationStatus, ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId,
+        H160, H256,
     };
     use prometheus::Registry;
     use std::{fmt::Debug, sync::Arc, time::Duration};
@@ -464,7 +465,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-
+            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
         }
     }
 

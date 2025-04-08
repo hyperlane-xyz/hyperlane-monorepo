@@ -217,7 +217,7 @@ mod tests {
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
     ) -> Box<dyn Entrypoint> {
-        let adapter = Box::new(MockAdapter::new()) as Box<dyn AdaptsChain>;
+        let adapter = Arc::new(MockAdapter::new()) as Arc<dyn AdaptsChain>;
         let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state))
     }
@@ -284,7 +284,7 @@ mod tests {
         mock_adapter
             .expect_estimate_gas_limit()
             .returning(move |_| Ok(Some(mock_gas_limit)));
-        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
         let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));
 
