@@ -239,6 +239,11 @@ impl Debug for MessageProcessor {
 
 #[async_trait]
 impl ProcessorExt for MessageProcessor {
+    /// The name of this processor
+    fn name(&self) -> String {
+        format!("processor::message::{}", self.domain().name())
+    }
+
     /// The domain this processor is getting messages from.
     fn domain(&self) -> &HyperlaneDomain {
         self.nonce_iterator.high_nonce_iter.db.domain()
@@ -416,6 +421,7 @@ mod test {
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
+    use tracing::info_span;
 
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
@@ -466,6 +472,7 @@ mod test {
         ChainConf {
             domain: domain.clone(),
             signer: Default::default(),
+            estimated_block_time: Duration::from_secs_f64(1.1),
             reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
@@ -590,7 +597,7 @@ mod test {
             dummy_message_processor(origin_domain, destination_domain, db);
 
         let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
-        let process_fut = processor.spawn();
+        let process_fut = processor.spawn(info_span!("MessageProcessor"));
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {

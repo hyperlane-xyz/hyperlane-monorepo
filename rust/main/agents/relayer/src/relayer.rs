@@ -17,7 +17,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
@@ -28,7 +28,7 @@ use hyperlane_base::{
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ContractSyncCursor,
+    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
     QueueOperation, ValidatorAnnounce, H512, U256,
 };
@@ -324,14 +324,20 @@ impl BaseAgent for Relayer {
 
         let task_monitor = tokio_metrics::TaskMonitor::new();
         if let Some(tokio_console_server) = self.tokio_console_server.take() {
-            let console_server =
-                tokio::spawn(TaskMonitor::instrument(&task_monitor.clone(), async move {
-                    info!("Starting tokio console server");
-                    if let Err(e) = tokio_console_server.serve().await {
-                        error!(error=?e, "Tokio console server failed to start");
+            let console_server = tokio::task::Builder::new()
+                .name("tokio_console_server")
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor.clone(),
+                    async move {
+                        info!("Starting tokio console server");
+                        if let Err(e) = tokio_console_server.serve().await {
+                            error!(error=?e, "Tokio console server failed to start");
+                        }
                     }
-                }));
-            tasks.push(console_server.instrument(info_span!("Tokio console server")));
+                    .instrument(info_span!("Tokio console server")),
+                ))
+                .expect("spawning tokio task from Builder is infallible");
+            tasks.push(console_server);
         }
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
@@ -377,6 +383,7 @@ impl BaseAgent for Relayer {
 
         for origin in &self.origin_chains {
             self.chain_metrics.set_critical_error(origin.name(), false);
+
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
@@ -391,7 +398,7 @@ impl BaseAgent for Relayer {
                 .await,
             );
             tasks.push(
-                self.run_merkle_tree_hook_syncs(
+                self.run_merkle_tree_hook_sync(
                     origin,
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
@@ -410,9 +417,12 @@ impl BaseAgent for Relayer {
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
-        let server_task = server
-            .run_with_custom_routes(custom_routes)
-            .instrument(info_span!("Relayer server"));
+        let server_task = tokio::spawn(
+            async move {
+                server.run_with_custom_routes(custom_routes);
+            }
+            .instrument(info_span!("Relayer server")),
+        );
         tasks.push(server_task);
 
         // each message process attempts to send messages from a chain
@@ -450,7 +460,7 @@ impl Relayer {
     async fn instantiate_cursor_with_retries<T: 'static>(
         contract_sync: Arc<dyn ContractSyncer<T>>,
         index_settings: IndexSettings,
-    ) -> Result<Box<dyn ContractSyncCursor<T>>, ChainCommunicationError> {
+    ) -> ChainResult<Box<dyn ContractSyncCursor<T>>> {
         call_and_retry_n_times(
             || {
                 let contract_sync = contract_sync.clone();
@@ -469,7 +479,7 @@ impl Relayer {
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> Instrumented<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor_instantiation_result =
@@ -479,16 +489,23 @@ impl Relayer {
             Ok(cursor) => cursor,
             Err(err) => {
                 self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
-                return tokio::spawn(async {}).instrument(info_span!("MessageSync"));
+                return tokio::spawn(async {}.instrument(info_span!("MessageSync")));
             }
         };
         let origin_name = origin.name().to_string();
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            let label = "dispatched_messages";
-            contract_sync.clone().sync(label, cursor.into()).await;
-            info!(chain = origin_name, label, "contract sync task exit");
-        }))
-        .instrument(info_span!("MessageSync"))
+        let name = Self::contract_sync_task_name("message::", &origin_name);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    let label = "dispatched_messages";
+                    contract_sync.clone().sync(label, cursor.into()).await;
+                    info!(chain = origin_name, label, "contract sync task exit");
+                }
+                .instrument(info_span!("MessageSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     async fn run_interchain_gas_payment_sync(
@@ -496,7 +513,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
-    ) -> Instrumented<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
             .interchain_gas_payment_syncs
@@ -510,27 +527,34 @@ impl Relayer {
             Ok(cursor) => cursor,
             Err(err) => {
                 self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
-                return tokio::spawn(async {}).instrument(info_span!("IgpSync"));
+                return tokio::spawn(async {}.instrument(info_span!("IgpSync")));
             }
         };
         let origin_name = origin.name().to_string();
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            let label = "gas_payments";
-            contract_sync
-                .clone()
-                .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                .await;
-            info!(chain = origin_name, label, "contract sync task exit");
-        }))
-        .instrument(info_span!("IgpSync"))
+        let name = Self::contract_sync_task_name("gas_payment::", &origin_name);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    let label = "gas_payments";
+                    contract_sync
+                        .clone()
+                        .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+                        .await;
+                    info!(chain = origin_name, label, "contract sync task exit");
+                }
+                .instrument(info_span!("IgpSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
     }
 
-    async fn run_merkle_tree_hook_syncs(
+    async fn run_merkle_tree_hook_sync(
         &self,
         origin: &HyperlaneDomain,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
-    ) -> Instrumented<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor_instantiation_result =
@@ -540,19 +564,30 @@ impl Relayer {
             Ok(cursor) => cursor,
             Err(err) => {
                 self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
-                return tokio::spawn(async {}).instrument(info_span!("MerkleTreeHookSync"));
+                return tokio::spawn(async {}.instrument(info_span!("MerkleTreeHookSync")));
             }
         };
         let origin_name = origin.name().to_string();
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            let label = "merkle_tree_hook";
-            contract_sync
-                .clone()
-                .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                .await;
-            info!(chain = origin_name, label, "contract sync task exit");
-        }))
-        .instrument(info_span!("MerkleTreeHookSync"))
+        let name = Self::contract_sync_task_name("merkle_tree::", &origin_name);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    let label = "merkle_tree_hook";
+                    contract_sync
+                        .clone()
+                        .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+                        .await;
+                    info!(chain = origin_name, label, "contract sync task exit");
+                }
+                .instrument(info_span!("MerkleTreeHookSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn contract_sync_task_name(prefix: &str, domain: &str) -> String {
+        format!("contract::sync::{}{}", prefix, domain)
     }
 
     fn run_message_processor(
@@ -560,7 +595,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
-    ) -> Instrumented<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
@@ -596,14 +631,14 @@ impl Relayer {
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
         let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
 
-        processor.spawn().instrument(span)
+        processor.spawn(span)
     }
 
     fn run_merkle_tree_processor(
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
-    ) -> Instrumented<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
         let merkle_tree_processor = MerkleTreeProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
@@ -613,7 +648,7 @@ impl Relayer {
 
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
         let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
-        processor.spawn().instrument(span)
+        processor.spawn(span)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -623,19 +658,26 @@ impl Relayer {
         destination: &HyperlaneDomain,
         serial_submitter: SerialSubmitter,
         task_monitor: TaskMonitor,
-    ) -> Instrumented<JoinHandle<()>> {
+    ) -> JoinHandle<()> {
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            // Propagate task panics
-            serial_submitter.spawn().await.unwrap_or_else(|err| {
-                panic!(
-                    "destination submitter panicked for destination {}: {:?}",
-                    destination, err
-                )
-            });
-        }))
-        .instrument(span)
+        let name = format!("submitter::destination::{}", destination.name());
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    // Propagate task panics
+                    serial_submitter.spawn().await.unwrap_or_else(|err| {
+                        panic!(
+                            "destination submitter panicked for destination {}: {:?}",
+                            destination, err
+                        )
+                    });
+                }
+                .instrument(span),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     /// Helper function to build and return a hashmap of mailboxes.
@@ -716,11 +758,14 @@ mod test {
     use std::{
         collections::{HashMap, HashSet},
         path::PathBuf,
+        time::Duration,
     };
 
-    use crate::settings::{matching_list::MatchingList, RelayerSettings};
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
+    use prometheus::{opts, IntGaugeVec, Registry};
+    use reqwest::Url;
+
     use hyperlane_base::{
         settings::{
             ChainConf, ChainConnectionConf, CoreContractAddresses, IndexSettings, Settings,
@@ -734,8 +779,8 @@ mod test {
         ReorgPeriod, H256,
     };
     use hyperlane_ethereum as h_eth;
-    use prometheus::{opts, IntGaugeVec, Registry};
-    use reqwest::Url;
+
+    use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
     use super::Relayer;
 
@@ -746,6 +791,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {
                     mailbox: H256::from_slice(

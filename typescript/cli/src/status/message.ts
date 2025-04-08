@@ -58,7 +58,11 @@ export async function checkMessageStatus({
     }
   }
 
-  const messages = core.getDispatchedMessages(dispatchedReceipt);
+  const dispatched = core.getDispatchedMessages(dispatchedReceipt);
+
+  const messages = messageId
+    ? dispatched.filter((m) => m.id === messageId)
+    : dispatched;
 
   const undelivered = [];
   for (const message of messages) {
@@ -67,14 +71,25 @@ export async function checkMessageStatus({
     );
     const delivered = await core.isDelivered(message);
     if (delivered) {
-      logGreen(`Message ${message.id} was delivered`);
+      try {
+        const processedReceipt = await core.getProcessedReceipt(message);
+        const hash = processedReceipt.transactionHash;
+        const url = context.multiProvider.tryGetExplorerTxUrl(
+          message.parsed.destination,
+          { hash },
+        );
+        logGreen(`Message ${message.id} was delivered in ${url || hash}`);
+      } catch (error) {
+        logRed(`Failed to fetch processed receipt: ${error}`);
+        logGreen(`Message ${message.id} was delivered`);
+      }
     } else {
       logBlue(`Message ${message.id} was not yet delivered`);
       undelivered.push(message);
     }
   }
 
-  if (selfRelay) {
+  if (selfRelay && undelivered.length > 0) {
     const relayer = new HyperlaneRelayer({ core });
     for (const message of undelivered) {
       const hookAddress = await core.getSenderHookAddress(message);

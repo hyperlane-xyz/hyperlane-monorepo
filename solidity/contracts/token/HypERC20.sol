@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -10,10 +11,14 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypERC20 is ERC20Upgradeable, TokenRouter {
+contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
     uint8 private immutable _decimals;
 
-    constructor(uint8 __decimals, address _mailbox) TokenRouter(_mailbox) {
+    constructor(
+        uint8 __decimals,
+        uint256 _scale,
+        address _mailbox
+    ) FungibleTokenRouter(_scale, _mailbox) {
         _decimals = __decimals;
     }
 
@@ -59,7 +64,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
      */
     function _transferFromSender(
         uint256 _amount
-    ) internal override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         _burn(msg.sender, _amount);
         return bytes(""); // no metadata
     }

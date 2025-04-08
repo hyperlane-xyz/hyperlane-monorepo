@@ -5,6 +5,7 @@ import {
   HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
@@ -84,12 +85,10 @@ export function hyperlaneWarpReadRaw({
   chain,
   warpAddress,
   outputPath,
-  privateKey,
   symbol,
 }: {
   chain?: string;
   symbol?: string;
-  privateKey?: string;
   warpAddress?: string;
   outputPath?: string;
 }): ProcessPromise {
@@ -98,7 +97,6 @@ export function hyperlaneWarpReadRaw({
         ${warpAddress ? ['--address', warpAddress] : ''} \
         ${chain ? ['--chain', chain] : ''} \
         ${symbol ? ['--symbol', symbol] : ''} \
-        ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
         ${outputPath ? ['--config', outputPath] : ''}`;
 }
@@ -112,27 +110,19 @@ export function hyperlaneWarpRead(
     chain,
     warpAddress,
     outputPath: warpDeployPath,
-    privateKey: ANVIL_KEY,
   });
 }
 
 export function hyperlaneWarpCheckRaw({
   warpDeployPath,
   symbol,
-  privateKey,
-  hypKey,
 }: {
   symbol?: string;
-  privateKey?: string;
   warpDeployPath?: string;
-  hypKey?: string;
 }): ProcessPromise {
-  return $`${
-    hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : ''
-  } yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
         --registry ${REGISTRY_PATH} \
         ${symbol ? ['--symbol', symbol] : ''} \
-        ${privateKey && !hypKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
         ${warpDeployPath ? ['--config', warpDeployPath] : ''}`;
 }
@@ -143,7 +133,6 @@ export function hyperlaneWarpCheck(
 ): ProcessPromise {
   return hyperlaneWarpCheckRaw({
     warpDeployPath,
-    privateKey: ANVIL_KEY,
     symbol,
   });
 }
@@ -177,7 +166,7 @@ export async function readWarpConfig(
   chain: string,
   warpCorePath: string,
   warpDeployPath: string,
-): Promise<WarpRouteDeployConfig> {
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
   return readYamlOrJson(warpDeployPath);
@@ -224,21 +213,6 @@ function getWarpTokenConfigForType({
         mailbox,
         owner,
         token: vault,
-      };
-      break;
-    case TokenType.fastCollateral:
-      tokenConfig = {
-        type: TokenType.fastCollateral,
-        mailbox,
-        owner,
-        token,
-      };
-      break;
-    case TokenType.fastSynthetic:
-      tokenConfig = {
-        type: TokenType.fastSynthetic,
-        mailbox,
-        owner,
       };
       break;
     case TokenType.native:
