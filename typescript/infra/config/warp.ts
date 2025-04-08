@@ -64,7 +64,10 @@ import {
 } from './environments/mainnet3/warp/configGetters/getRenzoPZETHSTAGEWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
-import { getSuperTokenProductionWarpConfig } from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
+import {
+  getSuperTokenProductionWarpConfig,
+  getSuperTokenStagingWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 
@@ -121,7 +124,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
   // TODO: uncomment after merging the staging route to registry
   // this has been commented out as it leads to check-warp-deploy cron job failing
-  // [WarpRouteIds.SuperTokenStaging]: getSuperTokenStagingWarpConfig,
+  [WarpRouteIds.SuperTokenStaging]: getSuperTokenStagingWarpConfig,
   [WarpRouteIds.SuperUSDT]: getSuperTokenProductionWarpConfig,
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
   [WarpRouteIds.BaseEthereumLumiaprismETH]:

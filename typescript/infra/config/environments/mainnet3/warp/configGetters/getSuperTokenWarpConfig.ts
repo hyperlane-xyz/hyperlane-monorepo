@@ -236,8 +236,8 @@ const stagingOwnerByChain: TypedSuperTokenChainMap<string> = {
 };
 const stagingAmountRoutingThreshold = 5;
 const stagingXERC20LockboxAddress =
-  '0x44eca3a9B45e80F30cAb25bA16a5bF36591c7D29';
-const stagingXERC20TokenAddress = '0xb0eb0856DD9A2DadBF170637A59f9eE2ca4A3f4a';
+  '0x9a3D8d7E931679374448FB2B661F664D42d05057';
+const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
 const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   celo: stagingXERC20LockboxAddress,
   optimism: stagingXERC20TokenAddress,
