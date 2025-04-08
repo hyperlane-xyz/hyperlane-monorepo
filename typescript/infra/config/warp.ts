@@ -163,6 +163,27 @@ async function getConfigFromMergedRegistry(
 }
 
 /**
+ * Retrieves all Warp configurations for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
+ * Will return in the form { [warRouteId]: { ...config } }
+ */
+export async function getWarpConfigMapFromMergedRegistry(
+  registryUris: string[],
+): Promise<Record<string, ChainMap<HypTokenRouterConfig>>> {
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: true,
+  });
+  const warpRouteMap = await registry.getWarpDeployConfigs();
+  assert(warpRouteMap, 'Warp route Configs not found for');
+
+  return promiseObjAll(
+    objMap(warpRouteMap, async (_, warpRouteConfig) =>
+      populateWarpRouteMailboxAddresses(warpRouteConfig, registry),
+    ),
+  );
+}
+
+/**
  * Populates warp route configuration by filling in mailbox addresses for each chain entry
  * @param warpRoute The warp route configuration
  * @param registry The registry to fetch chain addresses from if needed
