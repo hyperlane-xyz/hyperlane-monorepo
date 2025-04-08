@@ -211,13 +211,10 @@ fn get_rpc_urls(
                     .parse_bool()
                     .unwrap_or(false);
                 let url: Option<&str> = v.chain(err).get_key("http").parse_string().end();
-                match url {
-                    Some(url) => Some(RpcConfig {
-                        url: url.to_owned(),
-                        public,
-                    }),
-                    _ => None,
-                }
+                url.map(|url| RpcConfig {
+                    url: url.to_owned(),
+                    public,
+                })
             })
             .collect_vec()
         })
