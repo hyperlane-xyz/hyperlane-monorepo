@@ -78,7 +78,9 @@ mod tests {
     use super::*;
     use crate::chain_tx_adapter::*;
     use crate::payload::*;
-    use crate::payload_dispatcher::test_utils::tests::MockAdapter;
+    use crate::payload_dispatcher::test_utils::MockAdapter;
+    use crate::payload_dispatcher::PayloadDb;
+    use crate::payload_dispatcher::TransactionDb;
     use crate::transaction::*;
 
     struct MockDb {
@@ -122,6 +124,41 @@ mod tests {
         ) -> DbResult<Option<TransactionId>> {
             todo!()
         }
+
+        async fn retrieve_payload_index_by_id(
+            &self,
+            _payload_id: &PayloadId,
+        ) -> DbResult<Option<u32>> {
+            todo!()
+        }
+
+        async fn store_payload_id_by_index(
+            &self,
+            _index: u32,
+            _payload_id: &PayloadId,
+        ) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_payload_id_by_index(&self, _index: u32) -> DbResult<Option<PayloadId>> {
+            todo!()
+        }
+
+        async fn store_highest_index(&self, _index: u32) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_highest_index(&self) -> DbResult<u32> {
+            todo!()
+        }
+
+        async fn store_payload_index_by_id(
+            &self,
+            _index: u32,
+            _payload_id: &PayloadId,
+        ) -> DbResult<()> {
+            todo!()
+        }
     }
 
     #[async_trait]
@@ -136,13 +173,51 @@ mod tests {
         async fn store_transaction_by_id(&self, _tx: &Transaction) -> DbResult<()> {
             unimplemented!()
         }
+
+        async fn retrieve_transaction_id_by_index(
+            &self,
+            _index: u32,
+        ) -> DbResult<Option<TransactionId>> {
+            todo!()
+        }
+
+        async fn store_highest_index(&self, _index: u32) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_highest_index(&self) -> DbResult<u32> {
+            todo!()
+        }
+
+        async fn store_transaction_id_by_index(
+            &self,
+            _index: u32,
+            _tx_id: &TransactionId,
+        ) -> DbResult<()> {
+            todo!()
+        }
+
+        async fn retrieve_transaction_index_by_id(
+            &self,
+            _id: &TransactionId,
+        ) -> DbResult<Option<u32>> {
+            todo!()
+        }
+
+        async fn store_transaction_index_by_id(
+            &self,
+            _index: u32,
+            _tx_id: &TransactionId,
+        ) -> DbResult<()> {
+            todo!()
+        }
     }
 
     fn set_up(
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
     ) -> Box<dyn Entrypoint> {
-        let adapter = Box::new(MockAdapter::new()) as Box<dyn AdaptsChain>;
+        let adapter = Arc::new(MockAdapter::new()) as Arc<dyn AdaptsChain>;
         let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state))
     }
@@ -209,7 +284,7 @@ mod tests {
         mock_adapter
             .expect_estimate_gas_limit()
             .returning(move |_| Ok(Some(mock_gas_limit)));
-        let adapter = Box::new(mock_adapter) as Box<dyn AdaptsChain>;
+        let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
         let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
         let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));
 
