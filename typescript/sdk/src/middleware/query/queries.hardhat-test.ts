@@ -16,7 +16,7 @@ import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { RouterConfig } from '../../router/types.js';
+import { MailboxAddress, RouterConfig } from '../../router/types.js';
 import { ChainMap } from '../../types.js';
 
 import { InterchainQuery } from './InterchainQuery.js';
@@ -37,7 +37,7 @@ describe.skip('InterchainQueryRouter', async () => {
   let remote: InterchainQueryRouter;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<RouterConfig>;
+  let config: ChainMap<RouterConfig & MailboxAddress>;
   let testQuery: TestQuery;
 
   before(async () => {
