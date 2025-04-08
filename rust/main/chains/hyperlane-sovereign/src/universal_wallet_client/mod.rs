@@ -19,6 +19,7 @@ use types::TxStatus;
 #[derive(Clone, Debug)]
 pub struct UniversalClient {
     api_url: String,
+    #[cfg_attr(feature = "sov-sdk-testing", allow(unused))]
     chain_hash: [u8; 32],
     chain_id: u64,
     http_client: Client,
@@ -103,6 +104,12 @@ impl UniversalClient {
         let schema = Self::fetch_schema(&self.api_url, &self.http_client).await?;
         let utx_index = schema.rollup_expected_index(RollupRoots::UnsignedTransaction)?;
         let mut utx_bytes = schema.json_to_borsh(utx_index, &utx_json.to_string())?;
+
+        // test runtime in sovereign sdk hardcodes chain hash to this value
+        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/2fcd88e0a4b57183058f3ec9ebf8925998677d0a/crates/module-system/sov-test-utils/src/runtime/macros.rs#L103
+        #[cfg(feature = "sov-sdk-testing")]
+        utx_bytes.extend_from_slice(&[11; 32]);
+        #[cfg(not(feature = "sov-sdk-testing"))]
         utx_bytes.extend_from_slice(&self.chain_hash);
 
         let signature = self.crypto.sign(&utx_bytes);

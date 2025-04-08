@@ -18,7 +18,7 @@ async fn key_from_key_file(key_file_path: &str) -> ChainResult<[u8; 32]> {
     Ok(bytes)
 }
 
-pub async fn get_universal_client(api_url: &str, domain: u32) -> ChainResult<UniversalClient> {
+pub async fn get_universal_client(api_url: &str, chain_id: u64) -> ChainResult<UniversalClient> {
     let key = "TOKEN_KEY_FILE";
     let key_file = env::var(key).map_err(|e| {
         ChainCommunicationError::CustomError(format!(
@@ -26,7 +26,14 @@ pub async fn get_universal_client(api_url: &str, domain: u32) -> ChainResult<Uni
         ))
     })?;
     let key_bytes = key_from_key_file(&key_file).await?;
+    get_universal_client_with_key(api_url, chain_id, key_bytes).await
+}
 
+pub async fn get_universal_client_with_key(
+    api_url: &str,
+    chain_id: u64,
+    key_bytes: [u8; 32],
+) -> ChainResult<UniversalClient> {
     let crypto = crypto::Crypto {
         private_key: crypto::PrivateKey::Ed25519(key_bytes.into()),
         hasher: crypto::Hasher::Sha256,
@@ -35,7 +42,7 @@ pub async fn get_universal_client(api_url: &str, domain: u32) -> ChainResult<Uni
             hrp: bech32::Hrp::parse("sov").unwrap(),
         },
     };
-    UniversalClient::new(api_url, crypto.clone(), u64::from(domain))
+    UniversalClient::new(api_url, crypto.clone(), chain_id)
         .await
         .map_err(|e| {
             ChainCommunicationError::CustomError(format!(

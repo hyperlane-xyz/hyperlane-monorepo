@@ -18,6 +18,7 @@ members = [
   "utils/hex",
   "utils/run-locally",
 ]
+resolver = "2"
 
 [workspace.package]
 documentation = "https://docs.hyperlane.xyz"
@@ -62,7 +63,7 @@ derive_builder = "0.12"
 derive_more = "0.99"
 dhat = "0.3.3"
 ed25519-dalek = "~1.0"
-eyre = "=0.6.8"
+eyre = "0.6.8"
 fixed-hash = "0.8.0"
 fuels = "0.65.0"
 fuels-code-gen = "0.65.0"

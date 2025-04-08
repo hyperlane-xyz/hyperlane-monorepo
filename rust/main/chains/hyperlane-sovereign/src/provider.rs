@@ -23,21 +23,13 @@ impl SovereignProvider {
         conf: &ConnectionConf,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let client = rest_client::SovereignRestClient::new(conf, domain.id()).await?;
+        let client = rest_client::SovereignRestClient::new(conf).await?;
 
         Ok(Self {
             domain,
             client,
             signer,
         })
-    }
-
-    /// Get a nonce.
-    pub async fn nonce_at_block(&self, _tip: u32) -> ChainResult<u32> {
-        let temp_key = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
-        let key = self.client().get_values_from_key(temp_key).await?;
-        let nonce = self.client().get_nonce(&key).await?;
-        Ok(nonce)
     }
 
     /// Get a rest client.
@@ -68,11 +60,14 @@ impl HyperlaneProvider for SovereignProvider {
         Ok(txn)
     }
 
-    async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        let block = self.client.is_contract(*address).await?;
-        Ok(block)
+    /// Check if recipient is contract address. Sovereign design deviates from
+    /// hyperlane spec in that matter, as hyperlane impl is contract-less, so
+    /// we allow any destination here.
+    async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
+        Ok(true)
     }
 
+    // todo: what is this doing?
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         let token_id = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7";
         let balance = self.client.get_balance(token_id, address.as_str())?;

@@ -1,0 +1,57 @@
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('./hyperlane.Dockerfile', 'rust/**/*') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6.15
+        with:
+          context: .
+          file: ./hyperlane.Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/hyperlane
+          ssh: default=${{ runner.temp }}/.ssh/id_rsa
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new
+
+      # cache would grow infinitely if we just update the same artifacts,
+      # intsead we create a new cache every time and overwrite existing
+      # https://github.com/moby/buildkit/issues/1896
+      - name: Overwrite cache
+        run: mv "${{ runner.temp }}/.buildx-cache-new" "${{ runner.temp }}/.buildx-cache"

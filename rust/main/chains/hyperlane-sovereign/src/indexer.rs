@@ -1,11 +1,14 @@
-use crate::rest_client::{self, Tx, TxEvent};
+use std::fmt::Debug;
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
-use core::ops::RangeInclusive;
+use futures::stream::{self, FuturesOrdered, TryStreamExt};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256,
     H512,
 };
-use std::fmt::Debug;
+
+use crate::rest_client::{self, Tx, TxEvent};
 
 // SovIndexer is a trait that contains default implementations for indexing
 // various different event types on the Sovereign chain to reduce code duplication in
@@ -25,27 +28,32 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
-        let mut results =
-            Vec::with_capacity(range.end().saturating_sub(*range.start()) as usize + 1);
+        // wait for new slot to appear at ledger...
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let logs = range
+            .map(|slot_num| async move {
+                let slot = self.client().get_slot(slot_num.into()).await?;
+                let slot_hash = parse_hex_to_h256(&slot.hash, "invalid block hash")?;
+                ChainResult::Ok(stream::iter(
+                    slot.batches
+                        .into_iter()
+                        .flat_map(|batch| batch.txs)
+                        .map(move |tx| self.process_tx(&tx, slot_hash)),
+                ))
+            })
+            .collect::<FuturesOrdered<_>>()
+            .try_flatten()
+            .try_collect::<Vec<_>>()
+            .await?
+            .concat();
 
-        for batch_num in range {
-            let batch = self.client().get_batch(u64::from(batch_num)).await?;
-            let batch_hash = parse_hex_to_h256(&batch.hash, "invalid block hash")?;
-            results.extend(
-                batch
-                    .txs
-                    .iter()
-                    .flat_map(|tx| self.process_tx(tx, batch_hash))
-                    .flatten(),
-            );
-        }
-
-        Ok(results)
+        Ok(logs)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let (_latest_slot, latest_batch) = self.client().get_latest_slot().await?;
-        Ok(latest_batch.unwrap_or_default())
+        // todo: should be finalized, but we need to query state at height first
+        let latest_slot = self.client().get_latest_slot().await?;
+        Ok(latest_slot.try_into().expect("Slot number overflowed u32"))
     }
 
     async fn fetch_logs_by_tx_hash(
@@ -62,25 +70,25 @@ where
 
     // Default implementation of SequenceAwareIndexer<T>
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let (_, latest_batch) = self.client().get_latest_slot().await?;
+        // todo: workaround; it should be
+        // let finalized_slot = self.client().get_finalized_slot().await?;
+        // let sequence = self.latest_sequence(finalized_slot).await?;
         let sequence = self.latest_sequence().await?;
+        let latest_slot = self.client().get_latest_slot().await? + 1;
 
-        Ok((sequence, latest_batch.unwrap_or_default()))
+        Ok((
+            sequence,
+            latest_slot.try_into().expect("Slot number overflowed u32"),
+        ))
     }
 
     // Helper function to process a single transaction
-    fn process_tx(&self, tx: &Tx, batch_hash: H256) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
-        let mut results = Vec::new();
-
+    fn process_tx(&self, tx: &Tx, slot_hash: H256) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         tx.events
             .iter()
-            .filter(|e| e.key == Self::EVENT_KEY)
-            .try_for_each(|e| -> ChainResult<()> {
-                let (indexed_msg, meta) = self.process_event(tx, e, tx.batch_number, batch_hash)?;
-                results.push((indexed_msg, meta));
-                Ok(())
-            })?;
-        Ok(results)
+            .filter(|ev| ev.key == Self::EVENT_KEY)
+            .map(|ev| self.process_event(tx, ev, tx.batch_number, slot_hash))
+            .collect()
     }
 
     // Helper function to process a single event
@@ -88,19 +96,19 @@ where
         &self,
         tx: &Tx,
         event: &TxEvent,
-        batch_num: u64,
-        batch_hash: H256,
+        slot_num: u64,
+        slot_hash: H256,
     ) -> ChainResult<(Indexed<T>, LogMeta)> {
         let tx_hash = parse_hex_to_h256(&tx.hash, "invalid tx hash")?;
         let decoded_event = self.decode_event(event)?;
 
         let meta = LogMeta {
-            address: batch_hash,
-            block_number: batch_num,
-            block_hash: batch_hash,
-            transaction_id: tx_hash.into(),
-            transaction_index: tx.number,
-            log_index: event.number.into(),
+            address: slot_hash, // TODO: This should be the address of the contract that emitted the event, not the batch hash
+            block_number: slot_num,
+            block_hash: slot_hash,
+            transaction_id: tx_hash.into(), // 0-prefix the tx hash up to 64 bytes for compatibility with the indexer
+            transaction_index: tx.number, // TODO: This doesn't match the ethers behavior. tx number in sovereign is global, while this is block-local.
+            log_index: event.number.into(), // TODO: This doesn't match the ethers behavior. event number in sovereign is global, while this is block-local.
         };
 
         Ok((decoded_event.into(), meta))
@@ -117,5 +125,5 @@ fn hex_to_h256(hex: &str) -> Option<H256> {
     hex.strip_prefix("0x")
         .and_then(|h| hex::decode(h).ok())
         .and_then(|bytes| bytes.try_into().ok())
-        .map(|array: [u8; 32]| H256::from_slice(&array))
+        .map(|array: [u8; 32]| array.into())
 }

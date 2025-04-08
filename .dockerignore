@@ -21,3 +21,6 @@ typescript/**/tsconfig.tsbuildinfo
 yarn-error.log
 
 .idea
+
+**/target
+rust/main/chains/hyperlane-fuel/src/contracts

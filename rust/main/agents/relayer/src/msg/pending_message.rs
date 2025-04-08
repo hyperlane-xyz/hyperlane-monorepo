@@ -487,6 +487,7 @@ impl PendingOperation for PendingMessage {
         self.reset_attempts();
     }
 
+    #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32) {
         self.set_retries(retries);
     }
