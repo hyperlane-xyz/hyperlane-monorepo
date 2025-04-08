@@ -30,7 +30,7 @@ pub enum LoadingOutcome {
 }
 
 #[derive(Debug)]
-struct DbIterator<T> {
+pub struct DbIterator<T> {
     low_index_iter: DirectionalIndexIterator<T>,
     high_index_iter: Option<DirectionalIndexIterator<T>>,
     // here for debugging purposes
@@ -39,7 +39,7 @@ struct DbIterator<T> {
 
 impl<T: LoadableFromDb + Debug> DbIterator<T> {
     #[instrument(skip(loader), ret)]
-    async fn new(loader: Arc<T>, metadata: String, only_load_backward: bool) -> Self {
+    pub async fn new(loader: Arc<T>, metadata: String, only_load_backward: bool) -> Self {
         let high_index = loader.highest_index().await.ok();
         let mut low_index_iter = DirectionalIndexIterator::new(
             high_index,

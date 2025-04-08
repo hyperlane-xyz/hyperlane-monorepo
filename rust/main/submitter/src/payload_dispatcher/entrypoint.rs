@@ -3,6 +3,7 @@
 
 use async_trait::async_trait;
 use eyre::{eyre, Result};
+use tracing::info;
 
 use crate::{
     chain_tx_adapter::GasLimit,
@@ -41,6 +42,7 @@ impl PayloadDispatcherEntrypoint {
 #[async_trait]
 impl Entrypoint for PayloadDispatcherEntrypoint {
     async fn send_payload(&self, payload: &FullPayload) -> Result<(), SubmitterError> {
+        info!(payload_id=?payload.id(), "Sending payload to dispatcher");
         self.inner.payload_db.store_payload_by_id(payload).await?;
         Ok(())
     }

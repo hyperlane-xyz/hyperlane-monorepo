@@ -30,15 +30,26 @@ use super::{
 
 pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
-#[derive(new)]
 pub struct FinalityStage {
-    pool: FinalityStagePool,
+    pub(crate) pool: FinalityStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     building_stage_queue: BuildingStageQueue,
     state: PayloadDispatcherState,
 }
 
 impl FinalityStage {
+    pub fn new(
+        tx_receiver: mpsc::Receiver<Transaction>,
+        building_stage_queue: BuildingStageQueue,
+        state: PayloadDispatcherState,
+    ) -> Self {
+        Self {
+            pool: Arc::new(Mutex::new(HashMap::new())),
+            tx_receiver,
+            building_stage_queue,
+            state,
+        }
+    }
     pub async fn run(self) {
         let FinalityStage {
             pool,
@@ -87,6 +98,7 @@ impl FinalityStage {
         loop {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
+            info!("Processing finality stage transactions");
 
             let pool_snapshot = pool.lock().await.clone();
             for (_, tx) in pool_snapshot {
@@ -98,7 +110,11 @@ impl FinalityStage {
                 )
                 .await
                 {
-                    error!(?err, ?tx, "Error processing transaction. Skipping for now");
+                    error!(
+                        ?err,
+                        ?tx,
+                        "Error processing finality stage transaction. Skipping for now"
+                    );
                 }
             }
         }
@@ -110,6 +126,7 @@ impl FinalityStage {
         building_stage_queue: BuildingStageQueue,
         state: &PayloadDispatcherState,
     ) -> Result<(), SubmitterError> {
+        info!(?tx, "Processing finality stage transaction");
         let tx_status = retry_until_success(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
@@ -289,13 +306,9 @@ mod tests {
 
         let state =
             PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
-        let finality_stage = FinalityStage::new(
-            pool.clone(),
-            inclusion_stage_receiver,
-            building_queue.clone(),
-            state,
-        );
+        let finality_stage =
+            FinalityStage::new(inclusion_stage_receiver, building_queue.clone(), state);
+        let pool = finality_stage.pool.clone();
 
         send_txs_to_channel(generated_txs.clone(), inclusion_stage_sender).await;
         let txs_received = run_stage(finality_stage).await;
@@ -444,13 +457,9 @@ mod tests {
 
         let state =
             PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
-        let finality_stage = FinalityStage::new(
-            pool.clone(),
-            inclusion_stage_receiver,
-            building_queue.clone(),
-            state,
-        );
+        let finality_stage =
+            FinalityStage::new(inclusion_stage_receiver, building_queue.clone(), state);
+        let pool = finality_stage.pool.clone();
 
         let test_txs =
             create_random_txs_and_store_them(txs_to_process, &payload_db, &tx_db, tx_status).await;

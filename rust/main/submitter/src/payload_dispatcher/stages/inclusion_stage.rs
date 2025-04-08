@@ -15,7 +15,7 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
 };
-use tracing::{error, info, info_span, Instrument};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use crate::{
     error::SubmitterError,
@@ -28,15 +28,27 @@ use super::{utils::retry_until_success, PayloadDispatcherState};
 
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
-#[derive(new)]
-struct InclusionStage {
-    pool: InclusionStagePool,
+pub struct InclusionStage {
+    pub(crate) pool: InclusionStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     finality_stage_sender: mpsc::Sender<Transaction>,
     state: PayloadDispatcherState,
 }
 
 impl InclusionStage {
+    pub fn new(
+        tx_receiver: mpsc::Receiver<Transaction>,
+        finality_stage_sender: mpsc::Sender<Transaction>,
+        state: PayloadDispatcherState,
+    ) -> Self {
+        Self {
+            pool: Arc::new(Mutex::new(HashMap::new())),
+            tx_receiver,
+            finality_stage_sender,
+            state,
+        }
+    }
+
     pub async fn run(self) {
         let InclusionStage {
             pool,
@@ -85,6 +97,7 @@ impl InclusionStage {
         loop {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
+            info!("Processing transactions in pool");
 
             let pool_snapshot = pool.lock().await.clone();
             for (_, tx) in pool_snapshot {
@@ -103,11 +116,13 @@ impl InclusionStage {
         state: &PayloadDispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
+        info!(?tx, "Processing inclusion stage transaction");
         let tx_status = retry_until_success(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
         )
         .await;
+        info!(?tx, ?tx_status, "Transaction status");
 
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
@@ -139,12 +154,15 @@ impl InclusionStage {
         state: &PayloadDispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
+        info!(?tx, "Processing pending transaction");
         let simulation_success =
             retry_until_success(|| state.adapter.simulate_tx(&tx), "Simulating transaction").await;
         if !simulation_success {
+            warn!(?tx, "Transaction simulation failed");
             Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
             return Err(eyre!("Transaction simulation failed"));
         }
+        info!(?tx, "Transaction simulation succeeded");
 
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
@@ -161,6 +179,7 @@ impl InclusionStage {
             "Submitting transaction",
         )
         .await;
+        info!(?tx, "Transaction submitted to node");
 
         // update tx submission attempts
         tx.submission_attempts += 1;
@@ -176,7 +195,7 @@ impl InclusionStage {
         reason: TxDropReason,
         pool: &InclusionStagePool,
     ) -> Result<()> {
-        info!(?tx, "Dropping tx");
+        warn!(?tx, "Dropping tx");
         let new_tx_status = TransactionStatus::Dropped(reason);
         update_tx_status(state, tx, new_tx_status.clone()).await?;
         // drop the payloads as well
@@ -318,13 +337,9 @@ mod tests {
 
         let state =
             PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
-        let inclusion_stage = InclusionStage::new(
-            pool.clone(),
-            building_stage_receiver,
-            finality_stage_sender,
-            state,
-        );
+        let inclusion_stage =
+            InclusionStage::new(building_stage_receiver, finality_stage_sender, state);
+        let pool = inclusion_stage.pool.clone();
 
         let txs_created = create_random_txs_and_store_them(
             txs_to_process,
