@@ -24,7 +24,7 @@ pub trait Entrypoint {
 }
 
 pub struct PayloadDispatcherEntrypoint {
-    inner: PayloadDispatcherState,
+    pub(crate) inner: PayloadDispatcherState,
 }
 
 impl PayloadDispatcherEntrypoint {
