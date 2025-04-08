@@ -206,15 +206,16 @@ impl FinalityStage {
 mod tests {
     use super::*;
     use crate::{
-        payload::{PayloadDb, PayloadDetails, PayloadId},
+        payload::{PayloadDetails, PayloadId},
         payload_dispatcher::{
             stages::{building_stage, finality_stage},
-            test_utils::tests::{
+            test_utils::{
                 create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
                 MockAdapter,
             },
+            PayloadDb, TransactionDb,
         },
-        transaction::{Transaction, TransactionDb, TransactionId},
+        transaction::{Transaction, TransactionId},
     };
     use eyre::Result;
     use std::sync::Arc;
@@ -287,7 +288,7 @@ mod tests {
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
         let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
+            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
         let pool = Arc::new(Mutex::new(HashMap::new()));
         let finality_stage = FinalityStage::new(
             pool.clone(),
@@ -442,7 +443,7 @@ mod tests {
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
         let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
+            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
         let pool = Arc::new(Mutex::new(HashMap::new()));
         let finality_stage = FinalityStage::new(
             pool.clone(),

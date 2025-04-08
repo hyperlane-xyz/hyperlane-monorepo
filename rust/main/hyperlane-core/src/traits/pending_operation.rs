@@ -166,6 +166,16 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         None
     }
+
+    /// Creates payload for the operation
+    async fn payload(&self) -> ChainResult<Vec<u8>>;
+
+    /// Public version of on_reprepare method
+    fn on_reprepare(
+        &mut self,
+        err_msg: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult;
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
@@ -262,6 +272,18 @@ pub enum ReprepareReason {
     #[strum(to_string = "ApplicationReport({0})")]
     /// Application report
     ApplicationReport(ApplicationReport),
+    #[strum(to_string = "Failed to create payload for message and metadata")]
+    /// Failed to create payload for message and metadata
+    ErrorCreatingPayload,
+    #[strum(to_string = "Failed to store payload id by message id")]
+    /// Failed to store payload id by message id
+    ErrorStoringPayloadIdByMessageId,
+    #[strum(to_string = "Failed to retrieve payload id by message id")]
+    /// Failed to retrieve payload id by message id
+    ErrorRetrievingPayloadId,
+    #[strum(to_string = "Failed to retrieve payload id by message id")]
+    /// Failed to retrieve payload id by message id
+    ErrorRetrievingPayloadStatus,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
