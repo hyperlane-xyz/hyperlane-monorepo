@@ -472,7 +472,7 @@ impl CoreMetrics {
     pub fn set_announced(&self, origin_chain: HyperlaneDomain) {
         self.announced
             .clone()
-            .with_label_values(&[&origin_chain.name()])
+            .with_label_values(&[origin_chain.name()])
             .set(1);
     }
 
