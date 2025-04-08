@@ -25,9 +25,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
 };
-use submitter::{
-    Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId, PayloadStatus, SubmitterError,
-};
+use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
@@ -628,61 +626,6 @@ async fn confirm_classic_task(
     }
 }
 
-fn from_payload_status_into_result_for_confirmation(
-    status: &PayloadStatus,
-) -> PendingOperationResult {
-    use submitter::PayloadDropReason::{
-        FailedSimulation, FailedToBuildAsTransaction, Reverted, UnhandledError,
-    };
-    use submitter::PayloadRetryReason::Reorged;
-    use submitter::PayloadStatus::{
-        Dropped as PayloadDropped, InTransaction, ReadyToSubmit, Retry,
-    };
-    use submitter::TransactionStatus::{
-        Dropped as TransactionDropped, Finalized, Included, Mempool, PendingInclusion,
-    };
-
-    use PendingOperationResult::*;
-
-    match status {
-        ReadyToSubmit => Confirm(SubmittedBySelf),
-        InTransaction(t) => match t {
-            Included | Mempool | PendingInclusion => Confirm(SubmittedBySelf),
-            TransactionDropped(_) => Reprepare(ReprepareReason::RevertedOrReorged),
-            Finalized => Success,
-        },
-        PayloadDropped(d) => match d {
-            FailedToBuildAsTransaction | FailedSimulation | UnhandledError => {
-                Reprepare(ReprepareReason::ErrorEstimatingGas)
-            }
-            Reverted => Reprepare(ReprepareReason::RevertedOrReorged),
-        },
-        Retry(r) => match r {
-            Reorged => Confirm(SubmittedBySelf),
-        },
-    }
-}
-
-fn from_submitter_error_into_result_for_confirmation(
-    error: &SubmitterError,
-) -> PendingOperationResult {
-    use submitter::SubmitterError::*;
-
-    use PendingOperationResult::*;
-
-    match error {
-        TxAlreadyExists | TxSubmissionError(_) => Confirm(SubmittedBySelf),
-        TxReverted => Reprepare(ReprepareReason::RevertedOrReorged),
-        NetworkError(_)
-        | ChannelSendFailure(_)
-        | ChannelClosed
-        | EyreError(_)
-        | PayloadNotFound
-        | DbError(_)
-        | ChainCommunicationError(_) => Reprepare(ReprepareReason::ErrorSubmitting),
-    }
-}
-
 #[instrument(skip_all, fields(%domain))]
 async fn confirm_lander_task(
     entrypoint: Arc<PayloadDispatcherEntrypoint>,
@@ -740,7 +683,7 @@ async fn confirm_lander_task(
         let payload_status_results = join_all(payload_status_result_futures)
             .await
             .into_iter()
-            .filter_map(|result| result.map(|x| x))
+            .flatten()
             .collect::<Vec<_>>();
 
         let confirmed_operations = Arc::new(Mutex::new(0));
