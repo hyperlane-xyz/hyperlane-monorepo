@@ -34,7 +34,7 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
+use relayer::msg::pending_message::{INVALIDATE_CACHE_METADATA_LOG, RETRIEVED_MESSAGE_LOG};
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
 use utils::get_ts_infra_path;
