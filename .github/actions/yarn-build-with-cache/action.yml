@@ -16,6 +16,7 @@ runs:
     # Depot transparently redirect anything bound for GitHub's Actions cache to their own for extra speed.
     # But this is not available to access for non-depot runners.
     # So we default to buildjet, and expect the workflow to set cache-provider=github if it's a depot runner.
+    # https://depot.dev/docs/github-actions/overview#faster-caching
     - name: Determine Cache Provider
       id: determine-cache
       shell: bash
