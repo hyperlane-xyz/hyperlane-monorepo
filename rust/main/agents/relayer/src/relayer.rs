@@ -143,22 +143,22 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|origin| (origin.clone(), HyperlaneRocksDB::new(origin, db.clone())))
             .collect::<HashMap<_, _>>();
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized databases");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized databases", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let application_operation_verifiers =
             Self::build_application_operation_verifiers(&settings, &core_metrics, &chain_metrics)
                 .await;
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized application operation verifiers");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized mailboxes");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let validator_announces =
             Self::build_validator_announces(&settings, &core_metrics, &chain_metrics).await;
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized validator announces");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
@@ -177,7 +177,7 @@ impl BaseAgent for Relayer {
             .into_iter()
             .map(|(k, v)| (k, v as _))
             .collect();
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized message syncs");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let interchain_gas_payment_syncs = settings
@@ -194,7 +194,7 @@ impl BaseAgent for Relayer {
             .into_iter()
             .map(|(k, v)| (k, v as _))
             .collect();
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized IGP syncs");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let merkle_tree_hook_syncs = settings
@@ -211,7 +211,7 @@ impl BaseAgent for Relayer {
             .into_iter()
             .map(|(k, v)| (k, v as _))
             .collect();
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized merkle tree hook syncs");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized merkle tree hook syncs", "Relayer startup duration measurement");
 
         let message_whitelist = Arc::new(settings.whitelist);
         let message_blacklist = Arc::new(settings.blacklist);
@@ -240,7 +240,7 @@ impl BaseAgent for Relayer {
                 )
             })
             .collect::<HashMap<_, _>>();
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized prover syncs");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized prover syncs", "Relayer startup duration measurement");
 
         info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
 
@@ -260,7 +260,7 @@ impl BaseAgent for Relayer {
                 )
             })
             .collect();
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized merkle tree hook syncs");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
@@ -313,9 +313,9 @@ impl BaseAgent for Relayer {
                 );
             }
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized message contexts");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
-        debug!(elapsed = ?start.elapsed(), "Relayer agent initialized from settings");
+        debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
         Ok(Self {
             dbs,
@@ -367,7 +367,7 @@ impl BaseAgent for Relayer {
                 .expect("spawning tokio task from Builder is infallible");
             tasks.push(console_server);
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent initialized tokio console server");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started tokio console server", "Relayer startup duration measurement");
 
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
@@ -411,7 +411,7 @@ impl BaseAgent for Relayer {
             });
             tasks.push(metrics_updater.spawn());
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent started submitter");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started submitters", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
@@ -439,7 +439,7 @@ impl BaseAgent for Relayer {
                 .await,
             );
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent started message, IGP, and merkle tree hook syncs");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs", "Relayer startup duration measurement");
 
         // run server
         start_entity_init = Instant::now();
@@ -459,7 +459,7 @@ impl BaseAgent for Relayer {
             .instrument(info_span!("Relayer server")),
         );
         tasks.push(server_task);
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent started its server");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started relayer server", "Relayer startup duration measurement");
 
         // each message process attempts to send messages from a chain
         start_entity_init = Instant::now();
@@ -471,11 +471,11 @@ impl BaseAgent for Relayer {
             ));
             tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), "Relayer agent started message and merkle tree processors");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message and merkle tree processors", "Relayer startup duration measurement");
 
         tasks.push(self.runtime_metrics.spawn());
 
-        info!(elapsed = ?start.elapsed(), "Relayer agent started");
+        debug!(elapsed = ?start.elapsed(), event = "fully started", "Relayer startup duration measurement");
 
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(
