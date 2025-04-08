@@ -27,8 +27,14 @@ pub struct PayloadDispatcherSettings {
     /// settings needed for chain-specific adapter
     pub raw_chain_conf: RawChainConf,
     pub domain: HyperlaneDomain,
-    pub db_path: PathBuf,
+    pub db: DatabaseOrPath,
     pub metrics: Arc<CoreMetrics>,
+}
+
+#[derive(Debug)]
+pub enum DatabaseOrPath {
+    Database(DB),
+    Path(PathBuf),
 }
 
 pub struct PayloadDispatcher {

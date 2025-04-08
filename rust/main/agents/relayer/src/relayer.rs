@@ -34,7 +34,7 @@ use hyperlane_core::{
     QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
-use submitter::{PayloadDispatcherEntrypoint, PayloadDispatcherSettings};
+use submitter::{DatabaseOrPath, PayloadDispatcherEntrypoint, PayloadDispatcherSettings};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -166,6 +166,7 @@ impl BaseAgent for Relayer {
             &settings,
             core_metrics.clone(),
             &chain_metrics,
+            db.clone(),
         )
         .await;
 
@@ -774,6 +775,7 @@ impl Relayer {
         settings: &RelayerSettings,
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
+        db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
         settings.destination_chains.iter()
             .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
@@ -781,7 +783,7 @@ impl Relayer {
                 chain_conf: settings.chains[&chain.to_string()].clone(),
                 raw_chain_conf: Default::default(),
                 domain: chain.clone(),
-                db_path: settings.db.clone(),
+                db: DatabaseOrPath::Database(db.clone()),
                 metrics: core_metrics.clone(),
             }))
             .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s)))

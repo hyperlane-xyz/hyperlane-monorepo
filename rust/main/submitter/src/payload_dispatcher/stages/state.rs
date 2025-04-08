@@ -16,7 +16,7 @@ use tracing::{error, info, instrument::Instrumented, warn};
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
     payload::{DropReason, PayloadDetails, PayloadStatus},
-    payload_dispatcher::{PayloadDb, PayloadDispatcherSettings, TransactionDb},
+    payload_dispatcher::{DatabaseOrPath, PayloadDb, PayloadDispatcherSettings, TransactionDb},
     transaction::Transaction,
 };
 
@@ -46,7 +46,10 @@ impl PayloadDispatcherState {
             &settings.raw_chain_conf,
             &settings.metrics,
         )?;
-        let db = DB::from_path(&settings.db_path)?;
+        let db = match settings.db {
+            DatabaseOrPath::Database(db) => db,
+            DatabaseOrPath::Path(path) => DB::from_path(&path)?,
+        };
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
