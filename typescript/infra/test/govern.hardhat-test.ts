@@ -21,6 +21,7 @@ import {
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainAccountFactories,
+  MailboxAddress,
   MultiProvider,
   OwnableConfig,
   RouterConfig,
@@ -31,7 +32,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
-import { MailboxAddress } from '../../sdk/src/router/types.js';
 import {
   AnnotatedCallData,
   HyperlaneAppGovernor,

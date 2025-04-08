@@ -487,6 +487,7 @@ export {
   ClientViolationType as ConnectionClientViolationType,
   DestinationGas,
   GasRouterConfig,
+  MailboxAddress,
   MailboxClientConfig,
   MailboxClientConfigSchema,
   ProxiedFactories,

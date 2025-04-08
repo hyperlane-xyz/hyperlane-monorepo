@@ -1,7 +1,5 @@
 import { chainMetadata } from '@hyperlane-xyz/registry';
-import { RouterConfig } from '@hyperlane-xyz/sdk';
-
-import { MailboxAddress } from '../../../sdk/src/router/types.js';
+import { MailboxAddress, RouterConfig } from '@hyperlane-xyz/sdk';
 
 export type HelloWorldConfig = RouterConfig & MailboxAddress;
 
