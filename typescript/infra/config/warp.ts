@@ -152,7 +152,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
 };
 
 /**
- * Retrieves the Warp configuration for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
+ * Retrieves the Warp configuration for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry.
  */
 async function getConfigFromMergedRegistry(
   _routerConfig: ChainMap<RouterConfigWithoutOwner>,
