@@ -107,7 +107,7 @@ export const SyntheticRebaseTokenConfigSchema =
     collateralChainName: z.string(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
-  typeof CollateralTokenConfigSchema
+  typeof SyntheticRebaseTokenConfigSchema
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
