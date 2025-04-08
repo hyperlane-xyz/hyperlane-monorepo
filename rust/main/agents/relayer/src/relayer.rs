@@ -162,12 +162,14 @@ impl BaseAgent for Relayer {
             Self::build_validator_announces(&settings, &core_metrics, &chain_metrics).await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
+        start_entity_init = Instant::now();
         let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
             &settings,
             core_metrics.clone(),
             &chain_metrics,
         )
         .await;
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dispatcher entrypoints", "Relayer startup duration measurement");
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
