@@ -318,9 +318,9 @@ impl AdaptsChain for SealevelTxAdapter {
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
         info!(?tx, "checking status of transaction");
 
-        let h512 = tx.hash.ok_or(eyre::eyre!(
-            "Hash should be set for transaction to check its status"
-        ))?;
+        let Some(h512) = tx.hash else {
+            return Ok(TransactionStatus::PendingInclusion);
+        };
         let signature = Signature::new(h512.as_ref());
         let transaction_search_result = self.client.get_transaction(signature).await;
 
