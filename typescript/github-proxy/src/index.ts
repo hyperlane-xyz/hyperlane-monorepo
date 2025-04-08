@@ -1,7 +1,7 @@
 import { DISALLOWED_URL_MSG } from './errors.js';
 
-const GITHUB_API_ALLOWLIST = [
-  '/repos/hyperlane-xyz/hyperlane-registry/git/trees/main',
+export const GITHUB_API_ALLOWLIST = [
+  '/repos/hyperlane-xyz/hyperlane-registry/git/trees/', // TODO prob cant use this and instead must use regex?
 ];
 const GITPUB_API_HOST = 'https://api.github.com';
 export default {
