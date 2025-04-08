@@ -91,3 +91,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
+          platforms: linux/amd64,linux/arm64
