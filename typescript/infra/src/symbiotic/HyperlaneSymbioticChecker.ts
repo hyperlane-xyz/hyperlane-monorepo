@@ -2,14 +2,16 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { Provider } from '@ethersproject/providers';
 
 import {
+  AccessControl,
   AccessControl__factory,
   IBaseSlasher__factory,
   IBurnerRouter__factory,
+  ICompoundStakerRewards,
   IDefaultStakerRewards__factory,
   INetworkRestakeDelegator__factory,
-  IVaultTokenized__factory,
+  IVaultTokenized,
   Ownable__factory,
-  TimelockController__factory,
+  TimelockController,
 } from '@hyperlane-xyz/core';
 import { CheckerViolation, MultiProvider } from '@hyperlane-xyz/sdk';
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
@@ -26,16 +28,9 @@ interface SymbioticViolation extends CheckerViolation {
   account?: string;
 }
 
-interface SymbioticConfig {
+export interface SymbioticConfig {
   chain: string;
-  network: {
-    address: string;
-  };
-  accessManager: {
-    address: string;
-  };
   vault: {
-    address: string;
     epochDuration: number;
   };
   // delegator: {
@@ -43,7 +38,6 @@ interface SymbioticConfig {
   //   operatorNetworkShares?: any;
   // };
   rewards: {
-    address: string;
     adminFee: number;
   };
   burner: {
@@ -51,11 +45,11 @@ interface SymbioticConfig {
   };
 }
 
-export interface DerivedContracts {
-  slasher: string;
-  delegator: string;
-  burnerRouter: string;
-  collateral: string;
+export interface SymbioticContracts {
+  vault: IVaultTokenized;
+  compoundStakerRewards: ICompoundStakerRewards;
+  network: TimelockController;
+  accessManager: AccessControl;
 }
 
 export class SymbioticChecker {
@@ -66,42 +60,31 @@ export class SymbioticChecker {
   constructor(
     readonly multiProvider: MultiProvider,
     readonly config: SymbioticConfig,
-    readonly derivedContractAddresses: DerivedContracts,
+    readonly contracts: SymbioticContracts,
   ) {
     this.provider = this.multiProvider.getProvider(this.config.chain);
   }
 
-  static async deriveContractAddresses(
-    chain: string,
-    multiProvider: MultiProvider,
-    vaultAddress: string,
-  ): Promise<DerivedContracts> {
-    const provider = multiProvider.getProvider(chain);
-    const vault = IVaultTokenized__factory.connect(vaultAddress, provider);
-    return {
-      slasher: await vault.slasher(),
-      delegator: await vault.delegator(),
-      burnerRouter: await vault.burner(),
-      collateral: await vault.collateral(),
-    };
-  }
-
   async check(): Promise<void> {
+    const delegatorAddress = await this.contracts.vault.delegator();
+    const slasherAddress = await this.contracts.vault.slasher();
+    const burnerRouterAddress = await this.contracts.vault.burner();
+    const collateralAddress = await this.contracts.vault.collateral();
+
     await this.checkVault();
-    await this.checkDelegator();
-    await this.checkSlasher();
-    await this.checkBurner();
+    await this.checkDelegator(delegatorAddress);
+    await this.checkSlasher(slasherAddress);
+    await this.checkBurner(
+      burnerRouterAddress,
+      collateralAddress,
+      slasherAddress,
+    );
     await this.checkRewards();
     await this.checkNetwork();
   }
 
   private async checkVault(): Promise<void> {
-    const vault = IVaultTokenized__factory.connect(
-      this.config.vault.address,
-      this.provider,
-    );
-
-    const actualEpochDuration = await vault.epochDuration();
+    const actualEpochDuration = await this.contracts.vault.epochDuration();
     if (actualEpochDuration !== this.config.vault.epochDuration) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
@@ -115,35 +98,37 @@ export class SymbioticChecker {
     }
 
     const roleIds = {
-      depositWhitelistSetter: await vault.DEPOSIT_WHITELIST_SET_ROLE(),
-      depositWhitelist: await vault.DEPOSITOR_WHITELIST_ROLE(),
-      isDepositLimitSetter: await vault.IS_DEPOSIT_LIMIT_SET_ROLE(),
-      depositLimitSetter: await vault.DEPOSIT_LIMIT_SET_ROLE(),
+      depositWhitelistSetter:
+        await this.contracts.vault.DEPOSIT_WHITELIST_SET_ROLE(),
+      depositWhitelist: await this.contracts.vault.DEPOSITOR_WHITELIST_ROLE(),
+      isDepositLimitSetter:
+        await this.contracts.vault.IS_DEPOSIT_LIMIT_SET_ROLE(),
+      depositLimitSetter: await this.contracts.vault.DEPOSIT_LIMIT_SET_ROLE(),
     };
 
     await this.checkAccessControl(
-      this.config.vault.address,
+      this.contracts.vault.address,
       'vault',
       roleIds,
-      this.config.accessManager.address,
+      this.contracts.accessManager.address,
     );
   }
 
-  private async checkDelegator(): Promise<void> {
+  private async checkDelegator(delegatorAddress: string): Promise<void> {
     const delegator = INetworkRestakeDelegator__factory.connect(
-      this.derivedContractAddresses.delegator,
+      delegatorAddress,
       this.provider,
     );
 
     const actualVault = await delegator.vault();
-    if (!eqAddress(actualVault, this.config.vault.address)) {
+    if (!eqAddress(actualVault, this.contracts.vault.address)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'delegator',
         referenceField: 'vault',
         actual: actualVault,
-        expected: this.config.vault.address,
+        expected: this.contracts.vault.address,
       };
       this.addViolation(violation);
     }
@@ -157,28 +142,28 @@ export class SymbioticChecker {
     };
 
     await this.checkAccessControl(
-      this.derivedContractAddresses.delegator,
+      delegatorAddress,
       'delegator',
       roleIds,
-      this.config.accessManager.address,
+      this.contracts.accessManager.address,
     );
   }
 
-  private async checkSlasher(): Promise<void> {
+  private async checkSlasher(slasherAddress: string): Promise<void> {
     const slasher = IBaseSlasher__factory.connect(
-      this.derivedContractAddresses.slasher,
+      slasherAddress,
       this.provider,
     );
 
     const actualVault = await slasher.vault();
-    if (!eqAddress(actualVault, this.config.vault.address)) {
+    if (!eqAddress(actualVault, this.contracts.vault.address)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'slasher',
         referenceField: 'vault',
         actual: actualVault,
-        expected: this.config.vault.address,
+        expected: this.contracts.vault.address,
       };
       this.addViolation(violation);
     }
@@ -197,47 +182,47 @@ export class SymbioticChecker {
     }
   }
 
-  private async checkBurner(): Promise<void> {
+  private async checkBurner(
+    burnerRouterAddress: string,
+    collateralAddress: string,
+    slasherAddress: string,
+  ): Promise<void> {
     const burnerRouter = IBurnerRouter__factory.connect(
-      this.derivedContractAddresses.burnerRouter,
+      burnerRouterAddress,
       this.provider,
     );
 
     const actualCollateral = await burnerRouter.collateral();
 
-    if (
-      !eqAddress(actualCollateral, this.derivedContractAddresses.collateral)
-    ) {
+    if (!eqAddress(actualCollateral, collateralAddress)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'burner',
         referenceField: 'collateral',
         actual: actualCollateral,
-        expected: this.derivedContractAddresses.collateral,
+        expected: collateralAddress,
       };
       this.addViolation(violation);
     }
 
     const actualNetworkReceiver = await burnerRouter.networkReceiver(
-      this.config.network.address,
+      this.contracts.network.address,
     );
-    if (
-      !eqAddress(actualNetworkReceiver, this.derivedContractAddresses.slasher)
-    ) {
+    if (!eqAddress(actualNetworkReceiver, slasherAddress)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'burner',
         referenceField: 'networkReceiver',
         actual: actualNetworkReceiver,
-        expected: this.derivedContractAddresses.slasher,
+        expected: slasherAddress,
       };
       this.addViolation(violation);
     }
 
     const ownableBurner = Ownable__factory.connect(
-      this.derivedContractAddresses.burnerRouter,
+      burnerRouterAddress,
       this.provider,
     );
     const owner = await ownableBurner.owner();
@@ -255,84 +240,65 @@ export class SymbioticChecker {
   }
 
   private async checkRewards(): Promise<void> {
-    // TODO: remove try catch when we have the correct address for the rewards contract
+    const rewardsAddress = await this.contracts.compoundStakerRewards.rewards();
     const rewards = IDefaultStakerRewards__factory.connect(
-      this.config.rewards.address,
+      rewardsAddress,
       this.provider,
     );
 
-    let actualVault: string;
-    try {
-      actualVault = await rewards.VAULT();
-      if (!eqAddress(actualVault, this.config.vault.address)) {
-        const violation: SymbioticViolation = {
-          chain: this.config.chain,
-          type: SymbioticViolationType.State,
-          contractName: 'rewards',
-          referenceField: 'vault',
-          actual: actualVault,
-          expected: this.config.vault.address,
-        };
-        this.addViolation(violation);
-      }
-    } catch (e) {
-      this.logger.error(`Error reading vault from rewards contract: ${e}`);
-    }
-
-    let actualAdminFee: BigNumber;
-    try {
-      actualAdminFee = await rewards.adminFee();
-      const expectedAdminFee = BigNumber.from(this.config.rewards.adminFee);
-      if (actualAdminFee.toString() !== expectedAdminFee.toString()) {
-        const violation: SymbioticViolation = {
-          chain: this.config.chain,
-          type: SymbioticViolationType.State,
-          contractName: 'rewards',
-          referenceField: 'adminFee',
-          actual: actualAdminFee.toString(),
-          expected: expectedAdminFee.toString(),
-        };
-        this.addViolation(violation);
-      }
-    } catch (e) {
-      this.logger.error(`Error reading adminFee from rewards contract: ${e}`);
-    }
-
-    try {
-      const roleIds = {
-        adminFeeClaim: await rewards.ADMIN_FEE_CLAIM_ROLE(),
-        adminFeeSet: await rewards.ADMIN_FEE_SET_ROLE(),
+    const actualVault = await rewards.VAULT();
+    if (!eqAddress(actualVault, this.contracts.vault.address)) {
+      const violation: SymbioticViolation = {
+        chain: this.config.chain,
+        type: SymbioticViolationType.State,
+        contractName: 'rewards',
+        referenceField: 'vault',
+        actual: actualVault,
+        expected: this.contracts.vault.address,
       };
-
-      await this.checkAccessControl(
-        this.config.rewards.address,
-        'rewards',
-        roleIds,
-        this.config.accessManager.address,
-      );
-    } catch (e) {
-      this.logger.error(`Error checking access control for rewards: ${e}`);
+      this.addViolation(violation);
     }
-  }
 
-  private async checkNetwork(): Promise<void> {
-    const network = TimelockController__factory.connect(
-      this.config.network.address,
-      this.provider,
-    );
+    const actualAdminFee = await rewards.adminFee();
+    const expectedAdminFee = BigNumber.from(this.config.rewards.adminFee);
+    if (actualAdminFee.toString() !== expectedAdminFee.toString()) {
+      const violation: SymbioticViolation = {
+        chain: this.config.chain,
+        type: SymbioticViolationType.State,
+        contractName: 'rewards',
+        referenceField: 'adminFee',
+        actual: actualAdminFee.toString(),
+        expected: expectedAdminFee.toString(),
+      };
+      this.addViolation(violation);
+    }
 
     const roleIds = {
-      executor: await network.EXECUTOR_ROLE(),
-      proposer: await network.PROPOSER_ROLE(),
-      canceller: await network.CANCELLER_ROLE(),
-      admin: await network.TIMELOCK_ADMIN_ROLE(),
+      adminFeeClaim: await rewards.ADMIN_FEE_CLAIM_ROLE(),
+      adminFeeSet: await rewards.ADMIN_FEE_SET_ROLE(),
     };
 
     await this.checkAccessControl(
-      this.config.network.address,
+      rewardsAddress,
+      'rewards',
+      roleIds,
+      this.contracts.accessManager.address,
+    );
+  }
+
+  private async checkNetwork(): Promise<void> {
+    const roleIds = {
+      executor: await this.contracts.network.EXECUTOR_ROLE(),
+      proposer: await this.contracts.network.PROPOSER_ROLE(),
+      canceller: await this.contracts.network.CANCELLER_ROLE(),
+      timelockAdmin: await this.contracts.network.TIMELOCK_ADMIN_ROLE(),
+    };
+
+    await this.checkAccessControl(
+      this.contracts.network.address,
       'network',
       roleIds,
-      this.config.accessManager.address,
+      this.contracts.accessManager.address,
     );
   }
 

@@ -1,36 +1,38 @@
+import {
+  AccessControl__factory,
+  ICompoundStakerRewards__factory,
+  IVaultTokenized__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
+
 import { Contexts } from '../../config/contexts.js';
 import { Role } from '../../src/roles.js';
-import { SymbioticChecker } from '../../src/symbiotic/HyperlaneSymbioticChecker.js';
+import {
+  SymbioticChecker,
+  SymbioticConfig,
+  SymbioticContracts,
+} from '../../src/symbiotic/HyperlaneSymbioticChecker.js';
 import { getArgs, withContext } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 // TODO:
-// rewards contract address is wrong?
 // delegator subnetwork checks
 
 // STAGING DEPLOYMENT Addresses
 const ACCESS_MANAGER = '0xfad1c94469700833717fa8a3017278bc1ca8031c';
 const VAULT = '0xF56179944D867469612D138c74F1dE979D3faC72';
 const NETWORK = '0x44ea7acf8785d9274047e05c249ba80f7ff79d36';
-const REWARDS = '0x2aDe4CDD4DCECD4FdE76dfa99d61bC8c1940f2CE'; // don't think this is the correct address for the staging deployment
+const COMPOUND_STAKER_REWARDS = '0x2aDe4CDD4DCECD4FdE76dfa99d61bC8c1940f2CE';
 
 // TODO: will replace this hardcoded config with the actual config based on the environment
 // hardcoded staging config
-const config = {
+const config: SymbioticConfig = {
   chain: 'sepolia',
-  network: {
-    address: NETWORK,
-  },
-  accessManager: {
-    address: ACCESS_MANAGER,
-  },
   vault: {
-    address: VAULT,
     epochDuration: 604800,
   },
   rewards: {
-    address: REWARDS,
-    adminFee: 1000000, // dummy value
+    adminFee: 0,
   },
   burner: {
     owner: ACCESS_MANAGER,
@@ -54,18 +56,19 @@ async function main() {
     [config.chain],
   );
 
-  const derivedContractAddresses =
-    await SymbioticChecker.deriveContractAddresses(
-      config.chain,
-      multiProvider,
-      config.vault.address,
-    );
+  const provider = multiProvider.getProvider(config.chain);
 
-  const checker = new SymbioticChecker(
-    multiProvider,
-    config,
-    derivedContractAddresses,
-  );
+  const contracts: SymbioticContracts = {
+    compoundStakerRewards: ICompoundStakerRewards__factory.connect(
+      COMPOUND_STAKER_REWARDS,
+      provider,
+    ),
+    network: TimelockController__factory.connect(NETWORK, provider),
+    accessManager: AccessControl__factory.connect(ACCESS_MANAGER, provider),
+    vault: IVaultTokenized__factory.connect(VAULT, provider),
+  };
+
+  const checker = new SymbioticChecker(multiProvider, config, contracts);
   await checker.check();
   checker.logViolationsTable();
   checker.expectEmpty();
