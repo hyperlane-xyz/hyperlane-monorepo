@@ -35,13 +35,13 @@ async fn test_payload_db_write_is_detected_by_loader() {
     dispatcher_entrypoint.send_payload(&payload).await.unwrap();
 
     // Check if the loader detects the new payload
-    sleep(Duration::from_secs(1)).await; // Wait for the loader to process the payload
+    sleep(Duration::from_millis(100)).await; // Wait for the loader to process the payload
     let detected_payload_count = {
         let queue = building_stage_queue.lock().await;
         queue.len()
     };
-    assert!(
-        detected_payload_count == 1,
+    assert_eq!(
+        detected_payload_count, 1,
         "Loader did not detect the new payload"
     );
 }
