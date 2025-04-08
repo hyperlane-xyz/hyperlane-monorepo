@@ -172,7 +172,7 @@ jobs:
           echo "CLI E2E tests failed"
           exit 1
 
-  cosmos-sdk-e2e-matrix:
+  cosmos-sdk-e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
