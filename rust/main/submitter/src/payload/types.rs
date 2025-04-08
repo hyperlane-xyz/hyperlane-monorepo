@@ -100,6 +100,15 @@ pub enum PayloadStatus {
     Retry(RetryReason),
 }
 
+impl PayloadStatus {
+    pub fn is_finalized(&self) -> bool {
+        matches!(
+            self,
+            PayloadStatus::InTransaction(TransactionStatus::Finalized)
+        )
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum DropReason {
     FailedToBuildAsTransaction,

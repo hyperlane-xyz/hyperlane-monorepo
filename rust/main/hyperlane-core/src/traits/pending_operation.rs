@@ -171,7 +171,11 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     async fn payload(&self) -> ChainResult<Vec<u8>>;
 
     /// Public version of on_reprepare method
-    fn on_reprepare_ex(&mut self, reason: ReprepareReason) -> PendingOperationResult;
+    fn on_reprepare(
+        &mut self,
+        err_msg: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult;
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
@@ -276,7 +280,10 @@ pub enum ReprepareReason {
     ErrorStoringPayloadIdByMessageId,
     #[strum(to_string = "Failed to retrieve payload id by message id")]
     /// Failed to retrieve payload id by message id
-    ErrorRetrievingPayloadIdByMessageId,
+    ErrorRetrievingPayloadId,
+    #[strum(to_string = "Failed to retrieve payload id by message id")]
+    /// Failed to retrieve payload id by message id
+    ErrorRetrievingPayloadStatus,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

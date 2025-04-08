@@ -375,7 +375,11 @@ pub mod test {
             todo!()
         }
 
-        fn on_reprepare_ex(&mut self, _: ReprepareReason) -> PendingOperationResult {
+        fn on_reprepare(
+            &mut self,
+            _err_msg: Option<String>,
+            _: ReprepareReason,
+        ) -> PendingOperationResult {
             todo!()
         }
     }

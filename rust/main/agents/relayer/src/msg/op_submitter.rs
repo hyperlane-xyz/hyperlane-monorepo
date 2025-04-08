@@ -9,6 +9,7 @@ use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use itertools::{Either, Itertools};
+use num_traits::Zero;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
@@ -19,7 +20,8 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    total_estimated_cost, BatchResult, ChainCommunicationError, ChainResult, ConfirmReason::*,
+    total_estimated_cost, BatchResult, ChainCommunicationError, ChainResult,
+    ConfirmReason::{self, *},
     HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
 };
@@ -512,15 +514,15 @@ async fn submit_via_lander(
 async fn prepare_op(
     mut op: QueueOperation,
     prepare_queue: &OpQueue,
-    e: impl Debug,
+    err: impl Debug,
     msg: &str,
     reason: ReprepareReason,
 ) {
     use PendingOperationStatus::Retry;
 
     let status = Retry(reason.clone());
-    let result = op.on_reprepare_ex(reason);
-    warn!(?e, ?status, ?result, msg);
+    let result = op.on_reprepare(Some(format!("{:?}", err)), reason);
+    warn!(?err, ?status, ?result, msg);
     prepare_queue.push(op, Some(status)).await;
 }
 
@@ -650,12 +652,13 @@ fn from_payload_status_into_result_for_confirmation(
             Finalized => Success,
         },
         PayloadDropped(d) => match d {
-            FailedToBuildAsTransaction => Drop,
-            FailedSimulation | UnhandledError => Reprepare(ReprepareReason::ErrorEstimatingGas),
+            FailedToBuildAsTransaction | FailedSimulation | UnhandledError => {
+                Reprepare(ReprepareReason::ErrorEstimatingGas)
+            }
             Reverted => Reprepare(ReprepareReason::RevertedOrReorged),
         },
         Retry(r) => match r {
-            Reorged => Reprepare(ReprepareReason::RevertedOrReorged),
+            Reorged => Confirm(SubmittedBySelf),
         },
     }
 }
@@ -700,33 +703,65 @@ async fn confirm_lander_task(
             sleep(Duration::from_millis(200)).await;
             continue;
         }
-
-        let payload_status_futures = batch
+        // cannot use `join_all` here because db reads are blocking
+        let payload_id_results = batch
             .into_iter()
-            .map(|op| async {
+            .map(|op| {
                 let message_id = op.id();
-                let result = if let Ok(Some(p)) = db.retrieve_payload_id_by_message_id(&message_id)
-                {
-                    match entrypoint.payload_status(p).await {
-                        Ok(s) => from_payload_status_into_result_for_confirmation(&s),
-                        Err(e) => from_submitter_error_into_result_for_confirmation(&e),
-                    }
-                } else {
-                    PendingOperationResult::Reprepare(
-                        ReprepareReason::ErrorRetrievingPayloadIdByMessageId,
-                    )
-                };
-
-                (op, result)
+                (op, db.retrieve_payload_id_by_message_id(&message_id))
             })
             .collect::<Vec<_>>();
 
-        let payload_status_results = join_all(payload_status_futures).await;
+        let payload_status_result_futures = payload_id_results
+            .into_iter()
+            .map(|(op, result)| async {
+                let message_id = op.id();
+                match result {
+                    Ok(Some(payload_id)) => Some((op, entrypoint.payload_status(payload_id).await)),
+                    Ok(None) | Err(_) => {
+                        error!(
+                            ?op,
+                            %message_id,
+                            "Error retrieving payload id by message id",
+                        );
+                        send_back_on_failed_submisison(
+                            op,
+                            prepare_queue.clone(),
+                            &metrics,
+                            Some(&ReprepareReason::ErrorRetrievingPayloadId),
+                        )
+                        .await;
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
 
+        let payload_status_results = join_all(payload_status_result_futures)
+            .await
+            .into_iter()
+            .filter_map(|result| result.map(|x| x))
+            .collect::<Vec<_>>();
+
+        let confirmed_operations = Arc::new(Mutex::new(0));
         let confirm_futures = payload_status_results
             .into_iter()
-            .map(|(op, r)| async {
-                if let PendingOperationResult::Success = r {
+            .map(|(op, status_result)| async {
+                let Ok(payload_status) = status_result else {
+                    send_back_on_failed_submisison(
+                        op,
+                        prepare_queue.clone(),
+                        &metrics,
+                        Some(&ReprepareReason::ErrorRetrievingPayloadId),
+                    )
+                    .await;
+                    return;
+                };
+                if payload_status.is_finalized() {
+                    {
+                        let mut lock = confirmed_operations.lock().await;
+                        *lock += 1;
+                    }
                     confirm_operation(
                         op,
                         domain.clone(),
@@ -734,27 +769,21 @@ async fn confirm_lander_task(
                         confirm_queue.clone(),
                         metrics.clone(),
                     )
-                    .await
+                    .await;
                 } else {
                     process_confirm_result(
                         op,
                         prepare_queue.clone(),
                         confirm_queue.clone(),
                         metrics.clone(),
-                        r,
+                        PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf),
                     )
-                    .await
+                    .await;
                 }
             })
             .collect::<Vec<_>>();
-
-        let confirm_results = join_all(confirm_futures).await;
-        if confirm_results.iter().all(|result| {
-            matches!(
-                result,
-                PendingOperationResult::NotReady | PendingOperationResult::Confirm(_)
-            )
-        }) {
+        let _ = join_all(confirm_futures).await;
+        if confirmed_operations.lock().await.is_zero() {
             // None of the operations are ready, so wait for a little bit
             // before checking again to prevent burning CPU
             sleep(Duration::from_millis(500)).await;
@@ -799,10 +828,7 @@ async fn process_confirm_result(
                 .await;
         }
         PendingOperationResult::Reprepare(reason) => {
-            metrics.ops_failed.inc();
-            prepare_queue
-                .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
-                .await;
+            send_back_on_failed_submisison(op, prepare_queue.clone(), &metrics, Some(reason)).await;
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
@@ -810,6 +836,19 @@ async fn process_confirm_result(
         }
     }
     operation_result
+}
+
+async fn send_back_on_failed_submisison(
+    op: QueueOperation,
+    prepare_queue: OpQueue,
+    metrics: &SerialSubmitterMetrics,
+    maybe_reason: Option<&ReprepareReason>,
+) {
+    metrics.ops_failed.inc();
+    let reason = maybe_reason.unwrap_or(&ReprepareReason::ErrorSubmitting);
+    prepare_queue
+        .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
+        .await;
 }
 
 #[derive(Debug, Clone)]

@@ -549,8 +549,12 @@ impl PendingOperation for PendingMessage {
         Ok(payload)
     }
 
-    fn on_reprepare_ex(&mut self, reason: ReprepareReason) -> PendingOperationResult {
-        self.on_reprepare::<String>(None, reason)
+    fn on_reprepare(
+        &mut self,
+        err: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult {
+        self.on_reprepare(err, reason)
     }
 }
 
