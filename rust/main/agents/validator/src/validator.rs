@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
-use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
@@ -53,7 +52,6 @@ pub struct Validator {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     agent_metadata: AgentMetadata,
-    announced: IntGauge,
 }
 
 #[async_trait]
@@ -120,10 +118,6 @@ impl BaseAgent for Validator {
             )
             .await?;
 
-        let announced = metrics
-            .announced()
-            .with_label_values(&[&settings.origin_chain.name().to_string()]);
-
         Ok(Self {
             origin_chain: settings.origin_chain,
             origin_chain_conf,
@@ -143,7 +137,6 @@ impl BaseAgent for Validator {
             core_metrics: metrics,
             runtime_metrics,
             agent_metadata,
-            announced,
         })
     }
 
@@ -369,9 +362,6 @@ impl Validator {
                         ?announcement_location,
                         "Validator has announced signature storage location"
                     );
-
-                    // Set announced in metrics
-                    self.announced.set(1);
 
                     break;
                 }

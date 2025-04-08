@@ -465,6 +465,17 @@ impl CoreMetrics {
         self.latest_checkpoint.clone()
     }
 
+    /// Set the validator to be announced
+    ///
+    /// Labels:
+    /// - `chain`: Chain the validator was announced on.
+    pub fn set_announced(&self, origin_chain: HyperlaneDomain) {
+        self.announced
+            .clone()
+            .with_label_values(&[&origin_chain.name()])
+            .set(1);
+    }
+
     /// Whether the validator has been announced.
     ///
     /// Labels:
