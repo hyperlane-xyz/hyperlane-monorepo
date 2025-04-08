@@ -88,6 +88,9 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
+    env:
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
+    needs: [yarn-install]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -223,13 +226,33 @@ jobs:
       # - PR with changes to this workflow
       - name: Check for Rust file changes
         id: check-rust-changes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "rust_changes=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" && -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml)" ]]; then
-            echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "Changes detected in Rust files or workflow:"
-            git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust ./.github/workflows/test.yml
+            # For main branch, check changes in the current commit
+            PARENT_SHA=$(git rev-parse HEAD^)
+            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml)
+
+            if [[ -n "$CHANGES" ]]; then
+              echo "rust_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected in Rust files or workflow on main branch:"
+              echo "$CHANGES"
+            else
+              echo "rust_changes=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, use GitHub CLI to check changes
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml")')
+
+            if [[ -n "$CHANGES" ]]; then
+              echo "rust_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected in Rust files or workflow in PR:"
+              echo "$CHANGES"
+            else
+              echo "rust_changes=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
@@ -359,6 +382,7 @@ jobs:
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
       MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
       TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
+
 
     timeout-minutes: 10
     strategy:
