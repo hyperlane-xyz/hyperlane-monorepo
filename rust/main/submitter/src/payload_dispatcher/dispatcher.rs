@@ -57,7 +57,7 @@ impl PayloadDispatcher {
         })
     }
 
-    pub async fn spawn(self) -> Instrumented<JoinHandle<()>> {
+    pub async fn spawn(self) -> JoinHandle<()> {
         let mut tasks = vec![];
         let building_stage_queue: BuildingStageQueue = Arc::new(Mutex::new(VecDeque::new()));
         let (inclusion_stage_sender, inclusion_stage_receiver) =
@@ -135,9 +135,11 @@ impl PayloadDispatcher {
         );
         tasks.push(transaction_loader_task);
 
-        tokio::spawn(async move {
-            join_all(tasks).await;
-        })
-        .instrument(tracing::info_span!("payload_dispatcher"))
+        tokio::spawn(
+            async move {
+                join_all(tasks).await;
+            }
+            .instrument(tracing::info_span!("payload_dispatcher")),
+        )
     }
 }

@@ -34,7 +34,9 @@ use hyperlane_core::{
     QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
-use submitter::{DatabaseOrPath, PayloadDispatcherEntrypoint, PayloadDispatcherSettings};
+use submitter::{
+    DatabaseOrPath, PayloadDispatcher, PayloadDispatcherEntrypoint, PayloadDispatcherSettings,
+};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -97,6 +99,7 @@ pub struct Relayer {
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint>,
+    payload_dispatchers: HashMap<HyperlaneDomain, PayloadDispatcher>,
 }
 
 impl Debug for Relayer {
@@ -163,6 +166,14 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
         let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
+            &settings,
+            core_metrics.clone(),
+            &chain_metrics,
+            db.clone(),
+        )
+        .await;
+
+        let dispatchers = Self::build_payload_dispatchers(
             &settings,
             core_metrics.clone(),
             &chain_metrics,
@@ -351,6 +362,7 @@ impl BaseAgent for Relayer {
             runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
+            payload_dispatchers: dispatchers,
         })
     }
 
@@ -420,6 +432,10 @@ impl BaseAgent for Relayer {
                 serial_submitter,
                 task_monitor.clone(),
             ));
+
+            if let Some(dispatcher) = self.payload_dispatchers.remove(dest_domain) {
+                tasks.push(dispatcher.spawn().await);
+            }
 
             let metrics_updater = ChainSpecificMetricsUpdater::new(
                 dest_conf,
@@ -795,7 +811,45 @@ impl Relayer {
                     None
                 }
             })
-            .collect::<HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint>>()
+            .collect::<HashMap<_, _>>()
+    }
+
+    /// Helper function to build and return a hashmap of payload dispatchers.
+    /// Any chains that fail to build payload dispatcher will not be included
+    /// in the hashmap. Errors will be logged and chain metrics
+    /// will be updated for chains that fail to build payload dispatcher.
+    pub async fn build_payload_dispatchers(
+        settings: &RelayerSettings,
+        core_metrics: Arc<CoreMetrics>,
+        chain_metrics: &ChainMetrics,
+        db: DB,
+    ) -> HashMap<HyperlaneDomain, PayloadDispatcher> {
+        settings
+            .destination_chains
+            .iter()
+            .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
+            .map(|chain| {
+                (
+                    chain.clone(),
+                    PayloadDispatcherSettings {
+                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        raw_chain_conf: Default::default(),
+                        domain: chain.clone(),
+                        db: DatabaseOrPath::Database(db.clone()),
+                        metrics: core_metrics.clone(),
+                    },
+                )
+            })
+            .map(|(chain, s)| (chain, PayloadDispatcher::try_from_settings(s)))
+            .filter_map(|(chain, result)| match result {
+                Ok(entrypoint) => Some((chain, entrypoint)),
+                Err(err) => {
+                    error!(?err, origin=?chain, "Critical error when building payload dispatcher");
+                    chain_metrics.set_critical_error(chain.name(), true);
+                    None
+                }
+            })
+            .collect::<HashMap<_, _>>()
     }
 
     /// Helper function to build and return a hashmap of validator announces.
