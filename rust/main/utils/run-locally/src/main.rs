@@ -418,7 +418,9 @@ fn main() -> ExitCode {
         loop_start,
         || {
             Ok(
-                relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?,
+                relayer_restart_invariants_met()?
+                    && relayer_reorg_handling_invariants_met()?
+                    && relayer_cached_metadata_invariant_met()?,
                 // TODO: fix and uncomment
                 // && relayer_cached_metadata_invariant_met()?
             )
