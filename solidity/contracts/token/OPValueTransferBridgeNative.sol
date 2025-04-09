@@ -10,6 +10,8 @@ import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
 import {Quotes} from "../interfaces/IValueTransferBridge.sol";
 import {IL2CrossDomainMessenger, ICrossDomainMessenger, IL2ToL1MessagePasser} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 
+import {console} from "forge-std/console.sol";
+
 contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
     using TypeCasts for bytes32;
 
@@ -39,6 +41,7 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
         bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quotes[] memory quotes) {
+        quotes = new Quotes[](1);
         bytes memory hookMetadata = StandardHookMetadata.overrideGasLimit(
             HOOK_METADATA_GAS_LIMIT
         );
@@ -49,7 +52,6 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
             bytes("") // metadata
         );
 
-        quotes = new Quotes[](1);
         quotes[0] = Quotes(
             address(0),
             _Router_quoteDispatch(
