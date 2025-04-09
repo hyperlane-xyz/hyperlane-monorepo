@@ -1,6 +1,6 @@
 import { DISALLOWED_URL_MSG } from './errors.js';
 
-export const GITHUB_API_ALLOWLIST = [
+const GITHUB_API_ALLOWLIST = [
   /^\/repos\/hyperlane-xyz\/hyperlane-registry\/.*/,
 ];
 const GITPUB_API_HOST = 'https://api.github.com';
