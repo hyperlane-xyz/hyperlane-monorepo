@@ -227,8 +227,8 @@ mod tests {
         payload_dispatcher::{
             stages::{building_stage, finality_stage},
             test_utils::{
-                create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
-                MockAdapter,
+                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
+                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
             },
             PayloadDb, TransactionDb,
         },
@@ -401,16 +401,6 @@ mod tests {
             )
             .await;
         }
-    }
-
-    async fn are_all_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
-        let pool = pool.lock().await;
-        txs.iter().all(|tx| pool.contains_key(&tx.id))
-    }
-
-    async fn are_no_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
-        let pool = pool.lock().await;
-        txs.iter().all(|tx| !pool.contains_key(&tx.id))
     }
 
     async fn set_up_test_and_run_stage(

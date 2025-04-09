@@ -219,8 +219,8 @@ mod tests {
     use crate::{
         payload_dispatcher::{
             test_utils::{
-                create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
-                MockAdapter,
+                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
+                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
             },
             PayloadDb, TransactionDb,
         },
@@ -247,7 +247,7 @@ mod tests {
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
         assert_eq!(txs_received.len(), TXS_TO_PROCESS);
-        assert_txs_not_in_db(txs_created.clone(), &pool).await;
+        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
             &tx_db,
@@ -278,7 +278,7 @@ mod tests {
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
         assert_eq!(txs_received.len(), 0);
-        assert_txs_not_in_db(txs_created.clone(), &pool).await;
+        assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
             &tx_db,
@@ -307,7 +307,7 @@ mod tests {
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
         assert_eq!(txs_received.len(), 0);
-        assert_txs_not_in_db(txs_created.clone(), &pool).await;
+        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
             &tx_db,
@@ -315,13 +315,6 @@ mod tests {
             TransactionStatus::Dropped(TxDropReason::FailedSimulation),
         )
         .await;
-    }
-
-    async fn assert_txs_not_in_db(txs: Vec<Transaction>, pool: &InclusionStagePool) {
-        let pool = pool.lock().await;
-        for tx in txs.iter() {
-            assert!(pool.get(&tx.id).is_none());
-        }
     }
 
     async fn set_up_test_and_run_stage(
