@@ -116,6 +116,8 @@ mod test {
 
     use hyperlane_core::{H256, U256};
 
+    use crate::cache::moka::dynamic_expiry::DEFAULT_EXPIRATION;
+
     use super::*;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -291,13 +293,17 @@ mod test {
                 match i {
                     0 => ttl
                         // The first entry should have a TTL between 1 and 5 seconds
-                        .is_some_and(|duration| duration.as_millis() > 1 && duration.as_secs() < 5),
+                        .is_some_and(|duration| {
+                            duration.as_millis() > 1 && duration.as_secs() <= 5
+                        }),
                     1 => ttl
                         // The second entry should have a TTL between 5 and 10 seconds
-                        .is_some_and(|duration| duration.as_secs() > 5 && duration.as_secs() < 10),
+                        .is_some_and(|duration| duration.as_secs() > 5 && duration.as_secs() <= 10),
                     2 => ttl.is_some_and(|duration| {
-                        // The third entry should have a TTL of around 5 minutes (between 295 and 300 seconds)
-                        duration.as_secs() > 295 && duration.as_secs() < 300
+                        let default_secs = DEFAULT_EXPIRATION.as_secs();
+                        // The third entry should have a TTL of > 90% of the default
+                        duration.as_secs() > ((default_secs * 9) / 10)
+                            && duration.as_secs() <= default_secs
                     }),
                     // The fourth entry should never expire
                     3 => ttl.is_none(),

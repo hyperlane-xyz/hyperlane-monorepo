@@ -4,6 +4,9 @@ use chrono::{offset::LocalResult, TimeZone, Utc};
 use moka::Expiry;
 use serde::{Deserialize, Serialize};
 
+/// Default expiration time for cache entries.
+pub const DEFAULT_EXPIRATION: Duration = Duration::from_secs(60 * 2);
+
 /// The type of expiration for a cache entry.
 ///
 /// ## Variants
@@ -11,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// - `Never`: Never expire.
 /// - `AfterDuration`: Expire after a specified duration.
 /// - `AfterTimestamp`: Expire after a specified timestamp.
-/// - `Default`: Use the default expiration. (5 minutes)
+/// - `Default`: Use the default expiration. (2 minutes)
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ExpirationType {
@@ -52,7 +55,7 @@ impl Expiration {
                     .or(Some(Duration::ZERO))
             }
             ExpirationType::Never => None,
-            ExpirationType::Default => Some(Duration::from_secs(60 * 5)),
+            ExpirationType::Default => Some(DEFAULT_EXPIRATION),
         }
     }
 
