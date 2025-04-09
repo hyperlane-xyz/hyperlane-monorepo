@@ -132,7 +132,7 @@ contract OPL2ToL1CcipReadIsm is
         bytes calldata _message
     ) internal {
         (, bytes32 withdrawalHash) = abi.decode(
-            TokenMessage.metadata(_message.body()),
+            _message.body(),
             (bytes32, bytes32)
         );
 
