@@ -90,12 +90,7 @@ library InterchainAccountMessage {
         bytes32 _userSalt
     ) internal pure returns (bytes memory) {
         return
-            abi.encode(
-                TypeCasts.addressToBytes32(_owner),
-                _ism,
-                _calls,
-                _userSalt
-            );
+            encode(TypeCasts.addressToBytes32(_owner), _ism, _calls, _userSalt);
     }
 
     /**
