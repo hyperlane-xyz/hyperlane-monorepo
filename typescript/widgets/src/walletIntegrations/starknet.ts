@@ -7,7 +7,7 @@ import {
   useSendTransaction,
   useSwitchChain,
 } from '@starknet-react/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Call } from 'starknet';
 
 import {
@@ -56,13 +56,13 @@ export function useStarknetKit() {
           useStarknetkitConnectModal: starknetkit.useStarknetkitConnectModal,
         });
       } catch (error) {
-        console.error('Failed to load starknetkit:', error);
+        logger.error('Failed to load starknetkit:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadStarknetkit();
+    void loadStarknetkit();
   }, []);
 
   return { ...starknetkit, isLoading };
@@ -102,22 +102,36 @@ export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
   const { useStarknetkitConnectModal, isLoading } = useStarknetKit();
 
+  // Store the modal function reference
+  const modalRef = useRef<any>(null);
+
+  // When the hook becomes available, update the reference
+  useEffect(() => {
+    if (!isLoading && useStarknetkitConnectModal) {
+      // Just store the hook function itself
+      modalRef.current = useStarknetkitConnectModal;
+    }
+  }, [isLoading, useStarknetkitConnectModal]);
+
   return useCallback(async () => {
-    if (isLoading || !useStarknetkitConnectModal) {
+    if (isLoading || !modalRef.current) {
       logger.warn('Starknet wallet not loaded yet');
       return;
     }
-    const { starknetkitConnectModal } = useStarknetkitConnectModal({
+
+    // Now call the function to get the modal when needed
+    const modal = modalRef.current({
       connectors: connectors as any[],
-    });
-    const { connector } = await starknetkitConnectModal();
+    }).starknetkitConnectModal;
+
+    const { connector } = await modal();
 
     if (connector) {
       await connectAsync({ connector });
     } else {
       logger.error('No Starknet wallet connectors available');
     }
-  }, [connectAsync, connectors, isLoading, useStarknetkitConnectModal]);
+  }, [connectAsync, connectors, isLoading]);
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {
