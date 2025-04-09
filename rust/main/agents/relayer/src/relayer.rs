@@ -469,7 +469,7 @@ impl BaseAgent for Relayer {
             ));
             tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs", "Relayer startup duration measurement");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree processors", "Relayer startup duration measurement");
 
         // run server
         start_entity_init = Instant::now();
