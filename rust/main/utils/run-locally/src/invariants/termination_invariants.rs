@@ -17,6 +17,7 @@ pub struct RelayerTerminationInvariantParams<'a> {
     pub gas_payment_events_count: u32,
     pub total_messages_expected: u32,
     pub total_messages_dispatched: u32,
+    pub failed_message_count: u32,
     pub submitter_queue_length_expected: u32,
     pub non_matching_igp_message_count: u32,
     pub double_insertion_message_count: u32,
@@ -34,6 +35,7 @@ pub fn relayer_termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
+        failed_message_count,
         submitter_queue_length_expected,
         non_matching_igp_message_count,
         double_insertion_message_count,
@@ -49,8 +51,9 @@ pub fn relayer_termination_invariants_met(
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != submitter_queue_length_expected {
         log!(
-            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
-            lengths
+            "Relayer queues contain more messages than expected. Lengths: {:?}, expected {}",
+            lengths,
+            submitter_queue_length_expected
         );
         return Ok(false);
     };
@@ -161,10 +164,21 @@ pub fn relayer_termination_invariants_met(
     // RHS: total_messages_expected + non_matching_igp_messages + double_insertion_message_count
     let non_zero_sequence_count =
         merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
-    assert_eq!(
-        merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
-        total_messages_expected + non_matching_igp_message_count + double_insertion_message_count,
-    );
+
+    let lhs = merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count;
+    let rhs = total_messages_expected
+        + non_matching_igp_message_count
+        + double_insertion_message_count
+        + failed_message_count;
+    if lhs != rhs {
+        log!(
+            "highest tree index does not match messages sent. got {} expected {}",
+            lhs,
+            rhs
+        );
+        return Ok(false);
+    }
+    assert_eq!(lhs, rhs);
 
     let dropped_tasks = fetch_metric(
         RELAYER_METRICS_PORT,
@@ -181,13 +195,23 @@ pub fn relayer_termination_invariants_met(
     Ok(true)
 }
 
+pub struct ScraperTerminationInvariantParams {
+    pub gas_payment_events_count: u32,
+    pub total_messages_dispatched: u32,
+    pub delivered_messages_scraped_expected: u32,
+}
+
 /// returns false if invariants are not met
 /// returns true if invariants are met
 pub fn scraper_termination_invariants_met(
-    gas_payment_events_count: u32,
-    total_messages_dispatched: u32,
-    delivered_messages_scraped_expected: u32,
+    params: ScraperTerminationInvariantParams,
 ) -> eyre::Result<bool> {
+    let ScraperTerminationInvariantParams {
+        gas_payment_events_count,
+        total_messages_dispatched,
+        delivered_messages_scraped_expected,
+    } = params;
+
     log!("Checking scraper termination invariants");
 
     let dispatched_messages_scraped = fetch_metric(
