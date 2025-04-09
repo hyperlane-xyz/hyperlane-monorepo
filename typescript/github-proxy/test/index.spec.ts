@@ -3,7 +3,6 @@ import { SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
 import { DISALLOWED_URL_MSG } from '../src/errors.js';
-import { GITHUB_API_ALLOWLIST } from '../src/index.js';
 
 describe('Hello World worker', () => {
   it('returns empty response if pathname provided is not a valid api url', async () => {
