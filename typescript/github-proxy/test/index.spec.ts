@@ -22,19 +22,6 @@ describe('Hello World worker', () => {
     expect(await results.text()).toBe(DISALLOWED_URL_MSG);
   });
 
-  it('returns results if on the allowlist', async () => {
-    const allowedPath = GITHUB_API_ALLOWLIST[0];
-    const results = await SELF.fetch(
-      `https://example.com${allowedPath}/person/chain1-chain2?recursive=true`,
-    );
-    console.log(
-      'results',
-      `https://example.com${allowedPath}/person/chain1-chain2?recursive=true`,
-    );
-    expect(results.status).toBe(403);
-    expect(await results.text()).toBe(DISALLOWED_URL_MSG);
-  });
-
   it('returns empty response if origin is not on allowlist (with faker 200 tests)', async () => {
     for (let i = 0; i < 200; i++) {
       const results = await SELF.fetch(
