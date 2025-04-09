@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {TokenRouter} from "../token/libs/TokenRouter.sol";
-import {HypNative} from "../token/HypNative.sol";
+import {ValueTransferBridgeNative} from "./ValueTransferBridgeNative.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {TokenMessage} from "../token/libs/TokenMessage.sol";
 import {IStandardBridge} from "../interfaces/optimism/IStandardBridge.sol";
@@ -11,9 +11,7 @@ import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
 import {Quotes, IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
 import {IL2CrossDomainMessenger, ICrossDomainMessenger, IL2ToL1MessagePasser} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 
-import {console} from "forge-std/console.sol";
-
-contract OPValueTransferBridgeNative is IValueTransferBridge, HypNative {
+contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
     using TypeCasts for bytes32;
 
     IL2ToL1MessagePasser public constant L2_TO_L1_MESSAGE_PASSER =
@@ -33,7 +31,7 @@ contract OPValueTransferBridgeNative is IValueTransferBridge, HypNative {
         uint32 _l1Domain,
         address _l2Bridge,
         address _mailbox
-    ) HypNative(_mailbox) {
+    ) ValueTransferBridgeNative(_mailbox) {
         l1Domain = _l1Domain;
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
@@ -62,32 +60,7 @@ contract OPValueTransferBridgeNative is IValueTransferBridge, HypNative {
         );
     }
 
-    /// @dev we have to re-implement HypNative.transferRemote here in order
-    /// to override the gas limit
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    )
-        external
-        payable
-        override(HypNative, IValueTransferBridge)
-        returns (bytes32)
-    {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 _hookPayment = msg.value - _amount;
-        return
-            TokenRouter._transferRemote(
-                _destination,
-                _recipient,
-                _amount,
-                _hookPayment,
-                _getHookMetadata(),
-                address(hook)
-            );
-    }
-
-    function _getHookMetadata() internal view returns (bytes memory) {
+    function _getHookMetadata() internal view override returns (bytes memory) {
         return StandardHookMetadata.overrideGasLimit(HOOK_METADATA_GAS_LIMIT);
     }
 
