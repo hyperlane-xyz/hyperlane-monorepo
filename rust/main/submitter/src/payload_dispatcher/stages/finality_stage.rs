@@ -15,7 +15,7 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
 };
-use tracing::{error, info, info_span, warn, Instrument};
+use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
     error::SubmitterError,
@@ -120,6 +120,14 @@ impl FinalityStage {
         }
     }
 
+    #[instrument(
+        skip(tx, pool, building_stage_queue, state),
+        name = "FinalityStage::try_process_tx"
+        fields(
+            tx_id = ?tx.id,
+            tx_status = ?tx.status,
+            payloads = ?tx.payload_details
+    ))]
     async fn try_process_tx(
         mut tx: Transaction,
         pool: FinalityStagePool,

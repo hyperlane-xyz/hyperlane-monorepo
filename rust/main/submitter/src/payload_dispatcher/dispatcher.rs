@@ -7,7 +7,6 @@ use derive_new::new;
 use eyre::Result;
 use futures_util::future::join_all;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{instrument::Instrumented, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -15,6 +14,7 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::HyperlaneDomain;
+use tracing::{instrument, Instrument};
 
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
@@ -48,15 +48,22 @@ pub enum DatabaseOrPath {
 
 pub struct PayloadDispatcher {
     pub(crate) inner: PayloadDispatcherState,
+    /// the name of the destination chain
+    /// used for logging
+    pub(crate) domain: String,
 }
 
 impl PayloadDispatcher {
-    pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
+    pub fn try_from_settings(settings: PayloadDispatcherSettings, domain: String) -> Result<Self> {
         Ok(Self {
             inner: PayloadDispatcherState::try_from_settings(settings)?,
+            domain,
         })
     }
 
+    // this is an async "constructor" that returns a JoinHandle, so the clippy warning doesn't apply
+    #[allow(clippy::async_yields_async)]
+    #[instrument(skip(self), fields(domain = %self.domain))]
     pub async fn spawn(self) -> JoinHandle<()> {
         let mut tasks = vec![];
         let building_stage_queue: BuildingStageQueue = Arc::new(Mutex::new(VecDeque::new()));
@@ -70,12 +77,15 @@ impl PayloadDispatcher {
             inclusion_stage_sender.clone(),
             self.inner.clone(),
         );
-        let building_task = tokio::spawn(
-            async move {
-                building_stage.run().await;
-            }
-            .instrument(tracing::info_span!("building_stage")),
-        );
+        let building_task = tokio::task::Builder::new()
+            .name("building_stage")
+            .spawn(
+                async move {
+                    building_stage.run().await;
+                }
+                .instrument(tracing::info_span!("building_stage")),
+            )
+            .expect("spawning tokio task from Builder is infallible");
         tasks.push(building_task);
 
         let inclusion_stage = InclusionStage::new(
@@ -83,12 +93,15 @@ impl PayloadDispatcher {
             finality_stage_sender.clone(),
             self.inner.clone(),
         );
-        let inclusion_task = tokio::spawn(
-            async move {
-                inclusion_stage.run().await;
-            }
-            .instrument(tracing::info_span!("inclusion_stage")),
-        );
+        let inclusion_task = tokio::task::Builder::new()
+            .name("inclusion_stage")
+            .spawn(
+                async move {
+                    inclusion_stage.run().await;
+                }
+                .instrument(tracing::info_span!("inclusion_stage")),
+            )
+            .expect("spawning tokio task from Builder is infallible");
         tasks.push(inclusion_task);
 
         let finality_state = FinalityStage::new(
@@ -96,26 +109,32 @@ impl PayloadDispatcher {
             building_stage_queue.clone(),
             self.inner.clone(),
         );
-        let finality_task = tokio::spawn(
-            async move {
-                finality_state.run().await;
-            }
-            .instrument(tracing::info_span!("finality_stage")),
-        );
+        let finality_task = tokio::task::Builder::new()
+            .name("finality_stage")
+            .spawn(
+                async move {
+                    finality_state.run().await;
+                }
+                .instrument(tracing::info_span!("finality_stage")),
+            )
+            .expect("spawning tokio task from Builder is infallible");
         tasks.push(finality_task);
 
         let payload_db_loader =
             PayloadDbLoader::new(self.inner.payload_db.clone(), building_stage_queue.clone());
         let mut payload_iterator = payload_db_loader.into_iterator().await;
-        let payload_loader_task = tokio::spawn(
-            async move {
-                payload_iterator
-                    .load_from_db()
-                    .await
-                    .expect("Payload loader crashed");
-            }
-            .instrument(tracing::info_span!("payload_db_loader")),
-        );
+        let payload_loader_task = tokio::task::Builder::new()
+            .name("payload_loader")
+            .spawn(
+                async move {
+                    payload_iterator
+                        .load_from_db()
+                        .await
+                        .expect("Payload loader crashed");
+                }
+                .instrument(tracing::info_span!("payload_db_loader")),
+            )
+            .expect("spawning tokio task from Builder is infallible");
         tasks.push(payload_loader_task);
 
         let transaction_db_loader = TransactionDbLoader::new(
@@ -124,22 +143,28 @@ impl PayloadDispatcher {
             finality_stage_sender.clone(),
         );
         let mut transaction_iterator = transaction_db_loader.into_iterator().await;
-        let transaction_loader_task = tokio::spawn(
-            async move {
-                transaction_iterator
-                    .load_from_db()
-                    .await
-                    .expect("Transaction loader crashed");
-            }
-            .instrument(tracing::info_span!("transaction_db_loader")),
-        );
+        let transaction_loader_task = tokio::task::Builder::new()
+            .name("transaction_loader")
+            .spawn(
+                async move {
+                    transaction_iterator
+                        .load_from_db()
+                        .await
+                        .expect("Transaction loader crashed");
+                }
+                .instrument(tracing::info_span!("transaction_db_loader")),
+            )
+            .expect("spawning tokio task from Builder is infallible");
         tasks.push(transaction_loader_task);
 
-        tokio::spawn(
-            async move {
-                join_all(tasks).await;
-            }
-            .instrument(tracing::info_span!("payload_dispatcher")),
-        )
+        tokio::task::Builder::new()
+            .name("payload_dispatcher")
+            .spawn(
+                async move {
+                    join_all(tasks).await;
+                }
+                .instrument(tracing::info_span!("payload_dispatcher")),
+            )
+            .expect("spawning tokio task from Builder is infallible")
     }
 }

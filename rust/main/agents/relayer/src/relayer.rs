@@ -165,6 +165,7 @@ impl BaseAgent for Relayer {
             Self::build_validator_announces(&settings, &core_metrics, &chain_metrics).await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
+        start_entity_init = Instant::now();
         let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
             &settings,
             core_metrics.clone(),
@@ -172,7 +173,9 @@ impl BaseAgent for Relayer {
             db.clone(),
         )
         .await;
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dispatcher entrypoints", "Relayer startup duration measurement");
 
+        start_entity_init = Instant::now();
         let dispatchers = Self::build_payload_dispatchers(
             &settings,
             core_metrics.clone(),
@@ -180,6 +183,7 @@ impl BaseAgent for Relayer {
             db.clone(),
         )
         .await;
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dipatchers", "Relayer startup duration measurement");
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
@@ -840,7 +844,10 @@ impl Relayer {
                     },
                 )
             })
-            .map(|(chain, s)| (chain, PayloadDispatcher::try_from_settings(s)))
+            .map(|(chain, s)| {
+                let chain_name = chain.to_string();
+                (chain, PayloadDispatcher::try_from_settings(s, chain_name))
+            })
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {

@@ -106,6 +106,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
 
     let payload_dispatcher = PayloadDispatcher {
         inner: state.clone(),
+        domain: "dummy_destination".to_string(),
     };
     let _payload_dispatcher = tokio::spawn(async move { payload_dispatcher.spawn().await });
 

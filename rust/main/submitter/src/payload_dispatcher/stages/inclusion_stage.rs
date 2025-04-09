@@ -15,7 +15,7 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
 };
-use tracing::{error, info, info_span, warn, Instrument};
+use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
     error::SubmitterError,
@@ -110,6 +110,11 @@ impl InclusionStage {
         }
     }
 
+    #[instrument(
+        skip_all,
+        name = "InclusionStage::try_process_tx",
+        fields(tx_id = ?tx.id, tx_status = ?tx.status, payloads = ?tx.payload_details)
+    )]
     async fn try_process_tx(
         mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
@@ -149,6 +154,7 @@ impl InclusionStage {
         Ok(())
     }
 
+    #[instrument(skip_all, name = "InclusionStage::process_pending_tx")]
     async fn process_pending_tx(
         mut tx: Transaction,
         state: &PayloadDispatcherState,
