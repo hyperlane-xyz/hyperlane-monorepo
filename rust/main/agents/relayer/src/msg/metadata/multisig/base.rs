@@ -150,7 +150,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             let formatted = self
                 .format_metadata(metadata)
                 .map_err(|_| MetadataBuildError::CouldNotFetch)?;
-
             Ok(Metadata::new(formatted))
         } else {
             info!(
