@@ -206,17 +206,17 @@ export class SymbioticChecker {
       this.addViolation(violation);
     }
 
-    const actualNetworkReceiver = await burnerRouter.networkReceiver(
-      this.contracts.network.address,
-    );
-    if (!eqAddress(actualNetworkReceiver, slasherAddress)) {
+    const actualGlobalReceiver = await burnerRouter.globalReceiver();
+    if (
+      !eqAddress(actualGlobalReceiver, this.contracts.accessManager.address)
+    ) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'burner',
-        referenceField: 'networkReceiver',
-        actual: actualNetworkReceiver,
-        expected: slasherAddress,
+        referenceField: 'globalReceiver',
+        actual: actualGlobalReceiver,
+        expected: this.contracts.accessManager.address,
       };
       this.addViolation(violation);
     }
@@ -272,18 +272,6 @@ export class SymbioticChecker {
       };
       this.addViolation(violation);
     }
-
-    const roleIds = {
-      adminFeeClaim: await rewards.ADMIN_FEE_CLAIM_ROLE(),
-      adminFeeSet: await rewards.ADMIN_FEE_SET_ROLE(),
-    };
-
-    await this.checkAccessControl(
-      rewardsAddress,
-      'rewards',
-      roleIds,
-      this.contracts.accessManager.address,
-    );
   }
 
   private async checkNetwork(): Promise<void> {
