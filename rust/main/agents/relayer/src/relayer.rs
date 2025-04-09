@@ -22,6 +22,7 @@ use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
+    cache::{LocalCache, MeteredCache, MeteredCacheConfig},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
     settings::{ChainConf, IndexSettings},
@@ -80,6 +81,8 @@ pub struct Relayer {
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
     merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
+    /// The original reference to the relayer cache
+    _cache: MeteredCache<LocalCache>,
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
     address_blacklist: Arc<AddressBlacklist>,
@@ -140,6 +143,14 @@ impl BaseAgent for Relayer {
 
         let core = settings.build_hyperlane_core(core_metrics.clone());
         let db = DB::from_path(&settings.db)?;
+        let cache_name = "relayer_cache";
+        let cache = MeteredCache::new(
+            LocalCache::new(cache_name),
+            core_metrics.cache_metrics(),
+            MeteredCacheConfig {
+                cache_name: cache_name.to_owned(),
+            },
+        );
         let dbs = settings
             .origin_chains
             .iter()
@@ -298,6 +309,7 @@ impl BaseAgent for Relayer {
                     validator_announce.clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
+                    cache.clone(),
                     db,
                     IsmAwareAppContextClassifier::new(
                         dest_mailbox.clone(),
@@ -313,6 +325,7 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
                         origin_db: Arc::new(dbs.get(origin).unwrap().clone()),
+                        cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
@@ -328,6 +341,7 @@ impl BaseAgent for Relayer {
 
         Ok(Self {
             dbs,
+            _cache: cache,
             origin_chains: settings.origin_chains,
             destination_chains,
             msg_ctxs,
