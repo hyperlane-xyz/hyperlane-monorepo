@@ -1,4 +1,9 @@
-import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
+import {
+  CoreCrossChainMessage,
+  CrossChainMessenger,
+  DeepPartial,
+  OEContractsLike,
+} from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
 
 import { HyperlaneService } from './HyperlaneService';
@@ -25,6 +30,7 @@ class OPStackService {
     hyperlaneConfig: Required<HyperlaneConfig>,
     l1RpcConfig: Required<RPCConfig>,
     l2RpcConfig: Required<RPCConfig>,
+    opContracts?: DeepPartial<OEContractsLike>,
   ) {
     this.crossChainMessenger = new CrossChainMessenger({
       bedrock: true,
@@ -32,6 +38,8 @@ class OPStackService {
       l2ChainId: l2RpcConfig.chainId,
       l1SignerOrProvider: new providers.JsonRpcProvider(l1RpcConfig.url),
       l2SignerOrProvider: new providers.JsonRpcProvider(l2RpcConfig.url),
+      // May need to provide these if not already registered into the SDK
+      contracts: opContracts,
     });
 
     this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
