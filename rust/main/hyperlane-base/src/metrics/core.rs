@@ -16,8 +16,10 @@ use ethers_prometheus::middleware::MiddlewareMetrics;
 use hyperlane_core::{HyperlaneDomain, H160};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
+use crate::cache::MeteredCacheMetrics;
 use crate::metrics::{
-    json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
+    cache::create_cache_metrics, json_rpc_client::create_json_rpc_client_metrics,
+    provider::create_provider_metrics,
 };
 
 /// Macro to prefix a string with the namespace.
@@ -57,6 +59,7 @@ pub struct CoreMetrics {
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
+    cache_metrics: OnceLock<MeteredCacheMetrics>,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
@@ -263,6 +266,7 @@ impl CoreMetrics {
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
+            cache_metrics: OnceLock::new(),
 
             validator_metrics: ValidatorObservabilityMetricManager::new(
                 observed_validator_latest_index.clone(),
@@ -286,6 +290,13 @@ impl CoreMetrics {
             .get_or_init(|| {
                 create_json_rpc_client_metrics(self).expect("Failed to create rpc client metrics!")
             })
+            .clone()
+    }
+
+    /// Create the cache metrics attached to this core metrics instance.
+    pub fn cache_metrics(&self) -> MeteredCacheMetrics {
+        self.cache_metrics
+            .get_or_init(|| create_cache_metrics(self).expect("Failed to create cache metrics!"))
             .clone()
     }
 

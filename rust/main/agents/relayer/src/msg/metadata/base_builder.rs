@@ -8,6 +8,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
 use hyperlane_base::{
+    cache::{LocalCache, MeteredCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     settings::CheckpointSyncerBuildError,
 };
@@ -35,6 +36,7 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    cache: MeteredCache<LocalCache>,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
 }
@@ -54,6 +56,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
+    fn cache(&self) -> &MeteredCache<LocalCache>;
 
     async fn get_proof(
         &self,
@@ -87,6 +90,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     }
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier {
         &self.app_context_classifier
+    }
+
+    fn cache(&self) -> &MeteredCache<LocalCache> {
+        &self.cache
     }
 
     async fn get_proof(

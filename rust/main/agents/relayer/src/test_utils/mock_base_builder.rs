@@ -3,7 +3,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use hyperlane_base::{settings::CheckpointSyncerBuildError, MultisigCheckpointSyncer};
+use hyperlane_base::{
+    cache::{LocalCache, MeteredCache},
+    settings::CheckpointSyncerBuildError,
+    MultisigCheckpointSyncer,
+};
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
@@ -18,6 +22,7 @@ pub struct MockBaseMetadataBuilderResponses {
     pub origin_domain: Option<HyperlaneDomain>,
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
+    pub cache: Option<MeteredCache<LocalCache>>,
     pub get_proof: ResponseList<Result<Proof, MetadataBuildError>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
@@ -31,9 +36,11 @@ pub struct MockBaseMetadataBuilderResponses {
     #[allow(clippy::type_complexity)]
     pub build_ism:
         Arc<Mutex<HashMap<H256, VecDeque<eyre::Result<Box<dyn InterchainSecurityModule>>>>>>,
-    pub build_routing_ism: ResponseList<eyre::Result<Box<dyn RoutingIsm>>>,
+    pub build_routing_ism: Arc<Mutex<HashMap<H256, VecDeque<eyre::Result<Box<dyn RoutingIsm>>>>>>,
+    pub build_aggregation_ism:
+        Arc<Mutex<HashMap<H256, VecDeque<eyre::Result<Box<dyn AggregationIsm>>>>>>,
+    // TODO: migrate these to be keyed by address as well
     pub build_multisig_ism: ResponseList<eyre::Result<Box<dyn MultisigIsm>>>,
-    pub build_aggregation_ism: ResponseList<eyre::Result<Box<dyn AggregationIsm>>>,
     pub build_ccip_read_ism: ResponseList<eyre::Result<Box<dyn CcipReadIsm>>>,
     pub build_checkpoint_syncer:
         ResponseList<Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>>,
@@ -46,6 +53,32 @@ impl MockBaseMetadataBuilderResponses {
         ism: eyre::Result<Box<dyn InterchainSecurityModule>>,
     ) {
         self.build_ism
+            .lock()
+            .unwrap()
+            .entry(address)
+            .or_default()
+            .push_back(ism);
+    }
+
+    pub fn push_build_aggregation_ism_response(
+        &self,
+        address: H256,
+        ism: eyre::Result<Box<dyn AggregationIsm>>,
+    ) {
+        self.build_aggregation_ism
+            .lock()
+            .unwrap()
+            .entry(address)
+            .or_default()
+            .push_back(ism);
+    }
+
+    pub fn push_build_routing_ism_response(
+        &self,
+        address: H256,
+        ism: eyre::Result<Box<dyn RoutingIsm>>,
+    ) {
+        self.build_routing_ism
             .lock()
             .unwrap()
             .entry(address)
@@ -86,6 +119,12 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .app_context_classifier
             .as_ref()
             .expect("No mock app_context_classifier response set")
+    }
+    fn cache(&self) -> &MeteredCache<LocalCache> {
+        self.responses
+            .cache
+            .as_ref()
+            .expect("No mock cache response set")
     }
 
     async fn get_proof(
@@ -129,13 +168,15 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .pop_front()
             .expect("No mock build_ism response set")
     }
-    async fn build_routing_ism(&self, _address: H256) -> eyre::Result<Box<dyn RoutingIsm>> {
+    async fn build_routing_ism(&self, address: H256) -> eyre::Result<Box<dyn RoutingIsm>> {
         self.responses
             .build_routing_ism
             .lock()
             .unwrap()
+            .get_mut(&address)
+            .expect("No mock build_aggregation_ism response set")
             .pop_front()
-            .expect("No mock build_routing_ism response set")
+            .expect("No mock build_aggregation_ism response set")
     }
     async fn build_multisig_ism(&self, _address: H256) -> eyre::Result<Box<dyn MultisigIsm>> {
         self.responses
@@ -145,11 +186,13 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .pop_front()
             .expect("No mock build_multisig_ism response set")
     }
-    async fn build_aggregation_ism(&self, _address: H256) -> eyre::Result<Box<dyn AggregationIsm>> {
+    async fn build_aggregation_ism(&self, address: H256) -> eyre::Result<Box<dyn AggregationIsm>> {
         self.responses
             .build_aggregation_ism
             .lock()
             .unwrap()
+            .get_mut(&address)
+            .expect("No mock build_aggregation_ism response set")
             .pop_front()
             .expect("No mock build_aggregation_ism response set")
     }
@@ -188,26 +231,23 @@ mod tests {
     #[tokio::test]
     async fn test_mock_works() {
         let base_builder = MockBaseMetadataBuilder::default();
+        let domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
         {
-            let mock_ism = MockInterchainSecurityModule::new(H256::zero());
-            mock_ism
-                .responses
-                .module_type
-                .lock()
-                .unwrap()
-                .push_back(Ok(ModuleType::Routing));
+            let mock_ism = MockInterchainSecurityModule::new(
+                H256::zero(),
+                domain.clone(),
+                ModuleType::Routing,
+            );
             base_builder
                 .responses
                 .push_build_ism_response(H256::zero(), Ok(Box::new(mock_ism)));
         }
         {
-            let mock_ism = MockInterchainSecurityModule::new(H256::zero());
-            mock_ism
-                .responses
-                .module_type
-                .lock()
-                .unwrap()
-                .push_back(Ok(ModuleType::Aggregation));
+            let mock_ism = MockInterchainSecurityModule::new(
+                H256::zero(),
+                domain.clone(),
+                ModuleType::Aggregation,
+            );
             base_builder
                 .responses
                 .push_build_ism_response(H256::from_low_u64_be(10), Ok(Box::new(mock_ism)));
