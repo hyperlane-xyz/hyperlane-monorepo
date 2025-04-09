@@ -49,7 +49,7 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
             mailbox.quoteDispatch(
                 message.destination(),
                 ccipReadIsm,
-                _getMessageBody(message),
+                abi.encode(bytes32(0), bytes32(0)),
                 _getMessageMetadata(),
                 childHook
             );
@@ -79,6 +79,10 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
         bytes calldata message
     ) internal view returns (bytes memory) {
         // Body will contain the withdrawal hash already
-        return abi.encode(message.id(), TokenMessage.metadata(message.body()));
+        bytes32 withdrawalHash = abi.decode(
+            TokenMessage.metadata(message.body()),
+            (bytes32)
+        );
+        return abi.encode(message.id(), withdrawalHash);
     }
 }
