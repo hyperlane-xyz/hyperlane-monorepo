@@ -37,11 +37,7 @@ interface ICrossDomainMessenger {
         bytes calldata _message,
         uint32 _minGasLimit
     ) external pure returns (uint64);
-}
 
-interface IL1CrossDomainMessenger is ICrossDomainMessenger {}
-
-interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     function messageNonce() external view returns (uint256);
 }
 
