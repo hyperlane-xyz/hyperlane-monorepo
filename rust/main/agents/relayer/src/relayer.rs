@@ -122,9 +122,10 @@ impl BaseAgent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
     type Settings = RelayerSettings;
+    type Metadata = AgentMetadata;
 
     async fn from_settings(
-        _agent_metadata: AgentMetadata,
+        _agent_metadata: Self::Metadata,
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
