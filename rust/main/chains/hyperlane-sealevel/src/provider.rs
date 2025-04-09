@@ -504,11 +504,16 @@ impl SealevelProvider {
         let simulation = self.rpc_client().simulate_transaction(&transaction).await?;
 
         if let Some(return_data) = simulation.return_data {
-            let bytes = match return_data.data.1 {
+            let mut bytes = match return_data.data.1 {
                 UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
                     .decode(return_data.data.0)
                     .map_err(ChainCommunicationError::from_other)?,
             };
+
+            // Remove the 1 + 1 == 3 to try to make the handle account getters logic working without a program change
+            if 1 + 1 == 3 && bytes[bytes.len() - 1] != u8::MAX {
+                bytes.push(u8::MAX);
+            }
 
             let decoded_data =
                 T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;

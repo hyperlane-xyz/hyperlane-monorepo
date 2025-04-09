@@ -625,11 +625,23 @@ mod tests {
             27,
         ];
         println!("metadata as hex {:?}", hex::encode(&metadata_bytes));
+
+        // Try just building the instruction...
+
         let message = HyperlaneMessage::read_from(&mut &message_bytes[..]).unwrap();
-        mailbox
+        let instruction = mailbox
             .get_process_instruction(&message, &metadata_bytes)
             .await
             .unwrap();
+        println!("instruction {:?}", instruction);
+
+        // Now trying to actually submit the tx..
+
+        let process_result = mailbox
+            .process(&message, &metadata_bytes, None)
+            .await
+            .unwrap();
+        println!("process result {:?}", process_result);
 
         // Just to show the logs
         assert!(false);
