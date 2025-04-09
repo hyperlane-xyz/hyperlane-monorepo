@@ -52,7 +52,7 @@ describe('Arrays utilities', () => {
     });
   });
 
-  describe.only('sortArrayByKey', () => {
+  describe('sortArrayByKey', () => {
     it('should sort objects by string key in ascending order', () => {
       const array = [
         { name: 'Charlie', id: 3 },
