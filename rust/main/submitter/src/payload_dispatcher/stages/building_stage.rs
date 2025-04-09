@@ -90,7 +90,6 @@ impl BuildingStage {
             "Sending transaction to inclusion stage",
         )
         .await;
-        info!(?tx, "Transaction sent to Inclusion Stage");
         self.state.store_tx(&tx).await;
     }
 

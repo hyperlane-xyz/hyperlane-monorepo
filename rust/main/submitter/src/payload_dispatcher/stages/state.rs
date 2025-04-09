@@ -71,10 +71,11 @@ impl PayloadDispatcherState {
                 error!(
                     ?err,
                     payload_details = ?details,
-                    "Error updating payload status to `dropped`"
+                    new_status = ?status,
+                    "Error updating payload status in the database"
                 );
             }
-            warn!(?details, "Payload dropped from Building Stage");
+            info!(?details, new_status=?status, "Updated payload status");
         }
     }
 

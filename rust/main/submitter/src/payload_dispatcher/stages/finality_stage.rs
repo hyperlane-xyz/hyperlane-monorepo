@@ -98,9 +98,9 @@ impl FinalityStage {
         loop {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
-            info!("Processing finality stage transactions");
 
             let pool_snapshot = pool.lock().await.clone();
+            info!(pool_size=?pool_snapshot.len() , "Processing transactions in finality pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) = Self::try_process_tx(
                     tx.clone(),

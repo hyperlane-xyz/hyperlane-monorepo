@@ -97,9 +97,9 @@ impl InclusionStage {
         loop {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
-            info!("Processing transactions in pool");
 
             let pool_snapshot = pool.lock().await.clone();
+            info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) =
                     Self::try_process_tx(tx.clone(), &finality_stage_sender, &state, &pool).await
@@ -168,12 +168,13 @@ impl InclusionStage {
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        retry_until_success(
+        tx = retry_until_success(
             || {
                 let tx_clone = tx.clone();
                 async move {
                     let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.submit(&mut tx_clone_inner).await
+                    state.adapter.submit(&mut tx_clone_inner).await?;
+                    Ok(tx_clone_inner)
                 }
             },
             "Submitting transaction",
@@ -185,7 +186,9 @@ impl InclusionStage {
         tx.submission_attempts += 1;
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
-        pool.lock().await.remove(&tx.id);
+
+        // update the pool entry of this tx, to reflect any changes such as the gas price, hash, etc
+        pool.lock().await.insert(tx.id.clone(), tx.clone());
         Ok(())
     }
 

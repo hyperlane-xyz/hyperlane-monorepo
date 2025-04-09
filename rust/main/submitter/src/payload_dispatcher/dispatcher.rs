@@ -47,7 +47,7 @@ pub enum DatabaseOrPath {
 }
 
 pub struct PayloadDispatcher {
-    inner: PayloadDispatcherState,
+    pub(crate) inner: PayloadDispatcherState,
 }
 
 impl PayloadDispatcher {
