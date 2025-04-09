@@ -18,7 +18,6 @@ use hyperlane_base::{
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
 };
-use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -211,17 +210,10 @@ fn get_rpc_urls(
                     .parse_bool()
                     .unwrap_or(false);
                 let url: Option<&str> = v.chain(err).get_key("http").parse_string().end();
-                match url {
-                    Some(url) if public => Some(RpcConfig {
-                        url: url.to_owned(),
-                        public: true,
-                    }),
-                    Some(url) => Some(RpcConfig {
-                        url: url.to_owned(),
-                        public: false,
-                    }),
-                    _ => None,
-                }
+                url.map(|url| RpcConfig {
+                    url: url.to_owned(),
+                    public,
+                })
             })
             .collect_vec()
         })
@@ -307,5 +299,74 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
             Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
         }
         None => Err(err),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_get_rpc_urls_explicit() {
+        let expected = vec![
+            RpcConfig {
+                url: "http://my-rpc-url.com".to_string(),
+                public: true,
+            },
+            RpcConfig {
+                url: "http://my-rpc-url-2.com".to_string(),
+                public: false,
+            },
+        ];
+
+        let rpcs = expected
+            .iter()
+            .map(|rpc| {
+                serde_json::json!({
+                    "http": rpc.url,
+                    "public": rpc.public
+                })
+            })
+            .collect::<Vec<_>>();
+        let rpcs = serde_json::json!({
+            "rpcurls": rpcs
+        });
+
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", &mut err); // why does it convert to lowercase?
+
+        assert_eq!(parsed.len(), expected.len());
+        for (i, rpc) in expected.iter().enumerate() {
+            assert_eq!(parsed[i].url, rpc.url);
+            assert_eq!(parsed[i].public, rpc.public);
+        }
+    }
+
+    #[test]
+    fn test_get_rpc_urls_implicit_private() {
+        let rpcs = r#"
+            {
+                "rpcurls": [
+                    {
+                        "http": "http://my-rpc-url.com"
+                    },
+                    {
+                        "http": "http://my-rpc-url-2.com",
+                        "public": false
+                    }
+                ]
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", &mut err);
+
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].url, "http://my-rpc-url.com");
+        assert_eq!(parsed[0].public, false);
+        assert_eq!(parsed[1].url, "http://my-rpc-url-2.com");
+        assert_eq!(parsed[1].public, false);
     }
 }

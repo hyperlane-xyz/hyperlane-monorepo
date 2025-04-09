@@ -62,6 +62,7 @@ export { XCircleIcon } from './icons/XCircle.js';
 export { DropdownMenu, type DropdownMenuProps } from './layout/DropdownMenu.js';
 export { Modal, useModal, type ModalProps } from './layout/Modal.js';
 export { Popover, type PopoverProps } from './layout/Popover.js';
+export { BinanceLogo } from './logos/Binance.js';
 export { CosmosLogo } from './logos/Cosmos.js';
 export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
@@ -133,6 +134,7 @@ export {
   useSolanaWalletDetails,
 } from './walletIntegrations/solana.js';
 export {
+  getStarknetChains,
   useStarknetAccount,
   useStarknetActiveChain,
   useStarknetConnectFn,

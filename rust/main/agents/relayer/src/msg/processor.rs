@@ -414,8 +414,9 @@ mod test {
         settings::{ChainConf, ChainConnectionConf, Settings},
     };
     use hyperlane_core::{
-        test_utils::dummy_domain, GasPaymentKey, InterchainGasPayment, InterchainGasPaymentMeta,
-        MerkleTreeInsertion, PendingOperationStatus, H256,
+        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey,
+        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
+        PendingOperationStatus, H256,
     };
     use hyperlane_operation_verifier::{
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
@@ -472,6 +473,8 @@ mod test {
         ChainConf {
             domain: domain.clone(),
             signer: Default::default(),
+            submitter: Default::default(),
+            estimated_block_time: Duration::from_secs_f64(1.1),
             reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
@@ -768,6 +771,9 @@ mod test {
             /// Retrieve the nonce of the highest processed message we're aware of
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
 
+            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+
+            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
         }
     }
 

@@ -60,6 +60,9 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     }
 
     /// Estimate transaction costs to process a message.
+    /// Arguments:
+    /// - `message`: The message to be processed
+    /// - `metadata`: The metadata needed to process the message
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -68,7 +71,11 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8>;
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>>;
 }
 
 /// The result of processing a batch of messages
