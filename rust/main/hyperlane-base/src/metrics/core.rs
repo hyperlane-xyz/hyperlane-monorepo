@@ -7,9 +7,8 @@ use eyre::Result;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry, CounterVec, Encoder, GaugeVec, HistogramVec, IntCounterVec,
-    IntGauge, IntGaugeVec, Registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
+    Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::sync::RwLock;
 
@@ -51,7 +50,7 @@ pub struct CoreMetrics {
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
-    merkle_root_mismatch_count: IntGauge,
+    merkle_root_mismatch: IntGaugeVec,
 
     latest_checkpoint: IntGaugeVec,
 
@@ -227,9 +226,9 @@ impl CoreMetrics {
             registry
         )?;
 
-        let merkle_root_mismatch_count = register_int_gauge_with_registry!(
+        let merkle_root_mismatch = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("merkle_root_mismatch_count"),
+                namespaced!("merkle_root_mismatch"),
                 "Number of merkle root mismatch",
                 const_labels_ref
             ),
@@ -258,7 +257,7 @@ impl CoreMetrics {
 
             operations_processed_count,
             messages_processed_count,
-            merkle_root_mismatch_count,
+            merkle_root_mismatch,
 
             latest_checkpoint,
 
@@ -493,8 +492,13 @@ impl CoreMetrics {
         self.messages_processed_count.clone()
     }
 
-    pub fn merkle_root_mismatch_count(&self) -> IntGauge {
-        self.merkle_root_mismatch_count.clone()
+    /// Indicate when a merkle root mismatch occurs.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the merkle root is for.
+    pub fn merkle_root_mismatch(&self) -> IntGaugeVec {
+        self.merkle_root_mismatch.clone()
     }
 
     /// Measure of span durations provided by tracing.

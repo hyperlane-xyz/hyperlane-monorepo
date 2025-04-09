@@ -150,11 +150,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         }))
         .await;
 
-        // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
+        // If any inner ISMs are refusing to build metadata,
+        // we propagate just the first refusal.
         for sub_module_res in sub_modules_and_metas.iter() {
+            // This occurs when there is a reorg
             if let Err(MetadataBuildError::Refused(s)) = sub_module_res {
                 return Err(MetadataBuildError::Refused(s.clone()));
             }
+            // This likely occurs when there is a reorg as well,
+            // but it could also be because validators are colluding
             if let Err(MetadataBuildError::MerkleRootMismatch {
                 root,
                 canonical_root,

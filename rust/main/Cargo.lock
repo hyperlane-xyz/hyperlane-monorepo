@@ -7314,6 +7314,7 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-test",
  "itertools 0.12.1",
+ "maplit",
  "mockall",
  "num-derive 0.4.2",
  "num-traits",

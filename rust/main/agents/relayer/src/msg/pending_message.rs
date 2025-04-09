@@ -9,7 +9,8 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use prometheus::{IntCounter, IntCounterVec, IntGauge};
+use maplit::hashmap;
+use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
@@ -946,7 +947,7 @@ pub struct MessageSubmissionMetrics {
     pub last_known_nonce: IntGauge,
     pub messages_processed: IntCounter,
 
-    pub merkle_root_mismatch: IntGauge,
+    pub merkle_root_mismatch: IntGaugeVec,
 }
 
 impl MessageSubmissionMetrics {
@@ -967,7 +968,7 @@ impl MessageSubmissionMetrics {
             messages_processed: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin, destination]),
-            merkle_root_mismatch: metrics.merkle_root_mismatch_count(),
+            merkle_root_mismatch: metrics.merkle_root_mismatch(),
         }
     }
 
@@ -985,7 +986,7 @@ impl MessageSubmissionMetrics {
                 "app_context" => app_context.as_deref().unwrap_or("Unknown"),
                 "origin" => self.origin.as_str(),
             })
-            .set(is_critical as i64);
+            .set(1);
     }
 }
 
