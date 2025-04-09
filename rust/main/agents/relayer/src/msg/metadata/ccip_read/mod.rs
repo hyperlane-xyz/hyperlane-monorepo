@@ -48,7 +48,8 @@ impl CcipReadIsmMetadataBuilder {
     ) -> Result<OffchainLookup, MetadataBuildError> {
         let ism_domain = ism.domain().name();
         let fn_key = "get_offchain_verify_info";
-        let call_params = (ism.address(), RawHyperlaneMessage::from(message).to_vec());
+        // To have the cache key be more succinct, we use the message id
+        let call_params = (ism.address(), message.id());
 
         let info_from_cache = self
             .base_builder()

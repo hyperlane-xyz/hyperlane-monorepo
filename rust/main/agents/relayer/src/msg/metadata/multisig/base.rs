@@ -105,7 +105,8 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
     ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
         let ism_domain = multisig_ism.domain().name();
         let fn_key = "validators_and_threshold";
-        let call_params = (multisig_ism.address(), message);
+        // To have the cache key be more succinct, we use the message id
+        let call_params = (multisig_ism.address(), message.id());
 
         let cache_result = self
             .as_ref()
