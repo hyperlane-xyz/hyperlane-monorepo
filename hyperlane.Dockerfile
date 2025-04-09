@@ -53,20 +53,16 @@ RUN chmod +x /usr/bin/hyperlane
 
 # RELAYER + VALIDATOR
 
-# Required for VERGEN_GIT_SHA to be populated
-COPY .git .git
 COPY rust ./rust
 
 # the dependency on sovereign sdk is git based, so we need to pass the
 # authorized ssh key into the container
-# NOTE: this contract generation in fuel is wacky and sometimes fails
-# if you experience build errors due to that, remove cache mounts for one build
 RUN mkdir -p /root/.ssh && ssh-keyscan github.com >> /root/.ssh/known_hosts
 RUN --mount=type=ssh \
     --mount=type=cache,target=/hyperlane-monorepo/rust/main/target \
-    --mount=type=cache,target=/hyperlane-monorepo/rust/main/chains/hyperlane-fuel/contracts \
     --mount=type=cache,target=/usr/local/cargo/git/db \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
   cd rust/main && \
+  touch chains/hyperlane-fuel/abis/* && \
   cargo build --features sov-sdk-testing --release --bin relayer --bin validator && \
-  cp target/release/relayer target/release/relayer /usr/bin
+  cp target/release/relayer target/release/validator /usr/bin
