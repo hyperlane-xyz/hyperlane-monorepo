@@ -2,17 +2,17 @@
 pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {HypNative} from "../token/HypNative.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {TokenMessage} from "../token/libs/TokenMessage.sol";
-import {ValueTransferBridgeNative} from "./ValueTransferBridgeNative.sol";
 import {IStandardBridge} from "../interfaces/optimism/IStandardBridge.sol";
 import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
-import {Quotes} from "../interfaces/IValueTransferBridge.sol";
+import {Quotes, IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
 import {IL2CrossDomainMessenger, ICrossDomainMessenger, IL2ToL1MessagePasser} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 
 import {console} from "forge-std/console.sol";
 
-contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
+contract OPValueTransferBridgeNative is IValueTransferBridge, HypNative {
     using TypeCasts for bytes32;
 
     IL2ToL1MessagePasser public constant L2_TO_L1_MESSAGE_PASSER =
@@ -31,7 +31,7 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
         uint32 _l1Domain,
         address _l2Bridge,
         address _mailbox
-    ) ValueTransferBridgeNative(_mailbox) {
+    ) HypNative(_mailbox) {
         l1Domain = _l1Domain;
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
@@ -61,6 +61,19 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
                 address(hook)
             )
         );
+    }
+
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    )
+        public
+        payable
+        override(HypNative, IValueTransferBridge)
+        returns (bytes32)
+    {
+        return super.transferRemote(_destination, _recipient, _amount);
     }
 
     function _transferFromSender(
