@@ -29,6 +29,7 @@ tokio.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
+hex.workspace = true
 
 account-utils = { path = "../../../sealevel/libraries/account-utils" }
 hyperlane-core = { path = "../../hyperlane-core", features = [

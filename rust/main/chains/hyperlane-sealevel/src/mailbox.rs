@@ -553,3 +553,85 @@ impl Mailbox for SealevelMailbox {
         serde_json::to_vec(&process_instruction).map_err(Into::into)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use hyperlane_core::Decode;
+    use solana_sdk::signature::Keypair;
+
+    use crate::{fallback::SealevelFallbackRpcClient, tx_submitter::RpcTransactionSubmitter};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_everclear_message_delivery() {
+        // NOTE: needs updating to work
+        let rpc_url = "<put solana rpc here>".to_owned();
+        let conf = ConnectionConf {
+            urls: vec![rpc_url.parse().unwrap()],
+            operation_batch: Default::default(),
+            native_token: Default::default(),
+            priority_fee_oracle: Default::default(),
+            transaction_submitter: Default::default(),
+        };
+        let domain = HyperlaneDomain::new_test_domain("foo");
+        let provider = SealevelProvider::new(
+            SealevelFallbackRpcClient::from_urls(
+                None,
+                vec![rpc_url.parse().unwrap()],
+                Default::default(),
+            ),
+            HyperlaneDomain::new_test_domain("foo"),
+            &[],
+            &conf,
+        );
+        let submitter = RpcTransactionSubmitter::new(Arc::new(provider.clone()));
+        // NOTE: needs updating to work. Replace the &[] with the raw key bytes for
+        // a funded account on Solana, e.g. &[1,2,3, 4, ...... 7, 8,9].
+        let payer = SealevelKeypair::new(Keypair::from_bytes(&[]).unwrap());
+
+        let mailbox = SealevelMailbox::new(
+            provider.into(),
+            Box::new(submitter),
+            &conf,
+            &ContractLocator {
+                domain: &domain,
+                address: H256::from_str(
+                    // The Solana mailbox address
+                    "0xc236500cf10c409df566b1415b99679c9285072bf856fe311b3cc1bb946279a5",
+                )
+                .unwrap(),
+            },
+            Some(payer),
+        )
+        .unwrap();
+
+        // Raw bytes from https://explorer.hyperlane.xyz/message/0xaa6a18368c07a6d8072c1663366d3fee85eff3404001c7ea5353c064202c2f5a
+        let message_bytes = hex::decode("030000333d000062ef000000000000000000000000e5f2f4afad6211cfbd6a882d5a6a435530ee3909536f6c4d327d37ebb263ada4331ec8ab919ca6bfa6745876fcd1893f76e6edc13939226f0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001d81ec6f1d9188bf8e0bee307d8db58014142537367c889f58e4f064c43e9280b0000000000000000000000000000000000000000000000000d9995bea6874000c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d617e6a69246a33870eb4b7218a18e51c460c6e995f49d9a964e2d7445195953fd60000000000000000000000000000000000000000000000000000000000000000").unwrap();
+        // Taken from production relayer's logs. This metadata is valid for processing 0xaa6a18368c07a6d8072c1663366d3fee85eff3404001c7ea5353c064202c2f5a
+        let metadata_bytes = vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 204, 61, 22, 89, 213, 4, 97, 210, 122, 47, 2, 93,
+            219, 44, 155, 6, 181, 132, 183, 225, 50, 75, 133, 241, 235, 212, 245, 138, 217, 71, 13,
+            90, 9, 164, 105, 193, 227, 47, 55, 166, 5, 6, 193, 3, 61, 241, 76, 90, 250, 205, 255,
+            21, 0, 0, 51, 61, 247, 52, 125, 3, 40, 30, 216, 93, 122, 183, 152, 70, 186, 106, 46,
+            63, 40, 82, 12, 210, 110, 28, 204, 21, 188, 111, 96, 245, 100, 42, 191, 72, 127, 151,
+            228, 162, 150, 242, 200, 66, 156, 225, 58, 170, 227, 129, 194, 178, 236, 194, 111, 247,
+            103, 39, 184, 155, 240, 105, 178, 245, 91, 114, 128, 205, 28, 10, 208, 200, 219, 212,
+            111, 128, 97, 11, 26, 207, 67, 178, 59, 241, 218, 47, 182, 36, 68, 206, 15, 94, 250,
+            19, 34, 62, 184, 207, 247, 173, 2, 35, 224, 121, 4, 162, 196, 70, 5, 62, 216, 39, 20,
+            104, 65, 65, 0, 76, 44, 171, 222, 216, 209, 57, 20, 225, 212, 96, 95, 31, 26, 243, 186,
+            27,
+        ];
+        println!("metadata as hex {:?}", hex::encode(&metadata_bytes));
+        let message = HyperlaneMessage::read_from(&mut &message_bytes[..]).unwrap();
+        mailbox
+            .get_process_instruction(&message, &metadata_bytes)
+            .await
+            .unwrap();
+
+        // Just to show the logs
+        assert!(false);
+    }
+}

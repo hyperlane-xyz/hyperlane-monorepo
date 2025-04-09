@@ -226,7 +226,7 @@ pub enum HyperlaneDomain {
     },
 }
 
-#[cfg(any(test, feature = "test-utils"))]
+// #[cfg(any(test, feature = "test-utils"))]
 impl HyperlaneDomain {
     pub fn new_test_domain(name: &str) -> Self {
         Self::Unknown {

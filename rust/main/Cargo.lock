@@ -4875,6 +4875,7 @@ dependencies = [
  "derive-new",
  "ed25519-dalek 1.0.1",
  "eyre",
+ "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
