@@ -174,8 +174,7 @@ export async function getWarpConfigMapFromMergedRegistry(
     enableProxy: true,
   });
   const warpRouteMap = await registry.getWarpDeployConfigs();
-  assert(warpRouteMap, 'Warp route Configs not found for');
-
+  assert(warpRouteMap, `Warp route Configs not found for registry URIs: ${registryUris.join(', ')}`);
   return promiseObjAll(
     objMap(warpRouteMap, async (_, warpRouteConfig) =>
       populateWarpRouteMailboxAddresses(warpRouteConfig, registry),
