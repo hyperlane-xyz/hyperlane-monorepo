@@ -13,9 +13,11 @@ import {
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
 const deploymentChains = [
+  'ethereum',
   'celo',
   'optimism',
   'base',
@@ -27,9 +29,16 @@ const deploymentChains = [
   'superseed',
   'lisk',
   'worldchain',
+  'sonic',
+  'bitlayer',
+  'ronin',
+  'mantle',
+  'metis',
+  'linea',
+  'metal',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
-const xERC20LockboxChain: SuperTokenChainName = 'celo';
+const xERC20LockboxChains: SuperTokenChainName[] = ['celo', 'ethereum'];
 
 type SuperTokenChainName = (typeof deploymentChains)[number];
 type TypedSuperTokenChainMap<T> = {
@@ -42,6 +51,7 @@ type TypedSuperTokenChainMap<T> = {
 const upperBufferCap = '20000000000000'; // 20M = 20 * 10^6 ^ 10^6
 const lowerBufferCap = '2000000000000'; // 2M = 10 * 10^6 ^ 10^6
 const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
+  ethereum: '0',
   celo: upperBufferCap,
   optimism: upperBufferCap,
   base: upperBufferCap,
@@ -53,10 +63,18 @@ const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
   superseed: lowerBufferCap,
   lisk: lowerBufferCap,
   worldchain: '0',
+  sonic: '0',
+  bitlayer: '0',
+  ronin: '0',
+  mantle: '0',
+  metis: '0',
+  linea: '0',
+  metal: '0',
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const lowerRateLimitPerSecond = '500000000'; // 0.5k/s = 0.5 * 10^3 ^ 10^6
 const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
+  ethereum: '0',
   celo: productionDefaultRateLimitPerSecond,
   optimism: productionDefaultRateLimitPerSecond,
   base: productionDefaultRateLimitPerSecond,
@@ -68,9 +86,17 @@ const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
   superseed: lowerRateLimitPerSecond,
   lisk: lowerRateLimitPerSecond,
   worldchain: '0',
+  sonic: '0',
+  bitlayer: '0',
+  ronin: '0',
+  mantle: '0',
+  metis: '0',
+  linea: '0',
+  metal: '0',
 };
 
 const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
+  ethereum: DEPLOYER,
   celo: '0xf1b3fc934bB46c459253fb38555A400b94909800',
   optimism: '0x8E3340E241880F80359AA95Ae20Dc498d3f62503',
   base: '0x125d1b64dfd7898DD06ac3E060A432691b8Fa676',
@@ -82,11 +108,22 @@ const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
   superseed: '0x0731a8e0DC88Df79d9643BD6C1f26cfe6fa53382',
   lisk: '0x6F0A0038FcDB2F1655219f1b92f7E9aD4b78Aa49',
   worldchain: '0x998238aF5A2DDC7ae08Dbe4B60b82EF63A1538cd',
+  sonic: DEPLOYER,
+  bitlayer: DEPLOYER,
+  ronin: DEPLOYER,
+  mantle: DEPLOYER,
+  metis: DEPLOYER,
+  linea: DEPLOYER,
+  metal: DEPLOYER,
 };
 
 const productionOwnerOverridesByChain: ChainMap<
   Record<'collateralToken' | 'collateralProxyAdmin', string>
 > = {
+  ethereum: {
+    collateralToken: productionOwnerByChain.ethereum,
+    collateralProxyAdmin: productionOwnerByChain.ethereum,
+  },
   celo: {
     collateralToken: productionOwnerByChain.celo,
     collateralProxyAdmin: productionOwnerByChain.celo,
@@ -131,10 +168,39 @@ const productionOwnerOverridesByChain: ChainMap<
     collateralToken: productionOwnerByChain.worldchain,
     collateralProxyAdmin: productionOwnerByChain.worldchain,
   },
+  sonic: {
+    collateralToken: productionOwnerByChain.sonic,
+    collateralProxyAdmin: productionOwnerByChain.sonic,
+  },
+  bitlayer: {
+    collateralToken: productionOwnerByChain.bitlayer,
+    collateralProxyAdmin: productionOwnerByChain.bitlayer,
+  },
+  ronin: {
+    collateralToken: productionOwnerByChain.ronin,
+    collateralProxyAdmin: productionOwnerByChain.ronin,
+  },
+  mantle: {
+    collateralToken: productionOwnerByChain.mantle,
+    collateralProxyAdmin: productionOwnerByChain.mantle,
+  },
+  metis: {
+    collateralToken: productionOwnerByChain.metis,
+    collateralProxyAdmin: productionOwnerByChain.metis,
+  },
+  linea: {
+    collateralToken: productionOwnerByChain.linea,
+    collateralProxyAdmin: productionOwnerByChain.linea,
+  },
+  metal: {
+    collateralToken: productionOwnerByChain.metal,
+    collateralProxyAdmin: productionOwnerByChain.metal,
+  },
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
-const productionXERC20LockboxAddress =
+const productionEthereumXERC20LockboxAddress = ethers.constants.AddressZero;
+const productionCeloXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
@@ -177,7 +243,8 @@ const productionExtraLockboxes = {
 };
 
 const productionXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
-  celo: productionXERC20LockboxAddress,
+  ethereum: productionEthereumXERC20LockboxAddress,
+  celo: productionCeloXERC20LockboxAddress,
   optimism: productionXERC20TokenAddress,
   base: productionXERC20TokenAddress,
   unichain: productionXERC20TokenAddress,
@@ -188,11 +255,19 @@ const productionXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   superseed: productionXERC20TokenAddress,
   lisk: productionXERC20TokenAddress,
   worldchain: productionXERC20TokenAddress,
+  sonic: productionXERC20TokenAddress,
+  bitlayer: productionXERC20TokenAddress,
+  ronin: productionXERC20TokenAddress,
+  mantle: productionXERC20TokenAddress,
+  metis: productionXERC20TokenAddress,
+  linea: productionXERC20TokenAddress,
+  metal: productionXERC20TokenAddress,
 };
 
 // Staging
 const stagingDefaultBufferCap = '25000000000';
 const stagingBufferCapByChain: TypedSuperTokenChainMap<string> = {
+  ethereum: stagingDefaultBufferCap,
   celo: stagingDefaultBufferCap,
   optimism: stagingDefaultBufferCap,
   base: stagingDefaultBufferCap,
@@ -204,9 +279,17 @@ const stagingBufferCapByChain: TypedSuperTokenChainMap<string> = {
   superseed: stagingDefaultBufferCap,
   lisk: stagingDefaultBufferCap,
   worldchain: stagingDefaultBufferCap,
+  sonic: stagingDefaultBufferCap,
+  bitlayer: stagingDefaultBufferCap,
+  ronin: stagingDefaultBufferCap,
+  mantle: stagingDefaultBufferCap,
+  metis: stagingDefaultBufferCap,
+  linea: stagingDefaultBufferCap,
+  metal: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
 const stagingRateLimitByChain: TypedSuperTokenChainMap<string> = {
+  ethereum: stagingDefaultRateLimitPerSecond,
   celo: stagingDefaultRateLimitPerSecond,
   optimism: stagingDefaultRateLimitPerSecond,
   base: stagingDefaultRateLimitPerSecond,
@@ -218,10 +301,18 @@ const stagingRateLimitByChain: TypedSuperTokenChainMap<string> = {
   superseed: stagingDefaultRateLimitPerSecond,
   lisk: stagingDefaultRateLimitPerSecond,
   worldchain: stagingDefaultRateLimitPerSecond,
+  sonic: stagingDefaultRateLimitPerSecond,
+  bitlayer: stagingDefaultRateLimitPerSecond,
+  ronin: stagingDefaultRateLimitPerSecond,
+  mantle: stagingDefaultRateLimitPerSecond,
+  metis: stagingDefaultRateLimitPerSecond,
+  linea: stagingDefaultRateLimitPerSecond,
+  metal: stagingDefaultRateLimitPerSecond,
 };
 
 const ownerAddress = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 const stagingOwnerByChain: TypedSuperTokenChainMap<string> = {
+  ethereum: ownerAddress,
   celo: ownerAddress,
   optimism: ownerAddress,
   base: ownerAddress,
@@ -233,13 +324,23 @@ const stagingOwnerByChain: TypedSuperTokenChainMap<string> = {
   superseed: ownerAddress,
   lisk: ownerAddress,
   worldchain: ownerAddress,
+  sonic: ownerAddress,
+  bitlayer: ownerAddress,
+  ronin: ownerAddress,
+  mantle: ownerAddress,
+  metis: ownerAddress,
+  linea: ownerAddress,
+  metal: ownerAddress,
 };
 const stagingAmountRoutingThreshold = 5;
-const stagingXERC20LockboxAddress =
+const stagingEthereumXERC20LockboxAddress =
+  '0x935EAaAb78B491Cd9281f438E413767893913983';
+const stagingCeloXERC20LockboxAddress =
   '0x9a3D8d7E931679374448FB2B661F664D42d05057';
 const stagingXERC20TokenAddress = '0x0290B74980C051EB46b84b1236645444e77da0E9';
 const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
-  celo: stagingXERC20LockboxAddress,
+  ethereum: stagingEthereumXERC20LockboxAddress,
+  celo: stagingCeloXERC20LockboxAddress,
   optimism: stagingXERC20TokenAddress,
   base: stagingXERC20TokenAddress,
   unichain: stagingXERC20TokenAddress,
@@ -250,6 +351,13 @@ const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   superseed: stagingXERC20TokenAddress,
   lisk: stagingXERC20TokenAddress,
   worldchain: stagingXERC20TokenAddress,
+  sonic: stagingXERC20TokenAddress,
+  bitlayer: stagingXERC20TokenAddress,
+  ronin: stagingXERC20TokenAddress,
+  mantle: stagingXERC20TokenAddress,
+  metis: stagingXERC20TokenAddress,
+  linea: stagingXERC20TokenAddress,
+  metal: stagingXERC20TokenAddress,
 };
 
 const stagingExtraLockboxLimits: XERC20LimitConfig = {
@@ -395,10 +503,9 @@ function generateSuperTokenConfig(
       {
         ...routerConfig[chain],
         owner: ownerByChain[chain],
-        type:
-          chain === xERC20LockboxChain
-            ? TokenType.XERC20Lockbox
-            : TokenType.XERC20,
+        type: xERC20LockboxChains.includes(chain)
+          ? TokenType.XERC20Lockbox
+          : TokenType.XERC20,
         token: xERC20AddressesByChain[chain],
         xERC20: {
           warpRouteLimits: {
