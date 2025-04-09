@@ -621,13 +621,22 @@ where
 {
     let loop_check_interval = Duration::from_secs(5);
     while loop_invariant_fn() {
+        log!("Checking e2e invariants...");
         sleep(loop_check_interval);
         if !config.ci_mode {
             continue;
         }
-        if condition_fn().unwrap_or(false) {
-            // end condition reached successfully
-            break;
+        match condition_fn() {
+            Ok(true) => {
+                // end condition reached successfully
+                break;
+            }
+            Ok(false) => {
+                log!("E2E invariants not met yet...");
+            }
+            Err(e) => {
+                log!("Error checking e2e invariants: {}", e);
+            }
         }
         if check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
