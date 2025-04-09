@@ -27,11 +27,18 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
 
     IMailbox public immutable mailbox;
     bytes32 public immutable ccipReadIsm;
+    IPostDispatchHook public immutable igp;
     IPostDispatchHook public immutable childHook;
 
     // ============ Constructor ============
-    constructor(address _mailbox, address _ccipReadIsm, address _childHook) {
+    constructor(
+        address _mailbox,
+        address _ccipReadIsm,
+        address _igp,
+        address _childHook
+    ) {
         mailbox = IMailbox(_mailbox);
+        igp = IPostDispatchHook(_igp);
         childHook = IPostDispatchHook(_childHook);
         ccipReadIsm = _ccipReadIsm.addressToBytes32();
     }
@@ -47,13 +54,12 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
         bytes calldata message
     ) internal view override returns (uint256) {
         return
+            igp.quoteDispatch(metadata, message) +
             mailbox.quoteDispatch(
                 message.destination(),
                 ccipReadIsm,
                 _getMessageBody(message),
-                StandardHookMetadata.overrideGasLimit(
-                    PROVE_WITHDRAWAL_GAS_LIMIT
-                ),
+                _getMessageMetadata(),
                 childHook
             );
     }
@@ -63,13 +69,26 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
-        mailbox.dispatch{value: msg.value}(
+        // We are replacing the default hook of a ValueTransferBridge
+        // thus we need to pay for relay fees for the first message
+        uint256 relayerFees = igp.quoteDispatch(metadata, message);
+        igp.postDispatch{value: relayerFees}(metadata, message);
+
+        uint256 value = msg.value - relayerFees;
+
+        // Default hook will take care of IGP payments
+        mailbox.dispatch{value: value}(
             message.destination(),
             ccipReadIsm,
             _getMessageBody(message),
-            metadata,
+            _getMessageMetadata(),
             childHook
         );
+    }
+
+    function _getMessageMetadata() internal view returns (bytes memory) {
+        return
+            StandardHookMetadata.overrideGasLimit(PROVE_WITHDRAWAL_GAS_LIMIT);
     }
 
     function _getMessageBody(
