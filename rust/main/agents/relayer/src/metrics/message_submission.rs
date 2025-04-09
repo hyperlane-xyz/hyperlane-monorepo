@@ -53,6 +53,14 @@ impl MessageSubmissionMetrics {
         }
     }
 
+    pub fn update_nonce(&self, msg: &HyperlaneMessage) {
+        // this is technically a race condition between `.get` and `.set` but worst case
+        // the gauge should get corrected on the next update and is not an issue
+        // with a ST runtime
+        self.last_known_nonce
+            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
+    }
+
     /// Add metrics on how long metadata building took for
     /// a specific ISM
     pub fn insert_metadata_build_metric(&self, params: MetadataBuildMetric) {
@@ -66,13 +74,5 @@ impl MessageSubmissionMetrics {
         self.metadata_build_duration
             .with(&labels)
             .inc_by(params.duration.as_secs_f64());
-    }
-
-    pub fn update_nonce(&self, msg: &HyperlaneMessage) {
-        // this is technically a race condition between `.get` and `.set` but worst case
-        // the gauge should get corrected on the next update and is not an issue
-        // with a ST runtime
-        self.last_known_nonce
-            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
     }
 }
