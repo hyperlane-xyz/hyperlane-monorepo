@@ -7,6 +7,7 @@
 use std::{
     collections::{HashMap, HashSet},
     default::Default,
+    time::Duration,
 };
 
 use convert_case::{Case, Casing};
@@ -19,7 +20,7 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod,
+    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
 };
 
 use crate::settings::{
@@ -134,6 +135,21 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .unwrap_or_default();
+
+    // measured in seconds (with fractions)
+    let estimated_block_time = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_key("estimateBlockTime")
+        .parse_value("Invalid estimateBlockTime")
+        .map(Duration::from_secs_f64)
+        .unwrap_or(Duration::from_secs(1));
+
     let reorg_period = chain
         .chain(&mut err)
         .get_opt_key("blocks")
@@ -221,6 +237,8 @@ fn parse_chain(
     err.into_result(ChainConf {
         domain,
         signer,
+        submitter,
+        estimated_block_time,
         reorg_period,
         addresses: CoreContractAddresses {
             mailbox,

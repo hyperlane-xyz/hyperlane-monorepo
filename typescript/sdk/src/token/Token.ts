@@ -55,6 +55,7 @@ import type {
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
+  SealevelHypSyntheticAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
@@ -226,10 +227,7 @@ export class Token implements IToken {
         warpRouter: addressOrDenom,
         mailbox,
       });
-    } else if (
-      standard === TokenStandard.SealevelHypCollateral ||
-      standard === TokenStandard.SealevelHypSynthetic
-    ) {
+    } else if (standard === TokenStandard.SealevelHypCollateral) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
         collateralAddressOrDenom,
@@ -237,6 +235,18 @@ export class Token implements IToken {
       );
 
       return new SealevelHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+        token: collateralAddressOrDenom,
+        mailbox,
+      });
+    } else if (standard === TokenStandard.SealevelHypSynthetic) {
+      assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
+      );
+
+      return new SealevelHypSyntheticAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
         token: collateralAddressOrDenom,
         mailbox,

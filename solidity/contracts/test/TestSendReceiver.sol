@@ -47,10 +47,21 @@ contract TestSendReceiver is IMessageRecipient {
         );
     }
 
-    function handle(uint32, bytes32, bytes calldata) external payable override {
+    function handle(
+        uint32,
+        bytes32,
+        bytes calldata _messageBody
+    ) external payable override {
+        bytes memory hardcodedFail = "failMessageBody";
+        require(
+            keccak256(_messageBody) != keccak256(hardcodedFail),
+            "failMessageBody"
+        );
+
         bytes32 blockHash = previousBlockHash();
         bool isBlockHashEndIn0 = uint256(blockHash) % 16 == 0;
         require(!isBlockHashEndIn0, "block hash ends in 0");
+
         emit Handled(blockHash);
     }
 

@@ -15,15 +15,10 @@ const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
   TokenType.collateral,
   TokenType.collateralUri,
-  TokenType.fastCollateral,
   TokenType.collateralVault,
 ];
 
-const NON_COLLATERAL_TYPES = [
-  TokenType.synthetic,
-  TokenType.syntheticUri,
-  TokenType.fastSynthetic,
-];
+const NON_COLLATERAL_TYPES = [TokenType.synthetic, TokenType.syntheticUri];
 
 describe('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;
