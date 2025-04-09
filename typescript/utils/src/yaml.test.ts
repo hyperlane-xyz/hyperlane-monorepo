@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import {
   ArraySortConfig,
   sortNestedArrays,
+  transformYaml,
   tryParseJsonOrYaml,
 } from './yaml.js';
 
@@ -190,5 +191,144 @@ describe('sortNestedArrays', () => {
     expect(result.otherItems[0].id).to.equal(3);
     expect(result.otherItems[1].id).to.equal(1);
     expect(result.otherItems[2].id).to.equal(2);
+  });
+});
+
+describe('transformYaml', () => {
+  it('should transform YAML content using the provided transformer', () => {
+    const originalYaml = `
+name: test
+items:
+  - id: 2
+    name: item2
+  - id: 1
+    name: item1
+`;
+
+    const mockSource = {
+      getContent: () => originalYaml,
+      extractComments: () => [],
+    };
+
+    const transformer = (data: any) => {
+      // Sort items by id
+      if (data?.items) {
+        data.items.sort((a: any, b: any) => a.id - b.id);
+      }
+      return data;
+    };
+
+    const result = transformYaml(mockSource, transformer);
+
+    // Check that items are sorted by id
+    expect(result).to.include('- id: 1');
+    expect(result.indexOf('- id: 1')).to.be.lessThan(result.indexOf('- id: 2'));
+  });
+
+  it('should preserve comments when transforming YAML', () => {
+    const originalYaml = `
+# Root comment
+name: test
+# Comment for items
+items:
+  # First item comment
+  - id: 2
+    name: item2
+  # Second item comment
+  - id: 1
+    name: item1
+`;
+
+    const mockSource = {
+      getContent: () => originalYaml,
+      extractComments: () => [
+        { location: { start: { line: 2 } }, text: ' Root comment' },
+        { location: { start: { line: 4 } }, text: ' Comment for items' },
+        { location: { start: { line: 6 } }, text: ' First item comment' },
+        { location: { start: { line: 9 } }, text: ' Second item comment' },
+      ],
+    };
+
+    const transformer = (data: any) => {
+      // Sort items by id
+      if (data?.items) {
+        data.items.sort((a: any, b: any) => a.id - b.id);
+      }
+      return data;
+    };
+
+    const result = transformYaml(mockSource, transformer);
+
+    const expectedYaml = `# Root comment
+name: test
+# Comment for items
+items:
+# Second item comment
+  - id: 1
+    name: item1
+# First item comment
+  - id: 2
+    name: item2`;
+
+    expect(result.trim()).to.equal(expectedYaml);
+  });
+
+  it('should handle nested objects and arrays', () => {
+    const originalYaml = `
+config:
+  settings:
+    - name: setting3
+      value: 30
+    - name: setting1
+      value: 10
+    - name: setting2
+      value: 20
+  nested:
+    arrays:
+      - items:
+          - key: c
+            val: 3
+          - key: a
+            val: 1
+          - key: b
+            val: 2
+`;
+
+    const mockSource = {
+      getContent: () => originalYaml,
+      extractComments: () => [],
+    };
+
+    const transformer = (data: any) => {
+      // Sort settings by name
+      if (data?.config?.settings) {
+        data.config.settings.sort((a: any, b: any) =>
+          a.name.localeCompare(b.name),
+        );
+      }
+
+      // Sort nested items by key
+      if (data?.config?.nested?.arrays?.[0]?.items) {
+        data.config.nested.arrays[0].items.sort((a: any, b: any) =>
+          a.key.localeCompare(b.key),
+        );
+      }
+
+      return data;
+    };
+
+    const result = transformYaml(mockSource, transformer);
+
+    // Check that top-level settings are sorted
+    expect(result.indexOf('setting1')).to.be.lessThan(
+      result.indexOf('setting2'),
+    );
+    expect(result.indexOf('setting2')).to.be.lessThan(
+      result.indexOf('setting3'),
+    );
+
+    // Check that nested items are sorted
+    expect(result.indexOf('key: a')).to.be.lessThan(result.indexOf('key: b'));
+    expect(result.indexOf('key: b')).to.be.lessThan(result.indexOf('key: c'));
   });
 });
