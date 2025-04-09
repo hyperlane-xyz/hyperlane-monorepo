@@ -9,7 +9,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use prometheus::{IntCounter, IntGauge};
+use prometheus::{IntCounter, IntCounterVec, IntGauge};
 use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
@@ -913,6 +913,20 @@ impl PendingMessage {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
+                MetadataBuildError::MerkleRootMismatch {
+                    root,
+                    canonical_root,
+                } => {
+                    warn!(
+                        checkpoint_root=?root,
+                        ?canonical_root,
+                        "Checkpoint root does not match canonical root from merkle proof"
+                    );
+                    self.ctx
+                        .metrics
+                        .set_merkle_root_mismatch(self.app_context.clone());
+                    self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+                }
             })?;
         Ok(metadata)
     }
@@ -926,9 +940,13 @@ impl PendingMessage {
 
 #[derive(Debug)]
 pub struct MessageSubmissionMetrics {
+    pub origin: String,
+
     // Fields are public for testing purposes
     pub last_known_nonce: IntGauge,
     pub messages_processed: IntCounter,
+
+    pub merkle_root_mismatch: IntGauge,
 }
 
 impl MessageSubmissionMetrics {
@@ -940,6 +958,7 @@ impl MessageSubmissionMetrics {
         let origin = origin.name();
         let destination = destination.name();
         Self {
+            origin: origin.to_string(),
             last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
                 origin,
@@ -948,6 +967,7 @@ impl MessageSubmissionMetrics {
             messages_processed: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin, destination]),
+            merkle_root_mismatch: metrics.merkle_root_mismatch_count(),
         }
     }
 
@@ -957,6 +977,15 @@ impl MessageSubmissionMetrics {
         // with a ST runtime
         self.last_known_nonce
             .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
+    }
+
+    pub fn set_merkle_root_mismatch(&self, app_context: Option<String>) {
+        self.merkle_root_mismatch
+            .with(&hashmap! {
+                "app_context" => app_context.as_deref().unwrap_or("Unknown"),
+                "origin" => self.origin.as_str(),
+            })
+            .set(is_critical as i64);
     }
 }
 

@@ -35,6 +35,8 @@ pub enum MetadataBuildError {
     MaxIsmCountReached(u32),
     #[error("Aggregation threshold not met ({0})")]
     AggregationThresholdNotMet(u32),
+    #[error("Merkle root mismatch ({root}, {canonical_root})")]
+    MerkleRootMismatch { root: H256, canonical_root: H256 },
 }
 
 #[derive(Clone, Debug, new)]

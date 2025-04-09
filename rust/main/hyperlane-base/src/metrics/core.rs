@@ -7,8 +7,9 @@ use eyre::Result;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
-    Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
+    register_int_gauge_with_registry, CounterVec, Encoder, GaugeVec, HistogramVec, IntCounterVec,
+    IntGauge, IntGaugeVec, Registry,
 };
 use tokio::sync::RwLock;
 
@@ -50,6 +51,7 @@ pub struct CoreMetrics {
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
+    merkle_root_mismatch_count: IntGauge,
 
     latest_checkpoint: IntGaugeVec,
 
@@ -225,6 +227,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let merkle_root_mismatch_count = register_int_gauge_with_registry!(
+            opts!(
+                namespaced!("merkle_root_mismatch_count"),
+                "Number of merkle root mismatch",
+                const_labels_ref
+            ),
+            &["app_context", "origin"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -246,6 +258,7 @@ impl CoreMetrics {
 
             operations_processed_count,
             messages_processed_count,
+            merkle_root_mismatch_count,
 
             latest_checkpoint,
 
@@ -478,6 +491,10 @@ impl CoreMetrics {
     /// - `remote`: Chain we delivered the message to.
     pub fn messages_processed_count(&self) -> IntCounterVec {
         self.messages_processed_count.clone()
+    }
+
+    pub fn merkle_root_mismatch_count(&self) -> IntGauge {
+        self.merkle_root_mismatch_count.clone()
     }
 
     /// Measure of span durations provided by tracing.

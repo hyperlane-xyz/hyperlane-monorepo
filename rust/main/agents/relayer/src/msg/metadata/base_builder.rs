@@ -3,9 +3,10 @@
 
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
-use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
-use eyre::Context;
+use tokio::sync::RwLock;
+use tracing::{debug, warn};
+
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     settings::CheckpointSyncerBuildError,
@@ -20,8 +21,7 @@ use hyperlane_core::{
     H256,
 };
 
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuildError};
 
 use super::IsmAwareAppContextClassifier;
 
@@ -55,7 +55,11 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
 
-    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
+    async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
     async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256)
         -> eyre::Result<Option<u32>>;
@@ -85,21 +89,28 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         &self.app_context_classifier
     }
 
-    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
-        const CTX: &str = "When fetching message proof";
+    async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError> {
         let proof = self
             .origin_prover_sync
             .read()
             .await
             .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         if proof.root() != checkpoint.root {
-            info!(
+            tracing::error!(
                 ?checkpoint,
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
             );
+            return Err(MetadataBuildError::MerkleRootMismatch {
+                root: checkpoint.root,
+                canonical_root: proof.root(),
+            });
         }
         Ok(proof)
     }

@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
 use derive_new::new;
 
-use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
-use crate::msg::metadata::MessageMetadataBuilder;
+use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
@@ -34,8 +33,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
-    ) -> Result<Option<MultisigMetadata>> {
-        const CTX: &str = "When fetching MerkleRootMultisig metadata";
+    ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let highest_leaf_index = unwrap_or_none_result!(
             self.base_builder().highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
@@ -44,7 +42,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             self.base_builder()
                 .get_merkle_leaf_id_by_message_id(message.id())
                 .await
-                .context(CTX)?,
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             debug!(
                 hyp_message=?message,
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
@@ -61,7 +59,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                     self.base_builder().destination_domain(),
                 )
                 .await
-                .context(CTX)?,
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             debug!(
                 leaf_index,
                 highest_leaf_index, "Couldn't get checkpoint in range"
@@ -70,8 +68,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         let proof = self
             .base_builder()
             .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
-            .await
-            .context(CTX)?;
+            .await?;
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint,
             leaf_index,
