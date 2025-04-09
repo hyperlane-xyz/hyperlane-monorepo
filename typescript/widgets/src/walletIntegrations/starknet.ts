@@ -7,9 +7,8 @@ import {
   useSendTransaction,
   useSwitchChain,
 } from '@starknet-react/core';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Call } from 'starknet';
-import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
 import {
   ChainName,
@@ -31,9 +30,43 @@ import {
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 
+interface StarknetKit {
+  useStarknetkitConnectModal: () => {
+    starknetkitConnectModal: (options?: any) => Promise<{
+      connector?: any;
+    }>;
+  };
+}
+
 const logger = widgetLogger.child({
   module: 'widgets/walletIntegrations/starknet',
 });
+
+export function useStarknetKit() {
+  const [starknetkit, setStarknetkit] = useState<{
+    useStarknetkitConnectModal?: any;
+  }>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStarknetkit = async () => {
+      try {
+        const starknetkit = (await import('starknetkit')) as StarknetKit;
+        setStarknetkit({
+          useStarknetkitConnectModal: starknetkit.useStarknetkitConnectModal,
+        });
+      } catch (error) {
+        console.error('Failed to load starknetkit:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStarknetkit();
+  }, []);
+
+  return { ...starknetkit, isLoading };
+}
 
 export function useStarknetAccount(
   _multiProvider: MultiProtocolProvider,
@@ -67,20 +100,24 @@ export function useStarknetWalletDetails(): WalletDetails {
 
 export function useStarknetConnectFn(): () => void {
   const { connectAsync, connectors } = useConnect();
-
-  // This is how they do it: https://github.com/argentlabs/starknetkit-example-dapp/blob/d1d5ba8b5e06eef76b9df9b01832b57d2f22c649/src/components/connect/ConnectStarknetReactNext.tsx#L21
-  const { starknetkitConnectModal } = useStarknetkitConnectModal({
-    connectors: connectors as StarknetkitConnector[],
-  });
+  const { useStarknetkitConnectModal, isLoading } = useStarknetKit();
 
   return useCallback(async () => {
+    if (isLoading || !useStarknetkitConnectModal) {
+      logger.warn('Starknet wallet not loaded yet');
+      return;
+    }
+    const { starknetkitConnectModal } = useStarknetkitConnectModal({
+      connectors: connectors as any[],
+    });
     const { connector } = await starknetkitConnectModal();
+
     if (connector) {
       await connectAsync({ connector });
     } else {
       logger.error('No Starknet wallet connectors available');
     }
-  }, [connectAsync, starknetkitConnectModal]);
+  }, [connectAsync, connectors, isLoading, useStarknetkitConnectModal]);
 }
 
 export function useStarknetDisconnectFn(): () => Promise<void> {
