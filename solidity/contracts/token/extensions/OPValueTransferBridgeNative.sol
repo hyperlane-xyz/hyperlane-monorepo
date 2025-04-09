@@ -3,24 +3,22 @@ pragma solidity >=0.8.0;
 
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenRouter} from "../../token/libs/TokenRouter.sol";
+import {OPL2ToL1Withdrawal} from "../../libs/OPL2ToL1Withdrawal.sol";
 import {ValueTransferBridgeNative} from "../ValueTransferBridgeNative.sol";
 import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {Quotes, IValueTransferBridge} from "../../interfaces/IValueTransferBridge.sol";
-import {IL2CrossDomainMessenger, ICrossDomainMessenger, IL2ToL1MessagePasser} from "../../interfaces/optimism/ICrossDomainMessenger.sol";
 
 contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
     using TypeCasts for bytes32;
 
-    IL2ToL1MessagePasser public constant L2_TO_L1_MESSAGE_PASSER =
-        IL2ToL1MessagePasser(
-            payable(0x4200000000000000000000000000000000000016)
-        );
-    uint32 public constant L1_MIN_GAS_LIMIT = 50_000;
-    // Finalize withdrawal call
-    uint32 constant HOOK_METADATA_GAS_LIMIT = 300_000;
+    uint32 public constant OP_MIN_GAS_LIMIT_ON_L1 = 50_000;
+    address payable public constant OP_MESSAGE_PASSER =
+        payable(0x4200000000000000000000000000000000000016);
+
+    uint32 public constant FINALIZE_WITHDRAWAL_GAS_LIMIT = 300_000;
 
     // L2 bridge used to initiate the withdrawal
     IStandardBridge public immutable l2Bridge;
@@ -61,7 +59,10 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
     }
 
     function _getHookMetadata() internal view override returns (bytes memory) {
-        return StandardHookMetadata.overrideGasLimit(HOOK_METADATA_GAS_LIMIT);
+        return
+            StandardHookMetadata.overrideGasLimit(
+                FINALIZE_WITHDRAWAL_GAS_LIMIT
+            );
     }
 
     function _transferFromSender(
@@ -73,79 +74,19 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
 
         // IMPORTANT: this must be placed before the l2Bridge.bridgeETHto()
         // call in order to work (nonce will change during the withdrawal)
-        metadata = _getWithdrawalMetadata(remoteRouter, _amountOrId, extraData);
+        metadata = OPL2ToL1Withdrawal.getWithdrawalMetadata(
+            payable(l2Bridge),
+            address(OP_MESSAGE_PASSER),
+            OP_MIN_GAS_LIMIT_ON_L1,
+            remoteRouter,
+            _amountOrId,
+            extraData
+        );
 
         l2Bridge.bridgeETHTo{value: _amountOrId}(
             remoteRouter,
-            L1_MIN_GAS_LIMIT,
+            OP_MIN_GAS_LIMIT_ON_L1,
             extraData
         );
-    }
-
-    /**
-     * @dev Abi encodes the withdrawal hash in order to be included into
-     * the TokenMessage metadata. This will be used for further verification
-     * on the CCIP-read contract on L1
-     */
-    function _getWithdrawalMetadata(
-        address _remoteRouter,
-        uint256 _amountOrId,
-        bytes memory _extraData
-    ) internal view returns (bytes memory metadata) {
-        IL2CrossDomainMessenger messenger = IL2CrossDomainMessenger(
-            address(l2Bridge.MESSENGER())
-        );
-
-        bytes memory message = abi.encodeWithSelector(
-            IStandardBridge.finalizeBridgeETH.selector,
-            address(this),
-            _remoteRouter,
-            _amountOrId,
-            _extraData
-        );
-
-        bytes memory data = abi.encodeWithSelector(
-            ICrossDomainMessenger.relayMessage.selector,
-            messenger.messageNonce(),
-            address(l2Bridge), // sender
-            address(l2Bridge.OTHER_BRIDGE()), // target
-            _amountOrId, // value
-            L1_MIN_GAS_LIMIT,
-            message
-        );
-
-        uint256 messagePasserNonce = IL2ToL1MessagePasser(
-            L2_TO_L1_MESSAGE_PASSER
-        ).messageNonce();
-
-        metadata = abi.encode(
-            _hashWithdrawal(
-                IOptimismPortal.WithdrawalTransaction({
-                    nonce: messagePasserNonce,
-                    sender: address(messenger),
-                    target: messenger.OTHER_MESSENGER(),
-                    value: _amountOrId,
-                    gasLimit: messenger.baseGas(message, L1_MIN_GAS_LIMIT),
-                    data: data
-                })
-            )
-        );
-    }
-
-    /// @dev Copied from Hashing.sol of Optimism
-    function _hashWithdrawal(
-        IOptimismPortal.WithdrawalTransaction memory _tx
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _tx.nonce,
-                    _tx.sender,
-                    _tx.target,
-                    _tx.value,
-                    _tx.gasLimit,
-                    _tx.data
-                )
-            );
     }
 }

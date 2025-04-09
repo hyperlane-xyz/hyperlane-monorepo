@@ -5,6 +5,7 @@ import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../../token/libs/TokenRouter.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
+import {OPL2ToL1Withdrawal} from "../../libs/OPL2ToL1Withdrawal.sol";
 import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
@@ -150,7 +151,7 @@ contract OPL2ToL1CcipReadIsm is
                 )
             );
 
-        bytes32 expected = _hashWithdrawal(_tx);
+        bytes32 expected = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
         if (withdrawalHash != expected) {
             revert InvalidWithdrawalHash(withdrawalHash, expected);
         }
@@ -175,7 +176,7 @@ contract OPL2ToL1CcipReadIsm is
             (IOptimismPortal.WithdrawalTransaction)
         );
 
-        bytes32 withdrawalHash = _hashWithdrawal(_tx);
+        bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
 
         if (opPortal.finalizedWithdrawals(withdrawalHash)) {
             return;
