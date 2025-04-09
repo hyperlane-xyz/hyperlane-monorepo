@@ -712,15 +712,31 @@ impl Relayer {
         let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
-            .map(|destination| {
-                (
-                    destination.id(),
-                    self.msg_ctxs[&ContextKey {
-                        origin: origin.id(),
-                        destination: destination.id(),
-                    }]
-                        .clone(),
-                )
+            .filter_map(|destination| {
+                let key = ContextKey {
+                    origin: origin.id(),
+                    destination: destination.id(),
+                };
+                let context = self
+                    .msg_ctxs
+                    .get(&key)
+                    .map(|c| (destination.id(), c.clone()));
+
+                if context.is_none() {
+                    let err_msg = format!(
+                        "No message context found for origin {} and destination {}",
+                        origin.name(),
+                        destination.name()
+                    );
+                    Self::record_critical_error(
+                        origin,
+                        ChainCommunicationError::CustomError(err_msg.clone()),
+                        &err_msg,
+                        self.chain_metrics.clone(),
+                    );
+                }
+
+                context
             })
             .collect();
 
