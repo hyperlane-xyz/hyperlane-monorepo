@@ -10,7 +10,10 @@ use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
     Region, RusotoError,
 };
-use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
+use rusoto_s3::{
+    GetObjectError, GetObjectRequest, HeadObjectError, HeadObjectRequest, PutObjectRequest,
+    S3Client, S3,
+};
 use tokio::time::timeout;
 
 use crate::types::utils;
@@ -21,7 +24,9 @@ use crate::{
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
 /// See https://github.com/rusoto/rusoto/issues/1795.
-const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
+const S3_REQUEST_TIMEOUT_SECONDS: u64 = 10;
+const S3_METADATA_TIMEOUT_SECONDS: u64 = 3;
+const S3_MAX_OBJECT_SIZE: i64 = 1024 * 1024; // 1MiB
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
@@ -69,8 +74,40 @@ impl S3Storage {
         Ok(())
     }
 
+    /// Check if the metadata for the object satisfies our size constraints.
+    /// If the object is too big, we return an error.
+    async fn check_metadata(&self, key: String) -> Result<bool> {
+        let metadata_req = HeadObjectRequest {
+            key: self.get_composite_key(key.clone()),
+            bucket: self.bucket.clone(),
+            ..Default::default()
+        };
+
+        let get_object_result = timeout(
+            Duration::from_secs(S3_METADATA_TIMEOUT_SECONDS),
+            self.anonymous_client().head_object(metadata_req),
+        )
+        .await?;
+
+        match get_object_result {
+            Ok(value) => match value.content_length {
+                Some(length) if length >= S3_MAX_OBJECT_SIZE => {
+                    bail!("Object size for key {key} is too big: {}KiB", length / 1024);
+                }
+                _ => Ok(true),
+            },
+            Err(RusotoError::Service(HeadObjectError::NoSuchKey(_))) => Ok(false),
+            Err(e) => bail!(e),
+        }
+    }
+
     /// Uses an anonymous client. This should only be used for publicly accessible buckets.
     async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
+        // check for metadata first
+        if !self.check_metadata(key.clone()).await? {
+            return Ok(None);
+        }
+
         let req = GetObjectRequest {
             key: self.get_composite_key(key),
             bucket: self.bucket.clone(),

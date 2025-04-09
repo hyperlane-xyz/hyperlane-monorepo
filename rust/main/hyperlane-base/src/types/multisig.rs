@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
+use futures::{stream::FuturesUnordered, StreamExt};
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
@@ -17,8 +18,7 @@ use crate::{CheckpointSyncer, CoreMetrics};
 pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
     checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>>,
-    metrics: Arc<CoreMetrics>,
-    app_context: Option<String>,
+    metrics: Option<(Arc<CoreMetrics>, String)>, // first arg is the metrics, second is the app context
 }
 
 impl MultisigCheckpointSyncer {
@@ -31,7 +31,7 @@ impl MultisigCheckpointSyncer {
         validators: &[H256],
         origin: &HyperlaneDomain,
         destination: &HyperlaneDomain,
-    ) -> Vec<u32> {
+    ) -> Vec<(H160, u32)> {
         // Get the latest_index from each validator's checkpoint syncer.
         // If a validator does not return a latest index, None is recorded so
         // this can be surfaced in the metrics.
@@ -65,8 +65,8 @@ impl MultisigCheckpointSyncer {
             }
         }
 
-        if let Some(app_context) = &self.app_context {
-            self.metrics
+        if let Some((metrics, app_context)) = &self.metrics {
+            metrics
                 .validator_metrics
                 .set_validator_latest_checkpoints(
                     origin,
@@ -78,7 +78,10 @@ impl MultisigCheckpointSyncer {
         }
 
         // Filter out any validators that did not return a latest index
-        latest_indices.values().copied().flatten().collect()
+        latest_indices
+            .into_iter()
+            .filter_map(|(address, index)| index.map(|i| (address, i)))
+            .collect()
     }
 
     /// Attempts to get the latest checkpoint with a quorum of signatures among
@@ -119,8 +122,15 @@ impl MultisigCheckpointSyncer {
 
         // Sort in descending order. The n'th index will represent
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
-        latest_indices.sort_by(|a, b| b.cmp(a));
-        if let Some(&highest_quorum_index) = latest_indices.get(threshold - 1) {
+        latest_indices.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // create a slice with the sorted validators
+        let validators = latest_indices
+            .iter()
+            .map(|(address, _)| H256::from(*address))
+            .collect::<Vec<_>>();
+
+        if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 1) {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
@@ -129,11 +139,27 @@ impl MultisigCheckpointSyncer {
                 debug!(%start_index, %highest_quorum_index, "Highest quorum index is below the minimum index");
                 return Ok(None);
             }
-            for index in (minimum_index..=start_index).rev() {
-                if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(validators, threshold, index).await
-                {
-                    return Ok(Some(checkpoint));
+
+            // Batch the fetching of a specific index
+            // This enables us to fetch a quorum faster
+            let batch_size = ((start_index - minimum_index) / 4) as usize;
+            let batch_size = batch_size.clamp(1, 3);
+
+            // create a local slice of the range that can safely be sent between workers
+            let indices = Vec::from_iter((minimum_index..=start_index).rev());
+            let indices = indices.as_slice();
+
+            for indices in indices.chunks(batch_size) {
+                let mut futures = indices
+                    .iter()
+                    .map(|index| self.fetch_checkpoint(&validators, threshold, *index))
+                    .collect::<FuturesUnordered<_>>();
+
+                // We want to select the first future that is OK and has Option::Some
+                while let Some(checkpoint) = futures.next().await {
+                    if let Ok(Some(checkpoint)) = checkpoint {
+                        return Ok(Some(checkpoint));
+                    }
                 }
             }
         }
@@ -157,14 +183,40 @@ impl MultisigCheckpointSyncer {
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
 
-        for validator in validators.iter() {
-            let addr = H160::from(*validator);
-            if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
+        // we iterate in batches of N=threshold*1.5 to avoid waiting for all validators.
+        // This reaches a quorum faster without having to fetch all the signatures.
+
+        // Also limit this number in case we have a large threshold
+        let batch_size = (threshold as f64 * 1.5) as usize;
+        let batch_size = batch_size.clamp(1, 10);
+
+        for validators in validators.chunks(batch_size) {
+            // Go through each validator and get the checkpoint syncer.
+            // Create a future for each validator that fetches the signature and
+            // finally construct the checkpoint
+            let futures = validators
+                .iter()
+                .filter_map(|address| {
+                    if let Some(syncer) = self.checkpoint_syncers.get(&H160::from(*address)) {
+                        Some((address, syncer))
+                    } else {
+                        debug!(%address, "Checkpoint syncer not found");
+                        None
+                    }
+                })
+                .map(|(address, syncer)| {
+                    let checkpoint_syncer = syncer.clone();
+                    async move { (address, checkpoint_syncer.fetch_checkpoint(index).await) }
+                })
+                .collect::<Vec<_>>();
+
+            let checkpoints = futures::future::join_all(futures).await;
+
+            for (validator, checkpoint) in checkpoints {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
-                if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
-                {
+                if let Ok(Some(signed_checkpoint)) = checkpoint {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
                         debug!(
@@ -216,12 +268,131 @@ impl MultisigCheckpointSyncer {
                         "Unable to find signed checkpoint"
                     );
                 }
-            } else {
-                debug!(%validator, "Unable to find checkpoint syncer");
-                continue;
             }
         }
         debug!("No quorum checkpoint found for message");
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use std::str::FromStr;
+
+    use hyperlane_core::KnownHyperlaneDomain;
+    use rusoto_core::Region;
+
+    use crate::S3Storage;
+
+    use super::*;
+
+    #[tokio::test]
+    #[tracing_test::traced_test]
+    async fn test_s3_checkpoint_syncer() {
+        let validators = vec![
+            (
+                "0x4d966438fe9E2B1e7124c87bBB90cB4F0F6C59a1",
+                (
+                    "hyperlane-mainnet3-arbitrum-validator-0".to_string(),
+                    Region::UsEast1,
+                ),
+            ),
+            (
+                "0x5450447aeE7B544c462C9352bEF7cAD049B0C2Dc",
+                ("zpl-hyperlane-v3-arbitrum".to_string(), Region::EuCentral1),
+            ),
+            (
+                "0xec68258A7c882AC2Fc46b81Ce80380054fFB4eF2",
+                (
+                    "dsrv-hyperlane-v3-validator-signatures-validator7-arbitrum".to_string(),
+                    Region::EuCentral1,
+                ),
+            ),
+            (
+                "0x38C7A4ca1273ead2E867d096aDBCDD0e2AcB21D8",
+                (
+                    "hyperlane-v3-validator-signatures-everstake-one-arbitrum".to_string(),
+                    Region::UsEast2,
+                ),
+            ),
+            (
+                "0xb3AC35d3988bca8C2fFD195b1c6bee18536B317b",
+                (
+                    "can-outrun-imperial-starships-v3-arbitrum".to_string(),
+                    Region::EuWest1,
+                ),
+            ),
+            (
+                "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
+                (
+                    "hyperlane-validator-signatures-bwarelabs-ethereum/arbitrum".to_string(),
+                    Region::EuNorth1,
+                ),
+            ),
+            (
+                "0xc4b877Dd49ABe9B38EA9184683f9664c0F9FADe3",
+                (
+                    "arbitrum-validator-signatures/arbitrum".to_string(),
+                    Region::UsEast1,
+                ),
+            ),
+        ];
+
+        let syncers = validators
+            .iter()
+            .map(|(address, (bucket, region))| {
+                let syncer = S3Storage::new(bucket.clone(), None, region.clone(), None);
+                (
+                    H160::from_str(address).unwrap(),
+                    Arc::new(syncer) as Arc<dyn CheckpointSyncer>,
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        // Create a multisig checkpoint syncer
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        let validators = validators
+            .iter()
+            .map(|(address, _)| {
+                let address: H256 = H160::from_str(address).unwrap().into();
+                address
+            })
+            .collect::<Vec<_>>();
+
+        // get the latest checkpoint from each validator
+        let mut latest_indices = multisig_syncer
+            .get_validator_latest_checkpoints_and_update_metrics(
+                validators.as_slice(),
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            )
+            .await;
+        latest_indices.sort_by(|a, b| b.cmp(a));
+
+        let lowest_index = *latest_indices.last().unwrap();
+
+        let start_time = std::time::Instant::now();
+
+        for threshold in 2..=6 {
+            println!("Starting to fetch checkpoints with threshold {}", threshold);
+            if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 2) {
+                let result = multisig_syncer
+                    .fetch_checkpoint_in_range(
+                        validators.as_slice(),
+                        threshold,
+                        lowest_index.1,
+                        highest_quorum_index,
+                        &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                        &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                    )
+                    .await;
+                assert!(result.is_ok(), "Failed to fetch checkpoint");
+            }
+        }
+
+        let elapsed = start_time.elapsed();
+        println!("Fetched checkpoints in {}s", elapsed.as_millis());
     }
 }
