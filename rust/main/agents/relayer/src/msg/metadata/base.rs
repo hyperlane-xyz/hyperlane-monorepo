@@ -2,6 +2,7 @@
 #![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::{
+    collections::HashSet,
     fmt::Debug,
     sync::Arc,
     time::{Duration, Instant},
@@ -9,9 +10,12 @@ use std::{
 
 use derive_new::new;
 use eyre::Result;
+use serde::Deserialize;
 use tokio::sync::{Mutex, RwLock};
 
-use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256};
+use hyperlane_core::{
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256,
+};
 
 use crate::settings::matching_list::MatchingList;
 
@@ -79,9 +83,9 @@ pub struct IsmWithMetadataAndType {
 /// Allows fetching the default ISM, caching the value for a period of time
 /// to avoid fetching it all the time.
 /// TODO: make this generic
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DefaultIsmCache {
-    value: RwLock<Option<(H256, Instant)>>,
+    value: Arc<RwLock<Option<(H256, Instant)>>>,
     mailbox: Arc<dyn Mailbox>,
 }
 
@@ -91,7 +95,7 @@ impl DefaultIsmCache {
 
     pub fn new(mailbox: Arc<dyn Mailbox>) -> Self {
         Self {
-            value: RwLock::new(None),
+            value: Arc::new(RwLock::new(None)),
             mailbox,
         }
     }
@@ -128,17 +132,17 @@ impl DefaultIsmCache {
 
 #[derive(Debug)]
 pub struct IsmAwareAppContextClassifier {
-    default_ism: DefaultIsmCache,
+    default_ism_getter: DefaultIsmCache,
     app_context_classifier: AppContextClassifier,
 }
 
 impl IsmAwareAppContextClassifier {
     pub fn new(
-        destination_mailbox: Arc<dyn Mailbox>,
+        default_ism_getter: DefaultIsmCache,
         app_matching_lists: Vec<(MatchingList, String)>,
     ) -> Self {
         Self {
-            default_ism: DefaultIsmCache::new(destination_mailbox),
+            default_ism_getter,
             app_context_classifier: AppContextClassifier::new(app_matching_lists),
         }
     }
@@ -152,7 +156,7 @@ impl IsmAwareAppContextClassifier {
             return Ok(Some(app_context));
         }
 
-        if root_ism == self.default_ism.get().await? {
+        if root_ism == self.default_ism_getter.get().await? {
             return Ok(Some("default_ism".to_string()));
         }
 
@@ -185,5 +189,75 @@ impl AppContextClassifier {
         }
 
         Ok(None)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
+pub enum IsmCachePolicy {
+    #[default]
+    MessageSpecific,
+    IsmSpecific,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct IsmCacheConfig {
+    module_types: HashSet<ModuleType>,
+    domains: Option<HashSet<u32>>,
+    cache_policy: IsmCachePolicy,
+}
+
+impl IsmCacheConfig {
+    fn matches_domain(&self, domain: u32) -> bool {
+        if let Some(domains) = &self.domains {
+            domains.contains(&domain)
+        } else {
+            // If no domains are specified, match all domains
+            true
+        }
+    }
+
+    fn matches_module_type(&self, module_type: ModuleType) -> bool {
+        self.module_types.contains(&module_type)
+    }
+}
+
+#[derive(Debug, new)]
+pub struct IsmCachePolicyClassifier {
+    default_ism_getter: DefaultIsmCache,
+    default_ism_cache_policy: IsmCacheConfig,
+}
+
+impl IsmCachePolicyClassifier {
+    /// Returns the cache policy for the given app context.
+    pub async fn get_cache_policy(
+        &self,
+        root_ism: H256,
+        domain: &HyperlaneDomain,
+        ism_module_type: ModuleType,
+    ) -> IsmCachePolicy {
+        let default_ism = match self.default_ism_getter.get().await {
+            Ok(default_ism) => default_ism,
+            Err(err) => {
+                tracing::warn!(?err, "Error fetching default ISM for ISM cache policy, falling back to default cache policy");
+                return IsmCachePolicy::default();
+            }
+        };
+
+        if root_ism == default_ism
+            && self.default_ism_cache_policy.matches_domain(domain.id())
+            && self
+                .default_ism_cache_policy
+                .matches_module_type(ism_module_type)
+        {
+            tracing::trace!(
+                ?default_ism,
+                ?domain,
+                cache_policy =? self.default_ism_cache_policy.cache_policy,
+                "Using configured default ISM cache policy"
+            );
+            return self.default_ism_cache_policy.cache_policy;
+        }
+
+        IsmCachePolicy::default()
     }
 }

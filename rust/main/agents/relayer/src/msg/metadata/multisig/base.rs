@@ -10,13 +10,13 @@ use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, H256};
+use hyperlane_core::{HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
-use crate::msg::metadata::{MessageMetadataBuildParams, Metadata, MetadataBuilder};
+use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, Metadata, MetadataBuilder};
 
 #[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
@@ -40,6 +40,8 @@ pub enum MetadataToken {
 
 #[async_trait]
 pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {
+    fn module_type(&self) -> ModuleType;
+
     async fn fetch_metadata(
         &self,
         validators: &[H256],
@@ -105,14 +107,29 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
     ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
         let ism_domain = multisig_ism.domain().name();
         let fn_key = "validators_and_threshold";
-        // To have the cache key be more succinct, we use the message id
-        let call_params = (multisig_ism.address(), message.id());
+
+        // Depending on the cache policy, make use of the message ID
+        let params_cache_key = match self
+            .as_ref()
+            .base_builder()
+            .ism_cache_policy_classifier()
+            .get_cache_policy(
+                self.as_ref().root_ism,
+                &multisig_ism.domain(),
+                self.module_type(),
+            )
+            .await
+        {
+            // To have the cache key be more succinct, we use the message id
+            IsmCachePolicy::MessageSpecific => (multisig_ism.address(), message.id()),
+            IsmCachePolicy::IsmSpecific => (multisig_ism.address(), H256::zero()),
+        };
 
         let cache_result = self
             .as_ref()
             .base_builder()
             .cache()
-            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &call_params)
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &params_cache_key)
             .await
             .map_err(|err| {
                 warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -131,7 +148,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
                 self.as_ref()
                     .base_builder()
                     .cache()
-                    .cache_call_result(ism_domain, fn_key, &call_params, &result)
+                    .cache_call_result(ism_domain, fn_key, &params_cache_key, &result)
                     .await
                     .map_err(|err| {
                         warn!(error = %err, "Error when caching call result for {:?}", fn_key);

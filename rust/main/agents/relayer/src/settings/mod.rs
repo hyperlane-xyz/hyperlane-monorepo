@@ -23,7 +23,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-    msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES, settings::matching_list::MatchingList,
+    msg::{metadata::IsmCacheConfig, pending_message::DEFAULT_MAX_MESSAGE_RETRIES},
+    settings::matching_list::MatchingList,
 };
 
 pub mod matching_list;
@@ -63,6 +64,8 @@ pub struct RelayerSettings {
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
     pub metric_app_contexts: Vec<(MatchingList, String)>,
+    /// The default ISM cache policy to use for all messages that use the default ISM.
+    pub default_ism_cache_config: IsmCacheConfig,
     /// Maximum number of retries per operation
     pub max_retries: u32,
 }
@@ -318,6 +321,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_default();
 
+        let default_ism_cache_config = p
+            .chain(&mut err)
+            .get_opt_key("defaultIsmCacheConfig")
+            .and_then(parse_ism_cache_config)
+            .unwrap_or_default();
+
         let max_message_retries = p
             .chain(&mut err)
             .get_opt_key("maxMessageRetries")
@@ -337,6 +346,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
             metric_app_contexts,
+            default_ism_cache_config,
             max_retries: max_message_retries,
         })
     }
@@ -372,6 +382,42 @@ fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
     let p = ValueParser::new(p.cwp.clone(), &raw_list);
     let ml = p
         .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
+
+    err.into_result(ml)
+}
+
+fn parse_json_object(p: ValueParser) -> Option<(ConfigPath, Value)> {
+    let mut err = ConfigParsingError::default();
+
+    match p {
+        ValueParser {
+            val: Value::String(array_str),
+            cwp,
+        } => serde_json::from_str::<Value>(array_str)
+            .context("Expected JSON string")
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
+        ValueParser {
+            val: value @ Value::Object(_),
+            cwp,
+        } => Some((cwp, value.clone())),
+        _ => Err(eyre!("Expected JSON object or stringified JSON"))
+            .take_err(&mut err, || p.cwp.clone()),
+    }
+}
+
+fn parse_ism_cache_config(p: ValueParser) -> ConfigResult<IsmCacheConfig> {
+    let mut err = ConfigParsingError::default();
+
+    let raw_list = parse_json_object(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(IsmCacheConfig::default());
+    };
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+    let ml = p
+        .parse_value::<IsmCacheConfig>("Expected ISM cache config")
         .take_config_err(&mut err)
         .unwrap_or_default();
 

@@ -33,6 +33,7 @@ use super::{
 pub struct MessageMetadataBuilder {
     pub base: Arc<dyn BuildsBaseMetadata>,
     pub app_context: Option<String>,
+    pub root_ism: H256,
     pub max_ism_depth: u32,
     pub max_ism_count: u32,
 }
@@ -79,6 +80,7 @@ impl MessageMetadataBuilder {
         Ok(Self {
             base,
             app_context,
+            root_ism: ism_address,
             max_ism_depth: ISM_MAX_DEPTH,
             max_ism_count: ISM_MAX_COUNT,
         })

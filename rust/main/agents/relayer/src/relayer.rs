@@ -42,7 +42,10 @@ use crate::{
     msg::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
-        metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        metadata::{
+            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+            IsmCachePolicyClassifier,
+        },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -302,6 +305,7 @@ impl BaseAgent for Relayer {
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
+                let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -312,8 +316,12 @@ impl BaseAgent for Relayer {
                     cache.clone(),
                     db,
                     IsmAwareAppContextClassifier::new(
-                        dest_mailbox.clone(),
+                        default_ism_getter.clone(),
                         settings.metric_app_contexts.clone(),
+                    ),
+                    IsmCachePolicyClassifier::new(
+                        default_ism_getter.clone(),
+                        settings.default_ism_cache_config.clone(),
                     ),
                 );
 

@@ -13,7 +13,9 @@ use hyperlane_core::{
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
-use super::{MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder};
+use super::{
+    IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
+};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -133,13 +135,23 @@ impl AggregationIsmMetadataBuilder {
     ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
         let ism_domain = ism.domain().name();
         let fn_key = "modules_and_threshold";
-        // To have the cache key be more succinct, we use the message id
-        let call_params = (ism.address(), message.id());
+
+        // Depending on the cache policy, make use of the message ID
+        let params_cache_key = match self
+            .base_builder()
+            .ism_cache_policy_classifier()
+            .get_cache_policy(self.root_ism, &ism.domain(), ModuleType::Aggregation)
+            .await
+        {
+            // To have the cache key be more succinct, we use the message id
+            IsmCachePolicy::MessageSpecific => (ism.address(), message.id()),
+            IsmCachePolicy::IsmSpecific => (ism.address(), H256::zero()),
+        };
 
         let cache_result = self
             .base_builder()
             .cache()
-            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &call_params)
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &params_cache_key)
             .await
             .map_err(|err| {
                 warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -157,7 +169,7 @@ impl AggregationIsmMetadataBuilder {
 
                 self.base_builder()
                     .cache()
-                    .cache_call_result(ism_domain, fn_key, &call_params, &result)
+                    .cache_call_result(ism_domain, fn_key, &params_cache_key, &result)
                     .await
                     .map_err(|err| {
                         warn!(error = %err, "Error when caching call result for {:?}", fn_key);
