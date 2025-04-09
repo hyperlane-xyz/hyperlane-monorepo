@@ -13,17 +13,22 @@ type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 #[derive(Debug, Default)]
 pub struct MockAggregationIsmResponses {
     pub modules_and_threshold: ResponseList<ChainResult<(Vec<H256>, u8)>>,
-    pub domain: Option<HyperlaneDomain>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MockAggregationIsm {
+    pub address: H256,
+    pub domain: HyperlaneDomain,
     pub responses: MockAggregationIsmResponses,
 }
 
 impl MockAggregationIsm {
-    pub fn set_domain(&mut self, domain: HyperlaneDomain) {
-        self.responses.domain = Some(domain);
+    pub fn new(address: H256, domain: HyperlaneDomain) -> Self {
+        Self {
+            address,
+            domain,
+            responses: MockAggregationIsmResponses::default(),
+        }
     }
 }
 
@@ -44,16 +49,13 @@ impl AggregationIsm for MockAggregationIsm {
 
 impl HyperlaneContract for MockAggregationIsm {
     fn address(&self) -> H256 {
-        H256::zero()
+        self.address
     }
 }
 
 impl HyperlaneChain for MockAggregationIsm {
     fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
-        self.responses
-            .domain
-            .as_ref()
-            .expect("No mock domain response set")
+        &self.domain
     }
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
         unimplemented!()

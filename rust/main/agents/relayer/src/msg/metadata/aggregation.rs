@@ -5,7 +5,6 @@ use futures_util::future::join_all;
 use derive_new::new;
 use itertools::{Either, Itertools};
 use tracing::{info, instrument};
-#[cfg(not(test))]
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
@@ -127,7 +126,6 @@ impl AggregationIsmMetadataBuilder {
     ///
     /// Implicit contract in this method: function name `modules_and_threshold` matches
     /// the name of the method `modules_and_threshold`.
-    #[cfg(not(test))]
     async fn call_modules_and_threshold(
         &self,
         ism: Box<dyn AggregationIsm>,
@@ -186,21 +184,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-        #[cfg(not(test))]
         let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
-        // TODO For Jeff to fix, RE: feat: add ism limit (#5567)
-        #[cfg(test)]
-        let (ism_addresses, threshold) = ism
-            .modules_and_threshold(message)
-            .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         let threshold = threshold as usize;
 
-        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
+        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|sub_ism_address| {
             message_builder::build_message_metadata(
                 self.base.clone(),
-                *ism_address,
+                *sub_ism_address,
                 message,
                 params.clone(),
             )
