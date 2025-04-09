@@ -34,16 +34,14 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
+  DerivedIsmConfig,
   DomainRoutingIsmConfig,
-  IsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
-
-export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;

@@ -39,9 +39,8 @@ export enum WarpRouteIds {
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
-  EthereumSwellZircuitPZETH = 'PZETH/ethereum-swell-zircuit',
-  // TODO: can be uncommented after merging this warp route into the registry
-  // EthereumSwellZircuitPZETHSTAGE = 'PZETHSTAGE/ethereum-swell-zircuit',
+  BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
+  BerachainEthereumSwellUnichainZircuitPZETHSTAGE = 'PZETHSTAGE/berachain-ethereum-swell-unichain-zircuit',
   EthereumBscLumiaprismLUMIA = 'LUMIA/bsc-ethereum-lumiaprism',
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
@@ -89,4 +88,14 @@ export enum WarpRouteIds {
   BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
+  // Soon Routes
+  SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
+  SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
+  SolanaSoonMEW = 'MEW/solanamainnet-soon',
+  SolanaSoonPnut = 'Pnut/solanamainnet-soon',
+  SolanaSoonWIF = 'WIF/solanamainnet-soon',
+  SolanaSoonPOPCAT = 'POPCAT/solanamainnet-soon',
+  SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
+  SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
+  SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 }

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, U256};
 
-use crate::chain_tx_adapter::SealevelPayload;
+use crate::transaction::TransactionStatus;
 
 pub type PayloadId = UniqueIdentifier;
 type Address = H256;
@@ -27,13 +27,23 @@ pub struct PayloadDetails {
     pub success_criteria: Option<(Vec<u8>, Address)>,
 }
 
+impl PayloadDetails {
+    pub fn new(id: PayloadId, metadata: impl Into<String>) -> Self {
+        Self {
+            id,
+            metadata: metadata.into(),
+            success_criteria: None,
+        }
+    }
+}
+
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
     pub details: PayloadDetails,
     /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
-    pub data: VmSpecificPayloadData,
+    pub data: Vec<u8>,
     /// defaults to the hyperlane mailbox
     pub to: Address,
     /// defaults to `ReadyToSubmit`
@@ -47,8 +57,37 @@ pub struct FullPayload {
 }
 
 impl FullPayload {
+    pub fn new(id: PayloadId, metadata: impl Into<String>, data: Vec<u8>, to: Address) -> Self {
+        Self {
+            details: PayloadDetails::new(id, metadata),
+            data,
+            to,
+            status: Default::default(),
+            value: None,
+            inclusion_soft_deadline: None,
+        }
+    }
+
     pub fn id(&self) -> &PayloadId {
         &self.details.id
+    }
+
+    #[cfg(test)]
+    pub fn random() -> Self {
+        let id = PayloadId::random();
+        let details = PayloadDetails {
+            id: id.clone(),
+            metadata: format!("payload-{}", id.to_string()),
+            success_criteria: None,
+        };
+        FullPayload {
+            details,
+            data: vec![],
+            to: Address::zero(),
+            status: PayloadStatus::default(),
+            value: None,
+            inclusion_soft_deadline: None,
+        }
     }
 }
 
@@ -56,16 +95,23 @@ impl FullPayload {
 pub enum PayloadStatus {
     #[default]
     ReadyToSubmit,
-    PendingInclusion,
-    Included,
-    Finalized,
-    NotFound,
+    InTransaction(TransactionStatus),
     Dropped(DropReason),
     Retry(RetryReason),
 }
 
+impl PayloadStatus {
+    pub fn is_finalized(&self) -> bool {
+        matches!(
+            self,
+            PayloadStatus::InTransaction(TransactionStatus::Finalized)
+        )
+    }
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum DropReason {
+    FailedToBuildAsTransaction,
     FailedSimulation,
     Reverted,
     UnhandledError,
@@ -74,13 +120,4 @@ pub enum DropReason {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum RetryReason {
     Reorged,
-}
-
-// add nested enum entries as we add VMs
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
-pub enum VmSpecificPayloadData {
-    #[default]
-    Evm,
-    Svm(SealevelPayload),
-    CosmWasm,
 }
