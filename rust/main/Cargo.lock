@@ -9787,6 +9787,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "uuid 1.11.0",
 ]
 
