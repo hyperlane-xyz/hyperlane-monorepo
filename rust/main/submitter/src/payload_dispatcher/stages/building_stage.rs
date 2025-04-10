@@ -6,7 +6,7 @@ use std::{collections::VecDeque, sync::Arc};
 use derive_new::new;
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 
 use crate::{
     chain_tx_adapter::TxBuildingResult,
@@ -29,6 +29,7 @@ pub(crate) struct BuildingStage {
 }
 
 impl BuildingStage {
+    #[instrument(skip(self), name = "BuildingStage::run")]
     pub async fn run(&self) {
         loop {
             // event-driven by the Building queue
@@ -42,6 +43,7 @@ impl BuildingStage {
             };
 
             let payloads = vec![payload];
+            info!(?payloads, "Building transactions from payloads");
             let tx_building_results = retry_until_success(
                 || self.state.adapter.build_transactions(&payloads),
                 "Simulating transaction",
@@ -54,9 +56,21 @@ impl BuildingStage {
         }
     }
 
+    #[instrument(
+        skip(self, tx_building_result),
+        name = "BuildingStage::handle_tx_building_result",
+        fields(
+            payloads = ?tx_building_result.payloads,
+            tx_ids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.id.to_string()),
+        )
+    )]
     async fn handle_tx_building_result(&self, tx_building_result: TxBuildingResult) {
         let TxBuildingResult { payloads, maybe_tx } = tx_building_result;
         let Some(tx) = maybe_tx else {
+            warn!(
+                ?payloads,
+                "Transaction building failed. Dropping transaction"
+            );
             self.state
                 .update_status_for_payloads(
                     &payloads,
@@ -65,6 +79,7 @@ impl BuildingStage {
                 .await;
             return;
         };
+        info!(?tx, "Transaction built successfully");
         let simulation_success = retry_until_success(
             || self.state.adapter.simulate_tx(&tx),
             "Simulating transaction",
@@ -88,6 +103,11 @@ impl BuildingStage {
     }
 
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
+        warn!(
+            ?tx,
+            payload_details = ?tx.payload_details,
+            "Transaction dropped from Building Stage"
+        );
         // Transactions are only persisted if they are sent to the Inclusion Stage
         // so the only thing to update in this stage is the payload status
         self.state
