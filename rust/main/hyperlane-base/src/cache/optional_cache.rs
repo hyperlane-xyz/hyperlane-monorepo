@@ -19,6 +19,7 @@ impl<C> FunctionCallCache for OptionalCache<C>
 where
     C: FunctionCallCache,
 {
+    /// Calls the inner cache if it exists, otherwise returns Ok(())
     async fn cache_call_result(
         &self,
         domain_name: &str,
@@ -34,6 +35,7 @@ where
         Ok(())
     }
 
+    /// Calls the inner cache if it exists, otherwise returns Ok(None)
     async fn get_cached_call_result<T>(
         &self,
         domain_name: &str,
