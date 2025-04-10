@@ -199,7 +199,8 @@ const productionOwnerOverridesByChain: ChainMap<
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
-const productionEthereumXERC20LockboxAddress = ethers.constants.AddressZero;
+const productionEthereumXERC20LockboxAddress =
+  '0x6D265C7dD8d76F25155F1a7687C693FDC1220D12';
 const productionCeloXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
 const productionXERC20TokenAddress =
