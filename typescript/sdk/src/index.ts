@@ -179,7 +179,7 @@ export {
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
 } from './hook/types.js';
-export { DerivedIsmConfig, EvmIsmReader } from './ism/EvmIsmReader.js';
+export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
 export { decodeIsmMetadata } from './ism/metadata/decode.js';
@@ -195,6 +195,7 @@ export {
   ArbL2ToL1IsmConfigSchema,
   DeployedIsm,
   DeployedIsmType,
+  DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IcaRoutingIsmConfig,
   IsmConfig,
@@ -460,6 +461,7 @@ export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToViemChain,
+  chainMetadataToStarknetChain,
 } from './metadata/chainMetadataConversion.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export {

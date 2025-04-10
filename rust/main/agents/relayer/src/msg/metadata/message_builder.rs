@@ -6,6 +6,10 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
+use {
+    hyperlane_base::cache::{FunctionCallCache, NoParams},
+    tracing::warn,
+};
 
 use tracing::instrument;
 
@@ -83,6 +87,51 @@ impl MessageMetadataBuilder {
     pub fn base_builder(&self) -> &Arc<dyn BuildsBaseMetadata> {
         &self.base
     }
+
+    /// Returns the module type of the ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `module_type` matches
+    /// the name of the method `module_type`.
+    async fn call_module_type(
+        &self,
+        ism: &dyn InterchainSecurityModule,
+    ) -> Result<ModuleType, MetadataBuildError> {
+        let ism_domain = ism.domain().name();
+        let fn_key = "module_type";
+        let call_params = (ism.address(), NoParams);
+
+        match self
+            .base_builder()
+            .cache()
+            .get_cached_call_result::<ModuleType>(ism_domain, fn_key, &call_params)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok()
+            .flatten()
+        {
+            Some(module_type) => Ok(module_type),
+            None => {
+                let module_type = ism
+                    .module_type()
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+                self.base_builder()
+                    .cache()
+                    .cache_call_result(ism_domain, fn_key, &call_params, &module_type)
+                    .await
+                    .map_err(|err| {
+                        warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                    })
+                    .ok();
+                Ok(module_type)
+            }
+        }
+    }
 }
 
 /// Builds metadata for a message.
@@ -98,10 +147,7 @@ pub async fn build_message_metadata(
         .await
         .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-    let module_type = ism
-        .module_type()
-        .await
-        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+    let module_type = message_builder.call_module_type(&ism).await?;
 
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {
@@ -155,10 +201,14 @@ pub async fn build_message_metadata(
 mod test {
     use std::sync::Arc;
 
+    use hyperlane_base::cache::{
+        LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics,
+    };
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256, U256,
     };
     use hyperlane_test::mocks::MockMailboxContract;
+    use prometheus::IntCounterVec;
 
     use crate::{
         msg::metadata::{
@@ -174,13 +224,38 @@ mod test {
 
     use super::MessageMetadataBuilder;
 
+    const TEST_DOMAIN: HyperlaneDomain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+
+    fn dummy_cache_metrics() -> MeteredCacheMetrics {
+        MeteredCacheMetrics {
+            hit_count: IntCounterVec::new(
+                prometheus::Opts::new("dummy_hit_count", "help string"),
+                &["cache_name", "chain", "method", "status"],
+            )
+            .ok(),
+            miss_count: IntCounterVec::new(
+                prometheus::Opts::new("dummy_miss_count", "help string"),
+                &["cache_name", "chain", "method", "status"],
+            )
+            .ok(),
+        }
+    }
+
     fn build_mock_base_builder() -> MockBaseMetadataBuilder {
         let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
         let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let cache = MeteredCache::new(
+            LocalCache::new("test-cache"),
+            dummy_cache_metrics(),
+            MeteredCacheConfig {
+                cache_name: "test-cache".to_owned(),
+            },
+        );
 
         let mut base_builder = MockBaseMetadataBuilder::new();
         base_builder.responses.origin_domain = Some(origin_domain.clone());
         base_builder.responses.destination_domain = Some(destination_domain);
+        base_builder.responses.cache = Some(cache);
 
         let mock_mailbox = MockMailboxContract::new();
         let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
@@ -203,13 +278,11 @@ mod test {
 
     fn insert_null_isms(base_builder: &MockBaseMetadataBuilder, addresses: &[H256]) {
         for ism_address in addresses {
-            let mock_ism = MockInterchainSecurityModule::new(*ism_address);
-            mock_ism
-                .responses
-                .module_type
-                .lock()
-                .unwrap()
-                .push_back(Ok(ModuleType::Null));
+            let mock_ism = MockInterchainSecurityModule::new(
+                *ism_address,
+                TEST_DOMAIN.clone(),
+                ModuleType::Null,
+            );
             mock_ism
                 .responses
                 .dry_run_verify
@@ -227,13 +300,11 @@ mod test {
         addresses: &[(H256, H256)],
     ) {
         for (ism_address, route_address) in addresses {
-            let mock_ism = MockInterchainSecurityModule::new(*ism_address);
-            mock_ism
-                .responses
-                .module_type
-                .lock()
-                .unwrap()
-                .push_back(Ok(ModuleType::Routing));
+            let mock_ism = MockInterchainSecurityModule::new(
+                *ism_address,
+                TEST_DOMAIN.clone(),
+                ModuleType::Routing,
+            );
             mock_ism
                 .responses
                 .dry_run_verify
@@ -244,7 +315,7 @@ mod test {
                 .responses
                 .push_build_ism_response(*ism_address, Ok(Box::new(mock_ism)));
 
-            let routing_ism = MockRoutingIsm::default();
+            let routing_ism = MockRoutingIsm::new(*ism_address, TEST_DOMAIN.clone());
             routing_ism
                 .responses
                 .route
@@ -253,10 +324,7 @@ mod test {
                 .push_back(Ok(*route_address));
             base_builder
                 .responses
-                .build_routing_ism
-                .lock()
-                .unwrap()
-                .push_back(Ok(Box::new(routing_ism)));
+                .push_build_routing_ism_response(*ism_address, Ok(Box::new(routing_ism)));
         }
     }
 
@@ -265,13 +333,11 @@ mod test {
         addresses: Vec<(H256, Vec<H256>, u8)>,
     ) {
         for (ism_address, aggregation_addresses, threshold) in addresses {
-            let mock_ism = MockInterchainSecurityModule::new(ism_address);
-            mock_ism
-                .responses
-                .module_type
-                .lock()
-                .unwrap()
-                .push_back(Ok(ModuleType::Aggregation));
+            let mock_ism = MockInterchainSecurityModule::new(
+                ism_address,
+                TEST_DOMAIN.clone(),
+                ModuleType::Aggregation,
+            );
             mock_ism
                 .responses
                 .dry_run_verify
@@ -282,7 +348,7 @@ mod test {
                 .responses
                 .push_build_ism_response(ism_address, Ok(Box::new(mock_ism)));
 
-            let agg_ism = MockAggregationIsm::default();
+            let agg_ism = MockAggregationIsm::new(ism_address, TEST_DOMAIN.clone());
             agg_ism
                 .responses
                 .modules_and_threshold
@@ -291,32 +357,29 @@ mod test {
                 .push_back(Ok((aggregation_addresses, threshold)));
             base_builder
                 .responses
-                .build_aggregation_ism
-                .lock()
-                .unwrap()
-                .push_back(Ok(Box::new(agg_ism)));
+                .push_build_aggregation_ism_response(ism_address, Ok(Box::new(agg_ism)));
         }
     }
 
-    /// 0x0
+    /// 0
     ///  |
-    ///  +---> 0x100
+    ///  +---> 100
     ///  |       |
-    ///  |       +----> 0x110 -> 0x1100
+    ///  |       +----> 110 -> 1100
     ///  |       |
-    ///  |       +----> 0x120 -> 0x1200
+    ///  |       +----> 120 -> 1200
     ///  |
-    ///  +---> 0x200
+    ///  +---> 200
     ///  |       |
-    ///  |       +----> 0x210 -> 0x2100
+    ///  |       +----> 210 -> 2100
     ///  |       |
     ///  |       +----> 0x220 -> 0x2200
     ///  |
-    ///  +---> 0x300
+    ///  +---> 300
     ///          |
-    ///          +----> 0x310 -> 0x3100
+    ///          +----> 310 -> 3100
     ///          |
-    ///          +----> 0x320 -> 0x3200
+    ///          +----> 320 -> 3200
     fn insert_ism_test_data(base_builder: &MockBaseMetadataBuilder) {
         insert_mock_aggregation_isms(
             base_builder,
@@ -392,8 +455,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
@@ -421,8 +483,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
@@ -450,8 +511,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert!(*(params.ism_count.lock().await) <= 4);
         assert!(logs_contain("Max ISM depth reached ism_depth=2"));
@@ -478,8 +538,7 @@ mod test {
         let params = MessageMetadataBuildParams::default();
         let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
             .await
-            .err()
-            .expect("Metadata found when it should have failed");
+            .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert_eq!(*(params.ism_count.lock().await), 5);
         assert!(logs_contain("Max ISM count reached ism_count=5"));

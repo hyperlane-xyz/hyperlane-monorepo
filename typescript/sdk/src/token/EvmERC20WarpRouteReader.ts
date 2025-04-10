@@ -24,8 +24,8 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
+  DerivedMailboxClientConfig,
   DestinationGas,
-  MailboxClientConfig,
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
@@ -35,8 +35,8 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import { proxyAdmin } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
+  DerivedTokenRouterConfig,
   HypTokenConfig,
-  HypTokenRouterConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
@@ -68,23 +68,24 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
    */
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
-  ): Promise<HypTokenRouterConfig> {
+  ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
+    const mailboxClientConfig = await this.fetchMailboxClientConfig(
+      warpRouteAddress,
+    );
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
     const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
-      ...baseMetadata,
+      ...mailboxClientConfig,
       ...tokenConfig,
       remoteRouters,
       proxyAdmin,
       destinationGas,
-      type,
-    } as HypTokenRouterConfig;
+    };
   }
 
   /**
@@ -178,7 +179,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
    */
   async fetchMailboxClientConfig(
     routerAddress: Address,
-  ): Promise<MailboxClientConfig> {
+  ): Promise<DerivedMailboxClientConfig> {
     const warpRoute = HypERC20Collateral__factory.connect(
       routerAddress,
       this.provider,
@@ -285,8 +286,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         token = await erc20.wrappedToken();
       }
 
-      const { name, symbol, decimals, totalSupply } =
-        await this.fetchERC20Metadata(token);
+      const { name, symbol, decimals } = await this.fetchERC20Metadata(token);
 
       if (type === TokenType.XERC20 || type === TokenType.XERC20Lockbox) {
         xERC20Metadata = await this.fetchXERC20Config(token, warpRouteAddress);
@@ -298,7 +298,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         name,
         symbol,
         decimals,
-        totalSupply,
         token: lockbox || token,
       };
     } else if (
@@ -328,7 +327,6 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
           name,
           symbol,
           decimals,
-          totalSupply: 0,
         };
       } else {
         throw new Error(
@@ -344,14 +342,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
     const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
-    const [name, symbol, decimals, totalSupply] = await Promise.all([
+    const [name, symbol, decimals] = await Promise.all([
       erc20.name(),
       erc20.symbol(),
       erc20.decimals(),
-      erc20.totalSupply(),
     ]);
 
-    return { name, symbol, decimals, totalSupply: totalSupply.toString() };
+    return { name, symbol, decimals };
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {

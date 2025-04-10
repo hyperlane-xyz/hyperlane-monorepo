@@ -98,6 +98,8 @@ fn run_locally() {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_SEALEVELTEST1_SUBMITTER", "Lander")
+        .hyp_env("CHAINS_SEALEVELTEST2_SUBMITTER", "Lander")
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
@@ -242,6 +244,9 @@ fn run_locally() {
         .run()
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
+
+    // sleep some more to avoid flakes when sending transfers below
+    sleep(Duration::from_secs(10));
 
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
     for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
