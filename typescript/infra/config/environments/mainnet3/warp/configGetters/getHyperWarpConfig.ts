@@ -32,7 +32,8 @@ const STAKED_TOKEN_CONFIG = {
 const STAKED_TOKEN_CHAINS = [COLLATERAL_CHAIN, 'bsc'] as const;
 
 const OWNERS = {
-  ethereum: '0xf0b850930ede8807e7F472b610b017c187E0e493',
+  ethereum:
+    process.env.ACCESS_MANAGER || '0xf0b850930ede8807e7F472b610b017c187E0e493',
   // get-owner-ica output
   arbitrum: '0xC44C6eb6Fe37A6389B6b741A0A17dcB6b1aAbC89',
   base: '0xf189b22a6Be9378C5cDa94a6E72C6d18611291cA',
@@ -40,7 +41,9 @@ const OWNERS = {
   bsc: '0xaE1DA73F3aB27F30b32239114d4d14c789D64176',
 };
 
-const COMPOUND_STAKING_REWARDS = '';
+const COMPOUND_STAKING_REWARDS =
+  process.env.COMPOUND_STAKER_REWARDS ||
+  '0x6840494470251d75BD0C05E322aE6787af9EE709';
 
 export const getHyperWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -100,7 +103,7 @@ export const getStakedHyperWarpConfig = async (
           chain,
           {
             type: TokenType.syntheticRebase,
-            collateralChain: COLLATERAL_CHAIN,
+            collateralChainName: COLLATERAL_CHAIN,
             ...config,
           },
         ];
