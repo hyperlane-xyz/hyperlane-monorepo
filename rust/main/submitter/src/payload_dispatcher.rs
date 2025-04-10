@@ -7,6 +7,8 @@ mod entrypoint;
 mod stages;
 #[cfg(test)]
 pub mod test_utils;
+#[cfg(test)]
+mod tests;
 
 pub use db::*;
 pub use dispatcher::*;

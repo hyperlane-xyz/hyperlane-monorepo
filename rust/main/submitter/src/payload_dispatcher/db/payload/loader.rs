@@ -1,19 +1,36 @@
-use std::sync::{mpsc::Sender, Arc};
+use std::{
+    fmt::{Debug, Formatter},
+    sync::{mpsc::Sender, Arc},
+};
 
 use async_trait::async_trait;
+use derive_new::new;
 use tracing::trace;
 
 use crate::{
     error::SubmitterError,
     payload::{FullPayload, PayloadStatus},
-    payload_dispatcher::{BuildingStageQueue, LoadableFromDb, LoadingOutcome},
+    payload_dispatcher::{BuildingStageQueue, DbIterator, LoadableFromDb, LoadingOutcome},
 };
 
 use super::PayloadDb;
 
+#[derive(new)]
 pub struct PayloadDbLoader {
     db: Arc<dyn PayloadDb>,
     building_stage_queue: BuildingStageQueue,
+}
+
+impl PayloadDbLoader {
+    pub async fn into_iterator(self) -> DbIterator<Self> {
+        DbIterator::new(Arc::new(self), "payload_db_loader".to_string(), false).await
+    }
+}
+
+impl Debug for PayloadDbLoader {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PayloadDbLoader").finish()
+    }
 }
 
 #[async_trait]

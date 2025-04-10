@@ -55,6 +55,10 @@ pub struct CoreMetrics {
 
     latest_checkpoint: IntGaugeVec,
 
+    announced: IntGaugeVec,
+    backfill_complete: IntGaugeVec,
+    reached_initial_consistency: IntGaugeVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
@@ -208,6 +212,36 @@ impl CoreMetrics {
             registry
         )?;
 
+        let announced = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("announced"),
+                "Whether the validator has been announced",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
+        let backfill_complete = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("backfill_complete"),
+                "Whether backfilling checkpoints is complete",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
+        let reached_initial_consistency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("reached_initial_consistency"),
+                "Whether the tree has reached an initial point of consistency",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
         let operations_processed_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("operations_processed_count"),
@@ -251,6 +285,10 @@ impl CoreMetrics {
             messages_processed_count,
 
             latest_checkpoint,
+
+            announced,
+            backfill_complete,
+            reached_initial_consistency,
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
@@ -436,6 +474,41 @@ impl CoreMetrics {
     /// - `validator_processed`: When the validator has written this checkpoint.
     pub fn latest_checkpoint(&self) -> IntGaugeVec {
         self.latest_checkpoint.clone()
+    }
+
+    /// Set the validator to be announced
+    ///
+    /// Labels:
+    /// - `chain`: Chain the validator was announced on.
+    pub fn set_announced(&self, origin_chain: HyperlaneDomain) {
+        self.announced
+            .clone()
+            .with_label_values(&[origin_chain.name()])
+            .set(1);
+    }
+
+    /// Whether the validator has been announced.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn announced(&self) -> IntGaugeVec {
+        self.announced.clone()
+    }
+
+    /// Whether the validator has completed backfilling.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn backfill_complete(&self) -> IntGaugeVec {
+        self.backfill_complete.clone()
+    }
+
+    /// Whether the validator has ever synced to the tip of the chain.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn reached_initial_consistency(&self) -> IntGaugeVec {
+        self.reached_initial_consistency.clone()
     }
 
     /// Measure of the queue lengths in Submitter instances

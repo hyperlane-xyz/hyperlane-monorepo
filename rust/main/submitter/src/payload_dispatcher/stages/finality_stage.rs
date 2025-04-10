@@ -15,7 +15,7 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
 };
-use tracing::{error, info, info_span, warn, Instrument};
+use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
     error::SubmitterError,
@@ -30,15 +30,26 @@ use super::{
 
 pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
-#[derive(new)]
 pub struct FinalityStage {
-    pool: FinalityStagePool,
+    pub(crate) pool: FinalityStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     building_stage_queue: BuildingStageQueue,
     state: PayloadDispatcherState,
 }
 
 impl FinalityStage {
+    pub fn new(
+        tx_receiver: mpsc::Receiver<Transaction>,
+        building_stage_queue: BuildingStageQueue,
+        state: PayloadDispatcherState,
+    ) -> Self {
+        Self {
+            pool: Arc::new(Mutex::new(HashMap::new())),
+            tx_receiver,
+            building_stage_queue,
+            state,
+        }
+    }
     pub async fn run(self) {
         let FinalityStage {
             pool,
@@ -89,6 +100,7 @@ impl FinalityStage {
             sleep(*estimated_block_time).await;
 
             let pool_snapshot = pool.lock().await.clone();
+            info!(pool_size=?pool_snapshot.len() , "Processing transactions in finality pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) = Self::try_process_tx(
                     tx.clone(),
@@ -98,18 +110,31 @@ impl FinalityStage {
                 )
                 .await
                 {
-                    error!(?err, ?tx, "Error processing transaction. Skipping for now");
+                    error!(
+                        ?err,
+                        ?tx,
+                        "Error processing finality stage transaction. Skipping for now"
+                    );
                 }
             }
         }
     }
 
+    #[instrument(
+        skip(tx, pool, building_stage_queue, state),
+        name = "FinalityStage::try_process_tx"
+        fields(
+            tx_id = ?tx.id,
+            tx_status = ?tx.status,
+            payloads = ?tx.payload_details
+    ))]
     async fn try_process_tx(
         mut tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: &PayloadDispatcherState,
     ) -> Result<(), SubmitterError> {
+        info!(?tx, "Processing finality stage transaction");
         let tx_status = retry_until_success(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
@@ -210,8 +235,8 @@ mod tests {
         payload_dispatcher::{
             stages::{building_stage, finality_stage},
             test_utils::{
-                create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
-                MockAdapter,
+                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
+                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
             },
             PayloadDb, TransactionDb,
         },
@@ -289,13 +314,9 @@ mod tests {
 
         let state =
             PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
-        let finality_stage = FinalityStage::new(
-            pool.clone(),
-            inclusion_stage_receiver,
-            building_queue.clone(),
-            state,
-        );
+        let finality_stage =
+            FinalityStage::new(inclusion_stage_receiver, building_queue.clone(), state);
+        let pool = finality_stage.pool.clone();
 
         send_txs_to_channel(generated_txs.clone(), inclusion_stage_sender).await;
         let txs_received = run_stage(finality_stage).await;
@@ -390,16 +411,6 @@ mod tests {
         }
     }
 
-    async fn are_all_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
-        let pool = pool.lock().await;
-        txs.iter().all(|tx| pool.contains_key(&tx.id))
-    }
-
-    async fn are_no_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
-        let pool = pool.lock().await;
-        txs.iter().all(|tx| !pool.contains_key(&tx.id))
-    }
-
     async fn set_up_test_and_run_stage(
         mock_adapter: MockAdapter,
         txs_to_process: usize,
@@ -444,13 +455,9 @@ mod tests {
 
         let state =
             PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
-        let finality_stage = FinalityStage::new(
-            pool.clone(),
-            inclusion_stage_receiver,
-            building_queue.clone(),
-            state,
-        );
+        let finality_stage =
+            FinalityStage::new(inclusion_stage_receiver, building_queue.clone(), state);
+        let pool = finality_stage.pool.clone();
 
         let test_txs =
             create_random_txs_and_store_them(txs_to_process, &payload_db, &tx_db, tx_status).await;
