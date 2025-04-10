@@ -229,11 +229,15 @@ const scraperResources = {
 };
 
 const defaultIsmCacheConfig: IsmCacheConfig = {
+  // Default ISM Routing ISMs change configs based off message content,
+  // so they are not specified here.
   moduleTypes: [
     ModuleType.AGGREGATION,
     ModuleType.MERKLE_ROOT_MULTISIG,
     ModuleType.MESSAGE_ID_MULTISIG,
   ],
+  // SVM is explicitly not cached as the default ISM is a multisig ISM
+  // that routes internally.
   chains: ethereumChainNames,
   cachePolicy: IsmCachePolicy.IsmSpecific,
 };

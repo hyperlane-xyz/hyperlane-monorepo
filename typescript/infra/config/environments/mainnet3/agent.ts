@@ -32,7 +32,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
@@ -741,12 +741,16 @@ const blacklist: MatchingList = [
 ];
 
 const defaultIsmCacheConfig: IsmCacheConfig = {
+  // Default ISM Routing ISMs change configs based off message content,
+  // so they are not specified here.
   moduleTypes: [
     ModuleType.AGGREGATION,
     ModuleType.MERKLE_ROOT_MULTISIG,
     ModuleType.MESSAGE_ID_MULTISIG,
   ],
-  chains: supportedChainNames,
+  // SVM is explicitly not cached as the default ISM is a multisig ISM
+  // that routes internally.
+  chains: ethereumChainNames,
   cachePolicy: IsmCachePolicy.IsmSpecific,
 };
 
