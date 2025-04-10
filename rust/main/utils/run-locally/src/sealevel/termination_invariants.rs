@@ -24,6 +24,7 @@ pub fn termination_invariants_met(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
 ) -> eyre::Result<bool> {
+    log!("Checking sealevel termination invariants");
     let sol_messages_expected = SOL_MESSAGES_EXPECTED;
     let sol_messages_with_non_matching_igp = SOL_MESSAGES_WITH_NON_MATCHING_IGP;
 
@@ -49,6 +50,7 @@ pub fn termination_invariants_met(
         double_insertion_message_count: sol_messages_with_non_matching_igp,
     };
     if !relayer_termination_invariants_met(params)? {
+        log!("Relayer termination invariants not met");
         return Ok(false);
     }
 
@@ -64,6 +66,7 @@ pub fn termination_invariants_met(
     };
 
     if !scraper_termination_invariants_met(params)? {
+        log!("Scraper termination invariants not met");
         return Ok(false);
     }
 
@@ -73,6 +76,7 @@ pub fn termination_invariants_met(
         &hashmap! {"chain" => "sealeveltest2", "connection" => "rpc", "status" => "success"},
         &hashmap! {"chain" => "sealeveltest2"},
     )? {
+        log!("Provider metrics invariants not met");
         return Ok(false);
     }
 

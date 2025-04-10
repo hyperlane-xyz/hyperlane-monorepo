@@ -34,7 +34,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         let message_id = message.id();
-
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         let leaf_index = unwrap_or_none_result!(
             self.base_builder()
