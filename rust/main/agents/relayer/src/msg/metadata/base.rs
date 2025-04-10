@@ -202,11 +202,11 @@ pub enum IsmCachePolicy {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct IsmCacheConfig {
-    #[serde(deserialize_with = "deserialize_module_types")]
+    #[serde(deserialize_with = "deserialize_module_types", rename = "moduletypes")]
     module_types: HashSet<ModuleType>,
     chains: Option<HashSet<String>>,
+    #[serde(default, rename = "cachepolicy")]
     cache_policy: IsmCachePolicy,
 }
 
