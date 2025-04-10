@@ -1,23 +1,9 @@
-import { CairoAssembly, CompiledContract } from 'starknet';
+import { CompiledContract } from 'starknet';
 
 import { starknetContracts } from './artifacts/index.js';
 import { CONFIG } from './config.js';
 import { ContractError } from './errors.js';
-
-export interface StarknetContractGroup {
-  [name: string]: {
-    contract_class: CompiledContract;
-    compiled_contract_class: CairoAssembly;
-  };
-}
-/**
- * @notice Contract file type enum
- */
-export enum ContractType {
-  CONTRACT = 'contracts',
-  TOKEN = 'tokens',
-  MOCK = 'mocks',
-}
+import { ContractType, StarknetContractGroup } from './types.js';
 
 /**
  * @notice Retrieves a compiled contract

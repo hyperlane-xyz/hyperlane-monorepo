@@ -5,6 +5,7 @@ import { CompiledContract } from 'starknet';
 import { fileURLToPath } from 'url';
 
 import { CONFIG } from '../src/config.js';
+import { ContractClass, ContractType } from '../src/types.js';
 
 const cwd = process.cwd();
 const __filename = fileURLToPath(import.meta.url);
@@ -12,20 +13,6 @@ const __dirname = dirname(__filename);
 
 const ROOT_OUTPUT_DIR = join(__dirname, '../dist/artifacts/');
 const RELEASE_DIR = join(cwd, 'release');
-
-enum ContractClass {
-  SIERRA = 'contract_class',
-  CASM = 'compiled_contract_class',
-}
-
-/**
- * @notice Contract categories based on prefix
- */
-enum ContractType {
-  CONTRACT = 'contracts_',
-  TOKEN = 'token_',
-  MOCK = 'mock_',
-}
 
 class Templates {
   static jsArtifact(name: string, artifact: any) {
@@ -51,7 +38,7 @@ ${imports}
    contracts: {
  ${contractExports}
    },
-   tokens: {
+   token: {
  ${tokenExports}
    },
    mocks: {
@@ -74,7 +61,7 @@ export interface StarknetContractGroup {
 
 export interface StarknetContracts {
   contracts: StarknetContractGroup;
-  tokens: StarknetContractGroup;
+  token: StarknetContractGroup;
   mocks: StarknetContractGroup;
 }
 
@@ -99,8 +86,7 @@ class StarknetArtifactGenerator {
     const fileName = basename(filePath);
     // Check for exact prefix matches to avoid double categorization
     if (fileName.startsWith('token_')) return ContractType.TOKEN;
-    if (fileName.startsWith('mock_') || fileName.startsWith('mocks_'))
-      return ContractType.MOCK;
+    if (fileName.startsWith('mocks_')) return ContractType.MOCK;
     if (fileName.startsWith('contracts_')) return ContractType.CONTRACT;
     return ContractType.CONTRACT; // default case
   }
@@ -179,8 +165,10 @@ class StarknetArtifactGenerator {
     this.mockExports = [];
 
     this.processedFiles.forEach((value, name) => {
+      // Extracts the contract name by removing the prefix (contracts_, token_, or mocks_)
+      // Example: "token_HypErc20" becomes "HypErc20"
       const baseName = name.replace(
-        new RegExp(`^(${Object.values(ContractType).join('|')})`),
+        new RegExp(`^(${Object.values(ContractType).join('|')})_?`),
         '',
       );
 
@@ -188,14 +176,14 @@ class StarknetArtifactGenerator {
       let casmVarName;
 
       if (value.sierra) {
-        sierraVarName = `${value.type}${baseName}Sierra`;
+        sierraVarName = `${value.type}_${baseName}_sierra`;
         imports.push(
           `import { ${name} as ${sierraVarName} } from './${name}.${ContractClass.SIERRA}.js';`,
         );
       }
 
       if (value.casm) {
-        casmVarName = `${value.type}${baseName}Casm`;
+        casmVarName = `${value.type}_${baseName}_casm`;
         imports.push(
           `import { ${name} as ${casmVarName} } from './${name}.${ContractClass.CASM}.js';`,
         );
