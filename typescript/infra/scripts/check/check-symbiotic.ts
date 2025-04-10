@@ -1,16 +1,15 @@
 import {
   AccessControl__factory,
   ICompoundStakerRewards__factory,
-  IVaultTokenized__factory,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 
 import { Contexts } from '../../config/contexts.js';
 import {
   COLLATERAL_CHAIN,
-  COMPOUND_STAKING_REWARDS,
   OWNERS,
 } from '../../config/environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
+import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
 import {
@@ -19,14 +18,16 @@ import {
   SymbioticConfig,
   SymbioticContracts,
 } from '../../src/symbiotic/HyperlaneSymbioticChecker.js';
-import { getArgs, withContext } from '../agent-utils.js';
+import {
+  getArgs,
+  withContext,
+  withWarpRouteIdRequired,
+} from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const mainnet3Addresses = {
   accessManager: OWNERS[COLLATERAL_CHAIN],
-  vault: '',
   network: '',
-  compoundStakerRewards: COMPOUND_STAKING_REWARDS,
 };
 
 const mainnet3Config: SymbioticConfig = {
@@ -48,9 +49,7 @@ const mainnet3Config: SymbioticConfig = {
 
 const testnet4Addresses = {
   accessManager: '0xfad1c94469700833717fa8a3017278bc1ca8031c',
-  vault: '0xF56179944D867469612D138c74F1dE979D3faC72',
   network: '0x44ea7acf8785d9274047e05c249ba80f7ff79d36',
-  compoundStakerRewards: '0x2aDe4CDD4DCECD4FdE76dfa99d61bC8c1940f2CE',
 };
 
 const testnet4Config: SymbioticConfig = {
@@ -83,36 +82,56 @@ function getConfig(
   }
 }
 async function main() {
-  const { context = Contexts.Hyperlane, environment } = await withContext(
-    getArgs(),
-  ).argv;
+  const {
+    context = Contexts.Hyperlane,
+    environment,
+    warpRouteId,
+  } = await withWarpRouteIdRequired(withContext(getArgs())).argv;
   const envConfig = getEnvironmentConfig(environment);
 
-  const [config, addresses] = getConfig(environment);
+  const warpCoreConfig = getWarpCoreConfig(warpRouteId);
+
+  const [symbioticConfig, symbioticAddresses] = getConfig(environment);
+
+  const compoundStakerRewards = warpCoreConfig.tokens.find(
+    (token) => token.chainName === symbioticConfig.chain,
+  )?.collateralAddressOrDenom;
+
+  if (!compoundStakerRewards) {
+    throw new Error(
+      `Compound staker rewards not found for ${symbioticConfig.chain}`,
+    );
+  }
 
   const multiProvider = await envConfig.getMultiProvider(
     context,
     Role.Deployer,
     true,
-    [config.chain],
+    [symbioticConfig.chain],
   );
 
-  const provider = multiProvider.getProvider(config.chain);
+  const provider = multiProvider.getProvider(symbioticConfig.chain);
 
   const contracts: SymbioticContracts = {
     compoundStakerRewards: ICompoundStakerRewards__factory.connect(
-      addresses.compoundStakerRewards,
+      compoundStakerRewards,
       provider,
     ),
-    network: TimelockController__factory.connect(addresses.network, provider),
+    network: TimelockController__factory.connect(
+      symbioticAddresses.network,
+      provider,
+    ),
     accessManager: AccessControl__factory.connect(
-      addresses.accessManager,
+      symbioticAddresses.accessManager,
       provider,
     ),
-    vault: IVaultTokenized__factory.connect(addresses.vault, provider),
   };
 
-  const checker = new SymbioticChecker(multiProvider, config, contracts);
+  const checker = new SymbioticChecker(
+    multiProvider,
+    symbioticConfig,
+    contracts,
+  );
   await checker.check();
   checker.logViolationsTable();
   checker.expectEmpty();
