@@ -1,13 +1,14 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { ChainName } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import {
   DEFAULT_REGISTRY_URI,
   getWarpAddresses,
-  getWarpAddressesFromMergedRegistry,
 } from '../../config/registry.js';
 import {
   getWarpConfigMapFromMergedRegistry,
@@ -33,7 +34,6 @@ async function main() {
     context,
     pushMetrics,
     interactive,
-    registry,
   } = await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -48,6 +48,9 @@ async function main() {
     WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
   ];
 
+  const registries = [DEFAULT_REGISTRY_URI, DEFAULT_GITHUB_REGISTRY];
+  const warpConfigMap = await getWarpConfigMapFromMergedRegistry(registries);
+
   let warpIdsToCheck: string[];
   if (interactive) {
     warpIdsToCheck = await getWarpRouteIdsInteractive();
@@ -55,31 +58,21 @@ async function main() {
     console.log(chalk.yellow('Skipping the following warp routes:'));
     routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
 
-    warpIdsToCheck = Object.keys(
-      await getWarpConfigMapFromMergedRegistry(
-        registry ?? [DEFAULT_REGISTRY_URI],
-      ),
-    ).filter((warpRouteId) => !routesToSkip.includes(warpRouteId));
+    warpIdsToCheck = Object.keys(warpConfigMap).filter(
+      (warpRouteId) => !routesToSkip.includes(warpRouteId),
+    );
   }
 
-  // Determine which chains have warp configs
-  const chainsWithWarpConfigs = new Set<ChainName>();
-  await Promise.all(
-    warpIdsToCheck.map(async (warpRouteId) => {
-      const warpAddresses = await getWarpAddressesFromMergedRegistry(
-        warpRouteId,
-        registry ?? [DEFAULT_REGISTRY_URI],
-      );
-      Object.keys(warpAddresses).forEach((chain) =>
-        chainsWithWarpConfigs.add(chain),
-      );
-    }),
-  );
+  // Get all the chains from warpCoreConfigMap. Used to initialize the MultiProvider.
+  const warpConfigChains = warpIdsToCheck.reduce((chains, warpRouteId) => {
+    const warpConfigs = warpConfigMap[warpRouteId];
+    assert(warpConfigs, `Config not found in registry for ${warpRouteId}`);
+    Object.keys(warpConfigs).forEach((chain) => chains.add(chain));
+    return chains;
+  }, new Set<ChainName>());
 
   console.log(
-    `Found warp configs for chains: ${Array.from(chainsWithWarpConfigs).join(
-      ', ',
-    )}`,
+    `Found warp configs for chains: ${Array.from(warpConfigChains).join(', ')}`,
   );
 
   // Get the multiprovider once to avoid recreating it for each warp route
@@ -91,7 +84,7 @@ async function main() {
     undefined,
     undefined,
     undefined,
-    Array.from(chainsWithWarpConfigs),
+    Array.from(warpConfigChains),
   );
 
   // TODO: consider retrying this if check throws an error
@@ -110,7 +103,7 @@ async function main() {
         fork,
         false,
         multiProvider,
-        registry,
+        registries,
       );
 
       await governor.check();
