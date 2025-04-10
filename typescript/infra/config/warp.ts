@@ -163,7 +163,8 @@ async function getConfigFromMergedRegistry(
 }
 
 /**
- * Retrieves all Warp configurations for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
+ * Retrieves all Warp configurations for the specified Warp route ID by fetching it from the MergedRegistry
+ * Also, populates their mailbox
  * Will return in the form { [warRouteId]: { ...config } }
  */
 export async function getWarpConfigMapFromMergedRegistry(
@@ -174,7 +175,12 @@ export async function getWarpConfigMapFromMergedRegistry(
     enableProxy: true,
   });
   const warpRouteMap = await registry.getWarpDeployConfigs();
-  assert(warpRouteMap, `Warp route Configs not found for registry URIs: ${registryUris.join(', ')}`);
+  assert(
+    warpRouteMap,
+    `Warp route Configs not found for registry URIs: ${registryUris.join(
+      ', ',
+    )}`,
+  );
   return promiseObjAll(
     objMap(warpRouteMap, async (_, warpRouteConfig) =>
       populateWarpRouteMailboxAddresses(warpRouteConfig, registry),
