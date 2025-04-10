@@ -110,7 +110,13 @@ export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
   TokenStandard,
   ProviderType
 > = objMap(TOKEN_STANDARD_TO_PROTOCOL, (k, v) => {
-  if (k.startsWith('Cosmos')) return ProviderType.CosmJs;
+  if (k.startsWith('CosmosNative')) {
+    return ProviderType.CosmJsNative;
+  }
+  if (k.startsWith('Cosmos')) {
+    return ProviderType.CosmJs;
+  }
+
   return PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[v];
 });
 

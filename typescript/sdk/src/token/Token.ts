@@ -106,8 +106,6 @@ export class Token implements IToken {
   getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom } = this;
 
-    console.log('hit getAdapter standard:', standard);
-
     assert(!this.isNft(), 'NFT adapters not yet supported');
     assert(
       multiProvider.tryGetChainMetadata(chainName),
