@@ -45,6 +45,13 @@ export interface SymbioticConfig {
   };
 }
 
+export interface SymbioticAddresses {
+  vault: string;
+  compoundStakerRewards: string;
+  network: string;
+  accessManager: string;
+}
+
 export interface SymbioticContracts {
   vault: IVaultTokenized;
   compoundStakerRewards: ICompoundStakerRewards;
@@ -74,11 +81,7 @@ export class SymbioticChecker {
     await this.checkVault();
     await this.checkDelegator(delegatorAddress);
     await this.checkSlasher(slasherAddress);
-    await this.checkBurner(
-      burnerRouterAddress,
-      collateralAddress,
-      slasherAddress,
-    );
+    await this.checkBurner(burnerRouterAddress, collateralAddress);
     await this.checkRewards();
     await this.checkNetwork();
   }
@@ -185,7 +188,6 @@ export class SymbioticChecker {
   private async checkBurner(
     burnerRouterAddress: string,
     collateralAddress: string,
-    slasherAddress: string,
   ): Promise<void> {
     const burnerRouter = IBurnerRouter__factory.connect(
       burnerRouterAddress,

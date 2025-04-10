@@ -2,7 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
-const COLLATERAL_CHAIN = 'ethereum';
+export const COLLATERAL_CHAIN = 'ethereum';
 
 const TOKEN_CONFIG = {
   name: 'Hyperlane',
@@ -31,7 +31,7 @@ const STAKED_TOKEN_CONFIG = {
 
 const STAKED_TOKEN_CHAINS = [COLLATERAL_CHAIN, 'bsc'] as const;
 
-const OWNERS = {
+export const OWNERS = {
   //TODO: configure deployed AccessManager
   ethereum: '',
   // get-owner-ica output
@@ -41,7 +41,7 @@ const OWNERS = {
   bsc: '',
 };
 
-const COMPOUND_STAKING_REWARDS = '';
+export const COMPOUND_STAKING_REWARDS = '';
 
 export const getHyperWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
