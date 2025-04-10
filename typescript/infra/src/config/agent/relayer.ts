@@ -10,6 +10,7 @@ import {
   HyperlaneAddressesMap,
   HyperlaneFactories,
   MatchingList,
+  ModuleType,
   RelayerConfig as RelayerAgentConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -41,6 +42,12 @@ export interface MetricAppContext {
   matchingList: MatchingList;
 }
 
+export interface IsmCacheConfig {
+  moduleTypes: Array<ModuleType>;
+  domains: Option<HashSet<u32>>;
+  cache_policy: IsmCachePolicy;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -50,6 +57,7 @@ export interface BaseRelayerConfig {
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
+  defaultIsmCacheConfig: IsmCacheConfig;
 }
 
 // Full relayer-specific agent config for a single chain

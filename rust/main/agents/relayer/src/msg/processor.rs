@@ -429,7 +429,10 @@ mod test {
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
             gas_payment::GasPaymentEnforcer,
-            metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+            metadata::{
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+                IsmCachePolicyClassifier,
+            },
         },
         processor::Processor,
     };
@@ -522,6 +525,7 @@ mod test {
         );
         let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
+        let default_ism_getter = DefaultIsmCache::new(Arc::new(MockMailboxContract::default()));
         BaseMetadataBuilder::new(
             origin_domain.clone(),
             destination_chain_conf.clone(),
@@ -531,7 +535,8 @@ mod test {
             Arc::new(core_metrics),
             cache,
             db.clone(),
-            IsmAwareAppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
+            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
         )
     }
 

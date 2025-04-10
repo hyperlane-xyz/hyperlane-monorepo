@@ -994,6 +994,7 @@ mod test {
             skip_transaction_gas_limit_for: HashSet::new(),
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
+            default_ism_cache_config: Default::default(),
             max_retries: 1,
         }
     }

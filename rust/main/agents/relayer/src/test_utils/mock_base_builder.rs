@@ -13,7 +13,9 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
 };
 
-use crate::msg::metadata::{BuildsBaseMetadata, IsmAwareAppContextClassifier};
+use crate::msg::metadata::{
+    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+};
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 
@@ -22,6 +24,7 @@ pub struct MockBaseMetadataBuilderResponses {
     pub origin_domain: Option<HyperlaneDomain>,
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
+    pub ism_cache_policy_classifier: Option<IsmCachePolicyClassifier>,
     pub cache: Option<MeteredCache<LocalCache>>,
     pub get_proof: ResponseList<eyre::Result<Proof>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
@@ -117,6 +120,12 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier {
         self.responses
             .app_context_classifier
+            .as_ref()
+            .expect("No mock app_context_classifier response set")
+    }
+    fn ism_cache_policy_classifier(&self) -> &crate::msg::metadata::IsmCachePolicyClassifier {
+        self.responses
+            .ism_cache_policy_classifier
             .as_ref()
             .expect("No mock app_context_classifier response set")
     }

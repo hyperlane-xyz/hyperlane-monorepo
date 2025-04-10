@@ -200,6 +200,7 @@ pub enum IsmCachePolicy {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IsmCacheConfig {
     module_types: HashSet<ModuleType>,
     domains: Option<HashSet<u32>>,
@@ -259,5 +260,46 @@ impl IsmCachePolicyClassifier {
         }
 
         IsmCachePolicy::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ism_cache_config() {
+        let config = IsmCacheConfig {
+            module_types: HashSet::from([ModuleType::Aggregation]),
+            domains: Some(HashSet::from([1])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
+        };
+
+        assert_eq!(config.matches_domain(1), true);
+        assert_eq!(config.matches_domain(2), false);
+
+        assert_eq!(config.matches_module_type(ModuleType::Aggregation), true);
+        assert_eq!(config.matches_module_type(ModuleType::Routing), false);
+    }
+
+    #[test]
+    fn test_ism_cache_config_deserialize() {
+        // Module type 2 is the numeric version of ModuleType::Aggregation
+        let json = r#"
+        {
+            "moduleTypes": [2],
+            "domains": [1],
+            "cachePolicy": "IsmSpecific"
+        }
+        "#;
+
+        let config: IsmCacheConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            config.module_types,
+            HashSet::from([ModuleType::Aggregation])
+        );
+        assert_eq!(config.domains, Some(HashSet::from([1])));
+        assert_eq!(config.cache_policy, IsmCachePolicy::IsmSpecific);
     }
 }

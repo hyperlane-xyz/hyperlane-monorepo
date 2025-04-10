@@ -214,8 +214,9 @@ mod test {
 
     use crate::{
         msg::metadata::{
-            base::MetadataBuildError, message_builder::build_message_metadata,
-            IsmAwareAppContextClassifier, MessageMetadataBuildParams,
+            base::MetadataBuildError, message_builder::build_message_metadata, DefaultIsmCache,
+            IsmAwareAppContextClassifier, IsmCacheConfig, IsmCachePolicyClassifier,
+            MessageMetadataBuildParams,
         },
         settings::matching_list::{Filter, ListElement, MatchingList},
         test_utils::{
@@ -261,8 +262,9 @@ mod test {
 
         let mock_mailbox = MockMailboxContract::new();
         let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
+        let default_ism_getter = DefaultIsmCache::new(mailbox);
         let app_context_classifier = IsmAwareAppContextClassifier::new(
-            mailbox,
+            default_ism_getter.clone(),
             vec![(
                 MatchingList(Some(vec![ListElement::new(
                     Filter::Wildcard,
@@ -275,6 +277,10 @@ mod test {
             )],
         );
         base_builder.responses.app_context_classifier = Some(app_context_classifier);
+        base_builder.responses.ism_cache_policy_classifier = Some(IsmCachePolicyClassifier::new(
+            default_ism_getter,
+            IsmCacheConfig::default(),
+        ));
         base_builder
     }
 
