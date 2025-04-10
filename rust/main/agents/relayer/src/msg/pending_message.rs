@@ -269,31 +269,6 @@ impl PendingOperation for PendingMessage {
             return op_result;
         }
 
-        let ism_address = match self
-            .ctx
-            .destination_mailbox
-            .recipient_ism(self.message.recipient)
-            .await
-        {
-            Ok(ism_address) => ism_address,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress);
-            }
-        };
-
-        let message_metadata_builder = match MessageMetadataBuilder::new(
-            self.ctx.metadata_builder.clone(),
-            ism_address,
-            &self.message,
-        )
-        .await
-        {
-            Ok(message_metadata_builder) => message_metadata_builder,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder);
-            }
-        };
-
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
         let tx_cost_estimate = match self.metadata.as_ref() {
@@ -322,10 +297,7 @@ impl PendingOperation for PendingMessage {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
                 metadata.clone()
             }
-            _ => match self
-                .build_metadata(&message_metadata_builder, ism_address)
-                .await
-            {
+            _ => match self.build_metadata().await {
                 Ok(metadata) => {
                     let metadata_bytes = metadata.to_vec();
                     self.metadata = Some(metadata_bytes.clone());
@@ -995,11 +967,24 @@ impl PendingMessage {
         self.metadata = None;
     }
 
-    async fn build_metadata(
-        &mut self,
-        message_metadata_builder: &MessageMetadataBuilder,
-        ism_address: H256,
-    ) -> Result<Metadata, PendingOperationResult> {
+    async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
+        let ism_address = self.recipient_ism_address().await?;
+
+        let message_metadata_builder = match MessageMetadataBuilder::new(
+            self.ctx.metadata_builder.clone(),
+            ism_address,
+            &self.message,
+        )
+        .await
+        {
+            Ok(message_metadata_builder) => message_metadata_builder,
+            Err(err) => {
+                return Err(
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
+                );
+            }
+        };
+
         let params = MessageMetadataBuildParams::default();
 
         let build_metadata_start = Instant::now();
