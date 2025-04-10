@@ -819,18 +819,13 @@ contract InterchainAccountRouter is Router {
         bytes32 _ism,
         bytes memory _body
     ) private returns (bytes32) {
-        require(
-            _router != InterchainAccountMessage.EMPTY_SALT,
-            "no router specified for destination"
-        );
-        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
-            mailbox.dispatch{value: msg.value}(
+            _dispatchMessageWithMetadata(
                 _destination,
                 _router,
+                _ism,
                 _body,
-                new bytes(0),
-                hook
+                bytes("")
             );
     }
 
