@@ -188,6 +188,7 @@ impl SealevelProviderForSubmitter for SealevelProvider {
         // If there was an error in the simulation result, return an error.
         if simulation_result.err.is_some() {
             tracing::error!(?simulation_result, "Got simulation result for transaction");
+            println!("Simulation result: {:?}", simulation_result);
             return Ok(None);
         } else {
             tracing::debug!(?simulation_result, "Got simulation result for transaction");
