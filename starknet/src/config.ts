@@ -4,6 +4,8 @@ export const CONFIG = {
     ASSEMBLY_JSON: '.compiled_contract_class.json', // Cairo assembly (CASM) is the low-level bytecode
   },
   CONTRACT_ERROR_CODES: {
-    FILE_NOT_FOUND: 'FILE_NOT_FOUND',
+    INVALID_CONTRACT_GROUP: 'INVALID_CONTRACT_GROUP',
+    CONTRACT_NOT_FOUND: 'CONTRACT_NOT_FOUND',
+    SIERRA_NOT_FOUND: 'SIERRA_NOT_FOUND',
   },
 } as const;

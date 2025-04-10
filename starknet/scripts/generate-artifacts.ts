@@ -27,37 +27,42 @@ enum ContractType {
   MOCK = 'mock_',
 }
 
-/**
- * @notice Templates for TypeScript artifact generation
- */
-const TEMPLATES = {
-  JS_ARTIFACT: `\
-export const {name} = {artifact};
-`,
-
-  DTS_ARTIFACT: `\
-import type { CompiledContract, CairoAssembly } from 'starknet';
-
-export declare const {name}: {type};
-`,
-
-  JS_INDEX: `\
-{imports}
-
-export const starknetContracts = {
-  contracts: {
-{contractExports}
-  },
-  tokens: {
-{tokenExports}
-  },
-  mocks: {
-{mockExports}
+class Templates {
+  static jsArtifact(name: string, artifact: any) {
+    return `export const ${name} = ${JSON.stringify(artifact)};`;
   }
-};
-`,
 
-  DTS_INDEX: `\
+  static dtsArtifact(name: string, type: string) {
+    return `
+    import type { CompiledContract, CairoAssembly } from 'starknet';
+    export declare const ${name}: ${type};
+    `;
+  }
+
+  static jsIndex(
+    imports: string,
+    contractExports: string,
+    tokenExports: string,
+    mockExports: string,
+  ) {
+    return `
+${imports}
+ export const starknetContracts = {
+   contracts: {
+ ${contractExports}
+   },
+   tokens: {
+ ${tokenExports}
+   },
+   mocks: {
+ ${mockExports}
+   }
+ };
+ `;
+  }
+
+  static dtsIndex() {
+    return `
 import type { CompiledContract, CairoAssembly } from 'starknet';
 
 export interface StarknetContractGroup {
@@ -73,9 +78,9 @@ export interface StarknetContracts {
   mocks: StarknetContractGroup;
 }
 
-export declare const starknetContracts: StarknetContracts;
-`,
-};
+export declare const starknetContracts: StarknetContracts;`;
+  }
+}
 
 class StarknetArtifactGenerator {
   private processedFiles: Map<
@@ -150,16 +155,10 @@ class StarknetArtifactGenerator {
             : artifact.abi,
       };
 
-      return TEMPLATES.JS_ARTIFACT.replace('{name}', name).replace(
-        '{artifact}',
-        JSON.stringify(abiOnly),
-      );
+      return Templates.jsArtifact(name, abiOnly);
     }
     // For other contract types, return the full artifact
-    return TEMPLATES.JS_ARTIFACT.replace('{name}', name).replace(
-      '{artifact}',
-      JSON.stringify(artifact),
-    );
+    return Templates.jsArtifact(name, artifact);
   }
 
   /**
@@ -167,10 +166,7 @@ class StarknetArtifactGenerator {
    */
   generateDeclarationContent(name: string, isSierra: boolean) {
     const type = isSierra ? 'CompiledContract' : 'CairoAssembly';
-    return TEMPLATES.DTS_ARTIFACT.replace('{name}', name).replace(
-      '{type}',
-      type,
-    );
+    return Templates.dtsArtifact(name, type);
   }
 
   /**
@@ -188,39 +184,41 @@ class StarknetArtifactGenerator {
         '',
       );
 
+      let sierraVarName;
+      let casmVarName;
+
       if (value.sierra) {
-        // Add prefix to avoid naming conflicts
-        const sierraVarName = `${value.type}${baseName}Sierra`;
+        sierraVarName = `${value.type}${baseName}Sierra`;
         imports.push(
           `import { ${name} as ${sierraVarName} } from './${name}.${ContractClass.SIERRA}.js';`,
         );
-
-        const exportLine = `    ${baseName}: { contract_class: ${sierraVarName}`;
-        const targetExports = this.getExportArrayForType(value.type);
-        targetExports.push(value.casm ? `${exportLine},` : `${exportLine} },`);
       }
 
       if (value.casm) {
-        // Add prefix to avoid naming conflicts
-        const casmVarName = `${value.type}${baseName}Casm`;
+        casmVarName = `${value.type}${baseName}Casm`;
         imports.push(
           `import { ${name} as ${casmVarName} } from './${name}.${ContractClass.CASM}.js';`,
         );
-
-        const exportLine = value.sierra
-          ? `      compiled_contract_class: ${casmVarName} },`
-          : `    ${baseName}: { compiled_contract_class: ${casmVarName} },`;
-
-        this.getExportArrayForType(value.type).push(exportLine);
       }
+
+      const exports = [
+        value.sierra ? `contract_class: ${sierraVarName}` : null,
+        value.casm ? `compiled_contract_class: ${casmVarName}` : null,
+      ].filter(Boolean);
+
+      this.getExportArrayForType(value.type).push(
+        `${baseName}: { ${exports.join(', ')} },`,
+      );
     });
 
     return {
-      jsContent: TEMPLATES.JS_INDEX.replace('{imports}', imports.join('\n'))
-        .replace('{contractExports}', this.contractExports.join('\n'))
-        .replace('{tokenExports}', this.tokenExports.join('\n'))
-        .replace('{mockExports}', this.mockExports.join('\n')),
-      dtsContent: TEMPLATES.DTS_INDEX,
+      jsContent: Templates.jsIndex(
+        imports.join('\n'),
+        this.contractExports.join('\n'),
+        this.tokenExports.join('\n'),
+        this.mockExports.join('\n'),
+      ),
+      dtsContent: Templates.dtsIndex(),
     };
   }
 
