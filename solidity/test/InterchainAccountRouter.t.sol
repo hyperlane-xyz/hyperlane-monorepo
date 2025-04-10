@@ -329,6 +329,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             TypeCasts.bytes32ToAddress(ismOverride),
             address(ica)
         );
+
         vm.deal(address(this), value);
         environment.processNextPendingMessage{value: value}();
 
@@ -438,7 +439,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // assert
         uint256 balanceAfter = address(this).balance;
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
-
         assertRemoteCallReceived(data, value);
     }
 
@@ -691,7 +691,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             failingIsm,
             getCalls(data, value),
-            ""
+            bytes("")
         );
 
         // assert
@@ -714,7 +714,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             bytes32(0),
             getCalls(data, value),
-            ""
+            bytes("")
         );
 
         // assert
@@ -753,7 +753,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             ismOverride,
             getCalls(data, value),
-            ""
+            bytes("")
         );
 
         // recheck
@@ -802,9 +802,53 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             routerOverride,
             ismOverride,
             calls,
-            ""
+            bytes("")
         );
         vm.expectCall(address(this), value, data);
         environment.processNextPendingMessage();
+    }
+
+    function testDifferentSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("i am a salt")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("i am a different salt")
+            );
+        assertNotEq(address(ica), address(ica2));
+    }
+
+    function testEqualSalts() public {
+        address owner = address(this);
+
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            owner.addressToBytes32(),
+            address(originIcaRouter).addressToBytes32(),
+            address(environment.isms(destination)),
+            keccak256("salt1")
+        );
+
+        OwnableMulticall ica2 = destinationIcaRouter
+            .getDeployedInterchainAccount(
+                origin,
+                owner.addressToBytes32(),
+                address(originIcaRouter).addressToBytes32(),
+                address(environment.isms(destination)),
+                keccak256("salt1")
+            );
+        assertEq(address(ica), address(ica2));
     }
 }

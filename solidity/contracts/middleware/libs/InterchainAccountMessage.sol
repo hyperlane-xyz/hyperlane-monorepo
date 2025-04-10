@@ -13,6 +13,8 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 library InterchainAccountMessage {
     using TypeCasts for bytes32;
 
+    bytes32 internal constant EMPTY_SALT = bytes32(0);
+
     /**
      * @notice Returns formatted (packed) InterchainAccountMessage
      * @dev This function should only be used in memory message construction.
@@ -32,23 +34,13 @@ library InterchainAccountMessage {
     ) internal pure returns (bytes memory) {
         CallLib.Call[] memory _calls = new CallLib.Call[](1);
         _calls[0] = CallLib.build(_to, _value, _data);
-        return abi.encode(TypeCasts.addressToBytes32(_owner), _ism, _calls);
-    }
-
-    /**
-     * @notice Returns formatted (packed) InterchainAccountMessage
-     * @dev This function should only be used in memory message construction.
-     * @param _owner The owner of the interchain account
-     * @param _ism The address of the remote ISM
-     * @param _calls The sequence of calls to make
-     * @return Formatted message body
-     */
-    function encode(
-        bytes32 _owner,
-        bytes32 _ism,
-        CallLib.Call[] calldata _calls
-    ) internal pure returns (bytes memory) {
-        return abi.encode(_owner, _ism, _calls);
+        return
+            abi.encode(
+                TypeCasts.addressToBytes32(_owner),
+                _ism,
+                _calls,
+                EMPTY_SALT // Salts are expected when decoding.
+            );
     }
 
     /**
@@ -68,14 +60,66 @@ library InterchainAccountMessage {
     }
 
     /**
+     * @notice Returns formatted (packed) InterchainAccountMessage
+     * @dev This function should only be used in memory message construction.
+     * @param _owner The owner of the interchain account
+     * @param _ism The address of the remote ISM
+     * @param _calls The sequence of calls to make
+     * @return Formatted message body
+     */
+    function encode(
+        bytes32 _owner,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls
+    ) internal pure returns (bytes memory) {
+        return encode(_owner, _ism, _calls, EMPTY_SALT);
+    }
+
+    /**
+     * @notice Returns formatted (packed) InterchainAccountMessage
+     * @dev This function should only be used in memory message construction.
+     * @param _owner The owner of the interchain account
+     * @param _ism The address of the remote ISM
+     * @param _calls The sequence of calls to make
+     * @return Formatted message body
+     */
+    function encode(
+        address _owner,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes32 _userSalt
+    ) internal pure returns (bytes memory) {
+        return
+            encode(TypeCasts.addressToBytes32(_owner), _ism, _calls, _userSalt);
+    }
+
+    /**
+     * @notice Returns formatted (packed) InterchainAccountMessage
+     * @dev This function should only be used in memory message construction.
+     * @param _owner The owner of the interchain account
+     * @param _ism The address of the remote ISM
+     * @param _calls The sequence of calls to make
+     * @return Formatted message body
+     */
+    function encode(
+        bytes32 _owner,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes32 _userSalt
+    ) internal pure returns (bytes memory) {
+        return abi.encode(_owner, _ism, _calls, _userSalt);
+    }
+
+    /**
      * @notice Parses and returns the calls from the provided message
      * @param _message The interchain account message
      * @return The array of calls
      */
     function decode(
         bytes calldata _message
-    ) internal pure returns (bytes32, bytes32, CallLib.Call[] memory) {
-        return abi.decode(_message, (bytes32, bytes32, CallLib.Call[]));
+    ) internal pure returns (bytes32, bytes32, CallLib.Call[] memory, bytes32) {
+        return
+            abi.decode(_message, (bytes32, bytes32, CallLib.Call[], bytes32));
     }
 
     /**
