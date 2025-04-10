@@ -6,14 +6,8 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
-import {
-  DEFAULT_REGISTRY_URI,
-  getWarpAddresses,
-} from '../../config/registry.js';
-import {
-  getWarpConfigMapFromMergedRegistry,
-  warpConfigGetterMap,
-} from '../../config/warp.js';
+import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
+import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -49,7 +43,9 @@ async function main() {
   ];
 
   const registries = [DEFAULT_REGISTRY_URI, DEFAULT_GITHUB_REGISTRY];
-  const warpConfigMap = await getWarpConfigMapFromMergedRegistry(registries);
+  const warpCoreConfigMap = await getWarpConfigMapFromMergedRegistry(
+    registries,
+  );
 
   let warpIdsToCheck: string[];
   if (interactive) {
@@ -58,14 +54,14 @@ async function main() {
     console.log(chalk.yellow('Skipping the following warp routes:'));
     routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
 
-    warpIdsToCheck = Object.keys(warpConfigMap).filter(
+    warpIdsToCheck = Object.keys(warpCoreConfigMap).filter(
       (warpRouteId) => !routesToSkip.includes(warpRouteId),
     );
   }
 
   // Get all the chains from warpCoreConfigMap. Used to initialize the MultiProvider.
   const warpConfigChains = warpIdsToCheck.reduce((chains, warpRouteId) => {
-    const warpConfigs = warpConfigMap[warpRouteId];
+    const warpConfigs = warpCoreConfigMap[warpRouteId];
     assert(warpConfigs, `Config not found in registry for ${warpRouteId}`);
     Object.keys(warpConfigs).forEach((chain) => chains.add(chain));
     return chains;
