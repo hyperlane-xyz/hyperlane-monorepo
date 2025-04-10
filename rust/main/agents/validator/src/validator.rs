@@ -84,8 +84,7 @@ impl BaseAgent for Validator {
         let checkpoint_syncer = settings
             .checkpoint_syncer
             .build_and_validate(None)
-            .await
-            .expect("Failed to build checkpoint syncer")
+            .await?
             .into();
 
         let mailbox = settings
