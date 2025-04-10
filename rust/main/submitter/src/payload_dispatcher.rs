@@ -4,6 +4,7 @@
 mod db;
 mod dispatcher;
 mod entrypoint;
+mod metrics;
 mod stages;
 #[cfg(test)]
 pub mod test_utils;

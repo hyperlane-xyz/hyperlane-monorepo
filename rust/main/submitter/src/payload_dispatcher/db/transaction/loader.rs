@@ -24,7 +24,7 @@ pub struct TransactionDbLoader {
 }
 impl TransactionDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
-        DbIterator::new(Arc::new(self), "transaction_db_loader".to_string(), true).await
+        DbIterator::new(Arc::new(self), "Transaction".to_string(), true).await
     }
 }
 

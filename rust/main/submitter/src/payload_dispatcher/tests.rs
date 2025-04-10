@@ -5,6 +5,7 @@ use tokio::{sync::Mutex, time::sleep};
 use crate::{
     chain_tx_adapter::TxBuildingResult,
     payload_dispatcher::{
+        metrics::DispatcherMetrics,
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
         BuildingStageQueue, PayloadDbLoader, PayloadDispatcherState,
     },
@@ -19,15 +20,22 @@ async fn test_entrypoint_send_is_detected_by_loader() {
     let payload_db_loader = PayloadDbLoader::new(payload_db.clone(), building_stage_queue.clone());
     let mut payload_iterator = payload_db_loader.into_iterator().await;
 
+    let metrics = DispatcherMetrics::dummy_instance();
     let adapter = Arc::new(MockAdapter::new());
-    let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+    let state = PayloadDispatcherState::new(
+        payload_db,
+        tx_db,
+        adapter,
+        metrics.clone(),
+        "dummy_domain".to_string(),
+    );
     let dispatcher_entrypoint = PayloadDispatcherEntrypoint {
         inner: state.clone(),
     };
 
     let _payload_db_loader = tokio::spawn(async move {
         payload_iterator
-            .load_from_db()
+            .load_from_db(metrics.clone())
             .await
             .expect("Payload loader crashed");
     });
@@ -91,22 +99,26 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     adapter.expect_submit().returning(|_| Ok(()));
 
     let adapter = Arc::new(adapter);
+    let metrics = DispatcherMetrics::dummy_instance();
+    let domain = "dummy_domain".to_string();
 
-    let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+    let state =
+        PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
     let dispatcher_entrypoint = PayloadDispatcherEntrypoint {
         inner: state.clone(),
     };
 
+    let metrics_to_move = metrics.clone();
     let _payload_db_loader = tokio::spawn(async move {
         payload_iterator
-            .load_from_db()
+            .load_from_db(metrics_to_move)
             .await
             .expect("Payload loader crashed");
     });
 
     let payload_dispatcher = PayloadDispatcher {
         inner: state.clone(),
-        domain: "dummy_destination".to_string(),
+        domain: domain.clone(),
     };
     let _payload_dispatcher = tokio::spawn(async move { payload_dispatcher.spawn().await });
 
@@ -125,4 +137,12 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
         }
         sleep(Duration::from_millis(100)).await;
     }
+    let finalized_txs = metrics
+        .finalized_transactions
+        .with_label_values(&[&state.domain])
+        .get();
+    assert_eq!(
+        finalized_txs, 1,
+        "Finalized transactions metric is incorrect"
+    );
 }

@@ -23,7 +23,7 @@ pub struct PayloadDbLoader {
 
 impl PayloadDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
-        DbIterator::new(Arc::new(self), "payload_db_loader".to_string(), false).await
+        DbIterator::new(Arc::new(self), "Payload".to_string(), false).await
     }
 }
 

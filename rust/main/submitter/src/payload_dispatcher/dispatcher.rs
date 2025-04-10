@@ -76,6 +76,7 @@ impl PayloadDispatcher {
             building_stage_queue.clone(),
             inclusion_stage_sender.clone(),
             self.inner.clone(),
+            self.domain.clone(),
         );
         let building_task = tokio::task::Builder::new()
             .name("building_stage")
@@ -92,6 +93,7 @@ impl PayloadDispatcher {
             inclusion_stage_receiver,
             finality_stage_sender.clone(),
             self.inner.clone(),
+            self.domain.clone(),
         );
         let inclusion_task = tokio::task::Builder::new()
             .name("inclusion_stage")
@@ -108,6 +110,7 @@ impl PayloadDispatcher {
             finality_stage_receiver,
             building_stage_queue.clone(),
             self.inner.clone(),
+            self.domain.clone(),
         );
         let finality_task = tokio::task::Builder::new()
             .name("finality_stage")
@@ -123,12 +126,13 @@ impl PayloadDispatcher {
         let payload_db_loader =
             PayloadDbLoader::new(self.inner.payload_db.clone(), building_stage_queue.clone());
         let mut payload_iterator = payload_db_loader.into_iterator().await;
+        let metrics = self.inner.metrics.clone();
         let payload_loader_task = tokio::task::Builder::new()
             .name("payload_loader")
             .spawn(
                 async move {
                     payload_iterator
-                        .load_from_db()
+                        .load_from_db(metrics)
                         .await
                         .expect("Payload loader crashed");
                 }
@@ -143,12 +147,13 @@ impl PayloadDispatcher {
             finality_stage_sender.clone(),
         );
         let mut transaction_iterator = transaction_db_loader.into_iterator().await;
+        let metrics = self.inner.metrics.clone();
         let transaction_loader_task = tokio::task::Builder::new()
             .name("transaction_loader")
             .spawn(
                 async move {
                     transaction_iterator
-                        .load_from_db()
+                        .load_from_db(metrics)
                         .await
                         .expect("Transaction loader crashed");
                 }

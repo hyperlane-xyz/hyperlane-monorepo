@@ -7,6 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
+    metrics,
     settings::{ChainConf, RawChainConf},
 };
 use hyperlane_core::HyperlaneDomain;
@@ -16,16 +17,22 @@ use tracing::{error, info, instrument::Instrumented, warn};
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
     payload::{DropReason, PayloadDetails, PayloadStatus},
-    payload_dispatcher::{DatabaseOrPath, PayloadDb, PayloadDispatcherSettings, TransactionDb},
+    payload_dispatcher::{
+        metrics::DispatcherMetrics, DatabaseOrPath, PayloadDb, PayloadDispatcherSettings,
+        TransactionDb,
+    },
     transaction::Transaction,
+    TransactionStatus,
 };
 
-/// State that is common (but not shared) to all components of the `PayloadDispatcher`
+/// State that is common to all components of the `PayloadDispatcher`
 #[derive(Clone)]
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
     pub(crate) adapter: Arc<dyn AdaptsChain>,
+    pub(crate) metrics: DispatcherMetrics,
+    pub(crate) domain: String,
 }
 
 impl PayloadDispatcherState {
@@ -33,11 +40,15 @@ impl PayloadDispatcherState {
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
         adapter: Arc<dyn AdaptsChain>,
+        metrics: DispatcherMetrics,
+        domain: String,
     ) -> Self {
         Self {
             payload_db,
             tx_db,
             adapter,
+            metrics,
+            domain,
         }
     }
 
@@ -54,7 +65,9 @@ impl PayloadDispatcherState {
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
-        Ok(Self::new(payload_db, tx_db, adapter))
+        let domain = settings.domain.to_string();
+        let metrics = DispatcherMetrics::new(settings.metrics.registry(), domain.clone())?;
+        Ok(Self::new(payload_db, tx_db, adapter, metrics, domain))
     }
 
     pub(crate) async fn update_status_for_payloads(
@@ -76,6 +89,29 @@ impl PayloadDispatcherState {
                 );
             }
             info!(?details, new_status=?status, "Updated payload status");
+            update_payload_metric_if_dropped(&self.metrics, &self.domain, &status);
+        }
+
+        fn update_payload_metric_if_dropped(
+            metrics: &DispatcherMetrics,
+            domain: &str,
+            status: &PayloadStatus,
+        ) {
+            match status {
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(ref reason)) => {
+                    metrics
+                        .dropped_payloads
+                        .with_label_values(&[domain, &format!("DroppedInTransaction({reason:?})")])
+                        .inc();
+                }
+                PayloadStatus::Dropped(ref reason) => {
+                    metrics
+                        .dropped_payloads
+                        .with_label_values(&[domain, &format!("{reason:?}")])
+                        .inc();
+                }
+                _ => {}
+            }
         }
     }
 

@@ -80,6 +80,7 @@ mod tests {
     use super::*;
     use crate::chain_tx_adapter::*;
     use crate::payload::*;
+    use crate::payload_dispatcher::metrics::DispatcherMetrics;
     use crate::payload_dispatcher::test_utils::MockAdapter;
     use crate::payload_dispatcher::PayloadDb;
     use crate::payload_dispatcher::TransactionDb;
@@ -220,7 +221,13 @@ mod tests {
         tx_db: Arc<dyn TransactionDb>,
     ) -> Box<dyn Entrypoint> {
         let adapter = Arc::new(MockAdapter::new()) as Arc<dyn AdaptsChain>;
-        let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let entrypoint_state = PayloadDispatcherState::new(
+            payload_db,
+            tx_db,
+            adapter,
+            DispatcherMetrics::dummy_instance(),
+            "test".to_string(),
+        );
         Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state))
     }
 
@@ -287,7 +294,13 @@ mod tests {
             .expect_estimate_gas_limit()
             .returning(move |_| Ok(Some(mock_gas_limit)));
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
-        let entrypoint_state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let entrypoint_state = PayloadDispatcherState::new(
+            payload_db,
+            tx_db,
+            adapter,
+            DispatcherMetrics::dummy_instance(),
+            "test".to_string(),
+        );
         let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));
 
         let payload = FullPayload::default();
