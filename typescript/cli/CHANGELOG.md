@@ -1,5 +1,22 @@
 # @hyperlane-xyz/cli
 
+## 12.0.0
+
+### Minor Changes
+
+- 82166916a: feat: support github auth token for authenticated registries
+
+### Patch Changes
+
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
 ## 11.0.0
 
 ### Patch Changes
