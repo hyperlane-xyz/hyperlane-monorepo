@@ -23,7 +23,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     transactionOverrides: {
       gasPrice: '2.0',
     },
-    protocol: ProtocolType.CosmosNative,
   },
   // deploy-only overrides
   // scrollsepolia: {
