@@ -296,6 +296,7 @@ impl IsmCachePolicyClassifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyperlane_test::mocks::MockMailboxContract;
 
     #[test]
     fn test_ism_cache_config() {
@@ -317,9 +318,9 @@ mod tests {
         // Module type 2 is the numeric version of ModuleType::Aggregation
         let json = r#"
         {
-            "moduleTypes": [2],
+            "moduletypes": [2],
             "chains": ["foochain"],
-            "cachePolicy": "ismSpecific"
+            "cachepolicy": "ismSpecific"
         }
         "#;
 
@@ -331,5 +332,52 @@ mod tests {
         );
         assert_eq!(config.chains, Some(HashSet::from(["foochain".to_owned()])));
         assert_eq!(config.cache_policy, IsmCachePolicy::IsmSpecific);
+    }
+
+    #[tokio::test]
+    async fn test_ism_cache_policy_classifier() {
+        let default_ism = H256::zero();
+
+        let mut mock_mailbox = MockMailboxContract::new();
+        mock_mailbox
+            .expect__default_ism()
+            .returning(move || Ok(default_ism));
+        let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
+
+        let default_ism_getter = DefaultIsmCache::new(mailbox);
+        let default_ism_cache_config = IsmCacheConfig {
+            module_types: HashSet::from([ModuleType::Aggregation]),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
+            cache_policy: IsmCachePolicy::IsmSpecific,
+        };
+
+        let classifier =
+            IsmCachePolicyClassifier::new(default_ism_getter, default_ism_cache_config);
+
+        // We meet the criteria for the cache policy
+        let domain = HyperlaneDomain::new_test_domain("foochain");
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Aggregation)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::IsmSpecific);
+
+        // Different ISM module type, should not match
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Routing)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+
+        // ISM not default ISM, should not match
+        let cache_policy = classifier
+            .get_cache_policy(H256::repeat_byte(0xfe), &domain, ModuleType::Routing)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
+
+        // Different domain, should not match
+        let domain = HyperlaneDomain::new_test_domain("barchain");
+        let cache_policy = classifier
+            .get_cache_policy(default_ism, &domain, ModuleType::Routing)
+            .await;
+        assert_eq!(cache_policy, IsmCachePolicy::MessageSpecific);
     }
 }
