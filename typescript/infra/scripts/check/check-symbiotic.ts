@@ -27,7 +27,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const mainnet3Addresses = {
   accessManager: OWNERS[COLLATERAL_CHAIN],
-  network: '',
+  network: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2',
 };
 
 const mainnet3Config: SymbioticConfig = {
