@@ -485,7 +485,7 @@ mod test {
             messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
             merkle_root_mismatch: IntGaugeVec::new(
                 Opts::new("merkle_root_mismatch", "help string"),
-                &["help string"],
+                &["app_context", "origin"],
             )
             .unwrap(),
         }
