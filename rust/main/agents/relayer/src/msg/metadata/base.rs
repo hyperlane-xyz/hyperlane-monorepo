@@ -193,14 +193,22 @@ impl AppContextClassifier {
     }
 }
 
+/// An ISM caching policy.
 #[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum IsmCachePolicy {
+    /// Default cache policy, includes the message in the cache key
+    /// when querying config that may be message-specific.
     #[default]
     MessageSpecific,
+    /// Even if an ISM's config interface is message-specific, we
+    /// ignore the message and use the same config for all messages.
     IsmSpecific,
 }
 
+/// Configuration for ISM caching behavior.
+/// Fields are renamed to be all lowercase / without underscores to match
+/// the format expected by the settings parsing.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct IsmCacheConfig {
     #[serde(deserialize_with = "deserialize_module_types", rename = "moduletypes")]
@@ -210,6 +218,8 @@ pub struct IsmCacheConfig {
     cache_policy: IsmCachePolicy,
 }
 
+/// To deserialize the module types from a list of numbers
+/// into a set of `ModuleType` enums.
 fn deserialize_module_types<'de, D>(deserializer: D) -> Result<HashSet<ModuleType>, D::Error>
 where
     D: Deserializer<'de>,
@@ -240,10 +250,12 @@ impl IsmCacheConfig {
     }
 }
 
+/// Classifies messages into an ISM cache policy based on the
+/// default ISM and the configured cache policy.
 #[derive(Debug, new)]
 pub struct IsmCachePolicyClassifier {
     default_ism_getter: DefaultIsmCache,
-    default_ism_cache_policy: IsmCacheConfig,
+    default_ism_cache_config: IsmCacheConfig,
 }
 
 impl IsmCachePolicyClassifier {
@@ -263,18 +275,18 @@ impl IsmCachePolicyClassifier {
         };
 
         if root_ism == default_ism
-            && self.default_ism_cache_policy.matches_chain(domain.name())
+            && self.default_ism_cache_config.matches_chain(domain.name())
             && self
-                .default_ism_cache_policy
+                .default_ism_cache_config
                 .matches_module_type(ism_module_type)
         {
             tracing::trace!(
                 ?default_ism,
                 ?domain,
-                cache_policy =? self.default_ism_cache_policy.cache_policy,
+                cache_policy =? self.default_ism_cache_config.cache_policy,
                 "Using configured default ISM cache policy"
             );
-            return self.default_ism_cache_policy.cache_policy;
+            return self.default_ism_cache_config.cache_policy;
         }
 
         IsmCachePolicy::default()

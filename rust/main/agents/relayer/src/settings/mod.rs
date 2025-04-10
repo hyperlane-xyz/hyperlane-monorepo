@@ -411,20 +411,16 @@ fn parse_json_object(p: ValueParser) -> Option<(ConfigPath, Value)> {
 fn parse_ism_cache_config(p: ValueParser) -> ConfigResult<IsmCacheConfig> {
     let mut err = ConfigParsingError::default();
 
-    println!("p before parsing: {:?}", p);
     let raw_object = parse_json_object(p.clone()).map(|(_, v)| v);
-    println!("raw_object: {:?}", raw_object);
     let Some(raw_object) = raw_object else {
         return err.into_result(IsmCacheConfig::default());
     };
 
     let p = ValueParser::new(p.cwp.clone(), &raw_object);
-    println!("p: {:?}", p);
     let ml = p
         .parse_value::<IsmCacheConfig>("Expected ISM cache config")
         .take_config_err(&mut err)
         .unwrap_or_default();
-    println!("ml: {:?}", ml);
 
     err.into_result(ml)
 }

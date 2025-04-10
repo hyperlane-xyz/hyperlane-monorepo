@@ -313,7 +313,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae5e1c6-20250410-104516',
+      tag: 'b34696c-20250410-110851',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
