@@ -49,7 +49,7 @@ export const getHyperWarpConfig = async (
     TOKEN_CHAINS.map((chain) => {
       let config = {
         ...routerConfig[chain],
-        ...STAKED_TOKEN_CONFIG,
+        ...TOKEN_CONFIG,
         owner: OWNERS[chain],
       };
 
