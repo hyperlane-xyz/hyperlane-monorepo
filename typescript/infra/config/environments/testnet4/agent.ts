@@ -287,6 +287,7 @@ const hyperlane: RootAgentConfig = {
       },
     ],
     defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
@@ -322,6 +323,7 @@ const releaseCandidate: RootAgentConfig = {
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
     defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {

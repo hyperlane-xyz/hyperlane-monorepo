@@ -55,6 +55,7 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   defaultIsmCacheConfig?: IsmCacheConfig;
+  allowContractCallCaching: boolean;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -139,6 +140,8 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     if (baseConfig.defaultIsmCacheConfig) {
       relayerConfig.defaultIsmCacheConfig = baseConfig.defaultIsmCacheConfig;
     }
+    relayerConfig.allowContractCallCaching =
+      baseConfig.allowContractCallCaching;
     return relayerConfig;
   }
 

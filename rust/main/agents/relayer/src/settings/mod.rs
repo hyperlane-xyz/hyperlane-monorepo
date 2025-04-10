@@ -64,6 +64,8 @@ pub struct RelayerSettings {
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
     pub metric_app_contexts: Vec<(MatchingList, String)>,
+    /// Whether to allow contract call caching at all.
+    pub allow_contract_call_caching: bool,
     /// The default ISM cache policy to use for all messages that use the default ISM.
     pub default_ism_cache_config: IsmCacheConfig,
     /// Maximum number of retries per operation
@@ -321,6 +323,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             })
             .unwrap_or_default();
 
+        let allow_contract_call_caching = p
+            .chain(&mut err)
+            .get_opt_key("allowLocalCheckpointSyncers")
+            .parse_bool()
+            .unwrap_or(true);
+
         let default_ism_cache_config = p
             .chain(&mut err)
             .get_opt_key("defaultIsmCacheConfig")
@@ -346,6 +354,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
             metric_app_contexts,
+            allow_contract_call_caching,
             default_ism_cache_config,
             max_retries: max_message_retries,
         })

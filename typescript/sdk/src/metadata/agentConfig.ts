@@ -426,6 +426,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'The default ISM cache config to use for all chains. If not specified, default caching will be used.',
     ),
+  allowContractCallCaching: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, allows caching of certain contract calls that can be appropriately cached.',
+    ),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;

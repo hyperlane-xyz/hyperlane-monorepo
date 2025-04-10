@@ -407,7 +407,7 @@ mod test {
     use tokio_metrics::TaskMonitor;
 
     use hyperlane_base::{
-        cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics},
+        cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache},
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
             InterchainGasPaymentData,
@@ -512,7 +512,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<LocalCache>,
+        cache: OptionalCache<MeteredCache<LocalCache>>,
     ) -> BaseMetadataBuilder {
         let mut settings = Settings::default();
         settings.chains.insert(
@@ -546,7 +546,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<LocalCache>,
+        cache: OptionalCache<MeteredCache<LocalCache>>,
     ) -> (MessageProcessor, UnboundedReceiver<QueueOperation>) {
         let base_metadata_builder =
             dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
@@ -621,7 +621,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<LocalCache>,
+        cache: OptionalCache<MeteredCache<LocalCache>>,
         num_operations: usize,
     ) -> Vec<QueueOperation> {
         let (message_processor, mut receive_channel) =
@@ -812,13 +812,13 @@ mod test {
             let origin_domain = dummy_domain(0, "dummy_origin_domain");
             let destination_domain = dummy_domain(1, "dummy_destination_domain");
             let db = HyperlaneRocksDB::new(&origin_domain, db);
-            let cache = MeteredCache::new(
+            let cache = OptionalCache::new(Some(MeteredCache::new(
                 LocalCache::new("test-cache"),
                 dummy_cache_metrics(),
                 MeteredCacheConfig {
                     cache_name: "test-cache".to_owned(),
                 },
-            );
+            )));
 
             // Assume the message syncer stored some new messages in HyperlaneDB
             let msg_retries = vec![0, 0, 0];

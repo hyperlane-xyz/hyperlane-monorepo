@@ -199,6 +199,8 @@ impl AppContextClassifier {
 pub enum IsmCachePolicy {
     /// Default cache policy, includes the message in the cache key
     /// when querying config that may be message-specific.
+    /// This is the default because it makes the fewest assumptions
+    /// about the mutability of an ISM's config.
     #[default]
     MessageSpecific,
     /// Even if an ISM's config interface is message-specific, we

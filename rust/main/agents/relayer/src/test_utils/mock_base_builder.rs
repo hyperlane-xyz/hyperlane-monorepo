@@ -4,7 +4,7 @@ use std::{
 };
 
 use hyperlane_base::{
-    cache::{LocalCache, MeteredCache},
+    cache::{LocalCache, MeteredCache, OptionalCache},
     settings::CheckpointSyncerBuildError,
     MultisigCheckpointSyncer,
 };
@@ -25,7 +25,7 @@ pub struct MockBaseMetadataBuilderResponses {
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
     pub ism_cache_policy_classifier: Option<IsmCachePolicyClassifier>,
-    pub cache: Option<MeteredCache<LocalCache>>,
+    pub cache: Option<OptionalCache<MeteredCache<LocalCache>>>,
     pub get_proof: ResponseList<eyre::Result<Proof>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
@@ -129,7 +129,7 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .as_ref()
             .expect("No mock app_context_classifier response set")
     }
-    fn cache(&self) -> &MeteredCache<LocalCache> {
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
         self.responses
             .cache
             .as_ref()

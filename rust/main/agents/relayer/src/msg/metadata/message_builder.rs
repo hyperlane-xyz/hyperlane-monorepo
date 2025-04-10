@@ -204,7 +204,7 @@ mod test {
     use std::sync::Arc;
 
     use hyperlane_base::cache::{
-        LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics,
+        LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache,
     };
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox, ModuleType, H256, U256,
@@ -247,13 +247,13 @@ mod test {
     fn build_mock_base_builder() -> MockBaseMetadataBuilder {
         let origin_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
         let destination_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-        let cache = MeteredCache::new(
+        let cache = OptionalCache::new(Some(MeteredCache::new(
             LocalCache::new("test-cache"),
             dummy_cache_metrics(),
             MeteredCacheConfig {
                 cache_name: "test-cache".to_owned(),
             },
-        );
+        )));
 
         let mut base_builder = MockBaseMetadataBuilder::new();
         base_builder.responses.origin_domain = Some(origin_domain.clone());

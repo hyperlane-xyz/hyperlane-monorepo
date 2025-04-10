@@ -7,7 +7,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
 use eyre::Context;
 use hyperlane_base::{
-    cache::{LocalCache, MeteredCache},
+    cache::{LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     settings::CheckpointSyncerBuildError,
 };
@@ -36,7 +36,7 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
-    cache: MeteredCache<LocalCache>,
+    cache: OptionalCache<MeteredCache<LocalCache>>,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
@@ -58,7 +58,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
     fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
-    fn cache(&self) -> &MeteredCache<LocalCache>;
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -94,7 +94,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         &self.ism_cache_policy_classifier
     }
 
-    fn cache(&self) -> &MeteredCache<LocalCache> {
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
         &self.cache
     }
 
