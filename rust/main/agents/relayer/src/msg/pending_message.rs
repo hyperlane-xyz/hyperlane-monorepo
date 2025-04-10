@@ -961,12 +961,7 @@ impl PendingMessage {
         }
     }
 
-    /// clear metadata cache
-    fn clear_metadata(&mut self) {
-        tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
-        self.metadata = None;
-    }
-
+    /// Builds metadata
     async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
         let ism_address = self.recipient_ism_address().await?;
 
@@ -1034,6 +1029,12 @@ impl PendingMessage {
             .insert_metadata_build_metric(metrics_params);
 
         metadata_res
+    }
+
+    /// clear metadata cache
+    fn clear_metadata(&mut self) {
+        tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
+        self.metadata = None;
     }
 }
 
