@@ -99,7 +99,7 @@ const LIMITS = {
   ETH: BigInt(3000e18),
   BTC: BigInt(100e8),
   // set max limit for HYPER
-  HYPER: INITIAL_SUPPLY,
+  HYPER: BigInt(INITIAL_SUPPLY),
 };
 
 async function main() {

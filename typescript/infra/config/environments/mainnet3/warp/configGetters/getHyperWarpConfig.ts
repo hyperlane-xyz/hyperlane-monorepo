@@ -47,19 +47,32 @@ export const getHyperWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
-    TOKEN_CHAINS.map((chain) => [
-      chain,
-      {
+    TOKEN_CHAINS.map((chain) => {
+      let config = {
         ...routerConfig[chain],
-        ...TOKEN_CONFIG,
+        ...STAKED_TOKEN_CONFIG,
         owner: OWNERS[chain],
-        type:
-          chain === COLLATERAL_CHAIN
-            ? TokenType.hyperToken
-            : TokenType.synthetic,
-        initialSupply: chain === COLLATERAL_CHAIN ? INITIAL_SUPPLY : 0,
-      },
-    ]),
+      };
+
+      if (chain === COLLATERAL_CHAIN) {
+        return [
+          chain,
+          {
+            type: TokenType.hyperToken,
+            initalSupply: INITIAL_SUPPLY,
+            ...config,
+          },
+        ];
+      } else {
+        return [
+          chain,
+          {
+            type: TokenType.synthetic,
+            ...config,
+          },
+        ];
+      }
+    }),
   );
 };
 
@@ -67,19 +80,32 @@ export const getStakedHyperWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
-    STAKED_TOKEN_CHAINS.map((chain) => [
-      chain,
-      {
+    STAKED_TOKEN_CHAINS.map((chain) => {
+      let config = {
         ...routerConfig[chain],
         ...STAKED_TOKEN_CONFIG,
         owner: OWNERS[chain],
-        type:
-          chain === COLLATERAL_CHAIN
-            ? TokenType.collateralVaultRebase
-            : TokenType.syntheticRebase,
-        token:
-          chain === COLLATERAL_CHAIN ? COMPOUND_STAKING_REWARDS : undefined,
-      },
-    ]),
+      };
+
+      if (chain === COLLATERAL_CHAIN) {
+        return [
+          chain,
+          {
+            type: TokenType.collateralVaultRebase,
+            token: COMPOUND_STAKING_REWARDS,
+            ...config,
+          },
+        ];
+      } else {
+        return [
+          chain,
+          {
+            type: TokenType.syntheticRebase,
+            collateralChain: COLLATERAL_CHAIN,
+            ...config,
+          },
+        ];
+      }
+    }),
   );
 };

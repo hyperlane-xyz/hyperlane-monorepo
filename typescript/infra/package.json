@@ -66,6 +66,7 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "tsc",
+    "dev": "tsc --watch",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "deploy-core": "tsx scripts/deploy.ts -e test -m core",

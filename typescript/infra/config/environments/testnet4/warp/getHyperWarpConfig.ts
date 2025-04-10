@@ -38,7 +38,7 @@ export const warpRouteConfig = objMap(
       chain === COLLATERAL_CHAIN ? TokenType.hyperToken : TokenType.synthetic,
     owner: owners[chain],
     mailbox: mailboxes[chain],
-    totalSupply: amount,
+    initialSupply: amount,
     ...tokenConfig,
   }),
 );
