@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'path';
 import { CompiledContract } from 'starknet';
 import { fileURLToPath } from 'url';
 
-import { CONFIG } from '../src/config.js';
+import { CONSTANTS } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
 
 const cwd = process.cwd();
@@ -101,7 +101,7 @@ class StarknetArtifactGenerator {
    * @notice Retrieves paths of all relevant artifact files
    */
   async getArtifactPaths() {
-    const sierraPattern = `${RELEASE_DIR}/**/*${CONFIG.CONTRACT_FILE_SUFFIXES.SIERRA_JSON}`;
+    const sierraPattern = `${RELEASE_DIR}/**/*${CONSTANTS.CONTRACT_FILE_SUFFIXES.SIERRA_JSON}`;
     const [sierraFiles] = await Promise.all([globby(sierraPattern)]);
     return { sierraFiles };
   }
