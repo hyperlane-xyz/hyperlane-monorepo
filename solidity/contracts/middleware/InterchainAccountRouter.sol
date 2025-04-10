@@ -615,7 +615,7 @@ contract InterchainAccountRouter is Router {
                 _ism,
                 _calls,
                 bytes(""),
-                bytes32(0)
+                InterchainAccountMessage.EMPTY_SALT
             );
     }
 
@@ -696,19 +696,54 @@ contract InterchainAccountRouter is Router {
         bytes memory _hookMetadata,
         bytes32 _userSalt
     ) public payable returns (bytes32) {
+        return
+            callRemoteWithOverrides(
+                _destination,
+                _router,
+                _ism,
+                _calls,
+                _hookMetadata,
+                _userSalt,
+                hook
+            );
+    }
+
+    /**
+     * @notice Dispatches a sequence of remote calls to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Recommend using CallLib.build to format the interchain calls
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _calls The sequence of calls to make
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @param _salt Salt which allows control over account derivation.
+     * @param _hook The hook to use after sending our message to the mailbox
+     * @return The Hyperlane message ID
+     */
+    function callRemoteWithOverrides(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes memory _hookMetadata,
+        bytes32 _salt,
+        IPostDispatchHook _hook
+    ) public payable returns (bytes32) {
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
             _calls,
-            _userSalt
+            _salt
         );
         return
-            _dispatchMessageWithMetadata(
+            _dispatchMessageWithHook(
                 _destination,
                 _router,
                 _ism,
                 _body,
-                _hookMetadata
+                _hookMetadata,
+                _hook
             );
     }
 
@@ -784,18 +819,13 @@ contract InterchainAccountRouter is Router {
         bytes32 _ism,
         bytes memory _body
     ) private returns (bytes32) {
-        require(
-            _router != InterchainAccountMessage.EMPTY_SALT,
-            "no router specified for destination"
-        );
-        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
-            mailbox.dispatch{value: msg.value}(
+            _dispatchMessageWithMetadata(
                 _destination,
                 _router,
+                _ism,
                 _body,
-                new bytes(0),
-                hook
+                bytes("")
             );
     }
 
@@ -814,6 +844,34 @@ contract InterchainAccountRouter is Router {
         bytes memory _body,
         bytes memory _hookMetadata
     ) private returns (bytes32) {
+        return
+            _dispatchMessageWithHook(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _hookMetadata,
+                hook
+            );
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router with hook metadata
+     * @param _destination The remote domain
+     * @param _router The address of the remote InterchainAccountRouter
+     * @param _ism The address of the remote ISM
+     * @param _body The InterchainAccountMessage body
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @param _hook The hook to use after sending our message to the mailbox
+     */
+    function _dispatchMessageWithHook(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _body,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook
+    ) private returns (bytes32) {
         require(
             _router != InterchainAccountMessage.EMPTY_SALT,
             "no router specified for destination"
@@ -825,7 +883,7 @@ contract InterchainAccountRouter is Router {
                 _router,
                 _body,
                 _hookMetadata,
-                hook
+                _hook
             );
     }
 
