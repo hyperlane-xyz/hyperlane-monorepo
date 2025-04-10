@@ -615,7 +615,7 @@ contract InterchainAccountRouter is Router {
                 _ism,
                 _calls,
                 bytes(""),
-                bytes32(0)
+                InterchainAccountMessage.EMPTY_SALT
             );
     }
 
