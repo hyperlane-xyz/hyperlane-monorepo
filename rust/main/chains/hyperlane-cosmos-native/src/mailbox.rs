@@ -175,7 +175,11 @@ impl Mailbox for CosmosNativeMailbox {
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
-    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
         todo!() // we dont need this for now
     }
 }

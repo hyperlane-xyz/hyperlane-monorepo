@@ -14,9 +14,9 @@ export interface StarknetContractGroup {
  * @notice Contract file type enum
  */
 export enum ContractType {
-  CONTRACT = 'contracts_',
-  TOKEN = 'token_',
-  MOCK = 'mock_',
+  CONTRACT = 'contracts',
+  TOKEN = 'tokens',
+  MOCK = 'mocks',
 }
 
 /**
@@ -33,13 +33,27 @@ export function getCompiledContract(
     const group = getContractGroup(contractType);
     const contract = group[name];
 
-    if (!contract?.contract_class) {
-      throw new Error('Contract not found or missing Sierra class');
+    if (!contract) {
+      throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.CONTRACT_NOT_FOUND, {
+        name,
+        type: contractType,
+      });
+    }
+
+    if (!contract.contract_class) {
+      throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.SIERRA_NOT_FOUND, {
+        name,
+        type: contractType,
+      });
     }
 
     return contract.contract_class;
-  } catch (_error) {
-    throw new ContractError(CONFIG.CONTRACT_ERROR_CODES.FILE_NOT_FOUND, {
+  } catch (error) {
+    if (error instanceof ContractError) {
+      throw error;
+    }
+
+    throw new ContractError('Unknown error', {
       name,
       type: contractType,
     });
@@ -50,14 +64,14 @@ export function getCompiledContract(
  * @notice Helper function to get the correct contract group
  */
 function getContractGroup(type: ContractType): StarknetContractGroup {
-  switch (type) {
-    case ContractType.CONTRACT:
-      return starknetContracts.contracts;
-    case ContractType.TOKEN:
-      return starknetContracts.tokens;
-    case ContractType.MOCK:
-      return starknetContracts.mocks;
-    default:
-      throw new Error('Invalid contract type');
+  const group = starknetContracts[type];
+  if (!group) {
+    throw new ContractError(
+      CONFIG.CONTRACT_ERROR_CODES.INVALID_CONTRACT_GROUP,
+      {
+        type,
+      },
+    );
   }
+  return group;
 }

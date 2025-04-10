@@ -4,7 +4,6 @@ use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-
 use futures_util::future::try_join_all;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
@@ -363,6 +362,9 @@ impl Validator {
                         ?announcement_location,
                         "Validator has announced signature storage location"
                     );
+
+                    self.core_metrics.set_announced(self.origin_chain.clone());
+
                     break;
                 }
                 info!(
