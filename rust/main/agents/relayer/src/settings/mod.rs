@@ -411,15 +411,20 @@ fn parse_json_object(p: ValueParser) -> Option<(ConfigPath, Value)> {
 fn parse_ism_cache_config(p: ValueParser) -> ConfigResult<IsmCacheConfig> {
     let mut err = ConfigParsingError::default();
 
-    let raw_list = parse_json_object(p.clone()).map(|(_, v)| v);
-    let Some(raw_list) = raw_list else {
+    println!("p before parsing: {:?}", p);
+    let raw_object = parse_json_object(p.clone()).map(|(_, v)| v);
+    println!("raw_object: {:?}", raw_object);
+    let Some(raw_object) = raw_object else {
         return err.into_result(IsmCacheConfig::default());
     };
-    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+
+    let p = ValueParser::new(p.cwp.clone(), &raw_object);
+    println!("p: {:?}", p);
     let ml = p
         .parse_value::<IsmCacheConfig>("Expected ISM cache config")
         .take_config_err(&mut err)
         .unwrap_or_default();
+    println!("ml: {:?}", ml);
 
     err.into_result(ml)
 }
@@ -471,5 +476,14 @@ mod test {
         let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
+    }
+
+    #[test]
+    fn test_parse_ism_cache_config() {
+        let input = r#"{"cachePolicy": "ismSpecific", "chains": ["foo"], "moduleTypes": [2]}"#;
+        let json_input = serde_json::from_str::<Value>(input).expect("Failed to parse JSON");
+        let p = ValueParser::new(ConfigPath::default(), &json_input);
+        let res = parse_ism_cache_config(p);
+        assert!(res.is_ok());
     }
 }

@@ -10,6 +10,7 @@ import {
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
+  IsmCacheConfig,
   IsmCachePolicy,
   MatchingList,
   ModuleType,
@@ -44,12 +45,6 @@ export interface MetricAppContext {
   matchingList: MatchingList;
 }
 
-export interface IsmCacheConfig {
-  moduleTypes: Array<ModuleType>;
-  chains: Array<ChainName> | undefined;
-  cache_policy: IsmCachePolicy;
-}
-
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -59,7 +54,7 @@ export interface BaseRelayerConfig {
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
-  defaultIsmCacheConfig: IsmCacheConfig;
+  defaultIsmCacheConfig?: IsmCacheConfig;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -68,7 +63,10 @@ export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // and are intended to derisk hitting max env var length limits.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  'addressBlacklist' | 'gasPaymentEnforcement' | 'metricAppContexts'
+  | 'addressBlacklist'
+  | 'gasPaymentEnforcement'
+  | 'metricAppContexts'
+  | 'defaultIsmCacheConfig'
 >;
 // The rest of the config is intended to be set as env vars.
 export type RelayerEnvConfig = Omit<
@@ -138,7 +136,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         baseConfig.metricAppContextsGetter(),
       );
     }
-
+    if (baseConfig.defaultIsmCacheConfig) {
+      relayerConfig.defaultIsmCacheConfig = baseConfig.defaultIsmCacheConfig;
+    }
     return relayerConfig;
   }
 

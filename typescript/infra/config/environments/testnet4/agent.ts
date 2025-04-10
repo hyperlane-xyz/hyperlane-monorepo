@@ -1,6 +1,7 @@
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
   IsmCachePolicy,
   ModuleType,
   RpcConsensusType,
@@ -13,7 +14,6 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   BaseRelayerConfig,
-  IsmCacheConfig,
   routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
@@ -235,7 +235,7 @@ const defaultIsmCacheConfig: IsmCacheConfig = {
     ModuleType.MESSAGE_ID_MULTISIG,
   ],
   chains: supportedChainNames,
-  cache_policy: IsmCachePolicy.IsmSpecific,
+  cachePolicy: IsmCachePolicy.IsmSpecific,
 };
 
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
@@ -313,7 +313,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cd4ab71-20250409-140840',
+      tag: 'fd996cd-20250410-095824',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,

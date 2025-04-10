@@ -7,6 +7,7 @@ import {
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
   IsmCachePolicy,
   MatchingList,
   ModuleType,
@@ -20,7 +21,6 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
-  IsmCacheConfig,
   MetricAppContext,
   consistentSenderRecipientMatchingList,
   routerMatchingList,
@@ -747,7 +747,7 @@ const defaultIsmCacheConfig: IsmCacheConfig = {
     ModuleType.MESSAGE_ID_MULTISIG,
   ],
   chains: supportedChainNames,
-  cache_policy: IsmCachePolicy.IsmSpecific,
+  cachePolicy: IsmCachePolicy.IsmSpecific,
 };
 
 const hyperlane: RootAgentConfig = {
