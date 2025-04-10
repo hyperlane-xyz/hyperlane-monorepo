@@ -339,9 +339,8 @@ mod test {
     use super::*;
     use async_trait::async_trait;
     use eyre::Result;
-    use hyperlane_base::{
-        db::{DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData},
-        AgentMetadata,
+    use hyperlane_base::db::{
+        DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData,
     };
     use hyperlane_core::{
         identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey, HyperlaneChain,
@@ -511,7 +510,7 @@ mod test {
                 &self,
                 signed_checkpoint: &SignedCheckpointWithMessageId,
             ) -> Result<()>;
-            async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()>;
+            async fn write_metadata(&self, metadata: &str) -> Result<()>;
             async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
             fn announcement_location(&self) -> String;
             async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;

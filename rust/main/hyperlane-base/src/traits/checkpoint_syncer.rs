@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
-use crate::AgentMetadata;
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 
 /// A generic trait to read/write Checkpoints offchain
@@ -29,7 +28,7 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
         signed_checkpoint: &SignedCheckpointWithMessageId,
     ) -> Result<()>;
     /// Write the agent metadata to this syncer
-    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()>;
+    async fn write_metadata(&self, serialized_metadata: &str) -> Result<()>;
     /// Write the signed announcement to this syncer
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
     /// Return the announcement storage location for this syncer

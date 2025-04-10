@@ -1,4 +1,4 @@
-use crate::{AgentMetadata, CheckpointSyncer};
+use crate::CheckpointSyncer;
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
@@ -247,10 +247,10 @@ impl CheckpointSyncer for GcsStorageClient {
     }
 
     /// Write the agent metadata to this syncer
-    #[instrument(skip(self, metadata))]
-    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
+    #[instrument(skip(self, serialized_metadata))]
+    async fn write_metadata(&self, serialized_metadata: &str) -> Result<()> {
         let object_name = self.object_path(METADATA_KEY);
-        let data = serde_json::to_string_pretty(metadata)?.into_bytes();
+        let data = serialized_metadata.to_owned().into_bytes();
         self.upload_and_log(&object_name, data).await
     }
 
