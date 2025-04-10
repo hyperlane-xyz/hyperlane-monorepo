@@ -148,9 +148,14 @@ contract OPL2ToL1CcipReadIsm is
                 )
             );
 
-        bytes32 expected = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
-        if (withdrawalHash != expected) {
-            revert InvalidWithdrawalHash(withdrawalHash, expected);
+        bytes32 untrustedWithdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(
+            _tx
+        );
+        if (withdrawalHash != untrustedWithdrawalHash) {
+            revert InvalidWithdrawalHash(
+                untrustedWithdrawalHash,
+                withdrawalHash
+            );
         }
 
         opPortal.proveWithdrawalTransaction(
