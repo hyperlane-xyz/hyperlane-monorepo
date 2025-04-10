@@ -349,6 +349,11 @@ const MetricAppContextSchema = z.object({
   ),
 });
 
+export enum IsmCachePolicy {
+  MessageSpecific = 'messageSpecific',
+  IsmSpecific = 'ismSpecific',
+}
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -398,6 +403,22 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
     ),
+  defaultIsmCacheConfig: z
+    .object({
+      moduleTypes: z.array(z.string()),
+      chains: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'The chains to use the cache policy for. If not specified, all chains will be used.',
+        ),
+      cache_policy: z
+        .nativeEnum(IsmCachePolicy)
+        .optional()
+        .describe('The cache policy to use.'),
+    })
+    .optional()
+    .describe('The default ISM cache config.'),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;

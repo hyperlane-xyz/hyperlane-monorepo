@@ -1,6 +1,8 @@
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCachePolicy,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -11,6 +13,7 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   BaseRelayerConfig,
+  IsmCacheConfig,
   routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
@@ -225,6 +228,16 @@ const scraperResources = {
   },
 };
 
+const defaultIsmCacheConfig: IsmCacheConfig = {
+  moduleTypes: [
+    ModuleType.AGGREGATION,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
+  ],
+  chains: supportedChainNames,
+  cache_policy: IsmCachePolicy.IsmSpecific,
+};
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   {
     // In an effort to reduce some giant retry queues that resulted
@@ -269,6 +282,7 @@ const hyperlane: RootAgentConfig = {
         ),
       },
     ],
+    defaultIsmCacheConfig,
     resources: relayerResources,
   },
   validators: {
@@ -303,6 +317,7 @@ const releaseCandidate: RootAgentConfig = {
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
+    defaultIsmCacheConfig,
     resources: relayerResources,
   },
   validators: {

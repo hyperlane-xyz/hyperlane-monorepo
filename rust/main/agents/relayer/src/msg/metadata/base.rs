@@ -10,7 +10,8 @@ use std::{
 
 use derive_new::new;
 use eyre::Result;
-use serde::Deserialize;
+use num_traits::cast::FromPrimitive;
+use serde::{Deserialize, Deserializer};
 use tokio::sync::{Mutex, RwLock};
 
 use hyperlane_core::{
@@ -193,6 +194,7 @@ impl AppContextClassifier {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum IsmCachePolicy {
     #[default]
     MessageSpecific,
@@ -202,15 +204,31 @@ pub enum IsmCachePolicy {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IsmCacheConfig {
+    #[serde(deserialize_with = "deserialize_module_types")]
     module_types: HashSet<ModuleType>,
-    domains: Option<HashSet<u32>>,
+    chains: Option<HashSet<String>>,
     cache_policy: IsmCachePolicy,
 }
 
+fn deserialize_module_types<'de, D>(deserializer: D) -> Result<HashSet<ModuleType>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let nums: Vec<u8> = Vec::deserialize(deserializer)?;
+    let mut set = HashSet::new();
+    for num in nums {
+        let module = ModuleType::from_u8(num).ok_or_else(|| {
+            serde::de::Error::custom(format!("Invalid module type value: {}", num))
+        })?;
+        set.insert(module);
+    }
+    Ok(set)
+}
+
 impl IsmCacheConfig {
-    fn matches_domain(&self, domain: u32) -> bool {
-        if let Some(domains) = &self.domains {
-            domains.contains(&domain)
+    fn matches_chain(&self, domain_name: &str) -> bool {
+        if let Some(chains) = &self.chains {
+            chains.contains(domain_name)
         } else {
             // If no domains are specified, match all domains
             true
@@ -245,7 +263,7 @@ impl IsmCachePolicyClassifier {
         };
 
         if root_ism == default_ism
-            && self.default_ism_cache_policy.matches_domain(domain.id())
+            && self.default_ism_cache_policy.matches_chain(domain.name())
             && self
                 .default_ism_cache_policy
                 .matches_module_type(ism_module_type)
@@ -271,12 +289,12 @@ mod tests {
     fn test_ism_cache_config() {
         let config = IsmCacheConfig {
             module_types: HashSet::from([ModuleType::Aggregation]),
-            domains: Some(HashSet::from([1])),
+            chains: Some(HashSet::from(["foochain".to_owned()])),
             cache_policy: IsmCachePolicy::IsmSpecific,
         };
 
-        assert_eq!(config.matches_domain(1), true);
-        assert_eq!(config.matches_domain(2), false);
+        assert_eq!(config.matches_chain("foochain"), true);
+        assert_eq!(config.matches_chain("barchain"), false);
 
         assert_eq!(config.matches_module_type(ModuleType::Aggregation), true);
         assert_eq!(config.matches_module_type(ModuleType::Routing), false);
@@ -288,7 +306,7 @@ mod tests {
         let json = r#"
         {
             "moduleTypes": [2],
-            "domains": [1],
+            "chains": ["foochain"],
             "cachePolicy": "IsmSpecific"
         }
         "#;
@@ -299,7 +317,7 @@ mod tests {
             config.module_types,
             HashSet::from([ModuleType::Aggregation])
         );
-        assert_eq!(config.domains, Some(HashSet::from([1])));
+        assert_eq!(config.chains, Some(HashSet::from(["foochain".to_owned()])));
         assert_eq!(config.cache_policy, IsmCachePolicy::IsmSpecific);
     }
 }

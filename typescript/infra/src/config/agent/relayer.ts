@@ -5,10 +5,12 @@ import { z } from 'zod';
 import {
   AgentConfig,
   ChainMap,
+  ChainName,
   GasPaymentEnforcement,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
+  IsmCachePolicy,
   MatchingList,
   ModuleType,
   RelayerConfig as RelayerAgentConfig,
@@ -44,7 +46,7 @@ export interface MetricAppContext {
 
 export interface IsmCacheConfig {
   moduleTypes: Array<ModuleType>;
-  domains: Option<HashSet<u32>>;
+  chains: Array<ChainName> | undefined;
   cache_policy: IsmCachePolicy;
 }
 

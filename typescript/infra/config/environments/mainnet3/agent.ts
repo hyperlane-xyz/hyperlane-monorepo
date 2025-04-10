@@ -7,7 +7,9 @@ import {
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCachePolicy,
   MatchingList,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -18,6 +20,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  IsmCacheConfig,
   MetricAppContext,
   consistentSenderRecipientMatchingList,
   routerMatchingList,
@@ -737,6 +740,16 @@ const blacklist: MatchingList = [
   })),
 ];
 
+const defaultIsmCacheConfig: IsmCacheConfig = {
+  moduleTypes: [
+    ModuleType.AGGREGATION,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
+  ],
+  chains: supportedChainNames,
+  cache_policy: IsmCachePolicy.IsmSpecific,
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -751,6 +764,7 @@ const hyperlane: RootAgentConfig = {
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
+    defaultIsmCacheConfig,
     resources: relayerResources,
   },
   validators: {
@@ -790,6 +804,7 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    defaultIsmCacheConfig,
     resources: relayerResources,
   },
   validators: {
@@ -821,6 +836,7 @@ const neutron: RootAgentConfig = {
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    defaultIsmCacheConfig,
     resources: relayerResources,
   },
 };
