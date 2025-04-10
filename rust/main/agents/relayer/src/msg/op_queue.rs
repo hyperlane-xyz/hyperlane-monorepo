@@ -157,24 +157,27 @@ impl OpQueue {
 
 #[cfg(test)]
 pub mod test {
+    use std::{
+        collections::VecDeque,
+        str::FromStr,
+        time::{Duration, Instant},
+    };
+
+    use serde::Serialize;
+    use tokio::sync::{self, mpsc};
+
+    use hyperlane_core::{
+        ChainResult, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+        HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
+    };
+
     use crate::{
         server::ENDPOINT_MESSAGES_QUEUE_SIZE,
         settings::matching_list::{Filter, ListElement, MatchingList},
     };
 
     use super::*;
-    use hyperlane_core::{
-        HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
-        HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
-        TryBatchAs, TxOutcome, H256, U256,
-    };
-    use serde::Serialize;
-    use std::{
-        collections::VecDeque,
-        str::FromStr,
-        time::{Duration, Instant},
-    };
-    use tokio::sync::{self, mpsc};
 
     #[derive(Debug, Clone, Serialize)]
     pub struct MockPendingOperation {
@@ -366,6 +369,18 @@ pub mod test {
         }
         fn get_retries(&self) -> u32 {
             self.retry_count
+        }
+
+        async fn payload(&self) -> ChainResult<Vec<u8>> {
+            todo!()
+        }
+
+        fn on_reprepare(
+            &mut self,
+            _err_msg: Option<String>,
+            _: ReprepareReason,
+        ) -> PendingOperationResult {
+            todo!()
         }
     }
 

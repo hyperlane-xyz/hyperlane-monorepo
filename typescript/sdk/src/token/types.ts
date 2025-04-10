@@ -4,7 +4,10 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { HookConfig, HookType } from '../hook/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
-import { GasRouterConfigSchema } from '../router/types.js';
+import {
+  DerivedMailboxClientFields,
+  GasRouterConfigSchema,
+} from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
@@ -17,7 +20,6 @@ export const WarpRouteDeployConfigSchemaErrors = {
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
-  totalSupply: z.string().or(z.number()),
   decimals: z.number().optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
@@ -38,7 +40,6 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateralVault,
       TokenType.collateralVaultRebase,
       TokenType.collateralFiat,
-      TokenType.fastCollateral,
       TokenType.collateralUri,
     ]),
     token: z
@@ -85,11 +86,8 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-export const CollateralRebaseTokenConfigSchema = TokenMetadataSchema.omit({
-  totalSupply: true,
-})
-  .partial()
-  .extend({
+export const CollateralRebaseTokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.collateralVaultRebase),
   });
 export const isCollateralRebaseTokenConfig = isCompliant(
@@ -100,11 +98,11 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([
     TokenType.synthetic,
     TokenType.syntheticUri,
-    TokenType.fastSynthetic,
     TokenType.hyperToken,
   ]),
+  initialSupply: z.string().or(z.number()).optional(),
 });
-export type SyntheticTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
+export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
 
 export const SyntheticRebaseTokenConfigSchema =
@@ -113,7 +111,7 @@ export const SyntheticRebaseTokenConfigSchema =
     collateralChainName: z.string(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
-  typeof CollateralTokenConfigSchema
+  typeof SyntheticRebaseTokenConfigSchema
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
@@ -137,6 +135,23 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema,
 );
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
+
+export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
+  Omit<
+    z.infer<typeof GasRouterConfigSchema>,
+    keyof DerivedMailboxClientFields
+  > &
+  DerivedMailboxClientFields;
+
+export function derivedHookAddress(config: DerivedTokenRouterConfig) {
+  return typeof config.hook === 'string' ? config.hook : config.hook.address;
+}
+
+export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
+  return typeof config.interchainSecurityModule === 'string'
+    ? config.interchainSecurityModule
+    : config.interchainSecurityModule.address;
+}
 
 const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema.extend({

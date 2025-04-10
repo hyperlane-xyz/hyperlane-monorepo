@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 use solana_client::{
@@ -13,9 +13,16 @@ use url::Url;
 /// Wraps around HttpSender
 /// https://github.com/anza-xyz/agave/blob/master/rpc-client/src/http_sender.rs#L137
 pub struct PrometheusSealevelRpcSender {
+    pub url: Url,
     pub inner: HttpSender,
     pub metrics: PrometheusClientMetrics,
     pub config: PrometheusConfig,
+}
+
+impl std::fmt::Debug for PrometheusSealevelRpcSender {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PrometheusSealevelRpcSender {{ url: {} }}", self.url)
+    }
 }
 
 impl PrometheusSealevelRpcSender {
@@ -24,8 +31,17 @@ impl PrometheusSealevelRpcSender {
         let chain_name = PrometheusConfig::chain_name(&config.chain);
         metrics.increment_provider_instance(chain_name);
 
+        let timeout = std::env::var("SEALEVEL_RPC_CLIENT_ELEVATED_TIMEOUT_SECONDS")
+            .ok()
+            .unwrap_or("30".to_string())
+            .parse::<u64>()
+            .unwrap_or(30u64);
+
+        let inner = HttpSender::new_with_timeout(url.clone(), Duration::from_secs(timeout));
+
         Self {
-            inner: HttpSender::new(url),
+            url: url.clone(),
+            inner,
             metrics,
             config,
         }

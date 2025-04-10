@@ -15,14 +15,12 @@ const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
   TokenType.collateral,
   TokenType.collateralUri,
-  TokenType.fastCollateral,
   TokenType.collateralVault,
 ];
 
 const NON_COLLATERAL_TYPES = [
   TokenType.synthetic,
   TokenType.syntheticUri,
-  TokenType.fastSynthetic,
   TokenType.hyperToken,
 ];
 
@@ -79,7 +77,6 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   it('should succeed if non-collateral type, token is empty, metadata is defined', async () => {
     //@ts-ignore
     delete config.arbitrum.token;
-    config.arbitrum.totalSupply = '0';
     config.arbitrum.name = 'name';
 
     for (const type of NON_COLLATERAL_TYPES) {
