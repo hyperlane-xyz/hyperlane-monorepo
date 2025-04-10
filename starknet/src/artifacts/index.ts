@@ -2,6 +2,6 @@
 // This file will be populated with contract artifacts in `dist/artifacts` directory after running the `generate-artifacts` command
 export const starknetContracts = {
   contracts: {},
-  tokens: {},
+  token: {},
   mocks: {},
 } as const;

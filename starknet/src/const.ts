@@ -1,4 +1,4 @@
-export const CONFIG = {
+export const CONSTANTS = {
   CONTRACT_FILE_SUFFIXES: {
     SIERRA_JSON: '.contract_class.json', // Sierra is the high-level representation
     ASSEMBLY_JSON: '.compiled_contract_class.json', // Cairo assembly (CASM) is the low-level bytecode
