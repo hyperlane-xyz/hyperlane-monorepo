@@ -11,6 +11,8 @@ import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  CosmJsNativeProvider,
+  CosmJsNativeTransaction,
   CosmJsProvider,
   CosmJsTransaction,
   CosmJsWasmProvider,
@@ -222,6 +224,35 @@ export async function estimateTransactionFeeCosmJsWasm({
   });
 }
 
+export async function estimateTransactionFeeCosmJsNative({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  sender,
+  senderPubKey,
+  memo,
+}: {
+  transaction: CosmJsNativeTransaction;
+  provider: CosmJsNativeProvider;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  senderPubKey: HexString;
+  memo?: string;
+}): Promise<TransactionFeeEstimate> {
+  const client = await provider.provider;
+  const message = client.registry.encodeAsAny(transaction.transaction);
+  const pubKey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
+
+  const gasUnits = await client.simulate(sender, pubKey, [message], memo);
+  const gasPrice = parseFloat(estimatedGasPrice.toString());
+
+  return {
+    gasUnits,
+    gasPrice,
+    fee: Math.floor(gasUnits * gasPrice),
+  };
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -274,6 +305,21 @@ export function estimateTransactionFee({
     assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
     assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
     return estimateTransactionFeeCosmJsWasm({
+      transaction,
+      provider,
+      estimatedGasPrice,
+      sender,
+      senderPubKey,
+    });
+  } else if (
+    transaction.type === ProviderType.CosmJsNative &&
+    provider.type === ProviderType.CosmJsNative
+  ) {
+    const { transactionOverrides } = chainMetadata;
+    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
+    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
+    assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJsNative({
       transaction,
       provider,
       estimatedGasPrice,

@@ -46,6 +46,10 @@ export enum TokenStandard {
   CwHypCollateral = 'CwHypCollateral',
   CwHypSynthetic = 'CwHypSynthetic',
 
+  // Cosmos Native
+  CosmNativeHypCollateral = 'CosmosNativeHypCollateral',
+  CosmNativeHypSynthetic = 'CosmosNativeHypSynthetic',
+
   //Starknet
   StarknetHypNative = 'StarknetHypNative',
   StarknetHypCollateral = 'StarknetHypCollateral',
@@ -84,6 +88,10 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CosmosNative: ProtocolType.Cosmos,
   CosmosIbc: ProtocolType.Cosmos,
 
+  // Cosmos Native
+  CosmosNativeHypCollateral: ProtocolType.CosmosNative,
+  CosmosNativeHypSynthetic: ProtocolType.CosmosNative,
+
   // CosmWasm
   CW20: ProtocolType.Cosmos,
   CWNative: ProtocolType.Cosmos,
@@ -120,6 +128,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.SealevelHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypNative,
+  TokenStandard.CosmNativeHypCollateral,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20Lockbox,
 ];
@@ -156,6 +165,8 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
+  TokenStandard.CosmNativeHypCollateral,
+  TokenStandard.CosmNativeHypSynthetic,
   TokenStandard.StarknetHypNative,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypSynthetic,
