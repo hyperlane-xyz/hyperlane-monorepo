@@ -608,12 +608,15 @@ contract InterchainAccountRouter is Router {
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) public payable returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls
-        );
-        return _dispatchMessage(_destination, _router, _ism, _body);
+        return
+            callRemoteWithOverrides(
+                _destination,
+                _router,
+                _ism,
+                _calls,
+                bytes(""),
+                bytes32(0)
+            );
     }
 
     /**
@@ -633,13 +636,15 @@ contract InterchainAccountRouter is Router {
         CallLib.Call[] calldata _calls,
         bytes32 _userSalt
     ) public payable returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls,
-            _userSalt
-        );
-        return _dispatchMessage(_destination, _router, _ism, _body);
+        return
+            callRemoteWithOverrides(
+                _destination,
+                _router,
+                _ism,
+                _calls,
+                bytes(""),
+                _userSalt
+            );
     }
 
     /**
@@ -660,18 +665,14 @@ contract InterchainAccountRouter is Router {
         CallLib.Call[] calldata _calls,
         bytes memory _hookMetadata
     ) public payable returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls
-        );
         return
-            _dispatchMessageWithMetadata(
+            callRemoteWithOverrides(
                 _destination,
                 _router,
                 _ism,
-                _body,
-                _hookMetadata
+                _calls,
+                _hookMetadata,
+                InterchainAccountMessage.EMPTY_SALT
             );
     }
 
