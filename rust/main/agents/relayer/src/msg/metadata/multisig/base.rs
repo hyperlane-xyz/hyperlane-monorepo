@@ -115,7 +115,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
             .ism_cache_policy_classifier()
             .get_cache_policy(
                 self.as_ref().root_ism,
-                &multisig_ism.domain(),
+                multisig_ism.domain(),
                 self.module_type(),
             )
             .await

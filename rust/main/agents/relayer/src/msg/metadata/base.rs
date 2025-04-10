@@ -319,7 +319,7 @@ mod tests {
         {
             "moduleTypes": [2],
             "chains": ["foochain"],
-            "cachePolicy": "IsmSpecific"
+            "cachePolicy": "ismSpecific"
         }
         "#;
 

@@ -473,13 +473,4 @@ mod test {
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
     }
-
-    #[test]
-    fn test_parse_ism_cache_config() {
-        let input = r#"{"cachePolicy": "ismSpecific", "chains": ["foo"], "moduleTypes": [2]}"#;
-        let json_input = serde_json::from_str::<Value>(input).expect("Failed to parse JSON");
-        let p = ValueParser::new(ConfigPath::default(), &json_input);
-        let res = parse_ism_cache_config(p);
-        assert!(res.is_ok());
-    }
 }

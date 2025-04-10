@@ -140,7 +140,7 @@ impl AggregationIsmMetadataBuilder {
         let params_cache_key = match self
             .base_builder()
             .ism_cache_policy_classifier()
-            .get_cache_policy(self.root_ism, &ism.domain(), ModuleType::Aggregation)
+            .get_cache_policy(self.root_ism, ism.domain(), ModuleType::Aggregation)
             .await
         {
             // To have the cache key be more succinct, we use the message id
