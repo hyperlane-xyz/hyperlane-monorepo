@@ -63,7 +63,7 @@ export function getCheckBaseArgs() {
 }
 
 export function getCheckWarpDeployArgs() {
-  return withPushMetrics(withWarpRouteId(getCheckBaseArgs()));
+  return withPushMetrics(getCheckBaseArgs());
 }
 
 export function getCheckDeployArgs() {
