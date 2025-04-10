@@ -655,32 +655,6 @@ contract InterchainAccountRouter is Router {
      * @param _router The remote router address
      * @param _ism The remote ISM address
      * @param _calls The sequence of calls to make
-     * @return The Hyperlane message ID
-     */
-    function callRemoteWithOverrides(
-        uint32 _destination,
-        bytes32 _router,
-        bytes32 _ism,
-        CallLib.Call[] calldata _calls,
-        bytes32 _userSalt
-    ) public payable returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.encode(
-            msg.sender,
-            _ism,
-            _calls,
-            _userSalt
-        );
-        return _dispatchMessage(_destination, _router, _ism, _body);
-    }
-
-    /**
-     * @notice Dispatches a sequence of remote calls to be made by an owner's
-     * interchain account on the destination domain
-     * @dev Recommend using CallLib.build to format the interchain calls
-     * @param _destination The remote domain of the chain to make calls on
-     * @param _router The remote router address
-     * @param _ism The remote ISM address
-     * @param _calls The sequence of calls to make
      * @param _hookMetadata The hook metadata to override with for the hook set by the owner
      * @return The Hyperlane message ID
      */
