@@ -131,10 +131,7 @@ contract OPL2ToL1CcipReadIsm is
         bytes calldata _metadata,
         bytes calldata _message
     ) internal {
-        (, bytes32 withdrawalHash) = abi.decode(
-            _message.body(),
-            (bytes32, bytes32)
-        );
+        bytes32 withdrawalHash = abi.decode(_message.body(), (bytes32));
 
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
