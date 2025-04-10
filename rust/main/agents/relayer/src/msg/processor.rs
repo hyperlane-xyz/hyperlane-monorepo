@@ -294,6 +294,17 @@ impl ProcessorExt for MessageProcessor {
                 return Ok(());
             }
 
+            // Skip if message is intended for a destination we don't have message context for
+            let destination_msg_ctx = if let Some(ctx) = self.destination_ctxs.get(&destination) {
+                ctx
+            } else {
+                debug!(
+                    ?msg,
+                    "Message destined for unknown message context, skipping",
+                );
+                return Ok(());
+            };
+
             debug!(%msg, "Sending message to submitter");
 
             let app_context_classifier =
@@ -303,7 +314,7 @@ impl ProcessorExt for MessageProcessor {
             // Finally, build the submit arg and dispatch it to the submitter.
             let pending_msg = PendingMessage::maybe_from_persisted_retries(
                 msg,
-                self.destination_ctxs[&destination].clone(),
+                destination_msg_ctx.clone(),
                 app_context,
                 self.max_retries,
             );
