@@ -16,7 +16,7 @@ jobs:
       contents: write
       pull-requests: write
     name: Release
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04-small
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
