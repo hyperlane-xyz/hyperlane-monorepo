@@ -10,6 +10,7 @@ import yargs from 'yargs';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { safes } from '../../config/environments/mainnet3/owners.js';
+import { INITIAL_SUPPLY } from '../../config/environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -91,6 +92,16 @@ const EXECUTE_BATCH_ABI = parseAbiItem(
 
 const ZERO_BYTES32 = '0x'.padEnd(64 + 2, '0') as `0x${string}`;
 
+const SCHEDULE = true;
+const EXECUTE = false;
+
+const LIMITS = {
+  ETH: BigInt(3000e18),
+  BTC: BigInt(100e8),
+  // set max limit for HYPER
+  HYPER: INITIAL_SUPPLY,
+};
+
 async function main() {
   const client = createPublicClient({
     chain: mainnet,
@@ -122,16 +133,18 @@ async function main() {
   const multisend = new SafeMultiSend(multiProvider, chain, safes[chain]);
 
   const delegatorLimitCalls = VAULTS.map(({ name, vault }, index) => {
-    let asset: 'ETH' | 'BTC';
+    let asset: keyof typeof LIMITS;
     if (name.endsWith('ETH')) {
       asset = 'ETH';
     } else if (name.endsWith('BTC')) {
       asset = 'BTC';
+    } else if (name.endsWith('HYPER')) {
+      asset = 'HYPER';
     } else {
       throw new Error(`Invalid vault name ${name}`);
     }
 
-    const limit = asset === 'ETH' ? BigInt(3000e18) : BigInt(100e8);
+    const limit = LIMITS[asset];
 
     const delegator = delegators[index];
 
@@ -145,8 +158,9 @@ async function main() {
     };
   });
 
+  const calls = delegatorLimitCalls;
   const provider = multiProvider.getProvider(chain);
-  for (const call of delegatorLimitCalls) {
+  for (const call of calls) {
     // simulate
     await provider.estimateGas({
       from: NETWORK,
@@ -155,41 +169,48 @@ async function main() {
     });
   }
 
-  const targets = delegatorLimitCalls.map(({ to }) => to);
+  const targets = calls.map(({ to }) => to);
   assert(new Set(targets).size === targets.length, 'Duplicate targets');
 
-  const payloads = delegatorLimitCalls.map(({ data }) => data);
-  const values = delegatorLimitCalls.map(() => BigInt(0));
+  const payloads = calls.map(({ data }) => data);
+  const values = calls.map(() => BigInt(0));
 
-  const description = delegatorLimitCalls
-    .map(({ description }) => description)
-    .join('\n');
+  const description = calls.map(({ description }) => description).join('\n');
 
-  const scheduleTx = {
-    to: NETWORK,
-    data: encodeFunctionData({
-      abi: [SCHEDULE_BATCH_ABI],
-      args: [targets, values, payloads, ZERO_BYTES32, ZERO_BYTES32, BigInt(0)],
-    }),
-    description: `Schedule batch:\n ${description}`,
-  };
+  if (SCHEDULE) {
+    const scheduleTx = {
+      to: NETWORK,
+      data: encodeFunctionData({
+        abi: [SCHEDULE_BATCH_ABI],
+        args: [
+          targets,
+          values,
+          payloads,
+          ZERO_BYTES32,
+          ZERO_BYTES32,
+          BigInt(0),
+        ],
+      }),
+      description: `Schedule batch:\n ${description}`,
+    };
 
-  console.log(scheduleTx);
+    console.log(scheduleTx);
+    await multisend.sendTransactions([scheduleTx]);
+  }
 
-  const executeTx = {
-    to: NETWORK,
-    data: encodeFunctionData({
-      abi: [EXECUTE_BATCH_ABI],
-      args: [targets, values, payloads, ZERO_BYTES32, ZERO_BYTES32],
-    }),
-    // description: `Execute batch:\n ${description}`,
-  };
+  if (EXECUTE) {
+    const executeTx = {
+      to: NETWORK,
+      data: encodeFunctionData({
+        abi: [EXECUTE_BATCH_ABI],
+        args: [targets, values, payloads, ZERO_BYTES32, ZERO_BYTES32],
+      }),
+      description: `Execute batch:\n ${description}`,
+    };
 
-  console.log(executeTx);
-
-  await multiProvider.sendTransaction(chain, executeTx);
-  return;
-  await multisend.sendTransactions([scheduleTx]);
+    console.log(executeTx);
+    await multiProvider.sendTransaction(chain, executeTx);
+  }
 }
 
 main().catch((error) => {

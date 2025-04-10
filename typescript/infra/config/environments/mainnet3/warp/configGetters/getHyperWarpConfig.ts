@@ -11,7 +11,7 @@ const TOKEN_CONFIG = {
 };
 
 // 1 billion * 1e18
-const INITIAL_SUPPLY = (
+export const INITIAL_SUPPLY = (
   1_000_000_000n *
   10n ** BigInt(TOKEN_CONFIG.decimals)
 ).toString();
