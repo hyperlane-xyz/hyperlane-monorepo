@@ -16,11 +16,12 @@ use tracing::{error, info, instrument::Instrumented, warn};
 use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
     payload::{DropReason, PayloadDetails, PayloadStatus},
-    payload_dispatcher::{PayloadDb, PayloadDispatcherSettings, TransactionDb},
+    payload_dispatcher::{DatabaseOrPath, PayloadDb, PayloadDispatcherSettings, TransactionDb},
     transaction::Transaction,
 };
 
 /// State that is common (but not shared) to all components of the `PayloadDispatcher`
+#[derive(Clone)]
 pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
@@ -46,7 +47,10 @@ impl PayloadDispatcherState {
             &settings.raw_chain_conf,
             &settings.metrics,
         )?;
-        let db = DB::from_path(&settings.db_path)?;
+        let db = match settings.db {
+            DatabaseOrPath::Database(db) => db,
+            DatabaseOrPath::Path(path) => DB::from_path(&path)?,
+        };
         let rocksdb = Arc::new(HyperlaneRocksDB::new(&settings.domain, db));
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
@@ -67,10 +71,11 @@ impl PayloadDispatcherState {
                 error!(
                     ?err,
                     payload_details = ?details,
-                    "Error updating payload status to `dropped`"
+                    new_status = ?status,
+                    "Error updating payload status in the database"
                 );
             }
-            warn!(?details, "Payload dropped from Building Stage");
+            info!(?details, new_status=?status, "Updated payload status");
         }
     }
 
