@@ -57,6 +57,12 @@ jobs:
           [target.aarch64-unknown-linux-musl]
           linker = "aarch64-linux-gnu-gcc"
           EOF
+      - name: windows setup
+        if: ${{ matrix.OS == 'depot-windows-2022-4' }}
+        run: |
+          choco install llvm -y
+          $llvmPath = (Get-Command clang).Path | Split-Path
+          echo "LIBCLANG_PATH=$llvmPath" >> $env:GITHUB_ENV
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
         with:
