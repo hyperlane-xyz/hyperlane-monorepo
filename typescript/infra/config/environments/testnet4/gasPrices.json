@@ -88,7 +88,7 @@
     "decimals": 9
   },
   "kyvetestnet": {
-    "amount": "0.03",
+    "amount": "0.001",
     "decimals": 1
   },
   "modetestnet": {
