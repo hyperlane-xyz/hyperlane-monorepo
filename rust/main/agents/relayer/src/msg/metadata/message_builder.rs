@@ -260,7 +260,7 @@ mod test {
         base_builder.responses.destination_domain = Some(destination_domain);
         base_builder.responses.cache = Some(cache);
 
-        let mock_mailbox = MockMailboxContract::new();
+        let mock_mailbox = MockMailboxContract::new_with_default_ism(H256::zero());
         let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
         let default_ism_getter = DefaultIsmCache::new(mailbox);
         let app_context_classifier = IsmAwareAppContextClassifier::new(

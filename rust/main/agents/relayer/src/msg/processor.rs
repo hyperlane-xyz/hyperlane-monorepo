@@ -525,7 +525,9 @@ mod test {
         );
         let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
-        let default_ism_getter = DefaultIsmCache::new(Arc::new(MockMailboxContract::default()));
+        let default_ism_getter = DefaultIsmCache::new(Arc::new(
+            MockMailboxContract::new_with_default_ism(H256::zero()),
+        ));
         BaseMetadataBuilder::new(
             origin_domain.clone(),
             destination_chain_conf.clone(),
@@ -549,7 +551,7 @@ mod test {
         let base_metadata_builder =
             dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
         let message_context = Arc::new(MessageContext {
-            destination_mailbox: Arc::new(MockMailboxContract::default()),
+            destination_mailbox: Arc::new(MockMailboxContract::new_with_default_ism(H256::zero())),
             origin_db: Arc::new(db.clone()),
             cache,
             metadata_builder: Arc::new(base_metadata_builder),

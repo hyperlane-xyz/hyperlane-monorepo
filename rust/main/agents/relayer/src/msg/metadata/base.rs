@@ -338,10 +338,7 @@ mod tests {
     async fn test_ism_cache_policy_classifier() {
         let default_ism = H256::zero();
 
-        let mut mock_mailbox = MockMailboxContract::new();
-        mock_mailbox
-            .expect__default_ism()
-            .returning(move || Ok(default_ism));
+        let mock_mailbox = MockMailboxContract::new_with_default_ism(default_ism);
         let mailbox: Arc<dyn Mailbox> = Arc::new(mock_mailbox);
 
         let default_ism_getter = DefaultIsmCache::new(mailbox);
