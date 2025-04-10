@@ -33,7 +33,7 @@ const mainnet3Addresses = {
 const mainnet3Config: SymbioticConfig = {
   chain: COLLATERAL_CHAIN,
   vault: {
-    epochDuration: 604800,
+    epochDuration: 2592000,
   },
   rewards: {
     adminFee: 0,
