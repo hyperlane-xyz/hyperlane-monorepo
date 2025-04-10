@@ -28,7 +28,7 @@ env:
 
 jobs:
   yarn-install:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-small
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -40,7 +40,7 @@ jobs:
           submodules: recursive
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -64,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,7 +91,7 @@ jobs:
           fi
 
   yarn-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
     needs: [yarn-install]
@@ -118,7 +118,7 @@ jobs:
         run: yarn test:ci
 
   cli-e2e-matrix:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -177,7 +177,7 @@ jobs:
           exit 1
 
   agent-configs:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -314,7 +314,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -381,7 +380,7 @@ jobs:
           exit 1
 
   env-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
@@ -428,7 +427,7 @@ jobs:
             echo "Test failed, waiting before retry..."
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:

@@ -15,7 +15,7 @@ on:
 
 jobs:
   slither:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04-small
 
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +24,7 @@ jobs:
           submodules: recursive
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
