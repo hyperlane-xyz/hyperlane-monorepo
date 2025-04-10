@@ -1,5 +1,8 @@
 name: Build and Push Cosmos Simapp Image to GCR
 on:
+  push:
+    branches:
+      - pb/simapparm
   workflow_dispatch:
     inputs:
       hyperlane_cosmos_branch:
@@ -59,3 +62,4 @@ jobs:
             gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
           build-args: |
             BRANCH_NAME=${{ github.event.inputs.hyperlane_cosmos_branch || 'v1.0.0-beta0' }}
+          platforms: linux/amd64,linux/arm64
