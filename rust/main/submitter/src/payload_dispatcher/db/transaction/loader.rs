@@ -1,21 +1,37 @@
-use std::sync::Arc;
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
+use derive_new::new;
 use tokio::sync::mpsc::Sender;
 use tracing::trace;
 
 use crate::{
     error::SubmitterError,
-    payload_dispatcher::{LoadableFromDb, LoadingOutcome},
+    payload_dispatcher::{DbIterator, LoadableFromDb, LoadingOutcome},
     transaction::{Transaction, TransactionStatus},
 };
 
 use super::TransactionDb;
 
+#[derive(new)]
 pub struct TransactionDbLoader {
     db: Arc<dyn TransactionDb>,
     inclusion_stage_sender: Sender<Transaction>,
     finality_stage_sender: Sender<Transaction>,
+}
+impl TransactionDbLoader {
+    pub async fn into_iterator(self) -> DbIterator<Self> {
+        DbIterator::new(Arc::new(self), "transaction_db_loader".to_string(), true).await
+    }
+}
+
+impl Debug for TransactionDbLoader {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransactionDbLoader").finish()
+    }
 }
 
 #[async_trait]
