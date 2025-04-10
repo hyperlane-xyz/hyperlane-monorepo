@@ -97,9 +97,16 @@ function applyCommentsToTransformedLines(
   for (const line of transformedLines) {
     const lineComments = commentMap.get(line);
     if (lineComments) {
+      // Get the indentation of the current line
+      const lineIndentation = getIndentation(line);
+      const indentationString = ' '.repeat(lineIndentation);
+
       lineComments
         .sort((a, b) => a.originalIndex - b.originalIndex)
-        .forEach(({ text }) => finalLines.push(`#${text}`));
+        .forEach(({ text }) => {
+          // Apply the same indentation to the comment
+          finalLines.push(`${indentationString}#${text}`);
+        });
     }
     finalLines.push(line);
   }

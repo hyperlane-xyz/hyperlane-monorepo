@@ -82,7 +82,7 @@ export default {
                   sortNestedArrays(data, sortConfig),
                 );
 
-                return fixer.replaceText(node, finalText);
+                return fixer.replaceText(node, finalText.trimEnd());
               },
             });
           }
