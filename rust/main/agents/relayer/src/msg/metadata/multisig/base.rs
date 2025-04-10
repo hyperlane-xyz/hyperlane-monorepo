@@ -6,12 +6,13 @@ use derive_new::new;
 use ethers::abi::Token;
 
 use eyre::{Context, Result};
+use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
+use hyperlane_core::{HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, H256};
 use strum::Display;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
@@ -90,6 +91,56 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         let metas: Result<Vec<Vec<u8>>> = self.token_layout().iter().map(build_token).collect();
         Ok(metas?.into_iter().flatten().collect())
     }
+
+    /// Returns the validators and threshold for the given multisig ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `validators_and_threshold` matches
+    /// the name of the method `validators_and_threshold`.
+    async fn call_validators_and_threshold(
+        &self,
+        multisig_ism: &dyn MultisigIsm,
+        message: &HyperlaneMessage,
+    ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
+        let ism_domain = multisig_ism.domain().name();
+        let fn_key = "validators_and_threshold";
+        // To have the cache key be more succinct, we use the message id
+        let call_params = (multisig_ism.address(), message.id());
+
+        let cache_result = self
+            .as_ref()
+            .base_builder()
+            .cache()
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &call_params)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok()
+            .flatten();
+
+        match cache_result {
+            Some(result) => Ok(result),
+            None => {
+                let result = multisig_ism
+                    .validators_and_threshold(message)
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+                self.as_ref()
+                    .base_builder()
+                    .cache()
+                    .cache_call_result(ism_domain, fn_key, &call_params, &result)
+                    .await
+                    .map_err(|err| {
+                        warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                    })
+                    .ok();
+                Ok(result)
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -108,10 +159,9 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-        let (validators, threshold) = multisig_ism
-            .validators_and_threshold(message)
-            .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        let (validators, threshold) = self
+            .call_validators_and_threshold(&multisig_ism, message)
+            .await?;
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
