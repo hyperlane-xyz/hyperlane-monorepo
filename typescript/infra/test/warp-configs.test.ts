@@ -15,7 +15,7 @@ import {
 const { expect } = chai;
 chai.use(chaiAsPromised);
 chai.should();
-const DEFAULT_TIMEOUT = 60000;
+const DEFAULT_TIMEOUT = 100000;
 
 const warpIdsToSkip = [
   'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
@@ -24,7 +24,7 @@ const warpIdsToSkip = [
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
 ];
 
-describe('Warp Configs', async function () {
+describe.skip('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
   const warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(

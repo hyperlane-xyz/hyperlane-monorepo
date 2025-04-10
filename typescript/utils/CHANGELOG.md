@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
 ## 10.0.0
 
 ### Minor Changes
