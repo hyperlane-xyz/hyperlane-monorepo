@@ -8,6 +8,7 @@ import { supportedChainNames } from './supportedChainNames.js';
 
 export const upgradeTimelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+  ethereum: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2', // symbiotic network timelock
 };
 
 export const timelocks: ChainMap<Address> = {
