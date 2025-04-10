@@ -19,7 +19,7 @@ use crate::{
 
 pub type GasLimit = U256;
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
     /// this is a vector because multiple payloads can be included in a single transaction
@@ -39,8 +39,6 @@ pub trait AdaptsChain: Send + Sync {
     ) -> Result<Option<GasLimit>, SubmitterError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    // should this instead return tuples of (Option<Transaction>, PayloadDetails) to
-    // make it clear which payloads failed and should be dropped?
     async fn build_transactions(
         &self,
         payloads: &[FullPayload],
