@@ -16,6 +16,7 @@ config.workspace = true
 console-subscriber.workspace = true
 convert_case.workspace = true
 derive-new.workspace = true
+derive_builder.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
@@ -43,6 +44,8 @@ tracing.workspace = true
 url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
+moka = { workspace = true, features = ["future"] }
+chrono = { workspace = true, features = ["serde"] }
 
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
