@@ -88,22 +88,21 @@ impl PayloadDispatcherState {
                     "Error updating payload status in the database"
                 );
             }
+            Self::update_payload_metric_if_dropped(&self.metrics, &status);
             info!(?details, new_status=?status, "Updated payload status");
-            update_payload_metric_if_dropped(&self.metrics, &status);
         }
+    }
 
-        fn update_payload_metric_if_dropped(metrics: &Metrics, status: &PayloadStatus) {
-            match status {
-                PayloadStatus::InTransaction(TransactionStatus::Dropped(ref reason)) => {
-                    metrics.update_dropped_payloads_metric(&format!(
-                        "DroppedInTransaction({reason:?})"
-                    ));
-                }
-                PayloadStatus::Dropped(ref reason) => {
-                    metrics.update_dropped_payloads_metric(&format!("{reason:?}"));
-                }
-                _ => {}
+    fn update_payload_metric_if_dropped(metrics: &Metrics, status: &PayloadStatus) {
+        match status {
+            PayloadStatus::InTransaction(TransactionStatus::Dropped(ref reason)) => {
+                metrics
+                    .update_dropped_payloads_metric(&format!("DroppedInTransaction({reason:?})"));
             }
+            PayloadStatus::Dropped(ref reason) => {
+                metrics.update_dropped_payloads_metric(&format!("{reason:?}"));
+            }
+            _ => {}
         }
     }
 

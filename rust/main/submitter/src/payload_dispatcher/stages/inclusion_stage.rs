@@ -229,14 +229,8 @@ impl InclusionStage {
     ) -> Result<()> {
         warn!(?tx, "Dropping tx");
         let new_tx_status = TransactionStatus::Dropped(reason);
+        // this will drop the payloads as well
         update_tx_status(state, tx, new_tx_status.clone()).await?;
-        // drop the payloads as well
-        state
-            .update_status_for_payloads(
-                &tx.payload_details,
-                PayloadStatus::InTransaction(new_tx_status),
-            )
-            .await;
         pool.lock().await.remove(&tx.id);
         Ok(())
     }

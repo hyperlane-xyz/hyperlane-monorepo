@@ -43,12 +43,17 @@ pub async fn update_tx_status(
     tx: &mut Transaction,
     new_status: TransactionStatus,
 ) -> Result<(), SubmitterError> {
+    // return early to avoid double counting metrics
     if new_status == tx.status {
         return Ok(());
     }
     info!(?tx, ?new_status, "Updating tx status");
     tx.status = new_status;
     state.store_tx(tx).await;
+
+    // these metric updates assume a transaction can only be finalized once and dropped once.
+    // note that a transaction may be counted as `finalized` initially, and then later
+    // also counted as `dropped` if it was reorged out.
     match tx.status {
         TransactionStatus::Finalized => {
             state.metrics.update_finalized_transactions_metric();
