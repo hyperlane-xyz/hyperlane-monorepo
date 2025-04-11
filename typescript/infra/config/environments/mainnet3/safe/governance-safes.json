@@ -1,0 +1,48 @@
+{
+  "mantapacific": {},
+  "ethereum": {
+    "regular": "0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7",
+    "irregular": "0x3679040E9ff9EbDBF9E39C39f6acd5e125e1CE2d",
+    "exceptional": "0x906a5D44BB32B34Db86fADd57C8e1743467cd3c4"
+  },
+  "bsc": {
+    "regular": "0xfb5be8C3D8509B82b2e30B8E27EDb620dab4BF70",
+    "irregular": "0xB6759464D65EC76318722aF990bBe63D55484e67",
+    "exceptional": "0x6c01F4C148420ceEF303b9A0A349Ebe204FD9f63"
+  },
+  "arbitrum": {
+    "regular": "0x13d1CA371d6F381f0b009Bd7405FA0D38f169039",
+    "irregular": "0x28A51D50A07D2185cCDA6d74DF043bBe9FFF022d",
+    "exceptional": "0x9b888d04cF4Cde210bDd4B003Add30528e57F980"
+  },
+  "optimism": {
+    "regular": "0x106cF77B925E4886A6ac0E169d7390348793b945",
+    "irregular": "0x36d8FBA89ADC1c7D33d942F0A3F3789979a45758",
+    "exceptional": "0x8a26aECfF2bB20aEe1A163e6767f303D9eB32c2D"
+  },
+  "base": {
+    "regular": "0xD3E3Be049f84d86Ca51709217152dCfb882A8D21",
+    "irregular": "0x634B48139d6B95440DaAa7e267964B5Cc8B98C7a",
+    "exceptional": "0x8e78d66f064C4454AbddEa30C220d4BBcc65a4fA"
+  },
+  "blast": {},
+  "linea": {},
+  "mode": {},
+  "taiko": {},
+  "fraxtal": {},
+  "sei": {},
+  "zircuit": {},
+  "swell": {},
+  "berachain": {},
+  "hyperevm": {},
+  "zeronetwork": {},
+  "abstract": {},
+  "zksync": {
+    "regular": "0x3ff0Aba8e6C7FEfdd6Afe0EEFf080E29e067c1C6",
+    "irregular": "0x3981b3A1eC42fac6d9A0fbEf80bB4909D8aEe637",
+    "exceptional": "0xC3F8e760878bAC3FCaea2FE11488893257B0460b"
+  },
+  "zklink": {},
+  "treasure": {},
+  "sophon": {}
+}
