@@ -407,7 +407,7 @@ impl MessageProcessorMetrics {
 mod test {
     use std::time::Instant;
 
-    use prometheus::{IntCounter, IntCounterVec, Registry};
+    use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
     use tokio::{
         sync::{
             mpsc::{self, UnboundedReceiver},
@@ -438,6 +438,7 @@ mod test {
 
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
+        metrics::message_submission::MessageSubmissionMetrics,
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{
@@ -494,8 +495,20 @@ mod test {
 
     fn dummy_submission_metrics() -> MessageSubmissionMetrics {
         MessageSubmissionMetrics {
+            origin: "".to_string(),
+            destination: "".to_string(),
             last_known_nonce: IntGauge::new("last_known_nonce_gauge", "help string").unwrap(),
             messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
+            metadata_build_count: IntCounterVec::new(
+                Opts::new("metadata_build_count", "help string"),
+                &["app_context", "origin", "remote", "status"],
+            )
+            .unwrap(),
+            metadata_build_duration: CounterVec::new(
+                Opts::new("metadata_build_duration", "help string"),
+                &["app_context", "origin", "remote", "status"],
+            )
+            .unwrap(),
         }
     }
 
