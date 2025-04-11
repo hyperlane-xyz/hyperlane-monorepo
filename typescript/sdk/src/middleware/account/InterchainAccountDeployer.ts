@@ -7,7 +7,11 @@ import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
-import { ProxiedRouterConfig, RouterConfig } from '../../router/types.js';
+import {
+  MailboxAddress,
+  ProxiedRouterConfig,
+  RouterConfig,
+} from '../../router/types.js';
 import { ChainName } from '../../types.js';
 
 import {
@@ -15,7 +19,7 @@ import {
   interchainAccountFactories,
 } from './contracts.js';
 
-export type InterchainAccountConfig = ProxiedRouterConfig;
+export type InterchainAccountConfig = ProxiedRouterConfig & MailboxAddress;
 
 export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountConfig,

@@ -36,7 +36,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouters } from '../router/types.js';
+import { MailboxAddress, RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
@@ -70,8 +70,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let routerConfigMap: ChainMap<RouterConfig>;
-  let baseConfig: RouterConfig;
+  let routerConfigMap: ChainMap<RouterConfig & MailboxAddress>;
+  let baseConfig: (typeof routerConfigMap)[typeof chain];
 
   async function validateCoreValues(deployedToken: GasRouter) {
     expect(await deployedToken.mailbox()).to.equal(mailbox.address);

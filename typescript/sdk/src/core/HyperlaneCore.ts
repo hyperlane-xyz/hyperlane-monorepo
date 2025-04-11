@@ -36,7 +36,7 @@ import { DerivedHookConfig } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { RouterConfig } from '../router/types.js';
+import { MailboxAddress, RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
@@ -63,7 +63,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   getRouterConfig = (
     owners: Address | ChainMap<OwnableConfig>,
-  ): ChainMap<RouterConfig> => {
+  ): ChainMap<RouterConfig & MailboxAddress> => {
     // filter for EVM chains
     const evmContractsMap = objFilter(
       this.contractsMap,
@@ -72,15 +72,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
 
     // get config
-    const config = objMap(
-      evmContractsMap,
-      (chain, contracts): RouterConfig => ({
-        mailbox: contracts.mailbox.address,
-        owner: typeof owners === 'string' ? owners : owners[chain].owner,
-        ownerOverrides:
-          typeof owners === 'string' ? undefined : owners[chain].ownerOverrides,
-      }),
-    );
+    const config = objMap(evmContractsMap, (chain, contracts) => ({
+      mailbox: contracts.mailbox.address,
+      owner: typeof owners === 'string' ? owners : owners[chain].owner,
+      ownerOverrides:
+        typeof owners === 'string' ? undefined : owners[chain].ownerOverrides,
+    }));
 
     return config;
   };

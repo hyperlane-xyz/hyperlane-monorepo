@@ -6,14 +6,14 @@ import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
-import { RouterConfig } from '../../router/types.js';
+import { MailboxAddress, RouterConfig } from '../../router/types.js';
 
 import {
   InterchainQueryFactories,
   interchainQueryFactories,
 } from './contracts.js';
 
-export type InterchainQueryConfig = RouterConfig;
+export type InterchainQueryConfig = RouterConfig & MailboxAddress;
 
 export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   InterchainQueryConfig,
