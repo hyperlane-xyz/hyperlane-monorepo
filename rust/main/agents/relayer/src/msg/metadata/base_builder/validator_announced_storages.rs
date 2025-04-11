@@ -23,7 +23,7 @@ pub async fn fetch_storage_locations_helper(
 
         // Attempt to retrieve from cache
         if let Some(cached) = cache
-            .get_cached_call_result::<Vec<String>>(&origin, METHOD_NAME, &key)
+            .get_cached_call_result::<Vec<String>>(origin, METHOD_NAME, &key)
             .await?
         {
             storage_locations.push(cached);
@@ -55,7 +55,7 @@ pub async fn fetch_storage_locations_helper(
 
         // Store in cache
         cache
-            .cache_call_result(&origin, METHOD_NAME, &key, locations)
+            .cache_call_result(origin, METHOD_NAME, &key, locations)
             .await?;
 
         // Update the placeholder in storage_locations

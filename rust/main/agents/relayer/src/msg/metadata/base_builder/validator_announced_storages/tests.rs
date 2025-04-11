@@ -170,3 +170,48 @@ async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
         vec![location1, location2, vec!["location3".to_string()]]
     );
 }
+
+#[tokio::test]
+async fn test_fetch_storage_locations_helper_with_different_domains() {
+    let origin1 = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+    let origin2 = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+    let cache = LocalCache::new("test_cache");
+    let validators = vec![H256::from_low_u64_be(1)];
+
+    let mut validator_announce1 = MockValidatorAnnounceMock::new();
+    let mut validator_announce2 = MockValidatorAnnounceMock::new();
+
+    let key = generate_cache_key(&validators[0]);
+
+    // Mock the response from the validator announce contracts
+    validator_announce1
+        .expect_domain()
+        .return_const(origin1.clone());
+    validator_announce2
+        .expect_domain()
+        .return_const(origin2.clone());
+
+    // Prepopulate the cache with storage locations for domain1
+    let location1 = vec!["location1_origin1".to_string()];
+    cache
+        .cache_call_result(&origin1.name(), METHOD_NAME, &key, &location1)
+        .await
+        .unwrap();
+
+    // Prepopulate the cache with storage locations for domain2
+    let location2 = vec!["location1_origin2".to_string()];
+    cache
+        .cache_call_result(&origin2.name(), METHOD_NAME, &key, &location2)
+        .await
+        .unwrap();
+
+    // Fetch storage locations for domain1
+    let result1 = fetch_storage_locations_helper(&validators, &cache, &validator_announce1).await;
+    assert!(result1.is_ok());
+    assert_eq!(result1.unwrap(), vec![location1]);
+
+    // Fetch storage locations for domain2
+    let result2 = fetch_storage_locations_helper(&validators, &cache, &validator_announce2).await;
+    assert!(result2.is_ok());
+    assert_eq!(result2.unwrap(), vec![location2]);
+}
