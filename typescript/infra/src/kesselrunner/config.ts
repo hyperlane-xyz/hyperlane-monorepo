@@ -20,6 +20,9 @@ import { AgentGCPKey } from '../agents/gcp.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 
+// testnet4 neutron relayer
+export const relayerAddress = '0xf2c72c0befa494d62949a1699a99e2c605a0b636';
+
 // rc-testnet4-key-kesselrunner-validator-0
 export const ltOwner = '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a';
 export const ownerConfig = {
