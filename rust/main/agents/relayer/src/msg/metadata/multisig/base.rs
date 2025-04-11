@@ -38,6 +38,8 @@ pub enum MetadataToken {
     Signatures,
 }
 
+const VALIDATOR_SIZE_THRESHOLD: usize = 50;
+
 #[async_trait]
 pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {
     fn module_type(&self) -> ModuleType;
@@ -183,6 +185,14 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
             return Err(MetadataBuildError::CouldNotFetch);
+        }
+
+        // Dismiss large validator sets
+        if validators.len() > VALIDATOR_SIZE_THRESHOLD {
+            info!("Skipping metadata: Too many validators in ism {ism_address:?}");
+            return Err(MetadataBuildError::MaxValidatorCountReached(
+                validators.len() as u32,
+            ));
         }
 
         info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
