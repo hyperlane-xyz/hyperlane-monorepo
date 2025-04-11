@@ -1,5 +1,4 @@
 use eyre::Context;
-use tracing::debug;
 
 use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_core::{ValidatorAnnounce, H256};
