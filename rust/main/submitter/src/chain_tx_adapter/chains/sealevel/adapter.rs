@@ -159,7 +159,7 @@ impl SealevelTxAdapter {
         &self,
         precursor: SealevelTxPrecursor,
     ) -> Result<SealevelTxPrecursor, SubmitterError> {
-        let Some(estimate) = self
+        let estimate = self
             .provider
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
@@ -167,10 +167,7 @@ impl SealevelTxAdapter {
                 &*self.submitter,
                 &*self.oracle,
             )
-            .await?
-        else {
-            return Err(SubmitterError::SimulationFailed);
-        };
+            .await?;
         Ok(SealevelTxPrecursor::new(precursor.instruction, estimate))
     }
 

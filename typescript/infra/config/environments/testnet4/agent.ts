@@ -1,6 +1,9 @@
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -17,7 +20,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import {
   supportedChainNames,
@@ -225,6 +228,20 @@ const scraperResources = {
   },
 };
 
+const defaultIsmCacheConfig: IsmCacheConfig = {
+  // Default ISM Routing ISMs change configs based off message content,
+  // so they are not specified here.
+  moduleTypes: [
+    ModuleType.AGGREGATION,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
+  ],
+  // SVM is explicitly not cached as the default ISM is a multisig ISM
+  // that routes internally.
+  chains: ethereumChainNames,
+  cachePolicy: IsmCachePolicy.IsmSpecific,
+};
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   {
     // In an effort to reduce some giant retry queues that resulted
@@ -257,7 +274,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe1f33b-20250408-120728',
+      tag: 'ef039ae-20250411-104801',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -269,6 +286,8 @@ const hyperlane: RootAgentConfig = {
         ),
       },
     ],
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
@@ -299,10 +318,12 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cd4ab71-20250409-140840',
+      tag: 'ef039ae-20250411-104801',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {

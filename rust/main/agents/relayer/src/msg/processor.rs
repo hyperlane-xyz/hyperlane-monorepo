@@ -294,6 +294,17 @@ impl ProcessorExt for MessageProcessor {
                 return Ok(());
             }
 
+            // Skip if message is intended for a destination we don't have message context for
+            let destination_msg_ctx = if let Some(ctx) = self.destination_ctxs.get(&destination) {
+                ctx
+            } else {
+                debug!(
+                    ?msg,
+                    "Message destined for unknown message context, skipping",
+                );
+                return Ok(());
+            };
+
             debug!(%msg, "Sending message to submitter");
 
             let app_context_classifier =
@@ -303,7 +314,7 @@ impl ProcessorExt for MessageProcessor {
             // Finally, build the submit arg and dispatch it to the submitter.
             let pending_msg = PendingMessage::maybe_from_persisted_retries(
                 msg,
-                self.destination_ctxs[&destination].clone(),
+                destination_msg_ctx.clone(),
                 app_context,
                 self.max_retries,
             );
@@ -407,7 +418,7 @@ mod test {
     use tokio_metrics::TaskMonitor;
 
     use hyperlane_base::{
-        cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics},
+        cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache},
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
             InterchainGasPaymentData,
@@ -429,7 +440,10 @@ mod test {
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
             gas_payment::GasPaymentEnforcer,
-            metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+            metadata::{
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+                IsmCachePolicyClassifier,
+            },
         },
         processor::Processor,
     };
@@ -509,7 +523,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<LocalCache>,
+        cache: OptionalCache<MeteredCache<LocalCache>>,
     ) -> BaseMetadataBuilder {
         let mut settings = Settings::default();
         settings.chains.insert(
@@ -522,6 +536,9 @@ mod test {
         );
         let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
         let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
+        let default_ism_getter = DefaultIsmCache::new(Arc::new(
+            MockMailboxContract::new_with_default_ism(H256::zero()),
+        ));
         BaseMetadataBuilder::new(
             origin_domain.clone(),
             destination_chain_conf.clone(),
@@ -531,7 +548,8 @@ mod test {
             Arc::new(core_metrics),
             cache,
             db.clone(),
-            IsmAwareAppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
+            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
         )
     }
 
@@ -539,12 +557,12 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<LocalCache>,
+        cache: OptionalCache<MeteredCache<LocalCache>>,
     ) -> (MessageProcessor, UnboundedReceiver<QueueOperation>) {
         let base_metadata_builder =
             dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
         let message_context = Arc::new(MessageContext {
-            destination_mailbox: Arc::new(MockMailboxContract::default()),
+            destination_mailbox: Arc::new(MockMailboxContract::new_with_default_ism(H256::zero())),
             origin_db: Arc::new(db.clone()),
             cache,
             metadata_builder: Arc::new(base_metadata_builder),
@@ -614,7 +632,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<LocalCache>,
+        cache: OptionalCache<MeteredCache<LocalCache>>,
         num_operations: usize,
     ) -> Vec<QueueOperation> {
         let (message_processor, mut receive_channel) =
@@ -805,13 +823,13 @@ mod test {
             let origin_domain = dummy_domain(0, "dummy_origin_domain");
             let destination_domain = dummy_domain(1, "dummy_destination_domain");
             let db = HyperlaneRocksDB::new(&origin_domain, db);
-            let cache = MeteredCache::new(
+            let cache = OptionalCache::new(Some(MeteredCache::new(
                 LocalCache::new("test-cache"),
                 dummy_cache_metrics(),
                 MeteredCacheConfig {
                     cache_name: "test-cache".to_owned(),
                 },
-            );
+            )));
 
             // Assume the message syncer stored some new messages in HyperlaneDB
             let msg_retries = vec![0, 0, 0];
