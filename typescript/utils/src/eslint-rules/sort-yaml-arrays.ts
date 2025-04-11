@@ -65,20 +65,7 @@ export default {
               node,
               message: 'YAML arrays should be sorted by specified keys',
               fix(fixer: Rule.RuleFixer) {
-                const yamlSource = {
-                  getContent: () => sourceCode.getText(),
-                  extractComments: () =>
-                    sourceCode.getAllComments().map((comment) => ({
-                      location: {
-                        start: {
-                          line: comment.loc?.start.line ?? 0,
-                        },
-                      },
-                      text: comment.value,
-                    })),
-                };
-
-                const finalText = transformYaml(yamlSource, (data) =>
+                const finalText = transformYaml(sourceCode.getText(), (data) =>
                   sortNestedArrays(data, sortConfig),
                 );
 

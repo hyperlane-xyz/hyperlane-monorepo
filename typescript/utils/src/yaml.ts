@@ -23,128 +23,183 @@ export function tryParseJsonOrYaml<T = any>(input: string): Result<T> {
   }
 }
 
-type Comment = {
-  location?: {
-    start: {
-      line: number;
-    };
-  } | null;
-  text?: string;
-};
-
-type CommentMetadata = {
-  text: string;
-  originalIndex: number;
-};
-
-type YamlSource = {
-  getContent: () => string;
-  extractComments: () => Comment[];
-};
-
-function mapCommentsToContentLines(
-  originalLines: string[],
-  comments: Comment[],
-): Map<string, CommentMetadata[]> {
-  const commentMap = new Map<string, CommentMetadata[]>();
-
-  comments.forEach((comment) => {
-    if (!comment.location) return;
-
-    const commentLine = comment.location.start.line - 1;
-    const commentText = comment.text ?? '';
-    const commentIndentation = getIndentation(originalLines[commentLine] || '');
-
-    let contentLineIndex = commentLine;
-    while (contentLineIndex < originalLines.length) {
-      const line = originalLines[contentLineIndex];
-      const lineIndentation = getIndentation(line || '');
-
-      // Associate with the next non-comment line that has same or less indentation
-      if (
-        line &&
-        !line.trim().startsWith('#') &&
-        lineIndentation <= commentIndentation
-      ) {
-        const commentMetadata = {
-          text: commentText,
-          originalIndex: commentLine,
-        };
-
-        const existingComments = commentMap.get(line) || [];
-        commentMap.set(line, [...existingComments, commentMetadata]);
-        break;
-      }
-      contentLineIndex++;
-    }
-  });
-
-  return commentMap;
-}
-
-// Helper to determine the indentation level of a line
-function getIndentation(line: string): number {
-  const match = line.match(/^(\s*)/);
-  return match ? match[1].length : 0;
-}
-
-function applyCommentsToTransformedLines(
-  transformedLines: string[],
-  commentMap: Map<string, CommentMetadata[]>,
-): string[] {
-  const finalLines: string[] = [];
-
-  for (const line of transformedLines) {
-    const lineComments = commentMap.get(line);
-    if (lineComments) {
-      // Get the indentation of the current line
-      const lineIndentation = getIndentation(line);
-      const indentationString = ' '.repeat(lineIndentation);
-
-      lineComments
-        .sort((a, b) => a.originalIndex - b.originalIndex)
-        .forEach(({ text }) => {
-          // Apply the same indentation to the comment
-          finalLines.push(`${indentationString}#${text}`);
-        });
-    }
-    finalLines.push(line);
-  }
-
-  return finalLines;
-}
-
 export function preserveComments(
   originalText: string,
   transformedText: string,
-  comments: Comment[],
 ): string {
+  // Split text into lines
   const originalLines = originalText.split('\n');
   const transformedLines = transformedText.split('\n');
 
-  const commentMap = mapCommentsToContentLines(originalLines, comments);
+  // Maps to track comments by line number and by content
+  const lineCommentMap = new Map<number, string[]>(); // Line number -> comments
+  const contentToLineMap = new Map<string, number>(); // Content text -> original line number
+  const transformedContentMap = new Map<string, number>(); // Content -> transformed line number
+  const inlineCommentMap = new Map<number, string>(); // Line number -> inline comment
 
-  const finalLines = applyCommentsToTransformedLines(
-    transformedLines,
-    commentMap,
-  );
-  return finalLines.join('\n');
+  // First pass: identify all comments and their positions
+  originalLines.forEach((line, index) => {
+    const lineNum = index + 1;
+    const trimmedLine = line.trim();
+
+    if (trimmedLine.startsWith('#')) {
+      // Full line comment - associate with the next non-comment line
+      const comments = lineCommentMap.get(lineNum) || [];
+      comments.push(line);
+      lineCommentMap.set(lineNum, comments);
+    } else if (trimmedLine) {
+      // Content line - check for inline comments
+      const hashIndex = line.indexOf('#');
+      if (hashIndex >= 0) {
+        inlineCommentMap.set(lineNum, line.substring(hashIndex));
+      }
+
+      // Extract content without comments for mapping
+      const contentWithoutComment =
+        hashIndex >= 0 ? line.substring(0, hashIndex).trim() : trimmedLine;
+
+      // Store mapping from content to line number
+      contentToLineMap.set(contentWithoutComment, lineNum);
+    }
+  });
+
+  // Second pass: map transformed content to line numbers
+  transformedLines.forEach((line, index) => {
+    const lineNum = index + 1;
+    const trimmedLine = line.trim();
+    if (trimmedLine && !trimmedLine.startsWith('#')) {
+      transformedContentMap.set(trimmedLine, lineNum);
+    }
+  });
+
+  // Collect comment blocks
+  const commentBlocks = new Map<number, string[]>();
+  let currentBlock: string[] = [];
+  let lastCommentLine = 0;
+
+  for (let i = 0; i < originalLines.length; i++) {
+    const line = originalLines[i];
+    const lineNum = i + 1;
+
+    if (line.trim().startsWith('#')) {
+      if (currentBlock.length === 0 || lineNum === lastCommentLine + 1) {
+        // Continue current block
+        currentBlock.push(line);
+        lastCommentLine = lineNum;
+      } else {
+        // Start new block
+        currentBlock = [line];
+        lastCommentLine = lineNum;
+      }
+    } else if (line.trim() && currentBlock.length > 0) {
+      // End of comment block, associate with this content line
+      commentBlocks.set(lineNum, [...currentBlock]);
+      currentBlock = [];
+    }
+  }
+
+  // Detect indentation pattern in the transformed text
+  const indentationMap = new Map<number, string>();
+  const indentationPattern = /^(\s+)/;
+
+  transformedLines.forEach((line, index) => {
+    const match = line.match(indentationPattern);
+    if (match) {
+      indentationMap.set(index + 1, match[1]);
+    }
+  });
+
+  // Build result
+  const result: string[] = [];
+  const usedComments = new Set<string>();
+
+  // Helper to find the best matching line for a comment
+  const findBestMatchForComment = (commentLine: number): number | null => {
+    // Find the content line that follows this comment
+    let targetLine = commentLine;
+    while (
+      targetLine < originalLines.length &&
+      (originalLines[targetLine].trim() === '' ||
+        originalLines[targetLine].trim().startsWith('#'))
+    ) {
+      targetLine++;
+    }
+
+    if (targetLine >= originalLines.length) {
+      return null;
+    }
+
+    const content = originalLines[targetLine];
+    const contentWithoutComment =
+      content.indexOf('#') >= 0
+        ? content.substring(0, content.indexOf('#')).trim()
+        : content.trim();
+
+    // Find this content in the transformed text
+    for (const [
+      transformedContent,
+      transformedLine,
+    ] of transformedContentMap.entries()) {
+      if (
+        transformedContent.includes(contentWithoutComment) ||
+        contentWithoutComment.includes(transformedContent)
+      ) {
+        return transformedLine;
+      }
+    }
+
+    return null;
+  };
+
+  // First add all the transformed lines
+  transformedLines.forEach((line, index) => {
+    const lineNum = index + 1;
+    const trimmedLine = line.trim();
+
+    // Check if we should insert comments before this line
+    for (const [commentLine, comments] of commentBlocks.entries()) {
+      const bestMatch = findBestMatchForComment(commentLine - comments.length);
+      if (bestMatch === lineNum) {
+        // Add comments with proper indentation
+        const indentation = indentationMap.get(lineNum) || '';
+        for (const comment of comments) {
+          if (!usedComments.has(comment)) {
+            result.push(
+              comment.startsWith('#') ? indentation + comment.trim() : comment,
+            );
+            usedComments.add(comment);
+          }
+        }
+      }
+    }
+
+    // Add the content line
+    const contentWithoutComment = trimmedLine.trim();
+    const originalLineNum = contentToLineMap.get(contentWithoutComment);
+
+    if (originalLineNum && inlineCommentMap.has(originalLineNum)) {
+      // Has inline comment - reattach it
+      const inlineComment = inlineCommentMap.get(originalLineNum);
+      result.push(`${line} ${inlineComment}`);
+    } else {
+      result.push(line);
+    }
+  });
+
+  return result.join('\n');
 }
 
 export function transformYaml<T extends YamlNode | null = YamlNode>(
-  source: YamlSource,
+  content: string,
   transformer: (data: T) => T,
 ): string {
-  const content = source.getContent();
-  const comments = source.extractComments();
-
   const parsedDoc = parseDocument(content, { keepSourceTokens: true });
   const transformedData: T = transformer(parsedDoc.toJSON());
 
   const newDoc = new Document();
   newDoc.contents = transformedData;
 
-  return preserveComments(content, newDoc.toString(), comments);
+  return preserveComments(content, newDoc.toString());
 }
 
 export type ArraySortConfig = {
