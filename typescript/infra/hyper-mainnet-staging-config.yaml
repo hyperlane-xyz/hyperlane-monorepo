@@ -21,6 +21,7 @@ bsc:
   type: synthetic
 ethereum:
   decimals: 18
+  initialSupply: "1000000000000000000000000000"
   mailbox: "0xc005dc82818d67AF737725bD4bf75435d065D239"
   name: Hyperlane
   owner: "0xf0b850930ede8807e7F472b610b017c187E0e493"
