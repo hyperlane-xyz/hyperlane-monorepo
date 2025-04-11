@@ -191,26 +191,26 @@ async fn test_fetch_storage_locations_helper_with_different_domains() {
         .expect_domain()
         .return_const(origin2.clone());
 
-    // Prepopulate the cache with storage locations for domain1
+    // Prepopulate the cache with storage locations for origin1
     let location1 = vec!["location1_origin1".to_string()];
     cache
         .cache_call_result(&origin1.name(), METHOD_NAME, &key, &location1)
         .await
         .unwrap();
 
-    // Prepopulate the cache with storage locations for domain2
+    // Prepopulate the cache with storage locations for origin2
     let location2 = vec!["location1_origin2".to_string()];
     cache
         .cache_call_result(&origin2.name(), METHOD_NAME, &key, &location2)
         .await
         .unwrap();
 
-    // Fetch storage locations for domain1
+    // Fetch storage locations for origin1
     let result1 = fetch_storage_locations_helper(&validators, &cache, &validator_announce1).await;
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), vec![location1]);
 
-    // Fetch storage locations for domain2
+    // Fetch storage locations for origin2
     let result2 = fetch_storage_locations_helper(&validators, &cache, &validator_announce2).await;
     assert!(result2.is_ok());
     assert_eq!(result2.unwrap(), vec![location2]);
