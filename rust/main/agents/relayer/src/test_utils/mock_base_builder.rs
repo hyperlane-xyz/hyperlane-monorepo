@@ -14,7 +14,7 @@ use hyperlane_core::{
 };
 
 use crate::msg::metadata::{
-    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MetadataBuildError,
 };
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
