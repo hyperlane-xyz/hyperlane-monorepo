@@ -20,7 +20,7 @@ pub async fn fetch_storage_locations_helper(
     let mut missing_validators = Vec::new();
 
     for (index, validator) in validators.iter().enumerate() {
-        let key = format!("storage_location:{:?}", validator);
+        let key = generate_cache_key(validator);
 
         // Attempt to retrieve from cache
         if let Some(cached) = cache
@@ -53,7 +53,7 @@ pub async fn fetch_storage_locations_helper(
         .context(CTX)?;
 
     for (fetched_index, (index, validator)) in missing_validators.iter().enumerate() {
-        let key = format!("storage_location:{:?}", validator);
+        let key = generate_cache_key(validator);
         let locations = &fetched_locations[fetched_index];
 
         // Store in cache
@@ -113,8 +113,8 @@ mod tests {
         let cache = LocalCache::new("test_cache");
         let validator_announce = MockValidatorAnnounceMock::new();
         let validators = vec![H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
-        let key1 = format!("storage_location:{:?}", validators[0]);
-        let key2 = format!("storage_location:{:?}", validators[1]);
+        let key1 = generate_cache_key(&validators[0]);
+        let key2 = generate_cache_key(&validators[1]);
 
         // Prepopulate the cache with storage locations
         let location1 = vec!["location1".to_string()];
@@ -178,4 +178,9 @@ mod tests {
 
         assert!(result.is_err());
     }
+}
+
+/// Generates a cache key for a given validator.
+fn generate_cache_key(validator: &H256) -> String {
+    format!("storage_location:{:?}", validator)
 }
