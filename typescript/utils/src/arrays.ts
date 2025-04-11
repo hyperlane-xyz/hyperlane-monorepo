@@ -1,3 +1,5 @@
+import { sortBy } from 'lodash-es';
+
 import { randomInt } from './math.js';
 
 interface Sliceable {
@@ -19,4 +21,16 @@ export function exclude<T>(item: T, list: T[]) {
 
 export function randomElement<T>(list: T[]) {
   return list[randomInt(list.length)];
+}
+
+export function sortArrayByKey<T extends Record<string, any>>(
+  array: T[],
+  sortKey: string,
+): T[] {
+  return sortBy(array, [
+    (item) => {
+      const value = item[sortKey];
+      return value;
+    },
+  ]);
 }
