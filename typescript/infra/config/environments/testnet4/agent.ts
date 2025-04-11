@@ -244,7 +244,8 @@ const defaultIsmCacheConfig: IsmCacheConfig = {
 
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   {
-    // Ignore kessel runner test recipients
+    // Ignore kessel runner test recipients.
+    // All 5 test recipients have the same address.
     recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
   },
   {
