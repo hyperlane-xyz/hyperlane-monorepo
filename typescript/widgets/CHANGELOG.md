@@ -1,5 +1,23 @@
 # @hyperlane-xyz/widgets
 
+## 12.0.0
+
+### Minor Changes
+
+- 7b0e2fed6: Add BinanceLogo to WalletLogo component
+
+### Patch Changes
+
+- 86685505f: Revert bundler module resolution and update starknetkit imports
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
 ## 11.0.0
 
 ### Major Changes

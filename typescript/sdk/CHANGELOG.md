@@ -1,5 +1,30 @@
 # @hyperlane-xyz/sdk
 
+## 12.0.0
+
+### Major Changes
+
+- 59a087ded: Remove unused FastTokenRouter
+
+### Minor Changes
+
+- 4d3738d14: Update Checker to only check collateralToken and collateralProxyAdmin if provided in ownerOverrides
+- 07321f6f0: ZKSync Provider types with builders
+- 337193305: Add new `public` field to RpcUrlSchema
+
+### Patch Changes
+
+- f7ca32315: fix: correct exported TypeScript types for synthetic tokens
+- 59a087ded: Deploy new scaled warp route bytecode
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+  - @hyperlane-xyz/core@7.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
 ## 11.0.0
 
 ### Major Changes

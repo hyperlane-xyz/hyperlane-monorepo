@@ -25,8 +25,8 @@ use hyperlane_sealevel::{
 
 use crate::chain_tx_adapter::chains::sealevel::transaction::{TransactionFactory, Update};
 use crate::chain_tx_adapter::chains::sealevel::SealevelTxAdapter;
-use crate::chain_tx_adapter::{SealevelPayload, SealevelTxPrecursor};
-use crate::payload::{FullPayload, VmSpecificPayloadData};
+use crate::chain_tx_adapter::SealevelTxPrecursor;
+use crate::payload::FullPayload;
 use crate::transaction::{Transaction, VmSpecificTxData};
 
 pub const GAS_LIMIT: u32 = 42;
@@ -89,11 +89,11 @@ impl SealevelProviderForSubmitter for MockProvider {
         _payer: &SealevelKeypair,
         _tx_submitter: &dyn TransactionSubmitter,
         _priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<Option<SealevelTxCostEstimate>> {
-        Ok(Some(SealevelTxCostEstimate {
+    ) -> ChainResult<SealevelTxCostEstimate> {
+        Ok(SealevelTxCostEstimate {
             compute_units: GAS_LIMIT,
             compute_unit_price_micro_lamports: 0,
-        }))
+        })
     }
 
     async fn wait_for_transaction_confirmation(
@@ -217,9 +217,7 @@ pub fn instruction() -> SealevelInstruction {
 }
 
 pub fn payload() -> FullPayload {
-    let data = VmSpecificPayloadData::Svm(SealevelPayload {
-        instruction: instruction(),
-    });
+    let data = serde_json::to_vec(&instruction()).unwrap();
     let payload = FullPayload {
         data,
         ..Default::default()
