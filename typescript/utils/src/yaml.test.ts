@@ -239,10 +239,10 @@ items:
 name: test
 # Comment for items
 items:
-# Second item comment
+  # Second item comment
   - id: 1
     name: item1
-# First item comment
+  # First item comment
   - id: 2
     name: item2`,
       transformer: (data: any) => {
