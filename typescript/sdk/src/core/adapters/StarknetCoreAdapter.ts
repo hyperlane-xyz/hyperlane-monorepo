@@ -6,7 +6,7 @@ import {
 } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
-import { Address, HexString } from '@hyperlane-xyz/utils';
+import { Address, HexString, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -100,36 +100,28 @@ export class StarknetCoreAdapter
       destAdapter.getProvider(),
     );
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        // Check if the message has been delivered
+    await pollAsync(
+      async () => {
         const isDelivered = await mailboxContract.call('delivered', [
           messageId,
         ]);
 
-        if (isDelivered) {
-          this.logger.debug(
-            `Message ${messageId} confirmed delivered on ${destination}`,
+        if (!isDelivered) {
+          throw new Error(
+            `Message ${messageId} not yet delivered on ${destination}`,
           );
-          return true;
         }
-      } catch (error) {
-        this.logger.error(
-          `Error checking if message ${messageId} is delivered: ${error}`,
+
+        this.logger.debug(
+          `Message ${messageId} confirmed delivered on ${destination}`,
         );
-      }
 
-      this.logger.debug(
-        `Message ${messageId} not yet delivered on ${destination}, waiting ${delayMs}ms`,
-      );
-
-      // Wait before checking again
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-
-    this.logger.warn(
-      `Timed out waiting for message ${messageId} to be delivered on ${destination}`,
+        return isDelivered;
+      },
+      delayMs,
+      maxAttempts,
     );
-    return false;
+
+    return true;
   }
 }
