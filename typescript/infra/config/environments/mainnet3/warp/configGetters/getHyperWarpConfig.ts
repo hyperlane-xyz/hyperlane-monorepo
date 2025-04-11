@@ -21,6 +21,7 @@ const TOKEN_CHAINS = [
   'base',
   'optimism',
   'arbitrum',
+  'bsc',
 ] as const;
 
 const STAKED_TOKEN_CONFIG = {
