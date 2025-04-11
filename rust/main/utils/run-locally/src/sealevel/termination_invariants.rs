@@ -202,7 +202,6 @@ fn submitter_metrics_invariants_met(
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::H256;
     use maplit::hashmap;
 
     #[test]
