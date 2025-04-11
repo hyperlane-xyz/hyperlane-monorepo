@@ -44,7 +44,7 @@ const OWNERS = {
 
 const COMPOUND_STAKING_REWARDS =
   process.env.COMPOUND_STAKER_REWARDS ||
-  '0x6840494470251d75BD0C05E322aE6787af9EE709';
+  '0x9FB258cbd8415C4Fda62092003FCB54F60Af670B';
 
 export const getHyperWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
