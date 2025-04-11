@@ -135,6 +135,8 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
+        Self::reset_critical_errors(&settings, &chain_metrics);
+
         let start = Instant::now();
         let mut start_entity_init = Instant::now();
 
@@ -840,6 +842,13 @@ impl Relayer {
                 }
             })
             .collect()
+    }
+
+    fn reset_critical_errors(settings: &RelayerSettings, chain_metrics: &ChainMetrics) {
+        settings
+            .origin_chains
+            .iter()
+            .for_each(|origin| chain_metrics.set_critical_error(origin.name(), false));
     }
 }
 
