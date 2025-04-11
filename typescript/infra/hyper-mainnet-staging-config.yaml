@@ -12,6 +12,13 @@ base:
   owner: "0xf189b22a6Be9378C5cDa94a6E72C6d18611291cA"
   symbol: HYPER
   type: synthetic
+bsc:
+  decimals: 18
+  mailbox: "0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4"
+  name: Hyperlane
+  owner: "0xaE1DA73F3aB27F30b32239114d4d14c789D64176"
+  symbol: HYPER
+  type: synthetic
 ethereum:
   decimals: 18
   mailbox: "0xc005dc82818d67AF737725bD4bf75435d065D239"
@@ -26,3 +33,4 @@ optimism:
   owner: "0x6Fd6Be005D6e122b51b33044968d6CDB5F7A292c"
   symbol: HYPER
   type: synthetic
+
