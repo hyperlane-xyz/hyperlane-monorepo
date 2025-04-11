@@ -362,7 +362,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f5d2e7a-20250410-174010',
+      tag: 'ef039ae-20250411-104801',
     },
     whitelist: [
       {
