@@ -484,7 +484,7 @@ async fn submit_via_lander(
     };
 
     let message_id = op.id();
-    let metadata = message_id.to_string();
+    let metadata = format!("{message_id:?}");
     let mailbox = op
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")
@@ -691,6 +691,7 @@ async fn confirm_lander_task(
             .into_iter()
             .map(|(op, status_result)| async {
                 let Ok(payload_status) = status_result else {
+                    warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submisison(
                         op,
                         prepare_queue.clone(),
@@ -714,6 +715,7 @@ async fn confirm_lander_task(
                     )
                     .await;
                 } else {
+                    info!(?op, ?payload_status, "Operation not finalized yet");
                     process_confirm_result(
                         op,
                         prepare_queue.clone(),
