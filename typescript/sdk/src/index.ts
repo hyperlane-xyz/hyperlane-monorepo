@@ -240,6 +240,8 @@ export {
   buildAgentConfig,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
   RelayerConfig,
   RpcConsensusType,
   ScraperConfig,

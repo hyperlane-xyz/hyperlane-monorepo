@@ -14,7 +14,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
-    cache::{FunctionCallCache, LocalCache, MeteredCache},
+    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::HyperlaneDb,
 };
 use hyperlane_core::{
@@ -67,7 +67,7 @@ pub struct MessageContext {
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
     /// Cache to store commonly used data calls.
-    pub cache: MeteredCache<LocalCache>,
+    pub cache: OptionalCache<MeteredCache<LocalCache>>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,

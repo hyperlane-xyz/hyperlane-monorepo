@@ -22,7 +22,7 @@ use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
-    cache::{LocalCache, MeteredCache, MeteredCacheConfig},
+    cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
     settings::{ChainConf, IndexSettings},
@@ -45,7 +45,10 @@ use crate::{
     msg::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
-        metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        metadata::{
+            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+            IsmCachePolicyClassifier,
+        },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -85,7 +88,7 @@ pub struct Relayer {
     merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     /// The original reference to the relayer cache
-    _cache: MeteredCache<LocalCache>,
+    _cache: OptionalCache<MeteredCache<LocalCache>>,
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
     address_blacklist: Arc<AddressBlacklist>,
@@ -142,19 +145,26 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
+        Self::reset_critical_errors(&settings, &chain_metrics);
+
         let start = Instant::now();
         let mut start_entity_init = Instant::now();
 
         let core = settings.build_hyperlane_core(core_metrics.clone());
         let db = DB::from_path(&settings.db)?;
         let cache_name = "relayer_cache";
-        let cache = MeteredCache::new(
-            LocalCache::new(cache_name),
-            core_metrics.cache_metrics(),
-            MeteredCacheConfig {
-                cache_name: cache_name.to_owned(),
-            },
-        );
+        let inner_cache = if settings.allow_contract_call_caching {
+            Some(MeteredCache::new(
+                LocalCache::new(cache_name),
+                core_metrics.cache_metrics(),
+                MeteredCacheConfig {
+                    cache_name: cache_name.to_owned(),
+                },
+            ))
+        } else {
+            None
+        };
+        let cache = OptionalCache::new(inner_cache);
         let dbs = settings
             .origin_chains
             .iter()
@@ -319,6 +329,7 @@ impl BaseAgent for Relayer {
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
+                let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -329,8 +340,12 @@ impl BaseAgent for Relayer {
                     cache.clone(),
                     db,
                     IsmAwareAppContextClassifier::new(
-                        dest_mailbox.clone(),
+                        default_ism_getter.clone(),
                         settings.metric_app_contexts.clone(),
+                    ),
+                    IsmCachePolicyClassifier::new(
+                        default_ism_getter.clone(),
+                        settings.default_ism_cache_config.clone(),
                     ),
                 );
 
@@ -473,8 +488,6 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
-            self.chain_metrics.set_critical_error(origin.name(), false);
-
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
@@ -496,8 +509,14 @@ impl BaseAgent for Relayer {
                 )
                 .await,
             );
+            tasks.push(self.run_message_processor(
+                origin,
+                send_channels.clone(),
+                task_monitor.clone(),
+            ));
+            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs", "Relayer startup duration measurement");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree processors", "Relayer startup duration measurement");
 
         // run server
         start_entity_init = Instant::now();
@@ -519,18 +538,6 @@ impl BaseAgent for Relayer {
         tasks.push(server_task);
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started relayer server", "Relayer startup duration measurement");
 
-        // each message process attempts to send messages from a chain
-        start_entity_init = Instant::now();
-        for origin in &self.origin_chains {
-            tasks.push(self.run_message_processor(
-                origin,
-                send_channels.clone(),
-                task_monitor.clone(),
-            ));
-            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
-        }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message and merkle tree processors", "Relayer startup duration measurement");
-
         tasks.push(self.runtime_metrics.spawn());
 
         debug!(elapsed = ?start.elapsed(), event = "fully started", "Relayer startup duration measurement");
@@ -546,13 +553,13 @@ impl BaseAgent for Relayer {
 
 impl Relayer {
     fn record_critical_error(
-        &self,
         origin: &HyperlaneDomain,
         err: ChainCommunicationError,
         message: &str,
+        chain_metrics: ChainMetrics,
     ) {
         error!(?err, origin=?origin, "{message}");
-        self.chain_metrics.set_critical_error(origin.name(), true);
+        chain_metrics.set_critical_error(origin.name(), true);
     }
 
     async fn instantiate_cursor_with_retries<T: 'static>(
@@ -578,32 +585,43 @@ impl Relayer {
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
+        let origin = origin.clone();
+        let contract_sync = self.message_syncs.get(&origin).unwrap().clone();
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
-        let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor_instantiation_result =
-            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
-                .await;
-        let cursor = match cursor_instantiation_result {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
-                return tokio::spawn(async {}.instrument(info_span!("MessageSync")));
-            }
-        };
-        let origin_name = origin.name().to_string();
-        let name = Self::contract_sync_task_name("message::", &origin_name);
+        let chain_metrics = self.chain_metrics.clone();
+
+        let name = Self::contract_sync_task_name("message::", origin.name());
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
-                    let label = "dispatched_messages";
-                    contract_sync.clone().sync(label, cursor.into()).await;
-                    info!(chain = origin_name, label, "contract sync task exit");
+                    Self::message_sync_task(&origin, contract_sync, index_settings, chain_metrics)
+                        .await;
                 }
                 .instrument(info_span!("MessageSync")),
             ))
             .expect("spawning tokio task from Builder is infallible")
+    }
+
+    async fn message_sync_task(
+        origin: &HyperlaneDomain,
+        contract_sync: Arc<dyn ContractSyncer<HyperlaneMessage>>,
+        index_settings: IndexSettings,
+        chain_metrics: ChainMetrics,
+    ) {
+        let cursor_instantiation_result =
+            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings).await;
+        let cursor = match cursor_instantiation_result {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                Self::record_critical_error(origin, err, CURSOR_BUILDING_ERROR, chain_metrics);
+                return;
+            }
+        };
+        let label = "dispatched_messages";
+        contract_sync.clone().sync(label, cursor.into()).await;
+        info!(chain = origin.name(), label, "contract sync task exit");
     }
 
     async fn run_interchain_gas_payment_sync(
@@ -612,39 +630,58 @@ impl Relayer {
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
+        let origin = origin.clone();
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
             .interchain_gas_payment_syncs
-            .get(origin)
+            .get(&origin)
             .unwrap()
             .clone();
+        let chain_metrics = self.chain_metrics.clone();
+
+        let name = Self::contract_sync_task_name("gas_payment::", origin.name());
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    Self::interchain_gas_payments_sync_task(
+                        &origin,
+                        index_settings,
+                        contract_sync,
+                        chain_metrics,
+                        tx_id_receiver,
+                    )
+                    .await;
+                }
+                .instrument(info_span!("IgpSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    async fn interchain_gas_payments_sync_task(
+        origin: &HyperlaneDomain,
+        index_settings: IndexSettings,
+        contract_sync: Arc<dyn ContractSyncer<InterchainGasPayment>>,
+        chain_metrics: ChainMetrics,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
+    ) {
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
                 .await;
         let cursor = match cursor_instantiation_result {
             Ok(cursor) => cursor,
             Err(err) => {
-                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
-                return tokio::spawn(async {}.instrument(info_span!("IgpSync")));
+                Self::record_critical_error(origin, err, CURSOR_BUILDING_ERROR, chain_metrics);
+                return;
             }
         };
-        let origin_name = origin.name().to_string();
-        let name = Self::contract_sync_task_name("gas_payment::", &origin_name);
-        tokio::task::Builder::new()
-            .name(&name)
-            .spawn(TaskMonitor::instrument(
-                &task_monitor,
-                async move {
-                    let label = "gas_payments";
-                    contract_sync
-                        .clone()
-                        .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                        .await;
-                    info!(chain = origin_name, label, "contract sync task exit");
-                }
-                .instrument(info_span!("IgpSync")),
-            ))
-            .expect("spawning tokio task from Builder is infallible")
+        let label = "gas_payments";
+        contract_sync
+            .clone()
+            .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+            .await;
+        info!(chain = origin.name(), label, "contract sync task exit");
     }
 
     async fn run_merkle_tree_hook_sync(
@@ -653,18 +690,11 @@ impl Relayer {
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
+        let origin = origin.clone();
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
-        let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor_instantiation_result =
-            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
-                .await;
-        let cursor = match cursor_instantiation_result {
-            Ok(cursor) => cursor,
-            Err(err) => {
-                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
-                return tokio::spawn(async {}.instrument(info_span!("MerkleTreeHookSync")));
-            }
-        };
+        let contract_sync = self.merkle_tree_hook_syncs.get(&origin).unwrap().clone();
+        let chain_metrics = self.chain_metrics.clone();
+
         let origin_name = origin.name().to_string();
         let name = Self::contract_sync_task_name("merkle_tree::", &origin_name);
         tokio::task::Builder::new()
@@ -672,16 +702,43 @@ impl Relayer {
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
-                    let label = "merkle_tree_hook";
-                    contract_sync
-                        .clone()
-                        .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                        .await;
-                    info!(chain = origin_name, label, "contract sync task exit");
+                    Self::merkle_tree_hook_sync_task(
+                        &origin,
+                        index_settings,
+                        contract_sync,
+                        chain_metrics,
+                        tx_id_receiver,
+                    )
+                    .await;
                 }
                 .instrument(info_span!("MerkleTreeHookSync")),
             ))
             .expect("spawning tokio task from Builder is infallible")
+    }
+
+    async fn merkle_tree_hook_sync_task(
+        origin: &HyperlaneDomain,
+        index_settings: IndexSettings,
+        contract_sync: Arc<dyn ContractSyncer<MerkleTreeInsertion>>,
+        chain_metrics: ChainMetrics,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
+    ) {
+        let cursor_instantiation_result =
+            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
+                .await;
+        let cursor = match cursor_instantiation_result {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                Self::record_critical_error(origin, err, CURSOR_BUILDING_ERROR, chain_metrics);
+                return;
+            }
+        };
+        let label = "merkle_tree_hook";
+        contract_sync
+            .clone()
+            .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+            .await;
+        info!(chain = origin.name(), label, "contract sync task exit");
     }
 
     fn contract_sync_task_name(prefix: &str, domain: &str) -> String {
@@ -702,15 +759,31 @@ impl Relayer {
         let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
-            .map(|destination| {
-                (
-                    destination.id(),
-                    self.msg_ctxs[&ContextKey {
-                        origin: origin.id(),
-                        destination: destination.id(),
-                    }]
-                        .clone(),
-                )
+            .filter_map(|destination| {
+                let key = ContextKey {
+                    origin: origin.id(),
+                    destination: destination.id(),
+                };
+                let context = self
+                    .msg_ctxs
+                    .get(&key)
+                    .map(|c| (destination.id(), c.clone()));
+
+                if context.is_none() {
+                    let err_msg = format!(
+                        "No message context found for origin {} and destination {}",
+                        origin.name(),
+                        destination.name()
+                    );
+                    Self::record_critical_error(
+                        origin,
+                        ChainCommunicationError::CustomError(err_msg.clone()),
+                        &err_msg,
+                        self.chain_metrics.clone(),
+                    );
+                }
+
+                context
             })
             .collect();
 
@@ -921,6 +994,13 @@ impl Relayer {
             })
             .collect()
     }
+
+    fn reset_critical_errors(settings: &RelayerSettings, chain_metrics: &ChainMetrics) {
+        settings
+            .origin_chains
+            .iter()
+            .for_each(|origin| chain_metrics.set_critical_error(origin.name(), false));
+    }
 }
 
 #[cfg(test)]
@@ -1050,6 +1130,8 @@ mod test {
             skip_transaction_gas_limit_for: HashSet::new(),
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
+            allow_contract_call_caching: true,
+            default_ism_cache_config: Default::default(),
             max_retries: 1,
         }
     }

@@ -89,11 +89,11 @@ impl SealevelProviderForSubmitter for MockProvider {
         _payer: &SealevelKeypair,
         _tx_submitter: &dyn TransactionSubmitter,
         _priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<Option<SealevelTxCostEstimate>> {
-        Ok(Some(SealevelTxCostEstimate {
+    ) -> ChainResult<SealevelTxCostEstimate> {
+        Ok(SealevelTxCostEstimate {
             compute_units: GAS_LIMIT,
             compute_unit_price_micro_lamports: 0,
-        }))
+        })
     }
 
     async fn wait_for_transaction_confirmation(
