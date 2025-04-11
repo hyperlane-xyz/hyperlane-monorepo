@@ -5,7 +5,7 @@ use tokio::{sync::Mutex, time::sleep};
 use crate::{
     chain_tx_adapter::TxBuildingResult,
     payload_dispatcher::{
-        metrics::DispatcherMetrics,
+        metrics::Metrics,
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
         BuildingStageQueue, PayloadDbLoader, PayloadDispatcherState,
     },
@@ -20,7 +20,7 @@ async fn test_entrypoint_send_is_detected_by_loader() {
     let payload_db_loader = PayloadDbLoader::new(payload_db.clone(), building_stage_queue.clone());
     let mut payload_iterator = payload_db_loader.into_iterator().await;
 
-    let metrics = DispatcherMetrics::dummy_instance();
+    let metrics = Metrics::dummy_instance();
     let adapter = Arc::new(MockAdapter::new());
     let state = PayloadDispatcherState::new(
         payload_db,
@@ -99,8 +99,8 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     adapter.expect_submit().returning(|_| Ok(()));
 
     let adapter = Arc::new(adapter);
-    let metrics = DispatcherMetrics::dummy_instance();
-    let domain = "dummy_domain".to_string();
+    let metrics = Metrics::dummy_instance();
+    let domain = "test_domain".to_string();
 
     let state =
         PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
@@ -137,12 +137,44 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
         }
         sleep(Duration::from_millis(100)).await;
     }
+
+    // check metrics
+    let gathered_metrics = metrics.gather().unwrap();
+    let metrics_str = String::from_utf8(gathered_metrics).unwrap();
+    println!("Metrics: {}", metrics_str);
+
+    let metrics = metrics.dispatcher_metrics.unwrap();
     let finalized_txs = metrics
         .finalized_transactions
         .with_label_values(&[&state.domain])
         .get();
     assert_eq!(
         finalized_txs, 1,
-        "Finalized transactions metric is incorrect"
+        "Finalized transactions metric is incorrect for domain {}",
+        state.domain
+    );
+    let building_stage_queue_length = metrics
+        .building_stage_queue_length
+        .with_label_values(&[&state.domain])
+        .get();
+    assert_eq!(
+        building_stage_queue_length, 0,
+        "Building stage queue length metric is incorrect"
+    );
+    let inclusion_stage_pool_length = metrics
+        .inclusion_stage_pool_length
+        .with_label_values(&[&state.domain])
+        .get();
+    assert_eq!(
+        inclusion_stage_pool_length, 0,
+        "Inclusion stage pool length metric is incorrect"
+    );
+    let finality_stage_pool_length = metrics
+        .finality_stage_pool_length
+        .with_label_values(&[&state.domain])
+        .get();
+    assert_eq!(
+        finality_stage_pool_length, 0,
+        "Finality stage pool length metric is incorrect"
     );
 }

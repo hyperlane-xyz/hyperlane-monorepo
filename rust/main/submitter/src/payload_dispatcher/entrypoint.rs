@@ -80,7 +80,7 @@ mod tests {
     use super::*;
     use crate::chain_tx_adapter::*;
     use crate::payload::*;
-    use crate::payload_dispatcher::metrics::DispatcherMetrics;
+    use crate::payload_dispatcher::metrics::Metrics;
     use crate::payload_dispatcher::test_utils::MockAdapter;
     use crate::payload_dispatcher::PayloadDb;
     use crate::payload_dispatcher::TransactionDb;
@@ -225,7 +225,7 @@ mod tests {
             payload_db,
             tx_db,
             adapter,
-            DispatcherMetrics::dummy_instance(),
+            Metrics::dummy_instance(),
             "test".to_string(),
         );
         Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state))
@@ -298,7 +298,7 @@ mod tests {
             payload_db,
             tx_db,
             adapter,
-            DispatcherMetrics::dummy_instance(),
+            Metrics::dummy_instance(),
             "test".to_string(),
         );
         let entrypoint = Box::new(PayloadDispatcherEntrypoint::from_inner(entrypoint_state));

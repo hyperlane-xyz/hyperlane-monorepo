@@ -55,8 +55,10 @@ pub struct PayloadDispatcher {
 
 impl PayloadDispatcher {
     pub fn try_from_settings(settings: PayloadDispatcherSettings, domain: String) -> Result<Self> {
+        let mut state = PayloadDispatcherState::try_from_settings(settings)?;
+        state.metrics.init_dispatcher_metrics()?;
         Ok(Self {
-            inner: PayloadDispatcherState::try_from_settings(settings)?,
+            inner: state,
             domain,
         })
     }

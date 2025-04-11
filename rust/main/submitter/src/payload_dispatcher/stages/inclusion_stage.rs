@@ -60,7 +60,7 @@ impl InclusionStage {
             tx_receiver,
             finality_stage_sender,
             state,
-            domain,
+            domain: _,
         } = self;
         let futures = vec![
             tokio::spawn(
@@ -68,7 +68,7 @@ impl InclusionStage {
                     .instrument(info_span!("receive_txs")),
             ),
             tokio::spawn(
-                Self::process_txs(pool, finality_stage_sender, state, domain)
+                Self::process_txs(pool, finality_stage_sender, state)
                     .instrument(info_span!("process_txs")),
             ),
         ];
@@ -103,7 +103,6 @@ impl InclusionStage {
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,
         state: PayloadDispatcherState,
-        domain: String,
     ) -> Result<(), SubmitterError> {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
@@ -116,9 +115,7 @@ impl InclusionStage {
             let pool_snapshot = pool.lock().await.clone();
             state
                 .metrics
-                .inclusion_stage_pool_length
-                .with_label_values(&[&domain])
-                .set(pool_snapshot.len() as i64);
+                .update_queue_length_metric(STAGE_NAME, pool_snapshot.len() as u64);
             info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) =
@@ -250,7 +247,7 @@ mod tests {
     use super::*;
     use crate::{
         payload_dispatcher::{
-            metrics::DispatcherMetrics,
+            metrics::Metrics,
             test_utils::{
                 are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
                 dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
@@ -368,7 +365,7 @@ mod tests {
             payload_db.clone(),
             tx_db.clone(),
             Arc::new(mock_adapter),
-            DispatcherMetrics::dummy_instance(),
+            Metrics::dummy_instance(),
             "test".to_string(),
         );
         let inclusion_stage = InclusionStage::new(

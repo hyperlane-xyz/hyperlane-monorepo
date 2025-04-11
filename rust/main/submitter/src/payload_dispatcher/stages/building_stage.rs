@@ -148,9 +148,7 @@ impl BuildingStage {
         let length = self.queue.lock().await.len();
         self.state
             .metrics
-            .building_stage_queue_length
-            .with_label_values(&[&self.domain])
-            .set(length as i64);
+            .update_queue_length_metric(STAGE_NAME, length as u64);
     }
 }
 
@@ -174,7 +172,7 @@ mod tests {
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
-            metrics::DispatcherMetrics,
+            metrics::Metrics,
             test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
             PayloadDb, PayloadDispatcherState, TransactionDb,
         },
@@ -360,7 +358,7 @@ mod tests {
             payload_db,
             tx_db,
             adapter,
-            DispatcherMetrics::dummy_instance(),
+            Metrics::dummy_instance(),
             "dummy_domain".to_string(),
         );
         let (sender, receiver) = tokio::sync::mpsc::channel(100);

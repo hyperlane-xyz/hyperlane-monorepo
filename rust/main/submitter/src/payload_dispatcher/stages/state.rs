@@ -1,6 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use chrono::format;
 use derive_new::new;
 use eyre::Result;
 use std::{path::PathBuf, sync::Arc};
@@ -18,8 +19,7 @@ use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
     payload::{DropReason, PayloadDetails, PayloadStatus},
     payload_dispatcher::{
-        metrics::DispatcherMetrics, DatabaseOrPath, PayloadDb, PayloadDispatcherSettings,
-        TransactionDb,
+        metrics::Metrics, DatabaseOrPath, PayloadDb, PayloadDispatcherSettings, TransactionDb,
     },
     transaction::Transaction,
     TransactionStatus,
@@ -31,7 +31,7 @@ pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
     pub(crate) adapter: Arc<dyn AdaptsChain>,
-    pub(crate) metrics: DispatcherMetrics,
+    pub(crate) metrics: Metrics,
     pub(crate) domain: String,
 }
 
@@ -40,7 +40,7 @@ impl PayloadDispatcherState {
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
         adapter: Arc<dyn AdaptsChain>,
-        metrics: DispatcherMetrics,
+        metrics: Metrics,
         domain: String,
     ) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl PayloadDispatcherState {
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
         let domain = settings.domain.to_string();
-        let metrics = DispatcherMetrics::new(settings.metrics.registry(), domain.clone())?;
+        let metrics = Metrics::new(settings.metrics.registry(), domain.clone());
         Ok(Self::new(payload_db, tx_db, adapter, metrics, domain))
     }
 
@@ -89,26 +89,18 @@ impl PayloadDispatcherState {
                 );
             }
             info!(?details, new_status=?status, "Updated payload status");
-            update_payload_metric_if_dropped(&self.metrics, &self.domain, &status);
+            update_payload_metric_if_dropped(&self.metrics, &status);
         }
 
-        fn update_payload_metric_if_dropped(
-            metrics: &DispatcherMetrics,
-            domain: &str,
-            status: &PayloadStatus,
-        ) {
+        fn update_payload_metric_if_dropped(metrics: &Metrics, status: &PayloadStatus) {
             match status {
                 PayloadStatus::InTransaction(TransactionStatus::Dropped(ref reason)) => {
-                    metrics
-                        .dropped_payloads
-                        .with_label_values(&[domain, &format!("DroppedInTransaction({reason:?})")])
-                        .inc();
+                    metrics.update_dropped_payloads_metric(&format!(
+                        "DroppedInTransaction({reason:?})"
+                    ));
                 }
                 PayloadStatus::Dropped(ref reason) => {
-                    metrics
-                        .dropped_payloads
-                        .with_label_values(&[domain, &format!("{reason:?}")])
-                        .inc();
+                    metrics.update_dropped_payloads_metric(&format!("{reason:?}"));
                 }
                 _ => {}
             }

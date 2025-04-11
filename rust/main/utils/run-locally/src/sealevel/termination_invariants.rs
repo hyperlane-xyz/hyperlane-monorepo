@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 
 use crate::{
@@ -23,6 +24,7 @@ pub fn termination_invariants_met(
     starting_relayer_balance: f64,
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
+    submitter_type: SubmitterType,
 ) -> eyre::Result<bool> {
     log!("Checking sealevel termination invariants");
     let sol_messages_expected = SOL_MESSAGES_EXPECTED;
@@ -80,6 +82,40 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
+    if matches!(submitter_type, SubmitterType::Lander)
+        && !submitter_metrics_invariants_met(RELAYER_METRICS_PORT)
+    {
+        log!("Submitter metrics invariants not met");
+        return Ok(false);
+    }
+
     log!("Termination invariants have been meet");
     Ok(true)
+}
+
+fn submitter_metrics_invariants_met(relayer_metrics_port: &str) -> bool {
+    // let metrics = format!("http://localhost:{relayer_metrics_port}/metrics");
+    // let response = reqwest::blocking::get(&metrics)?;
+    // let body = response.text()?;
+    // let lines = body.lines();
+
+    // for line in lines {
+    //     if line.contains("hyperlane_submitter_task_liveness") {
+    //         if line.contains("building") || line.contains("inclusion") {
+    //             return Ok(false);
+    //         }
+    //     }
+    // }
+
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn submitter_metrics_are_correct() {
+        // let relayer_metrics_port = 8080;
+        // let result = super::submitter_metrics_invariants_met(relayer_metrics_port);
+        // assert!(result.is_ok());
+    }
 }

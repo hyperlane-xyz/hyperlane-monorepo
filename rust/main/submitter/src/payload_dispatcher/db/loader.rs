@@ -15,7 +15,7 @@ use tokio::time::sleep;
 use tracing::{debug, instrument};
 
 use crate::error::SubmitterError;
-use crate::payload_dispatcher::metrics::DispatcherMetrics;
+use crate::payload_dispatcher::metrics::Metrics;
 
 #[async_trait]
 pub trait LoadableFromDb {
@@ -98,7 +98,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         Ok(LoadingOutcome::Skipped)
     }
 
-    pub async fn load_from_db(&mut self, metrics: DispatcherMetrics) -> Result<(), SubmitterError> {
+    pub async fn load_from_db(&mut self, metrics: Metrics) -> Result<(), SubmitterError> {
         loop {
             metrics.update_liveness_metric(format!("{}DbLoader", self.iterated_item_name).as_str());
             if let LoadingOutcome::Skipped = self.try_load_next_item().await? {
@@ -274,7 +274,7 @@ mod tests {
         let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
         iterator
-            .load_from_db(DispatcherMetrics::dummy_instance())
+            .load_from_db(Metrics::dummy_instance())
             .await
             .unwrap();
         assert_eq!(iterator.low_index_iter.index, 0);
@@ -305,7 +305,7 @@ mod tests {
         };
 
         tokio::select! {
-            _ = iterator.load_from_db(DispatcherMetrics::dummy_instance()) => {
+            _ = iterator.load_from_db(Metrics::dummy_instance()) => {
                 panic!("Loading from db finished although the high iterator should've kept waiting for new items");
             }
             _ = first_assertion_and_state_change => {

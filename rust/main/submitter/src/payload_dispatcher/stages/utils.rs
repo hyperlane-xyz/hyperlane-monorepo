@@ -5,7 +5,7 @@ use tracing::{error, info};
 
 use crate::{
     error::{IsRetryable, SubmitterError},
-    payload_dispatcher::metrics::DispatcherMetrics,
+    payload_dispatcher::metrics::Metrics,
     transaction::{Transaction, TransactionStatus},
 };
 
@@ -32,9 +32,7 @@ where
                 }
                 state
                     .metrics
-                    .call_retries
-                    .with_label_values(&[&state.domain, &format!("{err:?}"), action])
-                    .inc();
+                    .update_call_retries_metric(&format!("{err:?}"), action);
             }
         }
     }
@@ -50,18 +48,12 @@ pub async fn update_tx_status(
     state.store_tx(tx).await;
     match tx.status {
         TransactionStatus::Finalized => {
-            state
-                .metrics
-                .finalized_transactions
-                .with_label_values(&[&state.domain])
-                .inc();
+            state.metrics.update_finalized_transactions_metric();
         }
         TransactionStatus::Dropped(ref reason) => {
             state
                 .metrics
-                .dropped_transactions
-                .with_label_values(&[&state.domain, &format!("{reason:?}")])
-                .inc();
+                .update_dropped_transactions_metric(&format!("{reason:?}"));
         }
         _ => {}
     }
