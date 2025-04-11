@@ -4,7 +4,8 @@ use mockall::mock;
 use hyperlane_base::cache::LocalCache;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain, SignedType, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 
 use super::*;
@@ -38,21 +39,29 @@ mock! {
 
 #[tokio::test]
 async fn test_fetch_storage_locations_helper_with_cache_hit() {
+    let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
     let cache = LocalCache::new("test_cache");
-    let validator_announce = MockValidatorAnnounceMock::new();
     let validators = vec![H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
+
+    let mut validator_announce = MockValidatorAnnounceMock::new();
+
     let key1 = generate_cache_key(&validators[0]);
     let key2 = generate_cache_key(&validators[1]);
+
+    // Mock the response from the validator announce contract
+    validator_announce
+        .expect_domain()
+        .return_const(origin.clone());
 
     // Prepopulate the cache with storage locations
     let location1 = vec!["location1".to_string()];
     let location2 = vec!["location2".to_string()];
     cache
-        .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key1, &location1)
+        .cache_call_result(&origin.name(), METHOD_NAME, &key1, &location1)
         .await
         .unwrap();
     cache
-        .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key2, &location2)
+        .cache_call_result(&origin.name(), METHOD_NAME, &key2, &location2)
         .await
         .unwrap();
 
@@ -64,9 +73,11 @@ async fn test_fetch_storage_locations_helper_with_cache_hit() {
 
 #[tokio::test]
 async fn test_fetch_storage_locations_helper_with_cache_miss() {
+    let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
     let cache = LocalCache::new("test_cache");
-    let mut validator_announce = MockValidatorAnnounceMock::new();
     let validators = vec![H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
+
+    let mut validator_announce = MockValidatorAnnounceMock::new();
 
     // Mock the response from the validator announce contract
     validator_announce
@@ -77,6 +88,9 @@ async fn test_fetch_storage_locations_helper_with_cache_miss() {
                 vec!["location2".to_string()],
             ])
         });
+    validator_announce
+        .expect_domain()
+        .return_const(origin.clone());
 
     let result = fetch_storage_locations_helper(&validators, &cache, &validator_announce).await;
 
@@ -89,9 +103,11 @@ async fn test_fetch_storage_locations_helper_with_cache_miss() {
 
 #[tokio::test]
 async fn test_fetch_storage_locations_helper_with_error() {
+    let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
     let cache = LocalCache::new("test_cache");
-    let mut validator_announce = MockValidatorAnnounceMock::new();
     let validators = vec![H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
+
+    let mut validator_announce = MockValidatorAnnounceMock::new();
 
     // Mock an error response from the validator announce contract
     validator_announce
@@ -101,6 +117,9 @@ async fn test_fetch_storage_locations_helper_with_error() {
                 "Error fetching storage locations".to_string(),
             ))
         });
+    validator_announce
+        .expect_domain()
+        .return_const(origin.clone());
 
     let result = fetch_storage_locations_helper(&validators, &cache, &validator_announce).await;
 
@@ -109,13 +128,16 @@ async fn test_fetch_storage_locations_helper_with_error() {
 
 #[tokio::test]
 async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
+    let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
     let cache = LocalCache::new("test_cache");
-    let mut validator_announce = MockValidatorAnnounceMock::new();
     let validators = vec![
         H256::from_low_u64_be(1),
         H256::from_low_u64_be(2),
         H256::from_low_u64_be(3),
     ];
+
+    let mut validator_announce = MockValidatorAnnounceMock::new();
+
     let key1 = generate_cache_key(&validators[0]);
     let key2 = generate_cache_key(&validators[1]);
 
@@ -123,11 +145,11 @@ async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
     let location1 = vec!["location1".to_string()];
     let location2 = vec!["location2".to_string()];
     cache
-        .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key1, &location1)
+        .cache_call_result(&origin.name(), METHOD_NAME, &key1, &location1)
         .await
         .unwrap();
     cache
-        .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key2, &location2)
+        .cache_call_result(&origin.name(), METHOD_NAME, &key2, &location2)
         .await
         .unwrap();
 
@@ -136,6 +158,9 @@ async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
     validator_announce
         .expect_get_announced_storage_locations()
         .returning(move |_| Ok(vec![vec![location3.to_string()]]));
+    validator_announce
+        .expect_domain()
+        .return_const(origin.clone());
 
     let result = fetch_storage_locations_helper(&validators, &cache, &validator_announce).await;
 

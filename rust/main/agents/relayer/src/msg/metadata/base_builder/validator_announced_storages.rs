@@ -3,7 +3,6 @@ use eyre::Context;
 use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_core::{ValidatorAnnounce, H256};
 
-const DOMAIN_NAME: &str = "";
 const METHOD_NAME: &str = "get_announced_storage_locations";
 
 /// Helper function to fetch storage locations for validators.
@@ -14,6 +13,8 @@ pub async fn fetch_storage_locations_helper(
 ) -> eyre::Result<Vec<Vec<String>>> {
     const CTX: &str = "When fetching storage locations";
 
+    let origin = validator_announce.domain().name(); // Dynamically fetch domain name
+
     let mut storage_locations = Vec::new();
     let mut missing_validators = Vec::new();
 
@@ -22,7 +23,7 @@ pub async fn fetch_storage_locations_helper(
 
         // Attempt to retrieve from cache
         if let Some(cached) = cache
-            .get_cached_call_result::<Vec<String>>(DOMAIN_NAME, METHOD_NAME, &key)
+            .get_cached_call_result::<Vec<String>>(&origin, METHOD_NAME, &key)
             .await?
         {
             storage_locations.push(cached);
@@ -54,7 +55,7 @@ pub async fn fetch_storage_locations_helper(
 
         // Store in cache
         cache
-            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key, locations)
+            .cache_call_result(&origin, METHOD_NAME, &key, locations)
             .await?;
 
         // Update the placeholder in storage_locations
