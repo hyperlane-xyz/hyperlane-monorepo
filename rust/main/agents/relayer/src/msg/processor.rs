@@ -487,12 +487,12 @@ mod test {
             messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
             metadata_build_count: IntCounterVec::new(
                 Opts::new("metadata_build_count", "help string"),
-                &[],
+                &["app_context", "origin", "remote", "status"],
             )
             .unwrap(),
             metadata_build_duration: CounterVec::new(
                 Opts::new("metadata_build_duration", "help string"),
-                &[],
+                &["app_context", "origin", "remote", "status"],
             )
             .unwrap(),
         }
