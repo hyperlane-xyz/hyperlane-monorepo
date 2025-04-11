@@ -20,7 +20,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { HyperlaneRebalancer } from '../rebalancer/rebalancer.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -401,20 +401,45 @@ export const check: CommandModuleWithContext<{
   },
 };
 
-export const rebalancer: CommandModuleWithContext<{}> = {
+export const rebalancer: CommandModuleWithContext<{
+  warpRouteId: string;
+  checkFrequency: number;
+}> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
-  builder: {},
-  handler: async () => {
-    const rebalancer = new HyperlaneRebalancer();
+  builder: {
+    warpRouteId: {
+      type: 'string',
+      description: 'The warp route ID to rebalance',
+      demandOption: true,
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms',
+      demandOption: true,
+      alias: 'v',
+    },
+  },
+  handler: async ({ context, warpRouteId, checkFrequency }) => {
+    logCommandHeader('Hyperlane Warp Rebalancer');
 
-    log('Starting rebalancer ...');
-    rebalancer.start();
+    const rebalancer = new HyperlaneRebalancer(
+      context.registry,
+      warpRouteId,
+      checkFrequency,
+    );
+
+    try {
+      await rebalancer.start();
+      logGreen('Rebalancer started successfully 🚀');
+    } catch (error) {
+      logRed(`Could not start the rebalancer: ${error}`);
+      rebalancer.stop();
+      process.exit(1);
+    }
 
     process.once('SIGINT', () => {
-      log('Stopping rebalancer ...');
       rebalancer.stop();
-
       process.exit(0);
     });
   },
