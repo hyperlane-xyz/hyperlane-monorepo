@@ -937,14 +937,14 @@ impl SovereignRestClient {
             value: Option<Vec<String>>,
         }
 
-        // /modules/mailbox-va/state/storage-locations/items/{key}
+        // /modules/mailbox/state/validators/items/{key}
         let mut res = Vec::new();
 
         for (i, v) in validators.iter().enumerate() {
             res.push(vec![]);
             let validator = try_h256_to_string(*v)?;
 
-            let query = format!("/modules/mailbox-va/state/storage-locations/items/{validator}");
+            let query = format!("/modules/mailbox/state/validators/items/{validator}");
 
             let response = self.http_get(&query).await.map_err(|e| {
                 ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}"))
@@ -975,10 +975,10 @@ impl SovereignRestClient {
             _value: Option<Vec<String>>,
         }
 
-        // /modules/mailbox-va/state/storage-locations/items/{key}
+        // /modules/mailbox/state/validators/items/{key}
         // check if already registered
         let query = format!(
-            "/modules/mailbox-va/state/storage-locations/items/{:?}",
+            "/modules/mailbox/state/validators/items/{:?}",
             announcement.value.validator
         );
 
