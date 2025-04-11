@@ -12,7 +12,7 @@ type TestCase = {
   };
 };
 
-describe.only('sort-yaml-arrays rule', () => {
+describe('sort-yaml-arrays rule', () => {
   let lintResult: { fixed: boolean; output: string } | null;
   let fixer: Rule.RuleFixer;
 
@@ -51,24 +51,7 @@ describe.only('sort-yaml-arrays rule', () => {
       filename,
       sourceCode: {
         getText: () => yamlText,
-        getAllComments: () =>
-          yamlText.split('\n').flatMap((line, index) => {
-            // Match both standalone comments and inline comments
-            const commentMatches = [
-              ...line.matchAll(/(^|\s+)#([^#]*?)($|(?=\s+#)|$)/g),
-            ];
-            return commentMatches.map((match) => ({
-              value: match[2],
-              loc: {
-                start: { line: index + 1, column: line.indexOf(match[0]) },
-                end: {
-                  line: index + 1,
-                  column: line.indexOf(match[0]) + match[0].length,
-                },
-              },
-            }));
-          }),
-      } as any,
+      },
       report: ({ fix }: { fix: (fixer: Rule.RuleFixer) => Rule.Fix }) => {
         if (fix) fix(fixer);
       },
@@ -234,6 +217,175 @@ people:
     age: 30`,
       options: {
         arrays: [{ path: 'people', sortKey: 'name' }],
+      },
+    },
+    {
+      name: 'should sort arrays with numeric values',
+      original: `versions:
+  - version: 1.2.0
+    released: true
+  - version: 0.9.0
+    released: true
+  - version: 2.0.0
+    released: false`,
+      expected: `versions:
+  - version: 0.9.0
+    released: true
+  - version: 1.2.0
+    released: true
+  - version: 2.0.0
+    released: false`,
+      options: {
+        arrays: [{ path: 'versions', sortKey: 'version' }],
+      },
+    },
+    {
+      name: 'should sort arrays with boolean values',
+      original: `features:
+  - name: search
+    enabled: false
+  - name: auth
+    enabled: true
+  - name: notifications
+    enabled: true`,
+      expected: `features:
+  - name: search
+    enabled: false
+  - name: auth
+    enabled: true
+  - name: notifications
+    enabled: true`,
+      options: {
+        arrays: [{ path: 'features', sortKey: 'enabled' }],
+      },
+    },
+    {
+      name: 'should handle deeply nested structures',
+      original: `organization:
+  divisions:
+    americas:
+      regions:
+        - code: US-W
+          name: West
+          offices:
+            - city: Portland
+              employees: 120
+            - city: Seattle
+              employees: 200
+            - city: San Francisco
+              employees: 300
+        - code: US-E
+          name: East
+          offices:
+            - city: New York
+              employees: 450
+            - city: Boston
+              employees: 150`,
+      expected: `organization:
+  divisions:
+    americas:
+      regions:
+        - code: US-W
+          name: West
+          offices:
+            - city: Portland
+              employees: 120
+            - city: Seattle
+              employees: 200
+            - city: San Francisco
+              employees: 300
+        - code: US-E
+          name: East
+          offices:
+            - city: Boston
+              employees: 150
+            - city: New York
+              employees: 450`,
+      options: {
+        arrays: [
+          {
+            path: 'organization.divisions.americas.regions.*.offices',
+            sortKey: 'employees',
+          },
+        ],
+      },
+    },
+    {
+      name: 'should handle arrays without the sort key',
+      original: `items:
+  - id: 3
+    name: Hammer
+  - name: Screwdriver
+  - id: 1
+    name: Wrench
+  - id: 2`,
+      expected: `items:
+  - id: 1
+    name: Wrench
+  - id: 2
+  - id: 3
+    name: Hammer
+  - name: Screwdriver`,
+      options: {
+        arrays: [{ path: 'items', sortKey: 'id' }],
+      },
+    },
+    {
+      name: 'should preserve inline comments when sorting',
+      original: `configs:
+  - name: production # Production environment
+    priority: 3
+    active: true
+  - name: staging # Staging environment
+    priority: 2
+    active: true
+  - name: development # Development environment
+    priority: 1
+    active: false`,
+      expected: `configs:
+  - name: development # Development environment
+    priority: 1
+    active: false
+  - name: staging # Staging environment
+    priority: 2
+    active: true
+  - name: production # Production environment
+    priority: 3
+    active: true`,
+      options: {
+        arrays: [{ path: 'configs', sortKey: 'priority' }],
+      },
+    },
+    {
+      name: 'should preserve multi-line comments between items',
+      original: `services:
+  # Database service
+  # Handles all data storage
+  - name: db
+    port: 5432
+  # API service
+  # Handles external requests
+  - name: api
+    port: 3000
+  # Web service
+  # Serves the frontend
+  - name: web
+    port: 8080`,
+      expected: `services:
+  # API service
+  # Handles external requests
+  - name: api
+    port: 3000
+  # Database service
+  # Handles all data storage
+  - name: db
+    port: 5432
+  # Web service
+  # Serves the frontend
+  - name: web
+    port: 8080`,
+      options: {
+        arrays: [{ path: 'services', sortKey: 'name' }],
       },
     },
   ];

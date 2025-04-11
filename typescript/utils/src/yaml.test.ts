@@ -1,3 +1,4 @@
+//@ts-ignore
 import { expect } from 'chai';
 
 import {
@@ -195,38 +196,34 @@ describe('sortNestedArrays', () => {
 });
 
 describe('transformYaml', () => {
-  it('should transform YAML content using the provided transformer', () => {
-    const originalYaml = `
+  const testCases = [
+    {
+      name: 'should transform YAML content using the provided transformer',
+      original: `
 name: test
 items:
   - id: 2
     name: item2
   - id: 1
     name: item1
-`;
-
-    const mockSource = {
-      getContent: () => originalYaml,
-      extractComments: () => [],
-    };
-
-    const transformer = (data: any) => {
-      // Sort items by id
-      if (data?.items) {
-        data.items.sort((a: any, b: any) => a.id - b.id);
-      }
-      return data;
-    };
-
-    const result = transformYaml(mockSource, transformer);
-
-    // Check that items are sorted by id
-    expect(result).to.include('- id: 1');
-    expect(result.indexOf('- id: 1')).to.be.lessThan(result.indexOf('- id: 2'));
-  });
-
-  it('should preserve comments when transforming YAML', () => {
-    const originalYaml = `
+`,
+      expected: `name: test
+items:
+  - id: 1
+    name: item1
+  - id: 2
+    name: item2`,
+      transformer: (data: any) => {
+        // Sort items by id
+        if (data?.items) {
+          data.items.sort((a: any, b: any) => a.id - b.id);
+        }
+        return data;
+      },
+    },
+    {
+      name: 'should preserve comments when transforming YAML',
+      original: `
 # Root comment
 name: test
 # Comment for items
@@ -237,29 +234,8 @@ items:
   # Second item comment
   - id: 1
     name: item1
-`;
-
-    const mockSource = {
-      getContent: () => originalYaml,
-      extractComments: () => [
-        { location: { start: { line: 2 } }, text: ' Root comment' },
-        { location: { start: { line: 4 } }, text: ' Comment for items' },
-        { location: { start: { line: 6 } }, text: ' First item comment' },
-        { location: { start: { line: 9 } }, text: ' Second item comment' },
-      ],
-    };
-
-    const transformer = (data: any) => {
-      // Sort items by id
-      if (data?.items) {
-        data.items.sort((a: any, b: any) => a.id - b.id);
-      }
-      return data;
-    };
-
-    const result = transformYaml(mockSource, transformer);
-
-    const expectedYaml = `# Root comment
+`,
+      expected: `# Root comment
 name: test
 # Comment for items
 items:
@@ -268,13 +244,18 @@ items:
     name: item1
 # First item comment
   - id: 2
-    name: item2`;
-
-    expect(result.trim()).to.equal(expectedYaml);
-  });
-
-  it('should handle nested objects and arrays', () => {
-    const originalYaml = `
+    name: item2`,
+      transformer: (data: any) => {
+        // Sort items by id
+        if (data?.items) {
+          data.items.sort((a: any, b: any) => a.id - b.id);
+        }
+        return data;
+      },
+    },
+    {
+      name: 'should handle nested objects and arrays',
+      original: `
 config:
   settings:
     - name: setting3
@@ -292,43 +273,130 @@ config:
             val: 1
           - key: b
             val: 2
-`;
+`,
+      expected: `config:
+  settings:
+    - name: setting1
+      value: 10
+    - name: setting2
+      value: 20
+    - name: setting3
+      value: 30
+  nested:
+    arrays:
+      - items:
+          - key: a
+            val: 1
+          - key: b
+            val: 2
+          - key: c
+            val: 3`,
+      transformer: (data: any) => {
+        // Sort settings by name
+        if (data?.config?.settings) {
+          data.config.settings.sort((a: any, b: any) =>
+            a.name.localeCompare(b.name),
+          );
+        }
 
-    const mockSource = {
-      getContent: () => originalYaml,
-      extractComments: () => [],
-    };
+        // Sort nested items by key
+        if (data?.config?.nested?.arrays?.[0]?.items) {
+          data.config.nested.arrays[0].items.sort((a: any, b: any) =>
+            a.key.localeCompare(b.key),
+          );
+        }
 
-    const transformer = (data: any) => {
-      // Sort settings by name
-      if (data?.config?.settings) {
-        data.config.settings.sort((a: any, b: any) =>
-          a.name.localeCompare(b.name),
-        );
-      }
+        return data;
+      },
+    },
+    {
+      name: 'should handle empty arrays and add new items',
+      original: `
+project:
+  tasks: []
+  status: pending
+`,
+      expected: `project:
+  tasks:
+    - id: 1
+      name: Task 1
+    - id: 2
+      name: Task 2
+  status: pending`,
+      transformer: (data: any) => {
+        // Add new items to empty array
+        if (data?.project?.tasks) {
+          data.project.tasks = [
+            { id: 1, name: 'Task 1' },
+            { id: 2, name: 'Task 2' },
+          ];
+        }
+        return data;
+      },
+    },
+    {
+      name: 'should handle inline comments',
+      original: `
+services: # Main services
+  - name: api # REST API
+    port: 3000 # Default port
+  - name: db # Database
+    port: 5432 # Postgres port
+`,
+      expected: `services: # Main services
+  - name: db # Database
+    port: 5432 # Postgres port
+  - name: api # REST API
+    port: 3000 # Default port`,
+      transformer: (data: any) => {
+        // Sort services by name in reverse
+        if (data?.services) {
+          data.services.sort((a: any, b: any) => b.name.localeCompare(a.name));
+        }
+        return data;
+      },
+    },
+    {
+      name: 'should handle property deletion and modification',
+      original: `
+config:
+  debug: true
+  environment: development
+  features:
+    legacy: true
+    experimental: false
+    beta: true
+`,
+      expected: `config:
+  environment: production
+  features:
+    experimental: true
+    beta: true`,
+      transformer: (data: any) => {
+        if (data?.config) {
+          // Delete debug property
+          delete data.config.debug;
 
-      // Sort nested items by key
-      if (data?.config?.nested?.arrays?.[0]?.items) {
-        data.config.nested.arrays[0].items.sort((a: any, b: any) =>
-          a.key.localeCompare(b.key),
-        );
-      }
+          // Change environment value
+          data.config.environment = 'production';
 
-      return data;
-    };
+          // Remove legacy feature
+          if (data.config.features) {
+            delete data.config.features.legacy;
 
-    const result = transformYaml(mockSource, transformer);
+            // Enable experimental feature
+            data.config.features.experimental = true;
+          }
+        }
+        return data;
+      },
+    },
+  ];
 
-    // Check that top-level settings are sorted
-    expect(result.indexOf('setting1')).to.be.lessThan(
-      result.indexOf('setting2'),
-    );
-    expect(result.indexOf('setting2')).to.be.lessThan(
-      result.indexOf('setting3'),
-    );
-
-    // Check that nested items are sorted
-    expect(result.indexOf('key: a')).to.be.lessThan(result.indexOf('key: b'));
-    expect(result.indexOf('key: b')).to.be.lessThan(result.indexOf('key: c'));
+  testCases.forEach(({ name, original, expected, transformer }) => {
+    it(name, () => {
+      const result = transformYaml(original, transformer);
+      expect(result.trim()).to.equal(expected);
+    });
   });
 });
