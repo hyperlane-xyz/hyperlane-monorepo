@@ -7,7 +7,6 @@ const DOMAIN_NAME: &str = "";
 const METHOD_NAME: &str = "get_announced_storage_locations";
 
 /// Helper function to fetch storage locations for validators.
-/// This function is independent of `BaseMetadataBuilder` and can be tested separately.
 pub async fn fetch_storage_locations_helper(
     validators: &[H256],
     cache: &impl FunctionCallCache,
