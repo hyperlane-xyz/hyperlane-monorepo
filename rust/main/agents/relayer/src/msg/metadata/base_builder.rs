@@ -3,16 +3,15 @@
 
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
-use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
 use eyre::Context;
+use tokio::sync::RwLock;
+use tracing::{debug, info, warn};
+
 use hyperlane_base::{
-    cache::{LocalCache, MeteredCache, OptionalCache},
+    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
-    settings::CheckpointSyncerBuildError,
-};
-use hyperlane_base::{
-    settings::{ChainConf, CheckpointSyncerConf},
+    settings::{ChainConf, CheckpointSyncerBuildError, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{
@@ -21,8 +20,7 @@ use hyperlane_core::{
     H256,
 };
 
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use crate::merkle_tree::builder::MerkleTreeBuilder;
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
@@ -167,10 +165,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let storage_locations = self
-            .origin_validator_announce
-            .get_announced_storage_locations(validators)
-            .await?;
+        let storage_locations = self.fetch_storage_locations(validators).await?;
 
         debug!(
             hyp_message=?message,
@@ -244,5 +239,43 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             self.metrics.clone(),
             app_context,
         ))
+    }
+}
+
+impl BaseMetadataBuilder {
+    /// Fetches storage locations for validators with caching.
+    pub async fn fetch_storage_locations(
+        &self,
+        validators: &[H256],
+    ) -> eyre::Result<Vec<Vec<String>>> {
+        const CTX: &str = "When fetching storage locations";
+        const DOMAIN_NAME: &str = "";
+        const METHOD_NAME: &str = "get_announced_storage_locations";
+
+        let cache_key = format!("storage_locations:{:?}", validators);
+
+        // Attempt to retrieve from cache
+        if let Some(cached) = self
+            .cache
+            .get_cached_call_result::<Vec<Vec<String>>>(DOMAIN_NAME, METHOD_NAME, &cache_key)
+            .await?
+        {
+            debug!(?validators, "Cache hit for storage locations");
+            return Ok(cached);
+        }
+
+        // Fetch from origin_validator_announce if not cached
+        let storage_locations = self
+            .origin_validator_announce
+            .get_announced_storage_locations(validators)
+            .await
+            .context(CTX)?;
+
+        // Store in cache
+        self.cache
+            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &cache_key, &storage_locations)
+            .await?;
+
+        Ok(storage_locations)
     }
 }
