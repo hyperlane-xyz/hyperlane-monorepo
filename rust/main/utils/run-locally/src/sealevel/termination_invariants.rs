@@ -1,10 +1,11 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 
 use crate::{
     config::Config,
+    fetch_metric,
     invariants::{
         provider_metrics_invariant_met, relayer_termination_invariants_met,
         scraper_termination_invariants_met, RelayerTerminationInvariantParams,
@@ -39,7 +40,7 @@ pub fn termination_invariants_met(
     let msg_processed_count = fetch_relayer_message_processed_count()?;
     let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
 
-    let params = RelayerTerminationInvariantParams {
+    let relayer_invariant_params = RelayerTerminationInvariantParams {
         config,
         starting_relayer_balance,
         msg_processed_count,
@@ -51,7 +52,7 @@ pub fn termination_invariants_met(
         non_matching_igp_message_count: 0,
         double_insertion_message_count: sol_messages_with_non_matching_igp,
     };
-    if !relayer_termination_invariants_met(params)? {
+    if !relayer_termination_invariants_met(relayer_invariant_params.clone())? {
         log!("Relayer termination invariants not met");
         return Ok(false);
     }
@@ -83,7 +84,11 @@ pub fn termination_invariants_met(
     }
 
     if matches!(submitter_type, SubmitterType::Lander)
-        && !submitter_metrics_invariants_met(RELAYER_METRICS_PORT)
+        && !submitter_metrics_invariants_met(
+            relayer_invariant_params,
+            RELAYER_METRICS_PORT,
+            &hashmap! {"chain" => "sealeveltest2"},
+        )?
     {
         log!("Submitter metrics invariants not met");
         return Ok(false);
@@ -93,29 +98,104 @@ pub fn termination_invariants_met(
     Ok(true)
 }
 
-fn submitter_metrics_invariants_met(relayer_metrics_port: &str) -> bool {
-    // let metrics = format!("http://localhost:{relayer_metrics_port}/metrics");
-    // let response = reqwest::blocking::get(&metrics)?;
-    // let body = response.text()?;
-    // let lines = body.lines();
+fn submitter_metrics_invariants_met(
+    params: RelayerTerminationInvariantParams,
+    relayer_port: &str,
+    filter_hashmap: &HashMap<&str, &str>,
+) -> eyre::Result<bool> {
+    let finalized_transactions = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_finalized_transactions",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
 
-    // for line in lines {
-    //     if line.contains("hyperlane_submitter_task_liveness") {
-    //         if line.contains("building") || line.contains("inclusion") {
-    //             return Ok(false);
-    //         }
-    //     }
-    // }
+    let building_stage_queue_length = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_building_stage_queue_length",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
 
-    true
-}
+    let inclusion_stage_pool_length = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_inclusion_stage_pool_length",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+    let finality_stage_pool_length = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_finality_stage_pool_length",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+    let dropped_payloads = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_dropped_payloads",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+    let dropped_transactions = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_dropped_transactions",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn submitter_metrics_are_correct() {
-        // let relayer_metrics_port = 8080;
-        // let result = super::submitter_metrics_invariants_met(relayer_metrics_port);
-        // assert!(result.is_ok());
+    if finalized_transactions < params.total_messages_expected {
+        log!(
+            "hyperlane_lander_finalized_transactions {} count, expected {}",
+            finalized_transactions,
+            params.total_messages_expected
+        );
+        return Ok(false);
     }
+    if building_stage_queue_length != 0 {
+        log!(
+            "hyperlane_lander_building_stage_queue_length {} count, expected {}",
+            building_stage_queue_length,
+            0
+        );
+        return Ok(false);
+    }
+    if inclusion_stage_pool_length != 0 {
+        log!(
+            "hyperlane_lander_inclusion_stage_pool_length {} count, expected {}",
+            inclusion_stage_pool_length,
+            0
+        );
+        return Ok(false);
+    }
+    if finality_stage_pool_length != 0 {
+        log!(
+            "hyperlane_lander_finality_stage_pool_length {} count, expected {}",
+            finality_stage_pool_length,
+            0
+        );
+        return Ok(false);
+    }
+    if dropped_payloads != 0 {
+        log!(
+            "hyperlane_lander_dropped_payloads {} count, expected {}",
+            dropped_payloads,
+            0
+        );
+        return Ok(false);
+    }
+    if dropped_transactions != 0 {
+        log!(
+            "hyperlane_lander_dropped_transactions {} count, expected {}",
+            dropped_transactions,
+            0
+        );
+        return Ok(false);
+    }
+
+    Ok(true)
 }

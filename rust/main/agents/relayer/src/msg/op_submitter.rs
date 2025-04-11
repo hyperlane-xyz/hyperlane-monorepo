@@ -484,7 +484,7 @@ async fn submit_via_lander(
     };
 
     let message_id = op.id();
-    let metadata = message_id.to_string();
+    let metadata = format!("{message_id:?}");
     let mailbox = op
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")

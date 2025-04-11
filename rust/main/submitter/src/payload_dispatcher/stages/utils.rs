@@ -32,7 +32,7 @@ where
                 }
                 state
                     .metrics
-                    .update_call_retries_metric(&format!("{err:?}"), action);
+                    .update_call_retries_metric(&err.to_metrics_label(), action);
             }
         }
     }
