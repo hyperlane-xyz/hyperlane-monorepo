@@ -19,8 +19,17 @@ const DEFAULT_TIMEOUT = 30_000;
 describe('Balance Alert Thresholds', async function () {
   this.timeout(DEFAULT_TIMEOUT);
 
-  it('should have matching thresholds between Grafana alerts and threshold config files', async () => {
-    const saToken = await fetchGrafanaServiceAccountToken();
+  it('should have matching thresholds between Grafana alerts and threshold config files', async function () {
+    let saToken: string;
+    try {
+      saToken = await fetchGrafanaServiceAccountToken();
+    } catch (error) {
+      console.log(
+        'Error fetching grafana service account token, skipping test',
+        error,
+      );
+      this.skip();
+    }
     const alertsToCheck = Object.values(AlertType);
     const mismatches: string[] = [];
 
