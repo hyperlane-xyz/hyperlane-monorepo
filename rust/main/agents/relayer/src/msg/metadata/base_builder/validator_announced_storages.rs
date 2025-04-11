@@ -27,10 +27,8 @@ pub async fn fetch_storage_locations_helper(
             .get_cached_call_result::<Vec<String>>(DOMAIN_NAME, METHOD_NAME, &key)
             .await?
         {
-            debug!(?validator, "Cache hit for storage location");
             storage_locations.push(cached);
         } else {
-            debug!(?validator, "Cache miss for storage location");
             missing_validators.push((index, *validator));
             storage_locations.push(Vec::new()); // Placeholder for missing validator
         }
