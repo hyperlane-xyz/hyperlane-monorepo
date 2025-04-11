@@ -244,6 +244,10 @@ const defaultIsmCacheConfig: IsmCacheConfig = {
 
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   {
+    // Ignore kessel runner test recipients
+    recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
+  },
+  {
     // In an effort to reduce some giant retry queues that resulted
     // from spam txs to the old TestRecipient before we were charging for
     // gas, we blacklist the old TestRecipient address.
@@ -337,7 +341,42 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
+export const kesselRunnerNetworks = [
+  'basesepolia',
+  'arbitrumsepolia',
+  'sepolia',
+  'bsctestnet',
+  'optimismsepolia',
+];
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.Neutron,
+  contextChainNames: {
+    validator: [],
+    relayer: kesselRunnerNetworks,
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: 'f5d2e7a-20250410-174010',
+    },
+    whitelist: [
+      {
+        recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
+      },
+    ],
+    gasPaymentEnforcement,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
+    resources: relayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };
