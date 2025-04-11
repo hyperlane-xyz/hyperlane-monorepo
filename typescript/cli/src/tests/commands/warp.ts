@@ -116,24 +116,32 @@ export function hyperlaneWarpRead(
 export function hyperlaneWarpCheckRaw({
   warpDeployPath,
   symbol,
+  warpCoreConfigPath,
+  warpRouteId,
 }: {
   symbol?: string;
   warpDeployPath?: string;
+  warpCoreConfigPath?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
         --registry ${REGISTRY_PATH} \
         ${symbol ? ['--symbol', symbol] : ''} \
         --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : ''}`;
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''} \
+        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : ''} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : ''}`;
 }
 
 export function hyperlaneWarpCheck(
   warpDeployPath: string,
   symbol: string,
+  warpCoreConfigPath?: string,
 ): ProcessPromise {
   return hyperlaneWarpCheckRaw({
     warpDeployPath,
     symbol,
+    warpCoreConfigPath,
   });
 }
 
