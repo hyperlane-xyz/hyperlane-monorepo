@@ -5,7 +5,7 @@ use derive_more::{AsRef, Deref};
 use derive_new::new;
 use ethers::abi::Token;
 
-use eyre::{Context, Result};
+use eyre::Result;
 use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
@@ -48,7 +48,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
-    ) -> Result<Option<MultisigMetadata>>;
+    ) -> Result<Option<MultisigMetadata>, MetadataBuildError>;
 
     fn token_layout(&self) -> Vec<MetadataToken>;
 
@@ -168,7 +168,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         message: &HyperlaneMessage,
         _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
             .base_builder()
@@ -207,23 +206,21 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             }
         };
 
-        if let Some(metadata) = self
+        let metadata = self
             .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-            .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::CouldNotFetch)?
-        {
-            debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
-            let formatted = self
-                .format_metadata(metadata)
-                .map_err(|_| MetadataBuildError::CouldNotFetch)?;
-            Ok(Metadata::new(formatted))
-        } else {
-            info!(
-                hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
-                "Could not fetch metadata: Unable to reach quorum"
-            );
-            Err(MetadataBuildError::CouldNotFetch)
-        }
+            .await?
+            .ok_or_else(|| {
+                info!(
+                    hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
+                    "Could not fetch metadata: Unable to reach quorum"
+                );
+                MetadataBuildError::CouldNotFetch
+            })?;
+
+        debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
+        let formatted = self
+            .format_metadata(metadata)
+            .map_err(|_| MetadataBuildError::CouldNotFetch)?;
+        Ok(Metadata::new(formatted))
     }
 }

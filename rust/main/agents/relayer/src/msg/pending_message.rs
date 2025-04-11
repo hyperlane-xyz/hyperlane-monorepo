@@ -1015,6 +1015,20 @@ impl PendingMessage {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
+                MetadataBuildError::MerkleRootMismatch {
+                    root,
+                    canonical_root,
+                } => {
+                    warn!(
+                        checkpoint_root=?root,
+                        ?canonical_root,
+                        "Checkpoint root does not match canonical root from merkle proof"
+                    );
+                    self.ctx
+                        .metrics
+                        .set_merkle_root_mismatch(self.app_context.clone());
+                    self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+                }
             });
         let build_metadata_end = Instant::now();
 
