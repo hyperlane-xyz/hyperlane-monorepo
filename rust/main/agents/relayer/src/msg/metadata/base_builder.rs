@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use hyperlane_base::{
-    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
+    cache::{LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     settings::{ChainConf, CheckpointSyncerBuildError, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -21,8 +21,11 @@ use hyperlane_core::{
 };
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
+use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
+
+mod validator_announced_storages;
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -248,34 +251,7 @@ impl BaseMetadataBuilder {
         &self,
         validators: &[H256],
     ) -> eyre::Result<Vec<Vec<String>>> {
-        const CTX: &str = "When fetching storage locations";
-        const DOMAIN_NAME: &str = "";
-        const METHOD_NAME: &str = "get_announced_storage_locations";
-
-        let cache_key = format!("storage_locations:{:?}", validators);
-
-        // Attempt to retrieve from cache
-        if let Some(cached) = self
-            .cache
-            .get_cached_call_result::<Vec<Vec<String>>>(DOMAIN_NAME, METHOD_NAME, &cache_key)
-            .await?
-        {
-            debug!(?validators, "Cache hit for storage locations");
-            return Ok(cached);
-        }
-
-        // Fetch from origin_validator_announce if not cached
-        let storage_locations = self
-            .origin_validator_announce
-            .get_announced_storage_locations(validators)
+        fetch_storage_locations_helper(validators, &self.cache, &*self.origin_validator_announce)
             .await
-            .context(CTX)?;
-
-        // Store in cache
-        self.cache
-            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &cache_key, &storage_locations)
-            .await?;
-
-        Ok(storage_locations)
     }
 }
