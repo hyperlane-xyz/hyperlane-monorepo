@@ -13,9 +13,17 @@ const pzEthAddresses = {
   ethereum: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
   zircuit: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
   swell: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
+  unichain: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
+  berachain: '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7',
 };
 
-export const pzEthChainsToDeploy = ['ethereum', 'swell', 'zircuit'];
+export const pzEthChainsToDeploy = [
+  'ethereum',
+  'swell',
+  'zircuit',
+  'unichain',
+  'berachain',
+];
 
 const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
 const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
