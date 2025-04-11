@@ -19,7 +19,7 @@ use crate::{
 
 pub type GasLimit = U256;
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
     /// this is a vector because multiple payloads can be included in a single transaction
@@ -39,10 +39,7 @@ pub trait AdaptsChain: Send + Sync {
     ) -> Result<Option<GasLimit>, SubmitterError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    async fn build_transactions(
-        &self,
-        payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;

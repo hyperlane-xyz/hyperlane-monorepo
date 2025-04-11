@@ -7409,6 +7409,7 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
+ "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-test",
  "itertools 0.12.1",
@@ -9788,6 +9789,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "uuid 1.11.0",
 ]
 

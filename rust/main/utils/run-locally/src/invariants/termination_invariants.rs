@@ -97,16 +97,17 @@ pub fn relayer_termination_invariants_met(
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
-    let gas_expenditure_log_count = *log_counts
-        .get(&gas_expenditure_line_filter)
-        .expect("Failed to get gas expenditure log count");
-    assert!(
-        gas_expenditure_log_count >= total_messages_expected,
-        "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
-        gas_expenditure_log_count,
-        total_messages_expected
-    );
-    // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
+    // TODO: re-enable once the MessageProcessor IGP is integrated with the dispatcher
+    // let gas_expenditure_log_count = *log_counts
+    //     .get(&gas_expenditure_line_filter)
+    //     .expect("Failed to get gas expenditure log count");
+    // assert!(
+    //     gas_expenditure_log_count >= total_messages_expected,
+    //     "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
+    //     gas_expenditure_log_count,
+    //     total_messages_expected
+    // );
+    // // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
 
     let storing_new_msg_log_count = *log_counts
         .get(&storing_new_msg_line_filter)
@@ -289,7 +290,6 @@ pub fn provider_metrics_invariant_met(
     let request_count = fetch_metric(relayer_port, "hyperlane_request_count", filter_hashmap)?
         .iter()
         .sum::<u32>();
-
     if request_count < expected_request_count {
         log!(
             "hyperlane_request_count {} count, expected {}",
@@ -306,13 +306,29 @@ pub fn provider_metrics_invariant_met(
     )?
     .iter()
     .sum::<u32>();
-
     log!("Provider created count: {}", provider_create_count);
-
     if provider_create_count < expected_request_count {
         log!(
             "hyperlane_provider_create_count only has {} count, expected at least {}",
             provider_create_count,
+            expected_request_count
+        );
+        return Ok(false);
+    }
+
+    let metadata_build_hashmap: HashMap<&str, &str> = HashMap::new();
+
+    let metadata_build_count = fetch_metric(
+        relayer_port,
+        "hyperlane_metadata_build_count",
+        &metadata_build_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+    if metadata_build_count < expected_request_count {
+        log!(
+            "hyperlane_metadata_build_count only has {} count, expected at least {}",
+            metadata_build_count,
             expected_request_count
         );
         return Ok(false);

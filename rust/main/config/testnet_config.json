@@ -2770,8 +2770,8 @@
       },
       "chainId": 919,
       "deployer": {
-        "name": "guy93354",
-        "url": "https://github.com/guy93354"
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       },
       "displayName": "Mode Testnet",
       "domainId": 919,
@@ -2909,7 +2909,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": "0.03"
+        "amount": "2.0"
       },
       "index": {
         "chunk": 10,
@@ -2923,7 +2923,7 @@
         "name": "KYVE",
         "symbol": "KYVE"
       },
-      "protocol": "cosmos",
+      "protocol": "cosmosnative",
       "restUrls": [
         {
           "http": "https://api.kaon.kyve.network"
@@ -2940,7 +2940,15 @@
       "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000040000000000000000",
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "grpcUrls": [
+        {
+          "http": "https://grpc-raw.kaon.kyve.network"
+        }
+      ],
+      "transactionOverrides": {
+        "gasPrice": "2.0"
+      }
     }
   },
   "defaultRpcConsensusType": "fallback"

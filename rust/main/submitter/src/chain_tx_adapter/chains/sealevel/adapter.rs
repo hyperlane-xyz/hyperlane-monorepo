@@ -33,10 +33,6 @@ use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
 };
 
-use crate::chain_tx_adapter::{
-    adapter::TxBuildingResult,
-    chains::sealevel::conf::{create_keypair, get_connection_conf},
-};
 use crate::chain_tx_adapter::{AdaptsChain, GasLimit};
 use crate::payload::FullPayload;
 use crate::transaction::{
@@ -47,6 +43,13 @@ use crate::{
     error::SubmitterError,
 };
 use crate::{chain_tx_adapter::chains::sealevel::SealevelTxPrecursor, payload::PayloadDetails};
+use crate::{
+    chain_tx_adapter::{
+        adapter::TxBuildingResult,
+        chains::sealevel::conf::{create_keypair, get_connection_conf},
+    },
+    error,
+};
 
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
@@ -155,8 +158,8 @@ impl SealevelTxAdapter {
     async fn estimate(
         &self,
         precursor: SealevelTxPrecursor,
-    ) -> ChainResult<Option<SealevelTxPrecursor>> {
-        let Some(estimate) = self
+    ) -> Result<SealevelTxPrecursor, SubmitterError> {
+        let estimate = self
             .provider
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
@@ -164,14 +167,8 @@ impl SealevelTxAdapter {
                 &*self.submitter,
                 &*self.oracle,
             )
-            .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(SealevelTxPrecursor::new(
-            precursor.instruction,
-            estimate,
-        )))
+            .await?;
+        Ok(SealevelTxPrecursor::new(precursor.instruction, estimate))
     }
 
     async fn create_unsigned_transaction(
@@ -219,17 +216,12 @@ impl AdaptsChain for SealevelTxAdapter {
     ) -> Result<Option<GasLimit>, SubmitterError> {
         info!(?payload, "estimating payload");
         let not_estimated = SealevelTxPrecursor::from_payload(payload);
-        let Some(estimated) = self.estimate(not_estimated).await? else {
-            return Ok(None);
-        };
+        let estimated = self.estimate(not_estimated).await?;
         info!(?payload, ?estimated, "estimated payload");
         Ok(Some(estimated.estimate.compute_units.into()))
     }
 
-    async fn build_transactions(
-        &self,
-        payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError> {
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         info!(?payloads, "building transactions for payloads");
         let payloads_and_precursors = payloads
             .iter()
@@ -238,7 +230,7 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let Some(estimated) = self.estimate(not_estimated).await? else {
+            let Ok(estimated) = self.estimate(not_estimated).await else {
                 transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
                 continue;
             };
@@ -250,7 +242,7 @@ impl AdaptsChain for SealevelTxAdapter {
         }
 
         info!(?payloads, ?transactions, "built transactions for payloads");
-        Ok(transactions)
+        transactions
     }
 
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError> {
@@ -267,14 +259,14 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        if tx.hash.is_some() {
+            return Ok(());
+        }
         info!(?tx, "submitting transaction");
         let not_estimated = tx.precursor();
         // TODO: the `estimate` call shouldn't happen here - the `Transaction` argument should already contain the precursor,
         // set in the `build_transactions` method
-        let estimated = self
-            .estimate(not_estimated.clone())
-            .await?
-            .ok_or(eyre::eyre!("The transaction failed to be simulated"))?;
+        let estimated = self.estimate(not_estimated.clone()).await?;
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
         let signature = self
             .submitter
@@ -292,43 +284,26 @@ impl AdaptsChain for SealevelTxAdapter {
 
         info!(?tx, "confirmed transaction by signature status");
 
-        let executed = self
-            .submitter
-            .confirm_transaction(signature, CommitmentConfig::processed())
-            .await
-            .map_err(|err| {
-                warn!(
-                    "Failed to confirm process transaction with commitment level processed: {}",
-                    err
-                )
-            })
-            .unwrap_or(false);
-
-        info!(?tx, "confirmed transaction with commitment level processed");
-
-        if !executed {
-            return Err(SubmitterError::TxSubmissionError(
-                "Process transaction is not confirmed with commitment level processed".to_string(),
-            ));
-        }
-
         Ok(())
     }
 
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
         info!(?tx, "checking status of transaction");
 
-        let h512 = tx.hash.ok_or(eyre::eyre!(
-            "Hash should be set for transaction to check its status"
-        ))?;
+        let Some(h512) = tx.hash else {
+            return Ok(TransactionStatus::PendingInclusion);
+        };
         let signature = Signature::new(h512.as_ref());
         let transaction_search_result = self.client.get_transaction(signature).await;
 
-        let transaction = if let Ok(transaction) = transaction_search_result {
-            transaction
-        } else {
-            info!(?tx, "pending transaction");
-            return Ok(TransactionStatus::PendingInclusion);
+        let transaction = match transaction_search_result {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                warn!(?tx, ?err, "Failed to get transaction status by hash");
+                return Err(SubmitterError::TxSubmissionError(
+                    "Transaction hash not found".to_string(),
+                ));
+            }
         };
 
         // slot at which transaction was included into blockchain

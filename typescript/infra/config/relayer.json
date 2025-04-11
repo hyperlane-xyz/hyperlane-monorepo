@@ -11,7 +11,7 @@
   },
   "testnet4": {
     "hyperlane": "0x16626cd24fd1f228a031e48b77602ae25f8930db",
-    "neutron": "",
+    "neutron": "0xf2c72c0befa494d62949a1699a99e2c605a0b636",
     "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16"
   }
 }

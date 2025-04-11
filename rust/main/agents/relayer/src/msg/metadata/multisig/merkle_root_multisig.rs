@@ -5,7 +5,7 @@ use derive_more::{AsRef, Deref};
 use derive_new::new;
 
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tracing::debug;
 
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
@@ -17,6 +17,10 @@ pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
+    fn module_type(&self) -> ModuleType {
+        ModuleType::MerkleRootMultisig
+    }
+
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
             MetadataToken::CheckpointMerkleTreeHook,
