@@ -7,7 +7,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getKesselRunMultiProvider } from '../../src/kesselrunner/config.js';
+import {
+  getKesselRunMultiProvider,
+  kesselRunConfig,
+} from '../../src/kesselrunner/config.js';
 
 const testRecipient = '0x492b3653A38e229482Bab2f7De4A094B18017246';
 const body = '<12parsecs';
@@ -116,19 +119,56 @@ async function doTheKesselRun() {
   // eslint-disable-next-line no-console
   console.table(startingNonces);
 
-  for (const origin of targetNetworks) {
-    let nonce = startingNonces[origin];
-    for (const destination of targetNetworks) {
-      if (origin === destination) {
-        continue;
+  for (let i = 0; i < kesselRunConfig.bursts; i++) {
+    for (const origin of ['optimismsepolia', 'arbitrumsepolia']) {
+      let nonce = startingNonces[origin];
+      for (const [destination, percentage] of Object.entries(
+        kesselRunConfig.distArbOp,
+      )) {
+        const txCount =
+          Math.floor(kesselRunConfig.transactionsPerMinute * percentage) + 1;
+        for (let j = 0; j < txCount; j++) {
+          if (origin === destination) {
+            continue;
+          }
+          await sendTestMessage({
+            origin,
+            destination,
+            core,
+            nonce,
+          });
+          nonce++;
+        }
       }
-      await sendTestMessage({
-        origin,
-        destination,
-        core,
-        nonce,
-      });
-      nonce++;
+    }
+
+    for (const origin of ['basesepolia', 'sepolia', 'bsctestnet']) {
+      let nonce = startingNonces[origin];
+      for (const [destination, percentage] of Object.entries(
+        kesselRunConfig.distBaseBscEth,
+      )) {
+        const txCount =
+          Math.floor(kesselRunConfig.transactionsPerMinute * percentage) + 1;
+        for (let j = 0; j < txCount; j++) {
+          if (origin === destination) {
+            continue;
+          }
+          await sendTestMessage({
+            origin,
+            destination,
+            core,
+            nonce,
+          });
+          nonce++;
+        }
+      }
+    }
+
+    rootLogger.info(`Completed burst ${i + 1}`);
+    if (i < kesselRunConfig.bursts - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, kesselRunConfig.burstInterval),
+      );
     }
   }
 }

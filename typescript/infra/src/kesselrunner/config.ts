@@ -38,6 +38,15 @@ export const targetNetworks = [
   'optimismsepolia',
 ];
 
+export const kesselRunConfig = {
+  hourlyRate: 600, // Example hourly rate
+  bursts: 10,
+  transactionsPerMinute: Math.floor(600 / 60),
+  burstInterval: 60000, // 1 minute in milliseconds
+  distArbOp: {},
+  distBaseBscEth: {},
+};
+
 export type KesselRunner = {
   environment: DeployEnvironment;
   targetNetworks: ChainName[];
