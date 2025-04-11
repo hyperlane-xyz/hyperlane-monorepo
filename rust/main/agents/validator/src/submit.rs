@@ -226,7 +226,7 @@ impl ValidatorSubmitter {
                 "Incorrect tree root, something went wrong"
             );
 
-            let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
+            let mut panic_message = "Incorrect tree root. Most likely a reorg has occured. This requires manual intervention to resolve.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
                 .write_reorg_status(&reorg_event)
