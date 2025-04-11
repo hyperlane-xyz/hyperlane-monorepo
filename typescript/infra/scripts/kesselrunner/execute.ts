@@ -16,20 +16,63 @@ const testRecipient = '0x492b3653A38e229482Bab2f7De4A094B18017246';
 const body = '<12parsecs';
 const DEFAULT_METADATA = '0x0001';
 
+async function preCalculateGasEstimates(
+  core: HyperlaneCore,
+  origins: string[],
+  destinations: string[],
+) {
+  const gasEstimates: Record<string, Record<string, ethers.BigNumber>> = {};
+
+  for (const origin of origins) {
+    gasEstimates[origin] = {};
+    for (const destination of destinations) {
+      if (origin === destination) continue;
+
+      const messageBody = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body));
+      const mailbox = core.getContracts(origin).mailbox;
+      const destinationDomain = core.multiProvider.getDomainId(destination);
+      const recipientBytes32 = addressToBytes32(testRecipient);
+      const quote = await core.quoteGasPayment(
+        origin,
+        destination,
+        recipientBytes32,
+        messageBody,
+      );
+
+      const dispatchParams = [
+        destinationDomain,
+        recipientBytes32,
+        messageBody,
+        DEFAULT_METADATA,
+        ethers.constants.AddressZero,
+      ] as const;
+
+      const estimateGas = await mailbox.estimateGas[
+        'dispatch(uint32,bytes32,bytes,bytes,address)'
+      ](...dispatchParams, { value: quote });
+
+      gasEstimates[origin][destination] = estimateGas;
+    }
+  }
+
+  return gasEstimates;
+}
+
 async function sendTestMessage({
   origin,
   destination,
   core,
   nonce,
+  gasEstimate,
 }: {
   origin: ChainName;
   destination: ChainName;
   core: HyperlaneCore;
   nonce: number;
+  gasEstimate: ethers.BigNumber;
 }) {
   try {
     const messageBody = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body));
-
     const mailbox = core.getContracts(origin).mailbox;
     const destinationDomain = core.multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(testRecipient);
@@ -48,16 +91,12 @@ async function sendTestMessage({
       ethers.constants.AddressZero,
     ] as const;
 
-    const estimateGas = await mailbox.estimateGas[
-      'dispatch(uint32,bytes32,bytes,bytes,address)'
-    ](...dispatchParams, { value: quote });
-
     void mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
       ...dispatchParams,
       {
         ...core.multiProvider.getTransactionOverrides(origin),
         value: quote,
-        gasLimit: addBufferToGasLimit(estimateGas),
+        gasLimit: addBufferToGasLimit(gasEstimate),
         nonce,
       },
     );
@@ -119,6 +158,12 @@ async function doTheKesselRun() {
   // eslint-disable-next-line no-console
   console.table(startingNonces);
 
+  const gasEstimates = await preCalculateGasEstimates(
+    core,
+    targetNetworks,
+    targetNetworks,
+  );
+
   for (let i = 0; i < kesselRunConfig.bursts; i++) {
     for (const origin of ['optimismsepolia', 'arbitrumsepolia']) {
       let nonce = startingNonces[origin];
@@ -136,6 +181,7 @@ async function doTheKesselRun() {
             destination,
             core,
             nonce,
+            gasEstimate: gasEstimates[origin][destination],
           });
           nonce++;
         }
@@ -158,6 +204,7 @@ async function doTheKesselRun() {
             destination,
             core,
             nonce,
+            gasEstimate: gasEstimates[origin][destination],
           });
           nonce++;
         }
