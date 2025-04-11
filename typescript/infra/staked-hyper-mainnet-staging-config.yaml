@@ -12,6 +12,6 @@ ethereum:
   name: Staked HYPER
   owner: "0xf0b850930ede8807e7F472b610b017c187E0e493"
   symbol: stHYPER
-  token: "0x6840494470251d75BD0C05E322aE6787af9EE709"
+  token: "0x9FB258cbd8415C4Fda62092003FCB54F60Af670B"
   type: collateralVaultRebase
 
