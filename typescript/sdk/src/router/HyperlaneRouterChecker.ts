@@ -10,8 +10,9 @@ import {
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { DerivedIsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';

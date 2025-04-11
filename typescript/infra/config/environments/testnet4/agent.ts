@@ -1,6 +1,9 @@
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -17,14 +20,13 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -43,7 +45,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
@@ -53,6 +55,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -62,11 +65,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: true,
     infinityvmmonza: true,
     inksepolia: true,
+    kyvetestnet: false,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -85,7 +89,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     basesepolia: true,
@@ -95,6 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -104,11 +109,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: false,
     infinityvmmonza: true,
     inksepolia: true,
+    kyvetestnet: false,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -127,7 +133,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: false,
+    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: false,
     basesepolia: true,
@@ -137,6 +143,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: false,
+    cotitestnet: true,
     ecotestnet: true,
     eclipsetestnet: false,
     flametestnet: true,
@@ -146,11 +153,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: false,
     infinityvmmonza: true,
     inksepolia: true,
+    kyvetestnet: false,
+    modetestnet: true,
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -220,6 +228,20 @@ const scraperResources = {
   },
 };
 
+const defaultIsmCacheConfig: IsmCacheConfig = {
+  // Default ISM Routing ISMs change configs based off message content,
+  // so they are not specified here.
+  moduleTypes: [
+    ModuleType.AGGREGATION,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
+  ],
+  // SVM is explicitly not cached as the default ISM is a multisig ISM
+  // that routes internally.
+  chains: ethereumChainNames,
+  cachePolicy: IsmCachePolicy.IsmSpecific,
+};
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
   {
     // In an effort to reduce some giant retry queues that resulted
@@ -252,7 +274,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8c3e983-20250310-144838',
+      tag: 'ef039ae-20250411-104801',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -263,18 +285,16 @@ const hyperlane: RootAgentConfig = {
           helloWorld[Contexts.Hyperlane].addresses,
         ),
       },
-      {
-        name: 'plumetestnet_sepolia_eth',
-        matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
-      },
     ],
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c57bfe-20250307-120826',
+      tag: '45739bd-20250401-014114',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -283,7 +303,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'af7146e-20250314-172005',
+      tag: '45739bd-20250401-014114',
     },
     resources: scraperResources,
   },
@@ -298,12 +318,12 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8c3e983-20250310-144838',
+      tag: 'ef039ae-20250411-104801',
     },
-    whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {

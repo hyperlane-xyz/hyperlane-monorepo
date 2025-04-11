@@ -5,12 +5,17 @@ use futures_util::future::join_all;
 use derive_new::new;
 use itertools::{Either, Itertools};
 use tracing::{info, instrument};
+use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
-use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
+use hyperlane_core::{
+    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
+};
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
-use super::{MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder};
+use super::{
+    IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
+};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -116,6 +121,64 @@ impl AggregationIsmMetadataBuilder {
         }
         Ok(Self::n_cheapest_metas(metas_and_gas, threshold))
     }
+
+    /// Returns modules and threshold from the aggregation ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `modules_and_threshold` matches
+    /// the name of the method `modules_and_threshold`.
+    async fn call_modules_and_threshold(
+        &self,
+        ism: Box<dyn AggregationIsm>,
+        message: &HyperlaneMessage,
+    ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
+        let ism_domain = ism.domain().name();
+        let fn_key = "modules_and_threshold";
+
+        // Depending on the cache policy, make use of the message ID
+        let params_cache_key = match self
+            .base_builder()
+            .ism_cache_policy_classifier()
+            .get_cache_policy(self.root_ism, ism.domain(), ModuleType::Aggregation)
+            .await
+        {
+            // To have the cache key be more succinct, we use the message id
+            IsmCachePolicy::MessageSpecific => (ism.address(), message.id()),
+            IsmCachePolicy::IsmSpecific => (ism.address(), H256::zero()),
+        };
+
+        let cache_result = self
+            .base_builder()
+            .cache()
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &params_cache_key)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok()
+            .flatten();
+
+        match cache_result {
+            Some(result) => Ok(result),
+            None => {
+                let result = ism
+                    .modules_and_threshold(message)
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+                self.base_builder()
+                    .cache()
+                    .cache_call_result(ism_domain, fn_key, &params_cache_key, &result)
+                    .await
+                    .map_err(|err| {
+                        warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                    })
+                    .ok();
+                Ok(result)
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -133,17 +196,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .build_aggregation_ism(ism_address)
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-        let (ism_addresses, threshold) = ism
-            .modules_and_threshold(message)
-            .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+        let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
 
         let threshold = threshold as usize;
 
-        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|ism_address| {
+        let sub_modules_and_metas = join_all(ism_addresses.iter().map(|sub_ism_address| {
             message_builder::build_message_metadata(
                 self.base.clone(),
-                *ism_address,
+                *sub_ism_address,
                 message,
                 params.clone(),
             )

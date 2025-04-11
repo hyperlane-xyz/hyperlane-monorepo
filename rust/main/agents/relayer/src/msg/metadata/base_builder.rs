@@ -7,6 +7,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
 use eyre::Context;
 use hyperlane_base::{
+    cache::{LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     settings::CheckpointSyncerBuildError,
 };
@@ -23,7 +24,7 @@ use hyperlane_core::{
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use super::IsmAwareAppContextClassifier;
+use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -35,8 +36,10 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    cache: OptionalCache<MeteredCache<LocalCache>>,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
+    ism_cache_policy_classifier: IsmCachePolicyClassifier,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -54,6 +57,8 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
+    fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -83,6 +88,14 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     }
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier {
         &self.app_context_classifier
+    }
+
+    fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier {
+        &self.ism_cache_policy_classifier
+    }
+
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
+        &self.cache
     }
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {

@@ -26,7 +26,7 @@ use hyperlane_core::{
 };
 
 use crate::error::HyperlaneSealevelError;
-use crate::fallback::SealevelFallbackRpcClient;
+use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
 use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};
@@ -42,10 +42,60 @@ const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 const PRIORITY_FEE_MULTIPLIER_NUMERATOR: u64 = 110;
 const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
 
+/// The max amount of compute units for a transaction.
+const MAX_COMPUTE_UNITS: u32 = 1_400_000;
+
 /// Transaction cost estimate
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq)]
 pub struct SealevelTxCostEstimate {
-    compute_units: u32,
-    compute_unit_price_micro_lamports: u64,
+    /// Compute units estimate
+    pub compute_units: u32,
+    /// Compute unit price estimate
+    pub compute_unit_price_micro_lamports: u64,
+}
+
+impl Default for SealevelTxCostEstimate {
+    fn default() -> Self {
+        Self {
+            compute_units: MAX_COMPUTE_UNITS,
+            compute_unit_price_micro_lamports: 0,
+        }
+    }
+}
+
+/// Methods of provider which are used in submitter
+#[async_trait]
+pub trait SealevelProviderForSubmitter: Send + Sync {
+    /// Creates Sealevel transaction for instruction
+    async fn create_transaction_for_instruction(
+        &self,
+        compute_unit_limit: u32,
+        compute_unit_price_micro_lamports: u64,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        sign: bool,
+    ) -> ChainResult<Transaction>;
+
+    /// Estimates cost for Sealevel instruction
+    async fn get_estimated_costs_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<SealevelTxCostEstimate>;
+
+    /// Waits for Sealevel transaction confirmation with processed commitment level
+    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
+        -> ChainResult<()>;
+
+    /// Confirm transaction
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool>;
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -57,10 +107,212 @@ pub struct SealevelProvider {
     recipient_provider: RecipientProvider,
 }
 
-impl SealevelProvider {
-    /// The max amount of compute units for a transaction.
-    const MAX_COMPUTE_UNITS: u32 = 1_400_000;
+#[async_trait]
+impl SealevelProviderForSubmitter for SealevelProvider {
+    /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
+    /// If `sign` is true, the transaction will be signed.
+    async fn create_transaction_for_instruction(
+        &self,
+        compute_unit_limit: u32,
+        compute_unit_price_micro_lamports: u64,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        sign: bool,
+    ) -> ChainResult<Transaction> {
+        let instructions = vec![
+            // Set the compute unit limit.
+            ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
+            // Set the priority fee / tip
+            tx_submitter.get_priority_fee_instruction(
+                compute_unit_price_micro_lamports,
+                compute_unit_limit.into(),
+                &payer.pubkey(),
+            ),
+            instruction,
+        ];
 
+        let tx = if sign {
+            // Getting the finalized blockhash eliminates the chance the blockhash
+            // gets reorged out, causing the tx to be invalid. The tradeoff is this
+            // will cause the tx to expire in about 47 seconds (instead of the typical 60).
+            let recent_blockhash = self
+                .rpc_client()
+                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+
+            Transaction::new_signed_with_payer(
+                &instructions,
+                Some(&payer.pubkey()),
+                &[payer.keypair()],
+                recent_blockhash,
+            )
+        } else {
+            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
+        };
+
+        Ok(tx)
+    }
+
+    /// Gets the estimated costs for a given instruction.
+    /// The return value is `Some(SealevelTxCostEstimate)` if the instruction was successfully simulated,
+    /// `None` if the simulation failed.
+    async fn get_estimated_costs_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &SealevelKeypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<SealevelTxCostEstimate> {
+        // Build a transaction that sets the max compute units and a dummy compute unit price.
+        // This is used for simulation to get the actual compute unit limit. We set dummy values
+        // for the compute unit limit and price because we want to include the instructions that
+        // set these in the cost estimate.
+        let simulation_tx = self
+            .create_transaction_for_instruction(
+                MAX_COMPUTE_UNITS,
+                0,
+                instruction,
+                payer,
+                tx_submitter,
+                false,
+            )
+            .await?;
+
+        let simulation_result = self
+            .rpc_client()
+            .simulate_transaction(&simulation_tx)
+            .await?;
+
+        // If there was an error in the simulation result, return an error.
+        if simulation_result.err.is_some() {
+            tracing::error!(?simulation_result, "Got simulation result for transaction");
+            return Err(ChainCommunicationError::from_other_str(
+                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
+            ));
+        } else {
+            tracing::debug!(?simulation_result, "Got simulation result for transaction");
+        }
+
+        // Get the compute units used in the simulation result, requiring
+        // that it is greater than 0.
+        let simulation_compute_units: u32 = simulation_result
+            .units_consumed
+            .unwrap_or_default()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)?;
+        if simulation_compute_units == 0 {
+            return Err(ChainCommunicationError::from_other_str(
+                "Empty or zero compute units returned in simulation result",
+            ));
+        }
+
+        // Bump the compute units to be conservative
+        let simulation_compute_units = MAX_COMPUTE_UNITS.min(
+            (simulation_compute_units * COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
+                / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
+        );
+
+        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+
+        if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
+            let max_priority_fee = max_priority_fee.parse()?;
+            if priority_fee > max_priority_fee {
+                tracing::info!(
+                    priority_fee,
+                    max_priority_fee,
+                    "Estimated priority fee is very high, capping to a max",
+                );
+                priority_fee = max_priority_fee;
+            }
+        }
+
+        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+
+        // Bump the priority fee to be conservative
+        let priority_fee =
+            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
+
+        Ok(SealevelTxCostEstimate {
+            compute_units: simulation_compute_units,
+            compute_unit_price_micro_lamports: priority_fee,
+        })
+    }
+
+    /// Polls the RPC until the transaction is confirmed or the blockhash
+    /// expires.
+    /// Standalone logic stolen from Solana's non-blocking client,
+    /// decoupled from the sending of a transaction.
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
+        let signature = transaction.get_signature();
+
+        const GET_STATUS_RETRIES: usize = usize::MAX;
+
+        let recent_blockhash = if transaction.uses_durable_nonce() {
+            self.rpc_client()
+                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                .await?
+        } else {
+            *transaction.get_recent_blockhash()
+        };
+
+        for status_retry in 0..GET_STATUS_RETRIES {
+            let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
+                .rpc_client()
+                .get_signature_statuses(&[*signature])
+                .await?;
+            let signature_status = signature_statuses.value.first().cloned().flatten();
+            match signature_status {
+                Some(_) => return Ok(()),
+                None => {
+                    if !self
+                        .rpc_client()
+                        .is_blockhash_valid(recent_blockhash)
+                        .await?
+                    {
+                        // Block hash is not found by some reason
+                        break;
+                    } else if cfg!(not(test))
+                        // Ignore sleep at last step.
+                        && status_retry < GET_STATUS_RETRIES
+                    {
+                        // Retry twice a second
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        Err(ChainCommunicationError::from_other(
+            solana_client::rpc_request::RpcError::ForUser(
+                "unable to confirm transaction. \
+                This can happen in situations such as transaction expiration \
+                and insufficient fee-payer funds"
+                    .to_string(),
+            ),
+        ))
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.rpc_client()
+            .confirm_transaction_with_commitment(signature, commitment)
+            .await
+    }
+}
+
+impl SealevelProvider {
     /// constructor
     pub fn new(
         rpc_client: SealevelFallbackRpcClient,
@@ -201,52 +453,6 @@ impl SealevelProvider {
         Ok(block_info)
     }
 
-    /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
-    /// If `sign` is true, the transaction will be signed.
-    pub async fn create_transaction_for_instruction(
-        &self,
-        compute_unit_limit: u32,
-        compute_unit_price_micro_lamports: u64,
-        instruction: Instruction,
-        payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        sign: bool,
-    ) -> ChainResult<Transaction> {
-        let instructions = vec![
-            // Set the compute unit limit.
-            ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
-            // Set the priority fee / tip
-            tx_submitter.get_priority_fee_instruction(
-                compute_unit_price_micro_lamports,
-                compute_unit_limit.into(),
-                &payer.pubkey(),
-            ),
-            instruction,
-        ];
-
-        let tx = if sign {
-            // Getting the finalized blockhash eliminates the chance the blockhash
-            // gets reorged out, causing the tx to be invalid. The tradeoff is this
-            // will cause the tx to expire in about 47 seconds (instead of the typical 60).
-            let recent_blockhash = self
-                .rpc_client()
-                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
-
-            Transaction::new_signed_with_payer(
-                &instructions,
-                Some(&payer.pubkey()),
-                &[payer.keypair()],
-                recent_blockhash,
-            )
-        } else {
-            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
-        };
-
-        Ok(tx)
-    }
-
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
@@ -307,150 +513,6 @@ impl SealevelProvider {
         }
 
         Ok(None)
-    }
-
-    /// Gets the estimated costs for a given instruction.
-    pub async fn get_estimated_costs_for_instruction(
-        &self,
-        instruction: Instruction,
-        payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<SealevelTxCostEstimate> {
-        // Build a transaction that sets the max compute units and a dummy compute unit price.
-        // This is used for simulation to get the actual compute unit limit. We set dummy values
-        // for the compute unit limit and price because we want to include the instructions that
-        // set these in the cost estimate.
-        let simulation_tx = self
-            .create_transaction_for_instruction(
-                Self::MAX_COMPUTE_UNITS,
-                0,
-                instruction.clone(),
-                payer,
-                tx_submitter,
-                false,
-            )
-            .await?;
-
-        let simulation_result = self
-            .rpc_client()
-            .simulate_transaction(&simulation_tx)
-            .await?;
-
-        // If there was an error in the simulation result, return an error.
-        if simulation_result.err.is_some() {
-            tracing::error!(?simulation_result, "Got simulation result for transaction");
-            return Err(ChainCommunicationError::from_other_str(
-                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
-            ));
-        } else {
-            tracing::debug!(?simulation_result, "Got simulation result for transaction");
-        }
-
-        // Get the compute units used in the simulation result, requiring
-        // that it is greater than 0.
-        let simulation_compute_units: u32 = simulation_result
-            .units_consumed
-            .unwrap_or_default()
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)?;
-        if simulation_compute_units == 0 {
-            return Err(ChainCommunicationError::from_other_str(
-                "Empty or zero compute units returned in simulation result",
-            ));
-        }
-
-        // Bump the compute units to be conservative
-        let simulation_compute_units = Self::MAX_COMPUTE_UNITS.min(
-            (simulation_compute_units * COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
-                / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
-        );
-
-        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
-
-        if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
-            let max_priority_fee = max_priority_fee.parse()?;
-            if priority_fee > max_priority_fee {
-                tracing::info!(
-                    priority_fee,
-                    max_priority_fee,
-                    "Estimated priority fee is very high, capping to a max",
-                );
-                priority_fee = max_priority_fee;
-            }
-        }
-
-        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
-
-        // Bump the priority fee to be conservative
-        let priority_fee =
-            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
-
-        Ok(SealevelTxCostEstimate {
-            compute_units: simulation_compute_units,
-            compute_unit_price_micro_lamports: priority_fee,
-        })
-    }
-
-    /// Polls the RPC until the transaction is confirmed or the blockhash
-    /// expires.
-    /// Standalone logic stolen from Solana's non-blocking client,
-    /// decoupled from the sending of a transaction.
-    pub async fn wait_for_transaction_confirmation(
-        &self,
-        transaction: &impl SerializableTransaction,
-    ) -> ChainResult {
-        let signature = transaction.get_signature();
-
-        const GET_STATUS_RETRIES: usize = usize::MAX;
-
-        let recent_blockhash = if transaction.uses_durable_nonce() {
-            self.rpc_client()
-                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                .await?
-        } else {
-            *transaction.get_recent_blockhash()
-        };
-
-        for status_retry in 0..GET_STATUS_RETRIES {
-            let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
-                .rpc_client()
-                .get_signature_statuses(&[*signature])
-                .await?;
-            let signature_status = signature_statuses.value.first().cloned().flatten();
-            match signature_status {
-                Some(_) => return Ok(()),
-                None => {
-                    if !self
-                        .rpc_client()
-                        .is_blockhash_valid(recent_blockhash)
-                        .await?
-                    {
-                        // Block hash is not found by some reason
-                        break;
-                    } else if cfg!(not(test))
-                        // Ignore sleep at last step.
-                        && status_retry < GET_STATUS_RETRIES
-                    {
-                        // Retry twice a second
-                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                        continue;
-                    }
-                }
-            }
-        }
-
-        Err(ChainCommunicationError::from_other(
-            solana_client::rpc_request::RpcError::ForUser(
-                "unable to confirm transaction. \
-                This can happen in situations such as transaction expiration \
-                and insufficient fee-payer funds"
-                    .to_string(),
-            ),
-        ))
     }
 }
 

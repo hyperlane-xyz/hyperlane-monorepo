@@ -7,12 +7,14 @@ members = [
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
+  "chains/hyperlane-cosmos-native",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
+  "hyperlane-metric",
   "hyperlane-test",
   "submitter",
   "utils/abigen",
@@ -83,6 +85,7 @@ hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 ibc-proto = "0.51.1"
 injective-protobuf = "0.2.2"
+moka = "0.12.8"
 injective-std = "1.13.6"
 itertools = "*"
 jobserver = "=0.1.26"
