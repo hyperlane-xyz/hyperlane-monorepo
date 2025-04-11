@@ -4,6 +4,9 @@ use tracing::debug;
 use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_core::{ValidatorAnnounce, H256};
 
+const DOMAIN_NAME: &str = "";
+const METHOD_NAME: &str = "get_announced_storage_locations";
+
 /// Helper function to fetch storage locations for validators.
 /// This function is independent of `BaseMetadataBuilder` and can be tested separately.
 pub async fn fetch_storage_locations_helper(
@@ -12,30 +15,55 @@ pub async fn fetch_storage_locations_helper(
     validator_announce: &dyn ValidatorAnnounce,
 ) -> eyre::Result<Vec<Vec<String>>> {
     const CTX: &str = "When fetching storage locations";
-    const DOMAIN_NAME: &str = "";
-    const METHOD_NAME: &str = "get_announced_storage_locations";
 
-    let cache_key = format!("storage_locations:{:?}", validators);
+    let mut storage_locations = Vec::new();
+    let mut missing_validators = Vec::new();
 
-    // Attempt to retrieve from cache
-    if let Some(cached) = cache
-        .get_cached_call_result::<Vec<Vec<String>>>(DOMAIN_NAME, METHOD_NAME, &cache_key)
-        .await?
-    {
-        debug!(?validators, "Cache hit for storage locations");
-        return Ok(cached);
+    for (index, validator) in validators.iter().enumerate() {
+        let key = format!("storage_location:{:?}", validator);
+
+        // Attempt to retrieve from cache
+        if let Some(cached) = cache
+            .get_cached_call_result::<Vec<String>>(DOMAIN_NAME, METHOD_NAME, &key)
+            .await?
+        {
+            debug!(?validator, "Cache hit for storage location");
+            storage_locations.push(cached);
+        } else {
+            debug!(?validator, "Cache miss for storage location");
+            missing_validators.push((index, *validator));
+            storage_locations.push(Vec::new()); // Placeholder for missing validator
+        }
     }
 
-    // Fetch from validator_announce if not cached
-    let storage_locations = validator_announce
-        .get_announced_storage_locations(validators)
+    if missing_validators.is_empty() {
+        // Cache contains storage locations for all validators
+        return Ok(storage_locations);
+    }
+
+    // Fetch from validator_announce for missing validators
+    let fetched_locations = validator_announce
+        .get_announced_storage_locations(
+            &missing_validators
+                .iter()
+                .map(|(_, v)| *v)
+                .collect::<Vec<_>>(),
+        )
         .await
         .context(CTX)?;
 
-    // Store in cache
-    cache
-        .cache_call_result(DOMAIN_NAME, METHOD_NAME, &cache_key, &storage_locations)
-        .await?;
+    for (fetched_index, (index, validator)) in missing_validators.iter().enumerate() {
+        let key = format!("storage_location:{:?}", validator);
+        let locations = &fetched_locations[fetched_index];
+
+        // Store in cache
+        cache
+            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key, locations)
+            .await?;
+
+        // Update the placeholder in storage_locations
+        storage_locations[*index] = locations.clone();
+    }
 
     Ok(storage_locations)
 }
@@ -85,24 +113,25 @@ mod tests {
         let cache = LocalCache::new("test_cache");
         let validator_announce = MockValidatorAnnounceMock::new();
         let validators = vec![H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
-        let key = format!("storage_locations:{:?}", validators);
+        let key1 = format!("storage_location:{:?}", validators[0]);
+        let key2 = format!("storage_location:{:?}", validators[1]);
 
         // Prepopulate the cache with storage locations
-        let cached_locations = vec![vec!["location1".to_string()], vec!["location2".to_string()]];
+        let location1 = vec!["location1".to_string()];
+        let location2 = vec!["location2".to_string()];
         cache
-            .cache_call_result(
-                "",
-                "get_announced_storage_locations",
-                &key,
-                &cached_locations,
-            )
+            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key1, &location1)
+            .await
+            .unwrap();
+        cache
+            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key2, &location2)
             .await
             .unwrap();
 
         let result = fetch_storage_locations_helper(&validators, &cache, &validator_announce).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), cached_locations);
+        assert_eq!(result.unwrap(), vec![location1, location2]);
     }
 
     #[tokio::test]
