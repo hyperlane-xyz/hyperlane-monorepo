@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   AccessControl__factory,
   ICompoundStakerRewards__factory,
@@ -5,6 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { Contexts } from '../../config/contexts.js';
+import { NETWORK } from '../../config/environments/mainnet3/symbiotic.js';
 import {
   COLLATERAL_CHAIN,
   OWNERS,
@@ -27,13 +30,15 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const mainnet3Addresses = {
   accessManager: OWNERS[COLLATERAL_CHAIN],
-  network: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2',
+  network: NETWORK,
 };
+
+const thirtyDays = 60 * 60 * 24 * 30;
 
 const mainnet3Config: SymbioticConfig = {
   chain: COLLATERAL_CHAIN,
   vault: {
-    epochDuration: 2592000,
+    epochDuration: thirtyDays,
   },
   rewards: {
     adminFee: 0,
@@ -41,10 +46,11 @@ const mainnet3Config: SymbioticConfig = {
   burner: {
     owner: mainnet3Addresses.accessManager,
   },
-  // delegator: {
-  //   networkLimit;
-  //   operatorNetworkShares;
-  // };,
+  delegator: {
+    hook: ethers.constants.AddressZero,
+    // networkLimit;
+    // operatorNetworkShares;
+  },
 };
 
 const testnet4Addresses = {
@@ -63,10 +69,11 @@ const testnet4Config: SymbioticConfig = {
   burner: {
     owner: testnet4Addresses.accessManager,
   },
-  // delegator: {
-  //   networkLimit;
-  //   operatorNetworkShares;
-  // };,
+  delegator: {
+    hook: ethers.constants.AddressZero,
+    // networkLimit;
+    // operatorNetworkShares;
+  },
 };
 
 function getConfig(

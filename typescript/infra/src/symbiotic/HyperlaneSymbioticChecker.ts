@@ -34,10 +34,11 @@ export interface SymbioticConfig {
   vault: {
     epochDuration: number;
   };
-  // delegator: {
-  //   networkLimit?: any;
-  //   operatorNetworkShares?: any;
-  // };
+  delegator: {
+    hook: string;
+    // networkLimit?: any;
+    // operatorNetworkShares?: any;
+  };
   rewards: {
     adminFee: number;
   };
@@ -138,12 +139,26 @@ export class SymbioticChecker {
       this.addViolation(violation);
     }
 
+    const actualHook = await delegator.hook();
+    if (!eqAddress(actualHook, this.config.delegator.hook)) {
+      const violation: SymbioticViolation = {
+        chain: this.config.chain,
+        type: SymbioticViolationType.State,
+        contractName: 'delegator',
+        referenceField: 'hook',
+        actual: actualHook,
+        expected: this.config.delegator.hook,
+      };
+      this.addViolation(violation);
+    }
+
     // TODO subnetwork checks
 
     const roleIds = {
       networkLimitSetter: await delegator.NETWORK_LIMIT_SET_ROLE(),
       operatorNetworkSharesSetter:
         await delegator.OPERATOR_NETWORK_SHARES_SET_ROLE(),
+      hookSetter: await delegator.HOOK_SET_ROLE(),
     };
 
     await this.checkAccessControl(
