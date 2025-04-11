@@ -87,7 +87,7 @@ pub fn termination_invariants_met(
         && !submitter_metrics_invariants_met(
             relayer_invariant_params,
             RELAYER_METRICS_PORT,
-            &hashmap! {"chain" => "sealeveltest2"},
+            &hashmap! {"destination" => "sealeveltest2"},
         )?
     {
         log!("Submitter metrics invariants not met");
