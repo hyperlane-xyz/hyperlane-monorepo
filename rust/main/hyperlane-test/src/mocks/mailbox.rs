@@ -130,3 +130,12 @@ impl HyperlaneContract for MockMailboxContract {
         self._address()
     }
 }
+
+impl MockMailboxContract {
+    pub fn new_with_default_ism(default_ism: H256) -> Self {
+        let mut mock = Self::new();
+        mock.expect__default_ism()
+            .returning(move || Ok(default_ism));
+        mock
+    }
+}
