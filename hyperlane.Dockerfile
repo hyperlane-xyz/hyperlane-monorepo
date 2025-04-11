@@ -1,57 +1,19 @@
 # A dockerfile combining all needed tools to set up hyperlane relayer, validators
 # and evm counterparty for testing hyperlane module in sov sdk
 
-FROM rust:1.85
+FROM rust:1.85 AS builder
+
+WORKDIR /hyperlane-monorepo
 
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 RUN apt-get update && \
-  apt-get install -y --no-install-recommends libclang-dev jq vim && \
+  apt-get install -y --no-install-recommends libclang-dev jq && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-# ANVIL
-
 RUN curl -L https://foundry.paradigm.xyz | bash
 RUN ~/.foundry/bin/foundryup
-RUN <<EOF cat > /usr/bin/anvil
-#!/bin/bash
-~/.foundry/bin/anvil | tee /anvil.log
-EOF
-RUN chmod +x /usr/bin/anvil
-
-# HYPERLANE CLI
-
-WORKDIR /hyperlane-monorepo
-
-# copy only needed stuff to not cause rebuilds by changing rust sources
-COPY *.json *.yaml *.yml .*.yml *.mjs .*rc *.lock ./
-COPY .yarn ./.yarn
-COPY typescript ./typescript
-COPY solidity ./solidity
-
-ENV NVM_DIR=/usr/local/nvm
-ENV NVM_VERSION=0.39.7
-ENV NODE_VERSION=20
-
-RUN mkdir -p "$NVM_DIR" && \
-  curl "https://raw.githubusercontent.com/creationix/nvm/v$NVM_VERSION/install.sh" | bash && \
-  . "$NVM_DIR/nvm.sh" && \
-  nvm install "$NODE_VERSION" && \
-  nvm alias default "$NODE_VERSION" && \
-  nvm use default && \
-  npm install -g yarn && \
-  cd typescript && \
-  yarn install && \
-  yarn build
-
-RUN <<EOF cat > /usr/bin/hyperlane
-#!/bin/bash
-yarn --cwd /hyperlane-monorepo/typescript/cli hyperlane "\$@"
-EOF
-RUN chmod +x /usr/bin/hyperlane
-
-# RELAYER + VALIDATOR
 
 COPY rust ./rust
 
@@ -65,4 +27,26 @@ RUN --mount=type=ssh \
   cd rust/main && \
   touch chains/hyperlane-fuel/abis/* && \
   cargo build --features sov-sdk-testing --release --bin relayer --bin validator && \
+  # still need to copy out of target bcs it's a cache mount so will be unmounted
   cp target/release/relayer target/release/validator /usr/bin
+
+
+FROM debian:bookworm-slim AS runner
+
+WORKDIR /app
+
+# hyperlane-cli
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends libclang-dev npm make build-essential && \
+  npm install -g @hyperlane-xyz/cli && \
+  npm cache clear --force && \
+  apt-get remove make build-essential -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
+# anvil
+COPY --from=builder /root/.foundry/bin/* /usr/bin
+# rust and validators
+COPY --from=builder /usr/bin/relayer /usr/bin/validator /usr/bin
+# hyperlane config files looked up by relative path
+COPY --from=builder /hyperlane-monorepo/rust/main/config ./config
+
