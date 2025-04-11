@@ -22,7 +22,7 @@ use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
-    cache::{LocalCache, MeteredCache, MeteredCacheConfig},
+    cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
     settings::{ChainConf, IndexSettings},
@@ -44,7 +44,10 @@ use crate::{
     msg::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
-        metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        metadata::{
+            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+            IsmCachePolicyClassifier,
+        },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -84,7 +87,7 @@ pub struct Relayer {
     merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     /// The original reference to the relayer cache
-    _cache: MeteredCache<LocalCache>,
+    _cache: OptionalCache<MeteredCache<LocalCache>>,
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
     address_blacklist: Arc<AddressBlacklist>,
@@ -147,13 +150,18 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(core_metrics.clone());
         let db = DB::from_path(&settings.db)?;
         let cache_name = "relayer_cache";
-        let cache = MeteredCache::new(
-            LocalCache::new(cache_name),
-            core_metrics.cache_metrics(),
-            MeteredCacheConfig {
-                cache_name: cache_name.to_owned(),
-            },
-        );
+        let inner_cache = if settings.allow_contract_call_caching {
+            Some(MeteredCache::new(
+                LocalCache::new(cache_name),
+                core_metrics.cache_metrics(),
+                MeteredCacheConfig {
+                    cache_name: cache_name.to_owned(),
+                },
+            ))
+        } else {
+            None
+        };
+        let cache = OptionalCache::new(inner_cache);
         let dbs = settings
             .origin_chains
             .iter()
@@ -318,6 +326,7 @@ impl BaseAgent for Relayer {
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
+                let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
@@ -328,8 +337,12 @@ impl BaseAgent for Relayer {
                     cache.clone(),
                     db,
                     IsmAwareAppContextClassifier::new(
-                        dest_mailbox.clone(),
+                        default_ism_getter.clone(),
                         settings.metric_app_contexts.clone(),
+                    ),
+                    IsmCachePolicyClassifier::new(
+                        default_ism_getter.clone(),
+                        settings.default_ism_cache_config.clone(),
                     ),
                 );
 
@@ -1109,6 +1122,8 @@ mod test {
             skip_transaction_gas_limit_for: HashSet::new(),
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
+            allow_contract_call_caching: true,
+            default_ism_cache_config: Default::default(),
             max_retries: 1,
         }
     }
