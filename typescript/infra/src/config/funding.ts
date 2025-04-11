@@ -29,4 +29,6 @@ export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
   igpClaimThresholdPerChain: ChainMap<string>;
 }
 
-export interface CheckWarpDeployConfig extends CronJobConfig {}
+export interface CheckWarpDeployConfig extends CronJobConfig {
+  registryCommit?: string;
+}
