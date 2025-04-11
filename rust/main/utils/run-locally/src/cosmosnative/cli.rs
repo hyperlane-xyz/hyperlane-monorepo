@@ -102,7 +102,7 @@ impl SimApp {
             .filter_logs(|_| false)
             .run()
             .join();
-        sleep(Duration::from_secs(1)); // wait for the block to mined
+        sleep(Duration::from_secs(5)); // wait for the block to mined
     }
 
     pub fn remote_transfer(
@@ -134,7 +134,7 @@ impl SimApp {
             .filter_logs(|_| false)
             .run()
             .join();
-        sleep(Duration::from_secs(1)); // wait for the block to mined
+        sleep(Duration::from_secs(5)); // wait for the block to mined
     }
 
     pub fn deploy_and_configure_contracts(
@@ -226,7 +226,7 @@ impl SimApp {
             .flag("yes")
             .run()
             .join();
-        sleep(Duration::from_secs(1)); // wait for the block to mined
+        sleep(Duration::from_secs(5)); // wait for the block to mined
 
         // create warp route
         // expected address: 0x726f757465725f61707000000000000000000000000000010000000000000000
