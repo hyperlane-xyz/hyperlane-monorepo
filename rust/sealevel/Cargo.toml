@@ -139,7 +139,7 @@ tempfile = "3.3"
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1.37", features = ["parking_lot", "tracing"] }
+tokio = { version = "1.44", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.3.1", default-features = false }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
