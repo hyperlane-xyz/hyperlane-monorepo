@@ -43,6 +43,9 @@ pub async fn update_tx_status(
     tx: &mut Transaction,
     new_status: TransactionStatus,
 ) -> Result<(), SubmitterError> {
+    if new_status == tx.status {
+        return Ok(());
+    }
     info!(?tx, ?new_status, "Updating tx status");
     tx.status = new_status;
     state.store_tx(tx).await;

@@ -175,15 +175,15 @@ impl Metrics {
             return;
         };
         match stage {
-            "building" => dispatcher_metrics
+            crate::payload_dispatcher::building_stage::STAGE_NAME => dispatcher_metrics
                 .building_stage_queue_length
                 .with_label_values(&[&self.domain])
                 .set(length as i64),
-            "inclusion" => dispatcher_metrics
+            crate::payload_dispatcher::inclusion_stage::STAGE_NAME => dispatcher_metrics
                 .inclusion_stage_pool_length
                 .with_label_values(&[&self.domain])
                 .set(length as i64),
-            "finality" => dispatcher_metrics
+            crate::payload_dispatcher::finality_stage::STAGE_NAME => dispatcher_metrics
                 .finality_stage_pool_length
                 .with_label_values(&[&self.domain])
                 .set(length as i64),

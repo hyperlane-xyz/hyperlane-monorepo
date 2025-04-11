@@ -137,6 +137,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
         }
         sleep(Duration::from_millis(100)).await;
     }
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
 
     // check metrics
     let gathered_metrics = metrics.gather().unwrap();
