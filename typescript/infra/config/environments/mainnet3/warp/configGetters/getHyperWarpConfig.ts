@@ -62,7 +62,7 @@ export const getHyperWarpConfig = async (
           chain,
           {
             type: TokenType.hyperToken,
-            initalSupply: INITIAL_SUPPLY,
+            initialSupply: INITIAL_SUPPLY,
             ...config,
           },
         ];
