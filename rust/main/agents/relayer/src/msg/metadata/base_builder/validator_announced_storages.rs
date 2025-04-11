@@ -178,6 +178,45 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
+        let cache = LocalCache::new("test_cache");
+        let mut validator_announce = MockValidatorAnnounceMock::new();
+        let validators = vec![
+            H256::from_low_u64_be(1),
+            H256::from_low_u64_be(2),
+            H256::from_low_u64_be(3),
+        ];
+        let key1 = generate_cache_key(&validators[0]);
+        let key2 = generate_cache_key(&validators[1]);
+
+        // Prepopulate the cache with storage locations for some validators
+        let location1 = vec!["location1".to_string()];
+        let location2 = vec!["location2".to_string()];
+        cache
+            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key1, &location1)
+            .await
+            .unwrap();
+        cache
+            .cache_call_result(DOMAIN_NAME, METHOD_NAME, &key2, &location2)
+            .await
+            .unwrap();
+
+        // Mock the response from the validator announce contract for the missing validator
+        let location3 = "location3";
+        validator_announce
+            .expect_get_announced_storage_locations()
+            .returning(move |_| Ok(vec![vec![location3.to_string()]]));
+
+        let result = fetch_storage_locations_helper(&validators, &cache, &validator_announce).await;
+
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            vec![location1, location2, vec!["location3".to_string()]]
+        );
+    }
 }
 
 /// Generates a cache key for a given validator.
