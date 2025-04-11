@@ -45,15 +45,9 @@ export type KesselRunner = {
   registry: IRegistry;
 };
 
-export async function getKesselRunMultiProvider(): Promise<KesselRunner> {
-  const envConfig = getEnvironmentConfig(environment);
-  const registry = await envConfig.getRegistry();
-  const multiProvider = await envConfig.getMultiProvider(
-    Contexts.Hyperlane,
-    Role.Deployer,
-    true,
-  );
-
+export async function setKesselRunnerKey(
+  multiProvider: MultiProvider,
+): Promise<void> {
   const key = new AgentGCPKey(
     environment,
     Contexts.ReleaseCandidate,
@@ -64,6 +58,27 @@ export async function getKesselRunMultiProvider(): Promise<KesselRunner> {
   await key.createIfNotExists();
   const signer = await key.getSigner();
   multiProvider.setSharedSigner(signer);
+}
+
+export async function setDeployerKey(
+  multiProvider: MultiProvider,
+): Promise<void> {
+  const key = new AgentGCPKey(environment, Contexts.Hyperlane, Role.Deployer);
+  await key.createIfNotExists();
+  const signer = await key.getSigner();
+  multiProvider.setSharedSigner(signer);
+}
+
+export async function getKesselRunMultiProvider(): Promise<KesselRunner> {
+  const envConfig = getEnvironmentConfig(environment);
+  const registry = await envConfig.getRegistry();
+  const multiProvider = await envConfig.getMultiProvider(
+    Contexts.Hyperlane,
+    Role.Deployer,
+    true,
+  );
+
+  await setKesselRunnerKey(multiProvider);
 
   return {
     environment,
