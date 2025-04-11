@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 
 import { eqAddress } from './addresses.js';
 import { domainHash } from './domains.js';
+import { fromHexString, toHexString } from './strings.js';
 import {
   Address,
   Checkpoint,
@@ -106,3 +107,34 @@ export class BaseValidator {
     throw new Error('Not implemented');
   }
 }
+
+/**
+ * Create signature for validator announce
+ */
+export const createAnnounce = async (
+  validatorPrivKey: string,
+  storageLocation: string,
+  mailboxId: string,
+  localDomain: number,
+) => {
+  const domainIdBytes = Buffer.alloc(4);
+  domainIdBytes.writeUInt32BE(localDomain);
+
+  const domainHashBytes = toHexString(
+    Buffer.concat([
+      domainIdBytes,
+      fromHexString(mailboxId),
+      Buffer.from('HYPERLANE_ANNOUNCEMENT'),
+    ]),
+  );
+  const domainHash = ethers.utils.keccak256(domainHashBytes);
+
+  const announcementDigestBytes = toHexString(
+    Buffer.concat([fromHexString(domainHash), Buffer.from(storageLocation)]),
+  );
+  const announcementDigest = ethers.utils.keccak256(announcementDigestBytes);
+
+  return new ethers.Wallet(validatorPrivKey).signMessage(
+    fromHexString(announcementDigest),
+  );
+};

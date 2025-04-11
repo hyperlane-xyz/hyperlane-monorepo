@@ -5,4 +5,7 @@ export default [
   {
     files: ['src/**/*.ts'],
   },
+  {
+    ignores: ['src/tests/**/*.ts'],
+  },
 ];
