@@ -310,6 +310,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
