@@ -14,4 +14,5 @@ mod tests;
 pub use db::*;
 pub use dispatcher::*;
 pub use entrypoint::*;
+pub use metrics::*;
 pub use stages::*;

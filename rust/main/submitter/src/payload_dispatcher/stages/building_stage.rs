@@ -144,11 +144,13 @@ impl BuildingStage {
     }
 
     async fn update_metrics(&self) {
-        self.state.metrics.update_liveness_metric(STAGE_NAME);
+        self.state
+            .metrics
+            .update_liveness_metric(STAGE_NAME, &self.domain);
         let length = self.queue.lock().await.len();
         self.state
             .metrics
-            .update_queue_length_metric(STAGE_NAME, length as u64);
+            .update_queue_length_metric(STAGE_NAME, length as u64, &self.domain);
     }
 }
 
@@ -172,7 +174,7 @@ mod tests {
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
-            metrics::Metrics,
+            metrics::DispatcherMetrics,
             test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
             PayloadDb, PayloadDispatcherState, TransactionDb,
         },
@@ -358,7 +360,7 @@ mod tests {
             payload_db,
             tx_db,
             adapter,
-            Metrics::dummy_instance(),
+            DispatcherMetrics::dummy_instance(),
             "dummy_domain".to_string(),
         );
         let (sender, receiver) = tokio::sync::mpsc::channel(100);

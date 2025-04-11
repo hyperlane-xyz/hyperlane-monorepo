@@ -24,7 +24,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::{PayloadDispatcherState, TransactionDbLoader};
+use super::{metrics::DispatcherMetrics, PayloadDispatcherState, TransactionDbLoader};
 
 const SUBMITTER_CHANNEL_SIZE: usize = 1_000;
 
@@ -54,9 +54,12 @@ pub struct PayloadDispatcher {
 }
 
 impl PayloadDispatcher {
-    pub fn try_from_settings(settings: PayloadDispatcherSettings, domain: String) -> Result<Self> {
-        let mut state = PayloadDispatcherState::try_from_settings(settings)?;
-        state.metrics.init_dispatcher_metrics()?;
+    pub fn try_from_settings(
+        settings: PayloadDispatcherSettings,
+        domain: String,
+        metrics: DispatcherMetrics,
+    ) -> Result<Self> {
+        let state = PayloadDispatcherState::try_from_settings(settings, metrics)?;
         Ok(Self {
             inner: state,
             domain,
@@ -125,8 +128,11 @@ impl PayloadDispatcher {
             .expect("spawning tokio task from Builder is infallible");
         tasks.push(finality_task);
 
-        let payload_db_loader =
-            PayloadDbLoader::new(self.inner.payload_db.clone(), building_stage_queue.clone());
+        let payload_db_loader = PayloadDbLoader::new(
+            self.inner.payload_db.clone(),
+            building_stage_queue.clone(),
+            self.domain.clone(),
+        );
         let mut payload_iterator = payload_db_loader.into_iterator().await;
         let metrics = self.inner.metrics.clone();
         let payload_loader_task = tokio::task::Builder::new()
@@ -147,6 +153,7 @@ impl PayloadDispatcher {
             self.inner.tx_db.clone(),
             inclusion_stage_sender.clone(),
             finality_stage_sender.clone(),
+            self.domain.clone(),
         );
         let mut transaction_iterator = transaction_db_loader.into_iterator().await;
         let metrics = self.inner.metrics.clone();

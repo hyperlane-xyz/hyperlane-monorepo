@@ -19,7 +19,8 @@ use crate::{
     chain_tx_adapter::{AdaptsChain, ChainTxAdapterFactory},
     payload::{DropReason, PayloadDetails, PayloadStatus},
     payload_dispatcher::{
-        metrics::Metrics, DatabaseOrPath, PayloadDb, PayloadDispatcherSettings, TransactionDb,
+        metrics::DispatcherMetrics, DatabaseOrPath, PayloadDb, PayloadDispatcherSettings,
+        TransactionDb,
     },
     transaction::Transaction,
     TransactionStatus,
@@ -31,7 +32,7 @@ pub struct PayloadDispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
     pub(crate) adapter: Arc<dyn AdaptsChain>,
-    pub(crate) metrics: Metrics,
+    pub(crate) metrics: DispatcherMetrics,
     pub(crate) domain: String,
 }
 
@@ -40,7 +41,7 @@ impl PayloadDispatcherState {
         payload_db: Arc<dyn PayloadDb>,
         tx_db: Arc<dyn TransactionDb>,
         adapter: Arc<dyn AdaptsChain>,
-        metrics: Metrics,
+        metrics: DispatcherMetrics,
         domain: String,
     ) -> Self {
         Self {
@@ -52,7 +53,10 @@ impl PayloadDispatcherState {
         }
     }
 
-    pub fn try_from_settings(settings: PayloadDispatcherSettings) -> Result<Self> {
+    pub fn try_from_settings(
+        settings: PayloadDispatcherSettings,
+        metrics: DispatcherMetrics,
+    ) -> Result<Self> {
         let adapter = ChainTxAdapterFactory::build(
             &settings.chain_conf,
             &settings.raw_chain_conf,
@@ -66,7 +70,6 @@ impl PayloadDispatcherState {
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
         let tx_db = rocksdb as Arc<dyn TransactionDb>;
         let domain = settings.domain.to_string();
-        let metrics = Metrics::new(settings.metrics.registry(), domain.clone());
         Ok(Self::new(payload_db, tx_db, adapter, metrics, domain))
     }
 
@@ -88,19 +91,22 @@ impl PayloadDispatcherState {
                     "Error updating payload status in the database"
                 );
             }
-            Self::update_payload_metric_if_dropped(&self.metrics, &status);
+            self.update_payload_metric_if_dropped(&status);
             info!(?details, new_status=?status, "Updated payload status");
         }
     }
 
-    fn update_payload_metric_if_dropped(metrics: &Metrics, status: &PayloadStatus) {
+    fn update_payload_metric_if_dropped(&self, status: &PayloadStatus) {
         match status {
             PayloadStatus::InTransaction(TransactionStatus::Dropped(ref reason)) => {
-                metrics
-                    .update_dropped_payloads_metric(&format!("DroppedInTransaction({reason:?})"));
+                self.metrics.update_dropped_payloads_metric(
+                    &format!("DroppedInTransaction({reason:?})"),
+                    &self.domain,
+                );
             }
             PayloadStatus::Dropped(ref reason) => {
-                metrics.update_dropped_payloads_metric(&format!("{reason:?}"));
+                self.metrics
+                    .update_dropped_payloads_metric(&format!("{reason:?}"), &self.domain);
             }
             _ => {}
         }

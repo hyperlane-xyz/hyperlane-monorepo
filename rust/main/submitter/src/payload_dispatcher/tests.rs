@@ -5,7 +5,7 @@ use tokio::{sync::Mutex, time::sleep};
 use crate::{
     chain_tx_adapter::TxBuildingResult,
     payload_dispatcher::{
-        metrics::Metrics,
+        metrics::DispatcherMetrics,
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
         BuildingStageQueue, PayloadDbLoader, PayloadDispatcherState,
     },
@@ -13,24 +13,24 @@ use crate::{
     PayloadStatus, TransactionStatus,
 };
 
-use super::{metrics::DispatcherMetrics, PayloadDb};
+use super::PayloadDb;
 
 #[tokio::test]
 async fn test_entrypoint_send_is_detected_by_loader() {
     let (payload_db, tx_db) = tmp_dbs();
     let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
-    let payload_db_loader = PayloadDbLoader::new(payload_db.clone(), building_stage_queue.clone());
+    let domain = "dummy_domain".to_string();
+    let payload_db_loader = PayloadDbLoader::new(
+        payload_db.clone(),
+        building_stage_queue.clone(),
+        domain.clone(),
+    );
     let mut payload_iterator = payload_db_loader.into_iterator().await;
 
-    let metrics = Metrics::dummy_instance();
+    let metrics = DispatcherMetrics::dummy_instance();
     let adapter = Arc::new(MockAdapter::new());
-    let state = PayloadDispatcherState::new(
-        payload_db,
-        tx_db,
-        adapter,
-        metrics.clone(),
-        "dummy_domain".to_string(),
-    );
+    let state =
+        PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
     let dispatcher_entrypoint = PayloadDispatcherEntrypoint {
         inner: state.clone(),
     };
@@ -207,11 +207,15 @@ async fn mock_entrypoint_and_dispatcher(
 ) -> (PayloadDispatcherEntrypoint, PayloadDispatcher) {
     let (payload_db, tx_db) = tmp_dbs();
     let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
-    let payload_db_loader = PayloadDbLoader::new(payload_db.clone(), building_stage_queue.clone());
+    let domain = "test_domain".to_string();
+    let payload_db_loader = PayloadDbLoader::new(
+        payload_db.clone(),
+        building_stage_queue.clone(),
+        domain.clone(),
+    );
     let mut payload_iterator = payload_db_loader.into_iterator().await;
 
-    let metrics = Metrics::dummy_instance();
-    let domain = "test_domain".to_string();
+    let metrics = DispatcherMetrics::dummy_instance();
 
     let state =
         PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
@@ -298,13 +302,12 @@ struct MetricsAssertion {
     dropped_transaction_reason: String,
 }
 
-fn assert_metrics(metrics: Metrics, assertion: MetricsAssertion) {
+fn assert_metrics(metrics: DispatcherMetrics, assertion: MetricsAssertion) {
     // check metrics
     let gathered_metrics = metrics.gather().unwrap();
     let metrics_str = String::from_utf8(gathered_metrics).unwrap();
     println!("Metrics: {}", metrics_str);
 
-    let metrics = metrics.dispatcher_metrics.unwrap();
     let finalized_txs = metrics
         .finalized_transactions
         .with_label_values(&[&assertion.domain])

@@ -12,10 +12,10 @@ use hyperlane_base::db::HyperlaneDb;
 use async_trait::async_trait;
 use hyperlane_base::db::DbResult;
 use tokio::time::sleep;
-use tracing::{debug, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::error::SubmitterError;
-use crate::payload_dispatcher::metrics::Metrics;
+use crate::payload_dispatcher::metrics::DispatcherMetrics;
 
 #[async_trait]
 pub trait LoadableFromDb {
@@ -36,11 +36,17 @@ pub struct DbIterator<T> {
     low_index_iter: DirectionalIndexIterator<T>,
     high_index_iter: Option<DirectionalIndexIterator<T>>,
     iterated_item_name: String,
+    domain: String,
 }
 
 impl<T: LoadableFromDb + Debug> DbIterator<T> {
     #[instrument(skip(loader), ret)]
-    pub async fn new(loader: Arc<T>, iterated_item_name: String, only_load_backward: bool) -> Self {
+    pub async fn new(
+        loader: Arc<T>,
+        iterated_item_name: String,
+        only_load_backward: bool,
+        domain: String,
+    ) -> Self {
         // the db returns 0 if uninitialized
         let high_index = max(loader.highest_index().await.unwrap_or_default(), 1);
         let mut low_index_iter = DirectionalIndexIterator::new(
@@ -74,6 +80,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
             low_index_iter,
             high_index_iter,
             iterated_item_name,
+            domain,
         }
     }
 
@@ -98,16 +105,22 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         Ok(LoadingOutcome::Skipped)
     }
 
-    pub async fn load_from_db(&mut self, metrics: Metrics) -> Result<(), SubmitterError> {
+    pub async fn load_from_db(&mut self, metrics: DispatcherMetrics) -> Result<(), SubmitterError> {
         loop {
-            metrics.update_liveness_metric(format!("{}DbLoader", self.iterated_item_name).as_str());
+            metrics.update_liveness_metric(
+                format!("{}DbLoader", self.iterated_item_name,).as_str(),
+                self.domain.as_str(),
+            );
             if let LoadingOutcome::Skipped = self.try_load_next_item().await? {
                 if self.high_index_iter.is_none() {
+                    debug!(?self, "No more items to process, stopping iterator",);
                     // If we are only loading backward, we have processed all items
                     return Ok(());
                 }
                 // sleep to wait for new items to be added
-                sleep(Duration::from_secs(1)).await;
+                sleep(Duration::from_millis(100)).await;
+            } else {
+                debug!(?self, "Loaded item");
             }
         }
     }
@@ -236,7 +249,13 @@ mod tests {
             state.highest_index = num_items as u32;
         }
         (
-            DbIterator::new(db.clone(), metadata.clone(), only_load_backward).await,
+            DbIterator::new(
+                db.clone(),
+                metadata.clone(),
+                only_load_backward,
+                "test_domain".to_string(),
+            )
+            .await,
             db,
         )
     }
@@ -274,7 +293,7 @@ mod tests {
         let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
         iterator
-            .load_from_db(Metrics::dummy_instance())
+            .load_from_db(DispatcherMetrics::dummy_instance())
             .await
             .unwrap();
         assert_eq!(iterator.low_index_iter.index, 0);
@@ -305,7 +324,7 @@ mod tests {
         };
 
         tokio::select! {
-            _ = iterator.load_from_db(Metrics::dummy_instance()) => {
+            _ = iterator.load_from_db(DispatcherMetrics::dummy_instance()) => {
                 panic!("Loading from db finished although the high iterator should've kept waiting for new items");
             }
             _ = first_assertion_and_state_change => {

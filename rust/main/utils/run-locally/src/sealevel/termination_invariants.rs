@@ -199,3 +199,39 @@ fn submitter_metrics_invariants_met(
 
     Ok(true)
 }
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::H256;
+    use maplit::hashmap;
+
+    #[test]
+    fn submitter_metrics_are_correct() {
+        let relayer_metrics_port = 9092;
+        let filter_hashmap = hashmap! {
+            "destination" => "sealeveltest2",
+        };
+        let params = super::RelayerTerminationInvariantParams {
+            total_messages_expected: 10,
+            // the rest are not used
+            config: &crate::config::Config::load(),
+            starting_relayer_balance: 0.0,
+            msg_processed_count: 0,
+            gas_payment_events_count: 0,
+            total_messages_dispatched: 0,
+            failed_message_count: 0,
+            submitter_queue_length_expected: 0,
+            non_matching_igp_message_count: 0,
+            double_insertion_message_count: 0,
+        };
+        assert_eq!(
+            super::submitter_metrics_invariants_met(
+                params,
+                &relayer_metrics_port.to_string(),
+                &filter_hashmap
+            )
+            .unwrap(),
+            true
+        );
+    }
+}
