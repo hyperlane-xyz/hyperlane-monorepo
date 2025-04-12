@@ -63,7 +63,7 @@ abstract contract MovableCollateralRouter is
         bytes32 recipient,
         uint256 amount,
         ValueTransferBridge bridge
-    ) internal {
+    ) internal virtual {
         address rebalancer = _msgSender();
         if (allowedDestinations[domain] != recipient) {
             revert BadDestination({rebalancer: rebalancer, domain: domain});
