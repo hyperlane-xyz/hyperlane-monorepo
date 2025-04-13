@@ -1,3 +1,5 @@
+import { defineConfig } from 'eslint/config';
+
 import MonorepoDefaults from '../../eslint.config.mjs';
 
-export default [...MonorepoDefaults, { files: ['./src/**/*.ts'] }];
+export default defineConfig(...MonorepoDefaults);

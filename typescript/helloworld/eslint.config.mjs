@@ -1,17 +1,14 @@
+import { defineConfig, globalIgnores } from 'eslint/config';
+
 import MonorepoDefaults from '../../eslint.config.mjs';
 
-export default [
+export default defineConfig(
   ...MonorepoDefaults,
-  {
-    files: ['./src/**/*.ts'],
-  },
-  {
-    ignores: ["**/src/types/*"],
-  },
+  globalIgnores(['src/types/**/*.ts']),
   {
     ignores: ['./src/scripts'],
     rules: {
       'no-console': ['off'],
     },
   },
-];
+);

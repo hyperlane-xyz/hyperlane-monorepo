@@ -1,44 +1,31 @@
-import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
-import typescriptEslint from '@typescript-eslint/eslint-plugin';
-import tsParser from '@typescript-eslint/parser';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
 import importPlugin from 'eslint-plugin-import';
 import jest from 'eslint-plugin-jest';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import ts from 'typescript-eslint';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-export const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
-});
-
-export default [
+export default defineConfig(
+  globalIgnores([
+    '**/dist',
+    '**/coverage',
+    '**/*.cjs',
+    '**/*.cts',
+    '**/*.mjs',
+    'jest.config.js',
+  ]),
+  eslintConfigPrettier,
   {
-    ignores: [
-      '**/node_modules',
-      '**/dist',
-      '**/coverage',
-      '**/*.cjs',
-      '**/*.cts',
-      '**/*.mjs',
-      'jest.config.js',
+    name: 'monorepo',
+    extends: [
+      'js/recommended',
+      ts.configs.recommended,
+      importPlugin.flatConfigs.recommended,
+      importPlugin.flatConfigs.typescript,
     ],
-  },
-  ...compat.extends(
-    'eslint:recommended',
-    'plugin:import/recommended',
-    'plugin:import/typescript',
-    'plugin:@typescript-eslint/recommended',
-    'prettier',
-  ),
-  {
     plugins: {
-      import: importPlugin,
-      '@typescript-eslint': typescriptEslint,
+      js,
       jest,
     },
 
@@ -48,12 +35,13 @@ export default [
         ...globals.browser,
       },
 
-      parser: tsParser,
-      ecmaVersion: 12,
+      parser: ts.parser,
+      ecmaVersion: 18,
       sourceType: 'module',
 
       parserOptions: {
-        project: './tsconfig.json',
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
     },
 
@@ -74,7 +62,6 @@ export default [
       'no-extra-boolean-cast': ['error'],
       'no-ex-assign': ['error'],
       'no-constant-condition': ['off'],
-      'no-return-await': ['error'],
 
       'no-restricted-imports': [
         'error',
@@ -110,6 +97,7 @@ export default [
   },
 
   {
+    name: 'no-node-imports',
     files: ['**/*.ts', '**/*.js', '**/*.mjs'],
     ignores: ['**/aws/**/*', '**/test/**/*', '**/*.test.ts'],
     rules: {
@@ -202,4 +190,4 @@ export default [
       ],
     },
   },
-];
+);

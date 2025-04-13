@@ -1,7 +1,10 @@
+import { defineConfig, globalIgnores } from 'eslint/config';
+
 import MonorepoDefaults from '../../eslint.config.mjs';
 
-export default [
+export default defineConfig(
   ...MonorepoDefaults,
+  globalIgnores(['src/**/*.js']),
   {
     files: ['./src/**/*.ts'],
     rules: {
@@ -19,7 +22,4 @@ export default [
       'import/no-cycle': ['off'],
     },
   },
-  {
-    ignores: ['src/**/*.js'],
-  },
-];
+);
