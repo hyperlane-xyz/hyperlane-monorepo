@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_new::new;
 
 use crate::{
-    traits::TxOutcome, utils::domain_hash, BatchItem, ChainCommunicationError, ChainResult,
-    HyperlaneContract, HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
+    traits::TxOutcome, utils::domain_hash, ChainCommunicationError, ChainResult, HyperlaneContract,
+    HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -39,15 +39,6 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome>;
-
-    /// Process a message with a proof against the provided signed checkpoint
-    async fn process_batch(
-        &self,
-        _messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<BatchResult> {
-        // Batching is not supported by default
-        Err(ChainCommunicationError::BatchingFailed)
-    }
 
     /// Try process the given operations as a batch. Returns the outcome of the
     /// batch (if one was submitted) and the operations that were not submitted.

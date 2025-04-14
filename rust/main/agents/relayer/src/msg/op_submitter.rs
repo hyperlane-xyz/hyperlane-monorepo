@@ -842,13 +842,33 @@ impl OperationBatch {
         confirm_queue: &mut OpQueue,
         metrics: &SerialSubmitterMetrics,
     ) {
-        let excluded_ops = match self.try_submit_as_batch(metrics).await {
-            Ok(batch_result) => {
-                Self::handle_batch_result(self.operations, batch_result, confirm_queue).await
-            }
-            Err(e) => {
-                warn!(error=?e, batch=?self.operations, "Error when submitting batch");
-                self.operations
+        const BATCH_SUBMISSION_RETRIES: usize = 10;
+        let mut retries = 0;
+        let excluded_ops = loop {
+            let batching_result = self.try_submit_as_batch(metrics).await;
+            match batching_result {
+                Ok(batch_result) => {
+                    let excluded_ops =
+                        Self::handle_batch_result(self.operations, batch_result, confirm_queue)
+                            .await;
+                    if excluded_ops.is_empty() {
+                        return;
+                    }
+                    break excluded_ops;
+                }
+                Err(ChainCommunicationError::BatchingFailed) => {
+                    warn!(error=?ChainCommunicationError::BatchingFailed, batch=?self.operations, "Non-retryable error when submitting batch");
+                    break self.operations;
+                }
+                Err(e) => {
+                    retries += 1;
+                    sleep(Duration::from_millis(100)).await;
+                    warn!(error=?e, batch=?self.operations, ?retries, max_retries=?BATCH_SUBMISSION_RETRIES, "Retryable error when submitting batch");
+                    if retries >= BATCH_SUBMISSION_RETRIES {
+                        warn!(error=?e, batch=?self.operations, ?retries, max_retries=?BATCH_SUBMISSION_RETRIES, "Max retries reached when submitting batch");
+                        break self.operations;
+                    }
+                }
             }
         };
 

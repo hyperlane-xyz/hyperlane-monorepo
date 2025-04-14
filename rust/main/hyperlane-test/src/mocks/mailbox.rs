@@ -91,13 +91,6 @@ impl Mailbox for MockMailboxContract {
         self.process(message, metadata, tx_gas_limit)
     }
 
-    async fn process_batch(
-        &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<BatchResult> {
-        self.process_batch(messages).await
-    }
-
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
