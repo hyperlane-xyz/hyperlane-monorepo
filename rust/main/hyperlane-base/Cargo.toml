@@ -17,6 +17,7 @@ color-eyre = { workspace = true, optional = true }
 config.workspace = true
 console-subscriber.workspace = true
 convert_case.workspace = true
+dashmap.workspace = true
 derive-new.workspace = true
 derive_builder.workspace = true
 ed25519-dalek.workspace = true

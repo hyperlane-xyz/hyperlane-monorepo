@@ -1,32 +1,18 @@
-use std::{
-    collections::HashMap,
-    fmt,
-    str::FromStr,
-    sync::{Arc, OnceLock},
-    time::Duration,
-};
+use std::{fmt, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
+use aws_config::{BehaviorVersion, ConfigLoader, Region};
 use aws_sdk_s3::{
     error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError, Client,
 };
 use dashmap::DashMap;
 use derive_new::new;
 use eyre::{bail, Result};
-use futures_util::TryStreamExt;
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
-use rusoto_core::{
-    credential::{Anonymous, AwsCredentials, StaticProvider},
-    Region, RusotoError,
-};
-use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::{sync::OnceCell, time::timeout};
 
-use crate::types::utils;
-use crate::{
-    settings::aws_credentials::AwsChainCredentialsProvider, AgentMetadata, CheckpointSyncer,
-};
+use crate::{AgentMetadata, CheckpointSyncer};
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
@@ -42,23 +28,23 @@ pub struct S3Storage {
     folder: Option<String>,
     /// The region of the bucket.
     region: Region,
-    /// A client with AWS credentials.
+    /// A client with AWS credentials. This client is not initialized globally and has a lifetime
+    /// tied to the S3Storage instance, so if heavy use of this client is expected, S3Storage
+    /// itself should be long-lived.
     #[new(default)]
-    authenticated_client: OnceLock<S3Client>,
-    /// A client without credentials for anonymous requests.
-    #[new(default)]
-    anonymous_client: OnceLock<S3Client>,
-    #[new(default)]
-    anonymous_aws_client: OnceCell<Client>,
+    authenticated_client: OnceCell<Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
 }
 
-type SharedClient = Arc<Client>;
-static CLIENT_CACHE: OnceLock<DashMap<String, OnceCell<SharedClient>>> = OnceLock::new();
+/// A global cache of anonymous S3 clients, per region.
+/// We've seen freshly created S3 clients make expensive DNS / TCP
+/// requests when creating them. This cache allows us to reuse
+/// anonymous clients across the entire agent.
+static ANONYMOUS_CLIENT_CACHE: OnceLock<DashMap<Region, OnceCell<Client>>> = OnceLock::new();
 
-fn get_client_cache() -> &'static DashMap<String, OnceCell<SharedClient>> {
-    CLIENT_CACHE.get_or_init(DashMap::new)
+fn get_anonymous_client_cache() -> &'static DashMap<Region, OnceCell<Client>> {
+    ANONYMOUS_CLIENT_CACHE.get_or_init(DashMap::new)
 }
 
 impl fmt::Debug for S3Storage {
@@ -73,49 +59,25 @@ impl fmt::Debug for S3Storage {
 
 impl S3Storage {
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
-        let req = PutObjectRequest {
-            key: self.get_composite_key(key),
-            bucket: self.bucket.clone(),
-            body: Some(Vec::from(body).into()),
-            content_type: Some("application/json".to_owned()),
-            ..Default::default()
-        };
         timeout(
             Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
-            self.authenticated_client().put_object(req),
+            self.authenticated_client()
+                .await
+                .put_object()
+                .bucket(self.bucket.clone())
+                .key(self.get_composite_key(key))
+                .body(Vec::from(body).into())
+                .content_type("application/json")
+                .send(),
         )
         .await??;
         Ok(())
     }
 
-    /// Uses an anonymous client. This should only be used for publicly accessible buckets.
-    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
-        let req = GetObjectRequest {
-            key: self.get_composite_key(key),
-            bucket: self.bucket.clone(),
-            ..Default::default()
-        };
-        let get_object_result = timeout(
-            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
-            self.anonymous_client().get_object(req),
-        )
-        .await?;
-
-        match get_object_result {
-            Ok(res) => match res.body {
-                Some(body) => Ok(Some(body.map_ok(|b| b.to_vec()).try_concat().await?)),
-                None => Ok(None),
-            },
-            Err(RusotoError::Service(GetObjectError::NoSuchKey(_))) => Ok(None),
-            Err(e) => bail!(e),
-        }
-    }
-
     async fn anonymously_read_from_bucket_aws(&self, key: String) -> Result<Option<Vec<u8>>> {
         let get_object_result = timeout(
             Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
-            // self.anonymous_aws_client()
-            Self::get_client(self.region.name())
+            self.anonymous_client()
                 .await
                 .get_object()
                 .bucket(self.bucket.clone())
@@ -131,78 +93,46 @@ impl S3Storage {
             },
             Err(e) => bail!(e),
         }
-
-        // match get_object_result {
-        //     Ok(res) => match res.body {
-        //         Some(body) => Ok(Some(body.collect().await?.into_bytes().to_vec())),
-        //         None => Ok(None),
-        //     },
-        //     Err(e) => bail!(e),
-        // }
     }
 
-    /// Gets an authenticated S3Client, creating it if it doesn't already exist.
-    fn authenticated_client(&self) -> &S3Client {
-        self.authenticated_client.get_or_init(|| {
-            S3Client::new_with(
-                utils::http_client_with_timeout().unwrap(),
-                AwsChainCredentialsProvider::new(),
-                self.region.clone(),
-            )
-        })
+    /// Gets an authenticated S3 client, creating it if it doesn't already exist
+    /// within &self.
+    async fn authenticated_client(&self) -> &Client {
+        self.authenticated_client
+            .get_or_init(|| async {
+                let config = aws_config::from_env()
+                    .region(self.region.clone())
+                    .load()
+                    .await;
+                Client::new(&config)
+            })
+            .await
     }
 
-    /// Gets an anonymous S3Client, creating it if it doesn't already exist.
+    /// Gets an anonymous S3 client, creating it if it doesn't already exist globally.
     /// An anonymous client doesn't have AWS credentials and will not sign S3
-    /// requests with any credentials.
+    /// requests with any credentials. We globally cache the clients per region to avoid
+    /// expensive DNS / TCP initialization.
     /// We've experienced an inability to make GetObjectRequests to public
     /// S3 buckets when signing with credentials from an AWS account not from the
-    /// S3 bucket's AWS account.
-    fn anonymous_client(&self) -> &S3Client {
-        self.anonymous_client.get_or_init(|| {
-            let start = std::time::Instant::now();
-            // By default, these credentials are anonymous, see https://docs.rs/rusoto_credential/latest/rusoto_credential/struct.AwsCredentials.html#anonymous-example
-            let credentials = AwsCredentials::default();
-            assert!(credentials.is_anonymous(), "AWS credentials not anonymous");
-
-            let client = S3Client::new_with(
-                utils::http_client_with_timeout().unwrap(),
-                StaticProvider::from(credentials),
-                self.region.clone(),
-            );
-            println!("Rusoto S3Client created in {:?}", start.elapsed());
-            client
-        })
-    }
-
-    // async fn anonymous_aws_client(&self) -> &Client {
-
-    // self.anonymous_aws_client
-    //     .get_or_init(|| async {
-    //         let config = aws_config::from_env()
-    //             .region(aws_config::Region::new(self.region.name().to_owned()))
-    //             .load()
-    //             .await;
-
-    //         Client::new(&config)
-    //     })
-    //     .await
-    // }
-
-    async fn get_client(region: &str) -> SharedClient {
-        let cell = get_client_cache()
-            .entry(region.to_string())
+    /// S3 bucket's AWS account. Additionally, this allows relayer operators to not
+    /// require AWS credentials.
+    async fn anonymous_client(&self) -> Client {
+        let cell = get_anonymous_client_cache()
+            .entry(self.region.clone())
             .or_insert_with(|| OnceCell::new());
 
         cell.get_or_init(|| async {
-            let start = std::time::Instant::now();
-            let config = aws_config::from_env()
-                .region(aws_config::Region::new(region.to_owned()))
+            let config = ConfigLoader::default()
+                // Make anonymous, important to not require AWS credentials
+                // to operate the relayer
+                .no_credentials()
+                // Setting the default behavior is required if not using credentials
+                .behavior_version(BehaviorVersion::latest())
+                .region(self.region.clone())
                 .load()
                 .await;
-            println!("AWS S3Client created in {:?}", start.elapsed());
-
-            Arc::new(Client::new(&config))
+            Client::new(&config)
         })
         .await
         .clone()
@@ -299,9 +229,9 @@ impl CheckpointSyncer for S3Storage {
 
     fn announcement_location(&self) -> String {
         match self.folder.as_deref() {
-            None | Some("") => format!("s3://{}/{}", self.bucket, self.region.name()),
+            None | Some("") => format!("s3://{}/{}", self.bucket, self.region),
             Some(folder_str) => {
-                format!("s3://{}/{}/{}", self.bucket, self.region.name(), folder_str)
+                format!("s3://{}/{}/{}", self.bucket, self.region, folder_str)
             }
         }
     }
@@ -323,5 +253,33 @@ impl CheckpointSyncer for S3Storage {
         println!("Reading reorg status in region {:?}", self.region);
 
         r
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_announcement_location() {
+        // Test with a folder
+        let s3_storage = S3Storage::new(
+            "test-bucket".to_string(),
+            Some("test-folder".to_string()),
+            Region::new("us-east-1"),
+            None,
+        );
+        let location = s3_storage.announcement_location();
+        assert_eq!(location, "s3://test-bucket/us-east-1/test-folder");
+
+        // Test without a folder
+        let s3_storage = S3Storage::new(
+            "test-bucket".to_string(),
+            None,
+            Region::new("us-east-1"),
+            None,
+        );
+        let location = s3_storage.announcement_location();
+        assert_eq!(location, "s3://test-bucket/us-east-1");
     }
 }
