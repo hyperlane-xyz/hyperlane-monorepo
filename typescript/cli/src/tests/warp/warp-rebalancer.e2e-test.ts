@@ -1,33 +1,122 @@
-import { expect } from 'chai';
+import { Wallet } from 'ethers';
 
-import { sleep } from '@hyperlane-xyz/utils';
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
+import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import { toWei } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_E2E_TEST_TIMEOUT } from '../commands/helpers.js';
-import { hyperlaneWarpRebalancer } from '../commands/warp.js';
+import { writeYamlOrJson } from '../../utils/files.js';
+import {
+  ANVIL_KEY,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  CHAIN_NAME_4,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  deployOrUseExistingCore,
+  deployToken,
+  getCombinedWarpRoutePath,
+} from '../commands/helpers.js';
+import {
+  hyperlaneWarpDeploy,
+  hyperlaneWarpRebalancer,
+  hyperlaneWarpSendRelay,
+} from '../commands/warp.js';
 
 describe('hyperlane warp rebalancer e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   describe('hyperlane warp rebalancer', () => {
     it('should successfully start and stop the warp rebalancer', async function () {
-      // Start the process
-      const process = hyperlaneWarpRebalancer().stdio('pipe');
+      // Deploy core contracts on all chains
+      const chain2Addresses = await deployOrUseExistingCore(
+        CHAIN_NAME_2,
+        CORE_CONFIG_PATH,
+        ANVIL_KEY,
+      );
+      const chain3Addresses = await deployOrUseExistingCore(
+        CHAIN_NAME_3,
+        CORE_CONFIG_PATH,
+        ANVIL_KEY,
+      );
+      const chain4Addresses = await deployOrUseExistingCore(
+        CHAIN_NAME_4,
+        CORE_CONFIG_PATH,
+        ANVIL_KEY,
+      );
 
-      // Wait for the process to start
-      await sleep(5000);
+      // Deploy ERC20s
+      const tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const tokenChain3 = await deployToken(ANVIL_KEY, CHAIN_NAME_3);
+      const tokenSymbol = await tokenChain2.symbol();
 
-      // Stop the process
-      await process.kill('SIGINT');
+      // Deploy Warp Route
+      const warpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+        CHAIN_NAME_4,
+      ]);
+      const ownerAddress = new Wallet(ANVIL_KEY).address;
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.collateral,
+          token: tokenChain3.address,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_4]: {
+          type: TokenType.synthetic,
+          mailbox: chain4Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+      writeYamlOrJson(warpDeploymentPath, warpConfig);
+      await hyperlaneWarpDeploy(warpDeploymentPath);
 
-      // Wait for the process to stop
-      await sleep(1000);
+      // Bridge tokens from the collateral chains to the synthetic
+      await hyperlaneWarpSendRelay(
+        CHAIN_NAME_2,
+        CHAIN_NAME_4,
+        warpDeploymentPath,
+        true,
+        toWei(49),
+      );
+      await hyperlaneWarpSendRelay(
+        CHAIN_NAME_3,
+        CHAIN_NAME_4,
+        warpDeploymentPath,
+        true,
+        toWei(51),
+      );
 
-      // Get the output
-      const text = await process.text();
+      // Start the rebalancer
+      const warpRouteId = createWarpRouteConfigId(tokenSymbol.toUpperCase(), [
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+        CHAIN_NAME_4,
+      ]);
+      const process = hyperlaneWarpRebalancer(warpRouteId, 1000);
 
-      // Verify the output contains the expected messages
-      expect(text).to.include('Starting rebalancer ...');
-      expect(text).to.include('Stopping rebalancer ...');
+      // Verify that it logs the correct collateral
+      for await (const chunk of process.stdout) {
+        if (
+          chunk.includes(`┌─────────┬──────────┬────────────┬─────────┐
+│ (index) │ name     │ collateral │ symbol  │
+├─────────┼──────────┼────────────┼─────────┤
+│ 0       │ 'anvil2' │ 49         │ 'TOKEN' │
+│ 1       │ 'anvil3' │ 51         │ 'TOKEN' │
+└─────────┴──────────┴────────────┴─────────┘
+`)
+        ) {
+          process.kill('SIGINT');
+          break;
+        }
+      }
     });
   });
 });
