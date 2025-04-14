@@ -74,7 +74,7 @@ impl S3Storage {
         Ok(())
     }
 
-    async fn anonymously_read_from_bucket_aws(&self, key: String) -> Result<Option<Vec<u8>>> {
+    async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
         let get_object_result = timeout(
             Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
             self.anonymous_client()
@@ -170,7 +170,7 @@ impl S3Storage {
 impl CheckpointSyncer for S3Storage {
     async fn latest_index(&self) -> Result<Option<u32>> {
         let ret = self
-            .anonymously_read_from_bucket_aws(S3Storage::latest_index_key())
+            .anonymously_read_from_bucket(S3Storage::latest_index_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -193,7 +193,7 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        self.anonymously_read_from_bucket_aws(S3Storage::checkpoint_key(index))
+        self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -244,15 +244,11 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        let r = self
-            .anonymously_read_from_bucket_aws(S3Storage::reorg_flag_key())
+        self.anonymously_read_from_bucket(S3Storage::reorg_flag_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
-            .map_err(Into::into);
-        println!("Reading reorg status in region {:?}", self.region);
-
-        r
+            .map_err(Into::into)
     }
 }
 
