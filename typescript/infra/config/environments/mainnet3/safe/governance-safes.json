@@ -1,88 +1,24 @@
 {
-  "abstract": {},
-  "arbitrum": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "base": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "berachain": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "blast": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "bsc": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "ethereum": {
-    "regular": "0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7",
-    "irregular": "0x3679040E9ff9EbDBF9E39C39f6acd5e125e1CE2d",
-    "exceptional": "0x906a5D44BB32B34Db86fADd57C8e1743467cd3c4"
-  },
-  "fraxtal": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "hyperevm": {},
-  "linea": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "mantapacific": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "mode": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "optimism": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "sei": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "sophon": {},
-  "swell": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "taiko": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "treasure": {},
-  "zeronetwork": {},
-  "zircuit": {
-    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "zklink": {},
-  "zksync": {
-    "regular": "0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
-    "irregular": "0x411Ba64348Cbeaf29700504f024c687984D9983f",
-    "exceptional": "0x24fa89881743b5E46032dE82EcA904daD1a33D9c"
-  }
+  "abstract": "0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "arbitrum": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "base": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "berachain": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "blast": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "bsc": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "ethereum": "0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7",
+  "fraxtal": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "hyperevm": "0x290Eb7bbf939A36B2c350a668c04815E49757eDC",
+  "linea": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "mantapacific": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "mode": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "optimism": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "sei": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "sophon": "0x113d3a19031Fe5DB58884D6aa54545dD4De499c0",
+  "swell": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "taiko": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "treasure": "0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zeronetwork": "0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zksync": "0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zklink": "0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zircuit": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431"
 }

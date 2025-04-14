@@ -1,88 +1,24 @@
 {
-  "abstract": {},
-  "arbitrum": {
-    "regular": "https://app.safe.global/home?safe=arb1:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://app.safe.global/home?safe=arb1:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://app.safe.global/home?safe=arb1:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "base": {
-    "regular": "https://app.safe.global/home?chain=base&safe=base:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "https://app.safe.global/home?chain=base&safe=base:0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "https://app.safe.global/home?chain=base&safe=base:0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "berachain": {
-    "regular": "https://safe.berachain.com/home?safe=berachain:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://safe.berachain.com/home?safe=berachain:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://safe.berachain.com/home?safe=berachain:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "blast": {
-    "regular": "https://app.safe.global/home?safe=blast:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://app.safe.global/home?safe=blast:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://app.safe.global/home?safe=blast:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "bsc": {
-    "regular": "https://app.safe.global/home?safe=bnb:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://app.safe.global/home?safe=bnb:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://app.safe.global/home?safe=bnb:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "ethereum": {
-    "regular": "https://app.safe.global/home?safe=eth:0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7",
-    "irregular": "https://app.safe.global/home?safe=eth:0x3679040E9ff9EbDBF9E39C39f6acd5e125e1CE2d",
-    "exceptional": "https://app.safe.global/home?safe=eth:0x906a5D44BB32B34Db86fADd57C8e1743467cd3c4"
-  },
-  "fraxtal": {
-    "regular": "https://safe.mainnet.frax.com/transactions/queue?safe=fraxtal:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "https://safe.mainnet.frax.com/transactions/queue?safe=fraxtal:0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "https://safe.mainnet.frax.com/transactions/queue?safe=fraxtal:0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "hyperevm": {},
-  "linea": {
-    "regular": "https://app.safe.global/home?safe=linea:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://app.safe.global/home?safe=linea:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://app.safe.global/home?safe=linea:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "mantapacific": {
-    "regular": "https://safe.manta.network/transactions/queue?safe=manta:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://safe.manta.network/transactions/queue?safe=manta:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://safe.manta.network/transactions/queue?safe=manta:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "mode": {
-    "regular": "https://safe.optimism.io/home?safe=mode:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://safe.optimism.io/home?safe=mode:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://safe.optimism.io/home?safe=mode:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "optimism": {
-    "regular": "https://app.safe.global/home?safe=oeth:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "https://app.safe.global/home?safe=oeth:0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "https://app.safe.global/home?safe=oeth:0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "sei": {
-    "regular": "https://sei-safe.protofire.io/home?safe=sei:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://sei-safe.protofire.io/home?safe=sei:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://sei-safe.protofire.io/home?safe=sei:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "sophon": {},
-  "swell": {
-    "regular": "https://safe.optimism.io/home?safe=swell-l2:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://safe.optimism.io/home?safe=swell-l2:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://safe.optimism.io/home?safe=swell-l2:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "taiko": {
-    "regular": "https://safe.taiko.xyz/home?safe=taiko:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "https://safe.taiko.xyz/home?safe=taiko:0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "https://safe.taiko.xyz/home?safe=taiko:0x1EF628CFb117aF071FC994117241639f8ef6F931"
-  },
-  "treasure": {},
-  "zeronetwork": {},
-  "zircuit": {
-    "regular": "https://safe.zircuit.com/home?safe=zircuit:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
-    "irregular": "https://safe.zircuit.com/home?safe=zircuit:0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
-    "exceptional": "https://safe.zircuit.com/home?safe=zircuit:0x445A4DD778feA12a6717984e4f3314a670D96d55"
-  },
-  "zklink": {},
-  "zksync": {
-    "regular": "https://app.safe.global/home?safe=zksync:0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
-    "irregular": "https://app.safe.global/home?safe=zksync:0x411Ba64348Cbeaf29700504f024c687984D9983f",
-    "exceptional": "https://app.safe.global/home?safe=zksync:0x24fa89881743b5E46032dE82EcA904daD1a33D9c"
-  }
+  "abstract": "https://abstract-safe.protofire.io/home?safe=abstract:0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "arbitrum": "https://app.safe.global/home?safe=arb1:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "base": "https://app.safe.global/home?chain=base&safe=base:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "berachain": "https://safe.berachain.com/home?safe=berachain:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "blast": "https://app.safe.global/home?safe=blast:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "bsc": "https://app.safe.global/home?safe=bnb:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "ethereum": "https://app.safe.global/home?safe=eth:0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7",
+  "fraxtal": "https://safe.mainnet.frax.com/transactions/queue?safe=fraxtal:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "hyperevm": "https://wl-hyperliquid-palmera-dao.vercel.app/home?safe=hype:0x290Eb7bbf939A36B2c350a668c04815E49757eDC",
+  "linea": "https://app.safe.global/home?safe=linea:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "mantapacific": "https://safe.manta.network/transactions/queue?safe=manta:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "mode": "https://safe.optimism.io/home?safe=mode:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "optimism": "https://app.safe.global/home?safe=oeth:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "sei": "https://sei-safe.protofire.io/home?safe=sei:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "sophon": "https://safe.sophon.xyz/home?safe=sophon:0x113d3a19031Fe5DB58884D6aa54545dD4De499c0",
+  "swell": "https://safe.optimism.io/home?safe=swell-l2:0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+  "taiko": "https://safe.taiko.xyz/home?safe=taiko:0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
+  "treasure": "https://app.palmeradao.xyz/6751ed2cf70aa4d63124285f/details?safe=treasure%3A0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zeronetwork": "https://safe-whitelabel-git-zero-palmera-dao.vercel.app/settings/setup?safe=ZERϴ:0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zksync": "https://app.safe.global/home?safe=zksync:0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zklink": "https://safe.zklink.io/home?safe=zklink-nova:0xcd81ccFe7D9306849136Fa96397113345a32ECf3",
+  "zircuit": "https://safe.zircuit.com/home?safe=zircuit:0x7379D7bB2ccA68982E467632B6554fD4e72e9431"
 }
