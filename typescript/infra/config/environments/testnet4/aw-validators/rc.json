@@ -20,12 +20,8 @@
       "0xbf86037899efe97bca4cea865607e10b849b5878"
     ]
   },
-  "plumetestnet": {
-    "validators": [
-      "0xe6e6aeecbf7755cdbc50c2683df9f2d100f6399d",
-      "0x27946c13a475233a3b1eb47f0bd0f7cdec3a3983",
-      "0x2596413213368475c96ddfb1ae26666d22093a8b"
-    ]
+  "holesky": {
+    "validators": ["0x9af51a9e6405451bb9caf12607e178db202d6821"]
   },
   "scrollsepolia": {
     "validators": [

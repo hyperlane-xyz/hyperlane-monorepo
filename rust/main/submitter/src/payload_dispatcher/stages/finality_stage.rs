@@ -25,7 +25,8 @@ use crate::{
 };
 
 use super::{
-    building_stage::BuildingStageQueue, utils::retry_until_success, PayloadDispatcherState,
+    building_stage::BuildingStageQueue, utils::call_until_success_or_nonretryable_error,
+    PayloadDispatcherState,
 };
 
 pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
@@ -135,21 +136,21 @@ impl FinalityStage {
         state: &PayloadDispatcherState,
     ) -> Result<(), SubmitterError> {
         info!(?tx, "Processing finality stage transaction");
-        let tx_status = retry_until_success(
+        let tx_status = call_until_success_or_nonretryable_error(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
         )
-        .await;
+        .await?;
 
         match tx_status {
             TransactionStatus::Included => {
                 // tx is not finalized yet, keep it in the pool
                 info!(?tx, "Transaction is not yet finalized");
-                let reverted_payloads = retry_until_success(
+                let reverted_payloads = call_until_success_or_nonretryable_error(
                     || state.adapter.reverted_payloads(&tx),
                     "Checking reverted payloads",
                 )
-                .await;
+                .await?;
                 state
                     .update_status_for_payloads(
                         &reverted_payloads,
