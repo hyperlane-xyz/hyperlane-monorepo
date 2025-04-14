@@ -196,6 +196,8 @@ async function doTheKesselRun() {
       gasEstimate: BigNumber;
     }> = [];
 
+    const messageCounts: Record<string, { from: number; to: number }> = {};
+
     rootLogger.info('Preparing messageParams for burst');
     const startTime = Date.now(); // Start timing
 
@@ -227,6 +229,15 @@ async function doTheKesselRun() {
             gasEstimate: gasEstimates[origin][destination],
           });
           nonce++;
+
+          messageCounts[origin] = messageCounts[origin] || { from: 0, to: 0 };
+          messageCounts[destination] = messageCounts[destination] || {
+            from: 0,
+            to: 0,
+          };
+
+          messageCounts[origin].from += 1;
+          messageCounts[destination].to += 1;
         }
       }
     }
@@ -259,6 +270,15 @@ async function doTheKesselRun() {
             gasEstimate: gasEstimates[origin][destination],
           });
           nonce++;
+
+          messageCounts[origin] = messageCounts[origin] || { from: 0, to: 0 };
+          messageCounts[destination] = messageCounts[destination] || {
+            from: 0,
+            to: 0,
+          };
+
+          messageCounts[origin].from += 1;
+          messageCounts[destination].to += 1;
         }
       }
     }
@@ -266,6 +286,15 @@ async function doTheKesselRun() {
     const endTime = Date.now(); // End timing
     const duration = (endTime - startTime) / 1000; // Calculate duration in seconds
     rootLogger.info(`Finished preparing message params in ${duration}s`);
+
+    // Calculate the total number of messages to send
+    const totalBurstMsgCount = Object.values(messageCounts).reduce(
+      (sum, count) => sum + count.from,
+      0,
+    );
+    rootLogger.info(`Planning to send ${totalBurstMsgCount} messages`);
+    // eslint-disable-next-line no-console
+    console.table(messageCounts);
 
     await Promise.all(
       messageParams.map(async (params) => {
