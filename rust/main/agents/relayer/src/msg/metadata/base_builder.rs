@@ -4,16 +4,14 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use derive_new::new;
+use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
-    settings::CheckpointSyncerBuildError,
-};
-use hyperlane_base::{
-    settings::{ChainConf, CheckpointSyncerConf},
+    settings::{ChainConf, CheckpointSyncerBuildError, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{
@@ -22,9 +20,12 @@ use hyperlane_core::{
     H256,
 };
 
+use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
 use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuildError};
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
+
+mod validator_announced_storages;
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -178,10 +179,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let storage_locations = self
-            .origin_validator_announce
-            .get_announced_storage_locations(validators)
-            .await?;
+        let storage_locations = self.fetch_storage_locations(validators).await?;
 
         debug!(
             hyp_message=?message,
@@ -255,5 +253,16 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             self.metrics.clone(),
             app_context,
         ))
+    }
+}
+
+impl BaseMetadataBuilder {
+    /// Fetches storage locations for validators with caching.
+    pub async fn fetch_storage_locations(
+        &self,
+        validators: &[H256],
+    ) -> eyre::Result<Vec<Vec<String>>> {
+        fetch_storage_locations_helper(validators, &self.cache, &*self.origin_validator_announce)
+            .await
     }
 }
