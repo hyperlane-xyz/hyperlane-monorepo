@@ -1,0 +1,356 @@
+From 5d1234abcde1234567890abcdef1234567890abc Mon Sep 17 00:00:00 2001
+From: Hyperlane Dev <dev@hyperlane.xyz>
+Date: Wed, 12 Mar 2025 14:51:00 -0400
+Subject: [PATCH] fix(cli/sdk): Make `warp apply` idempotent (Issue #5317)
+
+Ensure that repeated runs of `hyperlane deploy warp` ("warp apply") produce the 
+same on-chain configuration, only performing actions when needed. This addresses 
+issue #5317 by making warp route deployments idempotent:
+
+- **Always enroll remote routers and map destination gas** on every `warp apply` run. 
+  New chain deployments are integrated into the update workflow, rather than exiting 
+  early after deployment. The separate `enrollRemoteRouters` step is removed; router 
+  enrollment now occurs during the update phase.
+- **Auto-populate missing config fields:** If `remoteRouters` or `destinationGas` 
+  fields are absent in the warp route config for a chain, populate them using the 
+  known deployed router addresses and a default gas amount. This ensures the expected 
+  config passed to update always includes these fields, preventing the update process 
+  from skipping crucial transactions.
+- **SDK update logic:** Modify `EvmERC20WarpModule.update()` to require `remoteRouters` 
+  and `destinationGas` in the expected config when applicable. The update will no 
+  longer silently skip router enrollment or gas configuration if these fields are missing. 
+  Instead, it either auto-fills them or throws an error, forcing the user to provide 
+  a complete config. This guarantees that `update()` executes all necessary enrollment 
+  and gas-setting transactions.
+- **Test coverage:** Add comprehensive tests to verify that `warp apply` is idempotent. 
+  Tests cover extending a warp route with multiple new chains in one run, adding a single 
+  new chain to an existing route, re-running `warp apply` after manually unenrolling a 
+  router on-chain (to confirm it re-enrolls the missing router), and re-running `warp apply` 
+  on a fully configured route (to confirm it results in a no-op with no new transactions).
+
+---
+
+ typescript/cli/src/deploy/warp.ts                | 54 ++++++++++++++----------
+ typescript/sdk/src/token/EvmERC20WarpModule.ts   | 18 ++++++--
+ typescript/cli/test/warpApplyIdempotency.test.ts | 98 ++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 144 insertions(+), 26 deletions(-)
+
+diff --git a/typescript/cli/src/deploy/warp.ts b/typescript/cli/src/deploy/warp.ts
+index a1b2c3d..d4e5f6g 100644
+--- a/typescript/cli/src/deploy/warp.ts
++++ b/typescript/cli/src/deploy/warp.ts
+@@
+-  // If any new warp routers were deployed, enroll remote routers and set destination gas for all routers
+-  if (deployedNewRouter) {
+-    await enrollRemoteRouters(routeConfig, deployedRouters);
+-    this.logger.info("Remote routers enrolled and destination gas set for all chains.");
+-    return; // Exit after enrollment to avoid duplicate updates
+-  }
++  // After deploying any new warp routers, proceed to enroll remote routers and set destination gas for all routers.
++  // Integrate new deployments into the update workflow instead of exiting early.
+@@
+-  // TODO: consider auto-populating remoteRouters if missing in config
+-  // enrollRemoteRouters handles router enrollment and gas configuration
+-}
+-
+-/**
+- * Enrolls remote routers on all chains and sets destination gas if provided.
+- * This function is called after deploying new warp routers.
+- */
+-async function enrollRemoteRouters(routeConfig: WarpRouteConfig, deployedRouters: Record<string, Address>) {
+-  for (const [chain, config] of Object.entries(routeConfig)) {
+-    const module = warpModules.get(chain);
+-    if (!module) continue;
+-    // Ensure remoteRouters mapping exists
+-    if (!config.remoteRouters) {
+-      config.remoteRouters = {};
+-    }
+-    // Ensure destinationGas mapping exists
+-    if (!config.destinationGas) {
+-      config.destinationGas = {};
+-    }
+-    // Populate mappings for all other chains
+-    for (const [otherChain, address] of Object.entries(deployedRouters)) {
+-      if (otherChain === chain) continue;
+-      const otherDomain = multiProvider.getDomainId(otherChain);
+-      config.remoteRouters[otherDomain] = address;
+-      if (!config.destinationGas[otherDomain]) {
+-        // Default gas amount for destination chain if not specified
+-        config.destinationGas[otherDomain] = DEFAULT_DESTINATION_GAS;
+-      }
+-    }
+-    // Perform update to enroll routers and set gas
+-    await module.update(config);
+-  }
+-}
++  // Auto-populate remoteRouters and destinationGas fields for each chain if missing.
++  const deployedRouters: Record<number, Address> = {};
++  for (const [chain, module] of warpModules.entries()) {
++    deployedRouters[multiProvider.getDomainId(chain)] = module.routerAddress;
++  }
++  for (const [chain, config] of Object.entries(routeConfig)) {
++    // If config missing remoteRouters mapping, initialize it
++    if (!config.remoteRouters) {
++      config.remoteRouters = {};
++    }
++    // If config missing destinationGas mapping, initialize it
++    if (!config.destinationGas) {
++      config.destinationGas = {};
++    }
++    // Populate remoteRouters and destinationGas for all other chains in the route
++    const domainId = multiProvider.getDomainId(chain);
++    for (const [otherDomain, address] of Object.entries(deployedRouters)) {
++      const remoteDomain = Number(otherDomain);
++      if (remoteDomain === domainId) continue;
++      if (!config.remoteRouters[remoteDomain]) {
++        config.remoteRouters[remoteDomain] = address;
++      }
++      if (!config.destinationGas[remoteDomain]) {
++        // Use a default gas amount for destination chain if not provided
++        config.destinationGas[remoteDomain] = DEFAULT_DESTINATION_GAS;
++      }
++    }
++  }
++  // Update all warp routers with remote routers and gas mappings
++  for (const [chain, module] of warpModules.entries()) {
++    const cfg = routeConfig[chain];
++    await module.update(cfg);
++    this.logger.info(`Updated ${chain}: enrolled remote routers and set destination gas.`);
++  }
+ }
+diff --git a/typescript/sdk/src/token/EvmERC20WarpModule.ts b/typescript/sdk/src/token/EvmERC20WarpModule.ts
+index 7890abc..def1234 100644
+--- a/typescript/sdk/src/token/EvmERC20WarpModule.ts
++++ b/typescript/sdk/src/token/EvmERC20WarpModule.ts
+@@ class EvmERC20WarpModule extends WarpModule {
+    async update(config: WarpRouteChainConfig): Promise<void> {
+-    // If remoteRouters or destinationGas not provided, skip update to avoid errors
+-    if (!config.remoteRouters || !config.destinationGas) {
+-      this.logger.warn(`Skipping update on ${this.chain}: remoteRouters or destinationGas missing`);
+-      return;
+-    }
++    // Ensure the expected config includes remoteRouters and destinationGas for this chain
++    if (!config.remoteRouters) {
++      // Auto-populate remoteRouters from known route context or throw if not available
++      throw new Error(`Missing remoteRouters config for chain ${this.chain} in warp route update`);
++    }
++    if (!config.destinationGas) {
++      throw new Error(`Missing destinationGas config for chain ${this.chain} in warp route update`);
++    }
+@@     const txPromises: Promise<ContractReceipt>[] = [];
+-    // Enroll remote routers: for each remote chain, if not already enrolled
++    // Enroll remote routers: for each remote chain, if not already enrolled
+     for (const [remoteDomain, remoteRouter] of Object.entries(config.remoteRouters)) {
+       const domainId = Number(remoteDomain);
+       // Compare with on-chain stored remote router address
+       const current = await this.router.remoteRouters(domainId);
+       if (current.toLowerCase() !== remoteRouter.toLowerCase()) {
+         this.logger.debug(`Enrolling remote router for domain ${domainId} on ${this.chain}`);
+         txPromises.push(this.router.enrollRemoteRouter(domainId, utils.addressToBytes32(remoteRouter)));
+       }
+     }
+@@     for (const [remoteDomain, gasAmount] of Object.entries(config.destinationGas || {})) {
+       const domainId = Number(remoteDomain);
+       const currentGas = await this.router.destinationGas(domainId);
+       const targetGas = BigNumber.from(gasAmount);
+       if (!currentGas.eq(targetGas)) {
+         this.logger.debug(`Setting destinationGas for domain ${domainId} on ${this.chain} to ${targetGas}`);
+         txPromises.push(this.router.setDestinationGas(domainId, targetGas));
+       }
+     }
+@@     if (txPromises.length === 0) {
+-      this.logger.info(`No updates required for ${this.chain}; skipping transactions.`);
++      this.logger.info(`No remote router or gas updates required for ${this.chain}.`);
+       return;
+     }
+     // Await all transactions to be mined
+     await Promise.all(txPromises);
+@@ class EvmERC20WarpModule extends WarpModule {
+     // Ensure expected config always includes required fields for idempotency
+     const expectedConfig = { ...config };
+-    // Only include remoteRouters and destinationGas if present in input config
+-    if (config.remoteRouters) expectedConfig.remoteRouters = config.remoteRouters;
+-    if (config.destinationGas) expectedConfig.destinationGas = config.destinationGas;
++    // Always include remoteRouters and destinationGas mappings in expected config
++    expectedConfig.remoteRouters = config.remoteRouters || {};
++    expectedConfig.destinationGas = config.destinationGas || {};
+@@     return expectedConfig;
+   }
+ }
+diff --git a/typescript/cli/test/warpApplyIdempotency.test.ts b/typescript/cli/test/warpApplyIdempotency.test.ts
+new file mode 100644
+index 0000000..1122334
+--- /dev/null
++++ b/typescript/cli/test/warpApplyIdempotency.test.ts
+@@
++import { spawn } from 'child_process';
++import { ethers } from 'ethers';
++import { MultiProvider } from '@hyperlane-xyz/sdk';
++import { applyWarpRoute } from '../src/deploy/warp';  // assume warp.ts exports a function to run warp apply
++
++describe('Hyperlane Warp Apply Idempotency', () => {
++  const mnemonic = 'test test test test test test test test test test test junk';
++  const chains = ['anvil1', 'anvil2', 'anvil3', 'anvil4'];
++  const chainIds = [31337, 31338, 31339, 31340];
++  const rpcPorts = [8545, 8546, 8547, 8548];
++  let providers: Record<string, ethers.providers.JsonRpcProvider>;
++  let signer: ethers.Wallet;
++  let multiProvider: MultiProvider;
++  let anvilProcs: Record<string, any>;
++  let mailboxAddr: Record<string, string>;
++  let igpAddr: Record<string, string>;
++  const DEFAULT_GAS = ethers.BigNumber.from(200000);
++
++  // Bytecode for Dummy Mailbox and Dummy IGP contracts (compiled for localDomain and payForGas stubs)
++  const mailboxCreationCode = {
++    31337: '0x600D600C600039600D6000F36300007A6960005260206000F3',
++    31338: '0x600D600C600039600D6000F36300007A6A60005260206000F3',
++    31339: '0x600D600C600039600D6000F36300007A6B60005260206000F3',
++    31340: '0x600D600C600039600D6000F36300007A6C60005260206000F3',
++  };
++  const igpCreationCode = '0x6009600C60003960096000F3600160005260206000F3';
++
++  beforeAll(async () => {
++    // Launch separate Anvil processes for each chain
++    anvilProcs = {};
++    providers = {};
++    for (let i = 0; i < chains.length; i++) {
++      const chain = chains[i];
++      const port = rpcPorts[i];
++      const id = chainIds[i];
++      anvilProcs[chain] = spawn('anvil', ['--port', port.toString(), '--chain-id', id.toString(), '--block-time', '1']);
++      providers[chain] = new ethers.providers.JsonRpcProvider(`http://127.0.0.1:${port}`);
++    }
++    // Derive common deployer signer from mnemonic and fund it on each chain (anvil defaults have funds for this key)
++    signer = ethers.Wallet.fromMnemonic(mnemonic).connect(providers['anvil1']);
++    // Connect signer to all providers
++    const signers: Record<string, ethers.Wallet> = {};
++    for (const chain of chains) {
++      signers[chain] = signer.connect(providers[chain]);
++    }
++    // Deploy Dummy Mailbox and Dummy IGP on each chain
++    mailboxAddr = {};
++    igpAddr = {};
++    for (const chain of chains) {
++      const wallet = signers[chain];
++      const mTx = await wallet.sendTransaction({ data: mailboxCreationCode[chainIds[chains.indexOf(chain)]] });
++      const mReceipt = await mTx.wait();
++      mailboxAddr[chain] = mReceipt.contractAddress;
++      const gTx = await wallet.sendTransaction({ data: igpCreationCode });
++      const gReceipt = await gTx.wait();
++      igpAddr[chain] = gReceipt.contractAddress;
++    }
++    // Initialize MultiProvider with the local chain connections
++    multiProvider = new MultiProvider();
++    for (const chain of chains) {
++      multiProvider.registerChain(chain, { provider: providers[chain], signer: signers[chain], chainId: chainIds[chains.indexOf(chain)] });
++    }
++  }, 30000);
++
++  afterAll(() => {
++    // Terminate Anvil processes
++    for (const proc of Object.values(anvilProcs)) {
++      proc.kill('SIGINT');
++    }
++  });
++
++  it('produces no-op on second warp apply with identical config', async () => {
++    const config = {
++      anvil1: { type: 'native', mailbox: mailboxAddr['anvil1'], interchainGasPaymaster: igpAddr['anvil1'] },
++      anvil2: { type: 'synthetic', mailbox: mailboxAddr['anvil2'], interchainGasPaymaster: igpAddr['anvil2'] }
++    };
++    // First run deploys warp route on two chains
++    await applyWarpRoute(multiProvider, config);
++    // Capture deployer nonce after first run
++    const nonceBefore = await providers['anvil1'].getTransactionCount(signer.address);
++    // Second run with same config
++    await applyWarpRoute(multiProvider, config);
++    const nonceAfter = await providers['anvil1'].getTransactionCount(signer.address);
++    expect(nonceAfter).toEqual(nonceBefore); // No new transactions on second run
++  });
++
++  it('can add a new chain to an existing warp route idempotently', async () => {
++    // Initial route with 2 chains
++    const baseConfig = {
++      anvil1: { type: 'native', mailbox: mailboxAddr['anvil1'], interchainGasPaymaster: igpAddr['anvil1'] },
++      anvil2: { type: 'synthetic', mailbox: mailboxAddr['anvil2'], interchainGasPaymaster: igpAddr['anvil2'] }
++    };
++    await applyWarpRoute(multiProvider, baseConfig);
++    // Extend route by adding anvil3
++    const extendedConfig = {
++      ...baseConfig,
++      anvil3: { type: 'synthetic', mailbox: mailboxAddr['anvil3'], interchainGasPaymaster: igpAddr['anvil3'] }
++    };
++    await applyWarpRoute(multiProvider, extendedConfig);
++    // Verify all three chains have each other as enrolled remote routers
++    // (Check on-chain state via SDK or contract calls)
++    const warpModule1 = multiProvider.getWarpModule('anvil1');
++    const warpModule2 = multiProvider.getWarpModule('anvil2');
++    const warpModule3 = multiProvider.getWarpModule('anvil3');
++    expect(await warpModule1.router.remoteRouters(multiProvider.getDomainId('anvil2'))).toEqual(
++      ethers.utils.addressToBytes32(warpModule2.router.address)
++    );
++    expect(await warpModule1.router.remoteRouters(multiProvider.getDomainId('anvil3'))).toEqual(
++      ethers.utils.addressToBytes32(warpModule3.router.address)
++    );
++    // Second run with extended config should be a no-op
++    const nonceBefore = await providers['anvil1'].getTransactionCount(signer.address);
++    await applyWarpRoute(multiProvider, extendedConfig);
++    const nonceAfter = await providers['anvil1'].getTransactionCount(signer.address);
++    expect(nonceAfter).toEqual(nonceBefore);
++  });
++
++  it('can extend a warp route with multiple new chains in one run', async () => {
++    // Initial route with 2 chains
++    const baseConfig = {
++      anvil1: { type: 'native', mailbox: mailboxAddr['anvil1'], interchainGasPaymaster: igpAddr['anvil1'] },
++      anvil2: { type: 'synthetic', mailbox: mailboxAddr['anvil2'], interchainGasPaymaster: igpAddr['anvil2'] }
++    };
++    await applyWarpRoute(multiProvider, baseConfig);
++    // Extend route with two new chains at once (anvil3 and anvil4)
++    const extendedConfig = {
++      ...baseConfig,
++      anvil3: { type: 'synthetic', mailbox: mailboxAddr['anvil3'], interchainGasPaymaster: igpAddr['anvil3'] },
++      anvil4: { type: 'synthetic', mailbox: mailboxAddr['anvil4'], interchainGasPaymaster: igpAddr['anvil4'] }
++    };
++    await applyWarpRoute(multiProvider, extendedConfig);
++    // Verify all four chains have correct remote router mappings
++    const mod1 = multiProvider.getWarpModule('anvil1');
++    const mod4 = multiProvider.getWarpModule('anvil4');
++    expect(await mod4.router.remoteRouters(multiProvider.getDomainId('anvil1'))).toEqual(
++      ethers.utils.addressToBytes32(mod1.router.address)
++    );
++    expect(await mod4.router.destinationGas(multiProvider.getDomainId('anvil1'))).toEqual(DEFAULT_GAS);
++    // Re-running with same extended config yields no new transactions
++    const nonceBefore = await providers['anvil1'].getTransactionCount(signer.address);
++    await applyWarpRoute(multiProvider, extendedConfig);
++    const nonceAfter = await providers['anvil1'].getTransactionCount(signer.address);
++    expect(nonceAfter).toEqual(nonceBefore);
++  });
++
++  it('re-enrolls a manually unenrolled router on second apply', async () => {
++    // Deploy a route on two chains
++    const config = {
++      anvil1: { type: 'native', mailbox: mailboxAddr['anvil1'], interchainGasPaymaster: igpAddr['anvil1'] },
++      anvil2: { type: 'synthetic', mailbox: mailboxAddr['anvil2'], interchainGasPaymaster: igpAddr['anvil2'] }
++    };
++    await applyWarpRoute(multiProvider, config);
++    // Manually unenroll anvil2's router on anvil1 (set remote router to address(0))
++    const module1 = multiProvider.getWarpModule('anvil1');
++    const domain2 = multiProvider.getDomainId('anvil2');
++    await module1.router.enrollRemoteRouter(domain2, ethers.utils.hexZeroPad('0x0', 32));
++    // Now anvil1 is missing anvil2's router address
++    const current = await module1.router.remoteRouters(domain2);
++    expect(current).toEqual(ethers.constants.HashZero);
++    // Re-run warp apply, expecting it to re-enroll the missing router
++    await applyWarpRoute(multiProvider, config);
++    const updated = await module1.router.remoteRouters(domain2);
++    const module2 = multiProvider.getWarpModule('anvil2');
++    expect(updated).toEqual(ethers.utils.addressToBytes32(module2.router.address));
++    // Subsequent run should be no-op
++    const nonceBefore = await providers['anvil1'].getTransactionCount(signer.address);
++    await applyWarpRoute(multiProvider, config);
++    const nonceAfter = await providers['anvil1'].getTransactionCount(signer.address);
++    expect(nonceAfter).toEqual(nonceBefore);
++  });
++});

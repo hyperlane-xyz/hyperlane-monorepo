@@ -1,0 +1,20 @@
+{
+  "mode": "pre",
+  "tag": "cosmossdk",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "7.0.0",
+    "@hyperlane-xyz/ccip-server": "12.0.0",
+    "@hyperlane-xyz/cli": "12.0.0",
+    "@hyperlane-xyz/cosmos-sdk": "1.0.0",
+    "@hyperlane-xyz/cosmos-types": "11.0.0",
+    "@hyperlane-xyz/github-proxy": "12.0.0",
+    "@hyperlane-xyz/helloworld": "12.0.0",
+    "@hyperlane-xyz/infra": "12.0.0",
+    "@hyperlane-xyz/sdk": "12.0.0",
+    "@hyperlane-xyz/utils": "12.0.0",
+    "@hyperlane-xyz/widgets": "12.0.0"
+  },
+  "changesets": [
+    "wicked-phones-develop"
+  ]
+}

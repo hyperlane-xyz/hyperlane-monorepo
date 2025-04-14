@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 12.1.0-cosmossdk.0
+
 ## 12.0.0
 
 ## 11.0.0

@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 7.0.1-cosmossdk.0
+
+### Patch Changes
+
+- Updated dependencies [26c625cd9]
+  - @hyperlane-xyz/utils@12.1.0-cosmossdk.0
+
 ## 7.0.0
 
 ### Major Changes

@@ -1,5 +1,14 @@
 # @hyperlane-xyz/infra
 
+## 12.1.0-cosmossdk.0
+
+### Patch Changes
+
+- Updated dependencies [26c625cd9]
+  - @hyperlane-xyz/utils@12.1.0-cosmossdk.0
+  - @hyperlane-xyz/sdk@12.1.0-cosmossdk.0
+  - @hyperlane-xyz/helloworld@12.1.0-cosmossdk.0
+
 ## 12.0.0
 
 ### Minor Changes
