@@ -75,7 +75,10 @@ export const MUTABLE_ISM_TYPE = [
   IsmType.PAUSABLE,
 ];
 
-// ISM types that require static deployment
+/**
+ * @notice Statically deployed ISM types
+ * @dev ISM types with immutable config embedded in contract bytecode via MetaProxy
+ */
 export const STATIC_ISM_TYPES = [
   IsmType.AGGREGATION,
   IsmType.MERKLE_ROOT_MULTISIG,

@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 
+import { ModuleType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -349,6 +350,27 @@ const MetricAppContextSchema = z.object({
   ),
 });
 
+export enum IsmCachePolicy {
+  MessageSpecific = 'messageSpecific',
+  IsmSpecific = 'ismSpecific',
+}
+
+const IsmCacheConfigSchema = z.object({
+  moduleTypes: z
+    .array(z.nativeEnum(ModuleType))
+    .describe('The ISM module types to use the cache policy for.'),
+  chains: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'The chains to use the cache policy for. If not specified, all chains will be used.',
+    ),
+  cachePolicy: z
+    .nativeEnum(IsmCachePolicy)
+    .describe('The cache policy to use.'),
+});
+export type IsmCacheConfig = z.infer<typeof IsmCacheConfigSchema>;
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -397,6 +419,18 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .optional()
     .describe(
       'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
+    ),
+  defaultIsmCacheConfig: z
+    .union([IsmCacheConfigSchema, z.string().min(1)])
+    .optional()
+    .describe(
+      'The default ISM cache config to use for all chains. If not specified, default caching will be used.',
+    ),
+  allowContractCallCaching: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, allows caching of certain contract calls that can be appropriately cached.',
     ),
 });
 
