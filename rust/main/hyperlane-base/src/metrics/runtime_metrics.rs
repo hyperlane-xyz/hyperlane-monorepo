@@ -1,11 +1,11 @@
-use std::{fmt::Debug, time::Duration};
+use std::{env, fmt::Debug, time::Duration};
 
 use eyre::Result;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use prometheus::IntCounter;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tokio_metrics::{TaskMetrics, TaskMonitor};
-use tracing::{info_span, Instrument};
+use tracing::{debug, info_span, Instrument};
 
 use super::CoreMetrics;
 
@@ -50,6 +50,9 @@ impl RuntimeMetrics {
                 self.update(metrics);
             }
             interval.tick().await;
+
+            let value = env::var("TEST_ENVIRONMENT_VARIABLE").unwrap_or_default();
+            debug!("TEST_ENVIRONMENT_VARIABLE: {}", value);
         }
     }
 
