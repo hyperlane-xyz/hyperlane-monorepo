@@ -68,7 +68,6 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 # dependency version is determined by etheres
 rusoto_core = "*"
 rusoto_kms = "*"
-rusoto_s3 = "*"
 rusoto_sts = "*"
 
 [dev-dependencies]
