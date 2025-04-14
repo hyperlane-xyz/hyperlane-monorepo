@@ -101,10 +101,6 @@ class ArtifactGenerator {
 
     /**
      * @notice Validates that the artifact was compiled with zksolc
-     * @dev ZKSync artifacts must have a specific format identifier that includes 'zksolc'
-     * This validation ensures we're only processing artifacts that were properly compiled
-     * for ZKsync, preventing inclusion of standard Hardhat artifacts that wouldn't work
-     * in a ZKsync environment.
      *
      * Format examples:
      * - Valid:   "_format": "hh-zksolc-artifact-1" (compiled with zksolc)
