@@ -2,7 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
-const COLLATERAL_CHAIN = 'ethereum';
+export const COLLATERAL_CHAIN = 'ethereum';
 
 const TOKEN_CONFIG = {
   name: 'Hyperlane',
@@ -65,7 +65,7 @@ export const getHyperWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
     TOKEN_CHAINS.map((chain) => {
-      let config = {
+      const config = {
         ...routerConfig[chain],
         ...TOKEN_CONFIG,
         owner: envConfig.OWNERS[chain],
@@ -98,7 +98,7 @@ export const getStakedHyperWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
     STAKED_TOKEN_CHAINS.map((chain) => {
-      let config = {
+      const config = {
         ...routerConfig[chain],
         ...STAKED_TOKEN_CONFIG,
         owner: envConfig.OWNERS[chain],

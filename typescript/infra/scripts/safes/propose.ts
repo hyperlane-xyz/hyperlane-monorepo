@@ -10,6 +10,10 @@ import yargs from 'yargs';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { safes } from '../../config/environments/mainnet3/owners.js';
+import {
+  NETWORK,
+  SUBNETWORK_IDENTIFIER,
+} from '../../config/environments/mainnet3/symbiotic.js';
 import { PRODUCTION } from '../../config/environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
 import { withChain } from '../agent-utils.js';
@@ -69,10 +73,6 @@ const VAULTS = [
     vault: '0x3D93b33f5E5fe74D54676720e70EA35210cdD46E',
   },
 ];
-
-const NETWORK = '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2';
-
-const SUBNETWORK_IDENTIFIER = BigInt(0);
 
 const SET_LIMIT_ABI = parseAbiItem(
   'function setMaxNetworkLimit(uint96 identifier, uint256 amount)',

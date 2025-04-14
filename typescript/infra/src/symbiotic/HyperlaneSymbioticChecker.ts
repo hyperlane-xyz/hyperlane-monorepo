@@ -10,6 +10,7 @@ import {
   IDefaultStakerRewards__factory,
   INetworkRestakeDelegator__factory,
   IVaultTokenized,
+  IVaultTokenized__factory,
   Ownable__factory,
   TimelockController,
 } from '@hyperlane-xyz/core';
@@ -33,10 +34,11 @@ export interface SymbioticConfig {
   vault: {
     epochDuration: number;
   };
-  // delegator: {
-  //   networkLimit?: any;
-  //   operatorNetworkShares?: any;
-  // };
+  delegator: {
+    hook: string;
+    // networkLimit?: any;
+    // operatorNetworkShares?: any;
+  };
   rewards: {
     adminFee: number;
   };
@@ -45,8 +47,12 @@ export interface SymbioticConfig {
   };
 }
 
+export interface SymbioticAddresses {
+  network: string;
+  accessManager: string;
+}
+
 export interface SymbioticContracts {
-  vault: IVaultTokenized;
   compoundStakerRewards: ICompoundStakerRewards;
   network: TimelockController;
   accessManager: AccessControl;
@@ -66,25 +72,24 @@ export class SymbioticChecker {
   }
 
   async check(): Promise<void> {
-    const delegatorAddress = await this.contracts.vault.delegator();
-    const slasherAddress = await this.contracts.vault.slasher();
-    const burnerRouterAddress = await this.contracts.vault.burner();
-    const collateralAddress = await this.contracts.vault.collateral();
+    const vaultAddress = await this.contracts.compoundStakerRewards.vault();
+    const vault = IVaultTokenized__factory.connect(vaultAddress, this.provider);
 
-    await this.checkVault();
-    await this.checkDelegator(delegatorAddress);
-    await this.checkSlasher(slasherAddress);
-    await this.checkBurner(
-      burnerRouterAddress,
-      collateralAddress,
-      slasherAddress,
-    );
-    await this.checkRewards();
+    const delegatorAddress = await vault.delegator();
+    const slasherAddress = await vault.slasher();
+    const burnerRouterAddress = await vault.burner();
+    const collateralAddress = await vault.collateral();
+
+    await this.checkVault(vault);
+    await this.checkDelegator(delegatorAddress, vaultAddress);
+    await this.checkSlasher(slasherAddress, vaultAddress);
+    await this.checkBurner(burnerRouterAddress, collateralAddress);
+    await this.checkRewards(vaultAddress);
     await this.checkNetwork();
   }
 
-  private async checkVault(): Promise<void> {
-    const actualEpochDuration = await this.contracts.vault.epochDuration();
+  private async checkVault(vault: IVaultTokenized): Promise<void> {
+    const actualEpochDuration = await vault.epochDuration();
     if (actualEpochDuration !== this.config.vault.epochDuration) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
@@ -98,37 +103,51 @@ export class SymbioticChecker {
     }
 
     const roleIds = {
-      depositWhitelistSetter:
-        await this.contracts.vault.DEPOSIT_WHITELIST_SET_ROLE(),
-      depositWhitelist: await this.contracts.vault.DEPOSITOR_WHITELIST_ROLE(),
-      isDepositLimitSetter:
-        await this.contracts.vault.IS_DEPOSIT_LIMIT_SET_ROLE(),
-      depositLimitSetter: await this.contracts.vault.DEPOSIT_LIMIT_SET_ROLE(),
+      depositWhitelistSetter: await vault.DEPOSIT_WHITELIST_SET_ROLE(),
+      depositWhitelist: await vault.DEPOSITOR_WHITELIST_ROLE(),
+      isDepositLimitSetter: await vault.IS_DEPOSIT_LIMIT_SET_ROLE(),
+      depositLimitSetter: await vault.DEPOSIT_LIMIT_SET_ROLE(),
     };
 
     await this.checkAccessControl(
-      this.contracts.vault.address,
+      vault.address,
       'vault',
       roleIds,
       this.contracts.accessManager.address,
     );
   }
 
-  private async checkDelegator(delegatorAddress: string): Promise<void> {
+  private async checkDelegator(
+    delegatorAddress: string,
+    vaultAddress: string,
+  ): Promise<void> {
     const delegator = INetworkRestakeDelegator__factory.connect(
       delegatorAddress,
       this.provider,
     );
 
     const actualVault = await delegator.vault();
-    if (!eqAddress(actualVault, this.contracts.vault.address)) {
+    if (!eqAddress(actualVault, vaultAddress)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'delegator',
         referenceField: 'vault',
         actual: actualVault,
-        expected: this.contracts.vault.address,
+        expected: vaultAddress,
+      };
+      this.addViolation(violation);
+    }
+
+    const actualHook = await delegator.hook();
+    if (!eqAddress(actualHook, this.config.delegator.hook)) {
+      const violation: SymbioticViolation = {
+        chain: this.config.chain,
+        type: SymbioticViolationType.State,
+        contractName: 'delegator',
+        referenceField: 'hook',
+        actual: actualHook,
+        expected: this.config.delegator.hook,
       };
       this.addViolation(violation);
     }
@@ -139,6 +158,7 @@ export class SymbioticChecker {
       networkLimitSetter: await delegator.NETWORK_LIMIT_SET_ROLE(),
       operatorNetworkSharesSetter:
         await delegator.OPERATOR_NETWORK_SHARES_SET_ROLE(),
+      hookSetter: await delegator.HOOK_SET_ROLE(),
     };
 
     await this.checkAccessControl(
@@ -149,21 +169,24 @@ export class SymbioticChecker {
     );
   }
 
-  private async checkSlasher(slasherAddress: string): Promise<void> {
+  private async checkSlasher(
+    slasherAddress: string,
+    vaultAddress: string,
+  ): Promise<void> {
     const slasher = IBaseSlasher__factory.connect(
       slasherAddress,
       this.provider,
     );
 
     const actualVault = await slasher.vault();
-    if (!eqAddress(actualVault, this.contracts.vault.address)) {
+    if (!eqAddress(actualVault, vaultAddress)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'slasher',
         referenceField: 'vault',
         actual: actualVault,
-        expected: this.contracts.vault.address,
+        expected: vaultAddress,
       };
       this.addViolation(violation);
     }
@@ -185,7 +208,6 @@ export class SymbioticChecker {
   private async checkBurner(
     burnerRouterAddress: string,
     collateralAddress: string,
-    slasherAddress: string,
   ): Promise<void> {
     const burnerRouter = IBurnerRouter__factory.connect(
       burnerRouterAddress,
@@ -239,7 +261,7 @@ export class SymbioticChecker {
     }
   }
 
-  private async checkRewards(): Promise<void> {
+  private async checkRewards(vaultAddress: string): Promise<void> {
     const rewardsAddress = await this.contracts.compoundStakerRewards.rewards();
     const rewards = IDefaultStakerRewards__factory.connect(
       rewardsAddress,
@@ -247,14 +269,14 @@ export class SymbioticChecker {
     );
 
     const actualVault = await rewards.VAULT();
-    if (!eqAddress(actualVault, this.contracts.vault.address)) {
+    if (!eqAddress(actualVault, vaultAddress)) {
       const violation: SymbioticViolation = {
         chain: this.config.chain,
         type: SymbioticViolationType.State,
         contractName: 'rewards',
         referenceField: 'vault',
         actual: actualVault,
-        expected: this.contracts.vault.address,
+        expected: vaultAddress,
       };
       this.addViolation(violation);
     }
