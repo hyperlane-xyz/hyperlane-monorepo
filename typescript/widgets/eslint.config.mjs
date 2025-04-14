@@ -1,12 +1,20 @@
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
+import { defineConfig, globalIgnores } from 'eslint/config';
 
-import MonorepoDefaults, {compat} from '../../eslint.config.mjs';
+import MonorepoDefaults from '../../eslint.config.mjs';
 
-export default [
+export default defineConfig(
   ...MonorepoDefaults,
-  ...compat.extends("plugin:react/recommended", "plugin:react-hooks/recommended"),
   {
+    name: 'widgets',
+    plugins: {
+      react,
+    },
+    extends: [
+      { name: 'react/recommended', ...react.configs.flat.recommended },
+      reactHooks.configs['recommended-latest'],
+    ],
     settings: {
       react: {
         version: '18',
@@ -15,26 +23,20 @@ export default [
     },
   },
   {
+    name: 'react',
     files: ['./src/**/*.ts', './src/**/*.tsx'],
     plugins: {
       react,
-      'react-hooks': reactHooks,
     },
-
-
     rules: {
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
     },
   },
-  {
-    ignores: [
-      '**/src/stories/*',
-      'tailwind.config.js',
-      'postcss.config.js',
-      '.storybook/*',
-    ],
-  },
-];
+  globalIgnores([
+    '**/src/stories/*',
+    'tailwind.config.js',
+    'postcss.config.js',
+    '.storybook/*',
+  ]),
+);
