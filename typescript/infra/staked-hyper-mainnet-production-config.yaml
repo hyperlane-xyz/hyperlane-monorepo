@@ -1,0 +1,17 @@
+bsc:
+  collateralChainName: ethereum
+  decimals: 18
+  mailbox: "0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4"
+  name: Staked HYPER
+  owner: "0x117E878B9f8b1C2B455d3636380C1ED26e5e826e"
+  symbol: stHYPER
+  type: syntheticRebase
+ethereum:
+  decimals: 18
+  mailbox: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+  name: Staked HYPER
+  owner: "0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863"
+  symbol: stHYPER
+  token: "0xa860e01Cc4A889BB2917EC97104510A2e1Ae0e53"
+  type: collateralVaultRebase
+
