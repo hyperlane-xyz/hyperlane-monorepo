@@ -67,5 +67,18 @@ export function getKeyFunderConfig(
       `Environment ${coreConfig.environment} does not have a KeyFunderConfig config`,
     );
   }
+
+  const removeZeroEntries = (obj: Record<string, string>) => {
+    for (const key in obj) {
+      if (obj[key] === '0') {
+        delete obj[key];
+      }
+    }
+  };
+
+  removeZeroEntries(keyFunderConfig.desiredBalancePerChain);
+  removeZeroEntries(keyFunderConfig.desiredKathyBalancePerChain);
+  removeZeroEntries(keyFunderConfig.igpClaimThresholdPerChain);
+
   return keyFunderConfig;
 }
