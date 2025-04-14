@@ -152,9 +152,9 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .end()
             .unwrap();
 
-        let mut rpcs = get_rpc_urls(&chain, "rpcUrls", &mut err);
+        let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
-        rpcs.extend(get_rpc_urls(&chain, "grpcUrls", &mut err));
+        rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
@@ -183,9 +183,11 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 /// Extracts all of the rpc urls
 ///
 /// rpcKey is either grpcUrls or rpcUrls
+/// overrideKey is either customGrpcUrls or customRpcUrls
 fn get_rpc_urls(
     chain: &ValueParser,
     rpc_key: &str,
+    override_key: &str,
     err: &mut ConfigParsingError,
 ) -> Vec<RpcConfig> {
     // struct looks like the following
@@ -199,7 +201,7 @@ fn get_rpc_urls(
     //   ]
     // }
     // ```
-    chain
+    let base = chain
         .chain(err)
         .get_opt_key(rpc_key)
         .into_array_iter()
@@ -218,7 +220,21 @@ fn get_rpc_urls(
             })
             .collect_vec()
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let overrides = chain
+        .chain(err)
+        .get_opt_key(override_key)
+        .parse_string()
+        .end()
+        .map(|urls| {
+            urls.split(',')
+                .map(|url| RpcConfig {
+                    url: url.to_owned(),
+                    public: false,
+                })
+                .collect_vec()
+        });
+    overrides.unwrap_or(base)
 }
 
 /// Expects ValidatorAgentConfig.checkpointSyncer
@@ -335,7 +351,7 @@ mod test {
 
         let mut err = ConfigParsingError::default();
         let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(&value_parser, "rpcUrls", &mut err); // why does it convert to lowercase?
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err); // why does it convert to lowercase?
 
         assert_eq!(parsed.len(), expected.len());
         for (i, rpc) in expected.iter().enumerate() {
@@ -362,12 +378,40 @@ mod test {
         let rpcs = serde_json::from_str(rpcs).unwrap();
         let mut err = ConfigParsingError::default();
         let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(&value_parser, "rpcUrls", &mut err);
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].url, "http://my-rpc-url.com");
         assert_eq!(parsed[0].public, false);
         assert_eq!(parsed[1].url, "http://my-rpc-url-2.com");
+        assert_eq!(parsed[1].public, false);
+    }
+
+    #[test]
+    fn test_get_rpc_urls_overrides() {
+        let rpcs = r#"
+            {
+                "rpcurls": [
+                    {
+                        "http": "http://my-rpc-url.com"
+                    },
+                    {
+                        "http": "http://my-rpc-url-2.com",
+                        "public": false
+                    }
+                ],
+                "customrpcurls": "http://my-rpc-url-3.com,http://my-rpc-url-4.com"
+            }
+        "#;
+        let rpcs = serde_json::from_str(rpcs).unwrap();
+        let mut err = ConfigParsingError::default();
+        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
+        let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
+
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
+        assert_eq!(parsed[0].public, false);
+        assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
         assert_eq!(parsed[1].public, false);
     }
 }
