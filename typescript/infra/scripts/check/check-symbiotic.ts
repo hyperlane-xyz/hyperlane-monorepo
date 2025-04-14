@@ -10,7 +10,7 @@ import { Contexts } from '../../config/contexts.js';
 import { NETWORK } from '../../config/environments/mainnet3/symbiotic.js';
 import {
   COLLATERAL_CHAIN,
-  OWNERS,
+  STAGING,
 } from '../../config/environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -29,7 +29,7 @@ import {
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const mainnet3Addresses = {
-  accessManager: OWNERS[COLLATERAL_CHAIN],
+  accessManager: STAGING.OWNERS[COLLATERAL_CHAIN],
   network: NETWORK,
 };
 

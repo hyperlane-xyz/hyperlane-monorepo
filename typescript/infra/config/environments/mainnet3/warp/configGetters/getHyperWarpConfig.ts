@@ -26,7 +26,7 @@ const STAKED_TOKEN_CONFIG = {
 
 const STAKED_TOKEN_CHAINS = [COLLATERAL_CHAIN, 'bsc'] as const;
 
-const STAGING = {
+export const STAGING = {
   INITIAL_SUPPLY: (
     1_000_000_000n *
     10n ** BigInt(TOKEN_CONFIG.decimals)
