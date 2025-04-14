@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 # Automatically cancels a job if a new commit is pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
