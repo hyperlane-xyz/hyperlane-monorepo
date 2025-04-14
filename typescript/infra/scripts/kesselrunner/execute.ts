@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  HOURLY_RATE,
   getKesselRunMultiProvider,
   kesselRunConfig,
 } from '../../src/kesselrunner/config.js';
@@ -201,58 +202,30 @@ async function doTheKesselRun() {
     rootLogger.info('Preparing messageParams for burst');
     const startTime = Date.now(); // Start timing
 
-    for (const origin of ['optimismsepolia', 'arbitrumsepolia']) {
+    for (const origin of targetNetworks) {
       let nonce = startingNonces[origin];
       rootLogger.debug(
         `Processing origin: ${origin} with starting nonce: ${nonce}`,
       );
 
-      for (const [destination, percentage] of Object.entries(
-        kesselRunConfig.distArbOp,
+      const ratePerOrigin =
+        HOURLY_RATE *
+        kesselRunConfig.distro[origin as keyof typeof kesselRunConfig.distro];
+
+      const distributionConfig = [
+        'arbitrumsepolia',
+        'optimismsepolia',
+      ].includes(origin)
+        ? kesselRunConfig.distArbOp
+        : kesselRunConfig.distBaseBscEth;
+
+      for (const [destination, bridgeDistribution] of Object.entries(
+        distributionConfig,
       )) {
-        const txCount =
-          Math.floor(kesselRunConfig.transactionsPerMinute * percentage) + 1;
-        rootLogger.debug(
-          `Origin: ${origin}, Destination: ${destination}, Transactions: ${txCount}`,
+        const txCount = Math.max(
+          1,
+          Math.floor((ratePerOrigin * bridgeDistribution) / 60),
         );
-
-        for (let j = 0; j < txCount; j++) {
-          if (origin === destination) {
-            rootLogger.debug(`Skipping transaction from ${origin} to itself.`);
-            continue;
-          }
-          messageParams.push({
-            origin,
-            destination,
-            core,
-            nonce,
-            gasEstimate: gasEstimates[origin][destination],
-          });
-          nonce++;
-
-          messageCounts[origin] = messageCounts[origin] || { from: 0, to: 0 };
-          messageCounts[destination] = messageCounts[destination] || {
-            from: 0,
-            to: 0,
-          };
-
-          messageCounts[origin].from += 1;
-          messageCounts[destination].to += 1;
-        }
-      }
-    }
-
-    for (const origin of ['basesepolia', 'sepolia', 'bsctestnet']) {
-      let nonce = startingNonces[origin];
-      rootLogger.debug(
-        `Processing origin: ${origin} with starting nonce: ${nonce}`,
-      );
-
-      for (const [destination, percentage] of Object.entries(
-        kesselRunConfig.distBaseBscEth,
-      )) {
-        const txCount =
-          Math.floor(kesselRunConfig.transactionsPerMinute * percentage) + 1;
         rootLogger.debug(
           `Origin: ${origin}, Destination: ${destination}, Transactions: ${txCount}`,
         );

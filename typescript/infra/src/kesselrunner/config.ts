@@ -38,13 +38,20 @@ export const targetNetworks = [
   'optimismsepolia',
 ];
 
-export const kesselRunConfig = {
-  hourlyRate: 600, // Example hourly rate
+export const HOURLY_RATE = 10000;
+
+export const kesselRunConfig: {
+  bursts: number;
+  burstInterval: number;
+  distArbOp: ChainMap<number>;
+  distBaseBscEth: ChainMap<number>;
+  distro: ChainMap<number>;
+} = {
   bursts: 10,
-  transactionsPerMinute: Math.floor(600 / 60),
   burstInterval: 60000, // 1 minute in milliseconds
   distArbOp: {},
   distBaseBscEth: {},
+  distro: {},
 };
 
 export type KesselRunner = {
