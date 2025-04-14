@@ -10,7 +10,7 @@ import yargs from 'yargs';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { safes } from '../../config/environments/mainnet3/owners.js';
-import { INITIAL_SUPPLY } from '../../config/environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
+import { PRODUCTION } from '../../config/environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -99,7 +99,7 @@ const LIMITS = {
   ETH: BigInt(3000e18),
   BTC: BigInt(100e8),
   // set max limit for HYPER
-  HYPER: BigInt(INITIAL_SUPPLY),
+  HYPER: BigInt(PRODUCTION.INITIAL_SUPPLY),
 };
 
 async function main() {
