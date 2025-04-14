@@ -1,4 +1,5 @@
-import { ethers } from 'ethers';
+import chalk from 'chalk';
+import { BigNumber, ethers } from 'ethers';
 
 import { ChainMap, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import {
@@ -23,6 +24,7 @@ async function preCalculateGasEstimates(
 ) {
   const gasEstimates: Record<string, Record<string, ethers.BigNumber>> = {};
   rootLogger.info('Starting gas estimate pre-calculation');
+  const startTime = Date.now();
 
   for (const origin of origins) {
     gasEstimates[origin] = {};
@@ -62,7 +64,11 @@ async function preCalculateGasEstimates(
     }
   }
 
-  rootLogger.info('Completed gas estimate pre-calculation');
+  const endTime = Date.now();
+  const duration = (endTime - startTime) / 1000;
+  rootLogger.info(
+    `Completed gas estimate pre-calculation in ${duration} seconds`,
+  );
   return gasEstimates;
 }
 
@@ -108,12 +114,12 @@ async function sendTestMessage({
         nonce,
       },
     );
-    rootLogger.info(`[${origin} ${nonce}] -> ${destination}`);
+    rootLogger.info(
+      chalk.italic.gray(`[${origin} ${nonce}] -> ${destination}`),
+    );
     return;
   } catch (e) {
-    rootLogger.error(
-      `Encountered error sending message from ${origin} to ${destination}`,
-    );
+    rootLogger.info(chalk.bold.red(`[${origin} ${nonce}] -> ${destination}`));
     throw e;
   }
 }
@@ -182,6 +188,17 @@ async function doTheKesselRun() {
   for (let i = 0; i < kesselRunConfig.bursts; i++) {
     rootLogger.info(`Starting burst ${i + 1} of ${kesselRunConfig.bursts}`);
 
+    const messageParams: Array<{
+      origin: string;
+      destination: string;
+      core: typeof core;
+      nonce: number;
+      gasEstimate: BigNumber;
+    }> = [];
+
+    rootLogger.info('Preparing messageParams for burst');
+    const startTime = Date.now(); // Start timing
+
     for (const origin of ['optimismsepolia', 'arbitrumsepolia']) {
       let nonce = startingNonces[origin];
       rootLogger.debug(
@@ -202,16 +219,13 @@ async function doTheKesselRun() {
             rootLogger.debug(`Skipping transaction from ${origin} to itself.`);
             continue;
           }
-          await sendTestMessage({
+          messageParams.push({
             origin,
             destination,
             core,
             nonce,
             gasEstimate: gasEstimates[origin][destination],
           });
-          rootLogger.debug(
-            `Sent message from ${origin} to ${destination} with nonce: ${nonce}`,
-          );
           nonce++;
         }
       }
@@ -237,20 +251,39 @@ async function doTheKesselRun() {
             rootLogger.debug(`Skipping transaction from ${origin} to itself.`);
             continue;
           }
-          await sendTestMessage({
+          messageParams.push({
             origin,
             destination,
             core,
             nonce,
             gasEstimate: gasEstimates[origin][destination],
           });
-          rootLogger.debug(
-            `Sent message from ${origin} to ${destination} with nonce: ${nonce}`,
-          );
           nonce++;
         }
       }
     }
+
+    const endTime = Date.now(); // End timing
+    const duration = (endTime - startTime) / 1000; // Calculate duration in seconds
+    rootLogger.info(`Finished preparing message params in ${duration}s`);
+
+    await Promise.all(
+      messageParams.map(async (params) => {
+        try {
+          await sendTestMessage(params);
+          rootLogger.debug(
+            `Sent message from ${params.origin} to ${params.destination} with nonce: ${params.nonce}`,
+          );
+        } catch (error) {
+          rootLogger.error(
+            chalk.bold.red(
+              `Error sending message from ${params.origin} to ${params.destination} with nonce: ${params.nonce}:`,
+              error,
+            ),
+          );
+        }
+      }),
+    );
 
     rootLogger.info(`Completed burst ${i + 1}`);
     if (i < kesselRunConfig.bursts - 1) {
@@ -265,7 +298,11 @@ async function doTheKesselRun() {
       const intervalId = setInterval(() => {
         remainingTime -= interval;
         if (remainingTime > 0) {
-          rootLogger.info(`Time until next burst: ${remainingTime / 1000}s`);
+          rootLogger.info(
+            chalk.italic.gray(
+              `Time until next burst: ${remainingTime / 1000}s`,
+            ),
+          );
         }
       }, interval);
 
