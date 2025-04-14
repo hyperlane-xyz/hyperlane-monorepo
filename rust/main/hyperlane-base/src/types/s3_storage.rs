@@ -111,7 +111,7 @@ impl S3Storage {
     async fn anonymous_client(&self) -> Client {
         let cell = get_anonymous_client_cache()
             .entry(self.region.clone())
-            .or_insert_with(|| OnceCell::new());
+            .or_insert_with(OnceCell::new);
 
         cell.get_or_init(|| async {
             let config = self
