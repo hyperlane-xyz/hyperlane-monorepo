@@ -48,8 +48,10 @@ import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
 import {
-  getHyperWarpConfig,
-  getStakedHyperWarpConfig,
+  getHyperWarpConfigProduction,
+  getHyperWarpConfigStaging,
+  getStakedHyperWarpConfigProduction,
+  getStakedHyperWarpConfigStaging,
 } from './environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
@@ -133,8 +135,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BscHyperevmEnzoBTC]: getBscHyperevmEnzoBTCWarpConfig,
   [WarpRouteIds.BscHyperevmSTBTC]: getBscHyperevmSTBTCWarpConfig,
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
-  [WarpRouteIds.Hyper]: getHyperWarpConfig,
-  [WarpRouteIds.StakedHyper]: getStakedHyperWarpConfig,
+  [WarpRouteIds.StagingHyper]: getHyperWarpConfigStaging,
+  [WarpRouteIds.StagingStakedHyper]: getStakedHyperWarpConfigStaging,
+  [WarpRouteIds.Hyper]: getHyperWarpConfigProduction,
+  [WarpRouteIds.StakedHyper]: getStakedHyperWarpConfigProduction,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;

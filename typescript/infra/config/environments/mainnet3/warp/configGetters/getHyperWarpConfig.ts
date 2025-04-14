@@ -26,7 +26,7 @@ const STAKED_TOKEN_CONFIG = {
 
 const STAKED_TOKEN_CHAINS = [COLLATERAL_CHAIN, 'bsc'] as const;
 
-export const STAGING = {
+const STAGING = {
   INITIAL_SUPPLY: (
     1_000_000_000n *
     10n ** BigInt(TOKEN_CONFIG.decimals)
@@ -40,7 +40,7 @@ export const STAGING = {
     bsc: '0xaE1DA73F3aB27F30b32239114d4d14c789D64176',
   },
   COMPOUND_STAKING_REWARDS: '0x9FB258cbd8415C4Fda62092003FCB54F60Af670B',
-} as const;
+};
 
 export const PRODUCTION = {
   INITIAL_SUPPLY: (
@@ -58,71 +58,80 @@ export const PRODUCTION = {
   COMPOUND_STAKING_REWARDS: '',
 };
 
-const envConfig = STAGING;
+const getHyperWarpConfig =
+  (envConfig: typeof STAGING) =>
+  async (
+    routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  ): Promise<ChainMap<HypTokenRouterConfig>> => {
+    return Object.fromEntries(
+      TOKEN_CHAINS.map((chain) => {
+        const config = {
+          ...routerConfig[chain],
+          ...TOKEN_CONFIG,
+          owner: envConfig.OWNERS[chain],
+        };
 
-export const getHyperWarpConfig = async (
-  routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return Object.fromEntries(
-    TOKEN_CHAINS.map((chain) => {
-      const config = {
-        ...routerConfig[chain],
-        ...TOKEN_CONFIG,
-        owner: envConfig.OWNERS[chain],
-      };
+        if (chain === COLLATERAL_CHAIN) {
+          return [
+            chain,
+            {
+              type: TokenType.hyperToken,
+              initialSupply: envConfig.INITIAL_SUPPLY,
+              ...config,
+            },
+          ];
+        } else {
+          return [
+            chain,
+            {
+              type: TokenType.synthetic,
+              ...config,
+            },
+          ];
+        }
+      }),
+    );
+  };
 
-      if (chain === COLLATERAL_CHAIN) {
-        return [
-          chain,
-          {
-            type: TokenType.hyperToken,
-            initialSupply: envConfig.INITIAL_SUPPLY,
-            ...config,
-          },
-        ];
-      } else {
-        return [
-          chain,
-          {
-            type: TokenType.synthetic,
-            ...config,
-          },
-        ];
-      }
-    }),
-  );
-};
+const getStakedHyperWarpConfig =
+  (envConfig: typeof STAGING) =>
+  async (
+    routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  ): Promise<ChainMap<HypTokenRouterConfig>> => {
+    return Object.fromEntries(
+      STAKED_TOKEN_CHAINS.map((chain) => {
+        const config = {
+          ...routerConfig[chain],
+          ...STAKED_TOKEN_CONFIG,
+          owner: envConfig.OWNERS[chain],
+        };
 
-export const getStakedHyperWarpConfig = async (
-  routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return Object.fromEntries(
-    STAKED_TOKEN_CHAINS.map((chain) => {
-      const config = {
-        ...routerConfig[chain],
-        ...STAKED_TOKEN_CONFIG,
-        owner: envConfig.OWNERS[chain],
-      };
+        if (chain === COLLATERAL_CHAIN) {
+          return [
+            chain,
+            {
+              type: TokenType.collateralVaultRebase,
+              token: envConfig.COMPOUND_STAKING_REWARDS,
+              ...config,
+            },
+          ];
+        } else {
+          return [
+            chain,
+            {
+              type: TokenType.syntheticRebase,
+              collateralChainName: COLLATERAL_CHAIN,
+              ...config,
+            },
+          ];
+        }
+      }),
+    );
+  };
 
-      if (chain === COLLATERAL_CHAIN) {
-        return [
-          chain,
-          {
-            type: TokenType.collateralVaultRebase,
-            token: envConfig.COMPOUND_STAKING_REWARDS,
-            ...config,
-          },
-        ];
-      } else {
-        return [
-          chain,
-          {
-            type: TokenType.syntheticRebase,
-            collateralChainName: COLLATERAL_CHAIN,
-            ...config,
-          },
-        ];
-      }
-    }),
-  );
-};
+export const getHyperWarpConfigStaging = getHyperWarpConfig(STAGING);
+export const getHyperWarpConfigProduction = getHyperWarpConfig(PRODUCTION);
+export const getStakedHyperWarpConfigStaging =
+  getStakedHyperWarpConfig(STAGING);
+export const getStakedHyperWarpConfigProduction =
+  getStakedHyperWarpConfig(PRODUCTION);
