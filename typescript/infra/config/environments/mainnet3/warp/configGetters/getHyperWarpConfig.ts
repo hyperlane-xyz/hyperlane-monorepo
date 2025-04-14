@@ -48,12 +48,12 @@ export const PRODUCTION = {
     10n ** BigInt(TOKEN_CONFIG.decimals)
   ).toString(),
   OWNERS: {
-    ethereum: '',
+    ethereum: '0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863',
     // get-owner-ica output
-    arbitrum: '',
-    base: '',
-    optimism: '',
-    bsc: '',
+    arbitrum: '0xB4819e005091c10851bd4f5ECFa91f724FE7E83d',
+    base: '0xcE1F1eB67477c2Ca49946Bb4f0e676fbA8a5Ad87',
+    optimism: '0x9A7E243d6b7B9caA172B39c424A92df8282352Bf',
+    bsc: '0x117E878B9f8b1C2B455d3636380C1ED26e5e826e',
   },
   COMPOUND_STAKING_REWARDS: '',
 };

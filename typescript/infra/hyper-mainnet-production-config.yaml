@@ -1,0 +1,37 @@
+arbitrum:
+  decimals: 18
+  mailbox: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+  name: Hyperlane
+  owner: "0xB4819e005091c10851bd4f5ECFa91f724FE7E83d"
+  symbol: HYPER
+  type: synthetic
+base:
+  decimals: 18
+  mailbox: "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+  name: Hyperlane
+  owner: "0xcE1F1eB67477c2Ca49946Bb4f0e676fbA8a5Ad87"
+  symbol: HYPER
+  type: synthetic
+bsc:
+  decimals: 18
+  mailbox: "0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4"
+  name: Hyperlane
+  owner: "0x117E878B9f8b1C2B455d3636380C1ED26e5e826e"
+  symbol: HYPER
+  type: synthetic
+ethereum:
+  decimals: 18
+  initialSupply: "802666667000000000000000000"
+  mailbox: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+  name: Hyperlane
+  owner: "0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863"
+  symbol: HYPER
+  type: hyperToken
+optimism:
+  decimals: 18
+  mailbox: "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D"
+  name: Hyperlane
+  owner: "0x9A7E243d6b7B9caA172B39c424A92df8282352Bf"
+  symbol: HYPER
+  type: synthetic
+
