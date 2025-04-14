@@ -44,7 +44,7 @@ const STAGING = {
 
 export const PRODUCTION = {
   INITIAL_SUPPLY: (
-    1_000_000_000n *
+    802_666_667n *
     10n ** BigInt(TOKEN_CONFIG.decimals)
   ).toString(),
   OWNERS: {
