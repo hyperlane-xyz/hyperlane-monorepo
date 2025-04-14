@@ -181,7 +181,7 @@ export class HyperlaneRouterChecker<
         chain,
         type: RouterViolationType.MissingEnrolledRouter,
         contract: router,
-        actual: actualRemoteChains.join(),
+        actual: actualRemoteChains.join(', '),
         expected: expectedRemoteChains.join(),
         missingChains: missingRemoteChains,
         description: `Routers for some domains are missing from the router`,
