@@ -37,7 +37,7 @@ pub enum MetadataToken {
     Signatures,
 }
 
-const VALIDATOR_SIZE_THRESHOLD: usize = 50;
+const MAX_VALIDATOR_SET_SIZE: usize = 50;
 
 #[async_trait]
 pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {
@@ -121,8 +121,13 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         }
 
         // Dismiss large validator sets
-        if validators.len() > VALIDATOR_SIZE_THRESHOLD {
-            info!("Skipping metadata: Too many validators in ism {ism_address:?}");
+        if validators.len() > MAX_VALIDATOR_SET_SIZE {
+            info!(
+                ?ism_address,
+                validator_count = validators.len(),
+                max_validator_count = MAX_VALIDATOR_SET_SIZE,
+                "Skipping metadata: Too many validators in ISM"
+            );
             return Err(MetadataBuildError::MaxValidatorCountReached(
                 validators.len() as u32,
             ));

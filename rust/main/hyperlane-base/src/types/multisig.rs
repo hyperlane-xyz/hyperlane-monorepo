@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
-use futures::{stream::FuturesUnordered, StreamExt};
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
@@ -38,30 +37,42 @@ impl MultisigCheckpointSyncer {
         let mut latest_indices: HashMap<H160, Option<u32>> =
             HashMap::with_capacity(validators.len());
 
-        for validator in validators {
-            let address = H160::from(*validator);
-            debug!(
-                ?address,
-                "Getting latest checkpoint from validator via checkpoint syncer",
-            );
-            if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
-                // Gracefully handle errors getting the latest_index
-                match checkpoint_syncer.latest_index().await {
-                    Ok(Some(index)) => {
-                        debug!(?address, ?index, "Validator returned latest index");
-                        latest_indices.insert(H160::from(*validator), Some(index));
-                    }
-                    result => {
-                        debug!(
-                            ?address,
-                            ?result,
-                            "Failed to get latest index from validator"
-                        );
-                        latest_indices.insert(H160::from(*validator), None);
-                    }
+        let syncer = validators
+            .iter()
+            .map(|v| H160::from(*v))
+            .filter_map(|v| {
+                if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&v) {
+                    Some((v, checkpoint_syncer))
+                } else {
+                    warn!(validator=%v, "Checkpoint syncer is not provided for validator");
+                    return None;
                 }
-            } else {
-                warn!(?address, "Checkpoint syncer is not provided for validator");
+            })
+            .collect::<Vec<_>>();
+
+        let futures = syncer
+            .iter()
+            .map(
+                |(v, checkpoint_syncer)| async move { (v, checkpoint_syncer.latest_index().await) },
+            )
+            .collect::<Vec<_>>();
+
+        let validator_index_results = futures::future::join_all(futures).await;
+
+        for (validator, latest_index) in validator_index_results {
+            match latest_index {
+                Ok(Some(index)) => {
+                    debug!(?validator, ?index, "Validator returned latest index");
+                    latest_indices.insert(H160::from(*validator), Some(index));
+                }
+                result => {
+                    debug!(
+                        ?validator,
+                        ?result,
+                        "Failed to get latest index from validator"
+                    );
+                    latest_indices.insert(H160::from(*validator), None);
+                }
             }
         }
 
@@ -140,26 +151,11 @@ impl MultisigCheckpointSyncer {
                 return Ok(None);
             }
 
-            // Batch the fetching of a specific index
-            // This enables us to fetch a quorum faster
-            let batch_size = ((start_index - minimum_index) / 4) as usize;
-            let batch_size = batch_size.clamp(1, 3);
-
-            // create a local slice of the range that can safely be sent between workers
-            let indices = Vec::from_iter((minimum_index..=start_index).rev());
-            let indices = indices.as_slice();
-
-            for indices in indices.chunks(batch_size) {
-                let mut futures = indices
-                    .iter()
-                    .map(|index| self.fetch_checkpoint(&validators, threshold, *index))
-                    .collect::<FuturesUnordered<_>>();
-
-                // We want to select the first future that is OK and has Option::Some
-                while let Some(checkpoint) = futures.next().await {
-                    if let Ok(Some(checkpoint)) = checkpoint {
-                        return Ok(Some(checkpoint));
-                    }
+            for index in (minimum_index..=start_index).rev() {
+                if let Ok(Some(checkpoint)) =
+                    self.fetch_checkpoint(&validators, threshold, index).await
+                {
+                    return Ok(Some(checkpoint));
                 }
             }
         }
@@ -192,15 +188,14 @@ impl MultisigCheckpointSyncer {
 
         for validators in validators.chunks(batch_size) {
             // Go through each validator and get the checkpoint syncer.
-            // Create a future for each validator that fetches the signature and
-            // finally construct the checkpoint
+            // Create a future for each validator that fetches its signed checkpoint
             let futures = validators
                 .iter()
                 .filter_map(|address| {
                     if let Some(syncer) = self.checkpoint_syncers.get(&H160::from(*address)) {
                         Some((address, syncer))
                     } else {
-                        debug!(%address, "Checkpoint syncer not found");
+                        debug!(validator=%address, "Checkpoint syncer not found");
                         None
                     }
                 })
@@ -288,6 +283,7 @@ mod test {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     #[tracing_test::traced_test]
     async fn test_s3_checkpoint_syncer() {
         let validators = vec![
@@ -393,6 +389,6 @@ mod test {
         }
 
         let elapsed = start_time.elapsed();
-        println!("Fetched checkpoints in {}s", elapsed.as_millis());
+        println!("Fetched checkpoints in {}ms", elapsed.as_millis());
     }
 }

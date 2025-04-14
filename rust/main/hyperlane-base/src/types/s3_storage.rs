@@ -25,8 +25,7 @@ use crate::{
 /// out of the box, so S3 requests must be wrapped with a timeout.
 /// See https://github.com/rusoto/rusoto/issues/1795.
 const S3_REQUEST_TIMEOUT_SECONDS: u64 = 10;
-const S3_METADATA_TIMEOUT_SECONDS: u64 = 3;
-const S3_MAX_OBJECT_SIZE: i64 = 1024 * 1024; // 1MiB
+const S3_MAX_OBJECT_SIZE: i64 = 50 * 1024; // 50KiB
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
@@ -84,7 +83,7 @@ impl S3Storage {
         };
 
         let get_object_result = timeout(
-            Duration::from_secs(S3_METADATA_TIMEOUT_SECONDS),
+            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
             self.anonymous_client().head_object(metadata_req),
         )
         .await?;
@@ -94,7 +93,8 @@ impl S3Storage {
                 Some(length) if length >= S3_MAX_OBJECT_SIZE => {
                     bail!("Object size for key {key} is too big: {}KiB", length / 1024);
                 }
-                _ => Ok(true),
+                Some(_) => Ok(true),
+                None => Ok(false),
             },
             Err(RusotoError::Service(HeadObjectError::NoSuchKey(_))) => Ok(false),
             Err(e) => bail!(e),
