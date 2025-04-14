@@ -12,6 +12,6 @@ import { ProxyFactoryFactoriesAddresses } from './types.js';
 export function createDefaultProxyFactoryFactories(): ProxyFactoryFactoriesAddresses {
   const defaultAddress = ethers.constants.AddressZero;
   return Object.fromEntries(
-    objMapEntries(proxyFactoryFactories, (key) => defaultAddress),
+    objMapEntries(proxyFactoryFactories, () => defaultAddress),
   ) as ProxyFactoryFactoriesAddresses;
 }
