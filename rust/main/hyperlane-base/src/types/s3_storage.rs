@@ -1,7 +1,7 @@
 use std::{fmt, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
-use aws_config::{BehaviorVersion, ConfigLoader, Region};
+use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
 use aws_sdk_s3::{
     error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError, Client,
 };
@@ -10,14 +10,12 @@ use derive_new::new;
 use eyre::{bail, Result};
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
-use tokio::{sync::OnceCell, time::timeout};
+use tokio::sync::OnceCell;
 
 use crate::{AgentMetadata, CheckpointSyncer};
 
-/// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
-/// out of the box, so S3 requests must be wrapped with a timeout.
-/// See https://github.com/rusoto/rusoto/issues/1795.
-const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
+/// The timeout for all S3 operations.
+const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
@@ -59,32 +57,28 @@ impl fmt::Debug for S3Storage {
 
 impl S3Storage {
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
-        timeout(
-            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
-            self.authenticated_client()
-                .await
-                .put_object()
-                .bucket(self.bucket.clone())
-                .key(self.get_composite_key(key))
-                .body(Vec::from(body).into())
-                .content_type("application/json")
-                .send(),
-        )
-        .await??;
+        self.authenticated_client()
+            .await
+            .put_object()
+            .bucket(self.bucket.clone())
+            .key(self.get_composite_key(key))
+            .body(Vec::from(body).into())
+            .content_type("application/json")
+            .send()
+            .await?;
+
         Ok(())
     }
 
     async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
-        let get_object_result = timeout(
-            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
-            self.anonymous_client()
-                .await
-                .get_object()
-                .bucket(self.bucket.clone())
-                .key(self.get_composite_key(key))
-                .send(),
-        )
-        .await?;
+        let get_object_result = self
+            .anonymous_client()
+            .await
+            .get_object()
+            .bucket(self.bucket.clone())
+            .key(self.get_composite_key(key))
+            .send()
+            .await;
         match get_object_result {
             Ok(res) => Ok(Some(res.body.collect().await?.into_bytes().to_vec())),
             Err(SdkError::ServiceError(err)) => match err.err() {
@@ -100,10 +94,7 @@ impl S3Storage {
     async fn authenticated_client(&self) -> &Client {
         self.authenticated_client
             .get_or_init(|| async {
-                let config = aws_config::from_env()
-                    .region(self.region.clone())
-                    .load()
-                    .await;
+                let config = self.default_aws_sdk_config_loader().load().await;
                 Client::new(&config)
             })
             .await
@@ -123,19 +114,30 @@ impl S3Storage {
             .or_insert_with(|| OnceCell::new());
 
         cell.get_or_init(|| async {
-            let config = ConfigLoader::default()
+            let config = self
+                .default_aws_sdk_config_loader()
                 // Make anonymous, important to not require AWS credentials
                 // to operate the relayer
                 .no_credentials()
-                // Setting the default behavior is required if not using credentials
-                .behavior_version(BehaviorVersion::latest())
-                .region(self.region.clone())
                 .load()
                 .await;
             Client::new(&config)
         })
         .await
         .clone()
+    }
+
+    /// A default ConfigLoader with timeout, region, and behavior version.
+    /// Unless overriden, credentials will be loaded from the env.
+    fn default_aws_sdk_config_loader(&self) -> aws_config::ConfigLoader {
+        ConfigLoader::default()
+            .timeout_config(
+                TimeoutConfig::builder()
+                    .operation_timeout(S3_REQUEST_TIMEOUT)
+                    .build(),
+            )
+            .behavior_version(BehaviorVersion::latest())
+            .region(self.region.clone())
     }
 
     fn get_composite_key(&self, key: String) -> String {
