@@ -1,6 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,7 +31,7 @@ pub enum LoadingOutcome {
 }
 
 #[derive(Debug)]
-struct DbIterator<T> {
+pub struct DbIterator<T> {
     low_index_iter: DirectionalIndexIterator<T>,
     high_index_iter: Option<DirectionalIndexIterator<T>>,
     // here for debugging purposes
@@ -39,8 +40,9 @@ struct DbIterator<T> {
 
 impl<T: LoadableFromDb + Debug> DbIterator<T> {
     #[instrument(skip(loader), ret)]
-    async fn new(loader: Arc<T>, metadata: String, only_load_backward: bool) -> Self {
-        let high_index = loader.highest_index().await.ok();
+    pub async fn new(loader: Arc<T>, metadata: String, only_load_backward: bool) -> Self {
+        // the db returns 0 if uninitialized
+        let high_index = max(loader.highest_index().await.unwrap_or_default(), 1);
         let mut low_index_iter = DirectionalIndexIterator::new(
             high_index,
             IndexDirection::Low,
@@ -52,7 +54,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         } else {
             let high_index_iter = DirectionalIndexIterator::new(
                 // If the high nonce is None, we start from the beginning
-                high_index.unwrap_or_default().into(),
+                high_index,
                 IndexDirection::High,
                 loader,
                 metadata.clone(),
@@ -119,7 +121,7 @@ enum IndexDirection {
 
 #[derive(new)]
 struct DirectionalIndexIterator<T> {
-    index: Option<u32>,
+    index: u32,
     direction: IndexDirection,
     loader: Arc<T>,
     _metadata: String,
@@ -140,23 +142,22 @@ impl<T: LoadableFromDb + Debug> DirectionalIndexIterator<T> {
     fn iterate(&mut self) {
         match self.direction {
             IndexDirection::High => {
-                self.index = self.index.map(|n| n.saturating_add(1));
+                self.index = self.index.saturating_add(1);
                 debug!(?self, "Iterating high nonce");
             }
             IndexDirection::Low => {
-                if let Some(index) = self.index {
-                    // once the index zero is processed, stop going backwards
-                    self.index = index.checked_sub(1);
+                if self.index == 0 {
+                    // If we are at the beginning, we can't go lower
+                    return;
                 }
+                self.index = self.index.saturating_sub(1);
+                debug!(?self, "Iterating low nonce");
             }
         }
     }
 
     async fn try_load_item(&self) -> Result<Option<LoadingOutcome>, SubmitterError> {
-        let Some(index) = self.index else {
-            return Ok(None);
-        };
-        let Some(item) = self.loader.retrieve_by_index(index).await? else {
+        let Some(item) = self.loader.retrieve_by_index(self.index).await? else {
             return Ok(None);
         };
         Ok(Some(self.loader.load(item).await?))
@@ -245,20 +246,11 @@ mod tests {
         let num_db_insertions = 2;
         let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
-        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 1);
-        assert_eq!(
-            *iterator
-                .high_index_iter
-                .as_ref()
-                .unwrap()
-                .index
-                .as_ref()
-                .unwrap(),
-            2
-        );
+        assert_eq!(iterator.low_index_iter.index, 1);
+        assert_eq!(iterator.high_index_iter.as_ref().unwrap().index, 2);
         iterator.try_load_next_item().await.unwrap();
-        assert_eq!(iterator.low_index_iter.index, Some(1));
-        assert_eq!(iterator.high_index_iter.unwrap().index, Some(3));
+        assert_eq!(iterator.low_index_iter.index, 1);
+        assert_eq!(iterator.high_index_iter.unwrap().index, 3);
     }
 
     #[tokio::test]
@@ -267,10 +259,10 @@ mod tests {
         let num_db_insertions = 2;
         let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
-        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 2);
+        assert_eq!(iterator.low_index_iter.index, 2);
         assert!(iterator.high_index_iter.is_none());
         iterator.try_load_next_item().await.unwrap();
-        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 1);
+        assert_eq!(iterator.low_index_iter.index, 1);
         assert!(iterator.high_index_iter.is_none());
     }
 
@@ -281,7 +273,7 @@ mod tests {
         let (mut iterator, _) = set_up_state(only_load_backward, num_db_insertions).await;
 
         iterator.load_from_db().await.unwrap();
-        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 0);
+        assert_eq!(iterator.low_index_iter.index, 0);
         assert!(iterator.high_index_iter.is_none());
     }
 
@@ -316,15 +308,9 @@ mod tests {
             }
         };
 
-        assert_eq!(*iterator.low_index_iter.index.as_ref().unwrap(), 0);
+        assert_eq!(iterator.low_index_iter.index, 0);
         assert_eq!(
-            *iterator
-                .high_index_iter
-                .as_ref()
-                .unwrap()
-                .index
-                .as_ref()
-                .unwrap(),
+            iterator.high_index_iter.as_ref().unwrap().index,
             num_db_insertions + 2
         );
     }

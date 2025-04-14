@@ -61,6 +61,7 @@ export interface ClientViolation extends CheckerViolation {
 
 export enum RouterViolationType {
   MisconfiguredEnrolledRouter = 'MisconfiguredEnrolledRouter',
+  MissingEnrolledRouter = 'MissingEnrolledRouter',
   MissingRouter = 'MissingRouter',
 }
 
@@ -71,6 +72,13 @@ export interface RouterViolation extends CheckerViolation {
     actual: AddressBytes32;
     expected: AddressBytes32;
   }>;
+  description?: string;
+}
+
+export interface MissingEnrolledRouterViolation extends CheckerViolation {
+  type: RouterViolationType.MissingEnrolledRouter;
+  contract: Router;
+  missingChains: string[];
   description?: string;
 }
 

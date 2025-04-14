@@ -1,6 +1,9 @@
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -17,7 +20,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import {
   supportedChainNames,
@@ -225,7 +228,26 @@ const scraperResources = {
   },
 };
 
+const defaultIsmCacheConfig: IsmCacheConfig = {
+  // Default ISM Routing ISMs change configs based off message content,
+  // so they are not specified here.
+  moduleTypes: [
+    ModuleType.AGGREGATION,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
+  ],
+  // SVM is explicitly not cached as the default ISM is a multisig ISM
+  // that routes internally.
+  chains: ethereumChainNames,
+  cachePolicy: IsmCachePolicy.IsmSpecific,
+};
+
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
+  {
+    // Ignore kessel runner test recipients.
+    // All 5 test recipients have the same address.
+    recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
+  },
   {
     // In an effort to reduce some giant retry queues that resulted
     // from spam txs to the old TestRecipient before we were charging for
@@ -257,7 +279,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe1f33b-20250408-120728',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -269,6 +291,8 @@ const hyperlane: RootAgentConfig = {
         ),
       },
     ],
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
@@ -299,12 +323,12 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe1f33b-20250408-120728',
+      tag: 'cecb0d8-20250411-150743',
     },
-    whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
@@ -318,7 +342,42 @@ const releaseCandidate: RootAgentConfig = {
   },
 };
 
+export const kesselRunnerNetworks = [
+  'basesepolia',
+  'arbitrumsepolia',
+  'sepolia',
+  'bsctestnet',
+  'optimismsepolia',
+];
+const neutron: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.Neutron,
+  contextChainNames: {
+    validator: [],
+    relayer: kesselRunnerNetworks,
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: 'ef039ae-20250411-104801',
+    },
+    whitelist: [
+      {
+        recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
+      },
+    ],
+    gasPaymentEnforcement,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
+    resources: relayerResources,
+  },
+};
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
+  [Contexts.Neutron]: neutron,
 };
