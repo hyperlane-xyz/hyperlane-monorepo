@@ -224,7 +224,10 @@ async function doTheKesselRun() {
       )) {
         const txCount = Math.max(
           1,
-          Math.floor((ratePerOrigin * bridgeDistribution) / 60),
+          Math.floor(
+            (ratePerOrigin * bridgeDistribution) /
+              (kesselRunConfig.burstInterval / 1000),
+          ),
         );
         rootLogger.debug(
           `Origin: ${origin}, Destination: ${destination}, Transactions: ${txCount}`,
