@@ -4,7 +4,7 @@ use std::{
 };
 
 use hyperlane_base::{
-    cache::{LocalCache, MeteredCache},
+    cache::{LocalCache, MeteredCache, OptionalCache},
     settings::CheckpointSyncerBuildError,
     MultisigCheckpointSyncer,
 };
@@ -13,7 +13,9 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, H256,
 };
 
-use crate::msg::metadata::{BuildsBaseMetadata, IsmAwareAppContextClassifier};
+use crate::msg::metadata::{
+    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+};
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 
@@ -22,7 +24,8 @@ pub struct MockBaseMetadataBuilderResponses {
     pub origin_domain: Option<HyperlaneDomain>,
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
-    pub cache: Option<MeteredCache<LocalCache>>,
+    pub ism_cache_policy_classifier: Option<IsmCachePolicyClassifier>,
+    pub cache: Option<OptionalCache<MeteredCache<LocalCache>>>,
     pub get_proof: ResponseList<eyre::Result<Proof>>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
@@ -120,7 +123,13 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .as_ref()
             .expect("No mock app_context_classifier response set")
     }
-    fn cache(&self) -> &MeteredCache<LocalCache> {
+    fn ism_cache_policy_classifier(&self) -> &crate::msg::metadata::IsmCachePolicyClassifier {
+        self.responses
+            .ism_cache_policy_classifier
+            .as_ref()
+            .expect("No mock app_context_classifier response set")
+    }
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
         self.responses
             .cache
             .as_ref()

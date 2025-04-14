@@ -608,7 +608,6 @@ export function isStaticIsm(ismType: IsmType): boolean {
 export function isStaticDeploymentSupported(
   chainTechnicalStack: ChainTechnicalStack | undefined,
 ): boolean {
-  if (chainTechnicalStack === undefined) return true;
   return chainTechnicalStack !== ChainTechnicalStack.ZkSync;
 }
 
