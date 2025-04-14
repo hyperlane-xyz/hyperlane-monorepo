@@ -70,26 +70,14 @@ impl StarknetMailbox {
         locator: &ContractLocator,
         signer: Signer,
     ) -> ChainResult<Self> {
-        let account;
-        if locator.domain.id() == 12263410 {
-            // paradexsepolia
-            account = build_single_owner_account(
-                &conn.url,
-                signer.local_wallet(),
-                &signer.address,
-                true,
-                locator.domain.id(),
-            );
-        } else {
-            // other chains
-            account = build_single_owner_account(
-                &conn.url,
-                signer.local_wallet(),
-                &signer.address,
-                false,
-                locator.domain.id(),
-            );
-        }
+        let is_legacy = signer.version == 3;
+        let account = build_single_owner_account(
+            &conn.url,
+            signer.local_wallet(),
+            &signer.address,
+            is_legacy,
+            locator.domain.id(),
+        );
 
         let mailbox_address: FieldElement = HyH256(locator.address)
             .try_into()

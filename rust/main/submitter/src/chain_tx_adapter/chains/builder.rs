@@ -20,6 +20,7 @@ impl ChainTxAdapterBuilder {
             Fuel => todo!(),
             Sealevel => Box::new(SealevelTxAdapter::new(conf.clone(), raw_conf.clone())),
             Cosmos => Box::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
+            Starknet => unimplemented!(),
         };
 
         adapter

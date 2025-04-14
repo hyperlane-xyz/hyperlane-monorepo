@@ -13,6 +13,8 @@ pub struct Signer {
     pub signing_key: SigningKey,
     /// account address
     pub address: FieldElement,
+    /// version of the signer
+    pub version: u32,
 }
 
 impl Signer {
@@ -21,7 +23,8 @@ impl Signer {
     /// # Arguments
     /// * `private_key` - private key for signer
     /// * `address` - address for signer
-    pub fn new(private_key: &H256, address: &H256) -> ChainResult<Self> {
+    /// * `version` - version of the signer
+    pub fn new(private_key: &H256, address: &H256, version: u32) -> ChainResult<Self> {
         let contract_address = FieldElement::from_bytes_be(address.as_fixed_bytes())
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signing_key = Self::build_signing_key(private_key)?;
@@ -29,6 +32,7 @@ impl Signer {
         Ok(Self {
             signing_key,
             address: contract_address,
+            version,
         })
     }
 
