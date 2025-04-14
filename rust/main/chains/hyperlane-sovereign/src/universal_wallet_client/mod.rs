@@ -45,7 +45,7 @@ impl UniversalClient {
     }
 
     /// Build a transaction and submit it to the rollup.
-    async fn build_and_submit(&self, call_message: Value) -> Result<(String, String)> {
+    pub async fn build_and_submit(&self, call_message: Value) -> Result<(String, String)> {
         let utx = self.build_tx_json(&call_message);
         let tx = self.sign_tx(utx).await?;
         let body = self.serialise_tx(&tx).await?;

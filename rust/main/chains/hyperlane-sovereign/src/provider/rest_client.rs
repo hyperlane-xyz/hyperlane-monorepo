@@ -3,6 +3,7 @@ use crate::ConnectionConf;
 use bech32::{Bech32m, Hrp};
 use bytes::Bytes;
 use hyperlane_core::accumulator::TREE_DEPTH;
+use hyperlane_core::Encode;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, BlockInfo, ChainCommunicationError,
     ChainInfo, ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType,
@@ -541,12 +542,6 @@ impl SovereignRestClient {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         #[derive(Clone, Debug, Deserialize)]
-        struct TxData {
-            _id: Option<String>,
-            status: Option<String>,
-        }
-
-        #[derive(Clone, Debug, Deserialize)]
         struct BatchData {
             _blob_hash: Option<String>,
             _da_transaction_id: Option<Vec<u8>>,
@@ -554,30 +549,30 @@ impl SovereignRestClient {
         }
 
         // /sequencer/txs
-        let query = "/sequencer/txs";
-
-        let body =
-            utils::get_submit_body_string(message, metadata, &self.universal_wallet_client).await?;
-        let json = json!({"body":body});
-        let response = self
-            .http_post(query, &json)
+        let call_message = json!({
+            "mailbox": {
+                "process": {
+                    "metadata": metadata.to_vec(),
+                    "message": message.to_vec(),
+                }
+            },
+        });
+        let (_, body) = self
+            .universal_wallet_client
+            .build_and_submit(call_message)
             .await
-            .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Error: {e}")))?;
-        let response: Schema<TxData> = serde_json::from_slice(&response)?;
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to submit process transaction: {e}"
+                ))
+            })?;
 
-        let result = match response.data.and_then(|d| d.status) {
-            Some(s) => s == *"submitted",
-            None => false,
-        };
-
+        // TODO: this endpoint doesn't exist, what was a purpose of this post
         // /sequencer/batches
         let query = "/sequencer/batches";
-
-        let json = json!(
-            {
-                "transactions":[body]
-            }
-        );
+        let json = json!({
+            "transactions": [body]
+        });
         let response = self
             .http_post(query, &json)
             .await
@@ -585,9 +580,10 @@ impl SovereignRestClient {
 
         let _response: Schema<BatchData> = serde_json::from_slice(&response)?;
 
+        // TODO: why do we return dummy info here
         let res = TxOutcome {
             transaction_id: H512::default(),
-            executed: result,
+            executed: true,
             gas_used: U256::default(),
             gas_price: FixedPointNumber::default(),
         };

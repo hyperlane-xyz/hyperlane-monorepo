@@ -88,28 +88,6 @@ pub async fn get_simulate_json_query(
     Ok(res)
 }
 
-pub async fn get_submit_body_string(
-    message: &HyperlaneMessage,
-    metadata: &[u8],
-    client: &UniversalClient,
-) -> ChainResult<String> {
-    let call_message = json!({
-        "mailbox": {
-            "process": {
-                "metadata": metadata.to_vec(),
-                "message": message.to_vec(),
-            }
-        },
-    });
-
-    let res = client
-        .build_and_submit(call_message)
-        .await
-        .map_err(|e| ChainCommunicationError::CustomError(format!("{e:?}")))?;
-
-    Ok(res.1)
-}
-
 pub async fn announce_validator(
     announcement: SignedType<Announcement>,
     client: &UniversalClient,
