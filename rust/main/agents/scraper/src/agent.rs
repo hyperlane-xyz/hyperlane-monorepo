@@ -41,9 +41,10 @@ struct ChainScraper {
 impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
+    type Metadata = AgentMetadata;
 
     async fn from_settings(
-        _agent_metadata: AgentMetadata,
+        _agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -398,6 +399,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                submitter: Default::default(),
                 estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {

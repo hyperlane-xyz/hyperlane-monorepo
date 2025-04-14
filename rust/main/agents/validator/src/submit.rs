@@ -68,6 +68,9 @@ impl ValidatorSubmitter {
             ?target_checkpoint,
             "Backfill checkpoint submitter successfully reached target checkpoint"
         );
+
+        // Set that backfill is completed in metrics
+        self.metrics.backfill_complete.set(1);
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
@@ -130,6 +133,9 @@ impl ValidatorSubmitter {
             self.metrics
                 .latest_checkpoint_processed
                 .set(latest_checkpoint.index as i64);
+
+            // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
+            self.metrics.reached_initial_consistency.set(1);
 
             sleep(self.interval).await;
         }
@@ -318,6 +324,8 @@ fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) ->
 pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
+    backfill_complete: IntGauge,
+    reached_initial_consistency: IntGauge,
 }
 
 impl ValidatorSubmitterMetrics {
@@ -330,6 +338,10 @@ impl ValidatorSubmitterMetrics {
             latest_checkpoint_processed: metrics
                 .latest_checkpoint()
                 .with_label_values(&["validator_processed", chain_name]),
+            backfill_complete: metrics.backfill_complete().with_label_values(&[chain_name]),
+            reached_initial_consistency: metrics
+                .reached_initial_consistency()
+                .with_label_values(&[chain_name]),
         }
     }
 }
@@ -339,15 +351,15 @@ mod test {
     use super::*;
     use async_trait::async_trait;
     use eyre::Result;
-    use hyperlane_base::{
-        db::{DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData},
-        AgentMetadata,
+    use hyperlane_base::db::{
+        DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData,
     };
     use hyperlane_core::{
-        test_utils::dummy_domain, GasPaymentKey, HyperlaneChain, HyperlaneContract,
-        HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainGasPayment,
-        InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion, PendingOperationStatus,
-        ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId, H160, H256,
+        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey, HyperlaneChain,
+        HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion,
+        PendingOperationStatus, ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId,
+        H160, H256,
     };
     use prometheus::Registry;
     use std::{fmt::Debug, sync::Arc, time::Duration};
@@ -464,7 +476,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-
+            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
         }
     }
 
@@ -509,7 +522,7 @@ mod test {
                 &self,
                 signed_checkpoint: &SignedCheckpointWithMessageId,
             ) -> Result<()>;
-            async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()>;
+            async fn write_metadata(&self, metadata: &str) -> Result<()>;
             async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
             fn announcement_location(&self) -> String;
             async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;

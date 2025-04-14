@@ -33,19 +33,19 @@ jobs:
       matrix:
         include:
           - TARGET: x86_64-unknown-linux-gnu
-            OS: larger-runner
+            OS: depot-ubuntu-24.04-8
           - TARGET: x86_64-apple-darwin
-            OS: macos-latest
+            OS: depot-macos-latest
           - TARGET: aarch64-apple-darwin
-            OS: macos-latest
+            OS: depot-macos-latest
           - TARGET: x86_64-pc-windows-msvc
-            OS: windows-latest
+            OS: depot-windows-2022-4
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - name: ubuntu setup
-        if: ${{ matrix.OS == 'larger-runner' }}
+        if: ${{ matrix.OS == 'depot-ubuntu-24.04-8' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
@@ -57,6 +57,12 @@ jobs:
           [target.aarch64-unknown-linux-musl]
           linker = "aarch64-linux-gnu-gcc"
           EOF
+      - name: windows setup
+        if: ${{ matrix.OS == 'depot-windows-2022-4' }}
+        run: |
+          choco install llvm -y
+          $llvmPath = 'C:\Program Files\LLVM\bin'
+          echo "LIBCLANG_PATH=$llvmPath" >> $env:GITHUB_ENV
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -68,7 +74,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin scraper --bin validator
         working-directory: ./rust/main
       - name: make executable
-        if: ${{ matrix.OS == 'larger-runner' || matrix.OS == 'macos-latest' }}
+        if: ${{ matrix.OS == 'depot-ubuntu-24.04-8' || matrix.OS == 'depot-macos-latest' }}
         run: chmod ug+x,-w relayer scraper validator
         working-directory: rust/main/target/${{ matrix.TARGET }}/release
       - name: upload binaries

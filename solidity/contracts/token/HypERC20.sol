@@ -64,7 +64,7 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
      */
     function _transferFromSender(
         uint256 _amount
-    ) internal override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         _burn(msg.sender, _amount);
         return bytes(""); // no metadata
     }
