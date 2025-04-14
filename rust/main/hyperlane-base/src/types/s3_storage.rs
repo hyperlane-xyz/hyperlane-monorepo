@@ -1,6 +1,16 @@
-use std::{fmt, sync::OnceLock, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt,
+    str::FromStr,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use async_trait::async_trait;
+use aws_sdk_s3::{
+    error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError, Client,
+};
+use dashmap::DashMap;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
@@ -11,7 +21,7 @@ use rusoto_core::{
     Region, RusotoError,
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
-use tokio::time::timeout;
+use tokio::{sync::OnceCell, time::timeout};
 
 use crate::types::utils;
 use crate::{
@@ -38,8 +48,17 @@ pub struct S3Storage {
     /// A client without credentials for anonymous requests.
     #[new(default)]
     anonymous_client: OnceLock<S3Client>,
+    #[new(default)]
+    anonymous_aws_client: OnceCell<Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
+}
+
+type SharedClient = Arc<Client>;
+static CLIENT_CACHE: OnceLock<DashMap<String, OnceCell<SharedClient>>> = OnceLock::new();
+
+fn get_client_cache() -> &'static DashMap<String, OnceCell<SharedClient>> {
+    CLIENT_CACHE.get_or_init(DashMap::new)
 }
 
 impl fmt::Debug for S3Storage {
@@ -92,6 +111,36 @@ impl S3Storage {
         }
     }
 
+    async fn anonymously_read_from_bucket_aws(&self, key: String) -> Result<Option<Vec<u8>>> {
+        let get_object_result = timeout(
+            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
+            // self.anonymous_aws_client()
+            Self::get_client(self.region.name())
+                .await
+                .get_object()
+                .bucket(self.bucket.clone())
+                .key(self.get_composite_key(key))
+                .send(),
+        )
+        .await?;
+        match get_object_result {
+            Ok(res) => Ok(Some(res.body.collect().await?.into_bytes().to_vec())),
+            Err(SdkError::ServiceError(err)) => match err.err() {
+                SdkGetObjectError::NoSuchKey(_) => Ok(None),
+                _ => bail!(err.into_err()),
+            },
+            Err(e) => bail!(e),
+        }
+
+        // match get_object_result {
+        //     Ok(res) => match res.body {
+        //         Some(body) => Ok(Some(body.collect().await?.into_bytes().to_vec())),
+        //         None => Ok(None),
+        //     },
+        //     Err(e) => bail!(e),
+        // }
+    }
+
     /// Gets an authenticated S3Client, creating it if it doesn't already exist.
     fn authenticated_client(&self) -> &S3Client {
         self.authenticated_client.get_or_init(|| {
@@ -111,16 +160,52 @@ impl S3Storage {
     /// S3 bucket's AWS account.
     fn anonymous_client(&self) -> &S3Client {
         self.anonymous_client.get_or_init(|| {
+            let start = std::time::Instant::now();
             // By default, these credentials are anonymous, see https://docs.rs/rusoto_credential/latest/rusoto_credential/struct.AwsCredentials.html#anonymous-example
             let credentials = AwsCredentials::default();
             assert!(credentials.is_anonymous(), "AWS credentials not anonymous");
 
-            S3Client::new_with(
+            let client = S3Client::new_with(
                 utils::http_client_with_timeout().unwrap(),
                 StaticProvider::from(credentials),
                 self.region.clone(),
-            )
+            );
+            println!("Rusoto S3Client created in {:?}", start.elapsed());
+            client
         })
+    }
+
+    // async fn anonymous_aws_client(&self) -> &Client {
+
+    // self.anonymous_aws_client
+    //     .get_or_init(|| async {
+    //         let config = aws_config::from_env()
+    //             .region(aws_config::Region::new(self.region.name().to_owned()))
+    //             .load()
+    //             .await;
+
+    //         Client::new(&config)
+    //     })
+    //     .await
+    // }
+
+    async fn get_client(region: &str) -> SharedClient {
+        let cell = get_client_cache()
+            .entry(region.to_string())
+            .or_insert_with(|| OnceCell::new());
+
+        cell.get_or_init(|| async {
+            let start = std::time::Instant::now();
+            let config = aws_config::from_env()
+                .region(aws_config::Region::new(region.to_owned()))
+                .load()
+                .await;
+            println!("AWS S3Client created in {:?}", start.elapsed());
+
+            Arc::new(Client::new(&config))
+        })
+        .await
+        .clone()
     }
 
     fn get_composite_key(&self, key: String) -> String {
@@ -155,7 +240,7 @@ impl S3Storage {
 impl CheckpointSyncer for S3Storage {
     async fn latest_index(&self) -> Result<Option<u32>> {
         let ret = self
-            .anonymously_read_from_bucket(S3Storage::latest_index_key())
+            .anonymously_read_from_bucket_aws(S3Storage::latest_index_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -178,7 +263,7 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        self.anonymously_read_from_bucket(S3Storage::checkpoint_key(index))
+        self.anonymously_read_from_bucket_aws(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
@@ -229,10 +314,14 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        self.anonymously_read_from_bucket(S3Storage::reorg_flag_key())
+        let r = self
+            .anonymously_read_from_bucket_aws(S3Storage::reorg_flag_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
-            .map_err(Into::into)
+            .map_err(Into::into);
+        println!("Reading reorg status in region {:?}", self.region);
+
+        r
     }
 }
