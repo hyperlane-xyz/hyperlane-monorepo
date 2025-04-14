@@ -12,7 +12,7 @@ use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessage
 use prometheus::IntGauge;
 use tokio::sync::OnceCell;
 
-use crate::{AgentMetadata, CheckpointSyncer};
+use crate::CheckpointSyncer;
 
 /// The timeout for all S3 operations.
 const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -215,9 +215,8 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
-    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
-        let serialized_metadata = serde_json::to_string_pretty(metadata)?;
-        self.write_to_bucket(S3Storage::metadata_key(), &serialized_metadata)
+    async fn write_metadata(&self, serialized_metadata: &str) -> Result<()> {
+        self.write_to_bucket(S3Storage::metadata_key(), serialized_metadata)
             .await?;
         Ok(())
     }
