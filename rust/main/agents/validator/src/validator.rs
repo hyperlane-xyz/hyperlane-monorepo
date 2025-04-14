@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
 use eyre::{eyre, Result};
-
 use futures_util::future::try_join_all;
 use itertools::Itertools;
 use serde::Serialize;
@@ -402,6 +401,9 @@ impl Validator {
                         ?announcement_location,
                         "Validator has announced signature storage location"
                     );
+
+                    self.core_metrics.set_announced(self.origin_chain.clone());
+
                     break;
                 }
                 info!(

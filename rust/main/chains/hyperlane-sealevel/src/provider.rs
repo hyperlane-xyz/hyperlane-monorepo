@@ -84,7 +84,7 @@ pub trait SealevelProviderForSubmitter: Send + Sync {
         payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<Option<SealevelTxCostEstimate>>;
+    ) -> ChainResult<SealevelTxCostEstimate>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
     async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
@@ -164,7 +164,7 @@ impl SealevelProviderForSubmitter for SealevelProvider {
         payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         priority_fee_oracle: &dyn PriorityFeeOracle,
-    ) -> ChainResult<Option<SealevelTxCostEstimate>> {
+    ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
         // for the compute unit limit and price because we want to include the instructions that
@@ -188,7 +188,9 @@ impl SealevelProviderForSubmitter for SealevelProvider {
         // If there was an error in the simulation result, return an error.
         if simulation_result.err.is_some() {
             tracing::error!(?simulation_result, "Got simulation result for transaction");
-            return Ok(None);
+            return Err(ChainCommunicationError::from_other_str(
+                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
+            ));
         } else {
             tracing::debug!(?simulation_result, "Got simulation result for transaction");
         }
@@ -235,10 +237,10 @@ impl SealevelProviderForSubmitter for SealevelProvider {
         let priority_fee =
             (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
 
-        Ok(Some(SealevelTxCostEstimate {
+        Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,
             compute_unit_price_micro_lamports: priority_fee,
-        }))
+        })
     }
 
     /// Polls the RPC until the transaction is confirmed or the blockhash
@@ -401,23 +403,17 @@ impl SealevelProvider {
         priority_fee_oracle: &dyn PriorityFeeOracle,
     ) -> ChainResult<Transaction> {
         // Get the estimated costs for the instruction.
-        let Some(tx_estimate) = self
+        let SealevelTxCostEstimate {
+            compute_units,
+            compute_unit_price_micro_lamports,
+        } = self
             .get_estimated_costs_for_instruction(
                 instruction.clone(),
                 payer,
                 tx_submitter,
                 priority_fee_oracle,
             )
-            .await?
-        else {
-            return Err(ChainCommunicationError::from_other_str(
-                "Error when simulating transaction",
-            ));
-        };
-        let SealevelTxCostEstimate {
-            compute_units,
-            compute_unit_price_micro_lamports,
-        } = tx_estimate;
+            .await?;
 
         tracing::info!(
             ?compute_units,

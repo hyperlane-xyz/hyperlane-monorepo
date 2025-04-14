@@ -9,11 +9,14 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use prometheus::{IntCounter, IntGauge};
-use serde::Serialize;
+use prometheus::IntGauge;
+use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
-use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
+use hyperlane_base::{
+    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
+    db::HyperlaneDb,
+};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
@@ -22,7 +25,10 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
+use crate::{
+    metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
+    msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
+};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -60,6 +66,8 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
+    /// Cache to store commonly used data calls.
+    pub cache: OptionalCache<MeteredCache<LocalCache>>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
@@ -238,17 +246,10 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
         }
 
-        let provider = self.ctx.destination_mailbox.provider();
-
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract = match provider.is_contract(&self.message.recipient).await {
+        let is_contract = match self.is_recipient_contract().await {
             Ok(is_contract) => is_contract,
-            Err(err) => {
-                return self.on_reprepare(
-                    Some(err),
-                    ReprepareReason::ErrorCheckingIfRecipientIsContract,
-                );
-            }
+            Err(reprepare_reason) => return reprepare_reason,
         };
         if !is_contract {
             info!(
@@ -644,6 +645,115 @@ impl PendingMessage {
         PendingOperationStatus::FirstPrepareAttempt
     }
 
+    /// Checks if the recipient is a contract.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the provider. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `is_contract` matches
+    /// the name of the method `is_contract`.
+    async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
+        let mailbox = self.ctx.destination_mailbox.clone();
+        let domain_name = mailbox.domain().name();
+        let fn_key = "is_contract";
+        let fn_params = self.message.recipient;
+        let provider = self.ctx.destination_mailbox.provider();
+
+        // Check cache for recipient contract status
+        if let Some(is_contract) = self
+            .get_from_cache::<bool>(domain_name, fn_key, &fn_params)
+            .await
+        {
+            return Ok(is_contract);
+        }
+
+        // Check if the recipient is a contract
+        let is_contract = provider.is_contract(&fn_params).await.map_err(|err| {
+            self.on_reprepare(
+                Some(err),
+                ReprepareReason::ErrorCheckingIfRecipientIsContract,
+            )
+        })?;
+
+        // Cache the recipient contract status
+        self.store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
+            .await;
+
+        Ok(is_contract)
+    }
+
+    /// Fetches the recipient ISM address.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the Mailbox contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `recipient_ism` matches
+    /// the name of the method `recipient_ism`.
+    async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
+        let domain = self.ctx.destination_mailbox.domain().name();
+        let fn_key = "recipient_ism";
+        let fn_params = self.message.recipient;
+
+        // Check cache for recipient ISM address
+        if let Some(ism_address) = self
+            .get_from_cache::<H256>(domain, fn_key, &fn_params)
+            .await
+        {
+            return Ok(ism_address);
+        }
+
+        // Fetch the recipient ISM address
+        let ism_address = match self
+            .ctx
+            .destination_mailbox
+            .recipient_ism(self.message.recipient)
+            .await
+        {
+            Ok(ism_address) => ism_address,
+            Err(err) => {
+                return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
+            }
+        };
+
+        // Cache the recipient ISM address
+        self.store_to_cache(domain, fn_key, &fn_params, &ism_address)
+            .await;
+
+        Ok(ism_address)
+    }
+
+    async fn get_from_cache<U: DeserializeOwned>(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+    ) -> Option<U> {
+        self.ctx
+            .cache
+            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
+            .await
+            .map_err(|err| {
+                warn!(error=?err, ?fn_key, "Error checking cache stored result");
+                err
+            })
+            .ok()
+            .flatten()
+    }
+
+    async fn store_to_cache(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        if let Err(err) = self
+            .ctx
+            .cache
+            .cache_call_result(domain_name, fn_key, fn_params, result)
+            .await
+        {
+            warn!(error=?err, ?fn_key, "Error caching result");
+        }
+    }
     /// A preflight check to see if a message could possibly meet
     /// a gas payment requirement prior to undertaking expensive operations
     /// like metadata building or gas estimation.
@@ -851,18 +961,9 @@ impl PendingMessage {
         }
     }
 
+    /// Builds metadata
     async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
-        let ism_address = match self
-            .ctx
-            .destination_mailbox
-            .recipient_ism(self.message.recipient)
-            .await
-        {
-            Ok(ism_address) => ism_address,
-            Err(err) => {
-                return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
-            }
-        };
+        let ism_address = self.recipient_ism_address().await?;
 
         let message_metadata_builder = match MessageMetadataBuilder::new(
             self.ctx.metadata_builder.clone(),
@@ -881,7 +982,8 @@ impl PendingMessage {
 
         let params = MessageMetadataBuildParams::default();
 
-        let metadata = message_metadata_builder
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
             .build(ism_address, &self.message, params)
             .await
             .map_err(|err| match &err {
@@ -913,50 +1015,26 @@ impl PendingMessage {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
-            })?;
-        Ok(metadata)
+            });
+        let build_metadata_end = Instant::now();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
+        };
+
+        self.ctx
+            .metrics
+            .insert_metadata_build_metric(metrics_params);
+
+        metadata_res
     }
 
     /// clear metadata cache
     fn clear_metadata(&mut self) {
         tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
-    }
-}
-
-#[derive(Debug)]
-pub struct MessageSubmissionMetrics {
-    // Fields are public for testing purposes
-    pub last_known_nonce: IntGauge,
-    pub messages_processed: IntCounter,
-}
-
-impl MessageSubmissionMetrics {
-    pub fn new(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
-    ) -> Self {
-        let origin = origin.name();
-        let destination = destination.name();
-        Self {
-            last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
-                "message_processed",
-                origin,
-                destination,
-            ]),
-            messages_processed: metrics
-                .messages_processed_count()
-                .with_label_values(&[origin, destination]),
-        }
-    }
-
-    fn update_nonce(&self, msg: &HyperlaneMessage) {
-        // this is technically a race condition between `.get` and `.set` but worst case
-        // the gauge should get corrected on the next update and is not an issue
-        // with a ST runtime
-        self.last_known_nonce
-            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
     }
 }
 
