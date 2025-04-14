@@ -45,7 +45,7 @@ impl MultisigCheckpointSyncer {
                     Some((v, checkpoint_syncer))
                 } else {
                     warn!(validator=%v, "Checkpoint syncer is not provided for validator");
-                    return None;
+                    None
                 }
             })
             .collect::<Vec<_>>();
@@ -63,7 +63,7 @@ impl MultisigCheckpointSyncer {
             match latest_index {
                 Ok(Some(index)) => {
                     debug!(?validator, ?index, "Validator returned latest index");
-                    latest_indices.insert(H160::from(*validator), Some(index));
+                    latest_indices.insert(*validator, Some(index));
                 }
                 result => {
                     debug!(
@@ -71,7 +71,7 @@ impl MultisigCheckpointSyncer {
                         ?result,
                         "Failed to get latest index from validator"
                     );
-                    latest_indices.insert(H160::from(*validator), None);
+                    latest_indices.insert(*validator, None);
                 }
             }
         }
