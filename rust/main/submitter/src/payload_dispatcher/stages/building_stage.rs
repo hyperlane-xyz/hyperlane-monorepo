@@ -15,7 +15,7 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::{state::PayloadDispatcherState, utils::retry_until_success};
+use super::{state::PayloadDispatcherState, utils::call_until_success_or_nonretryable_error};
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
@@ -44,14 +44,23 @@ impl BuildingStage {
 
             let payloads = vec![payload];
             info!(?payloads, "Building transactions from payloads");
-            let tx_building_results = retry_until_success(
-                || self.state.adapter.build_transactions(&payloads),
-                "Simulating transaction",
-            )
-            .await;
+            let tx_building_results = self.state.adapter.build_transactions(&payloads).await;
 
             for tx_building_result in tx_building_results {
-                self.handle_tx_building_result(tx_building_result).await;
+                // push payloads that failed to be processed (but didn't fail simulation)
+                // to the back of the queue
+                if let Err(err) = self
+                    .handle_tx_building_result(tx_building_result.clone())
+                    .await
+                {
+                    error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
+                    let full_payloads =
+                        get_full_payloads_from_details(&payloads, &tx_building_result.payloads);
+                    {
+                        let mut queue = self.queue.lock().await;
+                        queue.extend(full_payloads);
+                    }
+                }
             }
         }
     }
@@ -64,7 +73,10 @@ impl BuildingStage {
             tx_ids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.id.to_string()),
         )
     )]
-    async fn handle_tx_building_result(&self, tx_building_result: TxBuildingResult) {
+    async fn handle_tx_building_result(
+        &self,
+        tx_building_result: TxBuildingResult,
+    ) -> Result<(), SubmitterError> {
         let TxBuildingResult { payloads, maybe_tx } = tx_building_result;
         let Some(tx) = maybe_tx else {
             warn!(
@@ -77,14 +89,15 @@ impl BuildingStage {
                     PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
                 )
                 .await;
-            return;
+            return Ok(());
         };
         info!(?tx, "Transaction built successfully");
-        let simulation_success = retry_until_success(
+        let simulation_success = call_until_success_or_nonretryable_error(
             || self.state.adapter.simulate_tx(&tx),
             "Simulating transaction",
         )
-        .await;
+        .await
+        .unwrap_or(false);
         if !simulation_success {
             warn!(
                 ?tx,
@@ -92,14 +105,15 @@ impl BuildingStage {
                 "Transaction simulation failed. Dropping transaction"
             );
             self.drop_tx(&tx, DropReason::FailedSimulation).await;
-            return;
+            return Ok(());
         };
-        retry_until_success(
+        call_until_success_or_nonretryable_error(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
         )
-        .await;
+        .await?;
         self.state.store_tx(&tx).await;
+        Ok(())
     }
 
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
@@ -122,6 +136,17 @@ impl BuildingStage {
         info!(?tx, "Transaction sent to Inclusion Stage");
         Ok(())
     }
+}
+
+fn get_full_payloads_from_details(
+    full_payloads: &[FullPayload],
+    details: &[PayloadDetails],
+) -> Vec<FullPayload> {
+    full_payloads
+        .iter()
+        .filter(|payload| details.iter().any(|d| d.id == payload.details.id))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -296,9 +321,7 @@ mod tests {
         mock_adapter
             .expect_build_transactions()
             .times(payloads_to_send)
-            .returning(move |payloads| {
-                Ok(dummy_built_tx(payloads.to_vec(), succesful_build.clone()))
-            });
+            .returning(move |payloads| dummy_built_tx(payloads.to_vec(), succesful_build.clone()));
         mock_adapter
             .expect_simulate_tx()
             // .times(payloads_to_send)
