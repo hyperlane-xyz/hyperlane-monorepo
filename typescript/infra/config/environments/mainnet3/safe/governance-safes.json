@@ -11,9 +11,9 @@
     "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
   },
   "berachain": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
+    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
+    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
   },
   "blast": {
     "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
@@ -57,9 +57,9 @@
     "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
   },
   "sei": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
+    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
+    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
   },
   "sophon": {},
   "swell": {
@@ -75,9 +75,9 @@
   "treasure": {},
   "zeronetwork": {},
   "zircuit": {
-    "regular": "0x890ac177Fe3052B8676A65f32C1589Bc329f3d50",
-    "irregular": "0x681e614B199cB89D1a9e5F619Ca982DB97cE53EF",
-    "exceptional": "0x1EF628CFb117aF071FC994117241639f8ef6F931"
+    "regular": "0x7379D7bB2ccA68982E467632B6554fD4e72e9431",
+    "irregular": "0x0FB879F40b22Cb3C8e2f219C9679d6e83C1355ab",
+    "exceptional": "0x445A4DD778feA12a6717984e4f3314a670D96d55"
   },
   "zklink": {},
   "zksync": {
