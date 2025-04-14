@@ -4,9 +4,8 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use derive_new::new;
-use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
