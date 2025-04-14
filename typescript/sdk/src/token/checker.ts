@@ -1,4 +1,5 @@
 import { BigNumber } from 'ethers';
+import pino from 'pino';
 
 import {
   ERC20,
@@ -15,10 +16,14 @@ import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
-import { ChainName } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
+import { parseTokenConnectionId } from './TokenConnection.js';
 import { HypERC20App } from './app.js';
 import { TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
@@ -36,8 +41,27 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20App,
   HypTokenRouterConfig
 > {
+  constructor(
+    readonly warpConfig: WarpCoreConfig,
+    multiProvider: MultiProvider,
+    app: HypERC20App,
+    configMap: ChainMap<HypTokenRouterConfig>,
+    ismFactory?: HyperlaneIsmFactory,
+    logger?: pino.Logger<never>,
+  ) {
+    super(multiProvider, app, configMap, ismFactory, logger);
+  }
+
   async checkChain(chain: ChainName): Promise<void> {
-    await super.checkChain(chain);
+    const tokenConfig = this.warpConfig?.tokens.find(
+      (tok) => tok.chainName === chain,
+    );
+    const expectedChains =
+      tokenConfig?.connections
+        ?.map((conn) => parseTokenConnectionId(conn.token))
+        .map(({ chainName }) => chainName) ?? [];
+
+    await super.checkChain(chain, expectedChains);
     await this.checkToken(chain);
   }
 

@@ -24,8 +24,8 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import {
-  getWarpAddresses,
-  getWarpAddressesFromMergedRegistry,
+  getWarpAddressAndConfig,
+  getWarpAddressAndConfigFromMergedRegistry,
 } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
@@ -207,9 +207,12 @@ export async function getGovernor(
       warpRouteId,
       registryUris,
     );
-    const warpAddresses = registryUris
-      ? await getWarpAddressesFromMergedRegistry(warpRouteId, registryUris)
-      : getWarpAddresses(warpRouteId);
+    const { warpCoreConfig, warpAddresses } = registryUris
+      ? await getWarpAddressAndConfigFromMergedRegistry(
+          warpRouteId,
+          registryUris,
+        )
+      : getWarpAddressAndConfig(warpRouteId);
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
@@ -272,6 +275,7 @@ export async function getGovernor(
     );
 
     const checker = new HypERC20Checker(
+      warpCoreConfig,
       multiProvider,
       app,
       config as any,

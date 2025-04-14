@@ -21,6 +21,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ViolationType } from '../deploy/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20App } from './app.js';
@@ -129,6 +130,9 @@ describe('TokenDeployer', async () => {
           return undefined;
       }
     };
+    const warpCore: WarpCoreConfig = {
+      tokens: [],
+    };
 
     describe('HypERC20Checker', async () => {
       let checker: HypERC20Checker;
@@ -143,7 +147,7 @@ describe('TokenDeployer', async () => {
 
         const contractsMap = await deployer.deploy(config);
         app = new HypERC20App(contractsMap, multiProvider);
-        checker = new HypERC20Checker(multiProvider, app, config);
+        checker = new HypERC20Checker(warpCore, multiProvider, app, config);
       });
 
       it(`should have no violations on clean deploy of ${type}`, async () => {
@@ -173,6 +177,7 @@ describe('TokenDeployer', async () => {
         });
 
         const checkerWithOwnerOverrides = new HypERC20Checker(
+          warpCore,
           multiProvider,
           app,
           configWithOverrides,
@@ -206,6 +211,7 @@ describe('TokenDeployer', async () => {
           collateralProxyAdmin: previousOwner,
         });
         const checkerWithOwnerOverrides = new HypERC20Checker(
+          warpCore,
           multiProvider,
           app,
           configWithOverrides,
