@@ -24,7 +24,7 @@ use crate::{
     transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
 };
 
-use super::{utils::retry_until_success, PayloadDispatcherState};
+use super::{utils::call_until_success_or_nonretryable_error, PayloadDispatcherState};
 
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
@@ -122,11 +122,11 @@ impl InclusionStage {
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing inclusion stage transaction");
-        let tx_status = retry_until_success(
+        let tx_status = call_until_success_or_nonretryable_error(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
         )
-        .await;
+        .await?;
         info!(?tx, ?tx_status, "Transaction status");
 
         match tx_status {
@@ -161,8 +161,11 @@ impl InclusionStage {
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
-        let simulation_success =
-            retry_until_success(|| state.adapter.simulate_tx(&tx), "Simulating transaction").await;
+        let simulation_success = call_until_success_or_nonretryable_error(
+            || state.adapter.simulate_tx(&tx),
+            "Simulating transaction",
+        )
+        .await?;
         if !simulation_success {
             warn!(?tx, "Transaction simulation failed");
             Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
@@ -174,7 +177,7 @@ impl InclusionStage {
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        tx = retry_until_success(
+        tx = call_until_success_or_nonretryable_error(
             || {
                 let tx_clone = tx.clone();
                 async move {
@@ -185,7 +188,7 @@ impl InclusionStage {
             },
             "Submitting transaction",
         )
-        .await;
+        .await?;
         info!(?tx, "Transaction submitted to node");
 
         // update tx submission attempts
