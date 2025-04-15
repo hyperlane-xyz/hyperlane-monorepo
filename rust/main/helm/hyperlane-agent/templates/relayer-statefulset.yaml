@@ -52,9 +52,6 @@ spec:
           - sh
           - -c
           - |
-            # deleting db
-            # rm -rf {{ .Values.hyperlane.dbPath }}/*
-            # sudo chown root:2000 /usr/share/hyperlane
             if [ -z "$(ls -A {{ .Values.hyperlane.dbPath }})" ]; then
               echo "No data found in {{ .Values.hyperlane.dbPath }} — bootstrapping from GCS"
               gsutil cp gs://{{ .Values.hyperlane.relayer.dbBootstrap.bucket }}/{{ .Values.hyperlane.relayer.dbBootstrap.object_targz }} /tmp/seed.tar.gz
@@ -63,14 +60,9 @@ spec:
               apk add tar
               echo "Extracting data to {{ .Values.hyperlane.dbPath }}"
               tar --no-overwrite-dir --no-same-owner -xzf /tmp/seed.tar.gz -C {{ .Values.hyperlane.dbPath }}
-              # rwrwr permissions for the files
-              # chmod -R 664 {{ .Values.hyperlane.dbPath }}/*
-              # owned by the user with uid 1000 and group with gid 2000
-              # chown -R 1000:2000 {{ .Values.hyperlane.dbPath }}/*
             else
               echo "Data already exists in {{ .Values.hyperlane.dbPath }} — skipping bootstrap"
             fi
-            ls -al {{ .Values.hyperlane.dbPath }}
         env:
           - name: GOOGLE_APPLICATION_CREDENTIALS
             valueFrom:
