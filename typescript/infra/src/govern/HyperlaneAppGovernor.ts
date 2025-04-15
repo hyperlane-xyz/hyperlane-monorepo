@@ -27,7 +27,6 @@ import {
 
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { GovernanceType, determineGovernanceType } from '../governance.js';
-import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
 
 import {
   ManualMultiSend,
@@ -47,13 +46,13 @@ export type AnnotatedCallData = CallData & {
   description: string;
   expandedDescription?: string;
   icaTargetChain?: ChainName;
+  governanceType?: GovernanceType;
 };
 
 export type InferredCall = {
   type: SubmissionType;
   chain: ChainName;
   call: AnnotatedCallData;
-  governanceType: GovernanceType;
   icaTargetChain?: ChainName;
 };
 
@@ -109,8 +108,16 @@ export abstract class HyperlaneAppGovernor<
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain] || [];
     rootLogger.info(`\nFound ${calls.length} transactions for ${chain}`);
-    const filterCalls = (submissionType: SubmissionType) =>
-      calls.filter((call) => call.submissionType == submissionType);
+    const filterCalls = (
+      submissionType: SubmissionType,
+      governanceType?: GovernanceType,
+    ) =>
+      calls.filter(
+        (call) =>
+          call.submissionType == submissionType &&
+          (governanceType === undefined ||
+            call.governanceType == governanceType),
+      );
     const summarizeCalls = async (
       submissionType: SubmissionType,
       callsForSubmissionType: AnnotatedCallData[],
@@ -162,25 +169,10 @@ export abstract class HyperlaneAppGovernor<
     const sendCallsForType = async (
       submissionType: SubmissionType,
       multiSend: MultiSend,
+      governanceType?: GovernanceType,
     ) => {
       const callsForSubmissionType = [];
-      const filteredCalls = filterCalls(submissionType);
-
-      // If calls are being submitted via a safe, we need to check for any safe owner changes first
-      if (submissionType === SubmissionType.SAFE) {
-        try {
-          const { safeSdk } = await getSafeAndService(
-            chain,
-            this.checker.multiProvider,
-            (multiSend as SafeMultiSend).safeAddress,
-          );
-          const updateOwnerCalls = await updateSafeOwner(safeSdk);
-          callsForSubmissionType.push(...updateOwnerCalls);
-        } catch (error) {
-          // Catch but don't throw because we want to try submitting any remaining calls
-          rootLogger.error(`Error updating safe owner: ${error}`);
-        }
-      }
+      const filteredCalls = filterCalls(submissionType, governanceType);
 
       // Add the filtered calls to the calls for submission type
       callsForSubmissionType.push(...filteredCalls);
@@ -235,6 +227,7 @@ export abstract class HyperlaneAppGovernor<
             sendCallsForType(
               SubmissionType.SAFE,
               new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+              governanceType,
             ),
           10,
         );
@@ -349,7 +342,6 @@ export abstract class HyperlaneAppGovernor<
         type: SubmissionType.MANUAL,
         chain,
         call,
-        governanceType: GovernanceType.AbacusWorks,
       };
     }
 
@@ -370,7 +362,6 @@ export abstract class HyperlaneAppGovernor<
         type: SubmissionType.MANUAL,
         chain,
         call,
-        governanceType: GovernanceType.AbacusWorks,
       };
     }
 
@@ -410,9 +401,13 @@ export abstract class HyperlaneAppGovernor<
         type: SubmissionType.MANUAL,
         chain,
         call,
-        governanceType: GovernanceType.AbacusWorks,
       };
     }
+
+    const { governanceType } = await determineGovernanceType(
+      origin,
+      accountConfig.owner,
+    );
 
     // If the call to the remote ICA is valid, infer the submission type
     const { description, expandedDescription } = call;
@@ -422,6 +417,7 @@ export abstract class HyperlaneAppGovernor<
       value: callRemote.value,
       description,
       expandedDescription,
+      governanceType,
     };
 
     // Try to infer the submission type for the ICA call
@@ -438,11 +434,6 @@ export abstract class HyperlaneAppGovernor<
       true, // Flag this as an ICA call
     );
 
-    const { governanceType } = await determineGovernanceType(
-      origin,
-      accountConfig.owner,
-    );
-
     // If returned submission type is not MANUAL
     // we'll return the inferred call with the ICA target chain
     if (subType !== SubmissionType.MANUAL) {
@@ -451,7 +442,6 @@ export abstract class HyperlaneAppGovernor<
         chain: origin,
         call: encodedCall,
         icaTargetChain: chain,
-        governanceType,
       };
     }
 
@@ -460,7 +450,6 @@ export abstract class HyperlaneAppGovernor<
       type: SubmissionType.MANUAL,
       chain,
       call,
-      governanceType: GovernanceType.AbacusWorks,
     };
   }
 
@@ -539,7 +528,6 @@ export abstract class HyperlaneAppGovernor<
         type: SubmissionType.SIGNER,
         chain,
         call,
-        governanceType: GovernanceType.AbacusWorks,
       };
     }
 
@@ -558,8 +546,9 @@ export abstract class HyperlaneAppGovernor<
           canProposeSafe &&
           (await checkTransactionSuccess(chain, safeAddress))
         ) {
+          call.governanceType = governanceType;
           // If the transaction will succeed with the safe, return the inferred call
-          return { type: SubmissionType.SAFE, chain, call, governanceType };
+          return { type: SubmissionType.SAFE, chain, call };
         }
       }
     }
@@ -575,7 +564,6 @@ export abstract class HyperlaneAppGovernor<
       type: SubmissionType.MANUAL,
       chain,
       call,
-      governanceType: GovernanceType.AbacusWorks,
     };
   }
 
