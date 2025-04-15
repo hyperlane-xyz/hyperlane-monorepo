@@ -156,7 +156,6 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn reset_attempts(&mut self);
 
     /// Set the number of times this operation has been retried.
-    #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
 
     /// Get the number of times this operation has been retried.

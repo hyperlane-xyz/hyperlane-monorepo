@@ -275,8 +275,8 @@ mod test {
 
     use std::str::FromStr;
 
+    use aws_config::Region;
     use hyperlane_core::KnownHyperlaneDomain;
-    use rusoto_core::Region;
 
     use crate::S3Storage;
 
@@ -291,46 +291,49 @@ mod test {
                 "0x4d966438fe9E2B1e7124c87bBB90cB4F0F6C59a1",
                 (
                     "hyperlane-mainnet3-arbitrum-validator-0".to_string(),
-                    Region::UsEast1,
+                    Region::new("us-east-1"),
                 ),
             ),
             (
                 "0x5450447aeE7B544c462C9352bEF7cAD049B0C2Dc",
-                ("zpl-hyperlane-v3-arbitrum".to_string(), Region::EuCentral1),
+                (
+                    "zpl-hyperlane-v3-arbitrum".to_string(),
+                    Region::new("eu-central-1"),
+                ),
             ),
             (
                 "0xec68258A7c882AC2Fc46b81Ce80380054fFB4eF2",
                 (
                     "dsrv-hyperlane-v3-validator-signatures-validator7-arbitrum".to_string(),
-                    Region::EuCentral1,
+                    Region::new("eu-central-1"),
                 ),
             ),
             (
                 "0x38C7A4ca1273ead2E867d096aDBCDD0e2AcB21D8",
                 (
                     "hyperlane-v3-validator-signatures-everstake-one-arbitrum".to_string(),
-                    Region::UsEast2,
+                    Region::new("us-east-2"),
                 ),
             ),
             (
-                "0xb3AC35d3988bca8C2fFD195b1c6bee18536B317b",
+                "0xb3AC35d3988bCA8C2fFD195b1c6bee18536B317b",
                 (
                     "can-outrun-imperial-starships-v3-arbitrum".to_string(),
-                    Region::EuWest1,
+                    Region::new("eu-west-1"),
                 ),
             ),
             (
                 "0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3",
                 (
                     "hyperlane-validator-signatures-bwarelabs-ethereum/arbitrum".to_string(),
-                    Region::EuNorth1,
+                    Region::new("eu-north-1"),
                 ),
             ),
             (
                 "0xc4b877Dd49ABe9B38EA9184683f9664c0F9FADe3",
                 (
                     "arbitrum-validator-signatures/arbitrum".to_string(),
-                    Region::UsEast1,
+                    Region::new("us-east-1"),
                 ),
             ),
         ];
@@ -373,7 +376,7 @@ mod test {
 
         for threshold in 2..=6 {
             println!("Starting to fetch checkpoints with threshold {}", threshold);
-            if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 2) {
+            if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 1) {
                 let result = multisig_syncer
                     .fetch_checkpoint_in_range(
                         validators.as_slice(),
