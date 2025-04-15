@@ -44,6 +44,12 @@ spec:
             - --igp-claim-threshold-per-chain
             - {{ $chain }}={{ $balance }}
 {{- end }}
+{{- if .Values.hyperlane.chainsToSkip }}
+            - --chain-skip-override
+{{- range $index, $chain := .Values.hyperlane.chainsToSkip }}
+            - {{ $chain }}
+{{- end }}
+{{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}

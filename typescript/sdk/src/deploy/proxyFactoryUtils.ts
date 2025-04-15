@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { objMapEntries } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { proxyFactoryFactories } from './contracts.js';
 import { ProxyFactoryFactoriesAddresses } from './types.js';
@@ -11,7 +11,8 @@ import { ProxyFactoryFactoriesAddresses } from './types.js';
  */
 export function createDefaultProxyFactoryFactories(): ProxyFactoryFactoriesAddresses {
   const defaultAddress = ethers.constants.AddressZero;
-  return Object.fromEntries(
-    objMapEntries(proxyFactoryFactories, () => defaultAddress),
+  return objMap(
+    proxyFactoryFactories,
+    () => defaultAddress,
   ) as ProxyFactoryFactoriesAddresses;
 }
