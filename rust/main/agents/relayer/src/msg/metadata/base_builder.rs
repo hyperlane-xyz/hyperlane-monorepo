@@ -5,6 +5,7 @@ use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use derive_new::new;
 use eyre::Context;
+use futures::{stream, StreamExt};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -181,7 +182,6 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         // Only use the most recently announced location for now.
         let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
 
-        // TODO: it might make sense to make this in chunks, as we might not want to execute all the requests at the same time (worst case 50 validators)
         let result = validators
             .iter()
             .zip(storage_locations)
@@ -249,12 +249,14 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             })
             .collect::<Vec<_>>();
 
-        let checkpoint_syncers_results = futures::future::join_all(result)
+        let checkpoint_syncers_results = stream::iter(result)
+            .buffer_unordered(10) // Limit the number of concurrent tasks
+            .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()? // Collect results into a single vector
             .into_iter()
-            .flatten()
+            .flatten() // Flatten Option<_>
             .collect::<Vec<_>>();
 
         for (validator, checkpoint_syncer) in checkpoint_syncers_results {
