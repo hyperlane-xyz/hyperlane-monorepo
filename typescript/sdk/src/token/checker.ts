@@ -21,15 +21,14 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
-import { WarpCoreConfig } from '../warp/types.js';
 
-import { parseTokenConnectionId } from './TokenConnection.js';
 import { HypERC20App } from './app.js';
 import { TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
   HypTokenRouterConfig,
   TokenMetadata,
+  WarpRouteDeployConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
@@ -42,24 +41,28 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   HypTokenRouterConfig
 > {
   constructor(
-    readonly warpConfig: WarpCoreConfig,
     multiProvider: MultiProvider,
     app: HypERC20App,
     configMap: ChainMap<HypTokenRouterConfig>,
     ismFactory?: HyperlaneIsmFactory,
-    logger?: pino.Logger<never>,
+    logger?: pino.Logger,
+    readonly warpDeployConfig?: WarpRouteDeployConfig | null,
   ) {
     super(multiProvider, app, configMap, ismFactory, logger);
   }
 
   async checkChain(chain: ChainName): Promise<void> {
-    const tokenConfig = this.warpConfig?.tokens.find(
-      (tok) => tok.chainName === chain,
-    );
-    const expectedChains =
-      tokenConfig?.connections
-        ?.map((conn) => parseTokenConnectionId(conn.token))
-        .map(({ chainName }) => chainName) ?? [];
+    let expectedChains: string[];
+    if (this.warpDeployConfig) {
+      expectedChains = Object.keys(this.warpDeployConfig);
+      const thisChainConfig = this.warpDeployConfig[chain];
+      if (thisChainConfig?.remoteRouters) {
+        expectedChains = Object.keys(thisChainConfig.remoteRouters);
+      }
+    } else {
+      expectedChains = this.app.chains();
+    }
+    expectedChains = expectedChains.filter((chn) => chn !== chain).sort();
 
     await super.checkChain(chain, expectedChains);
     await this.checkToken(chain);

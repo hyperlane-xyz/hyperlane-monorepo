@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 
 import {
   ChainAddresses,
+  IRegistry,
   MergedRegistry,
   PartialRegistry,
   warpConfigToWarpAddresses,
@@ -16,6 +17,7 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -114,54 +116,36 @@ export function getWarpAddresses(
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
 
-export function getWarpAddressAndConfig(warpRouteId: string): {
-  warpCoreConfig: WarpCoreConfig;
-  warpAddresses: ChainMap<ChainAddresses>;
-} {
-  const warpCoreConfig = getWarpCoreConfig(warpRouteId);
-  const warpAddresses = warpConfigToWarpAddresses(warpCoreConfig);
-  return { warpCoreConfig, warpAddresses };
-}
-
-export async function getWarpCoreConfigFromMergedRegistry(
+export async function getWarpAddressesFrom(
   warpRouteId: string,
-  registryUris: string[],
-): Promise<WarpCoreConfig> {
-  const registry = getMergedRegistry({ registryUris, enableProxy: true });
+  registryUris?: string[],
+): Promise<ChainMap<ChainAddresses>> {
+  let registry: IRegistry;
+  if (registryUris && registryUris.length > 0) {
+    registry = getMergedRegistry({ registryUris, enableProxy: true });
+  } else {
+    registry = getRegistry();
+  }
   const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
-
   if (!warpRouteConfig) {
     throw new Error(
-      `Warp route config for ${warpRouteId} not found in registry`,
+      `Warp route config for ${warpRouteId} not found in ${registry.uri}`,
     );
   }
-  return warpRouteConfig;
+  return warpConfigToWarpAddresses(warpRouteConfig);
 }
 
-export async function getWarpAddressesFromMergedRegistry(
+export async function findWarpDeployConfig(
   warpRouteId: string,
-  registryUris: string[],
-): Promise<ChainMap<ChainAddresses>> {
-  const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
-    warpRouteId,
-    registryUris,
-  );
-  return warpConfigToWarpAddresses(warpCoreConfig);
-}
-
-export async function getWarpAddressAndConfigFromMergedRegistry(
-  warpRouteId: string,
-  registryUris: string[],
-): Promise<{
-  warpCoreConfig: WarpCoreConfig;
-  warpAddresses: ChainMap<ChainAddresses>;
-}> {
-  const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
-    warpRouteId,
-    registryUris,
-  );
-  const warpAddresses = warpConfigToWarpAddresses(warpCoreConfig);
-  return { warpCoreConfig, warpAddresses };
+  registryUris?: string[],
+): Promise<WarpRouteDeployConfig | null> {
+  let registry: IRegistry;
+  if (registryUris && registryUris.length > 0) {
+    registry = getMergedRegistry({ registryUris, enableProxy: true });
+  } else {
+    registry = getRegistry();
+  }
+  return registry.getWarpDeployConfig(warpRouteId);
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {
