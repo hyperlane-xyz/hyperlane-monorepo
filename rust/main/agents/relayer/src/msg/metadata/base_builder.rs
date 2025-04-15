@@ -3,15 +3,15 @@
 
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
-use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
 use eyre::Context;
+use tokio::sync::RwLock;
+use tracing::{debug, info, warn};
+
 use hyperlane_base::{
+    cache::{LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
-    settings::CheckpointSyncerBuildError,
-};
-use hyperlane_base::{
-    settings::{ChainConf, CheckpointSyncerConf},
+    settings::{ChainConf, CheckpointSyncerBuildError, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{
@@ -20,10 +20,12 @@ use hyperlane_core::{
     H256,
 };
 
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use crate::merkle_tree::builder::MerkleTreeBuilder;
+use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
 
-use super::IsmAwareAppContextClassifier;
+use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
+
+mod validator_announced_storages;
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -35,8 +37,10 @@ pub struct BaseMetadataBuilder {
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
+    cache: OptionalCache<MeteredCache<LocalCache>>,
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
+    ism_cache_policy_classifier: IsmCachePolicyClassifier,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -54,6 +58,8 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
+    fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -83,6 +89,14 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     }
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier {
         &self.app_context_classifier
+    }
+
+    fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier {
+        &self.ism_cache_policy_classifier
+    }
+
+    fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>> {
+        &self.cache
     }
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
@@ -154,10 +168,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let storage_locations = self
-            .origin_validator_announce
-            .get_announced_storage_locations(validators)
-            .await?;
+        let storage_locations = self.fetch_storage_locations(validators).await?;
 
         debug!(
             hyp_message=?message,
@@ -231,5 +242,16 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             self.metrics.clone(),
             app_context,
         ))
+    }
+}
+
+impl BaseMetadataBuilder {
+    /// Fetches storage locations for validators with caching.
+    pub async fn fetch_storage_locations(
+        &self,
+        validators: &[H256],
+    ) -> eyre::Result<Vec<Vec<String>>> {
+        fetch_storage_locations_helper(validators, &self.cache, &*self.origin_validator_announce)
+            .await
     }
 }

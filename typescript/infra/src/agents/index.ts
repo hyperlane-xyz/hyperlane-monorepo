@@ -185,6 +185,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       addressBlacklist: config.addressBlacklist,
       metricAppContexts: config.metricAppContexts,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
+      defaultIsmCacheConfig: config.defaultIsmCacheConfig,
     };
     const envConfig = objOmitKeys<RelayerConfig>(
       config,
