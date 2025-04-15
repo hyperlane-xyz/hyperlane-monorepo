@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Instant};
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -10,7 +10,7 @@ use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tracing::{debug, warn};
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
-use crate::msg::metadata::MessageMetadataBuilder;
+use crate::msg::{log_times, metadata::MessageMetadataBuilder};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
@@ -39,6 +39,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>> {
         let message_id = message.id();
         const CTX: &str = "When fetching MessageIdMultisig metadata";
+        let start = Instant::now();
         let leaf_index = unwrap_or_none_result!(
             self.base_builder()
                 .get_merkle_leaf_id_by_message_id(message_id)
@@ -49,7 +50,9 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
         );
+        log_times("MessageIdMultisig db interactions", start.elapsed());
 
+        let start = Instant::now();
         // Update the validator latest checkpoint metrics.
         let _ = checkpoint_syncer
             .get_validator_latest_checkpoints_and_update_metrics(
@@ -58,7 +61,12 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 self.base_builder().destination_domain(),
             )
             .await;
+        log_times(
+            "MessageIdMultisig update latest checkpoint metrics",
+            start.elapsed(),
+        );
 
+        let start = Instant::now();
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint(validators, threshold as usize, leaf_index)
@@ -66,6 +74,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 .context(CTX)?,
             debug!("No quorum checkpoint found")
         );
+        log_times("MessageIdMultisig fetch checkpoint", start.elapsed());
 
         if quorum_checkpoint.checkpoint.message_id != message_id {
             warn!(

@@ -405,8 +405,10 @@ impl MessageProcessorMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::time::Instant;
+    use std::{str::FromStr, time::Instant};
 
+    use futures::future::join_all;
+    use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
     use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
     use tokio::{
         sync::{
@@ -418,17 +420,21 @@ mod test {
     use tokio_metrics::TaskMonitor;
 
     use hyperlane_base::{
-        cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache},
+        cache::{
+            LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache,
+            HIT_COUNT_LABELS, MISS_COUNT_LABELS,
+        },
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
             InterchainGasPaymentData,
         },
-        settings::{ChainConf, ChainConnectionConf, Settings},
+        settings::{ChainConf, ChainConnectionConf, CoreContractAddresses, Settings},
     };
     use hyperlane_core::{
-        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey,
-        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
-        PendingOperationStatus, H256,
+        identifiers::UniqueIdentifier, test_utils::dummy_domain, Decode, GasPaymentKey,
+        InterchainGasPayment, InterchainGasPaymentMeta, Mailbox, MerkleTreeInsertion,
+        PendingOperation, PendingOperationStatus, ReorgPeriod, SubmitterType, ValidatorAnnounce,
+        H160, H256,
     };
     use hyperlane_operation_verifier::{
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
@@ -445,8 +451,10 @@ mod test {
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
                 IsmCachePolicyClassifier,
             },
+            pending_message, set_start_time, START_TIME,
         },
         processor::Processor,
+        settings::{GasPaymentEnforcementConf, GasPaymentEnforcementPolicy},
     };
 
     use super::*;
@@ -482,12 +490,12 @@ mod test {
         MeteredCacheMetrics {
             hit_count: IntCounterVec::new(
                 prometheus::Opts::new("dummy_hit_count", "help string"),
-                &["cache_name", "method", "status"],
+                &HIT_COUNT_LABELS,
             )
             .ok(),
             miss_count: IntCounterVec::new(
                 prometheus::Opts::new("dummy_miss_count", "help string"),
-                &["cache_name", "method", "status"],
+                &MISS_COUNT_LABELS,
             )
             .ok(),
         }
@@ -969,5 +977,175 @@ mod test {
             forward_backward_iterator.high_nonce_iter.nonce,
             Some(MAX_ONCHAIN_NONCE + 1)
         );
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_prepare_durations() {
+        #[allow(unused_must_use)]
+        test_utils::run_test_db(|db| async move {
+            let base_domain = HyperlaneDomain::new_test_domain("base");
+            let base_db = HyperlaneRocksDB::new(&base_domain, db);
+
+            let arb_chain_conf = ChainConf {
+                domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
+                // TODO
+                signer: None,
+                submitter: SubmitterType::Classic,
+                estimated_block_time: Duration::from_secs(1),
+                reorg_period: ReorgPeriod::from_blocks(10),
+                addresses: CoreContractAddresses {
+                    mailbox: H160::from_str("0x979Ca5202784112f4738403dBec5D0F3B9daabB9").unwrap().into(),
+                    validator_announce: H160::from_str("0x1df063280C4166AF9a725e3828b4dAC6c7113B08").unwrap().into(),
+                    ..Default::default()
+                },
+                connection: ChainConnectionConf::Ethereum(ConnectionConf {
+                    rpc_connection: RpcConnectionConf::HttpFallback { urls: vec![
+                        "url1".parse().unwrap(),
+                        "url2".parse().unwrap(),
+                        "url3".parse().unwrap(),
+                    ] },
+                    transaction_overrides: Default::default(),
+                    // TODO
+                    operation_batch: Default::default(),
+                }),
+                metrics_conf: Default::default(),
+                index: Default::default(),
+            };
+            let base_chain_conf = ChainConf {
+                domain: base_domain.clone(),
+                // TODO
+                signer: None,
+                submitter: SubmitterType::Classic,
+                estimated_block_time: Duration::from_secs(1),
+                reorg_period: ReorgPeriod::from_blocks(10),
+                addresses: CoreContractAddresses {
+                    mailbox: H160::from_str("0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D").unwrap().into(),
+                    validator_announce: H160::from_str("0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B").unwrap().into(),
+                    ..Default::default()
+                },
+                connection: ChainConnectionConf::Ethereum(ConnectionConf {
+                    rpc_connection: RpcConnectionConf::HttpFallback { urls: vec![
+                        "url1".parse().unwrap(),
+                        "url2".parse().unwrap(),
+                        "url3".parse().unwrap(),
+                    ] },
+                    transaction_overrides: Default::default(),
+                    // TODO
+                    operation_batch: Default::default(),
+                }),
+                metrics_conf: Default::default(),
+                index: Default::default(),
+            };
+
+            let core_metrics = CoreMetrics::new("test", 9090, Default::default()).unwrap();
+            let arb_mailbox: Arc<dyn Mailbox> = arb_chain_conf
+                .build_mailbox(&core_metrics)
+                .await
+                .unwrap()
+                .into();
+            let base_va: Arc<dyn ValidatorAnnounce> = base_chain_conf
+                .build_validator_announce(&core_metrics)
+                .await
+                .unwrap()
+                .into();
+
+            let cache = OptionalCache::new(Some(MeteredCache::new(
+                LocalCache::new("test-cache"),
+                dummy_cache_metrics(),
+                MeteredCacheConfig {
+                    cache_name: "test-cache".to_owned(),
+                },
+            )));
+
+            let default_ism_getter = DefaultIsmCache::new(arb_mailbox.clone());
+            let metadata_builder = BaseMetadataBuilder::new(
+                base_domain.clone(),
+                arb_chain_conf.clone(),
+                Arc::new(RwLock::new(MerkleTreeBuilder::new())),
+                base_va,
+                false,
+                Arc::new(core_metrics),
+                cache.clone(),
+                base_db.clone(),
+                IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+                IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
+            );
+
+            // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a
+            // Base -> Arbitrum, uses the default ISM
+            let message_bytes = hex::decode("0300139ebf000021050000000000000000000000005454cf5584939f7f884e95dba33fecd6d40b8fe20000a4b1000000000000000000000000fd34afdfbac1e47afc539235420e4be4a206f26d0000000000000000000000008650ee37ba2b0a8ac5954a04b46ee07093eab7f90000000000000000000000000000000000000000000000004563918244f40000").unwrap();
+            let message = HyperlaneMessage::read_from(&mut &message_bytes[..]).unwrap();
+
+            let message_context = Arc::new(MessageContext {
+                destination_mailbox: arb_mailbox,
+                origin_db: Arc::new(base_db.clone()),
+                cache: cache.clone(),
+                metadata_builder: Arc::new(metadata_builder),
+                origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new(vec![
+                    GasPaymentEnforcementConf {
+                        policy: GasPaymentEnforcementPolicy::None,
+                        matching_list: MatchingList::default(),
+                    },
+                ], base_db.clone())),
+                transaction_gas_limit: Default::default(),
+                metrics: dummy_submission_metrics(),
+                application_operation_verifier: Some(Arc::new(
+                    DummyApplicationOperationVerifier {},
+                )),
+            });
+
+            // Found here https://basescan.org/tx/0x65345812a1f7df6236292d52d50418a090c84e2c901912bede6cadb9810a9882#eventlog
+            let message_id = message.id();
+            base_db.store_merkle_leaf_index_by_message_id(
+                &message_id,
+                &1285802
+            );
+
+            // let mut pending_message = PendingMessage::new(
+            //     message.clone(),
+            //     message_context.clone(),
+            //     PendingOperationStatus::FirstPrepareAttempt,
+            //     Some("test".to_owned()),
+            //     10,
+            // );
+
+            let attempts = 2;
+            let batch_size = 32;
+
+            let mut pending_messages = vec![];
+            for b in 0..batch_size {
+                pending_messages.push(PendingMessage::new(
+                    message.clone(),
+                    message_context.clone(),
+                    PendingOperationStatus::FirstPrepareAttempt,
+                    Some("test".to_owned()),
+                    10,
+                ));
+            }
+
+
+            for i in 0..attempts {
+
+                println!("\n\n\n\nAttempt {}", i);
+
+                let batch_start = Instant::now();
+                set_start_time();
+                let mut futures = vec![];
+
+                for pending_message in &mut pending_messages {
+                    futures.push(pending_message.prepare());
+                }
+                let res = join_all(futures).await;
+                let batch_end = Instant::now();
+                let batch_duration = batch_end.duration_since(batch_start);
+                println!("######\nBatch Duration: {:?}######\n", batch_duration);
+
+                for pending_message in &mut pending_messages {
+                    pending_message.reset_attempts();
+                    pending_message.clear_metadata();
+                }
+            }
+        }).await;
     }
 }

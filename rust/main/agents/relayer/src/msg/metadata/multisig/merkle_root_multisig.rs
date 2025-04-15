@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Instant};
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -9,7 +9,7 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tracing::debug;
 
-use crate::msg::metadata::MessageMetadataBuilder;
+use crate::msg::{log_times, metadata::MessageMetadataBuilder};
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
@@ -41,6 +41,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
+        let start = Instant::now();
         let highest_leaf_index = unwrap_or_none_result!(
             self.base_builder().highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
@@ -55,6 +56,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
         );
+        log_times("MerkleRootMultisig db interactions", start.elapsed());
+        let start = Instant::now();
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
@@ -72,11 +75,14 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 highest_leaf_index, "Couldn't get checkpoint in range"
             )
         );
+        log_times("MerkleRootMultisig quorum checkpoint", start.elapsed());
+        let start = Instant::now();
         let proof = self
             .base_builder()
             .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
             .await
             .context(CTX)?;
+        log_times("MerkleRootMultisig proof", start.elapsed());
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint,
             leaf_index,

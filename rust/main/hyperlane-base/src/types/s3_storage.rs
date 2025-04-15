@@ -1,6 +1,7 @@
-use std::{fmt, sync::OnceLock, time::Duration};
+use std::{fmt, str::FromStr, sync::OnceLock, time::Duration};
 
 use async_trait::async_trait;
+// use aws_sdk_s3::Client;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
@@ -38,6 +39,8 @@ pub struct S3Storage {
     /// A client without credentials for anonymous requests.
     #[new(default)]
     anonymous_client: OnceLock<S3Client>,
+    // #[new(default)]
+    // anonymous_aws_client: OnceLock<Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
 }
@@ -92,6 +95,22 @@ impl S3Storage {
         }
     }
 
+    // async fn anonymously_read_from_bucket_aws(&self, key: String) -> Result<Option<Vec<u8>>> {
+    //     let get_object_result = timeout(
+    //         Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
+    //         self.anonymous_aws_client().get_object().bucket(self.bucket.clone()).key(self.get_composite_key(key)).send(),
+    //     )
+    //     .await?;
+
+    //     match get_object_result {
+    //         Ok(res) => match res.body {
+    //             Some(body) => Ok(Some(body.collect().await?.into_bytes().to_vec())),
+    //             None => Ok(None),
+    //         },
+    //         Err(e) => bail!(e),
+    //     }
+    // }
+
     /// Gets an authenticated S3Client, creating it if it doesn't already exist.
     fn authenticated_client(&self) -> &S3Client {
         self.authenticated_client.get_or_init(|| {
@@ -122,6 +141,15 @@ impl S3Storage {
             )
         })
     }
+
+    // fn anonymous_aws_client(&self) -> &Client {
+    //     self.anonymous_aws_client.get_or_init(|| {
+    //         let config = aws_config::from_env()
+    //             .region(Region::from_str(self.region.name()).unwrap());
+
+    //         Client::new(&config)
+    //     })
+    // }
 
     fn get_composite_key(&self, key: String) -> String {
         match self.folder.as_deref() {

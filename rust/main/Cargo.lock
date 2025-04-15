@@ -1108,9 +1108,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.7.1"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8318a53db07bb3f8dca91a600466bdb3f2eaadeedfdbcf02e1accbad9271ba50"
+checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 dependencies = [
  "serde",
 ]
@@ -3283,7 +3283,7 @@ checksum = "4c80c6714d1a380314fcb11a22eeff022e1e1c9642f0bb54e15dc9cb29f37b29"
 dependencies = [
  "futures",
  "hyper 0.14.30",
- "hyper-rustls",
+ "hyper-rustls 0.24.2",
  "hyper-timeout 0.4.1",
  "log",
  "pin-project",
@@ -3309,9 +3309,9 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "fastrand"
-version = "2.1.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
+checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "feature-probe"
@@ -3520,7 +3520,7 @@ dependencies = [
  "fuel-core-types",
  "futures",
  "hex 0.4.3",
- "hyper-rustls",
+ "hyper-rustls 0.24.2",
  "itertools 0.12.1",
  "reqwest",
  "schemafy_lib",
@@ -3913,9 +3913,9 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.30"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfc6580bb841c5a68e9ef15c77ccc837b40a7504914d52e47b8b0e9bbda25a1d"
+checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
 name = "futures-executor"
@@ -4492,7 +4492,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.7",
+ "socket2 0.4.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -4501,9 +4501,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.5.2"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "256fb8d4bd6413123cc9d91832d78325c48ff41677595be797d90f42969beae0"
+checksum = "cc2b571658e38e0c01b1fdca3bbbe93c00d3d71693ff2770043f8c29bc7d6f80"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -4518,6 +4518,21 @@ dependencies = [
  "smallvec",
  "tokio",
  "want",
+]
+
+[[package]]
+name = "hyper-rustls"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1788965e61b367cd03a62950836d5cd41560c3577d90e40e0819373194d1661c"
+dependencies = [
+ "http 0.2.12",
+ "hyper 0.14.30",
+ "log",
+ "rustls 0.20.9",
+ "rustls-native-certs 0.6.3",
+ "tokio",
+ "tokio-rustls 0.23.4",
 ]
 
 [[package]]
@@ -4555,7 +4570,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b90d566bffbce6a75bd8b09a05aa8c2cb1fabb6cb348f8840c9e4c90a0d83b0"
 dependencies = [
- "hyper 1.5.2",
+ "hyper 1.6.0",
  "hyper-util",
  "pin-project-lite",
  "tokio",
@@ -4586,7 +4601,7 @@ dependencies = [
  "futures-util",
  "http 1.2.0",
  "http-body 1.0.1",
- "hyper 1.5.2",
+ "hyper 1.6.0",
  "pin-project-lite",
  "socket2 0.5.7",
  "tokio",
@@ -4627,6 +4642,8 @@ dependencies = [
  "fuels",
  "futures",
  "futures-util",
+ "hyper 0.14.30",
+ "hyper-rustls 0.23.2",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmos-native",
@@ -4636,7 +4653,7 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-sealevel",
  "hyperlane-test",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "maplit",
  "mockall",
  "moka",
@@ -4692,7 +4709,7 @@ dependencies = [
  "getrandom 0.2.15",
  "hex 0.4.3",
  "hyperlane-application",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "num 0.4.3",
  "num-derive 0.4.2",
  "num-traits",
@@ -4737,7 +4754,7 @@ dependencies = [
  "ibc-proto",
  "injective-protobuf",
  "injective-std",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "once_cell",
  "pin-project",
  "protobuf",
@@ -4752,7 +4769,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
- "tower 0.5.2",
+ "tower 0.4.13",
  "tracing",
  "tracing-futures",
  "url",
@@ -4777,7 +4794,7 @@ dependencies = [
  "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "once_cell",
  "pin-project",
  "protobuf",
@@ -4792,7 +4809,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
- "tower 0.5.2",
+ "tower 0.4.13",
  "tracing",
  "tracing-futures",
  "url",
@@ -4852,7 +4869,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "num 0.4.3",
  "num-traits",
  "reqwest",
@@ -5525,7 +5542,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6240,9 +6257,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.19.0"
+version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
+checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "opaque-debug"
@@ -6950,7 +6967,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2 1.0.93",
  "quote 1.0.37",
  "syn 2.0.98",
@@ -6963,7 +6980,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "157c5a9d7ea5c2ed2d9fb8f495b64759f7816c7eaea54ba3978f0d63000162e3"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2 1.0.93",
  "quote 1.0.37",
  "syn 2.0.98",
@@ -7412,7 +7429,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-test",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "maplit",
  "mockall",
  "num-derive 0.4.2",
@@ -7464,7 +7481,7 @@ dependencies = [
  "http 0.2.12",
  "http-body 0.4.6",
  "hyper 0.14.30",
- "hyper-rustls",
+ "hyper-rustls 0.24.2",
  "hyper-tls",
  "ipnet",
  "js-sys",
@@ -7926,9 +7943,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.20"
+version = "0.23.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5065c3f250cbd332cd894be57c40fa52387247659b14a2d6041d121547903b1b"
+checksum = "934b404430bb06b3fae2cba809eb45a1ab1aecd64491213d7c3301b88393f8d1"
 dependencies = [
  "log",
  "once_cell",
@@ -7992,9 +8009,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.10.1"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2bf47e6ff922db3825eb750c4e2ff784c6ff8fb9e13046ef6a1d1c5401b0b37"
+checksum = "917ce264624a4b4db1c364dcc35bfca9ded014d0a958cd47ad3e960e988ea51c"
 
 [[package]]
 name = "rustls-webpki"
@@ -8158,7 +8175,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "migration",
  "num-bigint 0.4.6",
  "num-traits",
@@ -8476,9 +8493,9 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.209"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99fce0ffe7310761ca6bf9faf5115afbc19688edd00171d81b1bb1b116c63e09"
+checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
 dependencies = [
  "serde_derive",
 ]
@@ -8531,9 +8548,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.209"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5831b979fd7b5439637af1752d535ff49f4860c0f341d1baeb6faf0f4242170"
+checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2 1.0.93",
  "quote 1.0.37",
@@ -10299,7 +10316,7 @@ version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f6d0975eaace0cf0fcadee4e4aaa5da15b5c079146f2cffb67c113be122bf37"
 dependencies = [
- "rustls 0.23.20",
+ "rustls 0.23.19",
  "tokio",
 ]
 
@@ -10468,7 +10485,7 @@ dependencies = [
  "http 1.2.0",
  "http-body 1.0.1",
  "http-body-util",
- "hyper 1.5.2",
+ "hyper 1.6.0",
  "hyper-timeout 0.5.2",
  "hyper-util",
  "percent-encoding",
@@ -11501,7 +11518,7 @@ dependencies = [
  "http 0.2.12",
  "humantime-serde",
  "hyper 0.14.30",
- "hyper-rustls",
+ "hyper-rustls 0.24.2",
  "paste",
  "rand 0.8.5",
  "rustls 0.21.12",
@@ -11546,7 +11563,7 @@ dependencies = [
  "futures",
  "http 0.2.12",
  "hyper 0.14.30",
- "hyper-rustls",
+ "hyper-rustls 0.24.2",
  "itertools 0.10.5",
  "log",
  "percent-encoding",

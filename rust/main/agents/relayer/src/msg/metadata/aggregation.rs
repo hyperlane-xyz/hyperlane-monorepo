@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use async_trait::async_trait;
 use derive_more::Deref;
 use futures_util::future::join_all;
@@ -11,7 +13,10 @@ use hyperlane_core::{
     AggregationIsm, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
 };
 
-use crate::msg::metadata::{base::MetadataBuildError, message_builder};
+use crate::msg::{
+    log_times,
+    metadata::{base::MetadataBuildError, message_builder},
+};
 
 use super::{
     IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
@@ -197,10 +202,13 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
+        let start = Instant::now();
         let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
+        log_times("AggregationISM: Modules and threshold", start.elapsed());
 
         let threshold = threshold as usize;
 
+        let start = Instant::now();
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|sub_ism_address| {
             message_builder::build_message_metadata(
                 self.base.clone(),
@@ -210,6 +218,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             )
         }))
         .await;
+        log_times("AggregationISM: Building inner ISMs", start.elapsed());
 
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
         for sub_module_res in sub_modules_and_metas.iter() {
@@ -234,8 +243,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 Err(_) => Either::Right((*ism_address, None)),
             });
 
+        println!(
+            "AggregationISM: Partitioning ISMs result ok {:?} err {:?}",
+            ok_sub_modules.len(),
+            err_sub_modules.len()
+        );
+        let start = Instant::now();
         let mut valid_metas =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules).await?;
+        log_times("AggregationISM: Cheapest valid metas", start.elapsed());
 
         let metadata = Metadata::new(Self::format_metadata(&mut valid_metas, ism_addresses.len()));
         Ok(metadata)

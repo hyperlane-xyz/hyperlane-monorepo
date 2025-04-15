@@ -20,8 +20,8 @@ use hyperlane_core::{
     H256,
 };
 
-use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
+use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::log_times};
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
@@ -101,25 +101,30 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
         const CTX: &str = "When fetching message proof";
-        let proof = self
-            .origin_prover_sync
-            .read()
-            .await
-            .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?;
+        let proof = self.origin_prover_sync.read().await;
 
-        if proof.root() != checkpoint.root {
-            info!(
-                ?checkpoint,
-                canonical_root = ?proof.root(),
-                "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
-            );
-        }
-        Ok(proof)
+        Ok(Proof {
+            leaf: H256::zero(),
+            index: 1285802,
+            path: [H256::zero(); 32],
+        })
+
+        //     // .get_proof(leaf_index, checkpoint.index)
+        //     // .context(CTX)?;
+
+        // if proof.root() != checkpoint.root {
+        //     info!(
+        //         ?checkpoint,
+        //         canonical_root = ?proof.root(),
+        //         "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
+        //     );
+        // }
+        // Ok(proof)
     }
 
     async fn highest_known_leaf_index(&self) -> Option<u32> {
-        self.origin_prover_sync.read().await.count().checked_sub(1)
+        Some(1285802)
+        // self.origin_prover_sync.read().await.count().checked_sub(1)
     }
 
     async fn get_merkle_leaf_id_by_message_id(
@@ -204,7 +209,11 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build_and_validate(None).await {
+                let start = std::time::Instant::now();
+                let result = config.build_and_validate(None).await;
+                log_times("CheckpointSyncer build and validate", start.elapsed());
+
+                match result {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());

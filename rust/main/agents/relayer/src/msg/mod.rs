@@ -37,4 +37,38 @@ mod utils;
 
 pub mod pending_message;
 
+use std::{
+    sync::RwLock,
+    time::{Duration, Instant},
+};
+
 pub use gas_payment::GAS_EXPENDITURE_LOG_MESSAGE;
+
+pub static START_TIME: RwLock<Option<Instant>> = RwLock::new(None);
+
+pub fn set_start_time() {
+    let mut start_time = START_TIME
+        .write()
+        .expect("START_TIME mutex should be locked");
+    *start_time = Some(Instant::now());
+}
+
+pub fn time_since_start() -> Duration {
+    let start_time = START_TIME
+        .read()
+        .expect("START_TIME should be set before this function is called")
+        .unwrap();
+    start_time.elapsed()
+}
+
+pub fn log_times(msg: &str, op_duration: Duration) {
+    if op_duration.as_millis() > 1000 {
+        println!("--------\nLong duration\n--------");
+    }
+    println!(
+        "{}\n\tOperation: {:?}\n\tFrom Start: {:?}",
+        msg,
+        op_duration,
+        time_since_start()
+    );
+}

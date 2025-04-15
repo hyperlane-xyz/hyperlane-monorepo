@@ -9,6 +9,8 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+# aws-config.workspace = true
+# aws-sdk-s3.workspace = true
 axum.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
@@ -23,6 +25,8 @@ eyre.workspace = true
 fuels.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+hyper.workspace = true
+hyper-rustls.workspace = true
 itertools.workspace = true
 maplit.workspace = true
 mockall.workspace = true

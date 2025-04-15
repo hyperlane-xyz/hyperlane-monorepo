@@ -27,7 +27,10 @@ use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
-    msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
+    msg::{
+        log_times,
+        metadata::{MessageMetadataBuildParams, MetadataBuildError},
+    },
 };
 
 use super::{
@@ -225,6 +228,7 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
+        let start = Instant::now();
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
@@ -239,18 +243,22 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
             }
         };
-        if is_already_delivered {
+        log_times("Check if message is already delivered", start.elapsed());
+        // Note!
+        if !is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
         }
 
+        let start = Instant::now();
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
         let is_contract = match self.is_recipient_contract().await {
             Ok(is_contract) => is_contract,
             Err(reprepare_reason) => return reprepare_reason,
         };
+        log_times("Check if recipient is contract", start.elapsed());
         if !is_contract {
             info!(
                 recipient=?self.message.recipient,
@@ -258,7 +266,9 @@ impl PendingOperation for PendingMessage {
             );
             return PendingOperationResult::Drop;
         }
+        println!("Time after recipient contract check: {:?}", start.elapsed());
 
+        let start = Instant::now();
         // Perform a preflight check to see if we can short circuit the gas
         // payment requirement check early without performing expensive
         // operations like metadata building or gas estimation.
@@ -268,7 +278,10 @@ impl PendingOperation for PendingMessage {
             info!("Message does not meet the gas payment requirement preflight check");
             return op_result;
         }
+        log_times("IGP preflight check", start.elapsed());
 
+        println!("Is metadata cached: {:?}", self.metadata.is_some());
+        let start = Instant::now();
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
         let tx_cost_estimate = match self.metadata.as_ref() {
@@ -291,7 +304,9 @@ impl PendingOperation for PendingMessage {
             }
             None => None,
         };
+        log_times("Cached metadata first stage", start.elapsed());
 
+        let start = Instant::now();
         let metadata_bytes = match self.metadata.as_ref() {
             Some(metadata) => {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
@@ -308,7 +323,9 @@ impl PendingOperation for PendingMessage {
                 }
             },
         };
+        log_times("Metadata building", start.elapsed());
 
+        let start = Instant::now();
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
@@ -329,11 +346,21 @@ impl PendingOperation for PendingMessage {
                         .await
                         .unwrap_or(ReprepareReason::ErrorEstimatingGas);
                     self.clear_metadata();
-                    return self.on_reprepare(Some(err), reason);
+
+                    // Not repreparing for now to test things.
+                    TxCostEstimate {
+                        gas_limit: U256::from(300000),
+                        gas_price: FixedPointNumber::zero(),
+                        l2_gas_limit: None,
+                    }
+
+                    // return self.on_reprepare(Some(err), reason);
                 }
             },
         };
+        log_times("Tx cost estimate", start.elapsed());
 
+        let start = Instant::now();
         // Get the gas_limit if the gas payment requirement has been met,
         // otherwise return a PendingOperationResult and move on.
         let gas_limit = match self.meets_gas_payment_requirement(&tx_cost_estimate).await {
@@ -343,6 +370,8 @@ impl PendingOperation for PendingMessage {
                 return op_result;
             }
         };
+
+        log_times("Main IGP check", start.elapsed());
 
         // Go ahead and attempt processing of message to destination chain.
         debug!(
@@ -363,6 +392,7 @@ impl PendingOperation for PendingMessage {
             metadata: metadata_bytes,
             gas_limit,
         }));
+        log_times("End of preparation", Duration::default());
         PendingOperationResult::Success
     }
 
@@ -1032,7 +1062,7 @@ impl PendingMessage {
     }
 
     /// clear metadata cache
-    fn clear_metadata(&mut self) {
+    pub fn clear_metadata(&mut self) {
         tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
     }

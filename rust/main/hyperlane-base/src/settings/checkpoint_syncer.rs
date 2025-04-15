@@ -126,8 +126,11 @@ impl CheckpointSyncerConf {
         &self,
         latest_index_gauge: Option<IntGauge>,
     ) -> Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError> {
+        let start = std::time::Instant::now();
         let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
+        println!("Checkpoint syncer build took {:?}", start.elapsed());
 
+        let start = std::time::Instant::now();
         match syncer.reorg_status().await {
             Ok(Some(reorg_event)) => {
                 return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
@@ -140,6 +143,10 @@ impl CheckpointSyncerConf {
             }
             _ => {}
         }
+        println!(
+            "Checkpoint syncer reorg status check took {:?}",
+            start.elapsed()
+        );
         Ok(syncer)
     }
 

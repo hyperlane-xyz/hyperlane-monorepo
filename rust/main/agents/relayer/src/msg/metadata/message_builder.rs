@@ -14,6 +14,7 @@ use {
 use tracing::instrument;
 
 use crate::msg::{
+    log_times,
     metadata::base_builder::BuildsBaseMetadata,
     pending_message::{ISM_MAX_COUNT, ISM_MAX_DEPTH},
 };
@@ -149,8 +150,14 @@ pub async fn build_message_metadata(
         .await
         .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
+    let start = std::time::Instant::now();
     let module_type = message_builder.call_module_type(&ism).await?;
+    log_times(
+        format!("{} Module type", module_type.to_string()).as_str(),
+        start.elapsed(),
+    );
 
+    let start = std::time::Instant::now();
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {
         tracing::error!(
@@ -165,8 +172,14 @@ pub async fn build_message_metadata(
     }
     params.ism_depth = params.ism_depth.saturating_add(1);
     {
+        println!("Waiting for ism_count lock");
+        let start1 = std::time::Instant::now();
         // check if max ism count is reached
         let mut ism_count = params.ism_count.lock().await;
+        log_times(
+            format!("Acquired ism_count lock, count {}", ism_count).as_str(),
+            start1.elapsed(),
+        );
         if *ism_count >= message_builder.max_ism_count {
             tracing::error!(
                 ism_count = message_builder.max_ism_count,
@@ -180,6 +193,7 @@ pub async fn build_message_metadata(
         }
         *ism_count = ism_count.saturating_add(1);
     }
+    log_times("MessageMetadataBuilder: max depth check", start.elapsed());
 
     let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
         ModuleType::MerkleRootMultisig => {

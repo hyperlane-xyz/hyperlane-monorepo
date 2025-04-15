@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -14,6 +15,7 @@ use hyperlane_core::{HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCh
 use strum::Display;
 use tracing::{debug, info, warn};
 
+use crate::msg::log_times;
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, Metadata, MetadataBuilder};
@@ -169,16 +171,23 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         const CTX: &str = "When fetching MultisigIsm metadata";
+        let start = Instant::now();
         let multisig_ism = self
             .as_ref()
             .base_builder()
             .build_multisig_ism(ism_address)
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        log_times("MultisigIsm: build", start.elapsed());
 
+        let start = Instant::now();
         let (validators, threshold) = self
             .call_validators_and_threshold(&multisig_ism, message)
             .await?;
+        log_times(
+            "MultisigIsm: call_validators_and_threshold",
+            start.elapsed(),
+        );
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
@@ -187,6 +196,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
 
+        let start = Instant::now();
         let checkpoint_syncer = match self
             .as_ref()
             .base_builder()
@@ -206,6 +216,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
                 return Err(err);
             }
         };
+        log_times("MultisigIsm: build_checkpoint_syncer", start.elapsed());
 
         if let Some(metadata) = self
             .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)

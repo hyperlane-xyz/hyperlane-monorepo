@@ -38,6 +38,8 @@ impl MultisigCheckpointSyncer {
         let mut latest_indices: HashMap<H160, Option<u32>> =
             HashMap::with_capacity(validators.len());
 
+        let outer_start = std::time::Instant::now();
+
         for validator in validators {
             let address = H160::from(*validator);
             debug!(
@@ -45,13 +47,16 @@ impl MultisigCheckpointSyncer {
                 "Getting latest checkpoint from validator via checkpoint syncer",
             );
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&address) {
+                let start = std::time::Instant::now();
                 // Gracefully handle errors getting the latest_index
                 match checkpoint_syncer.latest_index().await {
                     Ok(Some(index)) => {
                         debug!(?address, ?index, "Validator returned latest index");
                         latest_indices.insert(H160::from(*validator), Some(index));
+                        println!("Successfully got index for validator");
                     }
                     result => {
+                        println!("Error getting latest index from validator: {:?}", result);
                         debug!(
                             ?address,
                             ?result,
@@ -60,12 +65,15 @@ impl MultisigCheckpointSyncer {
                         latest_indices.insert(H160::from(*validator), None);
                     }
                 }
+                println!("get_validator_latest_checkpoints_and_update_metrics getting single latest index took {:?}", start.elapsed());
             } else {
                 warn!(?address, "Checkpoint syncer is not provided for validator");
             }
         }
+        println!("get_validator_latest_checkpoints_and_update_metrics getting all latest indices took {:?}", outer_start.elapsed());
 
         if let Some(app_context) = &self.app_context {
+            let start = std::time::Instant::now();
             self.metrics
                 .validator_metrics
                 .set_validator_latest_checkpoints(
@@ -75,6 +83,10 @@ impl MultisigCheckpointSyncer {
                     &latest_indices,
                 )
                 .await;
+            println!(
+                "get_validator_latest_checkpoints_and_update_metrics updating metrics took {:?}",
+                start.elapsed()
+            );
         }
 
         // Filter out any validators that did not return a latest index
@@ -157,14 +169,19 @@ impl MultisigCheckpointSyncer {
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
 
+        let full_start = std::time::Instant::now();
+        let mut i = 0;
         for validator in validators.iter() {
+            i += 1;
             let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
+                let start = std::time::Instant::now();
+                let fetched_checkpoint = checkpoint_syncer.fetch_checkpoint(index).await;
+                println!("fetch_checkpoint iter {} took {:?}", i, start.elapsed());
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
-                if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
-                {
+                if let Ok(Some(signed_checkpoint)) = fetched_checkpoint {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
                         debug!(
@@ -207,6 +224,10 @@ impl MultisigCheckpointSyncer {
                     if signature_count >= threshold {
                         let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
                         debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
+                        println!(
+                            "fetch_checkpoint entire quorum took {:?}",
+                            full_start.elapsed()
+                        );
                         return Ok(Some(checkpoint));
                     }
                 } else {
