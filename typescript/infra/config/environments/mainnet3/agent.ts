@@ -877,6 +877,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     defaultIsmCacheConfig,
     allowContractCallCaching: true,
     resources: relayerResources,
+    dbBootstrap: true,
   },
 });
 

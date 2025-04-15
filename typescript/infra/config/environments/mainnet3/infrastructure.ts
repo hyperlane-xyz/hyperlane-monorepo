@@ -41,11 +41,10 @@ export const infrastructure: InfrastructureConfig = {
       'hyperlane-mainnet3-',
       'rc-mainnet3-',
       'neutron-mainnet3-',
-      'vanguard0-mainnet3-',
-      'vanguard1-mainnet3-',
-      'vanguard2-mainnet3-',
-      'vanguard3-mainnet3-',
-      'vanguard4-mainnet3-',
+      // All vanguard context secrets. There's a cap on the number of
+      // prefixes you can specify in a single IAM policy, so for convenience
+      // we just use a single prefix for all vanguard contexts.
+      'vanguard',
       'mainnet3-',
     ],
   },

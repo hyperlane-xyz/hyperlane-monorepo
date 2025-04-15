@@ -56,6 +56,7 @@ export interface BaseRelayerConfig {
   metricAppContextsGetter?: () => MetricAppContext[];
   defaultIsmCacheConfig?: IsmCacheConfig;
   allowContractCallCaching?: boolean;
+  dbBootstrap?: boolean;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -83,6 +84,14 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   envConfig?: RelayerEnvConfig;
   // Config intended to be set as configMap values
   configMapConfig?: RelayerConfigMapConfig;
+  // Config for setting up the database
+  dbBootstrap?: RelayerDbBootstrapConfig;
+}
+
+export interface RelayerDbBootstrapConfig {
+  enabled: boolean;
+  bucket: string;
+  object_targz: string;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -93,7 +102,7 @@ export interface HelmRelayerChainValues {
 }
 
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
-  readonly #relayerConfig: BaseRelayerConfig;
+  readonly relayerConfig: BaseRelayerConfig;
   readonly logger: Logger<never>;
 
   constructor(agentConfig: RootAgentConfig) {
@@ -101,12 +110,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       throw Error('Relayer is not defined for this context');
     super(agentConfig, agentConfig.relayer);
 
-    this.#relayerConfig = agentConfig.relayer;
+    this.relayerConfig = agentConfig.relayer;
     this.logger = rootLogger.child({ module: 'RelayerConfigHelper' });
   }
 
   async buildConfig(): Promise<RelayerConfig> {
-    const baseConfig = this.#relayerConfig!;
+    const baseConfig = this.relayerConfig!;
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),

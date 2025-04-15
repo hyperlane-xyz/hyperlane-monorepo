@@ -22,6 +22,7 @@ import {
 import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
+  RelayerDbBootstrapConfig,
   RelayerEnvConfig,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
@@ -29,9 +30,13 @@ import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
+  createServiceAccountIfNotExists,
+  createServiceAccountKey,
   fetchGCPSecret,
   gcpSecretExistsUsingClient,
   getGcpSecretLatestVersionName,
+  grantServiceAccountRoleIfNotExists,
+  grantServiceAccountStorageRoleIfNotExists,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
 import { HelmManager } from '../utils/helm.js';
@@ -198,6 +203,9 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       envConfig,
       configMapConfig,
       resources: this.kubernetesResources(),
+      dbBootstrap: await this.dbBootstrapConfig(
+        this.config.relayerConfig.dbBootstrap,
+      ),
     };
 
     const signers = await this.config.signers();
@@ -220,6 +228,48 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     });
 
     return values;
+  }
+
+  async dbBootstrapConfig(
+    enabled: boolean = false,
+  ): Promise<RelayerDbBootstrapConfig | undefined> {
+    if (!enabled) {
+      return undefined;
+    }
+
+    await this.ensureDbBootstrapGcpServiceAccount('relayer-db-backups');
+
+    return {
+      enabled: true,
+      bucket: 'relayer-db-backups',
+      object_targz: `${this.environment}-latest.tar.gz`,
+    };
+  }
+
+  async ensureDbBootstrapGcpServiceAccount(bucket: string) {
+    const secretName = this.dbBootstrapServiceAccountKeySecretName();
+
+    if (await gcpSecretExistsUsingClient(secretName)) {
+      // The secret already exists, no need to create it again
+      return;
+    }
+
+    const STORAGE_OBJECT_VIEWER_ROLE = 'roles/storage.objectViewer';
+
+    const serviceAccountEmail = await createServiceAccountIfNotExists(
+      `${this.environment}-db-bootstrap-reader`,
+    );
+    await grantServiceAccountStorageRoleIfNotExists(
+      serviceAccountEmail,
+      bucket,
+      STORAGE_OBJECT_VIEWER_ROLE,
+    );
+    const key = await createServiceAccountKey(serviceAccountEmail);
+    await setGCPSecretUsingClient(secretName, JSON.stringify(key));
+  }
+
+  dbBootstrapServiceAccountKeySecretName(): string {
+    return `${this.environment}-relayer-db-bootstrap-viewer-key`;
   }
 }
 

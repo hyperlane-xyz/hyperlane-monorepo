@@ -43,6 +43,33 @@ spec:
       terminationGracePeriodSeconds: 10
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+      {{- if .Values.hyperlane.relayer.dbBootstrap }}
+      initContainers:
+      - name: init-data
+        image: google/cloud-sdk:alpine
+        command:
+          - sh
+          - -c
+          - |
+            if [ -z "$(ls -A {{ .Values.hyperlane.dbPath }})" ]; then
+              echo "No data found in {{ .Values.hyperlane.dbPath }} — bootstrapping from GCS"
+              gsutil cp gs://{{ .Values.hyperlane.relayer.dbBootstrap.bucket }}/{{ .Values.hyperlane.relayer.dbBootstrap.object_targz }} /tmp/seed.tar.gz
+              echo "Extracting data to {{ .Values.hyperlane.dbPath }}"
+              tar -xzf /tmp/seed.tar.gz -C {{ .Values.hyperlane.dbPath }}
+            else
+              echo "Data already exists in {{ .Values.hyperlane.dbPath }} — skipping bootstrap"
+            fi
+        env:
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "agent-common.fullname" . }}-relayer-secret
+                key: DB_BOOTSTRAP_SERVICE_ACCOUNT_KEY
+        volumeMounts:
+        - name: {{ .Values.hyperlane.relayer.storage.name | default "state" }}
+          mountPath: {{ .Values.hyperlane.dbPath }}
+      {{- end }}
       containers:
       - name: agent
         securityContext:
