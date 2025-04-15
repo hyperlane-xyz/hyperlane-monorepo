@@ -9,7 +9,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
 import {
   getGovernanceIcas,
   getGovernanceSafes,
@@ -75,7 +74,7 @@ async function main() {
     { Expected: Address; Actual: Address }
   > = {};
   for (const chain of checkOwnerIcaChains) {
-    const expectedAddress = awIcas[chain];
+    const expectedAddress = icas[chain];
     if (!expectedAddress) {
       rootLogger.error(`No expected address found for ${chain}`);
       continue;
