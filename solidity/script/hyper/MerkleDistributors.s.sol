@@ -50,9 +50,6 @@ contract MerkleDistributor is Script, StdCheats {
     uint256 distributionFork;
     uint32 distributionDomainId;
 
-    // HypERC20 public synthetic;
-    // HypERC4626 public rebasingSynthetic;
-
     function setUp() public {
         stakeFork = vm.createSelectFork(STAKE_RPC_URL);
         stakedCollateral = HypERC4626Collateral(STAKED_WARP_ROUTE_ADDRESS);
@@ -65,45 +62,9 @@ contract MerkleDistributor is Script, StdCheats {
         vault = compoundStakerRewards.vault();
 
         collateral = HyperToken(vault.collateral());
-        // deal(
-        //     address(collateral),
-        //     address(this), // sender
-        //     HYPER_AMOUNT + STAKED_HYPER_AMOUNT
-        // );
-
         stakeDomainId = collateral.localDomain();
-        // address stakeMailbox = address(collateral.mailbox());
-        // vm.etch(stakeMailbox, address(new MockMailbox(stakeDomainId)).code);
-
         distributionFork = vm.createSelectFork(DISTRIBUTION_RPC_URL);
         distributionDomainId = uint32(block.chainid);
-
-        // vm.selectFork(stakeFork);
-        // synthetic = HypERC20(
-        //     collateral.routers(distributionDomainId).bytes32ToAddress()
-        // );
-        // rebasingSynthetic = HypERC4626(
-        //     stakedCollateral.routers(distributionDomainId).bytes32ToAddress()
-        // );
-
-        // vm.selectFork(distributionFork);
-        // address distributionMailbox = address(synthetic.mailbox());
-        // vm.etch(
-        //     distributionMailbox,
-        //     address(new MockMailbox(distributionDomainId)).code
-        // );
-        // MockMailbox(distributionMailbox).addRemoteMailbox(
-        //     stakeDomainId,
-        //     MockMailbox(stakeMailbox)
-        // );
-        // vm.makePersistent(distributionMailbox);
-
-        // vm.selectFork(stakeFork);
-        // MockMailbox(stakeMailbox).addRemoteMailbox(
-        //     distributionDomainId,
-        //     MockMailbox(distributionMailbox)
-        // );
-        // vm.makePersistent(stakeMailbox);
     }
 
     function run() external {
@@ -111,14 +72,18 @@ contract MerkleDistributor is Script, StdCheats {
 
         vm.selectFork(stakeFork);
 
-        uint256 fee = collateral.quoteGasPayment(distributionDomainId);
         vm.startBroadcast(deployerPrivateKey);
 
-        collateral.transferRemote{value: fee}(
-            distributionDomainId,
-            HYPER_MERKLE_DISTRIBUTOR.addressToBytes32(),
-            HYPER_AMOUNT
-        );
+        if (stakeDomainId != distributionDomainId) {
+            uint256 fee = collateral.quoteGasPayment(distributionDomainId);
+            collateral.transferRemote{value: fee}(
+                distributionDomainId,
+                HYPER_MERKLE_DISTRIBUTOR.addressToBytes32(),
+                HYPER_AMOUNT
+            );
+        } else {
+            collateral.transfer(HYPER_MERKLE_DISTRIBUTOR, HYPER_AMOUNT);
+        }
 
         if (STAKED_HYPER_AMOUNT == 0) {
             return;
@@ -128,14 +93,24 @@ contract MerkleDistributor is Script, StdCheats {
         collateral.approve(address(vault), stakeAmount);
         vault.deposit(deployer, stakeAmount);
 
-        IERC20(address(vault)).approve(address(stakedCollateral), stakeAmount);
-        fee = stakedCollateral.quoteGasPayment(distributionDomainId);
-
-        // vm.deal(address(this), fee);
-        stakedCollateral.transferRemote{value: fee}(
-            distributionDomainId,
-            STAKED_HYPER_MERKLE_DISTRIBUTOR.addressToBytes32(),
-            STAKED_HYPER_AMOUNT
-        );
+        if (stakeDomainId != distributionDomainId) {
+            IERC20(address(vault)).approve(
+                address(stakedCollateral),
+                stakeAmount
+            );
+            uint256 fee = stakedCollateral.quoteGasPayment(
+                distributionDomainId
+            );
+            stakedCollateral.transferRemote{value: fee}(
+                distributionDomainId,
+                STAKED_HYPER_MERKLE_DISTRIBUTOR.addressToBytes32(),
+                STAKED_HYPER_AMOUNT
+            );
+        } else {
+            IERC20(address(vault)).transfer(
+                STAKED_HYPER_MERKLE_DISTRIBUTOR,
+                STAKED_HYPER_AMOUNT
+            );
+        }
     }
 }
