@@ -17,7 +17,7 @@ import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
 
-const MESSAGE_DISPATCH_EVENT_TYPE = 'dispatch';
+const MESSAGE_DISPATCH_EVENT_TYPE = 'hyperlane.core.v1.Dispatch';
 const MESSAGE_ATTRIBUTE_KEY = 'message';
 const MESSAGE_DESTINATION_ATTRIBUTE_KEY = 'destination';
 
