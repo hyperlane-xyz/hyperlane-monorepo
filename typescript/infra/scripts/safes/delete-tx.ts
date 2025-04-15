@@ -1,28 +1,33 @@
 import yargs from 'yargs';
 
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { Contexts } from '../../config/contexts.js';
-import { safes } from '../../config/environments/mainnet3/owners.js';
+import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
 import { deleteSafeTx } from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
-  const { chains, tx } = await withChains(
-    yargs(process.argv.slice(2)).option('tx', {
-      type: 'string',
-      description: 'Transaction hash to delete',
-      demandOption: true,
-    }),
+  const { chains, tx, governanceType } = await withGovernanceType(
+    withChains(
+      yargs(process.argv.slice(2)).option('tx', {
+        type: 'string',
+        description: 'Transaction hash to delete',
+        demandOption: true,
+      }),
+    ),
   ).argv;
 
   if (!chains || chains.length === 0) {
-    console.error('No chains provided');
+    rootLogger.error('No chains provided');
     process.exit(1);
   }
 
   if (!tx) {
-    console.error('No transaction hash provided');
+    rootLogger.error('No transaction hash provided');
     process.exit(1);
   }
 
@@ -34,11 +39,12 @@ async function main() {
     chains,
   );
 
+  const safes = getGovernanceSafes(governanceType);
   for (const chain of chains) {
     try {
       await deleteSafeTx(chain, multiProvider, safes[chain], tx);
     } catch (error) {
-      console.error(`Error deleting transaction ${tx} for ${chain}:`, error);
+      rootLogger.error(`Error deleting transaction ${tx} for ${chain}:`, error);
     }
   }
 }
@@ -46,6 +52,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    rootLogger.error(e);
     process.exit(1);
   });
