@@ -1,5 +1,4 @@
-import { PermitTransferFromData } from '@uniswap/permit2-sdk';
-
+// import { PermitTransferFromData } from '@uniswap/permit2-sdk';
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { TokenMetadata } from '../types.js';
@@ -52,12 +51,6 @@ export interface ITokenAdapter<Tx> {
   populateTransferTx(params: TransferParams): Promise<Tx>;
 }
 
-export interface IEvmTokenAdapter<Tx> extends ITokenAdapter<Tx> {
-  populatePermit2Signature(
-    params: SignatureEIP721Params,
-  ): Promise<PermitTransferFromData>;
-}
-
 export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
@@ -67,6 +60,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   quoteTransferRemoteGas(
     destination: Domain,
     sender?: Address,
+    amount?: string,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
@@ -109,5 +103,5 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
 }
 
 export interface IEvmKhalaniIntentTokenAdapter<Tx> extends ITokenAdapter<Tx> {
-  // TODO: add KhalaniIntentTokenAdapter
+  getMTokensBalance(): Promise<bigint>;
 }

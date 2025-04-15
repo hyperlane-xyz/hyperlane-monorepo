@@ -164,6 +164,7 @@ export const TOKEN_HYP_STANDARDS = [
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
   ...TOKEN_HYP_STANDARDS,
+  TokenStandard.EvmKhalaniIntent,
   TokenStandard.CosmosIbc,
 ];
 

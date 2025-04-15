@@ -3,6 +3,7 @@ import {
   getAccount,
   sendTransaction,
   switchChain,
+  signTypedData as wagmiSignTypedData,
   waitForTransactionReceipt,
 } from '@wagmi/core';
 import { useCallback, useMemo } from 'react';
@@ -157,6 +158,35 @@ export function useEthereumTransactionFns(
   );
 
   return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+}
+
+export function useEthereumSignTypedData() {
+  const config = useConfig();
+
+  const signTypedData = useCallback(
+    async (typedData: {
+      domain: {
+        name: string;
+        version: string;
+        chainId: number;
+        verifyingContract: `0x${string}`;
+      };
+      types: Record<string, Array<{ name: string; type: string }>>;
+      primaryType: string;
+      message: Record<string, any>;
+    }) => {
+      const signature = await wagmiSignTypedData(config, {
+        domain: typedData.domain,
+        types: typedData.types,
+        primaryType: typedData.primaryType,
+        message: typedData.message,
+      });
+      return signature;
+    },
+    [config],
+  );
+
+  return { signTypedData };
 }
 
 // Metadata formatted for use in Wagmi config

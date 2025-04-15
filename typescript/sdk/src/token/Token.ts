@@ -45,6 +45,8 @@ import {
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmKhalaniHypAdapter,
+  EvmKhalaniIntentTokenAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
@@ -152,6 +154,16 @@ export class Token implements IToken {
         sourcePort: 'transfer',
         sourceChannel: 'channel-0',
         type: TokenConnectionType.Ibc,
+      });
+    } else if (standard === TokenStandard.EvmKhalaniIntent) {
+      assert(
+        this.collateralAddressOrDenom,
+        'collateralAddressOrDenom required for Khalani tokens',
+      );
+      return new EvmKhalaniIntentTokenAdapter(chainName, multiProvider, {
+        token: this.collateralAddressOrDenom,
+        addressOrDenom: this.addressOrDenom,
+        assetReserves: this.addressOrDenom,
       });
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
@@ -268,6 +280,16 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.EvmKhalaniIntent) {
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom required for Khalani tokens`,
+      );
+      return new EvmKhalaniHypAdapter(chainName, multiProvider, {
+        token: collateralAddressOrDenom,
+        addressOrDenom: this.addressOrDenom,
+        assetReserves: this.addressOrDenom,
+      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
@@ -428,6 +450,10 @@ export class Token implements IToken {
       token.standard === TokenStandard.CosmosNative &&
       this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
     ) {
+      return true;
+    }
+
+    if (this.standard === TokenStandard.EvmKhalaniIntent) {
       return true;
     }
 

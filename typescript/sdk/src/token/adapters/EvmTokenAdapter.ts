@@ -1,11 +1,6 @@
-import {
-  AllowanceProvider,
-  PERMIT2_ADDRESS,
-  PermitTransferFrom,
-  PermitTransferFromData,
-  SignatureTransfer,
-} from '@uniswap/permit2-sdk';
-import { BigNumber, PopulatedTransaction } from 'ethers';
+//import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
+import { ArcadiaSDK } from 'arcadia-sdk-wip';
+import { BigNumber, PopulatedTransaction, ethers } from 'ethers';
 
 import {
   ERC20,
@@ -40,7 +35,6 @@ import { TokenMetadata } from '../types.js';
 
 import {
   IEvmKhalaniIntentTokenAdapter,
-  IEvmTokenAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
@@ -48,7 +42,6 @@ import {
   IXERC20VSAdapter,
   InterchainGasQuote,
   RateLimitMidPoint,
-  SignatureEIP721Params,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -107,7 +100,7 @@ export class EvmNativeTokenAdapter
 // Interacts with ERC20/721 contracts
 export class EvmTokenAdapter<T extends ERC20 = ERC20>
   extends EvmNativeTokenAdapter
-  implements IEvmTokenAdapter<PopulatedTransaction>
+  implements ITokenAdapter<PopulatedTransaction>
 {
   public readonly contract: T;
 
@@ -170,42 +163,6 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   async getTotalSupply(): Promise<bigint> {
     const totalSupply = await this.contract.totalSupply();
     return totalSupply.toBigInt();
-  }
-
-  async populatePermit2Signature({
-    weiAmountOrId,
-    fromAccountOwner,
-    spender,
-    deadline,
-  }: SignatureEIP721Params): Promise<PermitTransferFromData> {
-    const allowanceProvider = new AllowanceProvider(
-      this.getProvider(),
-      PERMIT2_ADDRESS,
-    );
-
-    const chainId = Number(this.multiProvider.tryGetChainId(this.chainName));
-    const token = this.contract.address;
-    const nonce = await allowanceProvider.getNonce(
-      token,
-      fromAccountOwner,
-      spender,
-    );
-
-    const permit: PermitTransferFrom = {
-      permitted: {
-        token,
-        amount: weiAmountOrId.toString(),
-      },
-      spender,
-      nonce,
-      deadline,
-    };
-
-    return SignatureTransfer.getPermitData(
-      permit,
-      PERMIT2_ADDRESS,
-      chainId,
-    ) as PermitTransferFromData;
   }
 }
 
@@ -721,11 +678,261 @@ export class EvmKhalaniIntentTokenAdapter
   extends EvmTokenAdapter
   implements IEvmKhalaniIntentTokenAdapter<PopulatedTransaction>
 {
+  //public contract;
+  private arcadiaProvider: ethers.providers.JsonRpcProvider;
+  private mTokenContract;
+  private assetReservesContract;
+  private intentBookContract;
+  // private intentService;
+  private refineService;
+  private chainId;
+  private medusaAPIUrl;
+  // private medusaProvider;
+
+  private readonly khalaniChainId = 1098411886;
+  private readonly intentBookAddress =
+    '0xefb06bc8b3dfa82774210E50EE39F934D088621a';
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
+    public readonly addresses: {
+      token: Address;
+      assetReserves: Address;
+      addressOrDenom: Address;
+    },
   ) {
     super(chainName, multiProvider, addresses);
+    // this.contract = this.contractFactory.connect(
+    //   addresses.token,
+    //   this.getProvider(),
+    // );
+
+    this.chainId = Number(this.multiProvider.getChainId(chainName));
+    const chainProvider = this.multiProvider.getEthersV5Provider(chainName);
+    const arcadiaSdk = new ArcadiaSDK('EthersV5');
+    const walletService = arcadiaSdk.walletService;
+    const contractService = arcadiaSdk.contractService;
+    //this.intentService = arcadiaSdk.intentService;
+    this.refineService = arcadiaSdk.refineService;
+    this.medusaAPIUrl = walletService.getMedusaRPCUrl();
+
+    // instantiate arcadia provider
+    const arcadiaChainInfo = walletService.getArcadiaChainInfo();
+    this.arcadiaProvider = new ethers.providers.JsonRpcProvider(
+      arcadiaChainInfo.rpcUrl[0],
+    );
+
+    // instantiate medusa provider
+    // this.medusaProvider = new ethers.providers.JsonRpcProvider(
+    //   walletService.getMedusaRPCUrl(),
+    // );
+
+    // instantiate assetReserves
+    this.assetReservesContract = new ethers.Contract(
+      this.addresses.assetReserves,
+      contractService.getAssetReservesABI(),
+      chainProvider,
+    ) as ethers.Contract & {
+      deposit: (
+        token: string,
+        amount: ethers.BigNumber,
+        destChain: number,
+        permitNonce: ethers.BigNumber,
+        deadline: ethers.BigNumber,
+        signature: string,
+        overrides?: ethers.PayableOverrides,
+      ) => Promise<ethers.ContractTransaction>;
+    };
+
+    // instantiate intentBook
+    this.intentBookContract = new ethers.Contract(
+      this.intentBookAddress,
+      [
+        {
+          inputs: [{ name: '_user', type: 'address', internalType: 'address' }],
+          name: 'getNonce',
+          outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
+          stateMutability: 'view',
+          type: 'function',
+        },
+      ],
+      this.arcadiaProvider,
+    ) as ethers.Contract & {
+      getNonce: (address: string) => Promise<ethers.BigNumber>;
+    };
+
+    // Instantiate the mToken contract
+    // This token lives in Arcadia chain and tracks the user balances of the mirror tokens.
+
+    this.mTokenContract = new ethers.Contract(
+      contractService.getMTokenAddress(this.chainId, this.contract.address),
+      contractService.getMTokenABI(),
+      this.arcadiaProvider,
+    ) as ethers.Contract & {
+      balanceOf: (account: string) => Promise<ethers.BigNumber>;
+    };
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    const balance = await this.contract.balanceOf(address);
+    return BigInt(balance.toString());
+  }
+
+  async createRefine(
+    sender: string,
+    toChainId: number,
+    amount: string,
+  ): Promise<string> {
+    const currentNonce = await this.intentBookContract.getNonce(sender);
+
+    const refinePayload: any = this.refineService.buildCreateRefinePayload({
+      accountAddress: sender,
+      fromChainId: this.chainId,
+      fromTokenAddress: this.addresses.token,
+      amount: BigInt(amount),
+      toChainId,
+      toTokenAddress: '0x6711C699d048Eb2e46a7519eA8506041c2E91D6B', // TODO: replace once we have a helper from the SDK. hardcoded to op-sepolia for now.
+      currentNonce: BigInt(currentNonce.add(1).toString()),
+    });
+
+    const response = await fetch(this.medusaAPIUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(refinePayload.jsonRpcObject),
+    });
+
+    const refine = await response.json();
+    return refine.result;
+  }
+
+  async isApproveRequired(
+    owner: Address,
+    _spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const allowance = await this.contract.allowance(
+      owner,
+      '0x1f94605b30713bbb0b5314b4fceab89cce646018', // TODO: replace
+    );
+    return allowance.lt(weiAmountOrId);
+  }
+
+  async populateTransferTx({
+    weiAmountOrId,
+  }: TransferParams): Promise<PopulatedTransaction> {
+    const privateKey = '';
+    const wallet = new ethers.Wallet(privateKey);
+
+    const permitDomain = {
+      name: 'Permit2',
+      chainId: this.chainId,
+      verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3',
+    };
+
+    const permitTypes = {
+      PermitTransferFrom: [
+        { name: 'permitted', type: 'TokenPermissions' },
+        { name: 'spender', type: 'address' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+      TokenPermissions: [
+        { name: 'token', type: 'address' },
+        { name: 'amount', type: 'uint256' },
+      ],
+    };
+
+    const nonce = BigInt(new Date().getTime());
+    const deadline = ethers.constants.MaxUint256;
+
+    const permitMessage = {
+      permitted: {
+        token: this.contract.address,
+        amount: BigNumber.from(weiAmountOrId),
+      },
+      spender: this.addresses.assetReserves,
+      nonce,
+      deadline,
+    };
+
+    const signature = await wallet._signTypedData(
+      permitDomain,
+      permitTypes,
+      permitMessage,
+    );
+
+    return this.assetReservesContract.populateTransaction.deposit(
+      this.contract.address,
+      BigNumber.from(weiAmountOrId),
+      this.khalaniChainId,
+      nonce,
+      deadline,
+      signature,
+    );
+  }
+
+  async getMTokensBalance(): Promise<bigint> {
+    const balance = await this.mTokenContract.balanceOf(this.addresses.token);
+    return BigInt(balance.toString());
+  }
+}
+
+export class EvmKhalaniHypAdapter
+  extends EvmKhalaniIntentTokenAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      assetReserves: Address;
+      addressOrDenom: Address;
+    },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+  set deadline(value: number) {
+    throw new Error('Method not implemented.');
+  }
+  getDomains(): Promise<Domain[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(_domain: Domain): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    throw new Error('Method not implemented.');
+  }
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not implemented.');
+  }
+
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+    _sender?: Address,
+    amount?: string,
+  ): Promise<InterchainGasQuote> {
+    if (!amount || !_sender) {
+      return { amount: 0n, addressOrDenom: this.addresses.addressOrDenom };
+    }
+    //const refineId =
+    await this.createRefine(_sender, _destination, amount);
+
+    // TODO: call pollRefine to get refine data
+
+    return {
+      amount: 2000000000000000n,
+      addressOrDenom: this.addresses.addressOrDenom,
+    };
+  }
+
+  populateTransferRemoteTx(
+    _p: TransferRemoteParams,
+  ): Promise<PopulatedTransaction> {
+    return this.populateTransferTx(_p);
   }
 }

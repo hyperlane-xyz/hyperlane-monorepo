@@ -54,7 +54,17 @@ export enum WarpTxCategory {
 }
 
 export type WarpTypedTransaction = TypedTransaction & {
-  category: WarpTxCategory;
+  category: Exclude<WarpTxCategory, WarpTxCategory.Signature>;
+};
+
+export type WarpTypedSignatureEIP712 = {
+  category: WarpTxCategory.Signature;
+  data: {
+    type: string;
+    domain: string;
+    primaryType: string;
+    message: string;
+  };
 };
 
 export type WarpCoreConfig = z.infer<typeof WarpCoreConfigSchema>;
