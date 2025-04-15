@@ -3,18 +3,21 @@ use std::{sync::Arc, time::Duration};
 use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
-use eyre::Result;
-
+use ethers::utils::keccak256;
+use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
+use itertools::Itertools;
+use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
+    git_sha,
     metrics::AgentMetrics,
     settings::ChainConf,
-    AgentMetadata, BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer,
-    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, RuntimeMetrics,
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
+    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
 
@@ -52,7 +55,32 @@ pub struct Validator {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
-    agent_metadata: AgentMetadata,
+    agent_metadata: ValidatorMetadata,
+}
+
+/// Metadata for `validator`
+#[derive(Debug, Serialize)]
+pub struct ValidatorMetadata {
+    git_sha: String,
+    rpcs: Vec<H256>,
+    allows_public_rpcs: bool,
+}
+
+impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
+    /// Create a new instance of the agent metadata from the settings
+    fn build_metadata(settings: &ValidatorSettings) -> ValidatorMetadata {
+        // Hash all the RPCs for the metadata
+        let rpcs = settings
+            .rpcs
+            .iter()
+            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
+            .collect();
+        ValidatorMetadata {
+            git_sha: git_sha(),
+            rpcs,
+            allows_public_rpcs: settings.allow_public_rpcs,
+        }
+    }
 }
 
 #[async_trait]
@@ -60,9 +88,10 @@ impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
 
     type Settings = ValidatorSettings;
+    type Metadata = ValidatorMetadata;
 
     async fn from_settings(
-        agent_metadata: AgentMetadata,
+        agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -73,6 +102,16 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
+        // Check for public rpcs in the config
+        if settings.rpcs.iter().any(|x| x.public) && !settings.allow_public_rpcs {
+            return Err(
+                eyre!(
+                    "Public RPC endpoints detected: {}. Using public RPCs can compromise security and reliability. If you understand the risks and still want to proceed, set `--allowPublicRpcs true`. We strongly recommend using private RPC endpoints for production validators.",
+                    settings.rpcs.iter().filter_map(|x| if x.public { Some(x.url.clone()) } else { None }).join(", ")
+                )
+            );
+        }
+
         let db = DB::from_path(&settings.db)?;
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
@@ -321,11 +360,10 @@ impl Validator {
     }
 
     async fn metadata(&self) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(&self.agent_metadata)?;
         self.checkpoint_syncer
-            .write_metadata(&self.agent_metadata)
-            .await?;
-
-        Ok(())
+            .write_metadata(&serialized_metadata)
+            .await
     }
 
     async fn announce(&self) -> Result<()> {
@@ -363,6 +401,9 @@ impl Validator {
                         ?announcement_location,
                         "Validator has announced signature storage location"
                     );
+
+                    self.core_metrics.set_announced(self.origin_chain.clone());
+
                     break;
                 }
                 info!(

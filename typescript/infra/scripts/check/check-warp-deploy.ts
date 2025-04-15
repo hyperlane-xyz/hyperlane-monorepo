@@ -60,9 +60,9 @@ async function main() {
   }, new Set<ChainName>());
 
   console.log(
-    `Found warp configs for chains: ${Array.from(chainsWithWarpConfigs).join(
-      ', ',
-    )}`,
+    `Found warp configs for chains: ${Array.from(chainsWithWarpConfigs)
+      .sort()
+      .join(', ')}`,
   );
 
   // Get the multiprovider once to avoid recreating it for each warp route
