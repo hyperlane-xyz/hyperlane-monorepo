@@ -42,7 +42,7 @@ async function main() {
     WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
   ];
 
-  const registries = [DEFAULT_REGISTRY_URI, DEFAULT_GITHUB_REGISTRY];
+  const registries = [DEFAULT_GITHUB_REGISTRY, DEFAULT_REGISTRY_URI];
   const warpCoreConfigMap = await getWarpConfigMapFromMergedRegistry(
     registries,
   );
