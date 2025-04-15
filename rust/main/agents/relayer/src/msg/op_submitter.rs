@@ -8,6 +8,10 @@ use std::time::Duration;
 use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use hyperlane_core::rpc_clients::{
+    call_and_retry_n_times, DEFAULT_MAX_RPC_RETRIES, RPC_RETRY_SLEEP_DURATION,
+};
+use hyperlane_core::Mailbox;
 use itertools::{Either, Itertools};
 use num_traits::Zero;
 use prometheus::{IntCounter, IntGaugeVec};
@@ -890,16 +894,32 @@ impl OperationBatch {
         let Some(first_item) = self.operations.first() else {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
-        let outcome = if let Some(mailbox) = first_item.try_get_mailbox() {
-            mailbox
-                .try_process_batch(self.operations.iter().collect_vec())
-                .await?
-        } else {
-            BatchResult::failed(self.operations.len())
+        let Some(mailbox) = first_item.try_get_mailbox() else {
+            // no need to update the metrics since all operations are excluded
+            return Ok(BatchResult::failed(self.operations.len()));
         };
+        let outcome = self.submit_batch_with_retry(mailbox).await?;
         let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
         metrics.ops_submitted.inc_by(ops_submitted as u64);
         Ok(outcome)
+    }
+
+    async fn submit_batch_with_retry(&self, mailbox: Arc<dyn Mailbox>) -> ChainResult<BatchResult> {
+        let mut last_error = None;
+        let ops = self.operations.iter().collect_vec();
+        let op_ids = ops.iter().map(|op| op.id()).collect_vec();
+        for retry_number in 1..DEFAULT_MAX_RPC_RETRIES {
+            match mailbox.try_process_batch(ops.clone()).await {
+                Ok(res) => return Ok(res),
+                Err(err) => {
+                    warn!(retries=retry_number, max_retries = ?DEFAULT_MAX_RPC_RETRIES, error=?err, ids=?op_ids, "Retrying batch submission");
+                    last_error = Some(err);
+                    sleep(RPC_RETRY_SLEEP_DURATION).await;
+                }
+            }
+        }
+        let error = last_error.unwrap_or(ChainCommunicationError::BatchingFailed);
+        Err(error)
     }
 
     /// Process the operations sent by a batch.
