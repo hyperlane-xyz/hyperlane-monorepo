@@ -11467,6 +11467,7 @@ dependencies = [
  "mockall",
  "prometheus",
  "reqwest",
+ "rusoto_core",
  "serde",
  "serde_json",
  "thiserror",
