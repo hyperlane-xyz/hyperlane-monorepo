@@ -10,6 +10,9 @@ pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 pub use list_messages::*;
 pub use message_retry::*;
 
+use crate::server::environment_variable::EnvironmentVariableApi;
+
+mod environment_variable;
 mod list_messages;
 mod message_retry;
 
@@ -43,6 +46,7 @@ impl Server {
         if let Some(op_queues) = self.op_queues {
             routes.push(ListOperationsApi::new(op_queues).get_route());
         }
+        routes.push(EnvironmentVariableApi::new().get_route());
 
         routes
     }
