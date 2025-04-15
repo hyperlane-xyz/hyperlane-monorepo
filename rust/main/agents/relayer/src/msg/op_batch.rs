@@ -2,9 +2,9 @@ use std::{sync::Arc, time::Duration};
 
 use derive_new::new;
 use hyperlane_core::{
-    rpc_clients::{DEFAULT_MAX_RPC_RETRIES, RPC_RETRY_SLEEP_DURATION},
-    total_estimated_cost, BatchResult, ChainCommunicationError, ChainResult, ConfirmReason,
-    HyperlaneDomain, Mailbox, PendingOperation, PendingOperationStatus, QueueOperation, TxOutcome,
+    rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
+    ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
+    PendingOperation, PendingOperationStatus, QueueOperation, TxOutcome,
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
@@ -15,6 +15,8 @@ use super::{
     op_submitter::{submit_single_operation, SerialSubmitterMetrics},
     pending_message::CONFIRM_DELAY,
 };
+
+const BATCH_RETRY_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(new, Debug)]
 pub(crate) struct OperationBatch {
@@ -64,7 +66,7 @@ impl OperationBatch {
             return Ok(BatchResult::failed(self.operations.len()));
         };
         let outcome = self
-            .submit_batch_with_retry(mailbox, DEFAULT_MAX_RPC_RETRIES, RPC_RETRY_SLEEP_DURATION)
+            .submit_batch_with_retry(mailbox, DEFAULT_MAX_RPC_RETRIES, BATCH_RETRY_SLEEP_DURATION)
             .await?;
         let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
         metrics.ops_submitted.inc_by(ops_submitted as u64);
@@ -83,7 +85,7 @@ impl OperationBatch {
         let mut last_error = None;
         let ops = self.operations.iter().collect_vec();
         let op_ids = ops.iter().map(|op| op.id()).collect_vec();
-        for retry_number in 1..DEFAULT_MAX_RPC_RETRIES {
+        for retry_number in 1..max_retries {
             match mailbox.process_batch(ops.clone()).await {
                 Ok(res) => return Ok(res),
                 Err(err) => {
