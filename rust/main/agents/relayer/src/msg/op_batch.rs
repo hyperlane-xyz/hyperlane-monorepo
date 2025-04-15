@@ -85,7 +85,7 @@ impl OperationBatch {
         let mut last_error = None;
         let ops = self.operations.iter().collect_vec();
         let op_ids = ops.iter().map(|op| op.id()).collect_vec();
-        for retry_number in 1..max_retries {
+        for retry_number in 1..=max_retries {
             match mailbox.process_batch(ops.clone()).await {
                 Ok(res) => return Ok(res),
                 Err(err) => {
@@ -248,7 +248,7 @@ mod tests {
         let operations = vec![operation];
         let op_batch = OperationBatch::new(operations, dummy_domain);
         let batch_result = op_batch
-            .submit_batch_with_retry(mock_mailbox, 1, Duration::from_secs(0))
+            .submit_batch_with_retry(mock_mailbox, 10, Duration::from_secs(0))
             .await
             .unwrap();
         assert!(
