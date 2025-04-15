@@ -41,8 +41,8 @@ impl crate::indexer::SovIndexer<MerkleTreeInsertion> for SovereignMerkleTreeHook
         self.provider.client()
     }
 
-    async fn latest_sequence(&self) -> ChainResult<Option<u32>> {
-        let sequence = self.client().tree(None).await?;
+    async fn latest_sequence(&self, at_slot: Option<u64>) -> ChainResult<Option<u32>> {
+        let sequence = self.client().tree(at_slot).await?;
 
         match u32::try_from(sequence.count) {
             Ok(x) => Ok(Some(x)),
@@ -162,16 +162,16 @@ impl HyperlaneContract for SovereignMerkleTreeHook {
 
 #[async_trait]
 impl MerkleTreeHook for SovereignMerkleTreeHook {
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let lag = Some(reorg_period.as_blocks()?);
-        let tree = self.provider.client().tree(lag).await?;
+    async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let slot = self.provider.client().get_finalized_slot().await?;
+        let tree = self.provider.client().tree(Some(slot)).await?;
 
         Ok(tree)
     }
 
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let lag = Some(reorg_period.as_blocks()?);
-        let tree = self.provider.client().tree(lag).await?;
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let slot = self.provider.client().get_finalized_slot().await?;
+        let tree = self.provider.client().tree(Some(slot)).await?;
 
         match u32::try_from(tree.count) {
             Ok(x) => Ok(x),
@@ -181,13 +181,13 @@ impl MerkleTreeHook for SovereignMerkleTreeHook {
         }
     }
 
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        let lag = Some(reorg_period.as_blocks()?);
+    async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+        let slot = self.provider.client().get_finalized_slot().await?;
         let hook_id = to_bech32(self.address)?;
         let checkpoint = self
             .provider
             .client()
-            .latest_checkpoint(&hook_id, lag, self.domain.id())
+            .latest_checkpoint(&hook_id, Some(slot), self.domain.id())
             .await?;
 
         Ok(checkpoint)

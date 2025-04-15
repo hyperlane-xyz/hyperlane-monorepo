@@ -392,14 +392,6 @@ impl SovereignRestClient {
         })
     }
 
-    // todo: this seems wrong
-    async fn get_compensated_rollup_height(&self, lag: u64) -> ChainResult<u64> {
-        let current_slot = self.get_latest_slot().await?;
-        current_slot.checked_sub(lag).ok_or_else(|| {
-            ChainCommunicationError::CustomError("lag was greater than rollup height".to_string())
-        })
-    }
-
     // Return the latest slot.
     pub async fn get_latest_slot(&self) -> ChainResult<u64> {
         #[derive(Clone, Debug, Deserialize)]
@@ -466,15 +458,11 @@ impl SovereignRestClient {
     }
 
     // @Mailbox
-    pub async fn get_count(&self, at_height: Option<u32>) -> ChainResult<u32> {
+    pub async fn get_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
         // /modules/mailbox/state/nonce
-        // todo: this seems wrong
         let query = match at_height {
-            Some(0) | None => "/modules/mailbox/nonce",
-            Some(lag) => {
-                let rollup_height = self.get_compensated_rollup_height(u64::from(lag)).await?;
-                &format!("/modules/mailbox/nonce?rollup_height={rollup_height}")
-            }
+            None => "/modules/mailbox/nonce",
+            Some(slot) => &format!("/modules/mailbox/nonce?slot_number={slot}"),
         };
 
         let response = self
@@ -776,7 +764,7 @@ impl SovereignRestClient {
     }
 
     // @Merkle Tree Hook
-    pub async fn tree(&self, slot: Option<u32>) -> ChainResult<IncrementalMerkle> {
+    pub async fn tree(&self, slot: Option<u64>) -> ChainResult<IncrementalMerkle> {
         #[derive(Clone, Debug, Deserialize)]
         struct Inner {
             count: usize,
@@ -788,12 +776,10 @@ impl SovereignRestClient {
         }
 
         // /modules/merkle-tree-hook/state/tree
-        // todo: this seems wrong
         let query = match slot {
-            Some(0) | None => "modules/merkle-tree-hook/state/tree".into(),
-            Some(lag) => {
-                let rollup_height = self.get_compensated_rollup_height(u64::from(lag)).await?;
-                format!("modules/merkle-tree-hook/state/tree?rollup_height={rollup_height}")
+            None => "modules/merkle-tree-hook/state/tree".into(),
+            Some(slot) => {
+                format!("modules/merkle-tree-hook/state/tree?slot_number={slot}")
             }
         };
 
@@ -833,7 +819,7 @@ impl SovereignRestClient {
     pub async fn latest_checkpoint(
         &self,
         hook_id: &str,
-        lag: Option<u32>,
+        at_height: Option<u64>,
         mailbox_domain: u32,
     ) -> ChainResult<Checkpoint> {
         #[derive(Clone, Debug, Deserialize)]
@@ -843,14 +829,12 @@ impl SovereignRestClient {
         }
 
         // /mailbox-hook-merkle-tree/{hook_id}/checkpoint
-        let query = match lag {
-            Some(0) | None => {
+        let query = match at_height {
+            None => {
                 format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint")
             }
-            Some(lag) => {
-                // todo: this seems wrong
-                let rollup_height = self.get_compensated_rollup_height(u64::from(lag)).await?;
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint?rollup_height={rollup_height}")
+            Some(slot) => {
+                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint?slot_number={slot}")
             }
         };
 
