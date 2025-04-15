@@ -361,7 +361,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .chain(&mut err)
                 .get_key("version")
                 .parse_u32()
-                .unwrap_or(0);
+                .unwrap_or(3);
             err.into_result(SignerConf::StarkKey {
                 key,
                 address,
