@@ -355,7 +355,25 @@ export enum IsmCachePolicy {
   IsmSpecific = 'ismSpecific',
 }
 
+export enum IsmCacheSelectorType {
+  DefaultIsm = 'defaultIsm',
+  AppContext = 'appContext',
+}
+
+const IsmCacheSelector = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(IsmCacheSelectorType.DefaultIsm),
+  }),
+  z.object({
+    type: z.literal(IsmCacheSelectorType.AppContext),
+    data: z.string(),
+  }),
+]);
+
 const IsmCacheConfigSchema = z.object({
+  selector: IsmCacheSelector.describe(
+    'The selector to use for the ISM cache policy',
+  ),
   moduleTypes: z
     .array(z.nativeEnum(ModuleType))
     .describe('The ISM module types to use the cache policy for.'),
@@ -420,11 +438,11 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
     ),
-  defaultIsmCacheConfig: z
-    .union([IsmCacheConfigSchema, z.string().min(1)])
+  ismCacheConfigs: z
+    .union([z.array(IsmCacheConfigSchema), z.string().min(1)])
     .optional()
     .describe(
-      'The default ISM cache config to use for all chains. If not specified, default caching will be used.',
+      'The ISM cache configs to be used. If not specified, default caching will be used.',
     ),
   allowContractCallCaching: z
     .boolean()

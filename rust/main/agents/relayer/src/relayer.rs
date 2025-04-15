@@ -346,7 +346,7 @@ impl BaseAgent for Relayer {
                     ),
                     IsmCachePolicyClassifier::new(
                         default_ism_getter.clone(),
-                        settings.default_ism_cache_config.clone(),
+                        settings.ism_cache_configs.clone(),
                     ),
                 );
 
@@ -1132,7 +1132,7 @@ mod test {
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
             allow_contract_call_caching: true,
-            default_ism_cache_config: Default::default(),
+            ism_cache_configs: Default::default(),
             max_retries: 1,
         }
     }
