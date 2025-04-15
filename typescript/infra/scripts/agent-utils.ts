@@ -376,7 +376,7 @@ export async function getWarpRouteIdsInteractive() {
       pageSize: 30,
     });
     if (!selection.length) {
-      console.log('Please select at least one Warp Route ID');
+      rootLogger.info('Please select at least one Warp Route ID');
     }
   }
 
@@ -675,7 +675,7 @@ export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     const cluster = coreConfig.infra.kubernetes.clusterName;
-    console.error(
+    rootLogger.error(
       `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
       `Want clusterName ${cluster}`,
       `Run gcloud container clusters get-credentials ${cluster} --zone us-east1-c`,
