@@ -17,7 +17,7 @@ use tokio::sync::OnceCell;
 use crate::CheckpointSyncer;
 
 /// The timeout for all S3 operations.
-const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const S3_MAX_OBJECT_SIZE: i64 = 50 * 1024; // 50KiB
 
 #[derive(Clone, new)]
