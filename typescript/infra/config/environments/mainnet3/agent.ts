@@ -29,7 +29,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, mustBeValidContext } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -848,8 +848,45 @@ const neutron: RootAgentConfig = {
   },
 };
 
+const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
+  ...contextBase,
+  context: mustBeValidContext(`vanguard${index}`),
+  contextChainNames: {
+    validator: [],
+    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: 'cecb0d8-20250411-150743',
+    },
+    whitelist: [
+      {
+        originDomain: getDomainId('base'),
+        senderAddress: '0x000000000000000000000000000000000000dead',
+        destinationDomain: getDomainId('arbitrum'),
+        recipientAddress: '0x000000000000000000000000000000000000dead',
+      },
+    ],
+    blacklist,
+    gasPaymentEnforcement,
+    metricAppContextsGetter,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
+    resources: relayerResources,
+  },
+});
+
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
+  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
+  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
+  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
+  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
 };
