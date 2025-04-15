@@ -236,13 +236,15 @@ const kesselMatchingList = [
   },
 ];
 
+const kesselAppContext = 'kessel';
+
 const metricAppContextsGetter = (): MetricAppContext[] => [
   {
     name: 'helloworld',
     matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
   },
   {
-    name: 'kessel',
+    name: kesselAppContext,
     matchingList: kesselMatchingList,
   },
 ];
@@ -267,7 +269,7 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   {
     selector: {
       type: IsmCacheSelectorType.AppContext,
-      data: 'kessel',
+      data: kesselAppContext,
     },
     // Default ISM Routing ISMs change configs based off message content,
     // so they are not specified here.
