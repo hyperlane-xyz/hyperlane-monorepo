@@ -168,8 +168,8 @@ pub mod test {
 
     use hyperlane_core::{
         ChainResult, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
-        HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
-        ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
+        HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
+        PendingOperationResult, ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
     };
 
     use crate::{
@@ -189,6 +189,8 @@ pub mod test {
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
         retry_count: u32,
+        #[serde(skip)]
+        pub mailbox: Option<Arc<dyn Mailbox>>,
     }
 
     impl MockPendingOperation {
@@ -202,6 +204,7 @@ pub mod test {
                 recipient_address: H256::random(),
                 origin_domain_id: 0,
                 retry_count: 0,
+                mailbox: None,
             }
         }
 
@@ -221,6 +224,7 @@ pub mod test {
                     domain_protocol: HyperlaneDomainProtocol::Ethereum,
                     domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
                 },
+                mailbox: None,
             }
         }
 

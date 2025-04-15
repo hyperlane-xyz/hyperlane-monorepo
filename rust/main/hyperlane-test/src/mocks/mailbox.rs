@@ -55,6 +55,11 @@ mock! {
             message: &HyperlaneMessage,
             metadata: &[u8],
         ) -> Vec<u8> {}
+
+        pub fn try_process_batch<'a>(
+            &self,
+            ops: Vec<&'a QueueOperation>,
+        ) -> ChainResult<BatchResult> {}
     }
 }
 
@@ -105,6 +110,13 @@ impl Mailbox for MockMailboxContract {
         metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
         Ok(self.process_calldata(message, metadata))
+    }
+
+    async fn try_process_batch<'a>(
+        &self,
+        ops: Vec<&'a QueueOperation>,
+    ) -> ChainResult<BatchResult> {
+        self.try_process_batch(ops)
     }
 }
 
