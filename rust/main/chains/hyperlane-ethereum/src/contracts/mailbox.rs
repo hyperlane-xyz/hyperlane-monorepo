@@ -504,11 +504,13 @@ where
         Ok(receipt.into())
     }
 
+    /// Returns true if the mailbox supports batching
+    fn supports_batching(&self) -> bool {
+        true
+    }
+
     #[instrument(skip(self, ops), fields(size=%ops.len()))]
-    async fn try_process_batch<'a>(
-        &self,
-        ops: Vec<&'a QueueOperation>,
-    ) -> ChainResult<BatchResult> {
+    async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         let messages = ops
             .iter()
             .map(|op| op.try_batch())

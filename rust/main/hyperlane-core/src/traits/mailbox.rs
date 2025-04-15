@@ -40,12 +40,16 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome>;
 
+    /// True if the destination chain supports batching
+    /// (i.e. if the mailbox contract will succeed on a `process_batch` call)
+    fn supports_batching(&self) -> bool {
+        // Default to false
+        false
+    }
+
     /// Try process the given operations as a batch. Returns the outcome of the
     /// batch (if one was submitted) and the operations that were not submitted.
-    async fn try_process_batch<'a>(
-        &self,
-        _ops: Vec<&'a QueueOperation>,
-    ) -> ChainResult<BatchResult> {
+    async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }

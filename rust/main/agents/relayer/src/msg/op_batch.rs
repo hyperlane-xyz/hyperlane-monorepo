@@ -77,11 +77,14 @@ impl OperationBatch {
         max_retries: usize,
         sleep_period: Duration,
     ) -> ChainResult<BatchResult> {
+        if !mailbox.supports_batching() {
+            return Ok(BatchResult::failed(self.operations.len()));
+        }
         let mut last_error = None;
         let ops = self.operations.iter().collect_vec();
         let op_ids = ops.iter().map(|op| op.id()).collect_vec();
         for retry_number in 1..DEFAULT_MAX_RPC_RETRIES {
-            match mailbox.try_process_batch(ops.clone()).await {
+            match mailbox.process_batch(ops.clone()).await {
                 Ok(res) => return Ok(res),
                 Err(err) => {
                     warn!(retries=retry_number, ?max_retries, error=?err, ids=?op_ids, "Retrying batch submission");
@@ -176,21 +179,24 @@ mod tests {
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
-        mock_mailbox
-            .expect_try_process_batch()
-            .returning(move |_ops| {
-                let batch_result = BatchResult::new(None, vec![0]);
-                Ok(batch_result)
-            });
+        mock_mailbox.expect_supports_batching().return_const(true);
+        mock_mailbox.expect_process_batch().returning(move |_ops| {
+            let batch_result = BatchResult::new(None, vec![]);
+            Ok(batch_result)
+        });
         let mock_mailbox = Arc::new(mock_mailbox) as Arc<dyn Mailbox>;
         let operation = dummy_pending_operation(mock_mailbox.clone(), dummy_domain.clone());
 
         let operations = vec![operation];
         let op_batch = OperationBatch::new(operations, dummy_domain);
-        op_batch
+        let batch_result = op_batch
             .submit_batch_with_retry(mock_mailbox, 1, Duration::from_secs(0))
             .await
             .unwrap();
+        assert!(
+            batch_result.failed_indexes.is_empty(),
+            "Batch result should not have failed indexes"
+        )
     }
 
     #[tokio::test]
@@ -198,8 +204,9 @@ mod tests {
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
+        mock_mailbox.expect_supports_batching().return_const(true);
         mock_mailbox
-            .expect_try_process_batch()
+            .expect_process_batch()
             .returning(move |_ops| Err(ChainCommunicationError::BatchingFailed));
         let mock_mailbox = Arc::new(mock_mailbox) as Arc<dyn Mailbox>;
         let operation = dummy_pending_operation(mock_mailbox.clone(), dummy_domain.clone());
@@ -224,24 +231,52 @@ mod tests {
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
         let mut counter = 0;
-        mock_mailbox
-            .expect_try_process_batch()
-            .returning(move |_ops| {
-                counter += 1;
-                if counter < 5 {
-                    return Err(ChainCommunicationError::BatchingFailed);
-                }
-                let batch_result = BatchResult::new(None, vec![0]);
-                Ok(batch_result)
-            });
+        mock_mailbox.expect_supports_batching().return_const(true);
+        mock_mailbox.expect_process_batch().returning(move |_ops| {
+            counter += 1;
+            if counter < 5 {
+                return Err(ChainCommunicationError::BatchingFailed);
+            }
+            let batch_result = BatchResult::new(None, vec![]);
+            Ok(batch_result)
+        });
         let mock_mailbox = Arc::new(mock_mailbox) as Arc<dyn Mailbox>;
         let operation = dummy_pending_operation(mock_mailbox.clone(), dummy_domain.clone());
 
         let operations = vec![operation];
         let op_batch = OperationBatch::new(operations, dummy_domain);
-        op_batch
+        let batch_result = op_batch
             .submit_batch_with_retry(mock_mailbox, 1, Duration::from_secs(0))
             .await
             .unwrap();
+        assert!(
+            batch_result.failed_indexes.is_empty(),
+            "Batch result should not have failed indexes"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_batch_result_fails_if_not_supported() {
+        let mut mock_mailbox = MockMailboxContract::new();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+
+        mock_mailbox.expect_supports_batching().return_const(false);
+        mock_mailbox.expect_process_batch().returning(move |_ops| {
+            let batch_result = BatchResult::new(None, vec![]);
+            Ok(batch_result)
+        });
+        let mock_mailbox = Arc::new(mock_mailbox) as Arc<dyn Mailbox>;
+        let operation = dummy_pending_operation(mock_mailbox.clone(), dummy_domain.clone());
+
+        let operations = vec![operation];
+        let op_batch = OperationBatch::new(operations, dummy_domain);
+        let batch_result = op_batch
+            .submit_batch_with_retry(mock_mailbox, 1, Duration::from_secs(0))
+            .await
+            .unwrap();
+        assert!(
+            batch_result.failed_indexes.len() == 1,
+            "Batching should fail if not supported"
+        )
     }
 }
