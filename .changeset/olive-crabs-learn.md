@@ -2,7 +2,4 @@
 '@hyperlane-xyz/infra': minor
 ---
 
-New CLI arguments to `check-warp-deploy`:
-
-- `-i | --interactive` for interactive selection of a single warp route
-- `-w | --warpRouteId` to specify a single warp route to check
+New CLI arguments to `check-warp-deploy`: `-i | --interactive` for selecting a warp route interactively, and `-w | --warpRouteId` to specify a single warp route to check.
