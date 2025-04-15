@@ -26,7 +26,7 @@ async function main() {
     context,
     pushMetrics,
     interactive,
-    warpIdToCheck,
+    warpRouteId,
   } = await getCheckWarpDeployArgs()
     .option({
       interactive: {
@@ -37,7 +37,7 @@ async function main() {
       },
     })
     .option({
-      warpIdToCheck: {
+      warpRouteId: {
         type: 'string',
         alias: 'w',
         default: undefined,
@@ -58,8 +58,8 @@ async function main() {
   ];
 
   let warpIdsToCheck: string[];
-  if (warpIdToCheck && warpIdToCheck.length > 0) {
-    warpIdsToCheck = [warpIdToCheck];
+  if (warpRouteId && warpRouteId.length > 0) {
+    warpIdsToCheck = [warpRouteId];
   } else if (interactive) {
     warpIdsToCheck = await getWarpRouteIdsInteractive();
   } else {
