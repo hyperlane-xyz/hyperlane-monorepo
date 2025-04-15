@@ -5,10 +5,8 @@ import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 import { awIcas } from './governance/ica/aw.js';
-import { exceptionalIcas } from './governance/ica/exceptional.js';
 import { regularIcas } from './governance/ica/regular.js';
 import { awSafes } from './governance/safe/aw.js';
-import { exceptionalSafes } from './governance/safe/exceptional.js';
 import { regularSafes } from './governance/safe/regular.js';
 
 export const upgradeTimelocks: ChainMap<Address | undefined> = {
@@ -45,18 +43,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       awSafes[local] ??
       DEPLOYER;
 
-    const proxyOwner =
-      exceptionalIcas[local] ??
-      exceptionalSafes[local] ??
-      upgradeTimelocks[local] ??
-      owner;
-
     return [
       local,
       {
         owner,
         ownerOverrides: {
-          proxyAdmin: proxyOwner,
+          proxyAdmin: owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,

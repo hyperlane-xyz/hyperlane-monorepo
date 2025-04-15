@@ -13,8 +13,6 @@ import { DeployEnvironment } from './config/environment.js';
 export enum GovernanceType {
   AbacusWorks = 'abacusWorks',
   Regular = 'regular',
-  Exceptional = 'exceptional',
-  Irregular = 'irregular',
 }
 
 export enum Owner {
