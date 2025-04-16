@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use derive_new::new;
 use eyre::Result;
+use futures::StreamExt;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
@@ -49,7 +50,6 @@ impl MultisigCheckpointSyncer {
                 }
             })
             .collect::<Vec<_>>();
-
         let futures = syncer
             .iter()
             .map(
@@ -57,7 +57,10 @@ impl MultisigCheckpointSyncer {
             )
             .collect::<Vec<_>>();
 
-        let validator_index_results = futures::future::join_all(futures).await;
+        let validator_index_results = futures::stream::iter(futures)
+            .buffer_unordered(10)
+            .collect::<Vec<_>>()
+            .await;
 
         for (validator, latest_index) in validator_index_results {
             match latest_index {
