@@ -226,6 +226,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
                                 // If a reorg event has been posted to a checkpoint syncer,
                                 // we refuse to build
+                                // This will result in a short circuit and return an error for the entire build process of all syncers 
                                 return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
                             }
                             Err(err) => {
@@ -254,7 +255,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()? // Collect results into a single vector
+            .collect::<Result<Vec<_>, _>>()? // Collect results into a single vector and return if any of them returns an error
             .into_iter()
             .flatten() // Flatten Option<_>
             .collect::<Vec<_>>();
