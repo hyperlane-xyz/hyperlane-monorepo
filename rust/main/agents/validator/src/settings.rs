@@ -6,6 +6,7 @@
 
 use std::{collections::HashSet, path::PathBuf, time::Duration};
 
+use aws_config::Region;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
 use hyperlane_base::{
@@ -259,7 +260,8 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .parse_string()
                 .end()
                 .map(str::to_owned);
-            let region = syncer
+            // Using rusoto_core::Region just to get some input validation
+            let region: Option<rusoto_core::Region> = syncer
                 .chain(&mut err)
                 .get_key("region")
                 .parse_from_str("Expected aws region")
@@ -274,7 +276,7 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
             cfg_unwrap_all!(&syncer.cwp, err: [bucket, region]);
             err.into_result(CheckpointSyncerConf::S3 {
                 bucket,
-                region,
+                region: Region::new(region.name().to_owned()),
                 folder,
             })
         }
