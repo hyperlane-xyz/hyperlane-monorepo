@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    env,
     fmt::{Debug, Display},
     io::Write,
     sync::Arc,
@@ -10,6 +11,7 @@ use async_trait::async_trait;
 use num::CheckedDiv;
 use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
+use sha3::{digest::Update, Digest, Keccak256};
 use strum::Display;
 use tracing::warn;
 
@@ -362,18 +364,34 @@ impl Eq for QueueOperation {}
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
+
+        fn salted_hash(id: &H256, salt: &[u8]) -> H256 {
+            H256::from_slice(Keccak256::new().chain(id).chain(salt).finalize().as_slice())
+        }
+
         match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,
             (Some(_), None) => Greater,
             (None, None) => {
-                if self.origin_domain_id() == other.origin_domain_id() {
-                    // Should execute in order of nonce for the same origin
-                    self.priority().cmp(&other.priority())
+                let mixing =
+                    env::var("HYPERLANE_RELAYER_MIXING_ENABLED").map_or(false, |v| v == "true");
+                if !mixing {
+                    if self.origin_domain_id() == other.origin_domain_id() {
+                        // Should execute in order of nonce for the same origin
+                        self.priority().cmp(&other.priority())
+                    } else {
+                        // There is no priority between these messages, so arbitrarily use the id
+                        self.id().cmp(&other.id())
+                    }
                 } else {
-                    // There is no priority between these messages, so arbitrarily use the id
-                    self.id().cmp(&other.id())
+                    let salt = env::var("HYPERLANE_RELAYER_MIXING_SALT")
+                        .map_or(0, |v| v.parse::<u32>().unwrap_or(0))
+                        .to_vec();
+                    let self_hash = salted_hash(&self.id(), &salt);
+                    let other_hash = salted_hash(&other.id(), &salt);
+                    self_hash.cmp(&other_hash)
                 }
             }
         }
@@ -396,14 +414,4 @@ pub enum PendingOperationResult {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_encoding_pending_operation_status() {
-        let status = PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata);
-        let encoded = status.to_vec();
-        let decoded = PendingOperationStatus::read_from(&mut &encoded[..]).unwrap();
-        assert_eq!(status, decoded);
-    }
-}
+mod tests;
