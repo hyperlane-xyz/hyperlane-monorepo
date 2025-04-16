@@ -194,6 +194,23 @@ jobs:
           echo "CLI E2E tests failed"
           exit 1
 
+  cosmos-sdk-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Cosmos SDK e2e tests
+        run: yarn --cwd typescript/cosmos-sdk test:e2e
+
   agent-configs:
     runs-on: ubuntu-latest
     strategy:
