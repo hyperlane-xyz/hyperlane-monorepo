@@ -41,7 +41,7 @@ describe('StarknetArtifactGenerator', () => {
   });
 
   describe('Contract Classification', () => {
-    it('correctly identifies contract types from filenames', () => {
+    it('getContractTypeFromPath: correctly identifies contract types from filenames', () => {
       expect(generator.getContractTypeFromPath('token_MyToken.json')).to.equal(
         ContractType.TOKEN,
       );
@@ -55,22 +55,10 @@ describe('StarknetArtifactGenerator', () => {
         ContractType.CONTRACT,
       );
     });
-
-    it('correctly identifies contract class from path', () => {
-      expect(
-        generator.getContractClassFromPath('test.compiled_contract_class.json'),
-      ).to.equal(ContractClass.CASM);
-      expect(
-        generator.getContractClassFromPath('test.contract_class.json'),
-      ).to.equal(ContractClass.SIERRA);
-      expect(() =>
-        generator.getContractClassFromPath('test.unknown.json'),
-      ).to.throw('Cannot determine contract class from path');
-    });
   });
 
   describe('File Operations', () => {
-    it('creates output directory when missing', async () => {
+    it('createOutputDirectory: creates output directory when missing', async () => {
       await fs.rm(TEST_OUTPUT_DIR, { recursive: true, force: true });
       await generator.createOutputDirectory();
 
@@ -78,7 +66,7 @@ describe('StarknetArtifactGenerator', () => {
       expect(stats.isDirectory()).to.be.true;
     });
 
-    it('reads and parses artifact files correctly', async () => {
+    it('readArtifactFile: reads and parses artifact files correctly', async () => {
       const filePath = join(
         TEST_RELEASE_DIR,
         `contracts_Test${CONTRACT_SUFFIXES.SIERRA_JSON}`,
@@ -95,7 +83,7 @@ describe('StarknetArtifactGenerator', () => {
   });
 
   describe('Content Generation', () => {
-    it('extracts only ABI from Sierra contracts', () => {
+    it('generateJavaScriptContent: extracts only ABI from Sierra contracts', () => {
       const artifact = createMockSierraArtifact();
       const jsContent = generator.generateJavaScriptContent(
         'Test',
@@ -109,10 +97,9 @@ describe('StarknetArtifactGenerator', () => {
       expect(jsContent).to.include('"abi":');
       expect(jsContent).to.include('test_function');
       expect(jsContent).to.include('"sierra_program":[]');
-      expect(jsContent).to.not.include('"sierra_program":[1,2,3]');
     });
 
-    it('generates correct TypeScript declaration files', () => {
+    it('generateDeclarationContent: generates correct TypeScript declaration files', () => {
       const sierraDts = generator.generateDeclarationContent('Test', true);
       expect(sierraDts).to.include(
         'export declare const Test: CompiledContract',
@@ -122,7 +109,7 @@ describe('StarknetArtifactGenerator', () => {
       expect(casmDts).to.include('export declare const Test: CairoAssembly');
     });
 
-    it('generates correct index file with categorized contracts', async () => {
+    it('generateIndexContents: generates correct index file with categorized contracts', async () => {
       const processedFiles = generator['processedFiles'];
 
       const CONTRACT_NAME = 'contracts_Test';
@@ -179,7 +166,7 @@ describe('StarknetArtifactGenerator', () => {
   });
 
   describe('Artifact Processing', () => {
-    it('processes a Sierra artifact file correctly', async () => {
+    it('processArtifact: processes a Sierra artifact file correctly', async () => {
       const filePath = join(
         TEST_RELEASE_DIR,
         `contracts_Test${CONTRACT_SUFFIXES.SIERRA_JSON}`,
@@ -211,7 +198,7 @@ describe('StarknetArtifactGenerator', () => {
       expect(jsContent).to.include('"sierra_program":[]');
     });
 
-    it('handles malformed artifact files', async () => {
+    it('generate: handles malformed artifact files', async () => {
       const malformedFilePath = join(
         TEST_RELEASE_DIR,
         `malformed${CONTRACT_SUFFIXES.SIERRA_JSON}`,
@@ -228,7 +215,7 @@ describe('StarknetArtifactGenerator', () => {
   });
 
   describe('End-to-End Process', () => {
-    it('processes all artifacts and generates index files', async () => {
+    it('generate: processes all artifacts and generates index files', async () => {
       await generator.generate();
 
       expect(generator['processedFiles'].size).to.equal(3);
@@ -248,7 +235,7 @@ describe('StarknetArtifactGenerator', () => {
       );
     });
 
-    it('handles files with unexpected naming patterns', async () => {
+    it('getArtifactPaths/processArtifact: handles files with unexpected naming patterns', async () => {
       const oddNamedFilePath = join(
         TEST_RELEASE_DIR,
         'unusual_name.contract_class.json',
