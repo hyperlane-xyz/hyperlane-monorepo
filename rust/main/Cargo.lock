@@ -7960,6 +7960,7 @@ dependencies = [
  "tracing-futures",
  "tracing-test",
  "typetag",
+ "url",
  "uuid 1.11.0",
 ]
 

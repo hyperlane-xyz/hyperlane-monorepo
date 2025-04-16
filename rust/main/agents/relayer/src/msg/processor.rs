@@ -405,8 +405,10 @@ impl MessageProcessorMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::time::Instant;
+    use std::{str::FromStr, time::Instant};
 
+    use futures::future::join_all;
+    use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
     use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
     use tokio::{
         sync::{
@@ -423,12 +425,12 @@ mod test {
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
             InterchainGasPaymentData,
         },
-        settings::{ChainConf, ChainConnectionConf, Settings},
+        settings::{ChainConf, ChainConnectionConf, CoreContractAddresses, Settings},
     };
     use hyperlane_core::{
         identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey,
-        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
-        PendingOperationStatus, H256,
+        InterchainGasPayment, InterchainGasPaymentMeta, Mailbox, MerkleTreeInsertion,
+        PendingOperationStatus, ReorgPeriod, SubmitterType, H160, H256,
     };
     use hyperlane_operation_verifier::{
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
@@ -969,5 +971,132 @@ mod test {
             forward_backward_iterator.high_nonce_iter.nonce,
             Some(MAX_ONCHAIN_NONCE + 1)
         );
+    }
+
+    #[tokio::test]
+    async fn test_a_bunch_of_calls_different_providers() {
+        let count = 3000;
+
+        let url: url::Url = std::env::var("RPC_URL")
+            .expect("RPC_URL not set")
+            .parse()
+            .unwrap();
+
+        let chain_conf = ChainConf {
+            domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
+            // TODO
+            signer: None,
+            submitter: SubmitterType::Classic,
+            estimated_block_time: Duration::from_secs(1),
+            reorg_period: ReorgPeriod::from_blocks(10),
+            addresses: CoreContractAddresses {
+                // Arbitrum Sepolia
+                mailbox: H160::from_str("0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8")
+                    .unwrap()
+                    .into(),
+                ..Default::default()
+            },
+            connection: ChainConnectionConf::Ethereum(ConnectionConf {
+                rpc_connection: RpcConnectionConf::HttpFallback {
+                    urls: vec![url.clone()],
+                },
+                transaction_overrides: Default::default(),
+                // TODO
+                operation_batch: Default::default(),
+            }),
+            metrics_conf: Default::default(),
+            index: Default::default(),
+        };
+
+        let core_metrics = CoreMetrics::new("test", 9090, Default::default()).unwrap();
+
+        let mut mailboxes = vec![];
+        let start = std::time::Instant::now();
+        for i in 0..3000 {
+            let mailbox: Arc<dyn Mailbox> = chain_conf
+                .build_mailbox(&core_metrics)
+                .await
+                .unwrap()
+                .into();
+            mailboxes.push(mailbox);
+        }
+        let end = std::time::Instant::now();
+        println!(
+            "Time taken to create {} mailboxes: {:?}",
+            count,
+            end.duration_since(start)
+        );
+
+        for i in 0..10 {
+            let start = std::time::Instant::now();
+            let mut futures = vec![];
+            for j in 0..3000 {
+                futures.push(mailboxes[j].recipient_ism(H160::random().into()));
+            }
+            let results = join_all(futures).await;
+            let end = std::time::Instant::now();
+            let errs: Vec<_> = results.iter().filter(|r| r.is_err()).collect();
+            println!("first err {:?}", errs.get(0));
+
+            println!(
+                "Time taken for {}: {:?} err_count {:?}",
+                i,
+                end.duration_since(start),
+                errs.len()
+            );
+        }
+
+        // Interesting learning:
+        // The first call takes a lot longer than the rest. This is because the first call
+        // has to do a lot of setup work, like creating the connection to the provider and
+        // creating the mailbox contract. The rest of the calls are just reusing that setup.
+        // for 100 at a time:
+
+        // running 1 test
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 0: 946.606416ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 1: 384.772959ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 2: 333.236125ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 3: 324.852167ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 4: 342.728541ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 5: 396.48825ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 6: 330.597125ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 7: 294.548959ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 8: 325.276041ms err_count 0
+        // result 0 Ok(0x00000000000000000000000043c997061a5c222efdcbf16426dda0b6b32e7158)
+        // Time taken for 9: 341.7535ms err_count 0
+        // test contracts::mailbox::test::test_a_bunch_of_calls ... ok
+
+        // For 500 at a time:
+        //
+        // running 1 test
+        // first err None
+        // Time taken for 0: 2.780349709s err_count 0
+        // first err None
+        // Time taken for 1: 1.66023125s err_count 0
+        // first err None
+        // Time taken for 2: 1.051514375s err_count 0
+        // first err None
+        // Time taken for 3: 618.967667ms err_count 0
+        // first err None
+        // Time taken for 4: 1.187412792s err_count 0
+        // first err None
+        // Time taken for 5: 817.272792ms err_count 0
+        // first err None
+        // Time taken for 6: 1.347468375s err_count 0
+        // first err None
+        // Time taken for 7: 696.418375ms err_count 0
+        // first err None
+        // Time taken for 8: 783.999458ms err_count 0
+        // first err None
+        // Time taken for 9: 698.381292ms err_count 0
     }
 }

@@ -46,6 +46,7 @@ tokio-metrics.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
+url.workspace = true
 uuid.workspace = true
 
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
