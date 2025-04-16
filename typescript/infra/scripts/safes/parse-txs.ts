@@ -14,7 +14,6 @@ import {
 import {
   getGovernanceIcas,
   getGovernanceSafes,
-  getSafeChains,
 } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
@@ -24,11 +23,10 @@ import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 const environment = 'mainnet3';
-const safeChains = Array.from(getSafeChains());
 
 async function main() {
   const { chains, governanceType } = await withGovernanceType(
-    withChains(yargs(process.argv.slice(2)), safeChains),
+    withChains(yargs(process.argv.slice(2))),
   ).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -56,7 +54,7 @@ async function main() {
 
   // Get the pending transactions for the relevant chains, for the chosen governance type
   const pendingTxs = await getPendingTxsForChains(
-    !chains || chains.length === 0 ? safeChains : chains,
+    !chains || chains.length === 0 ? Object.keys(safes) : chains,
     multiProvider,
     safes,
   );
