@@ -803,23 +803,28 @@ pub struct SerialSubmitterMetrics {
 }
 
 impl SerialSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
+    pub fn new(metrics: impl AsRef<CoreMetrics>, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
         Self {
-            submitter_queue_length: metrics.submitter_queue_length(),
+            submitter_queue_length: metrics.as_ref().submitter_queue_length(),
             ops_prepared: metrics
+                .as_ref()
                 .operations_processed_count()
                 .with_label_values(&["prepared", destination]),
             ops_submitted: metrics
+                .as_ref()
                 .operations_processed_count()
                 .with_label_values(&["submitted", destination]),
             ops_confirmed: metrics
+                .as_ref()
                 .operations_processed_count()
                 .with_label_values(&["confirmed", destination]),
             ops_failed: metrics
+                .as_ref()
                 .operations_processed_count()
                 .with_label_values(&["failed", destination]),
             ops_dropped: metrics
+                .as_ref()
                 .operations_processed_count()
                 .with_label_values(&["dropped", destination]),
         }

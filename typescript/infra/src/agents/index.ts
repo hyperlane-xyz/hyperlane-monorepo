@@ -112,6 +112,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: 32,
+            bypassBatchSimulation: false,
             priorityFeeOracle,
             transactionSubmitter,
           };
