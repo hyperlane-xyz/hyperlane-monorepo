@@ -286,11 +286,9 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
 ];
 
 const relayBlacklist: BaseRelayerConfig['blacklist'] = [
-  {
-    // Ignore kessel runner test recipients.
-    // All 5 test recipients have the same address.
-    recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
-  },
+  // Ignore kessel runner test recipients.
+  // All 5 test recipients have the same address.
+  ...kesselMatchingList,
   {
     // In an effort to reduce some giant retry queues that resulted
     // from spam txs to the old TestRecipient before we were charging for
