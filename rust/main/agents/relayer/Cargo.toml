@@ -69,6 +69,7 @@ hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
+tempfile.workspace = true
 
 [features]
 default = ["color-eyre", "oneline-errors"]

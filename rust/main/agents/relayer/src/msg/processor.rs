@@ -404,7 +404,7 @@ impl MessageProcessorMetrics {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use std::time::Instant;
 
     use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
@@ -451,7 +451,7 @@ mod test {
 
     use super::*;
 
-    struct DummyApplicationOperationVerifier {}
+    pub struct DummyApplicationOperationVerifier {}
 
     #[async_trait]
     impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
@@ -464,7 +464,7 @@ mod test {
         }
     }
 
-    fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
+    pub fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
         MessageProcessorMetrics {
             max_last_known_message_nonce_gauge: IntGauge::new(
                 "dummy_max_last_known_message_nonce_gauge",
@@ -478,7 +478,7 @@ mod test {
         }
     }
 
-    fn dummy_cache_metrics() -> MeteredCacheMetrics {
+    pub fn dummy_cache_metrics() -> MeteredCacheMetrics {
         MeteredCacheMetrics {
             hit_count: IntCounterVec::new(
                 prometheus::Opts::new("dummy_hit_count", "help string"),
@@ -493,7 +493,7 @@ mod test {
         }
     }
 
-    fn dummy_submission_metrics() -> MessageSubmissionMetrics {
+    pub fn dummy_submission_metrics() -> MessageSubmissionMetrics {
         MessageSubmissionMetrics {
             origin: "".to_string(),
             destination: "".to_string(),

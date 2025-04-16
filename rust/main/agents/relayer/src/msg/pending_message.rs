@@ -96,7 +96,7 @@ pub struct PendingMessage {
     submitted: bool,
     #[new(default)]
     #[serde(skip_serializing)]
-    submission_data: Option<Box<MessageSubmissionData>>,
+    pub(crate) submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]

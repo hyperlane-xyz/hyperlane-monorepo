@@ -8,6 +8,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
+use ethers::providers::ProviderError;
+use ethers::types::{Block, BlockNumber, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
@@ -15,7 +17,7 @@ use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use hyperlane_core::{
     utils::bytes_to_hex, BatchItem, ChainCommunicationError, ChainResult, ContractLocator,
@@ -28,7 +30,9 @@ use crate::error::HyperlaneEthereumError;
 use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{IMailbox as EthereumMailboxInternal, IMAILBOX_ABI};
 use crate::interfaces::mailbox::DispatchFilter;
-use crate::tx::{call_with_reorg_period, fill_tx_gas_params, report_tx};
+use crate::tx::{
+    call_with_reorg_period, estimate_eip1559_fees, fill_tx_gas_params, report_tx, Eip1559Fee,
+};
 use crate::{
     BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod,
     TransactionOverrides,
@@ -307,13 +311,11 @@ where
         }
     }
 
-    /// Returns a ContractCall that processes the provided message.
-    async fn process_contract_call(
+    fn contract_call(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
-        with_gas_estimate_buffer: bool,
     ) -> ChainResult<ContractCall<M, ()>> {
         let mut tx = self.contract.process(
             metadata.to_vec().into(),
@@ -322,6 +324,18 @@ where
         if let Some(gas_estimate) = tx_gas_estimate {
             tx = tx.gas(gas_estimate);
         }
+        Ok(tx)
+    }
+
+    /// Returns a ContractCall that processes the provided message.
+    async fn process_contract_call(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+        tx_gas_estimate: Option<U256>,
+        with_gas_estimate_buffer: bool,
+    ) -> ChainResult<ContractCall<M, ()>> {
+        let tx = self.contract_call(message, metadata, tx_gas_estimate)?;
 
         fill_tx_gas_params(
             tx,
@@ -329,6 +343,8 @@ where
             &self.conn.transaction_overrides.clone(),
             &self.domain,
             with_gas_estimate_buffer,
+            None,
+            None,
         )
         .await
     }
@@ -339,6 +355,7 @@ where
         contract_calls: Vec<ContractCall<M, ()>>,
     ) -> ChainResult<BatchSimulation<M>> {
         let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        // batch.send().await?;
         let call_results = batch.call().await?;
 
         let failed_calls = contract_calls
@@ -380,6 +397,28 @@ where
             domain: self.domain.clone(),
         }
     }
+
+    async fn submit_multicall(
+        &self,
+        multicall: &mut Multicall<M>,
+        contract_calls: Vec<ContractCall<M, ()>>,
+        cached_block: Option<Block<TxHash>>,
+        cached_eip1559_fee: Option<Eip1559Fee>,
+    ) -> ChainResult<BatchResult> {
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        let call_with_gas_overrides = fill_tx_gas_params(
+            batch,
+            self.provider.clone(),
+            &self.conn.transaction_overrides.clone(),
+            &self.domain,
+            true,
+            cached_block,
+            cached_eip1559_fee,
+        )
+        .await?;
+        let outcome = report_tx(call_with_gas_overrides).await?;
+        Ok(BatchResult::new(Some(outcome.into()), vec![]))
+    }
 }
 
 #[derive(new)]
@@ -397,9 +436,15 @@ impl<M> BatchSimulation<M> {
 }
 
 impl<M: Middleware + 'static> BatchSimulation<M> {
-    pub async fn try_submit(self) -> ChainResult<BatchResult> {
+    pub async fn try_submit(
+        self,
+        cached_latest_block: Option<Block<TxHash>>,
+        cached_eip1559_fee: Option<Eip1559Fee>,
+    ) -> ChainResult<BatchResult> {
         if let Some(submittable_batch) = self.call {
-            let batch_outcome = submittable_batch.submit().await?;
+            let batch_outcome = submittable_batch
+                .submit(cached_latest_block, cached_eip1559_fee)
+                .await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
                 self.excluded_call_indexes,
@@ -418,13 +463,19 @@ pub struct SubmittableBatch<M> {
 }
 
 impl<M: Middleware + 'static> SubmittableBatch<M> {
-    pub async fn submit(self) -> ChainResult<TxOutcome> {
+    pub async fn submit(
+        self,
+        cached_latest_block: Option<Block<TxHash>>,
+        cached_eip1559_fee: Option<Eip1559Fee>,
+    ) -> ChainResult<TxOutcome> {
         let call_with_gas_overrides = fill_tx_gas_params(
             self.call,
             self.provider,
             &self.transaction_overrides,
             &self.domain,
             true,
+            cached_latest_block,
+            cached_eip1559_fee,
         )
         .await?;
         let outcome = report_tx(call_with_gas_overrides).await?;
@@ -518,25 +569,64 @@ where
         let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
             .await
             .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
-        let contract_call_futures = messages
+        let latest_block = self
+            .provider
+            .get_block(BlockNumber::Latest)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+        let contract_calls = messages
             .iter()
-            .map(|batch_item| async {
-                self.process_contract_call(
+            .map(|batch_item| {
+                self.contract_call(
                     &batch_item.data,
                     &batch_item.submission_data.metadata,
                     Some(batch_item.submission_data.gas_limit),
-                    true,
                 )
-                .await
             })
-            .collect::<Vec<_>>();
-        let contract_calls = join_all(contract_call_futures)
+            .collect::<ChainResult<Vec<_>>>()?;
+        let eip1559_fee_cache = match contract_calls.first() {
+            Some(contract_call) => estimate_eip1559_fees(
+                self.provider.clone(),
+                None,
+                &latest_block,
+                &self.domain,
+                &contract_call.tx,
+            )
+            .await
+            .ok(),
+            None => None,
+        };
+        let filled_tx_params_futures = contract_calls.iter().map(|tx| {
+            fill_tx_gas_params(
+                tx.clone(),
+                self.provider.clone(),
+                &self.conn.transaction_overrides,
+                &self.domain,
+                true,
+                Some(latest_block.clone()),
+                eip1559_fee_cache.clone(),
+            )
+        });
+        let contract_calls = join_all(filled_tx_params_futures)
             .await
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
         let batch_simulation = self.simulate_batch(&mut multicall, contract_calls).await?;
-        batch_simulation.try_submit().await
+        batch_simulation
+            .try_submit(Some(latest_block), eip1559_fee_cache)
+            .await
+
+        // info!("done");
+        // panic!("TODO: remove this panic");
+        // self.submit_multicall(
+        //     &mut multicall,
+        //     contract_calls,
+        //     Some(latest_block),
+        //     eip1559_fee_cache,
+        // )
+        // .await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
