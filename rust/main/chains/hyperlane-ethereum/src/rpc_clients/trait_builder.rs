@@ -296,14 +296,16 @@ where
     GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
 }
 
+/// Builds a new HTTP provider with the given URL.
 fn build_http_provider(url: Url) -> ChainResult<Http> {
     let client = get_reqwest_client(&url)?;
     Ok(Http::new_with_client(url, client))
 }
 
+/// Gets a cached reqwest client for the given URL, or builds a new one if it doesn't exist.
 fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
-    let client_cache = get_client_cache();
-    if let Some(client) = client_cache.get(&url) {
+    let client_cache = get_reqwest_client_cache();
+    if let Some(client) = client_cache.get(url) {
         return Ok(client.clone());
     }
     let client = build_new_reqwest_client(url.clone())?;
@@ -311,6 +313,9 @@ fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
     Ok(client)
 }
 
+/// Builds a new reqwest client with the given URL.
+/// Generally `get_reqwest_client` should be used instead of this function,
+/// as it caches the client for reuse.
 fn build_new_reqwest_client(url: Url) -> ChainResult<Client> {
     let mut queries_to_keep = vec![];
     let mut headers = reqwest::header::HeaderMap::new();
@@ -350,8 +355,11 @@ fn build_new_reqwest_client(url: Url) -> ChainResult<Client> {
     Ok(client)
 }
 
-static CLIENT_CACHE: OnceLock<DashMap<Url, Client>> = OnceLock::new();
+/// A cache for reqwest clients, indexed by URL.
+/// Generally creating a new Reqwest client is expensive due to some DNS
+/// resolutions, so we cache them for reuse.
+static REQWEST_CLIENT_CACHE: OnceLock<DashMap<Url, Client>> = OnceLock::new();
 
-fn get_client_cache() -> &'static DashMap<Url, Client> {
-    CLIENT_CACHE.get_or_init(DashMap::new)
+fn get_reqwest_client_cache() -> &'static DashMap<Url, Client> {
+    REQWEST_CLIENT_CACHE.get_or_init(DashMap::new)
 }
