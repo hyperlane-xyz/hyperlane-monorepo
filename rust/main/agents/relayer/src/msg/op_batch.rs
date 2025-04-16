@@ -164,7 +164,7 @@ mod tests {
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{
-                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
             op_queue::test::MockPendingOperation,
@@ -390,7 +390,7 @@ mod tests {
             cache.clone(),
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
-            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
+            IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         );
         let message_context = Arc::new(MessageContext {
             destination_mailbox: arb_mailbox,
