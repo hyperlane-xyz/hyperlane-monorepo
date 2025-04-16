@@ -47,7 +47,7 @@ export interface MetricAppContext {
 
 export interface RelayerMixingConfig {
   enabled: boolean;
-  salt?: string;
+  salt?: number;
 }
 
 export interface RelayerCacheConfig {

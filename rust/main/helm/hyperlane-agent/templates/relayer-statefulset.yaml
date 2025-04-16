@@ -98,7 +98,7 @@ spec:
           {{- with .Values.hyperlane.relayer.mixing }}
           {{- if .enabled }}
           - name: HYPERLANE_RELAYER_MIXING_ENABLED
-            value: true
+            value: "true"
           - name: HYPERLANE_RELAYER_MIXING_SALT
             value: {{ .salt | quote }}
           {{- end }}
