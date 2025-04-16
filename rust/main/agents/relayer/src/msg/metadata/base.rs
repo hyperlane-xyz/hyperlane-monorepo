@@ -38,6 +38,8 @@ pub enum MetadataBuildError {
     MaxIsmDepthExceeded(u32),
     #[error("Exceeded max count when building metadata ({0})")]
     MaxIsmCountReached(u32),
+    #[error("Exceeded max validator count when building metadata ({0})")]
+    MaxValidatorCountReached(u32),
     #[error("Aggregation threshold not met ({0})")]
     AggregationThresholdNotMet(u32),
 }
