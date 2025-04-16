@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
 use ethers::providers::ProviderError;
+use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{Block, BlockNumber, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
@@ -17,6 +18,7 @@ use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
+use tokio::sync::Mutex;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -279,6 +281,14 @@ where
     provider: Arc<M>,
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
     conn: ConnectionConf,
+    cache: Arc<Mutex<EthereumMailboxCache>>,
+}
+
+#[derive(Debug, Default)]
+pub struct EthereumMailboxCache {
+    pub is_contract: HashMap<H256, bool>,
+    pub latest_block: Option<Block<TxHash>>,
+    pub eip1559_fee: Option<Eip1559Fee>,
 }
 
 impl<M> EthereumMailbox<M>
@@ -308,6 +318,7 @@ where
             provider,
             arbitrum_node_interface,
             conn: conn.clone(),
+            cache: Default::default(),
         }
     }
 
@@ -343,8 +354,7 @@ where
             &self.conn.transaction_overrides.clone(),
             &self.domain,
             with_gas_estimate_buffer,
-            None,
-            None,
+            self.cache.clone(),
         )
         .await
     }
@@ -402,8 +412,7 @@ where
         &self,
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
-        cached_block: Option<Block<TxHash>>,
-        cached_eip1559_fee: Option<Eip1559Fee>,
+        cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
         let call_with_gas_overrides = fill_tx_gas_params(
@@ -412,8 +421,7 @@ where
             &self.conn.transaction_overrides.clone(),
             &self.domain,
             true,
-            cached_block,
-            cached_eip1559_fee,
+            cache,
         )
         .await?;
         let outcome = report_tx(call_with_gas_overrides).await?;
@@ -424,13 +432,27 @@ where
         &self,
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
-        cached_block: Option<Block<TxHash>>,
-        cached_eip1559_fee: Option<Eip1559Fee>,
+        cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         let batch_simulation = self.simulate_batch(multicall, contract_calls).await?;
-        batch_simulation
-            .try_submit(cached_block, cached_eip1559_fee)
+        batch_simulation.try_submit(cache).await
+    }
+
+    async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) -> ChainResult<()> {
+        let latest_block = self
+            .provider
+            .get_block(BlockNumber::Latest)
             .await
+            .map_err(ChainCommunicationError::from_other)?
+            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+        let eip1559_fee =
+            estimate_eip1559_fees(self.provider.clone(), None, &latest_block, &self.domain, tx)
+                .await
+                .ok();
+        let mut cache = self.cache.lock().await;
+        cache.latest_block = Some(latest_block);
+        cache.eip1559_fee = eip1559_fee;
+        Ok(())
     }
 }
 
@@ -451,13 +473,10 @@ impl<M> BatchSimulation<M> {
 impl<M: Middleware + 'static> BatchSimulation<M> {
     pub async fn try_submit(
         self,
-        cached_latest_block: Option<Block<TxHash>>,
-        cached_eip1559_fee: Option<Eip1559Fee>,
+        cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
         if let Some(submittable_batch) = self.call {
-            let batch_outcome = submittable_batch
-                .submit(cached_latest_block, cached_eip1559_fee)
-                .await?;
+            let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
                 self.excluded_call_indexes,
@@ -476,19 +495,14 @@ pub struct SubmittableBatch<M> {
 }
 
 impl<M: Middleware + 'static> SubmittableBatch<M> {
-    pub async fn submit(
-        self,
-        cached_latest_block: Option<Block<TxHash>>,
-        cached_eip1559_fee: Option<Eip1559Fee>,
-    ) -> ChainResult<TxOutcome> {
+    pub async fn submit(self, cache: Arc<Mutex<EthereumMailboxCache>>) -> ChainResult<TxOutcome> {
         let call_with_gas_overrides = fill_tx_gas_params(
             self.call,
             self.provider,
             &self.transaction_overrides,
             &self.domain,
             true,
-            cached_latest_block,
-            cached_eip1559_fee,
+            cache,
         )
         .await?;
         let outcome = report_tx(call_with_gas_overrides).await?;
@@ -579,15 +593,15 @@ where
             .iter()
             .map(|op| op.try_batch())
             .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
-        let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
-            .await
-            .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
-        let latest_block = self
-            .provider
-            .get_block(BlockNumber::Latest)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+        let mut multicall = build_multicall(
+            self.provider.clone(),
+            &self.conn,
+            self.domain.clone(),
+            self.cache.clone(),
+        )
+        .await
+        .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
+
         let contract_calls = messages
             .iter()
             .map(|batch_item| {
@@ -598,18 +612,9 @@ where
                 )
             })
             .collect::<ChainResult<Vec<_>>>()?;
-        let eip1559_fee_cache = match contract_calls.first() {
-            Some(contract_call) => estimate_eip1559_fees(
-                self.provider.clone(),
-                None,
-                &latest_block,
-                &self.domain,
-                &contract_call.tx,
-            )
-            .await
-            .ok(),
-            None => None,
-        };
+        if let Some(contract_call) = contract_calls.first() {
+            self.refresh_block_and_fee_cache(&contract_call.tx).await?;
+        }
         let filled_tx_params_futures = contract_calls.iter().map(|tx| {
             fill_tx_gas_params(
                 tx.clone(),
@@ -617,8 +622,7 @@ where
                 &self.conn.transaction_overrides,
                 &self.domain,
                 true,
-                Some(latest_block.clone()),
-                eip1559_fee_cache,
+                self.cache.clone(),
             )
         });
         let contract_calls = join_all(filled_tx_params_futures)
@@ -627,21 +631,11 @@ where
             .collect::<ChainResult<Vec<_>>>()?;
 
         if true {
-            self.simulate_and_submit_batch(
-                &mut multicall,
-                contract_calls,
-                Some(latest_block.clone()),
-                eip1559_fee_cache,
-            )
-            .await
+            self.simulate_and_submit_batch(&mut multicall, contract_calls, self.cache.clone())
+                .await
         } else {
-            self.submit_multicall(
-                &mut multicall,
-                contract_calls,
-                Some(latest_block),
-                eip1559_fee_cache,
-            )
-            .await
+            self.submit_multicall(&mut multicall, contract_calls, self.cache.clone())
+                .await
         }
     }
 

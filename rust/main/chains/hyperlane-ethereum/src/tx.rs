@@ -21,9 +21,10 @@ use ethers_core::{
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256, U256,
 };
-use tracing::{debug, error, info, warn};
+use tokio::sync::Mutex;
+use tracing::{debug, error, info, instrument, warn};
 
-use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
+use crate::{EthereumMailboxCache, EthereumReorgPeriod, Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
@@ -73,6 +74,7 @@ where
     track_pending_tx(dispatched).await
 }
 
+#[instrument(skip(pending_tx))]
 pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
     pending_tx: PendingTransaction<'_, P>,
 ) -> ChainResult<TransactionReceipt> {
@@ -109,8 +111,7 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
     with_gas_limit_overrides: bool,
-    cached_latest_block: Option<Block<TxHash>>,
-    cached_eip1559_fee: Option<Eip1559Fee>,
+    cache: Arc<Mutex<EthereumMailboxCache>>,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
@@ -129,6 +130,10 @@ where
         }
     }
     let gas_limit = estimated_gas_limit;
+    let (cached_latest_block, cached_eip1559_fee) = {
+        let cache = cache.lock().await;
+        (cache.latest_block.clone(), cache.eip1559_fee.clone())
+    };
 
     // Cap the gas limit to the block gas limit
     let latest_block = match cached_latest_block {
