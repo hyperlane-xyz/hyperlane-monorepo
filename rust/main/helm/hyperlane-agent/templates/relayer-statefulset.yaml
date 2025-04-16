@@ -44,7 +44,7 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
-      {{- if .Values.hyperlane.relayer.dbBootstrap }}
+      {{- if .Values.hyperlane.relayer.dbBootstrap.enabled }}
       initContainers:
       - name: db-bootstrap
         image: google/cloud-sdk:alpine
@@ -91,6 +91,22 @@ spec:
           {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.envConfig) | nindent 10 }}
           - name: CONFIG_FILES
             value: "/relayer-configmap/relayer-config.json"
+          {{- with .Values.hyperlane.relayer.cacheDefaultExpirationSeconds }}
+          - name: HYP_CACHEDEFAULTEXPIRATIONSECONDS
+            value: {{ . | quote }}
+          {{- end }}
+          {{- with .Values.hyperlane.relayer.mixing }}
+          {{- if .enabled }}
+          - name: HYPERLANE_RELAYER_MIXING_ENABLED
+            value: true
+          - name: HYPERLANE_RELAYER_MIXING_SALT
+            value: {{ .salt | quote }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.hyperlane.relayer.environmentVariableEndpointEnabled }}
+          - name: HYPERLANE_RELAYER_ENVIRONMENT_VARIABLE_ENDPOINT_ENABLED
+            value: {{ . | quote }}
+          {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
