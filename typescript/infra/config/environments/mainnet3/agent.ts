@@ -9,6 +9,7 @@ import {
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
   IsmCachePolicy,
+  IsmCacheSelectorType,
   MatchingList,
   ModuleType,
   RpcConsensusType,
@@ -740,19 +741,24 @@ const blacklist: MatchingList = [
   })),
 ];
 
-const defaultIsmCacheConfig: IsmCacheConfig = {
-  // Default ISM Routing ISMs change configs based off message content,
-  // so they are not specified here.
-  moduleTypes: [
-    ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
-    ModuleType.MESSAGE_ID_MULTISIG,
-  ],
-  // SVM is explicitly not cached as the default ISM is a multisig ISM
-  // that routes internally.
-  chains: ethereumChainNames,
-  cachePolicy: IsmCachePolicy.IsmSpecific,
-};
+const ismCacheConfigs: Array<IsmCacheConfig> = [
+  {
+    selector: {
+      type: IsmCacheSelectorType.DefaultIsm,
+    },
+    // Default ISM Routing ISMs change configs based off message content,
+    // so they are not specified here.
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -768,7 +774,7 @@ const hyperlane: RootAgentConfig = {
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     cache: {
       enabled: true,
     },
@@ -811,7 +817,7 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     cache: {
       enabled: true,
     },
@@ -846,7 +852,7 @@ const neutron: RootAgentConfig = {
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     cache: {
       enabled: true,
     },
@@ -880,7 +886,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     cache: {
       enabled: true,
     },

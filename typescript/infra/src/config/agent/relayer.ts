@@ -64,7 +64,7 @@ export interface BaseRelayerConfig {
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
-  defaultIsmCacheConfig?: IsmCacheConfig;
+  ismCacheConfigs?: Array<IsmCacheConfig>;
   dbBootstrap?: boolean;
   mixing?: RelayerMixingConfig;
   bypassBatchSimulation?: boolean;
@@ -81,7 +81,7 @@ export type RelayerConfigMapConfig = Pick<
   | 'addressBlacklist'
   | 'gasPaymentEnforcement'
   | 'metricAppContexts'
-  | 'defaultIsmCacheConfig'
+  | 'ismCacheConfigs'
 >;
 // The rest of the config is intended to be set as env vars.
 export type RelayerEnvConfig = Omit<
@@ -165,8 +165,8 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         baseConfig.metricAppContextsGetter(),
       );
     }
-    if (baseConfig.defaultIsmCacheConfig) {
-      relayerConfig.defaultIsmCacheConfig = baseConfig.defaultIsmCacheConfig;
+    if (baseConfig.ismCacheConfigs) {
+      relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;
     }
     relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
     return relayerConfig;
