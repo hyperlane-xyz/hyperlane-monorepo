@@ -12,7 +12,7 @@ static DEFAULT_EXPIRATION: OnceLock<Duration> = OnceLock::new();
 
 fn default_expiration() -> Duration {
     *DEFAULT_EXPIRATION.get_or_init(|| {
-        let secs = std::env::var("HYP_CACHEDEFAULTEXPIRATION")
+        let secs = std::env::var("HYP_CACHEDEFAULTEXPIRATIONSECONDS")
             .ok()
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(120); // default: 2 minutes
