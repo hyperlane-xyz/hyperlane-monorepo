@@ -7,101 +7,62 @@ import { fileURLToPath } from 'url';
 import { CONTRACT_SUFFIXES } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
 
+import { Templates } from './utils/templates.js';
+
 const cwd = process.cwd();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const ROOT_OUTPUT_DIR = join(__dirname, '../dist/artifacts/');
-const RELEASE_DIR = join(cwd, 'release');
+const DEFAULT_ROOT_OUTPUT_DIR = join(__dirname, '../dist/artifacts/');
+const DEFAULT_COMPILED_CONTRACTS_DIR = join(cwd, 'release');
 
-class Templates {
-  static jsArtifact(name: string, artifact: any) {
-    return `export const ${name} = ${JSON.stringify(artifact)};`;
-  }
+type ProcessedFilesMap = Map<
+  string,
+  { type: ContractType; sierra: boolean; casm: boolean }
+>;
 
-  static dtsArtifact(name: string, type: string) {
-    return `
-    import type { CompiledContract, CairoAssembly } from 'starknet';
-    export declare const ${name}: ${type};
-    `;
-  }
-
-  static jsIndex(
-    imports: string,
-    contractExports: string,
-    tokenExports: string,
-    mockExports: string,
-  ) {
-    return `
-${imports}
- export const starknetContracts = {
-   contracts: {
- ${contractExports}
-   },
-   token: {
- ${tokenExports}
-   },
-   mocks: {
- ${mockExports}
-   }
- };
- `;
-  }
-
-  static dtsIndex() {
-    return `
-import type { CompiledContract, CairoAssembly } from 'starknet';
-
-export interface StarknetContractGroup {
-  [name: string]: {
-    contract_class?: CompiledContract;
-    compiled_contract_class?: CairoAssembly;
-  };
-}
-
-export interface StarknetContracts {
-  contracts: StarknetContractGroup;
-  token: StarknetContractGroup;
-  mocks: StarknetContractGroup;
-}
-
-export declare const starknetContracts: StarknetContracts;`;
-  }
-}
-
-class StarknetArtifactGenerator {
-  private processedFiles: Map<
-    string,
-    { type: ContractType; sierra: boolean; casm: boolean }
-  >;
+export class StarknetArtifactGenerator {
+  private processedFiles: ProcessedFilesMap;
   private contractExports: string[] = [];
   private tokenExports: string[] = [];
   private mockExports: string[] = [];
+  private compiledContractsDir: string;
+  private rootOutputDir: string;
 
-  constructor() {
+  constructor(
+    compiledContractsDir: string = DEFAULT_COMPILED_CONTRACTS_DIR,
+    rootOutputDir: string = DEFAULT_ROOT_OUTPUT_DIR,
+  ) {
     this.processedFiles = new Map();
+    this.compiledContractsDir = compiledContractsDir;
+    this.rootOutputDir = rootOutputDir;
   }
 
-  getContractTypeFromPath(filePath: string): ContractType {
-    const fileName = basename(filePath);
-    // Check for exact prefix matches to avoid double categorization
-    if (fileName.startsWith('token_')) return ContractType.TOKEN;
-    if (fileName.startsWith('mocks_')) return ContractType.MOCK;
-    if (fileName.startsWith('contracts_')) return ContractType.CONTRACT;
-    return ContractType.CONTRACT; // default case
+  getContractTypeFromPath(path: string): ContractType {
+    const fileName = basename(path);
+    if (fileName.startsWith('token_')) {
+      return ContractType.TOKEN;
+    } else if (fileName.startsWith('mocks_')) {
+      return ContractType.MOCK;
+    }
+    return ContractType.CONTRACT;
   }
 
   getContractClassFromPath(filePath: string): ContractClass {
-    return filePath.includes('compiled_contract_class')
-      ? ContractClass.CASM
-      : ContractClass.SIERRA;
+    if (filePath.includes('compiled_contract_class')) {
+      return ContractClass.CASM;
+    } else if (filePath.includes('contract_class')) {
+      return ContractClass.SIERRA;
+    } else {
+      throw new Error(`Cannot determine contract class from path: ${filePath}`);
+    }
   }
 
   /**
    * @notice Retrieves paths of all relevant artifact files
    */
   async getArtifactPaths() {
-    const sierraPattern = `${RELEASE_DIR}/**/*${CONTRACT_SUFFIXES.SIERRA_JSON}`;
+    const sierraPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.SIERRA_JSON}`;
     const [sierraFiles] = await Promise.all([globby(sierraPattern)]);
     return { sierraFiles };
   }
@@ -110,7 +71,7 @@ class StarknetArtifactGenerator {
    * @notice Creates the output directory if it doesn't exist
    */
   async createOutputDirectory() {
-    await fs.mkdir(ROOT_OUTPUT_DIR, { recursive: true });
+    await fs.mkdir(this.rootOutputDir, { recursive: true });
   }
 
   /**
@@ -262,11 +223,11 @@ class StarknetArtifactGenerator {
 
     const outputFileName = `${name}.${contractClass}`;
     await fs.writeFile(
-      join(ROOT_OUTPUT_DIR, outputFileName + '.js'),
+      join(this.rootOutputDir, outputFileName + '.js'),
       jsContent,
     );
     await fs.writeFile(
-      join(ROOT_OUTPUT_DIR, outputFileName + '.d.ts'),
+      join(this.rootOutputDir, outputFileName + '.d.ts'),
       dtsContent,
     );
   }
@@ -283,8 +244,8 @@ class StarknetArtifactGenerator {
 
       // Generate and write index files
       const { jsContent, dtsContent } = this.generateIndexContents();
-      await fs.writeFile(join(ROOT_OUTPUT_DIR, 'index.js'), jsContent);
-      await fs.writeFile(join(ROOT_OUTPUT_DIR, 'index.d.ts'), dtsContent);
+      await fs.writeFile(join(this.rootOutputDir, 'index.js'), jsContent);
+      await fs.writeFile(join(this.rootOutputDir, 'index.d.ts'), dtsContent);
 
       console.log(
         `Successfully processed ${this.processedFiles.size} Starknet contracts`,

@@ -11,7 +11,8 @@
     "build": "tsc && yarn fetch-contracts && yarn generate-artifacts",
     "clean": "rm -rf ./dist ./release",
     "lint": "eslint -c ./eslint.config.mjs .",
-    "prettier": "prettier --write ./src ./scripts ./package.json"
+    "prettier": "prettier --write ./src ./scripts ./package.json",
+    "test": "mocha --require tsx 'tests/**/*.test.ts'"
   },
   "exports": {
     ".": {
@@ -33,6 +34,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@types/sinon": "^17.0.1",
+    "@types/sinon-chai": "^3.2.12",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "eslint": "^9.15.0",
@@ -40,7 +43,9 @@
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
     "globby": "^14.1.0",
+    "mocha": "^10.2.0",
     "prettier": "^2.8.8",
+    "sinon": "^13.0.2",
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   }
