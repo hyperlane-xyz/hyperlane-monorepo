@@ -3,7 +3,9 @@ use std::{fmt, sync::OnceLock, time::Duration};
 use async_trait::async_trait;
 use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
 use aws_sdk_s3::{
-    error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError, Client,
+    error::SdkError,
+    operation::{get_object::GetObjectError as SdkGetObjectError, head_object::HeadObjectError},
+    Client,
 };
 use dashmap::DashMap;
 use derive_new::new;
@@ -15,7 +17,8 @@ use tokio::sync::OnceCell;
 use crate::CheckpointSyncer;
 
 /// The timeout for all S3 operations.
-const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const S3_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const S3_MAX_OBJECT_SIZE: i64 = 50 * 1024; // 50KiB
 
 #[derive(Clone, new)]
 /// Type for reading/writing to S3
@@ -70,7 +73,39 @@ impl S3Storage {
         Ok(())
     }
 
+    /// Check if the metadata for the object satisfies our size constraints.
+    /// If the object is too big, we return an error.
+    async fn check_metadata(&self, key: String) -> Result<bool> {
+        let metadata_req = self
+            .anonymous_client()
+            .await
+            .head_object()
+            .bucket(self.bucket.clone())
+            .key(self.get_composite_key(key.clone()))
+            .send()
+            .await;
+        match metadata_req {
+            Ok(value) => match value.content_length {
+                Some(length) if length >= S3_MAX_OBJECT_SIZE => {
+                    bail!("Object size for key {key} is too big: {}KiB", length / 1024);
+                }
+                Some(_) => Ok(true),
+                None => Ok(false),
+            },
+            Err(SdkError::ServiceError(err)) => match err.err() {
+                HeadObjectError::NotFound(_) => Ok(false),
+                _ => bail!(err.into_err()),
+            },
+            Err(e) => bail!(e),
+        }
+    }
+
     async fn anonymously_read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
+        // check for metadata first
+        if !self.check_metadata(key.clone()).await? {
+            return Ok(None);
+        }
+
         let get_object_result = self
             .anonymous_client()
             .await

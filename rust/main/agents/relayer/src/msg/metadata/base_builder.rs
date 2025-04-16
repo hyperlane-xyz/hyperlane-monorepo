@@ -239,8 +239,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         }
         Ok(MultisigCheckpointSyncer::new(
             checkpoint_syncers,
-            self.metrics.clone(),
-            app_context,
+            app_context.map(|ctx| (self.metrics.clone(), ctx)),
         ))
     }
 }
