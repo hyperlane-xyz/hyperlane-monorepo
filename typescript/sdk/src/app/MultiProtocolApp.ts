@@ -16,6 +16,7 @@ import {
   CosmJsWasmProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
+  StarknetJsProvider,
   TypedProvider,
 } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -92,6 +93,14 @@ export class BaseSealevelAdapter extends BaseAppAdapter {
     programId: string | PublicKey,
   ): PublicKey {
     return BaseSealevelAdapter.derivePda(seeds, programId);
+  }
+}
+
+export class BaseStarknetAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Starknet;
+
+  public getProvider(): StarknetJsProvider['provider'] {
+    return this.multiProvider.getStarknetProvider(this.chainName);
   }
 }
 
