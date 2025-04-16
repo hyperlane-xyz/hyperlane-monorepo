@@ -15,7 +15,8 @@ import {
 } from '../../src/kesselrunner/config.js';
 
 const testRecipient = '0x492b3653A38e229482Bab2f7De4A094B18017246';
-const body = '<12parsecs';
+// 64 bytes
+const body = "It's the ship that made the Kessel Run in less than 12 parsecs!!";
 const DEFAULT_METADATA = '0x0001';
 
 async function preCalculateGasEstimates(
