@@ -48,7 +48,7 @@
   },
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
-    "build": "yarn version:update && tsc && yarn bundle",
+    "build": "yarn version:update && tsc",
     "bundle": "rm -rf ./cli-bundle && ncc build ./dist/cli.js -o cli-bundle && node ./scripts/ncc.post-bundle.mjs",
     "dev": "yarn version:update && tsc --watch",
     "clean": "rm -rf ./dist && rm -rf ./cli-bundle",
@@ -56,7 +56,8 @@
     "prettier": "prettier --write ./src ./examples",
     "test:ci": "yarn mocha --config .mocharc.json",
     "test:e2e": "./scripts/run-e2e-test.sh",
-    "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
+    "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts",
+    "prepack": "yarn bundle"
   },
   "files": [
     "./cli-bundle",

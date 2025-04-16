@@ -17,22 +17,17 @@ const __dirname = path.dirname(__filename);`;
 async function prepend() {
   try {
     const content = await readFile(outputFile, 'utf8');
-    if (!content.startsWith(shebang) && content.includes(dirnameDef)) {
-      const newContent = shebang + content;
-      await writeFile(outputFile, newContent, 'utf8');
-      console.log('Adding missing shebang to cli executable.');
+
+    // Assume the 'cli.ts' file entry point already has the shebang
+    if (!content.startsWith(shebang)) {
+      throw new Error('Missing shebang from cli entry point');
     }
-    if (content.startsWith(shebang) && !content.includes(dirnameDef)) {
+
+    if (!content.includes(dirnameDef)) {
       const [, executable] = content.split(shebang);
       const newContent = `${shebang}\n${dirnameDef}\n${executable}`;
       await writeFile(outputFile, newContent, 'utf8');
       console.log('Adding missing __dirname definition to cli executable');
-    } else {
-      const newContent = `${shebang}\n${dirnameDef}\n${content}`;
-      await writeFile(outputFile, newContent, 'utf8');
-      console.log(
-        'Adding missing shebang and __dirname definition to output file.',
-      );
     }
   } catch (err) {
     console.error('Error processing output file:', err);
