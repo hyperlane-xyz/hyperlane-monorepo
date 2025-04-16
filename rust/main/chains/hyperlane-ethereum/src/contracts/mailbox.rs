@@ -768,6 +768,7 @@ mod test {
         let count = 3000;
 
         let mut mailboxes = vec![];
+        let start = std::time::Instant::now();
         for i in 0..3000 {
             let url: url::Url = std::env::var("RPC_URL")
                 .expect("RPC_URL not set")
@@ -803,6 +804,12 @@ mod test {
             );
             mailboxes.push(mailbox);
         }
+        let end = std::time::Instant::now();
+        println!(
+            "Time taken to create {} mailboxes: {:?}",
+            count,
+            end.duration_since(start)
+        );
 
         for i in 0..10 {
             let start = std::time::Instant::now();
