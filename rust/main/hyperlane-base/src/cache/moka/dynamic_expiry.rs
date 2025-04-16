@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Default expiration time for cache entries.
 static DEFAULT_EXPIRATION: OnceLock<Duration> = OnceLock::new();
 
-fn default_expiration() -> Duration {
+pub fn default_expiration() -> Duration {
     *DEFAULT_EXPIRATION.get_or_init(|| {
         let secs = std::env::var("HYP_CACHEDEFAULTEXPIRATIONSECONDS")
             .ok()
