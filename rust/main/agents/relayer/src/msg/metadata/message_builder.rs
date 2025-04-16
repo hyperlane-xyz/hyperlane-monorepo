@@ -137,6 +137,7 @@ impl MessageMetadataBuilder {
 }
 
 /// Builds metadata for a message.
+#[instrument(err, skip(message_builder, message, params), fields(destination_domain=self.destination_domain().name()), ret)]
 pub async fn build_message_metadata(
     message_builder: MessageMetadataBuilder,
     ism_address: H256,
