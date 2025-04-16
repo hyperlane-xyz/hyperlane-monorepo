@@ -7657,6 +7657,7 @@ __metadata:
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
     "@inquirer/search": "npm:^3.0.1"
+    "@turnkey/ethers": "npm:0.19.9"
     "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -9610,6 +9611,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/curves@npm:^1.3.0":
+  version: 1.8.2
+  resolution: "@noble/curves@npm:1.8.2"
+  dependencies:
+    "@noble/hashes": "npm:1.7.2"
+  checksum: 10/540e7b7a8fe92ecd5cef846f84d07180662eb7fd7d8e9172b8960c31827e74f148fe4630da962138a6be093ae9f8992d14ab23d3682a2cc32be839aa57c03a46
+  languageName: node
+  linkType: hard
+
 "@noble/hashes@npm:1.0.0, @noble/hashes@npm:~1.0.0":
   version: 1.0.0
   resolution: "@noble/hashes@npm:1.0.0"
@@ -9656,6 +9666,13 @@ __metadata:
   version: 1.7.1
   resolution: "@noble/hashes@npm:1.7.1"
   checksum: 10/ca3120da0c3e7881d6a481e9667465cc9ebbee1329124fb0de442e56d63fef9870f8cc96f264ebdb18096e0e36cebc0e6e979a872d545deb0a6fed9353f17e05
+  languageName: node
+  linkType: hard
+
+"@noble/hashes@npm:1.7.2":
+  version: 1.7.2
+  resolution: "@noble/hashes@npm:1.7.2"
+  checksum: 10/b5af9e4b91543dcc46a811b5b2c57bfdeb41728361979a19d6110a743e2cb0459872553f68d3a46326d21959964db2776b8c8b4db85ac1d9f63ebcaddf7d59b6
   languageName: node
   linkType: hard
 
@@ -15904,6 +15921,58 @@ __metadata:
   version: 1.0.4
   resolution: "@tsconfig/node16@npm:1.0.4"
   checksum: 10/202319785901f942a6e1e476b872d421baec20cf09f4b266a1854060efbf78cde16a4d256e8bc949d31e6cd9a90f1e8ef8fb06af96a65e98338a2b6b0de0a0ff
+  languageName: node
+  linkType: hard
+
+"@turnkey/api-key-stamper@npm:0.4.0":
+  version: 0.4.0
+  resolution: "@turnkey/api-key-stamper@npm:0.4.0"
+  dependencies:
+    "@noble/curves": "npm:^1.3.0"
+    "@turnkey/encoding": "npm:0.1.0"
+    sha256-uint8array: "npm:^0.10.7"
+  checksum: 10/1409030dc33fdf2b17e8ea1b6ac4ea2536104e1c1f674fc1ae18065386861a0556c714f700abee755c6b1f878198f64911faa6dcfb7400287150f49630794507
+  languageName: node
+  linkType: hard
+
+"@turnkey/encoding@npm:0.1.0":
+  version: 0.1.0
+  resolution: "@turnkey/encoding@npm:0.1.0"
+  checksum: 10/39660099d31dd068e206aeaa618b744b5891d6dff8ce9d2fcce87053680b52e97da28882c1bff6ac91bb1d62980192b4ac8ef6b6cb5e6cba936a8d45dbfe6e25
+  languageName: node
+  linkType: hard
+
+"@turnkey/ethers@npm:0.19.9":
+  version: 0.19.9
+  resolution: "@turnkey/ethers@npm:0.19.9"
+  dependencies:
+    "@ethersproject/abstract-signer": "npm:^5.7.0"
+    "@turnkey/api-key-stamper": "npm:0.4.0"
+    "@turnkey/http": "npm:2.7.1"
+  peerDependencies:
+    ethers: ^5.0.0
+  checksum: 10/b18ca0bb411b1dc4a4da1402993046e8780c3a7abcf8ee63514d2a2e651ec92e0dcd3e7aa1c37bd3c9506958d64a3bdc13e4afae5a0d738e336b697785cd90c7
+  languageName: node
+  linkType: hard
+
+"@turnkey/http@npm:2.7.1":
+  version: 2.7.1
+  resolution: "@turnkey/http@npm:2.7.1"
+  dependencies:
+    "@turnkey/api-key-stamper": "npm:0.4.0"
+    "@turnkey/encoding": "npm:0.1.0"
+    "@turnkey/webauthn-stamper": "npm:0.5.0"
+    cross-fetch: "npm:^3.1.5"
+  checksum: 10/a2870760de87052c2e990fb9fecbc62550bc5efa4e893ec552d77129c537b5e9d1c9fb0d24e1ed6c5f13ae538e820540f1472b4cc82eafd509812fcca7b5cdfe
+  languageName: node
+  linkType: hard
+
+"@turnkey/webauthn-stamper@npm:0.5.0":
+  version: 0.5.0
+  resolution: "@turnkey/webauthn-stamper@npm:0.5.0"
+  dependencies:
+    sha256-uint8array: "npm:^0.10.7"
+  checksum: 10/0342ebcc6d7bc7de4b30b38ea103203acd1e246607a756df40646eca8f216645f3e9bba27aa8962b0220164432ecdf536ee7aac3eccb34d9d5e0c2dabeb4f7bc
   languageName: node
   linkType: hard
 
@@ -34729,6 +34798,13 @@ __metadata:
     charenc: "npm:>= 0.0.1"
     crypt: "npm:>= 0.0.1"
   checksum: 10/da9f47e949988e2f595ef19733fd1dc736866ef6de4e421a55c13b444c03ae532e528b7350ae6ea55d9fb053be61d4648ec2cd5250d46cfdbdf4f6b4e763713d
+  languageName: node
+  linkType: hard
+
+"sha256-uint8array@npm:^0.10.7":
+  version: 0.10.7
+  resolution: "sha256-uint8array@npm:0.10.7"
+  checksum: 10/e427f9d2f9c521dea552f033d3f0c3bd641ab214d214dd41bde3c805edde393519cf982b3eee7d683b32e5f28fa23b2278d25935940e13fbe831b216a37832be
   languageName: node
   linkType: hard
 

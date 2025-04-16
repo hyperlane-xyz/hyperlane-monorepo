@@ -12,6 +12,7 @@
     "@inquirer/figures": "1.0.5",
     "@inquirer/prompts": "3.3.2",
     "@inquirer/search": "^3.0.1",
+    "@turnkey/ethers": "0.19.9",
     "ansi-escapes": "^7.0.0",
     "asn1.js": "^5.4.1",
     "bignumber.js": "^9.1.1",

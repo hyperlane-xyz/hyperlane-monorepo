@@ -1,5 +1,8 @@
 import { password } from '@inquirer/prompts';
-import { Signer, Wallet } from 'ethers';
+import { ApiKeyStamper } from '@turnkey/api-key-stamper';
+import { TurnkeySigner } from '@turnkey/ethers';
+import { TurnkeyClient } from '@turnkey/http';
+import { Signer } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import {
@@ -36,6 +39,11 @@ export class MultiProtocolSignerFactory {
   }
 }
 
+const apiPublicKey = process.env.API_PUBLIC_KEY!;
+const apiPrivateKey = process.env.API_PRIVATE_KEY!;
+const organizationId = process.env.ORGANIZATION_ID!;
+const signWith = process.env.SIGN_WITH!;
+
 class EthereumSignerStrategy extends BaseMultiProtocolSigner {
   async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
     const submitter = this.config[chain]?.submitter as {
@@ -52,8 +60,22 @@ class EthereumSignerStrategy extends BaseMultiProtocolSigner {
     return { privateKey };
   }
 
-  getSigner(config: SignerConfig): Signer {
-    return new Wallet(config.privateKey);
+  getSigner(): Signer {
+    const client = new TurnkeyClient(
+      { baseUrl: 'https://api.turnkey.com' },
+      new ApiKeyStamper({
+        apiPublicKey,
+        apiPrivateKey,
+      }),
+    );
+
+    const turnkeySigner = new TurnkeySigner({
+      client,
+      organizationId,
+      signWith,
+    });
+
+    return turnkeySigner;
   }
 }
 
