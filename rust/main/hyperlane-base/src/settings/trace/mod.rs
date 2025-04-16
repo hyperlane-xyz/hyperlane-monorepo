@@ -76,6 +76,8 @@ impl TracingConfig {
                 .with_target("tendermint", Level::Info)
                 .with_target("tokio", Level::Debug)
                 .with_target("tokio_util", Level::Debug)
+                .with_target("aws_smithy", Level::Info)
+                .with_target("aws_sdk", Level::Info)
                 // Enable Trace level for Tokio if you want to use tokio-console
                 // .with_target("tokio", Level::Trace)
                 // .with_target("tokio_util", Level::Trace)
