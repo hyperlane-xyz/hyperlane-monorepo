@@ -29,6 +29,7 @@ fn test_configuration_fields() {
             operation_batch: OperationBatchConfig {
                 batch_contract_address: None,
                 max_batch_size: expected_max_batch_size,
+                ..Default::default()
             },
             native_token: Default::default(),
             priority_fee_oracle: Default::default(),
