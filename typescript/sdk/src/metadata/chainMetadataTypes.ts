@@ -198,6 +198,11 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('Block settings for the chain/deployment.'),
 
+  bypassBatchSimulation: z
+    .boolean()
+    .optional()
+    .describe('Whether to bypass batch simulation for this chain.'),
+
   chainId: z
     .union([ZNzUint, z.string()])
     .describe(`The chainId of the chain. Uses EIP-155 for EVM chains`),

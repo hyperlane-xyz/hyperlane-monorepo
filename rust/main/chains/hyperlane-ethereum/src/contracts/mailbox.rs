@@ -630,11 +630,12 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        if true {
-            self.simulate_and_submit_batch(&mut multicall, contract_calls, self.cache.clone())
+        if self.conn.operation_batch.bypass_batch_simulation {
+            // submit the tx without checking if subcalls would revert
+            self.submit_multicall(&mut multicall, contract_calls, self.cache.clone())
                 .await
         } else {
-            self.submit_multicall(&mut multicall, contract_calls, self.cache.clone())
+            self.simulate_and_submit_batch(&mut multicall, contract_calls, self.cache.clone())
                 .await
         }
     }

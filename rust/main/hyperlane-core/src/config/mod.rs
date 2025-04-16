@@ -27,8 +27,12 @@ pub type NoFilter = ();
 pub struct OperationBatchConfig {
     /// Optional batch contract address (e.g. Multicall3 on EVM chains)
     pub batch_contract_address: Option<H256>,
+
     /// Batch size
     pub max_batch_size: u32,
+
+    /// bypass batch simulation
+    pub bypass_batch_simulation: bool,
 }
 
 /// A trait that allows for constructing `Self` from a raw config type.

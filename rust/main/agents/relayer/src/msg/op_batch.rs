@@ -168,7 +168,7 @@ mod tests {
                 IsmCachePolicyClassifier,
             },
             op_queue::test::MockPendingOperation,
-            pending_message::{self, MessageContext, PendingMessage},
+            pending_message::{MessageContext, PendingMessage},
             processor::test::{
                 dummy_cache_metrics, dummy_submission_metrics, DummyApplicationOperationVerifier,
             },
@@ -185,14 +185,12 @@ mod tests {
         CoreMetrics,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, utils::hex_or_base58_to_h256, ContractLocator, Decode,
-        HyperlaneMessage, KnownHyperlaneDomain, MessageSubmissionData, ReorgPeriod, SubmitterType,
-        H160, U256,
+        config::OperationBatchConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
+        MessageSubmissionData, ReorgPeriod, SubmitterType, H160, U256,
     };
-    use hyperlane_ethereum::{ConnectionConf, EthereumMailbox, RpcConnectionConf};
+    use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use tokio::sync::RwLock;
-    use tracing_subscriber::layer::SubscriberExt;
 
     use super::*;
 
@@ -314,6 +312,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn benchmarking_with_real_rpcs() {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
@@ -345,8 +344,11 @@ mod tests {
                     ],
                 },
                 transaction_overrides: Default::default(),
-                // TODO
-                operation_batch: Default::default(),
+                operation_batch: OperationBatchConfig {
+                    batch_contract_address: None,
+                    max_batch_size: 32,
+                    bypass_batch_simulation: false,
+                },
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
@@ -407,13 +409,11 @@ mod tests {
             application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
         });
 
-        // Found here https://basescan.org/tx/0x65345812a1f7df6236292d52d50418a090c84e2c901912bede6cadb9810a9882#eventlog
-        let message_id = message.id();
-
         let attempts = 2;
         let batch_size = 32;
 
         let mut pending_messages = vec![];
+        // Message found here https://basescan.org/tx/0x65345812a1f7df6236292d52d50418a090c84e2c901912bede6cadb9810a9882#eventlog
         let metadata =
         "0x000000100000001000000010000001680000000000000000000000100000015800000000000000000000000019dc38aeae620380430c200a6e990d5af5480117dbd3d5e656de9dcf604fcc90b52a3b97d9f3573b4a0733e824f1358e515698cf00139eaa5452e030aa937f6b14162a44ec3327f6832bbf16e4b0d6df452524af1c1a04e875b4ce7ac0da92aa08838a89f2a126eef23f6b6a08b6cdbe9e9e804b321088b91b034f9466eed2da1dcc36cb220b887b15f3e111a179142c27e4a0b6d6b7a291e22577d6296d82b7c3f29e8989ec1161d853aba0982b2db28b9a9917226c2c27111c41c99e6a84e7717740f901528062385e659b4330e7227593a334be532d27bcf24f3f13bf4fc1a860e96f8d6937984ea83ef61c8ea30d48cc903f6ff725406a4d1ce73f46064b3403ea4c720b770f4389d7259b275f085c6a98cef9a04880a249b42c382ba34a63031debbfb5b9b232ffd9ee45ff63a7249e83c7e9720f9e978a431b".as_bytes().to_vec();
 

@@ -1088,6 +1088,7 @@ mod test {
                     operation_batch: OperationBatchConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
+                        ..Default::default()
                     },
                 }),
                 metrics_conf: PrometheusMiddlewareConf {

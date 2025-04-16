@@ -66,7 +66,7 @@ where
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, tx=?tx.tx, "Dispatching transaction");
+    info!(?to, from=?tx.tx.from(), gas_limit=?tx.tx.gas(), gas_price=?tx.tx.gas_price(), nonce=?tx.tx.nonce(), "Dispatching transaction");
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut
         .await?
