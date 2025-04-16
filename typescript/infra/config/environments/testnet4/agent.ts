@@ -279,6 +279,7 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
       ModuleType.AGGREGATION,
       ModuleType.MERKLE_ROOT_MULTISIG,
       ModuleType.MESSAGE_ID_MULTISIG,
+      ModuleType.ROUTING,
     ],
     // SVM is explicitly not cached as the default ISM is a multisig ISM
     // that routes internally.
@@ -399,7 +400,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '98f5172-20250416-095534',
+      tag: 'a4f29f0-20250416-103851',
     },
     whitelist: kesselMatchingList,
     gasPaymentEnforcement,

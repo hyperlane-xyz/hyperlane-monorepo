@@ -5,7 +5,7 @@ use moka::Expiry;
 use serde::{Deserialize, Serialize};
 
 /// Default expiration time for cache entries.
-pub const DEFAULT_EXPIRATION: Duration = Duration::from_secs(60 * 2);
+pub const DEFAULT_EXPIRATION: Duration = Duration::from_secs(60 * 10);
 
 /// The type of expiration for a cache entry.
 ///
