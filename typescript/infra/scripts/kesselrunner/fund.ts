@@ -42,7 +42,10 @@ async function printOwnerAndRelayerBalances() {
 
           // Determine top up amount based on chain and entity type
           const topUpAmount =
-            chain === 'bsctestnet' && entityType === 'owner' ? 10 : 1;
+            ['bsctestnet', 'arbitrumsepolia'].includes(chain) &&
+            entityType === 'owner'
+              ? 10
+              : 1;
 
           if (formattedEntityBalance < topUpAmount) {
             const topUpValue = parseUnits(
