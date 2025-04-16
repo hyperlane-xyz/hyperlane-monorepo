@@ -28,6 +28,7 @@ fn test_configuration_fields() {
             urls: vec![],
             operation_batch: OperationBatchConfig {
                 batch_contract_address: None,
+                bypass_batch_simulation: false,
                 max_batch_size: expected_max_batch_size,
             },
             native_token: Default::default(),

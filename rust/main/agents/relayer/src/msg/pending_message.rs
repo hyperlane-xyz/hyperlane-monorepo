@@ -1015,6 +1015,10 @@ impl PendingMessage {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
+                MetadataBuildError::MaxValidatorCountReached(count) => {
+                    warn!(count, "Max validator count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
             });
         let build_metadata_end = Instant::now();
 

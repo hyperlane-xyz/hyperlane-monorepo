@@ -63,6 +63,7 @@ fn provider(address: &str) -> WasmGrpcProvider {
             32,
             OperationBatchConfig {
                 batch_contract_address: None,
+                bypass_batch_simulation: false,
                 max_batch_size: 1,
             },
             NativeToken {
