@@ -1,4 +1,5 @@
 import Safe from '@safe-global/protocol-kit';
+import yargs from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -10,9 +11,12 @@ import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { Role } from '../../../src/roles.js';
 import { getSafeAndService, updateSafeOwner } from '../../../src/utils/safe.js';
+import { withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 async function main() {
+  const { propose } = await withPropose(yargs(process.argv.slice(2))).argv;
+
   const envConfig = getEnvironmentConfig('mainnet3');
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
@@ -57,18 +61,24 @@ async function main() {
     rootLogger.info(`[${chain}] Generated transactions for updating signers`);
     rootLogger.info(`[${chain}] ${JSON.stringify(transactions, null, 2)}`);
 
-    try {
-      await safeMultiSend.sendTransactions(
-        transactions.map((call) => ({
-          to: call.to,
-          data: call.data,
-          value: call.value,
-        })),
-      );
-      rootLogger.info(`[${chain}] Successfully sent transactions`);
-    } catch (error) {
-      rootLogger.error(`[${chain}] could not send transactions: ${error}`);
+    if (propose) {
+      try {
+        await safeMultiSend.sendTransactions(
+          transactions.map((call) => ({
+            to: call.to,
+            data: call.data,
+            value: call.value,
+          })),
+        );
+        rootLogger.info(`[${chain}] Successfully sent transactions`);
+      } catch (error) {
+        rootLogger.error(`[${chain}] could not send transactions: ${error}`);
+      }
     }
+  }
+
+  if (!propose) {
+    rootLogger.info('Skipping sending transactions, pass --propose to send');
   }
 }
 
