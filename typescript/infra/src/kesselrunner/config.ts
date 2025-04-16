@@ -38,7 +38,7 @@ export const targetNetworks = [
   'optimismsepolia',
 ];
 
-export const HOURLY_RATE = 10000;
+export const HOURLY_RATE = 250000;
 
 export const kesselRunConfig: {
   bursts: number;
@@ -47,11 +47,29 @@ export const kesselRunConfig: {
   distBaseBscEth: ChainMap<number>;
   distro: ChainMap<number>;
 } = {
-  bursts: 10,
-  burstInterval: 60000, // 1 minute in milliseconds
-  distArbOp: {},
-  distBaseBscEth: {},
-  distro: {},
+  bursts: 6,
+  burstInterval: 10, // seconds
+  distArbOp: {
+    arbitrumsepolia: 0.02,
+    basesepolia: 0.23,
+    bsctestnet: 0.23,
+    optimismsepolia: 0.02,
+    sepolia: 0.5,
+  },
+  distBaseBscEth: {
+    arbitrumsepolia: 0.02,
+    basesepolia: 0.02,
+    bsctestnet: 0.02,
+    optimismsepolia: 0.02,
+    sepolia: 0.02,
+  },
+  distro: {
+    arbitrumsepolia: 0.34,
+    basesepolia: 0.38,
+    bsctestnet: 0.08,
+    optimismsepolia: 0.06,
+    sepolia: 0.14,
+  },
 };
 
 export type KesselRunner = {

@@ -225,8 +225,9 @@ async function doTheKesselRun() {
         const txCount = Math.max(
           1,
           Math.floor(
-            (ratePerOrigin * bridgeDistribution) /
-              (kesselRunConfig.burstInterval / 1000),
+            ratePerOrigin *
+              bridgeDistribution *
+              (kesselRunConfig.burstInterval / 3600),
           ),
         );
         rootLogger.debug(
@@ -257,6 +258,8 @@ async function doTheKesselRun() {
           messageCounts[destination].to += 1;
         }
       }
+
+      startingNonces[origin] = nonce;
     }
 
     const endTime = Date.now(); // End timing
@@ -293,9 +296,7 @@ async function doTheKesselRun() {
     rootLogger.info(`Completed burst ${i + 1}`);
     if (i < kesselRunConfig.bursts - 1) {
       rootLogger.info(
-        `Waiting for ${
-          kesselRunConfig.burstInterval / 1000
-        }s before next burst`,
+        `Waiting for ${kesselRunConfig.burstInterval}s before next burst`,
       );
       const interval = 5000; // 5 seconds in milliseconds
       let remainingTime = kesselRunConfig.burstInterval;
@@ -304,9 +305,7 @@ async function doTheKesselRun() {
         remainingTime -= interval;
         if (remainingTime > 0) {
           rootLogger.info(
-            chalk.italic.gray(
-              `Time until next burst: ${remainingTime / 1000}s`,
-            ),
+            chalk.italic.gray(`Time until next burst: ${remainingTime}s`),
           );
         }
       }, interval);
@@ -315,7 +314,7 @@ async function doTheKesselRun() {
         setTimeout(() => {
           clearInterval(intervalId);
           resolve();
-        }, kesselRunConfig.burstInterval),
+        }, kesselRunConfig.burstInterval * 1000),
       );
     }
   }
