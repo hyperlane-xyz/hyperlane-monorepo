@@ -442,7 +442,7 @@ mod test {
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{
-                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
         },
@@ -562,7 +562,7 @@ mod test {
             cache,
             db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
-            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
+            IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         )
     }
 

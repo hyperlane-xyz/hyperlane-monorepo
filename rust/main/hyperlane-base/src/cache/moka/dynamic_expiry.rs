@@ -1,11 +1,24 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    sync::OnceLock,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use chrono::{offset::LocalResult, TimeZone, Utc};
 use moka::Expiry;
 use serde::{Deserialize, Serialize};
 
 /// Default expiration time for cache entries.
-pub const DEFAULT_EXPIRATION: Duration = Duration::from_secs(60 * 2);
+static DEFAULT_EXPIRATION: OnceLock<Duration> = OnceLock::new();
+
+pub fn default_expiration() -> Duration {
+    *DEFAULT_EXPIRATION.get_or_init(|| {
+        let secs = std::env::var("HYP_CACHEDEFAULTEXPIRATIONSECONDS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(120); // default: 2 minutes
+        Duration::from_secs(secs)
+    })
+}
 
 /// The type of expiration for a cache entry.
 ///
@@ -55,7 +68,7 @@ impl Expiration {
                     .or(Some(Duration::ZERO))
             }
             ExpirationType::Never => None,
-            ExpirationType::Default => Some(DEFAULT_EXPIRATION),
+            ExpirationType::Default => Some(default_expiration()),
         }
     }
 

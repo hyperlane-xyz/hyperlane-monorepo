@@ -3,6 +3,7 @@ import {
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
   IsmCachePolicy,
+  IsmCacheSelectorType,
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -14,6 +15,7 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   BaseRelayerConfig,
+  MetricAppContext,
   routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
@@ -228,26 +230,68 @@ const scraperResources = {
   },
 };
 
-const defaultIsmCacheConfig: IsmCacheConfig = {
-  // Default ISM Routing ISMs change configs based off message content,
-  // so they are not specified here.
-  moduleTypes: [
-    ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
-    ModuleType.MESSAGE_ID_MULTISIG,
-  ],
-  // SVM is explicitly not cached as the default ISM is a multisig ISM
-  // that routes internally.
-  chains: ethereumChainNames,
-  cachePolicy: IsmCachePolicy.IsmSpecific,
-};
-
-const relayBlacklist: BaseRelayerConfig['blacklist'] = [
+// Kessel is a load test, these are contracts involved in the load
+// test that we want to have certain relayers focus on or ignore.
+const kesselMatchingList = [
   {
-    // Ignore kessel runner test recipients.
-    // All 5 test recipients have the same address.
     recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
   },
+];
+
+const kesselAppContext = 'kessel';
+
+const metricAppContextsGetter = (): MetricAppContext[] => [
+  {
+    name: 'helloworld',
+    matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
+  },
+  {
+    name: kesselAppContext,
+    matchingList: kesselMatchingList,
+  },
+];
+
+const ismCacheConfigs: Array<IsmCacheConfig> = [
+  {
+    selector: {
+      type: IsmCacheSelectorType.DefaultIsm,
+    },
+    // Default ISM Routing ISMs change configs based off message content,
+    // so they are not specified here.
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
+  {
+    selector: {
+      type: IsmCacheSelectorType.AppContext,
+      context: kesselAppContext,
+    },
+    // Default ISM Routing ISMs change configs based off message content,
+    // so they are not specified here.
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+      ModuleType.ROUTING,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
+];
+
+const relayBlacklist: BaseRelayerConfig['blacklist'] = [
+  // Ignore kessel runner test recipients.
+  // All 5 test recipients have the same address.
+  ...kesselMatchingList,
   {
     // In an effort to reduce some giant retry queues that resulted
     // from spam txs to the old TestRecipient before we were charging for
@@ -283,15 +327,8 @@ const hyperlane: RootAgentConfig = {
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
-    metricAppContextsGetter: () => [
-      {
-        name: 'helloworld',
-        matchingList: routerMatchingList(
-          helloWorld[Contexts.Hyperlane].addresses,
-        ),
-      },
-    ],
-    defaultIsmCacheConfig,
+    metricAppContextsGetter,
+    ismCacheConfigs,
     allowContractCallCaching: true,
     resources: relayerResources,
   },
@@ -327,7 +364,8 @@ const releaseCandidate: RootAgentConfig = {
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
-    defaultIsmCacheConfig,
+    metricAppContextsGetter,
+    ismCacheConfigs,
     allowContractCallCaching: true,
     resources: relayerResources,
   },
@@ -362,17 +400,19 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ef039ae-20250411-104801',
+      tag: '8e87bb6-20250416-174849',
     },
-    whitelist: [
-      {
-        recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
-      },
-    ],
+    whitelist: kesselMatchingList,
     gasPaymentEnforcement,
-    defaultIsmCacheConfig,
+    metricAppContextsGetter,
+    ismCacheConfigs,
     allowContractCallCaching: true,
-    resources: relayerResources,
+    resources: {
+      requests: {
+        cpu: '20000m',
+        memory: '32Gi',
+      },
+    },
   },
 };
 
