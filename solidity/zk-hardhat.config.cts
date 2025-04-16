@@ -10,9 +10,17 @@ import { rootHardhatConfig } from './rootHardhatConfig.cjs';
 module.exports = {
   ...rootHardhatConfig,
   zksolc: {
-    version: '1.5.3',
+    version: '1.5.12',
     compilerSource: 'binary',
     enableEraVMExtensions: true,
+  },
+  defaultNetwork: 'ZKsyncInMemoryNode',
+  networks: {
+    ZKsyncInMemoryNode: {
+      url: 'http://127.0.0.1:8011',
+      ethNetwork: '',
+      zksync: true,
+    },
   },
   paths: {
     sources: './contracts',
