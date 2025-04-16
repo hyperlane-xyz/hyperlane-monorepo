@@ -8,7 +8,6 @@ import {
   IsmConfig,
   IsmType,
   TokenType,
-  XERC20LimitConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -49,9 +48,10 @@ type TypedSuperTokenChainMap<T> = {
 
 // Production
 const upperBufferCap = '20000000000000'; // 20M = 20 * 10^6 ^ 10^6
-const lowerBufferCap = '2000000000000'; // 2M = 10 * 10^6 ^ 10^6
+const middleBufferCap = '8000000000000'; // 8M = 8 * 10^6 ^ 10^6
+const lowerBufferCap = '2000000000000'; // 2M = 2 * 10^6 ^ 10^6
 const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
-  ethereum: '0',
+  ethereum: upperBufferCap,
   celo: upperBufferCap,
   optimism: upperBufferCap,
   base: upperBufferCap,
@@ -63,18 +63,19 @@ const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
   superseed: lowerBufferCap,
   lisk: lowerBufferCap,
   worldchain: '0',
-  sonic: '0',
-  bitlayer: '0',
-  ronin: '0',
-  mantle: '0',
-  metis: '0',
-  linea: '0',
-  metal: '0',
+  sonic: middleBufferCap,
+  bitlayer: lowerBufferCap,
+  ronin: lowerBufferCap,
+  mantle: middleBufferCap,
+  metis: lowerBufferCap,
+  linea: lowerBufferCap,
+  metal: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
+const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
 const lowerRateLimitPerSecond = '500000000'; // 0.5k/s = 0.5 * 10^3 ^ 10^6
 const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
-  ethereum: '0',
+  ethereum: productionDefaultRateLimitPerSecond,
   celo: productionDefaultRateLimitPerSecond,
   optimism: productionDefaultRateLimitPerSecond,
   base: productionDefaultRateLimitPerSecond,
@@ -86,13 +87,13 @@ const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
   superseed: lowerRateLimitPerSecond,
   lisk: lowerRateLimitPerSecond,
   worldchain: '0',
-  sonic: '0',
-  bitlayer: '0',
-  ronin: '0',
-  mantle: '0',
-  metis: '0',
-  linea: '0',
-  metal: '0',
+  sonic: middleRateLimitPerSecond,
+  bitlayer: lowerRateLimitPerSecond,
+  ronin: lowerRateLimitPerSecond,
+  mantle: middleRateLimitPerSecond,
+  metis: lowerRateLimitPerSecond,
+  linea: lowerRateLimitPerSecond,
+  metal: lowerRateLimitPerSecond,
 };
 
 const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
@@ -205,43 +206,6 @@ const productionCeloXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
-
-const productionExtraLockboxLimits: XERC20LimitConfig = {
-  bufferCap: upperBufferCap,
-  rateLimitPerSecond: productionDefaultRateLimitPerSecond,
-};
-
-const zeroLimits: XERC20LimitConfig = {
-  bufferCap: '0',
-  rateLimitPerSecond: '0',
-};
-
-const productionExtraLockboxes = {
-  base: [
-    {
-      // usdt
-      lockbox: '0x9d922c23d78179c2e75fe394fc8e49363f2dda85',
-      limits: zeroLimits,
-    },
-    {
-      // usdc
-      lockbox: '0xe92e51d99ae33114c60d9621fb2e1ec0acea7e30',
-      limits: productionExtraLockboxLimits,
-    },
-  ],
-  optimism: [
-    {
-      // usdc
-      lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: zeroLimits,
-    },
-    {
-      // usdt
-      lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: productionExtraLockboxLimits,
-    },
-  ],
-};
 
 const productionXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   ethereum: productionEthereumXERC20LockboxAddress,
@@ -361,38 +325,6 @@ const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   metal: stagingXERC20TokenAddress,
 };
 
-const stagingExtraLockboxLimits: XERC20LimitConfig = {
-  bufferCap: stagingDefaultBufferCap,
-  rateLimitPerSecond: stagingDefaultRateLimitPerSecond,
-};
-
-const stagingExtraLockboxes = {
-  base: [
-    {
-      // usdt
-      lockbox: '0xd28ca33022d41758bed4f1a31a99dde8fc4d89b3',
-      limits: stagingExtraLockboxLimits,
-    },
-    {
-      // usdc
-      lockbox: '0x50df545016d26735daacbbf5afda56dc17d8748b',
-      limits: stagingExtraLockboxLimits,
-    },
-  ],
-  optimism: [
-    {
-      // usdc
-      lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: stagingExtraLockboxLimits,
-    },
-    {
-      // usdt
-      lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: stagingExtraLockboxLimits,
-    },
-  ],
-};
-
 function isCCIPChain(chain: SuperTokenChainName): boolean {
   return supportedCCIPChains.includes(chain);
 }
@@ -495,7 +427,6 @@ function generateSuperTokenConfig(
   amountRoutingThreshold: number,
   bufferCapPerChain: ChainMap<string>,
   rateLimitPerSecondPerChain: ChainMap<string>,
-  extraLockboxes?: ChainMap<{ lockbox: Address; limits: XERC20LimitConfig }[]>,
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
   return Object.fromEntries(
@@ -513,7 +444,7 @@ function generateSuperTokenConfig(
             rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
             bufferCap: bufferCapPerChain[chain],
           },
-          extraBridges: extraLockboxes ? extraLockboxes[chain] : undefined,
+          extraBridges: undefined,
         },
         // The ISM configuration uses a fallback routing ISM that routes messages based on amount thresholds:
         // - Below threshold: Uses default ISM
@@ -551,7 +482,6 @@ export const getSuperTokenStagingWarpConfig = async (
     stagingAmountRoutingThreshold,
     stagingBufferCapByChain,
     stagingRateLimitByChain,
-    stagingExtraLockboxes,
   );
 };
 
@@ -565,7 +495,6 @@ export const getSuperTokenProductionWarpConfig = async (
     productionAmountRoutingThreshold,
     productionBufferCapByChain,
     productionRateLimitByChain,
-    productionExtraLockboxes,
     productionOwnerOverridesByChain,
   );
 };
