@@ -1,6 +1,6 @@
 use crate::{
     indexer::SovIndexer,
-    rest_client::{to_bech32, SovereignRestClient, TxEvent},
+    rest_client::{SovereignRestClient, TxEvent},
     ConnectionConf, Signer, SovereignProvider,
 };
 use async_trait::async_trait;
@@ -42,15 +42,11 @@ impl crate::indexer::SovIndexer<MerkleTreeInsertion> for SovereignMerkleTreeHook
     }
 
     async fn latest_sequence(&self, at_slot: Option<u64>) -> ChainResult<Option<u32>> {
-        let sequence = self.client().tree(at_slot).await?;
+        let sequence = self.client().tree_count(at_slot).await?;
 
-        match u32::try_from(sequence.count) {
-            Ok(x) => Ok(Some(x)),
-            Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Tree count error: {e:?}"
-            ))),
-        }
+        Ok(Some(sequence))
     }
+
     fn decode_event(&self, event: &TxEvent) -> ChainResult<MerkleTreeInsertion> {
         let parsed_event: InsertedIntoTreeEvent = serde_json::from_value(event.value.clone())?;
 
@@ -123,7 +119,6 @@ impl Indexer<MerkleTreeInsertion> for SovereignMerkleTreeHookIndexer {
 #[derive(Debug)]
 pub struct SovereignMerkleTreeHook {
     domain: HyperlaneDomain,
-    address: H256,
     provider: SovereignProvider,
 }
 
@@ -139,7 +134,6 @@ impl SovereignMerkleTreeHook {
         Ok(SovereignMerkleTreeHook {
             domain: locator.domain.clone(),
             provider,
-            address: locator.address,
         })
     }
 }
@@ -154,9 +148,11 @@ impl HyperlaneChain for SovereignMerkleTreeHook {
     }
 }
 
+/// This divereges from hyperlane protocol as merkle tree hook is a built-in
+/// module in sovereign and doesn't have own address.
 impl HyperlaneContract for SovereignMerkleTreeHook {
     fn address(&self) -> H256 {
-        self.address
+        H256::default()
     }
 }
 
@@ -183,11 +179,10 @@ impl MerkleTreeHook for SovereignMerkleTreeHook {
 
     async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         let slot = self.provider.client().get_finalized_slot().await?;
-        let hook_id = to_bech32(self.address)?;
         let checkpoint = self
             .provider
             .client()
-            .latest_checkpoint(&hook_id, Some(slot), self.domain.id())
+            .latest_checkpoint(Some(slot), self.domain.id())
             .await?;
 
         Ok(checkpoint)

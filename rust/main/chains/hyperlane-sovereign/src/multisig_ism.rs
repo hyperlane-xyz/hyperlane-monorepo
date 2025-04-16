@@ -55,7 +55,7 @@ impl MultisigIsm for SovereignMultisigIsm {
         let validators = self
             .provider
             .client()
-            .validators_and_threshold(message)
+            .validators_and_threshold(message.recipient)
             .await?;
 
         Ok(validators)

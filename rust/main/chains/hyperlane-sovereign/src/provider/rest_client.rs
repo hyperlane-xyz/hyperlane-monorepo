@@ -6,9 +6,8 @@ use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::Encode;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, BlockInfo, ChainCommunicationError,
-    ChainInfo, ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType,
-    RawHyperlaneMessage, SignedType, TxCostEstimate, TxOutcome, TxnInfo, TxnReceiptInfo, H160,
-    H256, H512, U256,
+    ChainInfo, ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType, SignedType,
+    TxCostEstimate, TxOutcome, TxnInfo, TxnReceiptInfo, H160, H256, H512, U256,
 };
 use num_traits::FromPrimitive;
 use reqwest::StatusCode;
@@ -816,99 +815,92 @@ impl SovereignRestClient {
     }
 
     // @Merkle Tree Hook
-    pub async fn latest_checkpoint(
-        &self,
-        hook_id: &str,
-        at_height: Option<u64>,
-        mailbox_domain: u32,
-    ) -> ChainResult<Checkpoint> {
-        #[derive(Clone, Debug, Deserialize)]
-        struct Data {
-            index: Option<u32>,
-            root: Option<String>,
-        }
-
-        // /mailbox-hook-merkle-tree/{hook_id}/checkpoint
+    pub async fn tree_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
+        // /modules/merkle-tree-hook/count
         let query = match at_height {
-            None => {
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint")
-            }
-            Some(slot) => {
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint?slot_number={slot}")
-            }
+            None => "modules/merkle-tree-hook/count",
+            Some(slot) => &format!("modules/merkle-tree-hook/count?slot_number={slot}"),
         };
 
         let response = self
-            .http_get(&query)
+            .http_get(query)
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
+        let response: Schema<u32> = serde_json::from_slice(&response)?;
+
+        Ok(response.data.unwrap_or_default())
+    }
+
+    // @Merkle Tree Hook
+    pub async fn latest_checkpoint(
+        &self,
+        at_height: Option<u64>,
+        mailbox_domain: u32,
+    ) -> ChainResult<Checkpoint> {
+        #[derive(Debug, Deserialize)]
+        struct Data {
+            index: u32,
+            root: String,
+        }
+
+        // /modules/merkle-tree-hook/checkpoint
+        let query = match at_height {
+            None => "modules/merkle-tree-hook/checkpoint",
+            Some(slot) => &format!("modules/merkle-tree-hook/checkpoint?slot_number={slot}"),
+        };
+
+        let response = self
+            .http_get(query)
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
+        let response = response
+            .data
+            .ok_or_else(|| ChainCommunicationError::ParseError {
+                msg: "Response was empty".into(),
+            })?;
 
         let response = Checkpoint {
-            merkle_tree_hook_address: from_bech32(hook_id)?,
+            // sovereign implementation provides dummy address as hook is sovereign-sdk module
+            merkle_tree_hook_address: H256::default(),
             mailbox_domain,
-            root: H256::from_str(&response.data.clone().and_then(|d| d.root).ok_or_else(
-                || ChainCommunicationError::ParseError {
-                    msg: String::from("Empty field"),
-                },
-            )?)?,
-            index: response.data.clone().and_then(|d| d.index).ok_or_else(|| {
-                ChainCommunicationError::ParseError {
-                    msg: String::from("Empty field"),
-                }
-            })?,
+            root: H256::from_str(&response.root)?,
+            index: response.index,
         };
 
         Ok(response)
     }
 
     // @MultiSig ISM
-    pub async fn validators_and_threshold(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<H256>, u8)> {
-        #[derive(Clone, Debug, Deserialize)]
+    pub async fn validators_and_threshold(&self, recipient: H256) -> ChainResult<(Vec<H256>, u8)> {
+        #[derive(Debug, Deserialize)]
         struct Data {
-            validators: Option<Vec<String>>,
-            threshold: Option<u8>,
+            validators: Vec<String>,
+            threshold: u8,
         }
 
-        let ism_id = message.recipient;
-
-        let message = hex::encode(RawHyperlaneMessage::from(message));
-        let message = format!("0x{message}");
-
-        // /modules/mailbox-ism-registry/{ism_id}/validators_and_threshold
-        let query = format!(
-            "/modules/mailbox-ism-registry/{ism_id}/validators_and_threshold?data={message}"
-        );
+        // /modules/mailbox/recipient-ism/{recipient:?}/validators_and_threshold
+        let query =
+            format!("/modules/mailbox/recipient-ism/{recipient:?}/validators_and_threshold");
 
         let response = self
             .http_get(&query)
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
+        let response = response.data.ok_or_else(|| {
+            ChainCommunicationError::CustomError(
+                "No validators and threshold found, is ISM multisig?".into(),
+            )
+        })?;
 
-        let threshold = response.data.clone().and_then(|d| d.threshold).ok_or(
-            ChainCommunicationError::CustomError(String::from("Threshold contained None")),
-        )?;
-        let mut validators: Vec<H256> = Vec::new();
-        response
-            .data
-            .and_then(|d| d.validators)
-            .ok_or(ChainCommunicationError::CustomError(String::from(
-                "Threshold contained None",
-            )))?
+        let validators = response
+            .validators
             .iter()
-            .for_each(|v| {
-                let address =
-                    H256::from_str(&format!("0x{:0>64}", v.trim_start_matches("0x"))).unwrap();
-                validators.push(address);
-            });
+            .map(|v| H256::from_str(&format!("0x{:0>64}", v.trim_start_matches("0x"))))
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let res = (validators, threshold);
-
-        Ok(res)
+        Ok((validators, response.threshold))
     }
 
     // @Routing ISM
