@@ -399,14 +399,19 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7bc0b10-20250415-210606',
+      tag: '98f5172-20250416-095534',
     },
     whitelist: kesselMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
     allowContractCallCaching: true,
-    resources: relayerResources,
+    resources: {
+      requests: {
+        cpu: '20000m',
+        memory: '32Gi',
+      },
+    },
   },
 };
 
