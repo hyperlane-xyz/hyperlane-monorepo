@@ -400,7 +400,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4894e63-20250416-110808',
+      tag: '8e87bb6-20250416-174849',
     },
     whitelist: kesselMatchingList,
     gasPaymentEnforcement,
