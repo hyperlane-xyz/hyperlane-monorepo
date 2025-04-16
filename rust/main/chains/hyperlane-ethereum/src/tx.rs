@@ -132,7 +132,7 @@ where
     let gas_limit = estimated_gas_limit;
     let (cached_latest_block, cached_eip1559_fee) = {
         let cache = cache.lock().await;
-        (cache.latest_block.clone(), cache.eip1559_fee.clone())
+        (cache.latest_block.clone(), cache.eip1559_fee)
     };
 
     // Cap the gas limit to the block gas limit
