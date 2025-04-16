@@ -292,7 +292,9 @@ const hyperlane: RootAgentConfig = {
       },
     ],
     defaultIsmCacheConfig,
-    allowContractCallCaching: true,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
@@ -328,7 +330,9 @@ const releaseCandidate: RootAgentConfig = {
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
     defaultIsmCacheConfig,
-    allowContractCallCaching: true,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
@@ -371,7 +375,11 @@ const neutron: RootAgentConfig = {
     ],
     gasPaymentEnforcement,
     defaultIsmCacheConfig,
-    allowContractCallCaching: true,
+    cache: {
+      enabled: true,
+      // Cache for 10 minutes
+      defaultExpirationSeconds: 10 * 60,
+    },
     resources: relayerResources,
   },
 };

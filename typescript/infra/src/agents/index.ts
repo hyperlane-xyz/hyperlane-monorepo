@@ -117,6 +117,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: 32,
+            bypassBatchSimulation: this.bypassBatchSimulation(),
             priorityFeeOracle,
             transactionSubmitter,
           };
@@ -140,6 +141,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
 
   kubernetesResources(): KubernetesResources | undefined {
     return this.config.agentRoleConfig.resources;
+  }
+
+  bypassBatchSimulation(): boolean {
+    return false;
   }
 }
 
@@ -206,6 +211,12 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       dbBootstrap: await this.dbBootstrapConfig(
         this.config.relayerConfig.dbBootstrap,
       ),
+      mixing: this.config.relayerConfig.mixing ?? { enabled: false },
+      // Enable by default in our infra
+      environmentVariableEndpointEnabled:
+        this.config.relayerConfig.environmentVariableEndpointEnabled ?? true,
+      cacheDefaultExpirationSeconds:
+        this.config.relayerConfig.cache?.defaultExpirationSeconds,
     };
 
     const signers = await this.config.signers();
@@ -228,6 +239,10 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     });
 
     return values;
+  }
+
+  bypassBatchSimulation(): boolean {
+    return this.config.relayerConfig.bypassBatchSimulation ?? false;
   }
 
   async dbBootstrapConfig(

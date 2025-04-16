@@ -45,6 +45,16 @@ export interface MetricAppContext {
   matchingList: MatchingList;
 }
 
+export interface RelayerMixingConfig {
+  enabled: boolean;
+  salt?: string;
+}
+
+export interface RelayerCacheConfig {
+  enabled: boolean;
+  defaultExpirationSeconds?: number;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -55,8 +65,11 @@ export interface BaseRelayerConfig {
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   defaultIsmCacheConfig?: IsmCacheConfig;
-  allowContractCallCaching?: boolean;
   dbBootstrap?: boolean;
+  mixing?: RelayerMixingConfig;
+  bypassBatchSimulation?: boolean;
+  environmentVariableEndpointEnabled?: boolean;
+  cache?: RelayerCacheConfig;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -86,6 +99,12 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   configMapConfig?: RelayerConfigMapConfig;
   // Config for setting up the database
   dbBootstrap?: RelayerDbBootstrapConfig;
+  // Config for setting up the mixing service
+  mixing?: RelayerMixingConfig;
+  // Config for the environment variable endpoint
+  environmentVariableEndpointEnabled?: boolean;
+  // Config for the cache
+  cacheDefaultExpirationSeconds?: number;
 }
 
 export interface RelayerDbBootstrapConfig {
@@ -149,8 +168,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     if (baseConfig.defaultIsmCacheConfig) {
       relayerConfig.defaultIsmCacheConfig = baseConfig.defaultIsmCacheConfig;
     }
-    relayerConfig.allowContractCallCaching =
-      baseConfig.allowContractCallCaching;
+    relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
     return relayerConfig;
   }
 
