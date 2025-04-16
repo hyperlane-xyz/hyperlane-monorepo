@@ -5332,6 +5332,7 @@ version = "0.1.0"
 dependencies = [
  "abigen",
  "async-trait",
+ "dashmap",
  "derive-new",
  "ethers",
  "ethers-contract",
