@@ -358,34 +358,29 @@ const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   metal: stagingXERC20TokenAddress,
 };
 
-const stagingExtraLockboxLimits: XERC20LimitConfig = {
-  bufferCap: stagingDefaultBufferCap,
-  rateLimitPerSecond: stagingDefaultRateLimitPerSecond,
-};
-
 const stagingExtraLockboxes = {
   base: [
     {
       // usdt
       lockbox: '0xd28ca33022d41758bed4f1a31a99dde8fc4d89b3',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
     {
       // usdc
       lockbox: '0x50df545016d26735daacbbf5afda56dc17d8748b',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
   ],
   optimism: [
     {
       // usdc
       lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
     {
       // usdt
       lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
   ],
 };
