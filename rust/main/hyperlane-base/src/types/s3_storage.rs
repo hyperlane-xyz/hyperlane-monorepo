@@ -163,7 +163,7 @@ impl S3Storage {
     }
 
     /// A default ConfigLoader with timeout, region, and behavior version.
-    /// Unless overriden, credentials will be loaded from the env.
+    /// Unless overridden, credentials will be loaded from the env.
     fn default_aws_sdk_config_loader(&self) -> aws_config::ConfigLoader {
         ConfigLoader::default()
             .timeout_config(
