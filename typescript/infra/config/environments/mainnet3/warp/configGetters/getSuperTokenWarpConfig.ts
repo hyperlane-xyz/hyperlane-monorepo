@@ -49,9 +49,10 @@ type TypedSuperTokenChainMap<T> = {
 
 // Production
 const upperBufferCap = '20000000000000'; // 20M = 20 * 10^6 ^ 10^6
-const lowerBufferCap = '2000000000000'; // 2M = 10 * 10^6 ^ 10^6
+const middleBufferCap = '8000000000000'; // 8M = 8 * 10^6 ^ 10^6
+const lowerBufferCap = '2000000000000'; // 2M = 2 * 10^6 ^ 10^6
 const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
-  ethereum: '0',
+  ethereum: upperBufferCap,
   celo: upperBufferCap,
   optimism: upperBufferCap,
   base: upperBufferCap,
@@ -63,18 +64,19 @@ const productionBufferCapByChain: TypedSuperTokenChainMap<string> = {
   superseed: lowerBufferCap,
   lisk: lowerBufferCap,
   worldchain: '0',
-  sonic: '0',
-  bitlayer: '0',
-  ronin: '0',
-  mantle: '0',
-  metis: '0',
-  linea: '0',
-  metal: '0',
+  sonic: middleBufferCap,
+  bitlayer: lowerBufferCap,
+  ronin: lowerBufferCap,
+  mantle: middleBufferCap,
+  metis: lowerBufferCap,
+  linea: lowerBufferCap,
+  metal: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
+const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
 const lowerRateLimitPerSecond = '500000000'; // 0.5k/s = 0.5 * 10^3 ^ 10^6
 const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
-  ethereum: '0',
+  ethereum: productionDefaultRateLimitPerSecond,
   celo: productionDefaultRateLimitPerSecond,
   optimism: productionDefaultRateLimitPerSecond,
   base: productionDefaultRateLimitPerSecond,
@@ -86,13 +88,13 @@ const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
   superseed: lowerRateLimitPerSecond,
   lisk: lowerRateLimitPerSecond,
   worldchain: '0',
-  sonic: '0',
-  bitlayer: '0',
-  ronin: '0',
-  mantle: '0',
-  metis: '0',
-  linea: '0',
-  metal: '0',
+  sonic: middleRateLimitPerSecond,
+  bitlayer: lowerRateLimitPerSecond,
+  ronin: lowerRateLimitPerSecond,
+  mantle: middleRateLimitPerSecond,
+  metis: lowerRateLimitPerSecond,
+  linea: lowerRateLimitPerSecond,
+  metal: lowerRateLimitPerSecond,
 };
 
 const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
@@ -199,16 +201,12 @@ const productionOwnerOverridesByChain: ChainMap<
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
-const productionEthereumXERC20LockboxAddress = ethers.constants.AddressZero;
+const productionEthereumXERC20LockboxAddress =
+  '0x6D265C7dD8d76F25155F1a7687C693FDC1220D12';
 const productionCeloXERC20LockboxAddress =
   '0x5e5F4d6B03db16E7f00dE7C9AFAA53b92C8d1D42';
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
-
-const productionExtraLockboxLimits: XERC20LimitConfig = {
-  bufferCap: upperBufferCap,
-  rateLimitPerSecond: productionDefaultRateLimitPerSecond,
-};
 
 const zeroLimits: XERC20LimitConfig = {
   bufferCap: '0',
@@ -225,7 +223,7 @@ const productionExtraLockboxes = {
     {
       // usdc
       lockbox: '0xe92e51d99ae33114c60d9621fb2e1ec0acea7e30',
-      limits: productionExtraLockboxLimits,
+      limits: zeroLimits,
     },
   ],
   optimism: [
@@ -237,7 +235,7 @@ const productionExtraLockboxes = {
     {
       // usdt
       lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: productionExtraLockboxLimits,
+      limits: zeroLimits,
     },
   ],
 };
@@ -360,34 +358,29 @@ const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
   metal: stagingXERC20TokenAddress,
 };
 
-const stagingExtraLockboxLimits: XERC20LimitConfig = {
-  bufferCap: stagingDefaultBufferCap,
-  rateLimitPerSecond: stagingDefaultRateLimitPerSecond,
-};
-
 const stagingExtraLockboxes = {
   base: [
     {
       // usdt
       lockbox: '0xd28ca33022d41758bed4f1a31a99dde8fc4d89b3',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
     {
       // usdc
       lockbox: '0x50df545016d26735daacbbf5afda56dc17d8748b',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
   ],
   optimism: [
     {
       // usdc
       lockbox: '0x18c4cdc2d774c047eac8375bb09853c4d6d6df36',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
     {
       // usdt
       lockbox: '0x07e437d73e9e43ceece6ea14085b26159e3f7f31',
-      limits: stagingExtraLockboxLimits,
+      limits: zeroLimits,
     },
   ],
 };
