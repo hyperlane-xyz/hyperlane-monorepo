@@ -17,7 +17,7 @@ use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use hyperlane_core::{
     utils::bytes_to_hex, BatchItem, ChainCommunicationError, ChainResult, ContractLocator,
@@ -419,6 +419,19 @@ where
         let outcome = report_tx(call_with_gas_overrides).await?;
         Ok(BatchResult::new(Some(outcome.into()), vec![]))
     }
+
+    async fn simulate_and_submit_batch(
+        &self,
+        multicall: &mut Multicall<M>,
+        contract_calls: Vec<ContractCall<M, ()>>,
+        cached_block: Option<Block<TxHash>>,
+        cached_eip1559_fee: Option<Eip1559Fee>,
+    ) -> ChainResult<BatchResult> {
+        let batch_simulation = self.simulate_batch(multicall, contract_calls).await?;
+        batch_simulation
+            .try_submit(cached_block, cached_eip1559_fee)
+            .await
+    }
 }
 
 #[derive(new)]
@@ -605,7 +618,7 @@ where
                 &self.domain,
                 true,
                 Some(latest_block.clone()),
-                eip1559_fee_cache.clone(),
+                eip1559_fee_cache,
             )
         });
         let contract_calls = join_all(filled_tx_params_futures)
@@ -613,20 +626,23 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_simulation = self.simulate_batch(&mut multicall, contract_calls).await?;
-        batch_simulation
-            .try_submit(Some(latest_block), eip1559_fee_cache)
+        if true {
+            self.simulate_and_submit_batch(
+                &mut multicall,
+                contract_calls,
+                Some(latest_block.clone()),
+                eip1559_fee_cache,
+            )
             .await
-
-        // info!("done");
-        // panic!("TODO: remove this panic");
-        // self.submit_multicall(
-        //     &mut multicall,
-        //     contract_calls,
-        //     Some(latest_block),
-        //     eip1559_fee_cache,
-        // )
-        // .await
+        } else {
+            self.submit_multicall(
+                &mut multicall,
+                contract_calls,
+                Some(latest_block),
+                eip1559_fee_cache,
+            )
+            .await
+        }
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

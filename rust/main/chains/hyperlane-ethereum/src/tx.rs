@@ -19,8 +19,7 @@ use ethers_core::{
     },
 };
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256,
-    U256,
+    ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256, U256,
 };
 use tracing::{debug, error, info, warn};
 
@@ -60,12 +59,6 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let data = tx
-        .tx
-        .data()
-        .map(|b| bytes_to_hex(b))
-        .unwrap_or_else(|| "None".into());
-
     let to = tx
         .tx
         .to()

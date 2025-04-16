@@ -27,9 +27,9 @@ pub async fn build_multicall<M: Middleware + 'static>(
         .batch_contract_address
         .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
     let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
-    // if !ethereum_provider.is_contract(&address).await? {
-    //     return Err(eyre::eyre!("Multicall contract not found at address"));
-    // }
+    if !ethereum_provider.is_contract(&address).await? {
+        return Err(eyre::eyre!("Multicall contract not found at address"));
+    }
     let multicall = match Multicall::new(provider.clone(), Some(address.into())).await {
         Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
         Err(err) => {
