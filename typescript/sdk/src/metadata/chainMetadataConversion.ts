@@ -19,8 +19,8 @@ export function chainMetadataToViemChain(metadata: ChainMetadata): Chain {
     network: metadata.name,
     nativeCurrency: metadata.nativeToken || test1.nativeToken!,
     rpcUrls: {
-      public: { http: [...rpcUrls] },
-      default: { http: [...rpcUrls] },
+      public: { http: rpcUrls },
+      default: { http: rpcUrls },
     },
     blockExplorers: metadata.blockExplorers?.length
       ? {
