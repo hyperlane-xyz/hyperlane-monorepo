@@ -102,18 +102,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       ]);
       const process = hyperlaneWarpRebalancer(warpRouteId, 1000);
 
-      // Verify that it logs the correct collateral
+      // Verify that it logs an expected output
       for await (const chunk of process.stdout) {
         if (
-          chunk.includes(`┌─────────┬──────────┬────────────┬─────────┐
-│ (index) │ name     │ collateral │ symbol  │
-├─────────┼──────────┼────────────┼─────────┤
-│ 0       │ 'anvil2' │ 49         │ 'TOKEN' │
-│ 1       │ 'anvil3' │ 51         │ 'TOKEN' │
-└─────────┴──────────┴────────────┴─────────┘
-`)
+          chunk.includes(`Executing strategy event: {
+  route: [
+    {
+      origin: 'anvil2',
+      destination: 'anvil2',
+      token: '0x59b670e9fA9D0A427751Af201D676719a970857b',
+      amount: 49000000000000000000n
+    },
+    {
+      origin: 'anvil3',
+      destination: 'anvil3',
+      token: '0x59b670e9fA9D0A427751Af201D676719a970857b',
+      amount: 51000000000000000000n
+    }
+  ]`)
         ) {
-          process.kill('SIGINT');
+          process.kill();
           break;
         }
       }

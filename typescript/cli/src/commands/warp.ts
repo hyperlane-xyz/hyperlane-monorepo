@@ -20,9 +20,16 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
-import { HyperlaneRebalancer } from '../rebalancer/rebalancer.js';
+import {
+  Executor,
+  IExecutor,
+  IMonitor,
+  IStrategy,
+  Monitor,
+  Strategy,
+} from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -423,25 +430,30 @@ export const rebalancer: CommandModuleWithContext<{
   handler: async ({ context, warpRouteId, checkFrequency }) => {
     logCommandHeader('Hyperlane Warp Rebalancer');
 
-    const rebalancer = new HyperlaneRebalancer(
+    // Instantiates the warp route monitor
+    const monitor: IMonitor = new Monitor(
       context.registry,
       warpRouteId,
       checkFrequency,
     );
 
-    try {
-      await rebalancer.start();
-      logGreen('Rebalancer started successfully 🚀');
-    } catch (error) {
-      logRed(`Could not start the rebalancer: ${error}`);
-      rebalancer.stop();
-      process.exit(1);
-    }
+    // Instantiates the strategy that will process monitor events and determine whether a rebalance is needed
+    const strategy: IStrategy = new Strategy();
 
-    process.once('SIGINT', () => {
-      rebalancer.stop();
-      process.exit(0);
-    });
+    // Instantiates the executor that will process strategy results and execute the rebalance
+    const executor: IExecutor = new Executor();
+
+    // Subscribes the strategy to the monitor
+    monitor.subscribe((event) => strategy.handleMonitorEvent(event));
+
+    // Subscribes the executor to the strategy
+    strategy.subscribe((event) => executor.handleStrategyEvent(event));
+
+    // Starts the monitor to begin polling balances.
+    // This will keep running until the process is terminated
+    await monitor.start();
+
+    logGreen('Rebalancer started successfully 🚀');
   },
 };
 
