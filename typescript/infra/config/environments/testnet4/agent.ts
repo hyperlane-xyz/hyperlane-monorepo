@@ -230,6 +230,8 @@ const scraperResources = {
   },
 };
 
+// Kessel is a load test, these are contracts involved in the load
+// test that we want to have certain relayers focus on or ignore.
 const kesselMatchingList = [
   {
     recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
@@ -269,7 +271,7 @@ const ismCacheConfigs: Array<IsmCacheConfig> = [
   {
     selector: {
       type: IsmCacheSelectorType.AppContext,
-      data: kesselAppContext,
+      context: kesselAppContext,
     },
     // Default ISM Routing ISMs change configs based off message content,
     // so they are not specified here.

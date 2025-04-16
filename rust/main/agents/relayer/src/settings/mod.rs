@@ -477,7 +477,7 @@ mod test {
             {
                 "selector": {
                     "type": "appContext",
-                    "data": "foo"
+                    "context": "foo"
                 },
                 "moduletypes": [2],
                 "chains": ["foochain"],

@@ -211,11 +211,13 @@ pub enum IsmCachePolicy {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
-#[serde(tag = "type", content = "data", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum IsmCacheSelector {
     #[default]
     DefaultIsm,
-    AppContext(String),
+    AppContext {
+        context: String,
+    },
 }
 
 /// Configuration for ISM caching behavior.
@@ -286,19 +288,15 @@ impl IsmCachePolicyClassifier {
                     let default_ism = match self.default_ism_getter.get().await {
                         Ok(default_ism) => default_ism,
                         Err(err) => {
-                            tracing::warn!(?err, "Error fetching default ISM for ISM cache policy, falling back to default cache policy");
-                            return IsmCachePolicy::default();
+                            tracing::warn!(?err, "Error fetching default ISM for ISM cache policy, attempting next config");
+                            continue;
                         }
                     };
                     root_ism == default_ism
                 }
-                IsmCacheSelector::AppContext(selector_app_context) => {
-                    if let Some(app_context) = app_context {
-                        app_context == selector_app_context
-                    } else {
-                        false
-                    }
-                }
+                IsmCacheSelector::AppContext {
+                    context: selector_app_context,
+                } => app_context.map_or(false, |app_context| app_context == selector_app_context),
             };
 
             if matches_module
@@ -366,7 +364,7 @@ mod tests {
         {
             "selector": {
                 "type": "appContext",
-                "data": "foo"
+                "context": "foo"
             },
             "moduletypes": [2],
             "chains": ["foochain"],
@@ -376,7 +374,9 @@ mod tests {
         let config: IsmCacheConfig = serde_json::from_str(json).unwrap();
         assert_eq!(
             config.selector,
-            IsmCacheSelector::AppContext("foo".to_string())
+            IsmCacheSelector::AppContext {
+                context: "foo".to_string(),
+            },
         );
     }
 
@@ -434,7 +434,9 @@ mod tests {
         let default_ism_getter = DefaultIsmCache::new(mailbox);
 
         let app_context_cache_config = IsmCacheConfig {
-            selector: IsmCacheSelector::AppContext("foo".to_string()),
+            selector: IsmCacheSelector::AppContext {
+                context: "foo".to_string(),
+            },
             module_types: HashSet::from([ModuleType::Aggregation]),
             chains: Some(HashSet::from(["foochain".to_owned()])),
             cache_policy: IsmCachePolicy::IsmSpecific,
@@ -496,7 +498,9 @@ mod tests {
         let default_ism_getter = DefaultIsmCache::new(mailbox);
 
         let app_context_cache_config = IsmCacheConfig {
-            selector: IsmCacheSelector::AppContext("foo".to_string()),
+            selector: IsmCacheSelector::AppContext {
+                context: "foo".to_string(),
+            },
             module_types: HashSet::from([ModuleType::Aggregation]),
             chains: Some(HashSet::from(["foochain".to_owned()])),
             cache_policy: IsmCachePolicy::IsmSpecific,

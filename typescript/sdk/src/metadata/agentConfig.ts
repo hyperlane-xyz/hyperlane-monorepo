@@ -366,7 +366,7 @@ const IsmCacheSelector = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal(IsmCacheSelectorType.AppContext),
-    data: z.string(),
+    context: z.string(),
   }),
 ]);
 
