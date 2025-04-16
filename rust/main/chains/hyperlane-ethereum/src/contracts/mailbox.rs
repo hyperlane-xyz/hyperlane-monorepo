@@ -365,7 +365,6 @@ where
         contract_calls: Vec<ContractCall<M, ()>>,
     ) -> ChainResult<BatchSimulation<M>> {
         let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
-        // batch.send().await?;
         let call_results = batch.call().await?;
 
         let failed_calls = contract_calls
