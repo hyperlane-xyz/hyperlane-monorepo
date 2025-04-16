@@ -2,122 +2,42 @@ import { expect } from 'chai';
 import { promises as fs } from 'fs';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { dirname, join } from 'path';
-import sinon from 'sinon';
 import { fileURLToPath } from 'url';
 
-import { StarknetArtifactGenerator } from '../../scripts/generate-artifacts.js';
+import { StarknetArtifactGenerator } from '../../scripts/StarknetArtifactGenerator.js';
 import { CONTRACT_SUFFIXES } from '../../src/const.js';
 import { ContractClass, ContractType } from '../../src/types.js';
 
+import {
+  createMockContractFiles,
+  createMockSierraArtifact,
+} from './mock-sierra.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const TEST_ROOT = join(__dirname, '../fixtures');
-const TEST_RELEASE_DIR = join(TEST_ROOT, 'release');
-const TEST_OUTPUT_DIR = join(TEST_ROOT, 'dist/artifacts');
-
-const createMockSierraArtifact = () => ({
-  contract_class_version: '0.1.0',
-  entry_points_by_type: {
-    EXTERNAL: [
-      {
-        selector:
-          '0x52580a92c73f4428f1a260c5d768ef462b25955307de00f99957df119865d',
-        function_idx: 11,
-      },
-    ],
-    L1_HANDLER: [],
-    CONSTRUCTOR: [
-      {
-        selector:
-          '0x28ffe4ff0f226a9107253e17a904099aa4f63a02a5621de0576e5aa71bc5194',
-        function_idx: 12,
-      },
-    ],
-  },
-  abi: [
-    {
-      type: 'interface',
-      name: 'contracts::interfaces::IInterchainSecurityModule',
-      items: [
-        {
-          type: 'function',
-          name: 'verify',
-          inputs: [
-            {
-              name: '_metadata',
-              type: 'alexandria_bytes::bytes::Bytes',
-            },
-            {
-              name: '_message',
-              type: 'contracts::libs::message::Message',
-            },
-          ],
-          outputs: [{ type: 'core::bool' }],
-          state_mutability: 'view',
-        },
-      ],
-    },
-    {
-      type: 'function',
-      name: 'test_function',
-      inputs: [],
-      outputs: [{ type: 'felt' }],
-    },
-  ],
-  sierra_program: [1, 2, 3],
-});
-
-const TEST_CONTRACTS = [
-  { name: 'contracts_Test', type: ContractType.CONTRACT },
-  { name: 'token_HypERC20', type: ContractType.TOKEN },
-  { name: 'mocks_MockContract', type: ContractType.MOCK },
-];
-
-async function createMockContractFiles() {
-  for (const contract of TEST_CONTRACTS) {
-    const filePath = join(
-      TEST_RELEASE_DIR,
-      `${contract.name}${CONTRACT_SUFFIXES.SIERRA_JSON}`,
-    );
-    await fs.writeFile(filePath, JSON.stringify(createMockSierraArtifact()));
-  }
-}
+const TMP_DIR = join(__dirname, '../tmp');
+const TEST_RELEASE_DIR = join(TMP_DIR, 'release');
+const TEST_OUTPUT_DIR = join(TMP_DIR, 'dist/artifacts');
 
 describe('StarknetArtifactGenerator', () => {
   let generator: StarknetArtifactGenerator;
-  let consoleLogStub: sinon.SinonStub;
-  let consoleErrorStub: sinon.SinonStub;
-  let getArtifactPathsStub: sinon.SinonStub;
 
   beforeEach(async () => {
-    await fs.mkdir(TEST_ROOT, { recursive: true });
-    await fs.mkdir(join(TEST_ROOT, 'dist'), { recursive: true });
+    await fs.mkdir(TMP_DIR, { recursive: true });
+    await fs.mkdir(join(TMP_DIR, 'dist'), { recursive: true });
     await fs.mkdir(TEST_RELEASE_DIR, { recursive: true });
     await fs.mkdir(TEST_OUTPUT_DIR, { recursive: true });
 
-    consoleLogStub = sinon.stub(console, 'log');
-    consoleErrorStub = sinon.stub(console, 'error');
-
-    await createMockContractFiles();
+    await createMockContractFiles(TEST_RELEASE_DIR);
 
     generator = new StarknetArtifactGenerator(
       TEST_RELEASE_DIR,
       TEST_OUTPUT_DIR,
     );
-
-    getArtifactPathsStub = sinon.stub(generator, 'getArtifactPaths');
-    getArtifactPathsStub.resolves({
-      sierraFiles: TEST_CONTRACTS.map((c) =>
-        join(TEST_RELEASE_DIR, `${c.name}${CONTRACT_SUFFIXES.SIERRA_JSON}`),
-      ),
-    });
   });
 
   afterEach(async () => {
-    consoleLogStub.restore();
-    consoleErrorStub.restore();
-    getArtifactPathsStub.restore();
-    await fs.rm(TEST_ROOT, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(TMP_DIR, { recursive: true, force: true }).catch(() => {});
   });
 
   describe('Contract Classification', () => {
@@ -168,10 +88,9 @@ describe('StarknetArtifactGenerator', () => {
 
       expect(artifact).to.deep.include({
         contract_class_version: '0.1.0',
-        sierra_program: [1, 2, 3],
+        sierra_program: [],
       });
-      expect(artifact.abi).to.be.a('string');
-      expect(JSON.parse(artifact.abi)).to.be.an('array').with.lengthOf(1);
+      expect(artifact.abi).to.be.an('array');
     });
   });
 
@@ -189,7 +108,6 @@ describe('StarknetArtifactGenerator', () => {
       expect(jsContent).to.include('contract_class_version');
       expect(jsContent).to.include('"abi":');
       expect(jsContent).to.include('test_function');
-
       expect(jsContent).to.include('"sierra_program":[]');
       expect(jsContent).to.not.include('"sierra_program":[1,2,3]');
     });
@@ -292,6 +210,21 @@ describe('StarknetArtifactGenerator', () => {
       expect(jsContent).to.include('export const contracts_Test =');
       expect(jsContent).to.include('"sierra_program":[]');
     });
+
+    it('handles malformed artifact files', async () => {
+      const malformedFilePath = join(
+        TEST_RELEASE_DIR,
+        `malformed${CONTRACT_SUFFIXES.SIERRA_JSON}`,
+      );
+      await fs.writeFile(malformedFilePath, '{ this is not valid JSON }');
+
+      try {
+        await generator.generate();
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error).to.be.an('Error');
+      }
+    });
   });
 
   describe('End-to-End Process', () => {
@@ -313,15 +246,38 @@ describe('StarknetArtifactGenerator', () => {
       expect(indexDts).to.include(
         'export declare const starknetContracts: StarknetContracts',
       );
+    });
 
-      expect(consoleLogStub.calledOnce).to.be.true;
-      expect(consoleLogStub.firstCall.args[0]).to.equal(
-        'Successfully processed 3 Starknet contracts',
+    it('handles files with unexpected naming patterns', async () => {
+      const oddNamedFilePath = join(
+        TEST_RELEASE_DIR,
+        'unusual_name.contract_class.json',
       );
+      await fs.writeFile(
+        oddNamedFilePath,
+        JSON.stringify(createMockSierraArtifact()),
+      );
+
+      await generator.generate();
+
+      expect(generator['processedFiles'].size).to.equal(4);
+      expect(generator['processedFiles'].has('unusual_name')).to.be.true;
+
+      const fileInfo = generator['processedFiles'].get('unusual_name');
+      expect(fileInfo?.type).to.equal(ContractType.CONTRACT);
+      expect(fileInfo?.sierra).to.be.true;
+
+      const jsPath = join(
+        TEST_OUTPUT_DIR,
+        `unusual_name.${ContractClass.SIERRA}.js`,
+      );
+      const dtsPath = join(
+        TEST_OUTPUT_DIR,
+        `unusual_name.${ContractClass.SIERRA}.d.ts`,
+      );
+
+      await fs.access(jsPath);
+      await fs.access(dtsPath);
     });
   });
-
-  // TODO: Add test for error handling during artifact processing
-  // TODO: Add test for handling malformed artifact files
-  // TODO: Add test for handling files with unexpected naming patterns
 });
