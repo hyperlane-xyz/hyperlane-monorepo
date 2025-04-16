@@ -6,7 +6,10 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
 import { regularSafes } from '../../../config/environments/mainnet3/governance/safe/regular.js';
-import { SIGNERS } from '../../../config/environments/mainnet3/governance/safe/safeConfig.js';
+import {
+  SIGNERS,
+  THRESHOLD,
+} from '../../../config/environments/mainnet3/governance/safe/safeConfig.js';
 import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { Role } from '../../../src/roles.js';
