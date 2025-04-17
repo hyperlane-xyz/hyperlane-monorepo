@@ -375,6 +375,27 @@ export async function updateSafeOwner({
     });
   }
 
+  if (
+    ownersToRemove.length === 0 &&
+    ownersToAdd.length === 0 &&
+    currentThreshold !== newThreshold
+  ) {
+    rootLogger.info(
+      chalk.magentaBright(
+        `Threshold change ${currentThreshold} => ${newThreshold}`,
+      ),
+    );
+    const { data: thresholdTxData } = await safeSdk.createChangeThresholdTx(
+      newThreshold,
+    );
+    transactions.push({
+      to: thresholdTxData.to,
+      data: thresholdTxData.data,
+      value: BigNumber.from(thresholdTxData.value),
+      description: `Change safe threshold to ${newThreshold}`,
+    });
+  }
+
   return transactions;
 }
 
