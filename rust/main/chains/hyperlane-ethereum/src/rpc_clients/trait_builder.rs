@@ -292,7 +292,7 @@ where
     // tx hash stops being tracked.
     const EVERY_SECS: u64 = PENDING_TX_TIMEOUT_SECS;
     // a 50k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
-    const MAX_GAS_PRICE: u128 = 50_000 * 10u128.pow(9);
+    const MAX_GAS_PRICE: u128 = 3_000 * 10u128.pow(9);
     let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
     // which adds unnecessary load on the provider.
