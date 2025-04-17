@@ -273,15 +273,18 @@ impl ValidatorSubmitter {
         checkpoint: CheckpointWithMessageId,
     ) -> ChainResult<()> {
         let start = Instant::now();
-        let existing = self.checkpoint_syncer.fetch_checkpoint(999999999).await?;
+        let existing = self
+            .checkpoint_syncer
+            .fetch_checkpoint(checkpoint.index)
+            .await?;
         tracing::info!(
             elapsed=?start.elapsed(),
             "Fetched checkpoint from checkpoint storage",
         );
-        // if existing.is_some() {
-        //     debug!(index = checkpoint.index, "Checkpoint already submitted");
-        //     return Ok(());
-        // }
+        if existing.is_some() {
+            debug!(index = checkpoint.index, "Checkpoint already submitted");
+            return Ok(());
+        }
         let start = Instant::now();
         let signed_checkpoint = self.signer.sign(checkpoint).await?;
         tracing::info!(
@@ -306,26 +309,13 @@ impl ValidatorSubmitter {
 
     /// Signs and submits any previously unsubmitted checkpoints.
     async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
-        let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
+        let last_checkpoint_index = checkpoints[checkpoints.len() - 1].index;
 
         const MAX_CONCURRENCY: usize = 50;
 
-        // for checkpoint_chunk in checkpoints.into_iter().rev().chunks(MAX_CONCURRENCY).into_iter() {
-        //     let start = Instant::now();
-        //     let futures = checkpoint_chunk.map(|checkpoint| {
-        //         self.sign_and_submit_checkpoint(checkpoint)
-        //     });
-
-        //     futures::future::join_all(futures).await;
-        //     tracing::info!(
-        //         elapsed=?start.elapsed(),
-        //         "Signed and submitted checkpoint chunk",
-        //     );
-        // }
-
-        // const MAX_CONCURRENCY: usize = 15;
-
         let arc_self = Arc::new(self.clone());
+
+        let mut first_chunk = true;
 
         while !checkpoints.is_empty() {
             let start = Instant::now();
@@ -366,62 +356,26 @@ impl ValidatorSubmitter {
                 "Signed and submitted checkpoint chunk",
             );
 
-            call_and_retry_indefinitely(|| {
-                let self_clone = self.clone();
-                Box::pin(async move {
-                    let start = Instant::now();
-                    self_clone
-                        .checkpoint_syncer
-                        .update_latest_index(last_checkpoint.index)
-                        .await?;
-                    tracing::info!(
-                        elapsed=?start.elapsed(),
-                        "Updated latest index",
-                    );
-                    Ok(())
+            if first_chunk {
+                call_and_retry_indefinitely(|| {
+                    let self_clone = self.clone();
+                    Box::pin(async move {
+                        let start = Instant::now();
+                        self_clone
+                            .checkpoint_syncer
+                            .update_latest_index(last_checkpoint_index)
+                            .await?;
+                        tracing::info!(
+                            elapsed=?start.elapsed(),
+                            "Updated latest index",
+                        );
+                        Ok(())
+                    })
                 })
-            })
-            .await;
+                .await;
+                first_chunk = false;
+            }
         }
-
-        // // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
-        // // since those are the most likely to make messages become processable.
-        // // A side effect is that new checkpoints will also be submitted in reverse order.
-        // for queued_checkpoint in checkpoints.into_iter().rev() {
-        //     // certain checkpoint stores rate limit very aggressively, so we retry indefinitely
-        // call_and_retry_indefinitely(|| {
-        //     let self_clone = self.clone();
-        //     Box::pin(async move {
-        //         let start = Instant::now();
-        //         self_clone
-        //             .sign_and_submit_checkpoint(queued_checkpoint)
-        //             .await?;
-        //         tracing::info!(
-        //             elapsed=?start.elapsed(),
-        //             "Signed and submitted checkpoint",
-        //         );
-        //         Ok(())
-        //     })
-        // })
-        // .await;
-        // }
-
-        call_and_retry_indefinitely(|| {
-            let self_clone = self.clone();
-            Box::pin(async move {
-                let start = Instant::now();
-                self_clone
-                    .checkpoint_syncer
-                    .update_latest_index(last_checkpoint.index)
-                    .await?;
-                tracing::info!(
-                    elapsed=?start.elapsed(),
-                    "Updated latest index",
-                );
-                Ok(())
-            })
-        })
-        .await;
     }
 }
 
