@@ -307,6 +307,23 @@ export async function deleteSafeTx(
   }
 }
 
+export async function getOwnerChanges(
+  currentOwners: Address[],
+  expectedOwners: Address[],
+): Promise<{
+  ownersToRemove: Address[];
+  ownersToAdd: Address[];
+}> {
+  const ownersToRemove = currentOwners.filter(
+    (owner) => !expectedOwners.some((newOwner) => eqAddress(owner, newOwner)),
+  );
+  const ownersToAdd = expectedOwners.filter(
+    (newOwner) => !currentOwners.some((owner) => eqAddress(newOwner, owner)),
+  );
+
+  return { ownersToRemove, ownersToAdd };
+}
+
 export async function updateSafeOwner({
   safeSdk,
   owners,
@@ -320,13 +337,11 @@ export async function updateSafeOwner({
   const newThreshold = threshold ?? currentThreshold;
 
   const currentOwners = await safeSdk.getOwners();
-  const newOwners = owners ?? currentOwners;
+  const expectedOwners = owners ?? currentOwners;
 
-  const ownersToRemove = currentOwners.filter(
-    (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
-  );
-  const ownersToAdd = newOwners.filter(
-    (newOwner) => !currentOwners.some((owner) => eqAddress(newOwner, owner)),
+  const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+    currentOwners,
+    expectedOwners,
   );
 
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
