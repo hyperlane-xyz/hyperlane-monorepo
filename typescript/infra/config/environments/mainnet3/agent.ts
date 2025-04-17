@@ -892,6 +892,14 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     },
     resources: relayerResources,
     dbBootstrap: true,
+    batch: {
+      defaultBatchSize: 32,
+      batchSizeOverrides: {
+        // Slightly lower to ideally fit within 5M
+        ethereum: 23,
+      },
+      bypassBatchSimulation: true,
+    },
   },
 });
 

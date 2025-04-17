@@ -55,6 +55,12 @@ export interface RelayerCacheConfig {
   defaultExpirationSeconds?: number;
 }
 
+export interface RelayerBatchConfig {
+  bypassBatchSimulation?: boolean;
+  defaultBatchSize?: number;
+  batchSizeOverrides?: ChainMap<number>;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -67,9 +73,9 @@ export interface BaseRelayerConfig {
   ismCacheConfigs?: Array<IsmCacheConfig>;
   dbBootstrap?: boolean;
   mixing?: RelayerMixingConfig;
-  bypassBatchSimulation?: boolean;
   environmentVariableEndpointEnabled?: boolean;
   cache?: RelayerCacheConfig;
+  batch?: RelayerBatchConfig;
 }
 
 // Full relayer-specific agent config for a single chain

@@ -458,6 +458,10 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
       // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
       salt: 69690 + index,
     },
+    batch: {
+      defaultBatchSize: 32,
+      bypassBatchSimulation: true,
+    },
   },
 });
 

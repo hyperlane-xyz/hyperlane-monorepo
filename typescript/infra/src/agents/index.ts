@@ -20,6 +20,7 @@ import {
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import {
+  RelayerBatchConfig,
   RelayerConfigHelper,
   RelayerConfigMapConfig,
   RelayerDbBootstrapConfig,
@@ -52,6 +53,11 @@ const HELM_CHART_PATH = join(
   getInfraPath(),
   '/../../rust/main/helm/hyperlane-agent/',
 );
+
+export interface BatchConfig {
+  maxBatchSize: number;
+  bypassBatchSimulation: boolean;
+}
 
 export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
   abstract readonly role: AgentRole;
@@ -111,13 +117,15 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
               );
           }
 
+          const batchConfig = this.batchConfig(chain);
+
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
-            maxBatchSize: 32,
-            bypassBatchSimulation: this.bypassBatchSimulation(),
+            maxBatchSize: batchConfig.maxBatchSize,
+            bypassBatchSimulation: batchConfig.bypassBatchSimulation,
             priorityFeeOracle,
             transactionSubmitter,
           };
@@ -143,8 +151,11 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
     return this.config.agentRoleConfig.resources;
   }
 
-  bypassBatchSimulation(): boolean {
-    return false;
+  batchConfig(chain: ChainName): BatchConfig {
+    return {
+      maxBatchSize: 32,
+      bypassBatchSimulation: false,
+    };
   }
 }
 
@@ -241,8 +252,24 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     return values;
   }
 
-  bypassBatchSimulation(): boolean {
-    return this.config.relayerConfig.bypassBatchSimulation ?? false;
+  batchConfig(chain: ChainName): BatchConfig {
+    const defaultBatchConfig = super.batchConfig(chain);
+
+    let maxBatchSize =
+      this.config.relayerConfig.batch?.defaultBatchSize ??
+      defaultBatchConfig.maxBatchSize;
+    const chainBatchSizeOverride =
+      this.config.relayerConfig.batch?.batchSizeOverrides?.[chain];
+    if (chainBatchSizeOverride) {
+      maxBatchSize = chainBatchSizeOverride;
+    }
+
+    return {
+      maxBatchSize,
+      bypassBatchSimulation:
+        this.config.relayerConfig.batch?.bypassBatchSimulation ??
+        defaultBatchConfig.bypassBatchSimulation,
+    };
   }
 
   async dbBootstrapConfig(
