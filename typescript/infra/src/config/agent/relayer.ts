@@ -77,6 +77,8 @@ export interface BaseRelayerConfig {
   cache?: RelayerCacheConfig;
   batch?: RelayerBatchConfig;
   maxSubmitQueueLength?: number;
+  txIdIndexingEnabled?: boolean;
+  igpIndexingEnabled?: boolean;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -178,6 +180,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;
     }
     relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
+    relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
+    relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
+
     return relayerConfig;
   }
 
