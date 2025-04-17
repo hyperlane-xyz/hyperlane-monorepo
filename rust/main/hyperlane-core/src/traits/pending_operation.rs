@@ -192,6 +192,8 @@ pub enum PendingOperationStatus {
     /// The operation is ready to be prepared again, with the given reason
     #[strum(to_string = "Retry({0})")]
     Retry(ReprepareReason),
+    /// The operation is ready to be checked for delivery before submit
+    ReadyToDeliveryCheckBeforeSubmit,
     /// The operation is ready to be submitted
     ReadyToSubmit,
     /// The operation has been submitted and is awaiting confirmation
