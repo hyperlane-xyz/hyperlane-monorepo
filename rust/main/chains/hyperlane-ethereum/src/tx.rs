@@ -166,9 +166,13 @@ where
         Some(fee) => Ok(fee),
         None => estimate_eip1559_fees(provider.clone(), None, &latest_block, domain, &tx.tx).await,
     };
-    let Ok((base_fee, max_fee, max_priority_fee)) = eip1559_fee_result else {
-        // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit));
+    let (base_fee, max_fee, max_priority_fee) = match eip1559_fee_result {
+        Ok(result) => result,
+        Err(err) => {
+            warn!(?err, "Failed to estimate EIP-1559 fees");
+            // Assume it's not an EIP 1559 chain
+            return Ok(tx.gas(gas_limit));
+        }
     };
 
     // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
