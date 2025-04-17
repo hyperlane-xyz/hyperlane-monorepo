@@ -611,32 +611,16 @@ where
                 )
             })
             .collect::<ChainResult<Vec<_>>>()?;
+        // these two we do in parallel
+        let res = self
+            .simulate_batch(&mut multicall, contract_calls.clone())
+            .await?;
         if let Some(contract_call) = contract_calls.first() {
             self.refresh_block_and_fee_cache(&contract_call.tx).await?;
         }
-        let filled_tx_params_futures = contract_calls.iter().map(|tx| {
-            fill_tx_gas_params(
-                tx.clone(),
-                self.provider.clone(),
-                &self.conn.transaction_overrides,
-                &self.domain,
-                true,
-                self.cache.clone(),
-            )
-        });
-        let contract_calls = join_all(filled_tx_params_futures)
-            .await
-            .into_iter()
-            .collect::<ChainResult<Vec<_>>>()?;
 
-        if self.conn.operation_batch.bypass_batch_simulation {
-            // submit the tx without checking if subcalls would revert
-            self.submit_multicall(&mut multicall, contract_calls, self.cache.clone())
-                .await
-        } else {
-            self.simulate_and_submit_batch(&mut multicall, contract_calls, self.cache.clone())
-                .await
-        }
+        // and then submit
+        res.try_submit(self.cache.clone()).await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
