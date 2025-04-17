@@ -10,12 +10,16 @@ const __dirname = dirname(__filename);
 const DEFAULT_ROOT_OUTPUT_DIR = join(__dirname, '../dist/artifacts/');
 const DEFAULT_COMPILED_CONTRACTS_DIR = join(cwd, 'release');
 
-new StarknetArtifactGenerator(
-  DEFAULT_COMPILED_CONTRACTS_DIR,
-  DEFAULT_ROOT_OUTPUT_DIR,
-)
-  .generate()
-  .then((processedFiles) => {
+(async () => {
+  try {
+    const generator = new StarknetArtifactGenerator(
+      DEFAULT_COMPILED_CONTRACTS_DIR,
+      DEFAULT_ROOT_OUTPUT_DIR,
+    );
+    const processedFiles = await generator.generate();
     console.log(`Successfully generated ${processedFiles.size} artifacts`);
-  })
-  .catch(console.error);
+  } catch (error) {
+    console.error('Artifact generation failed:', error);
+    process.exit(1);
+  }
+})();
