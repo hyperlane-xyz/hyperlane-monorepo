@@ -1,4 +1,3 @@
-import { confirm } from '@inquirer/prompts';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -11,16 +10,6 @@ import {
 
 async function printOwnerAndRelayerBalances() {
   const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
-
-  const userConfirmation = await confirm({
-    message: 'Do you want to top up the balances?',
-    default: false,
-  });
-
-  if (!userConfirmation) {
-    rootLogger.info('Top up operation cancelled.');
-    process.exit(0);
-  }
 
   await setDeployerKey(multiProvider);
 
@@ -39,12 +28,19 @@ async function printOwnerAndRelayerBalances() {
             formatUnits(entityBalance, decimals),
           );
 
-          // Determine top up amount based on chain and entity type
-          const topUpAmount =
+          // default to 1 token
+          let topUpAmount = 1;
+          // vanguard entities get 2 tokens
+          if (entityType.startsWith('vanguard')) {
+            topUpAmount = 2;
+          }
+          // kesselrunner on bsctestnet & arbitrumsepolia get 10 tokens
+          else if (
             ['bsctestnet', 'arbitrumsepolia'].includes(chain) &&
             entityType === 'owner'
-              ? 10
-              : 1;
+          ) {
+            topUpAmount = 10;
+          }
 
           if (formattedEntityBalance < topUpAmount) {
             const topUpValue = parseUnits(
