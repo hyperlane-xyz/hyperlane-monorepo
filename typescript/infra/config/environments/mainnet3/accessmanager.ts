@@ -25,22 +25,21 @@ export type ManagedContracts = {
 
 const DAY = 24 * 60 * 60;
 
-const foundation = {
-  guardian: Roles.SecurityCouncil,
-  members: new Set([
-    '0x0000000000000000000000000000000000000001', // replace with actual addresses
-  ]),
-};
+const FOUNDATION = '0x0000000000000000000000000000000000000001'; // replace with actual addresses
 
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
-    [Roles.ADMIN]: foundation,
+    [Roles.ADMIN]: {
+      members: new Set([FOUNDATION]),
+    },
     [Roles.Fast]: {
-      ...foundation,
+      guardian: Roles.SecurityCouncil,
+      members: new Set([FOUNDATION]),
       executionDelay: 7 * DAY,
     },
     [Roles.Slow]: {
-      ...foundation,
+      guardian: Roles.SecurityCouncil,
+      members: new Set([FOUNDATION]),
       executionDelay: 30 * DAY,
     },
     [Roles.SecurityCouncil]: {
