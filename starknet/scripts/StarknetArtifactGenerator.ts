@@ -10,7 +10,7 @@ import { Templates } from './Templates.js';
 
 type ProcessedFileInfo = { type: ContractType; sierra: boolean; casm: boolean };
 type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
-type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
+export type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
 
 export class StarknetArtifactGenerator {
   private processedFiles: ProcessedFilesMap;

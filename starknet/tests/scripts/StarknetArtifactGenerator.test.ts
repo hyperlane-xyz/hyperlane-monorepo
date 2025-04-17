@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, it } from 'mocha';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { StarknetArtifactGenerator } from '../../scripts/StarknetArtifactGenerator.js';
+import {
+  ReadonlyProcessedFilesMap,
+  StarknetArtifactGenerator,
+} from '../../scripts/StarknetArtifactGenerator.js';
 import { CONTRACT_SUFFIXES } from '../../src/const.js';
 import { ContractClass, ContractType } from '../../src/types.js';
 
@@ -162,7 +165,8 @@ describe('StarknetArtifactGenerator', () => {
 
   describe('End-to-End Process', () => {
     it('generate: processes artifacts and returns correct ReadonlyProcessedFilesMap', async () => {
-      const processedMap: ReadonlyMap<any, any> = await generator.generate();
+      const processedMap: ReadonlyProcessedFilesMap =
+        await generator.generate();
 
       expect(processedMap.size).to.equal(3);
 
@@ -206,14 +210,19 @@ describe('StarknetArtifactGenerator', () => {
         JSON.stringify(createMockSierraArtifact()),
       );
 
-      await generator.generate();
+      const processedMap: ReadonlyProcessedFilesMap =
+        await generator.generate();
 
-      expect(generator['processedFiles'].size).to.equal(4);
-      expect(generator['processedFiles'].has('unusual_name')).to.be.true;
+      expect(processedMap.size).to.equal(4);
 
-      const fileInfo = generator['processedFiles'].get('unusual_name');
-      expect(fileInfo?.type).to.equal(ContractType.CONTRACT);
-      expect(fileInfo?.sierra).to.be.true;
+      expect(processedMap.has('unusual_name')).to.be.true;
+
+      const fileInfo = processedMap.get('unusual_name');
+      expect(fileInfo).to.deep.equal({
+        type: ContractType.CONTRACT,
+        sierra: true,
+        casm: false,
+      });
 
       const jsPath = join(
         TEST_OUTPUT_DIR,
