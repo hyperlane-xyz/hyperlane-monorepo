@@ -74,6 +74,13 @@ export class EvmNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx(
     _params: TransferParams,
   ): Promise<PopulatedTransaction> {
@@ -137,6 +144,15 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     return allowance.lt(weiAmountOrId);
   }
 
+  async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
+  ): Promise<boolean> {
+    const allowance = await this.contract.allowance(owner, spender);
+
+    return !allowance.isZero();
+  }
+
   override populateApproveTx({
     weiAmountOrId,
     recipient,
@@ -181,6 +197,13 @@ export class EvmHypSyntheticAdapter
     _owner: Address,
     _spender: Address,
     _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
   ): Promise<boolean> {
     return false;
   }
@@ -291,6 +314,15 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.isApproveRequired(owner, spender, weiAmountOrId),
     );
+  }
+
+  override async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
+  ): Promise<boolean> {
+    const collateral = await this.getWrappedTokenAdapter();
+
+    return collateral.isRevokeApprovalRequired(owner, spender);
   }
 
   override populateApproveTx(
