@@ -27,6 +27,9 @@ const L1_BOND_MANAGER = process.env.L1_BOND_MANAGER as string;
 const L1_OPTIMISM_PORTAL = process.env.L1_OPTIMISM_PORTAL as string;
 const L2_OUTPUT_ORACLE = process.env.L2_OUTPUT_ORACLE as string;
 
+// CCTP
+const CCTP_ATTESTATION_API = process.env.CCTP_ATTESTATION_API as string;
+
 export {
   RPC_ADDRESS,
   L2_RPC_ADDRESS,
@@ -47,4 +50,5 @@ export {
   L1_BOND_MANAGER,
   L1_OPTIMISM_PORTAL,
   L2_OUTPUT_ORACLE,
+  CCTP_ATTESTATION_API,
 };
