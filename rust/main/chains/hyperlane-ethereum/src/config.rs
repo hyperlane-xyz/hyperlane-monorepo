@@ -55,6 +55,13 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+
+    /// Min gas price to use for Legacy transactions, in wei.
+    pub min_gas_price: Option<U256>,
+    /// Min fee per gas to use for EIP-1559 transactions.
+    pub min_fee_per_gas: Option<U256>,
+    /// Min priority fee per gas to use for EIP-1559 transactions.
+    pub min_priority_fee_per_gas: Option<U256>,
 }
 
 /// Ethereum reorg period

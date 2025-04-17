@@ -57,7 +57,7 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
     Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
 }
 
-pub fn apply_gas_price_multiplier(gas_price: ethers::types::U256) -> ethers::types::U256 {
+pub fn apply_gas_price_multiplier(gas_price: EthersU256) -> EthersU256 {
     let multiplied = gas_price
         .saturating_mul(GAS_PRICE_MULTIPLIER_NUMERATOR.into())
         .checked_div(GAS_PRICE_MULTIPLIER_DENOMINATOR.into());
@@ -187,8 +187,8 @@ where
         None => estimate_eip1559_fees(provider.clone(), None, &latest_block, domain, &tx.tx).await,
     };
     let Ok((base_fee, max_fee, max_priority_fee)) = eip1559_fee_result else {
-        // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit));
+        // not an EIP-1559 chain
+        return Ok(apply_legacy_min_gas_price(tx, transaction_overrides).gas(gas_limit));
     };
 
     // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
@@ -197,20 +197,12 @@ where
     // fee lower than 3 gwei because of privileged transactions being included by block
     // producers that have a lower priority fee.
     if base_fee.is_zero() {
-        return Ok(tx.gas(gas_limit));
+        return Ok(apply_legacy_min_gas_price(tx, transaction_overrides).gas(gas_limit));
     }
 
     // Apply overrides for EIP 1559 tx params if they exist.
-    let max_fee = transaction_overrides
-        .max_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_fee);
-    let max_fee = apply_gas_price_multiplier(max_fee);
-    let max_priority_fee = transaction_overrides
-        .max_priority_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_priority_fee);
-    let max_priority_fee = apply_gas_price_multiplier(max_priority_fee);
+    let (max_fee, max_priority_fee) =
+        apply_1559_multipliers_and_overrides(max_fee, max_priority_fee, transaction_overrides);
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
@@ -231,6 +223,59 @@ where
     let mut eip_1559_tx = tx;
     eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
     Ok(eip_1559_tx.gas(gas_limit))
+}
+
+fn apply_legacy_min_gas_price<M, D>(
+    tx: ContractCall<M, D>,
+    transaction_overrides: &TransactionOverrides,
+) -> ContractCall<M, D>
+where
+    M: Middleware + 'static,
+    D: Detokenize,
+{
+    let gas_price = max_between_options(
+        tx.tx.gas_price(),
+        transaction_overrides.min_fee_per_gas.map(Into::into),
+    );
+    if let Some(gas_price) = gas_price {
+        return tx.gas_price(gas_price);
+    }
+    tx
+}
+
+fn max_between_options(a: Option<EthersU256>, b: Option<EthersU256>) -> Option<EthersU256> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.max(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+fn apply_1559_multipliers_and_overrides(
+    max_fee: EthersU256,
+    max_priority_fee: EthersU256,
+    transaction_overrides: &TransactionOverrides,
+) -> (EthersU256, EthersU256) {
+    let max_fee = transaction_overrides
+        .max_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_fee);
+    let mut max_fee = apply_gas_price_multiplier(max_fee);
+    if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
+        max_fee = max_fee.max(min_fee.into());
+    }
+
+    let max_priority_fee = transaction_overrides
+        .max_priority_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_priority_fee);
+    let mut max_priority_fee = apply_gas_price_multiplier(max_priority_fee);
+
+    if let Some(min_priority_fee) = transaction_overrides.min_priority_fee_per_gas {
+        max_priority_fee = max_priority_fee.max(min_priority_fee.into());
+    }
+    (max_fee, max_priority_fee)
 }
 
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
