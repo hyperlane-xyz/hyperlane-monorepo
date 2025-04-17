@@ -161,144 +161,40 @@ describe('StarknetArtifactGenerator', () => {
   });
 
   describe('End-to-End Process', () => {
-    // it('generate: processes artifacts and produces correct index files', async () => {
-    //   // Define expectations based on files known to be created by createMockContractFiles
-    //   const expectedOutputs = [
-    //     {
-    //       fileName: `contracts_Test${CONTRACT_SUFFIXES.SIERRA_JSON}`,
-    //       fullName: 'contracts_Test',
-    //       strippedName: 'Test',
-    //       type: ContractType.CONTRACT,
-    //       classType: ContractClass.SIERRA,
-    //       classSuffix: 'contract_class',
-    //     },
-    //     {
-    //       fileName: `token_HypERC20${CONTRACT_SUFFIXES.SIERRA_JSON}`,
-    //       fullName: 'token_HypERC20',
-    //       strippedName: 'HypERC20',
-    //       type: ContractType.TOKEN,
-    //       classType: ContractClass.SIERRA,
-    //       classSuffix: 'contract_class',
-    //     },
-    //     {
-    //       fileName: `mocks_MockContract${CONTRACT_SUFFIXES.SIERRA_JSON}`,
-    //       fullName: 'mocks_MockContract',
-    //       strippedName: 'MockContract',
-    //       type: ContractType.MOCK,
-    //       classType: ContractClass.SIERRA,
-    //       classSuffix: 'contract_class',
-    //     },
-    //     // Add CASM expectations if mock files include them and they should be indexed
-    //   ];
+    it('generate: processes artifacts and returns correct ReadonlyProcessedFilesMap', async () => {
+      const processedMap: ReadonlyMap<any, any> = await generator.generate();
 
-    //   // Call the main generate method - this processes artifacts and writes index files
-    //   await generator.generate();
+      expect(processedMap.size).to.equal(3);
 
-    //   // Verify the expected number of files were processed (based on createMockContractFiles)
-    //   expect(generator['processedFiles'].size).to.equal(expectedOutputs.length);
+      const testInfo = processedMap.get('contracts_Test');
+      expect(testInfo).to.deep.equal({
+        type: ContractType.CONTRACT,
+        sierra: true,
+        casm: false, // Assuming only Sierra files are created by mock
+      });
 
-    //   // Read the generated index files
-    //   const indexJsPath = join(TEST_OUTPUT_DIR, 'index.js');
-    //   const indexDtsPath = join(TEST_OUTPUT_DIR, 'index.d.ts');
+      const tokenInfo = processedMap.get('token_HypERC20');
+      expect(tokenInfo).to.deep.equal({
+        type: ContractType.TOKEN,
+        sierra: true,
+        casm: false,
+      });
 
-    //   // Ensure files exist before reading
-    //   await Promise.all([fs.access(indexJsPath), fs.access(indexDtsPath)]);
+      const mockInfo = processedMap.get('mocks_MockContract');
+      expect(mockInfo).to.deep.equal({
+        type: ContractType.MOCK,
+        sierra: true,
+        casm: false,
+      });
 
-    //   const [jsContent, dtsContent] = await Promise.all([
-    //     fs.readFile(indexJsPath, 'utf-8'),
-    //     fs.readFile(indexDtsPath, 'utf-8'),
-    //   ]);
-
-    //   // Helper regex functions (refined based on actual index.js output)
-    //   const importPattern = (
-    //     fullName: string,
-    //     strippedName: string,
-    //     type: ContractType,
-    //     classSuffix: string,
-    //   ) => {
-    //     const aliasSuffix =
-    //       classSuffix === 'contract_class' ? 'sierra' : 'casm';
-    //     const importAlias = `${type}_${strippedName}_${aliasSuffix}`;
-    //     return new RegExp(
-    //       `import\\s*{\\s*${fullName}\\s+as\\s+${importAlias}\\s*}\\s*from\\s*'\\.\\/${fullName}\\.${classSuffix}\\.js';`,
-    //       'm',
-    //     );
-    //   };
-
-    //   const exportPattern = (
-    //     strippedName: string,
-    //     type: ContractType,
-    //     classSuffix: string,
-    //   ) => {
-    //     const aliasSuffix =
-    //       classSuffix === 'contract_class' ? 'sierra' : 'casm';
-    //     const variableName = `${type}_${strippedName}_${aliasSuffix}`;
-    //     const exportKey = classSuffix;
-    //     return new RegExp(
-    //       `${strippedName}\\s*:\\s*{\\s*${exportKey}\\s*:\\s*${variableName}\\s*},?`,
-    //       'm',
-    //     );
-    //   };
-
-    //   // Assertions based on expected outputs
-    //   expectedOutputs.forEach((eo) => {
-    //     // Check JS imports in the generated index.js
-    //     expect(
-    //       importPattern(
-    //         eo.fullName,
-    //         eo.strippedName,
-    //         eo.type,
-    //         eo.classSuffix,
-    //       ).test(jsContent),
-    //       `JS Import for ${eo.fullName} (${eo.classSuffix}) failed in index.js`,
-    //     ).to.be.true;
-
-    //     // Check JS exports within the correct category in index.js
-    //     const categoryRegex = new RegExp(
-    //       `export const starknetContracts =\\s*{[\\s\\S]*?${eo.type}:\\s*{([\\s\\S]*?)}[\\s\\S]*?};`,
-    //       'm',
-    //     );
-    //     const categoryMatch = jsContent.match(categoryRegex);
-    //     expect(
-    //       categoryMatch,
-    //       `Category '${eo.type}' not found in index.js export`,
-    //     ).to.exist;
-
-    //     if (categoryMatch) {
-    //       const categoryContent = categoryMatch[1];
-    //       expect(
-    //         exportPattern(eo.strippedName, eo.type, eo.classSuffix).test(
-    //           categoryContent,
-    //         ),
-    //         `JS Export for ${eo.strippedName} (${eo.classSuffix}) in category ${eo.type} failed in index.js`,
-    //       ).to.be.true;
-    //     }
-
-    //     // Check DTS exports in the generated index.d.ts
-    //     const dtsExportKey =
-    //       eo.classType === ContractClass.SIERRA
-    //         ? 'contract_class: CompiledContract;'
-    //         : 'compiled_contract_class: CairoAssembly;';
-    //     expect(dtsContent).to.match(
-    //       new RegExp(
-    //         `${eo.type}:\\s*{[\\s\\S]*?${eo.strippedName}:\\s*{\\s*${dtsExportKey}\\s*}[\\s\\S]*?};`,
-    //         'm',
-    //       ),
-    //       `DTS Export for ${eo.strippedName} in category ${eo.type} failed in index.d.ts`,
-    //     );
-    //   });
-
-    //   // Overall structure assertions on file content
-    //   expect(jsContent).to.include('export const starknetContracts =');
-    //   expect(jsContent).to.include('contracts: {');
-    //   expect(jsContent).to.include('token: {');
-    //   expect(jsContent).to.include('mocks: {');
-
-    //   expect(dtsContent).to.include('export interface StarknetContracts');
-    //   expect(dtsContent).to.include(
-    //     'export declare const starknetContracts: StarknetContracts',
-    //   );
-    // });
+      const indexJsPath = join(TEST_OUTPUT_DIR, 'index.js');
+      await fs.access(indexJsPath);
+      const testSierraJsPath = join(
+        TEST_OUTPUT_DIR,
+        `contracts_Test.${ContractClass.SIERRA}.js`,
+      );
+      await fs.access(testSierraJsPath);
+    });
 
     it('getArtifactPaths/processArtifact: handles files with unexpected naming patterns', async () => {
       const oddNamedFilePath = join(
