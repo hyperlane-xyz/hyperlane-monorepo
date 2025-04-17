@@ -13,4 +13,4 @@ export const regularSigners: Address[] = [
   '0xD5c0D17cCb9071D27a4F7eD8255F59989b9aee0d', // 10
 ];
 
-export const regularThreshold = 1;
+export const regularThreshold = 6;
