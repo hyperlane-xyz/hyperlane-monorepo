@@ -2,8 +2,8 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { CompiledContract } from 'starknet';
 
-import { CONTRACT_SUFFIXES } from '../../src/const.js';
-import { ContractType } from '../../src/types.js';
+import { CONTRACT_SUFFIXES } from '../src/const.js';
+import { ContractType } from '../src/types.js';
 
 const TEST_CONTRACTS = [
   { name: 'contracts_Test', type: ContractType.CONTRACT },

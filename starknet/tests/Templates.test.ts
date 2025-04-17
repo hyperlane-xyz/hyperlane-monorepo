@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
-import { Templates } from '../../scripts/Templates.js';
+import { Templates } from '../scripts/Templates.js';
 
 describe('Templates', () => {
   describe('jsArtifact', () => {

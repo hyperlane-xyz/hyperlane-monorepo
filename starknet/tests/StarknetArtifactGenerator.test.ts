@@ -4,18 +4,15 @@ import { afterEach, beforeEach, describe, it } from 'mocha';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { StarknetArtifactGenerator } from '../../scripts/StarknetArtifactGenerator.js';
-import { CONTRACT_SUFFIXES } from '../../src/const.js';
-import { ContractClass, ContractType } from '../../src/types.js';
+import { StarknetArtifactGenerator } from '../scripts/StarknetArtifactGenerator.js';
+import { CONTRACT_SUFFIXES } from '../src/const.js';
+import { ContractClass, ContractType } from '../src/types.js';
 
-import {
-  createMockContractFiles,
-  createMockSierraArtifact,
-} from './mock-sierra.js';
+import { createMockContractFiles, createMockSierraArtifact } from './utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const TMP_DIR = join(__dirname, '../tmp');
+const TMP_DIR = join(__dirname, './tmp');
 const TEST_RELEASE_DIR = join(TMP_DIR, 'release');
 const TEST_OUTPUT_DIR = join(TMP_DIR, 'dist/artifacts');
 
