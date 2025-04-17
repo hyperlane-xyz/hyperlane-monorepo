@@ -60,13 +60,19 @@ impl<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, S, I>
         store: S,
         indexer: I,
         metrics: ContractSyncMetrics,
+        broadcast_sender_enabled: bool,
     ) -> Self {
+        let broadcast_sender = if broadcast_sender_enabled {
+            T::broadcast_channel_size().map(BroadcastMpscSender::new)
+        } else {
+            None
+        };
         Self {
             domain,
             store,
             indexer,
             metrics,
-            broadcast_sender: T::broadcast_channel_size().map(BroadcastMpscSender::new),
+            broadcast_sender,
             _phantom: PhantomData,
         }
     }
@@ -141,7 +147,17 @@ where
         recv: &mut MpscReceiver<H512>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
     ) {
+        const MAX_TIME_SPENT: Duration = Duration::from_secs(5);
+        let start = std::time::Instant::now();
         loop {
+            if start.elapsed() > MAX_TIME_SPENT {
+                debug!(
+                    elapsed =? start.elapsed(),
+                    remaining_in_channel =% recv.len(),
+                    "Breaking early from fetch_logs_from_receiver"
+                );
+                break;
+            }
             match recv.try_recv() {
                 Ok(tx_id) => {
                     let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {

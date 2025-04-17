@@ -273,6 +273,7 @@ impl Scraper {
                 &contract_sync_metrics.clone(),
                 store.into(),
                 true,
+                true,
             )
             .await
             .map_err(|err| {
@@ -308,6 +309,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -346,6 +348,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
