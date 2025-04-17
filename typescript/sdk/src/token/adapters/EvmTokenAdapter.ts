@@ -606,6 +606,13 @@ export class EvmHypNativeAdapter
     return false;
   }
 
+  override async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   override async populateTransferRemoteTx({
     weiAmountOrId,
     destination,
