@@ -437,10 +437,15 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '67d143b-20250417-123821',
+      tag: '1f5c6b8-20250417-142052',
     },
     whitelist: kesselMatchingList,
-    gasPaymentEnforcement,
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: kesselMatchingList,
+      },
+    ],
     metricAppContextsGetter,
     ismCacheConfigs,
     cache: {
