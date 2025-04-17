@@ -147,17 +147,7 @@ where
         recv: &mut MpscReceiver<H512>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
     ) {
-        const MAX_TIME_SPENT: Duration = Duration::from_secs(5);
-        let start = std::time::Instant::now();
         loop {
-            if start.elapsed() > MAX_TIME_SPENT {
-                debug!(
-                    elapsed =? start.elapsed(),
-                    remaining_in_channel =% recv.len(),
-                    "Breaking early from fetch_logs_from_receiver"
-                );
-                break;
-            }
             match recv.try_recv() {
                 Ok(tx_id) => {
                     let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
