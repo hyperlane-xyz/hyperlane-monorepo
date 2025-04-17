@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
 use derive_new::new;
-use futures_util::future::join_all;
 use hyperlane_core::{
     rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
@@ -46,13 +45,12 @@ impl OperationBatch {
 
         if !excluded_ops.is_empty() {
             warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-            let reprepare = excluded_ops.into_iter().map(|mut op| {
-                let reason = ReprepareReason::ErrorSubmitting;
+            let reason = ReprepareReason::ErrorSubmitting;
+            let status = Some(PendingOperationStatus::Retry(reason.clone()));
+            for mut op in excluded_ops.into_iter() {
                 op.on_reprepare(None, reason.clone());
-                prepare_queue.push(op, Some(PendingOperationStatus::Retry(reason)))
-            });
-
-            join_all(reprepare).await;
+                prepare_queue.push(op, status.clone()).await;
+            }
         }
     }
 
