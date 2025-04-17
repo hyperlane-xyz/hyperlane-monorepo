@@ -66,6 +66,14 @@ export function getRegistry(): FileSystemRegistry {
   return registry;
 }
 
+function getRegistryFromUris(registryUris?: string[]): IRegistry {
+  if (registryUris && registryUris.length > 0) {
+    return getMergedRegistry({ registryUris, enableProxy: true });
+  } else {
+    return getRegistry();
+  }
+}
+
 export function getChains(): ChainName[] {
   return getRegistry().getChains();
 }
@@ -120,12 +128,7 @@ export async function getWarpAddressesFrom(
   warpRouteId: string,
   registryUris?: string[],
 ): Promise<ChainMap<ChainAddresses>> {
-  let registry: IRegistry;
-  if (registryUris && registryUris.length > 0) {
-    registry = getMergedRegistry({ registryUris, enableProxy: true });
-  } else {
-    registry = getRegistry();
-  }
+  const registry = getRegistryFromUris(registryUris);
   const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
   if (!warpRouteConfig) {
     throw new Error(
@@ -139,12 +142,7 @@ export async function findWarpDeployConfig(
   warpRouteId: string,
   registryUris?: string[],
 ): Promise<WarpRouteDeployConfig | null> {
-  let registry: IRegistry;
-  if (registryUris && registryUris.length > 0) {
-    registry = getMergedRegistry({ registryUris, enableProxy: true });
-  } else {
-    registry = getRegistry();
-  }
+  const registry = getRegistryFromUris(registryUris);
   return registry.getWarpDeployConfig(warpRouteId);
 }
 
