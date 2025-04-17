@@ -1,29 +1,26 @@
 import {
   HyperToken,
-  INetworkRestakeDelegator,
-  IStakerRewards,
   IVaultTokenized,
+  InterchainAccountRouter,
   ProxyAdmin,
   TimelockController,
 } from '@hyperlane-xyz/core';
 import { AccessManagerConfig } from '@hyperlane-xyz/sdk';
 
-import { safes } from './owners.js';
-
 enum Roles {
-  FoundationFast = 'Seven Day Foundation',
-  FoundationSlow = 'Thirty Day Foundation',
+  ADMIN = 'ADMIN',
+  Fast = 'Seven Day Foundation',
+  Slow = 'Thirty Day Foundation',
   SecurityCouncil = 'Security Council',
-  AbacusWorks = 'Abacus Works',
 }
 
-type ManagedContracts = {
+export type ManagedContracts = {
   hyperToken: HyperToken;
   proxyAdmin: ProxyAdmin;
-  network: TimelockController;
   vault: IVaultTokenized;
-  delegator: INetworkRestakeDelegator;
-  rewards: IStakerRewards;
+  network: TimelockController;
+  interchainAccountRouter: InterchainAccountRouter;
+  // slasher and delegator are downstream of the network
 };
 
 const DAY = 24 * 60 * 60;
@@ -31,48 +28,55 @@ const DAY = 24 * 60 * 60;
 const foundation = {
   guardian: Roles.SecurityCouncil,
   members: new Set([
-    '0xFoundationAddress1', // replace with actual addresses
-    '0xFoundationAddress2',
+    '0x0000000000000000000000000000000000000001', // replace with actual addresses
   ]),
 };
 
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
-    [Roles.FoundationFast]: {
+    [Roles.ADMIN]: foundation,
+    [Roles.Fast]: {
       ...foundation,
       executionDelay: 7 * DAY,
     },
-    [Roles.FoundationSlow]: {
+    [Roles.Slow]: {
       ...foundation,
       executionDelay: 30 * DAY,
     },
     [Roles.SecurityCouncil]: {
       members: new Set([
-        '0xSecurityCouncilAddress1', // replace with actual addresses
-        '0xSecurityCouncilAddress',
+        '0x0000000000000000000000000000000000000002', // replace with actual addresses
       ]),
       grantDelay: 7 * DAY,
     },
-    [Roles.AbacusWorks]: {
-      members: new Set([safes.ethereum]),
-      executionDelay: 3 * DAY,
-    },
   },
   targets: {
+    interchainAccountRouter: {
+      authority: {
+        'callRemote(uint32,(bytes32,uint256,bytes)[])': Roles.Slow,
+        'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)': Roles.Slow,
+        'callRemote(uint32,address,uint256,bytes)': Roles.Slow,
+        'callRemote(uint32,address,uint256,bytes,bytes)': Roles.Slow,
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])':
+          Roles.Slow,
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)':
+          Roles.Slow,
+      },
+    },
     hyperToken: {
       authority: {
-        'mint(address,uint256)': Roles.FoundationFast,
-        'burn(address,uint256)': Roles.FoundationFast,
-        'setInterchainSecurityModule(address)': Roles.FoundationFast,
-        'setHook(address)': Roles.FoundationFast,
+        'mint(address,uint256)': Roles.Slow,
+        'burn(address,uint256)': Roles.Slow,
+        'setInterchainSecurityModule(address)': Roles.Slow,
+        'setHook(address)': Roles.Slow,
       },
     },
     proxyAdmin: {
       authority: {
-        'upgrade(address,address)': Roles.FoundationSlow,
-        'upgradeAndCall(address,address,bytes)': Roles.FoundationSlow,
-        'changeProxyAdmin(address,address)': Roles.FoundationSlow,
-        'transferOwnership(address)': Roles.FoundationSlow,
+        'upgrade(address,address)': Roles.Slow,
+        'upgradeAndCall(address,address,bytes)': Roles.Slow,
+        'changeProxyAdmin(address,address)': Roles.Slow,
+        'transferOwnership(address)': Roles.Slow,
       },
     },
     // TODO:
@@ -80,28 +84,17 @@ const config: AccessManagerConfig<Roles, ManagedContracts> = {
     // - migrate proposer from AW safe to access manager
     network: {
       authority: {
-        'grantRole(bytes32,address)': Roles.FoundationFast,
+        'grantRole(bytes32,address)': Roles.Slow,
+        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)': Roles.Slow,
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)':
+          Roles.Slow,
       },
     },
     vault: {
       authority: {
-        'migrate(uint64,bytes)': Roles.FoundationSlow,
-        'setDepositLimit(uint256)': Roles.FoundationFast,
-        'setDepositWhitelist(bool)': Roles.FoundationFast,
-      },
-    },
-    delegator: {
-      authority: {
-        'setNetworkLimit(bytes32,uint256)': Roles.FoundationSlow,
-        'setMaxNetworkLimit(uint96,uint256)': Roles.FoundationSlow,
-        'setOperatorNetworkShares(bytes32,address,uint256)':
-          Roles.FoundationFast,
-      },
-    },
-    rewards: {
-      authority: {
-        'distributeRewards(address,address,uint256,bytes)':
-          Roles.FoundationFast,
+        'migrate(uint64,bytes)': Roles.Slow,
+        'setDepositLimit(uint256)': Roles.Fast,
+        'setDepositWhitelist(bool)': Roles.Fast,
       },
     },
   },
