@@ -8,6 +8,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   CallData,
   addBufferToGasLimit,
   addressToBytes32,
@@ -30,6 +31,7 @@ const multicall3 = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI);
 
 const gasCache: ChainMap<ChainMap<ethers.BigNumber>> = {};
 const igpCache: ChainMap<ChainMap<ethers.BigNumber>> = {};
+const merkleTreeHookCache: ChainMap<Address> = {};
 
 async function preCalculateGasEstimates(
   core: HyperlaneCore,
@@ -57,6 +59,8 @@ async function preCalculateGasEstimates(
         destination,
         recipientBytes32,
         messageBody,
+        DEFAULT_METADATA,
+        merkleTreeHookCache[origin],
       );
 
       const dispatchParams = [
@@ -64,7 +68,7 @@ async function preCalculateGasEstimates(
         recipientBytes32,
         messageBody,
         DEFAULT_METADATA,
-        ethers.constants.AddressZero,
+        merkleTreeHookCache[origin],
       ] as const;
 
       const estimateGas = await mailbox.estimateGas[
@@ -135,7 +139,7 @@ async function prepareMessages(
             recipientBytes32,
             messageBody,
             DEFAULT_METADATA,
-            ethers.constants.AddressZero,
+            merkleTreeHookCache[origin],
           ],
         ),
     });
@@ -200,6 +204,11 @@ async function doTheKesselRun() {
       targetNetworks.includes(chain),
     ),
   );
+
+  // cache the merkle tree hook addresses for each chain
+  for (const chain of targetNetworks) {
+    merkleTreeHookCache[chain] = chainAddresses[chain].merkleTreeHook;
+  }
 
   const core = HyperlaneCore.fromAddressesMap(
     filteredChainAddresses,
