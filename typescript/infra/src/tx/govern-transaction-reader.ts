@@ -119,6 +119,16 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's a zero value transfer
+    if (this.isZeroValueTransfer(tx)) {
+      return this.readZeroValueTransfer(chain, tx);
+    }
+
+    // If it's a native token transfer (no data, only value)
+    if (this.isNativeTokenTransfer(tx)) {
+      return this.readNativeTokenTransfer(chain, tx);
+    }
+
     // If it's to an ICA
     if (this.isIcaTransaction(chain, tx)) {
       return this.readIcaTransaction(chain, tx);
@@ -154,11 +164,6 @@ export class GovernTransactionReader {
       return this.readOwnableTransaction(chain, tx);
     }
 
-    // If it's a native token transfer (no data, only value)
-    if (this.isNativeTokenTransfer(tx)) {
-      return this.readNativeTokenTransfer(chain, tx);
-    }
-
     const insight = '⚠️ Unknown transaction type';
     // If we get here, it's an unknown transaction
     this.errors.push({
@@ -170,6 +175,22 @@ export class GovernTransactionReader {
     return {
       chain,
       insight,
+      tx,
+    };
+  }
+
+  private isZeroValueTransfer(tx: AnnotatedEV5Transaction): boolean {
+    return !tx.data && tx.value !== undefined && tx.value.isZero() && !!tx.to;
+  }
+
+  private async readZeroValueTransfer(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    const { symbol } = await this.multiProvider.getNativeToken(chain);
+    return {
+      chain,
+      insight: `Send 0 ${symbol} to ${tx.to}`,
       tx,
     };
   }
