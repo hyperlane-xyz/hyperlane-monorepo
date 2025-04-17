@@ -4,10 +4,7 @@ import { afterEach, beforeEach, describe, it } from 'mocha';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import {
-  ReadonlyProcessedFilesMap,
-  StarknetArtifactGenerator,
-} from '../../scripts/StarknetArtifactGenerator.js';
+import { StarknetArtifactGenerator } from '../../scripts/StarknetArtifactGenerator.js';
 import { CONTRACT_SUFFIXES } from '../../src/const.js';
 import { ContractClass, ContractType } from '../../src/types.js';
 
@@ -121,13 +118,12 @@ describe('StarknetArtifactGenerator', () => {
         `contracts_Test${CONTRACT_SUFFIXES.SIERRA_JSON}`,
       );
 
-      await generator.processArtifact(filePath);
+      const processResult = await generator.processArtifact(filePath);
 
-      const fileInfo = generator['processedFiles'].get('contracts_Test');
-      expect(fileInfo).to.deep.equal({
-        type: ContractType.CONTRACT,
-        sierra: true,
-        casm: false,
+      expect(processResult).to.deep.equal({
+        name: 'contracts_Test',
+        contractType: ContractType.CONTRACT,
+        contractClass: ContractClass.SIERRA,
       });
 
       const jsPath = join(
@@ -164,9 +160,8 @@ describe('StarknetArtifactGenerator', () => {
   });
 
   describe('End-to-End Process', () => {
-    it('generate: processes artifacts and returns correct ReadonlyProcessedFilesMap', async () => {
-      const processedMap: ReadonlyProcessedFilesMap =
-        await generator.generate();
+    it('generate: processes artifacts and returns correct results', async () => {
+      const processedMap = await generator.generate();
 
       expect(processedMap.size).to.equal(3);
 
@@ -174,7 +169,7 @@ describe('StarknetArtifactGenerator', () => {
       expect(testInfo).to.deep.equal({
         type: ContractType.CONTRACT,
         sierra: true,
-        casm: false, // Assuming only Sierra files are created by mock
+        casm: false, // only Sierra files are created by mock
       });
 
       const tokenInfo = processedMap.get('token_HypERC20');
@@ -210,8 +205,7 @@ describe('StarknetArtifactGenerator', () => {
         JSON.stringify(createMockSierraArtifact()),
       );
 
-      const processedMap: ReadonlyProcessedFilesMap =
-        await generator.generate();
+      const processedMap = await generator.generate();
 
       expect(processedMap.size).to.equal(4);
 

@@ -13,7 +13,6 @@ type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
 export type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
 
 export class StarknetArtifactGenerator {
-  private processedFiles: ProcessedFilesMap;
   private contractExports: string[] = [];
   private tokenExports: string[] = [];
   private mockExports: string[] = [];
@@ -21,7 +20,6 @@ export class StarknetArtifactGenerator {
   private rootOutputDir: string;
 
   constructor(compiledContractsDir: string, rootOutputDir: string) {
-    this.processedFiles = new Map();
     this.compiledContractsDir = compiledContractsDir;
     this.rootOutputDir = rootOutputDir;
   }
@@ -107,13 +105,13 @@ export class StarknetArtifactGenerator {
   /**
    * @notice Generates index file contents with categorized contracts
    */
-  generateIndexContents() {
+  generateIndexContents(processedFilesMap: ProcessedFilesMap) {
     const imports: string[] = [];
     this.contractExports = [];
     this.tokenExports = [];
     this.mockExports = [];
 
-    this.processedFiles.forEach((value, name) => {
+    processedFilesMap.forEach((value, name) => {
       // Extracts the contract name by removing the prefix (contracts_, token_, or mocks_)
       // Example: "token_HypErc20" becomes "HypErc20"
       const baseName = name.replace(
@@ -184,19 +182,6 @@ export class StarknetArtifactGenerator {
       .replace(`.${ContractClass.CASM}`, '');
 
     const artifact = await this.readArtifactFile(filePath);
-    const fileInfo = this.processedFiles.get(name) || {
-      type: contractType,
-      sierra: false,
-      casm: false,
-    };
-
-    if (contractClass === ContractClass.SIERRA) {
-      fileInfo.sierra = true;
-    } else {
-      fileInfo.casm = true;
-    }
-
-    this.processedFiles.set(name, fileInfo);
 
     // Generate and write files
     const jsContent = this.generateJavaScriptContent(
@@ -218,6 +203,33 @@ export class StarknetArtifactGenerator {
       join(this.rootOutputDir, outputFileName + '.d.ts'),
       dtsContent,
     );
+
+    return { name, contractType, contractClass };
+  }
+
+  private _aggregateProcessingResults(
+    processingResults: Array<{
+      name: string;
+      contractType: ContractType;
+      contractClass: ContractClass;
+    }>,
+  ): ProcessedFilesMap {
+    const processedFilesMap = new Map<string, ProcessedFileInfo>();
+    for (const result of processingResults) {
+      const fileInfo = processedFilesMap.get(result.name) || {
+        type: result.contractType,
+        sierra: false,
+        casm: false,
+      };
+
+      if (result.contractClass === ContractClass.SIERRA) {
+        fileInfo.sierra = true;
+      } else {
+        fileInfo.casm = true;
+      }
+      processedFilesMap.set(result.name, fileInfo);
+    }
+    return processedFilesMap;
   }
 
   async generate(): Promise<ReadonlyProcessedFilesMap> {
@@ -226,16 +238,19 @@ export class StarknetArtifactGenerator {
 
       const { sierraFiles } = await this.getArtifactPaths();
 
-      await Promise.all([
-        ...sierraFiles.map((file) => this.processArtifact(file)),
-      ]);
+      const processingResults = await Promise.all(
+        sierraFiles.map((file) => this.processArtifact(file)),
+      );
 
-      // Generate and write index files
-      const { jsContent, dtsContent } = this.generateIndexContents();
+      const processedFilesMap =
+        this._aggregateProcessingResults(processingResults);
+
+      const { jsContent, dtsContent } =
+        this.generateIndexContents(processedFilesMap);
       await fs.writeFile(join(this.rootOutputDir, 'index.js'), jsContent);
       await fs.writeFile(join(this.rootOutputDir, 'index.d.ts'), dtsContent);
 
-      return new Map(this.processedFiles);
+      return processedFilesMap;
     } catch (error) {
       throw error;
     }
