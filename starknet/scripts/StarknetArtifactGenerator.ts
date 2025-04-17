@@ -13,9 +13,6 @@ type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
 export type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
 
 export class StarknetArtifactGenerator {
-  private contractExports: string[] = [];
-  private tokenExports: string[] = [];
-  private mockExports: string[] = [];
   private compiledContractsDir: string;
   private rootOutputDir: string;
 
@@ -105,11 +102,14 @@ export class StarknetArtifactGenerator {
   /**
    * @notice Generates index file contents with categorized contracts
    */
-  generateIndexContents(processedFilesMap: ProcessedFilesMap) {
+  generateIndexContents(processedFilesMap: ReadonlyProcessedFilesMap): {
+    jsContent: string;
+    dtsContent: string;
+  } {
     const imports: string[] = [];
-    this.contractExports = [];
-    this.tokenExports = [];
-    this.mockExports = [];
+    const contractExports: string[] = [];
+    const tokenExports: string[] = [];
+    const mockExports: string[] = [];
 
     processedFilesMap.forEach((value, name) => {
       // Extracts the contract name by removing the prefix (contracts_, token_, or mocks_)
@@ -119,8 +119,8 @@ export class StarknetArtifactGenerator {
         '',
       );
 
-      let sierraVarName;
-      let casmVarName;
+      let sierraVarName: string | undefined;
+      let casmVarName: string | undefined;
 
       if (value.sierra) {
         sierraVarName = `${value.type}_${baseName}_sierra`;
@@ -136,36 +136,36 @@ export class StarknetArtifactGenerator {
         );
       }
 
+      // exports with type guard filter
       const exports = [
-        value.sierra ? `contract_class: ${sierraVarName}` : null,
-        value.casm ? `compiled_contract_class: ${casmVarName}` : null,
-      ].filter(Boolean);
+        sierraVarName ? `contract_class: ${sierraVarName}` : null,
+        casmVarName ? `compiled_contract_class: ${casmVarName}` : null,
+      ].filter((e): e is string => e !== null);
 
-      this.getExportArrayForType(value.type).push(
-        `${baseName}: { ${exports.join(', ')} },`,
-      );
+      const exportString = `${baseName}: { ${exports.join(', ')} },`;
+
+      switch (value.type) {
+        case ContractType.TOKEN:
+          tokenExports.push(exportString);
+          break;
+        case ContractType.MOCK:
+          mockExports.push(exportString);
+          break;
+        default: // ContractType.CONTRACT
+          contractExports.push(exportString);
+          break;
+      }
     });
 
     return {
       jsContent: Templates.jsIndex(
         imports.join('\n'),
-        this.contractExports.join('\n'),
-        this.tokenExports.join('\n'),
-        this.mockExports.join('\n'),
+        contractExports,
+        tokenExports,
+        mockExports,
       ),
       dtsContent: Templates.dtsIndex(),
     };
-  }
-
-  private getExportArrayForType(type: ContractType): string[] {
-    switch (type) {
-      case ContractType.TOKEN:
-        return this.tokenExports;
-      case ContractType.MOCK:
-        return this.mockExports;
-      default:
-        return this.contractExports;
-    }
   }
 
   /**

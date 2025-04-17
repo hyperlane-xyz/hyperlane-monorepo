@@ -54,9 +54,9 @@ describe('Templates', () => {
 
       const result = Templates.jsIndex(
         imports,
-        contractExports,
-        tokenExports,
-        mockExports,
+        [contractExports],
+        [tokenExports],
+        [mockExports],
       );
 
       // Check for the overall structure and interpolation
@@ -76,9 +76,8 @@ describe('Templates', () => {
     it('should generate correct DTS index file content', () => {
       const result = Templates.dtsIndex();
 
-      // Check for key declarations and interfaces
       expect(result).to.include(
-        `import type { CompiledContract, CairoAssembly } from 'starknet';`,
+        `import type { CairoAssembly, CompiledContract } from 'starknet';`,
       );
       expect(result).to.include('export interface StarknetContractGroup {');
       expect(result).to.include('contract_class?: CompiledContract;');
