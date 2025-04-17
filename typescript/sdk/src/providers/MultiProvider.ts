@@ -10,7 +10,7 @@ import {
 import { Logger } from 'pino';
 import * as zk from 'zksync-ethers';
 
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
+import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
   addBufferToGasLimit,
@@ -25,7 +25,7 @@ import {
   ChainTechnicalStack,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
-import { ZKDeployer } from '../zksync/ZKDeployer.js';
+import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
@@ -328,7 +328,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     factory: F,
     params: Parameters<F['deploy']>,
-    artifact?: ZkSyncArtifact,
+    artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) {
@@ -347,7 +347,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       }
 
       // Handle deployment for ZKSync protocol
-      const deployer = new ZKDeployer(signer as zk.Wallet);
+      const deployer = new ZKSyncDeployer(signer as zk.Wallet);
 
       const estimatedGas = await deployer.estimateDeployGas(artifact, params);
 

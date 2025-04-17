@@ -12,13 +12,10 @@
     "@matterlabs/hardhat-zksync-verify": "1.7.1",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
-    "fx-portal": "^1.0.3",
-    "zksync-ethers": "^5.10.0"
+    "fx-portal": "^1.0.3"
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",
-    "@matterlabs/hardhat-zksync-deploy": "^0.7.0",
-    "@matterlabs/hardhat-zksync-solc": "^1.2.4",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@typechain/ethers-v5": "^11.1.2",
@@ -57,11 +54,10 @@
     "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
     "./contracts": "./contracts"
   },
-  "types": "./dist/evm/types/index.d.ts",
+  "types": "./dist/index.d.ts",
   "files": [
     "/dist",
-    "/contracts",
-    "/dist/zksync/artifacts"
+    "/contracts"
   ],
   "engines": {
     "node": ">=16"

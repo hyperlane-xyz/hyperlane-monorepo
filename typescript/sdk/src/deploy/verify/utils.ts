@@ -4,8 +4,8 @@ import { ethers, utils } from 'ethers';
 import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
+  ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { tryGetContractDeploymentTransaction } from '../../block-explorer/etherscan.js';
@@ -85,7 +85,7 @@ export async function getContractVerificationInputForZKSync({
   name: string;
   contract: ethers.Contract;
   constructorArgs: any[];
-  artifact: ZkSyncArtifact;
+  artifact: ZKSyncArtifact;
   isProxy?: boolean;
   expectedimplementation?: Address;
 }): Promise<ContractVerificationInput> {

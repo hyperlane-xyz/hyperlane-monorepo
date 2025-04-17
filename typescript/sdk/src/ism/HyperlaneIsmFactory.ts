@@ -28,8 +28,8 @@ import {
   StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
+  ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import {
   Address,
   Domain,
@@ -55,7 +55,7 @@ import {
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-import { getZKArtifactByContractName } from '../utils/zksync.js';
+import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
   AggregationIsmConfig,
@@ -289,7 +289,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       factory:
         | StorageMerkleRootMultisigIsm__factory
         | StorageMessageIdMultisigIsm__factory,
-      artifact: ZkSyncArtifact | undefined,
+      artifact: ZKSyncArtifact | undefined,
     ) => {
       const contract = await this.multiProvider.handleDeploy(
         destination,
@@ -316,13 +316,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         address = await deployStorage(
           new StorageMerkleRootMultisigIsm__factory(),
-          await getZKArtifactByContractName('StorageMerkleRootMultisigIsm'),
+          await getZKSyncArtifactByContractName('StorageMerkleRootMultisigIsm'),
         );
         break;
       case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
         address = await deployStorage(
           new StorageMessageIdMultisigIsm__factory(),
-          await getZKArtifactByContractName('StorageMessageIdMultisigIsm'),
+          await getZKSyncArtifactByContractName('StorageMessageIdMultisigIsm'),
         );
         break;
       default:
@@ -547,7 +547,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
-          await getZKArtifactByContractName('DefaultFallbackRoutingIsm'),
+          await getZKSyncArtifactByContractName('DefaultFallbackRoutingIsm'),
         );
         // TODO: Should verify contract here
         logger.debug('Initialising fallback routing ISM ...');
@@ -663,7 +663,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         destination,
         factory,
         [addresses, config.threshold],
-        await getZKArtifactByContractName('StorageAggregationIsm'),
+        await getZKSyncArtifactByContractName('StorageAggregationIsm'),
       );
       ismAddress = ism.address;
     } else {

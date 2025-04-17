@@ -620,7 +620,7 @@ export function collectValidators(
 export function isStaticDeploymentSupported(
   chainTechnicalStack: ChainTechnicalStack | undefined,
 ): boolean {
-  return chainTechnicalStack !== ChainTechnicalStack.ZkSync;
+  return chainTechnicalStack !== ChainTechnicalStack.ZKSync;
 }
 
 /**

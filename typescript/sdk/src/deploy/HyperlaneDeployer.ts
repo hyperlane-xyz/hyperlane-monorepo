@@ -37,7 +37,7 @@ import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
-import { getZKArtifactByContractName } from '../utils/zksync.js';
+import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
   UpgradeConfig,
@@ -417,7 +417,7 @@ export abstract class HyperlaneDeployer<
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
     const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
     const signer = this.multiProvider.getSigner(chain);
-    const artifact = await getZKArtifactByContractName(contractName);
+    const artifact = await getZKSyncArtifactByContractName(contractName);
 
     const contract = await this.multiProvider.handleDeploy(
       chain,
@@ -661,7 +661,7 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
-    const TimelockZkArtifact = await getZKArtifactByContractName(
+    const TimelockZkArtifact = await getZKSyncArtifactByContractName(
       'TimelockController',
     );
 
