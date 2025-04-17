@@ -249,6 +249,7 @@ export {
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
   IsmCachePolicy,
+  IsmCacheSelectorType,
   RelayerConfig,
   RpcConsensusType,
   ScraperConfig,
