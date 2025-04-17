@@ -2,6 +2,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
+use futures::future::join_all;
+use itertools::Itertools;
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
@@ -14,13 +16,15 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
 };
 use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod};
-use hyperlane_ethereum::SingletonSignerHandle;
+use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: ReorgPeriod,
-    signer: SingletonSignerHandle,
+    #[allow(unused)]
+    singleton_signer: SingletonSignerHandle,
+    signer: Signers,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     db: Arc<dyn HyperlaneDb>,
@@ -32,7 +36,8 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: ReorgPeriod,
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
-        signer: SingletonSignerHandle,
+        singleton_signer: SingletonSignerHandle,
+        signer: Signers,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         db: Arc<dyn HyperlaneDb>,
         metrics: ValidatorSubmitterMetrics,
@@ -41,6 +46,7 @@ impl ValidatorSubmitter {
             reorg_period,
             interval,
             merkle_tree_hook,
+            singleton_signer,
             signer,
             checkpoint_syncer,
             db,
@@ -148,6 +154,7 @@ impl ValidatorSubmitter {
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &Checkpoint,
     ) {
+        let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
             !tree_exceeds_checkpoint(correctness_checkpoint, tree),
@@ -240,6 +247,12 @@ impl ValidatorSubmitter {
             panic!("{panic_message}");
         }
 
+        tracing::info!(
+            elapsed=?start.elapsed(),
+            checkpoint_queue_len = checkpoint_queue.len(),
+            "Checkpoint submitter reached correctness checkpoint"
+        );
+
         if !checkpoint_queue.is_empty() {
             info!(
                 index = checkpoint.index,
@@ -259,18 +272,30 @@ impl ValidatorSubmitter {
         &self,
         checkpoint: CheckpointWithMessageId,
     ) -> ChainResult<()> {
-        let existing = self
-            .checkpoint_syncer
-            .fetch_checkpoint(checkpoint.index)
-            .await?;
-        if existing.is_some() {
-            debug!(index = checkpoint.index, "Checkpoint already submitted");
-            return Ok(());
-        }
+        let start = Instant::now();
+        let existing = self.checkpoint_syncer.fetch_checkpoint(999999999).await?;
+        tracing::info!(
+            elapsed=?start.elapsed(),
+            "Fetched checkpoint from checkpoint storage",
+        );
+        // if existing.is_some() {
+        //     debug!(index = checkpoint.index, "Checkpoint already submitted");
+        //     return Ok(());
+        // }
+        let start = Instant::now();
         let signed_checkpoint = self.signer.sign(checkpoint).await?;
+        tracing::info!(
+            elapsed=?start.elapsed(),
+            "Signed checkpoint",
+        );
+        let start = Instant::now();
         self.checkpoint_syncer
             .write_checkpoint(&signed_checkpoint)
             .await?;
+        tracing::info!(
+            elapsed=?start.elapsed(),
+            "Stored checkpoint",
+        );
         debug!(index = checkpoint.index, "Signed and submitted checkpoint");
 
         // TODO: move these into S3 implementations
@@ -280,32 +305,119 @@ impl ValidatorSubmitter {
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints(&self, checkpoints: Vec<CheckpointWithMessageId>) {
+    async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
         let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
-        // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
-        // since those are the most likely to make messages become processable.
-        // A side effect is that new checkpoints will also be submitted in reverse order.
-        for queued_checkpoint in checkpoints.into_iter().rev() {
-            // certain checkpoint stores rate limit very aggressively, so we retry indefinitely
+
+        const MAX_CONCURRENCY: usize = 50;
+
+        // for checkpoint_chunk in checkpoints.into_iter().rev().chunks(MAX_CONCURRENCY).into_iter() {
+        //     let start = Instant::now();
+        //     let futures = checkpoint_chunk.map(|checkpoint| {
+        //         self.sign_and_submit_checkpoint(checkpoint)
+        //     });
+
+        //     futures::future::join_all(futures).await;
+        //     tracing::info!(
+        //         elapsed=?start.elapsed(),
+        //         "Signed and submitted checkpoint chunk",
+        //     );
+        // }
+
+        // const MAX_CONCURRENCY: usize = 15;
+
+        let arc_self = Arc::new(self.clone());
+
+        while !checkpoints.is_empty() {
+            let start = Instant::now();
+
+            let mut chunk = Vec::with_capacity(MAX_CONCURRENCY);
+            for _ in 0..MAX_CONCURRENCY {
+                if let Some(cp) = checkpoints.pop() {
+                    chunk.push(cp);
+                } else {
+                    break;
+                }
+            }
+
+            let chunk_len = chunk.len();
+
+            let futures = chunk.into_iter().map(|checkpoint| {
+                let self_clone = arc_self.clone();
+                call_and_retry_indefinitely(move || {
+                    let self_clone = self_clone.clone();
+                    Box::pin(async move {
+                        let start = Instant::now();
+                        self_clone.sign_and_submit_checkpoint(checkpoint).await?;
+                        tracing::info!(
+                            elapsed=?start.elapsed(),
+                            "Signed and submitted checkpoint",
+                        );
+                        Ok(())
+                    })
+                })
+            });
+
+            join_all(futures).await;
+
+            tracing::info!(
+                elapsed=?start.elapsed(),
+                chunk_len,
+                remaining_checkpoints = checkpoints.len(),
+                "Signed and submitted checkpoint chunk",
+            );
+
             call_and_retry_indefinitely(|| {
                 let self_clone = self.clone();
                 Box::pin(async move {
+                    let start = Instant::now();
                     self_clone
-                        .sign_and_submit_checkpoint(queued_checkpoint)
+                        .checkpoint_syncer
+                        .update_latest_index(last_checkpoint.index)
                         .await?;
+                    tracing::info!(
+                        elapsed=?start.elapsed(),
+                        "Updated latest index",
+                    );
                     Ok(())
                 })
             })
             .await;
         }
 
+        // // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
+        // // since those are the most likely to make messages become processable.
+        // // A side effect is that new checkpoints will also be submitted in reverse order.
+        // for queued_checkpoint in checkpoints.into_iter().rev() {
+        //     // certain checkpoint stores rate limit very aggressively, so we retry indefinitely
+        // call_and_retry_indefinitely(|| {
+        //     let self_clone = self.clone();
+        //     Box::pin(async move {
+        //         let start = Instant::now();
+        //         self_clone
+        //             .sign_and_submit_checkpoint(queued_checkpoint)
+        //             .await?;
+        //         tracing::info!(
+        //             elapsed=?start.elapsed(),
+        //             "Signed and submitted checkpoint",
+        //         );
+        //         Ok(())
+        //     })
+        // })
+        // .await;
+        // }
+
         call_and_retry_indefinitely(|| {
             let self_clone = self.clone();
             Box::pin(async move {
+                let start = Instant::now();
                 self_clone
                     .checkpoint_syncer
                     .update_latest_index(last_checkpoint.index)
                     .await?;
+                tracing::info!(
+                    elapsed=?start.elapsed(),
+                    "Updated latest index",
+                );
                 Ok(())
             })
         })
