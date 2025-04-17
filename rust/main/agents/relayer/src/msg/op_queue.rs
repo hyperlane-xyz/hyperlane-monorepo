@@ -323,6 +323,10 @@ pub mod test {
             todo!()
         }
 
+        async fn delivery_check(&mut self) -> PendingOperationResult {
+            todo!()
+        }
+
         async fn prepare(&mut self) -> PendingOperationResult {
             todo!()
         }
