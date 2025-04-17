@@ -12,43 +12,48 @@ export class Templates {
 
   static jsIndex(
     imports: string,
-    contractExports: string,
-    tokenExports: string,
-    mockExports: string,
+    contractExports: string[],
+    tokenExports: string[],
+    mockExports: string[],
   ) {
+    const propertyIndent = ' '.repeat(4);
+
+    const indentExports = (exports: string[]) =>
+      exports.map((line) => propertyIndent + line).join('\n');
+
     return `
-  ${imports}
-   export const starknetContracts = {
-     contracts: {
-   ${contractExports}
-     },
-     token: {
-   ${tokenExports}
-     },
-     mocks: {
-   ${mockExports}
-     }
-   };
-   `;
+${imports}
+
+export const starknetContracts = {
+  contracts: {
+${indentExports(contractExports)}
+  },
+  token: {
+${indentExports(tokenExports)}
+  },
+  mocks: {
+${indentExports(mockExports)}
+  },
+};
+`;
   }
 
   static dtsIndex() {
-    return `
-  import type { CompiledContract, CairoAssembly } from 'starknet';
+    return `import type { CairoAssembly, CompiledContract } from 'starknet';
   
-  export interface StarknetContractGroup {
-    [name: string]: {
-      contract_class?: CompiledContract;
-      compiled_contract_class?: CairoAssembly;
-    };
-  }
+export interface StarknetContractGroup {
+  [name: string]: {
+    contract_class?: CompiledContract;
+    compiled_contract_class?: CairoAssembly;
+  };
+}
   
-  export interface StarknetContracts {
-    contracts: StarknetContractGroup;
-    token: StarknetContractGroup;
-    mocks: StarknetContractGroup;
-  }
+export interface StarknetContracts {
+  contracts: StarknetContractGroup;
+  token: StarknetContractGroup;
+  mocks: StarknetContractGroup;
+}
   
-  export declare const starknetContracts: StarknetContracts;`;
+export declare const starknetContracts: StarknetContracts;`;
   }
 }
