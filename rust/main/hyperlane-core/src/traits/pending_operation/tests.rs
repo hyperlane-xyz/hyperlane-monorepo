@@ -48,6 +48,9 @@ impl PendingOperation for MockQueueOperation {
         unimplemented!()
     }
     fn set_status(&mut self, _status: PendingOperationStatus) {}
+    async fn delivery_check(&mut self) -> PendingOperationResult {
+        unimplemented!()
+    }
     async fn prepare(&mut self) -> PendingOperationResult {
         unimplemented!()
     }
