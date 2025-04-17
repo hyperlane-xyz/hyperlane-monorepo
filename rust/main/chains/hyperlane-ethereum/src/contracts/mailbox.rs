@@ -14,10 +14,10 @@ use ethers::types::{Block, BlockNumber, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
-use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
+use tokio::join;
 use tokio::sync::Mutex;
 use tracing::instrument;
 
@@ -407,7 +407,7 @@ where
         }
     }
 
-    async fn submit_multicall(
+    async fn _submit_multicall(
         &self,
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
@@ -427,7 +427,7 @@ where
         Ok(BatchResult::new(Some(outcome.into()), vec![]))
     }
 
-    async fn simulate_and_submit_batch(
+    async fn _simulate_and_submit_batch(
         &self,
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
@@ -611,16 +611,21 @@ where
                 )
             })
             .collect::<ChainResult<Vec<_>>>()?;
-        // these two we do in parallel
-        let res = self
-            .simulate_batch(&mut multicall, contract_calls.clone())
-            .await?;
-        if let Some(contract_call) = contract_calls.first() {
-            self.refresh_block_and_fee_cache(&contract_call.tx).await?;
-        }
 
-        // and then submit
-        res.try_submit(self.cache.clone()).await
+        let simulate_future = self.simulate_batch(&mut multicall, contract_calls.clone());
+        let refresh_cache_future = async {
+            if let Some(contract_call) = contract_calls.first() {
+                self.refresh_block_and_fee_cache(&contract_call.tx).await
+            } else {
+                Ok(())
+            }
+        };
+
+        let (simulate_result, refresh_result) = join!(simulate_future, refresh_cache_future);
+
+        let (simulation, _) = (simulate_result?, refresh_result?);
+
+        simulation.try_submit(self.cache.clone()).await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
