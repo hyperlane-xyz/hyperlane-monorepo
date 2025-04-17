@@ -33,6 +33,7 @@ use hyperlane_metric::prometheus_metric::{
 use tracing::instrument;
 
 use crate::signer::Signers;
+use crate::tx::PENDING_TX_TIMEOUT_SECS;
 use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
 
 // This should be whatever the prometheus scrape interval is
@@ -286,9 +287,13 @@ where
     // Increase the gas price by 12.5% every 90 seconds
     // (These are the default values from ethers doc comments)
     const COEFFICIENT: f64 = 1.125;
-    const EVERY_SECS: u64 = 90u64;
-    // a 3k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
-    const MAX_GAS_PRICE: u128 = 3_000 * 10u128.pow(9);
+
+    // escalating creates a new tx hash, and the submitter tracks each tx hash for at most
+    // `PENDING_TX_TIMEOUT_SECS`. So the escalator will send a new tx when the initial
+    // tx hash stops being tracked.
+    const EVERY_SECS: u64 = PENDING_TX_TIMEOUT_SECS;
+    // a 50k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
+    const MAX_GAS_PRICE: u128 = 50_000 * 10u128.pow(9);
     let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
     // which adds unnecessary load on the provider.

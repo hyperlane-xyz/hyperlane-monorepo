@@ -26,20 +26,26 @@ use tracing::{debug, error, info, instrument, warn};
 
 use crate::{EthereumMailboxCache, EthereumReorgPeriod, Middleware, TransactionOverrides};
 
-/// An amount of gas to add to the estimated gas
-pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
+/// An amount of gas to add to the estimated gas limit
+pub const GAS_LIMIT_BUFFER: u32 = 75_000;
 
-// A multiplier to apply to the estimated gas, i.e. 10%.
-pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
-pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
+// A multiplier to apply to the estimated gas limit, i.e. 10%.
+pub const GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+// A multiplier to apply to the estimated gas price, i.e. 10%.
+pub const GAS_PRICE_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const GAS_PRICE_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
     // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
     // by the time the transaction lands on chain, requiring a higher gas limit.
     // In this case, we apply a multiplier to the gas estimate.
     let gas = if domain.is_arbitrum_nitro() {
-        gas.saturating_mul(GAS_ESTIMATE_MULTIPLIER_NUMERATOR.into())
-            .checked_div(GAS_ESTIMATE_MULTIPLIER_DENOMINATOR.into())
+        gas.saturating_mul(GAS_LIMIT_MULTIPLIER_NUMERATOR.into())
+            .checked_div(GAS_LIMIT_MULTIPLIER_DENOMINATOR.into())
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
             })?
@@ -48,7 +54,21 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
     };
 
     // Always add a flat buffer
-    Ok(gas.saturating_add(GAS_ESTIMATE_BUFFER.into()))
+    Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
+}
+
+pub fn apply_gas_price_multiplier(gas_price: ethers::types::U256) -> ethers::types::U256 {
+    let multiplied = gas_price
+        .saturating_mul(GAS_PRICE_MULTIPLIER_NUMERATOR.into())
+        .checked_div(GAS_PRICE_MULTIPLIER_DENOMINATOR.into());
+    let Some(multiplied) = multiplied else {
+        warn!(
+            ?gas_price,
+            "Gas price multiplier divide by zero, using original gas price"
+        );
+        return gas_price;
+    };
+    multiplied
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
@@ -82,7 +102,7 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
 
     info!(?tx_hash, "Dispatched tx");
 
-    match tokio::time::timeout(Duration::from_secs(150), pending_tx).await {
+    match tokio::time::timeout(Duration::from_secs(PENDING_TX_TIMEOUT_SECS), pending_tx).await {
         // all good
         Ok(Ok(Some(receipt))) => {
             info!(?tx_hash, "confirmed transaction");
@@ -185,10 +205,12 @@ where
         .max_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_fee);
+    let max_fee = apply_gas_price_multiplier(max_fee);
     let max_priority_fee = transaction_overrides
         .max_priority_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_priority_fee);
+    let max_priority_fee = apply_gas_price_multiplier(max_priority_fee);
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
