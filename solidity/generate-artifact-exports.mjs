@@ -3,41 +3,58 @@ import { basename, dirname, join } from 'path';
 import { glob } from 'typechain';
 import { fileURLToPath } from 'url';
 
-const cwd = process.cwd();
+const CONFIG = {
+  cwd: process.cwd(),
+  outputDir: 'dist/zksync/',
+  artifactsDir: 'artifacts',
+  artifactGlobs: [
+    `!./artifacts-zk/!(build-info)/**/*.dbg.json`,
+    `./artifacts-zk/!(build-info)/**/+([a-zA-Z0-9_]).json`,
+  ],
+  formatIdentifier: 'hh-zksolc-artifact-1',
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const ROOT_OUTPUT_DIR = join(__dirname, 'dist/zksync/');
-const ARTIFACTS_OUTPUT_DIR = join(ROOT_OUTPUT_DIR, 'artifacts');
+const ROOT_OUTPUT_DIR = join(__dirname, CONFIG.outputDir);
+const ARTIFACTS_OUTPUT_DIR = join(ROOT_OUTPUT_DIR, CONFIG.artifactsDir);
 
 /**
  * @notice Templates for TypeScript artifact generation
  */
-const TEMPLATES = {
-  JS_ARTIFACT: `\
-export const {name} = {artifact};
-`,
+class Templates {
+  static jsArtifact(name, artifact) {
+    return `export const ${name} = ${JSON.stringify(artifact)};`;
+  }
 
-  DTS_ARTIFACT: `\
-import type { ZKSyncArtifact } from '../types.js';
+  static dtsArtifact(name) {
+    return `import type { ZKSyncArtifact } from '../types.js';
+export declare const ${name}: ZKSyncArtifact;`;
+  }
 
-export declare const {name}: ZKSyncArtifact;
-`,
-
-  JS_INDEX: `\
-{imports}
-
+  static jsIndex(imports, exports) {
+    return `${imports}
 export const zkSyncContractArtifacts = [
-{exports}
-];
-`,
+${exports}
+];`;
+  }
 
-  DTS_INDEX: `\
-import type { ZKSyncArtifact } from './types.js';
+  static dtsIndex() {
+    return `import type { ZKSyncArtifact } from './types.js';
+export declare const zkSyncContractArtifacts: readonly ZKSyncArtifact[];`;
+  }
 
-export declare const zkSyncContractArtifacts: readonly ZKSyncArtifact[];
-`,
-};
+  // Generates a single import line for a contract in index file
+  static importLine(name) {
+    return `import { ${name} } from './artifacts/${name}.js';`;
+  }
+
+  // Generates a single export line for a contract in index file
+  static exportLine(name) {
+    return `  ${name},`;
+  }
+}
 
 class ArtifactGenerator {
   constructor() {
@@ -50,10 +67,7 @@ class ArtifactGenerator {
    * @return {string[]} Array of file paths matching the glob pattern
    */
   getArtifactPaths() {
-    return glob(cwd, [
-      `!./artifacts-zk/!(build-info)/**/*.dbg.json`,
-      `./artifacts-zk/!(build-info)/**/+([a-zA-Z0-9_]).json`,
-    ]);
+    return glob(CONFIG.cwd, CONFIG.artifactGlobs);
   }
 
   /**
@@ -74,45 +88,6 @@ class ArtifactGenerator {
   }
 
   /**
-   * @notice Generates JavaScript content for a contract artifact
-   */
-  generateJavaScriptContent(name, artifact) {
-    return TEMPLATES.JS_ARTIFACT.replace('{name}', name).replace(
-      '{artifact}',
-      JSON.stringify(artifact, null, 2),
-    );
-  }
-
-  /**
-   * @notice Generates TypeScript declaration content for a contract artifact
-   */
-  generateDeclarationContent(name) {
-    return TEMPLATES.DTS_ARTIFACT.replace('{name}', name);
-  }
-
-  /**
-   * @notice Generates index file contents
-   */
-  generateIndexContents(artifactNames) {
-    const imports = artifactNames
-      .map((name) => `import { ${name} } from './artifacts/${name}.js';`)
-      .join('\n');
-    const exports = artifactNames.map((name) => `  ${name},`).join('\n');
-
-    const jsContent = TEMPLATES.JS_INDEX.replace('{imports}', imports).replace(
-      '{exports}',
-      exports,
-    );
-
-    const dtsContent = TEMPLATES.DTS_INDEX.replace(
-      '{imports}',
-      imports,
-    ).replace('{exports}', exports);
-
-    return { jsContent, dtsContent };
-  }
-
-  /**
    * @notice Processes a single artifact file
    */
   async processArtifact(filePath) {
@@ -124,21 +99,58 @@ class ArtifactGenerator {
 
     const artifact = await this.readArtifactFile(filePath);
 
+    /**
+     * @notice Validates that the artifact was compiled with zksolc
+     *
+     * Format examples:
+     * - Valid:   "_format": "hh-zksolc-artifact-1" (compiled with zksolc)
+     * - Invalid: "_format": "hh-sol-artifact-1" (standard Solidity compilation)
+     */
+    if (
+      !artifact._format ||
+      !artifact._format.includes(CONFIG.formatIdentifier)
+    ) {
+      throw new Error(
+        `Artifact ${name} validation failed: invalid _format property. Expected ${
+          CONFIG.formatIdentifier
+        } but got '${
+          artifact._format || 'undefined'
+        }'. It may not be properly compiled with zksolc.`,
+      );
+    }
+
     // Generate and write .js file
-    const jsContent = this.generateJavaScriptContent(name, artifact);
+    const jsContent = Templates.jsArtifact(name, artifact);
     await fs.writeFile(
       join(ROOT_OUTPUT_DIR, 'artifacts', `${name}.js`),
       jsContent,
     );
 
     // Generate and write .d.ts file
-    const dtsContent = this.generateDeclarationContent(name);
+    const dtsContent = Templates.dtsArtifact(name);
     await fs.writeFile(
       join(ROOT_OUTPUT_DIR, 'artifacts', `${name}.d.ts`),
       dtsContent,
     );
 
     this.processedFiles.add(name);
+  }
+
+  /**
+   * @notice Generates index file contents
+   */
+  generateIndexContents(artifactNames) {
+    const imports = artifactNames
+      .map((name) => Templates.importLine(name))
+      .join('\n');
+    const exports = artifactNames
+      .map((name) => Templates.exportLine(name))
+      .join('\n');
+
+    const jsContent = Templates.jsIndex(imports, exports);
+    const dtsContent = Templates.dtsIndex();
+
+    return { jsContent, dtsContent };
   }
 
   async generate() {

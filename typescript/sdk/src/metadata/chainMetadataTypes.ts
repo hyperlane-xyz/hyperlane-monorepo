@@ -23,6 +23,7 @@ export enum ExplorerFamily {
   Blockscout = 'blockscout',
   Routescan = 'routescan',
   Voyager = 'voyager',
+  ZkSync = 'zksync',
   Other = 'other',
 }
 
@@ -95,6 +96,10 @@ export const RpcUrlSchema = z.object({
     .describe(
       'Default retry settings to be used by a provider such as MultiProvider.',
     ),
+  public: z
+    .boolean()
+    .optional()
+    .describe('Flag if the RPC is publicly available.'),
 });
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
@@ -193,6 +198,11 @@ export const ChainMetadataSchemaObject = z.object({
     })
     .optional()
     .describe('Block settings for the chain/deployment.'),
+
+  bypassBatchSimulation: z
+    .boolean()
+    .optional()
+    .describe('Whether to bypass batch simulation for this chain.'),
 
   chainId: z
     .union([ZNzUint, z.string()])

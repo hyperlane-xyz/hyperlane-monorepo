@@ -98,6 +98,8 @@ fn run_locally() {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_SEALEVELTEST1_SUBMITTER", "Lander")
+        .hyp_env("CHAINS_SEALEVELTEST2_SUBMITTER", "Lander")
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(

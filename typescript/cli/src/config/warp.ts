@@ -50,9 +50,7 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.XERC20Lockbox]:
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
   // TODO: describe
-  [TokenType.fastSynthetic]: '',
   [TokenType.syntheticUri]: '',
-  [TokenType.fastCollateral]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
 };
@@ -178,7 +176,6 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
       case TokenType.collateralUri:
-      case TokenType.fastCollateral:
         result[chain] = {
           type,
           owner,

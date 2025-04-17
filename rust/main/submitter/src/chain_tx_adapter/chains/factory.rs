@@ -1,6 +1,8 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use eyre::Result;
 use hyperlane_base::{
     settings::{ChainConf, RawChainConf},
@@ -20,18 +22,18 @@ impl ChainTxAdapterFactory {
         conf: &ChainConf,
         raw_conf: &RawChainConf,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn AdaptsChain>> {
+    ) -> Result<Arc<dyn AdaptsChain>> {
         use HyperlaneDomainProtocol::*;
 
-        let adapter: Box<dyn AdaptsChain> = match conf.domain.domain_protocol() {
-            Ethereum => Box::new(EthereumTxAdapter::new(conf.clone(), raw_conf.clone())),
+        let adapter: Arc<dyn AdaptsChain> = match conf.domain.domain_protocol() {
+            Ethereum => Arc::new(EthereumTxAdapter::new(conf.clone(), raw_conf.clone())),
             Fuel => todo!(),
-            Sealevel => Box::new(SealevelTxAdapter::new(
+            Sealevel => Arc::new(SealevelTxAdapter::new(
                 conf.clone(),
                 raw_conf.clone(),
                 metrics,
             )?),
-            Cosmos => Box::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
+            Cosmos => Arc::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
             CosmosNative => todo!(),
         };
 

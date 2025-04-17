@@ -5,9 +5,12 @@ use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, Multic
 use hyperlane_core::{
     utils::hex_or_base58_to_h256, ChainResult, HyperlaneDomain, HyperlaneProvider, U256,
 };
+use tokio::sync::Mutex;
 use tracing::warn;
 
 use crate::{ConnectionConf, EthereumProvider};
+
+use super::EthereumMailboxCache;
 
 const ALLOW_BATCH_FAILURES: bool = true;
 
@@ -21,13 +24,27 @@ pub async fn build_multicall<M: Middleware + 'static>(
     provider: Arc<M>,
     conn: &ConnectionConf,
     domain: HyperlaneDomain,
+    cache: Arc<Mutex<EthereumMailboxCache>>,
 ) -> eyre::Result<Multicall<M>> {
     let address = conn
         .operation_batch
         .batch_contract_address
         .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
-    let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
-    if !ethereum_provider.is_contract(&address).await? {
+    let is_contract_cache = {
+        let cache = cache.lock().await;
+        cache.is_contract.get(&address).cloned()
+    };
+    let is_contract = match is_contract_cache {
+        Some(is_contract) => is_contract,
+        None => {
+            let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
+            let is_contract = ethereum_provider.is_contract(&address).await?;
+            cache.lock().await.is_contract.insert(address, is_contract);
+            is_contract
+        }
+    };
+
+    if !is_contract {
         return Err(eyre::eyre!("Multicall contract not found at address"));
     }
     let multicall = match Multicall::new(provider.clone(), Some(address.into())).await {

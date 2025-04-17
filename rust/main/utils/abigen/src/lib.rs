@@ -68,6 +68,8 @@ pub fn generate_bindings_for_dir(
 /// Generate the bindings for a given ABI and return the new module name. Will
 /// create a file within the designated path with the correct `{module_name}.rs`
 /// format.
+// We allow unused variables due to some feature flagging.
+#[allow(unused_variables)]
 pub fn generate_bindings(
     contract_path: impl AsRef<Path>,
     output_dir: impl AsRef<Path>,

@@ -310,15 +310,20 @@ export async function deleteSafeTx(
 
 export async function updateSafeOwner(
   safeSdk: Safe.default,
+  owners?: Address[],
+  threshold?: number,
 ): Promise<AnnotatedCallData[]> {
-  const threshold = await safeSdk.getThreshold();
-  const owners = await safeSdk.getOwners();
-  const newOwners = safeSigners.signers;
-  const ownersToRemove = owners.filter(
+  const currentThreshold = await safeSdk.getThreshold();
+  const newThreshold = threshold ?? currentThreshold;
+
+  const currentOwners = await safeSdk.getOwners();
+  const newOwners = owners ?? safeSigners.signers;
+
+  const ownersToRemove = currentOwners.filter(
     (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
   );
   const ownersToAdd = newOwners.filter(
-    (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
+    (newOwner) => !currentOwners.some((owner) => eqAddress(newOwner, owner)),
   );
 
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
@@ -329,7 +334,7 @@ export async function updateSafeOwner(
   for (const ownerToRemove of ownersToRemove) {
     const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
       ownerAddress: ownerToRemove,
-      threshold,
+      threshold: newThreshold,
     });
     transactions.push({
       to: removeTxData.to,
@@ -342,7 +347,7 @@ export async function updateSafeOwner(
   for (const ownerToAdd of ownersToAdd) {
     const { data: addTxData } = await safeSdk.createAddOwnerTx({
       ownerAddress: ownerToAdd,
-      threshold,
+      threshold: newThreshold,
     });
     transactions.push({
       to: addTxData.to,

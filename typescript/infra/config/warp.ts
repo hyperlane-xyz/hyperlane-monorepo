@@ -51,13 +51,17 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
 import {
+  getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
-  getRenzoGnosisSafeBuilderStagingStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHSTAGEWarpConfig.js';
 import {
+  getEZETHGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHWarpConfig,
-  getRenzoGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
+import {
+  getPZETHSTAGEGnosisSafeBuilderStrategyConfig,
+  getRenzoPZETHStagingWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getRenzoPZETHSTAGEWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
 import { getSuperTokenProductionWarpConfig } from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
@@ -88,7 +92,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
-  [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
+    getRenzoPZETHWarpConfig,
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETHSTAGE]:
+    getRenzoPZETHStagingWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
@@ -127,9 +134,13 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
 export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH]:
-    getRenzoGnosisSafeBuilderStrategyConfig,
+    getEZETHGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
-    getRenzoGnosisSafeBuilderStagingStrategyConfig,
+    getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
+    getEZETHGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETHSTAGE]:
+    getPZETHSTAGEGnosisSafeBuilderStrategyConfig,
 };
 
 /**
@@ -149,6 +160,32 @@ async function getConfigFromMergedRegistry(
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
 
   return populateWarpRouteMailboxAddresses(warpRoute, registry);
+}
+
+/**
+ * Retrieves all Warp configurations for the specified Warp route ID by fetching it from the MergedRegistry
+ * Also, populates their mailbox
+ * Will return in the form { [warRouteId]: { ...config } }
+ */
+export async function getWarpConfigMapFromMergedRegistry(
+  registryUris: string[],
+): Promise<Record<string, ChainMap<HypTokenRouterConfig>>> {
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: true,
+  });
+  const warpRouteMap = await registry.getWarpDeployConfigs();
+  assert(
+    warpRouteMap,
+    `Warp route Configs not found for registry URIs: ${registryUris.join(
+      ', ',
+    )}`,
+  );
+  return promiseObjAll(
+    objMap(warpRouteMap, async (_, warpRouteConfig) =>
+      populateWarpRouteMailboxAddresses(warpRouteConfig, registry),
+    ),
+  );
 }
 
 /**

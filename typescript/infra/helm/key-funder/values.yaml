@@ -5,6 +5,7 @@ hyperlane:
   runEnv: testnet2
   # Used for fetching secrets
   chains: []
+  chainsToSkip: []
   contextFundingFrom: hyperlane
   # key = context, value = array of roles to fund
   contextsAndRolesToFund:

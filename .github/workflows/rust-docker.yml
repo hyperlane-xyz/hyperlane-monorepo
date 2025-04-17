@@ -35,7 +35,6 @@ jobs:
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
     if: needs.check-env.outputs.gcloud-service-key == 'true'
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,3 +73,4 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64

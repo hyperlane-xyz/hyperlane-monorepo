@@ -98,6 +98,8 @@ where
             &self.conn.transaction_overrides,
             &self.domain,
             true,
+            // pass an empty value as the cache
+            Default::default(),
         )
         .await
     }

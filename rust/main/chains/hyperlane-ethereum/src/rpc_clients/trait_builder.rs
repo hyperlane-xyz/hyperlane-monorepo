@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use ethers::middleware::gas_escalator::{Frequency, GasEscalatorMiddleware, GeometricGasPrice};
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
@@ -295,7 +296,27 @@ where
     GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
 }
 
+/// Builds a new HTTP provider with the given URL.
 fn build_http_provider(url: Url) -> ChainResult<Http> {
+    let client = get_reqwest_client(&url)?;
+    Ok(Http::new_with_client(url, client))
+}
+
+/// Gets a cached reqwest client for the given URL, or builds a new one if it doesn't exist.
+fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
+    let client_cache = get_reqwest_client_cache();
+    if let Some(client) = client_cache.get(url) {
+        return Ok(client.clone());
+    }
+    let client = build_new_reqwest_client(url.clone())?;
+    client_cache.insert(url.clone(), client.clone());
+    Ok(client)
+}
+
+/// Builds a new reqwest client with the given URL.
+/// Generally `get_reqwest_client` should be used instead of this function,
+/// as it caches the client for reuse.
+fn build_new_reqwest_client(url: Url) -> ChainResult<Client> {
     let mut queries_to_keep = vec![];
     let mut headers = reqwest::header::HeaderMap::new();
 
@@ -325,11 +346,20 @@ fn build_http_provider(url: Url) -> ChainResult<Http> {
         .clear()
         .extend_pairs(queries_to_keep);
 
-    let http_client = Client::builder()
+    let client = Client::builder()
         .timeout(HTTP_CLIENT_TIMEOUT)
         .default_headers(headers)
         .build()
         .map_err(EthereumProviderConnectionError::from)?;
 
-    Ok(Http::new_with_client(url, http_client))
+    Ok(client)
+}
+
+/// A cache for reqwest clients, indexed by URL.
+/// Generally creating a new Reqwest client is expensive due to some DNS
+/// resolutions, so we cache them for reuse.
+static REQWEST_CLIENT_CACHE: OnceLock<DashMap<Url, Client>> = OnceLock::new();
+
+fn get_reqwest_client_cache() -> &'static DashMap<Url, Client> {
+    REQWEST_CLIENT_CACHE.get_or_init(DashMap::new)
 }

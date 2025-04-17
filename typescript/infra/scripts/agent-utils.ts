@@ -345,6 +345,13 @@ export function withSkipReview<T>(args: Argv<T>) {
     .default('skipReview', false);
 }
 
+export function withPropose<T>(args: Argv<T>) {
+  return args
+    .describe('propose', 'Propose')
+    .boolean('propose')
+    .default('propose', false);
+}
+
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
   const choices = Object.values(WarpRouteIds)

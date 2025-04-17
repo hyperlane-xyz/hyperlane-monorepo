@@ -28,7 +28,7 @@ import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
-  HypTokenRouterConfig,
+  SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 
@@ -72,16 +72,16 @@ describe('TokenDeployer', async () => {
     const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     const routerConfigMap = coreApp.getRouterConfig(signer.address);
-    config = objMap(
-      routerConfigMap,
-      (chain, c): HypTokenRouterConfig => ({
-        type: TokenType.synthetic,
-        name: chain,
-        symbol: `u${chain}`,
-        decimals: 18,
-        ...c,
-      }),
-    );
+    const token: SyntheticTokenConfig = {
+      type: TokenType.synthetic,
+      name: chain,
+      symbol: `u${chain}`,
+      decimals: 18,
+    };
+    config = objMap(routerConfigMap, (chain, c) => ({
+      ...token,
+      ...c,
+    }));
   });
 
   beforeEach(async () => {

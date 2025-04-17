@@ -13,12 +13,23 @@ type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 #[derive(Debug, Default)]
 pub struct MockRoutingIsmResponses {
     pub route: ResponseList<ChainResult<H256>>,
-    pub domain: Option<HyperlaneDomain>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MockRoutingIsm {
+    pub address: H256,
+    pub domain: HyperlaneDomain,
     pub responses: MockRoutingIsmResponses,
+}
+
+impl MockRoutingIsm {
+    pub fn new(address: H256, domain: HyperlaneDomain) -> Self {
+        Self {
+            address,
+            domain,
+            responses: MockRoutingIsmResponses::default(),
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -35,16 +46,13 @@ impl RoutingIsm for MockRoutingIsm {
 
 impl HyperlaneContract for MockRoutingIsm {
     fn address(&self) -> H256 {
-        H256::zero()
+        self.address
     }
 }
 
 impl HyperlaneChain for MockRoutingIsm {
     fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
-        self.responses
-            .domain
-            .as_ref()
-            .expect("No mock domain response set")
+        &self.domain
     }
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
         unimplemented!()
@@ -53,12 +61,17 @@ impl HyperlaneChain for MockRoutingIsm {
 
 #[cfg(test)]
 mod tests {
+    use hyperlane_core::KnownHyperlaneDomain;
+
     use super::*;
 
     /// Just to test mock structs work
     #[tokio::test]
     async fn test_mock_works() {
-        let mock_ism = MockRoutingIsm::default();
+        let mock_ism = MockRoutingIsm::new(
+            H256::zero(),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        );
         mock_ism
             .responses
             .route

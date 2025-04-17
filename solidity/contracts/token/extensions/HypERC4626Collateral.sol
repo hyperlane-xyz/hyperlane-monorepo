@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 
 // ============ External Imports ============
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
@@ -56,6 +57,12 @@ contract HypERC4626Collateral is HypERC20Collateral {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Override `_transferRemote` to send shares as amount and append {exchange rate, nonce} in the message.
+     *      This is preferred for readability and to avoid confusion with the amount of shares. The scaling factor
+     *      is applied to the shares returned by the deposit before sending the message.
+     */
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -67,6 +74,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
         // Can't override _transferFromSender only because we need to pass shares in the token message
         _transferFromSender(_amount);
         uint256 _shares = _depositIntoVault(_amount);
+
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
 
         rateUpdateNonce++;
@@ -75,9 +83,10 @@ contract HypERC4626Collateral is HypERC20Collateral {
             rateUpdateNonce
         );
 
+        uint256 _outboundAmount = _outboundAmount(_shares);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _shares,
+            _outboundAmount,
             _tokenMetadata
         );
 
@@ -89,7 +98,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
             _hook
         );
 
-        emit SentTransferRemote(_destination, _recipient, _shares);
+        emit SentTransferRemote(_destination, _recipient, _outboundAmount);
     }
 
     /**
@@ -102,16 +111,15 @@ contract HypERC4626Collateral is HypERC20Collateral {
     }
 
     /**
-     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`, and withdraws from vault
+     * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
      * @inheritdoc HypERC20Collateral
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
+        uint256 _shares,
         bytes calldata
     ) internal virtual override {
-        // withdraw with the specified amount of shares
-        vault.redeem(_amount, _recipient, address(this));
+        vault.redeem(_shares, _recipient, address(this));
     }
 
     /**

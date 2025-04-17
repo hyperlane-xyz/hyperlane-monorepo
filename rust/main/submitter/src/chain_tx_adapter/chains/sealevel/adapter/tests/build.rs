@@ -20,15 +20,13 @@ async fn test_build_transactions() {
     let result = adapter.build_transactions(&[payload.clone()]).await;
 
     // then
-    assert!(result.is_ok());
     let actual = payload_details_and_data_in_transaction(result);
     assert_eq!(expected, actual);
 }
 
 fn payload_details_and_data_in_transaction(
-    result: Result<Vec<TxBuildingResult>, SubmitterError>,
+    transactions: Vec<TxBuildingResult>,
 ) -> (PayloadDetails, VmSpecificTxData) {
-    let transactions = result.unwrap();
     let transaction = transactions.first().unwrap();
     (
         transaction.payloads.first().unwrap().clone(),

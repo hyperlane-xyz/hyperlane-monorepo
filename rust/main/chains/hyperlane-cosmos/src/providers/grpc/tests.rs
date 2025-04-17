@@ -64,6 +64,7 @@ fn provider(address: &str) -> WasmGrpcProvider {
             OperationBatchConfig {
                 batch_contract_address: None,
                 max_batch_size: 1,
+                ..Default::default()
             },
             NativeToken {
                 decimals: 6,
