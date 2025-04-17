@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { Address, WithAddress } from '@hyperlane-xyz/utils';
+
 import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -55,9 +57,9 @@ export const HookTypeToContractNameMap: Record<
   [HookType.OP_STACK]: 'opStackHook',
   [HookType.ROUTING]: 'domainRoutingHook',
   [HookType.FALLBACK_ROUTING]: 'fallbackDomainRoutingHook',
+  [HookType.AMOUNT_ROUTING]: 'amountRoutingHook',
   [HookType.PAUSABLE]: 'pausableHook',
   [HookType.ARB_L2_TO_L1]: 'arbL2ToL1Hook',
-  [HookType.AMOUNT_ROUTING]: 'amountRoutingHook',
   [HookType.MAILBOX_DEFAULT]: 'defaultHook',
   [HookType.CCIP]: 'ccipHook',
 };
@@ -94,6 +96,8 @@ export type AmountRoutingHookConfig = {
 };
 
 export type HookConfig = z.infer<typeof HookConfigSchema>;
+
+export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE = [

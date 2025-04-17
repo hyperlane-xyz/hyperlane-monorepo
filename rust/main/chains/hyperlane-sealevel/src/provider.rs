@@ -156,6 +156,8 @@ impl SealevelProviderForSubmitter for SealevelProvider {
     }
 
     /// Gets the estimated costs for a given instruction.
+    /// The return value is `Some(SealevelTxCostEstimate)` if the instruction was successfully simulated,
+    /// `None` if the simulation failed.
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
@@ -245,7 +247,10 @@ impl SealevelProviderForSubmitter for SealevelProvider {
     /// expires.
     /// Standalone logic stolen from Solana's non-blocking client,
     /// decoupled from the sending of a transaction.
-    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction) -> ChainResult {
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
         let signature = transaction.get_signature();
 
         const GET_STATUS_RETRIES: usize = usize::MAX;

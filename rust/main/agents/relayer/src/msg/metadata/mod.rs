@@ -8,7 +8,8 @@ mod null_metadata;
 mod routing;
 
 pub(crate) use base::{
-    AppContextClassifier, IsmAwareAppContextClassifier, MessageMetadataBuildParams, Metadata,
+    AppContextClassifier, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+    IsmCachePolicy, IsmCachePolicyClassifier, MessageMetadataBuildParams, Metadata,
     MetadataBuildError, MetadataBuilder,
 };
 pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata};

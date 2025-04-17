@@ -12,7 +12,7 @@ import {
   Mailbox__factory,
   TestMessage,
   TestMessage__factory,
-} from '../dist/evm/types';
+} from '../core-utils/typechain';
 
 import { getSigner, getSigners } from './signer';
 

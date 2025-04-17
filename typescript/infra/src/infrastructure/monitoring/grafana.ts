@@ -10,6 +10,7 @@ import {
   walletNameQueryFormat,
 } from '../../config/funding/grafanaAlerts.js';
 import { fetchGCPSecret } from '../../utils/gcloud.js';
+import { inCIMode } from '../../utils/utils.js';
 
 export const logger = rootLogger.child({ module: 'grafana' });
 
@@ -63,6 +64,16 @@ export async function exportGrafanaAlert(
 
 export async function fetchGrafanaServiceAccountToken(): Promise<string> {
   let saToken: string | undefined;
+
+  if (inCIMode()) {
+    saToken = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN;
+    if (!saToken) {
+      throw new Error(
+        'GRAFANA_SERVICE_ACCOUNT_TOKEN is not set in CI environment',
+      );
+    }
+    return saToken;
+  }
 
   try {
     saToken = (await fetchGCPSecret(

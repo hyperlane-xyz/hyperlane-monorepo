@@ -1,3 +1,4 @@
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import sinon from 'sinon';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -26,6 +27,9 @@ export function stubMultiProtocolProvider(
   sandbox.stub(multiProvider, 'getSolanaWeb3Provider').returns({
     getBalance: async () => '100',
     getTokenAccountBalance: async () => ({ value: { amount: '100' } }),
+    getAccountInfo: async () => ({
+      owner: TOKEN_2022_PROGRAM_ID,
+    }),
   } as any);
   return sandbox;
 }

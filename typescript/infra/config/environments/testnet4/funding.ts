@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8d76c56-20250328-185250',
+    tag: '4fd2990-20250414-150005',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,6 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
+  chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
@@ -49,6 +50,7 @@ export const keyFunderConfig: KeyFunderConfig<
     hyperliquidevmtestnet: '0.1',
     infinityvmmonza: '0',
     inksepolia: '0.1',
+    kyvetestnet: '0',
     modetestnet: '0.05',
     monadtestnet: '0.1',
     odysseytestnet: '0.1',

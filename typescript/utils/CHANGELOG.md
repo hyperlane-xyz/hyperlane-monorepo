@@ -1,5 +1,21 @@
 # @hyperlane-xyz/utils
 
+## 12.1.0
+
+## 12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+## 10.0.0
+
+### Minor Changes
+
+- b8d95fc95: implement custom ESLint rule for restricted imports from exports
+
 ## 9.2.1
 
 ## 9.2.0

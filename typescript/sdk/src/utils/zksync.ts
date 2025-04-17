@@ -1,22 +1,19 @@
-import {
-  ZkSyncArtifact,
-  loadAllZkArtifacts,
-} from '@hyperlane-xyz/core/zksync-artifacts';
+import { ZKSyncArtifact, loadAllZKSyncArtifacts } from '@hyperlane-xyz/core';
 
 /**
  * @dev Retrieves a ZkSync artifact by its contract name or qualified name.
  * @param name The name of the contract or qualified name in the format "sourceName:contractName".
- * @return The corresponding ZkSyncArtifact if found, or undefined if not found.
+ * @return The corresponding ZKSyncArtifact if found, or undefined if not found.
  */
-export const getZKArtifactByContractName = async (
+export const getZKSyncArtifactByContractName = async (
   name: string,
-): Promise<ZkSyncArtifact | undefined> => {
+): Promise<ZKSyncArtifact | undefined> => {
   // Load all ZkSync artifacts
-  const allArtifacts = await loadAllZkArtifacts();
+  const allArtifacts = loadAllZKSyncArtifacts();
 
   // Find the artifact that matches the contract name or qualified name
   const artifact = Object.values(allArtifacts).find(
-    ({ contractName, sourceName }) => {
+    ({ contractName, sourceName }: ZKSyncArtifact) => {
       const lowerCaseContractName = contractName.toLowerCase();
       const lowerCaseName = name.toLowerCase();
 

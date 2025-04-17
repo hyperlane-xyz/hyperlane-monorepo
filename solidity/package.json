@@ -1,13 +1,15 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "6.0.3",
+  "version": "7.1.0",
   "dependencies": {
     "@arbitrum/nitro-contracts": "^1.2.1",
     "@chainlink/contracts-ccip": "^1.5.0",
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "9.2.1",
+    "@hyperlane-xyz/utils": "12.1.0",
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
+    "@matterlabs/hardhat-zksync-solc": "1.2.5",
+    "@matterlabs/hardhat-zksync-verify": "1.7.1",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "fx-portal": "^1.0.3",
@@ -40,21 +42,20 @@
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typechain": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "zksync-ethers": "^5.10.0"
   },
   "directories": {
     "test": "test"
   },
   "type": "module",
   "exports": {
-    ".": "./dist/evm/types/index.js",
-    "./mailbox": "./dist/evm/types/contracts/Mailbox.js",
-    "./buildArtifact.js": "./dist/evm/buildArtifact.js",
+    ".": "./dist/index.js",
+    "./mailbox": "./dist/typechain/contracts/Mailbox.js",
+    "./buildArtifact.js": "./dist/buildArtifact.js",
+    "./buildArtifact.json": "./dist/buildArtifact.json",
     "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
-    "./buildArtifact.json": "./dist/evm/buildArtifact.json",
-    "./contracts": "./contracts",
-    "./zksync-artifacts": "./dist/zksync/artifacts/index.js",
-    "./zksync-artifacts/*": "./dist/zksync/artifacts/*.js"
+    "./contracts": "./contracts"
   },
   "types": "./dist/evm/types/index.d.ts",
   "files": [
@@ -73,8 +74,10 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "yarn version:update && yarn hardhat-esm compile && yarn hardhat-zk compile && ts-node generate-artifact-exports.mjs && tsc && ./exportBuildArtifact.sh",
-    "lint": "solhint contracts/**/*.sol",
+    "build": "yarn version:update && yarn hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
+    "build:zk": "yarn hardhat-zk compile && tsc && ts-node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
+    "prepublishOnly": "yarn build && yarn build:zk",
+    "lint": "solhint contracts/**/*.sol && eslint -c ./eslint.config.mjs",
     "clean": "yarn hardhat-esm clean && yarn hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "yarn fixtures && ./coverage.sh",
     "docs": "forge doc",
