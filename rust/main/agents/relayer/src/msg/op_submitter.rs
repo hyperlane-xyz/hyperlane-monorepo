@@ -37,6 +37,8 @@ use super::op_queue::OperationPriorityQueue;
 /// update the number of queues an OpSubmitter has.
 pub const SUBMITTER_QUEUE_COUNT: usize = 3;
 
+const BACKPRESSURE_QUEUE_LENGTH: usize = 100;
+
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
 /// chain. It is designed to be used in a scenario allowing only one
@@ -96,6 +98,7 @@ pub struct SerialSubmitter {
     /// tokio task monitor
     task_monitor: TaskMonitor,
     prepare_queue: OpQueue,
+    submit_delivery_check_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
     payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
@@ -119,6 +122,11 @@ impl SerialSubmitter {
             "prepare_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
         );
+        let submit_delivery_check_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "submit_delivery_check_queue".to_string(),
+            Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
+        );
         let submit_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "submit_queue".to_string(),
@@ -138,6 +146,7 @@ impl SerialSubmitter {
             max_batch_size,
             task_monitor,
             prepare_queue,
+            submit_delivery_check_queue,
             submit_queue,
             confirm_queue,
             payload_dispatcher_entrypoint,
@@ -180,6 +189,7 @@ impl SerialSubmitter {
         let tasks = [
             self.create_receive_task(rx_prepare),
             self.create_prepare_task(),
+            self.create_submit_delivery_check_task(),
             submit_task,
             confirm_task,
         ];
@@ -216,10 +226,28 @@ impl SerialSubmitter {
                 prepare_task(
                     self.domain.clone(),
                     self.prepare_queue.clone(),
+                    self.submit_delivery_check_queue.clone(),
                     self.submit_queue.clone(),
                     self.confirm_queue.clone(),
                     self.max_batch_size,
                     self.metrics.clone(),
+                ),
+            ))
+            .expect("spawning tokio task from Builder is infallible")
+    }
+
+    fn create_submit_delivery_check_task(&self) -> JoinHandle<()> {
+        let name = Self::task_name("submit_delivery_check::", &self.domain);
+        tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &self.task_monitor,
+                submit_delivery_check_queue_task(
+                    self.domain.clone(),
+                    self.submit_delivery_check_queue.clone(),
+                    self.submit_queue.clone(),
+                    self.confirm_queue.clone(),
+                    self.max_batch_size,
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -331,6 +359,7 @@ async fn receive_task(
 async fn prepare_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
+    submit_delivery_check_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
     max_batch_size: u32,
@@ -339,10 +368,13 @@ async fn prepare_task(
     // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
     let ops_to_prepare = max_batch_size as usize;
     loop {
-        // get submit queue length to apply backpressure
+        // check if we want to apply backpressure
         let backpressure = {
-            let queue = submit_queue.queue.lock().await;
-            queue.len() > 100
+            let submit_delivery_check_queue_len =
+                submit_delivery_check_queue.queue.lock().await.len();
+            let submit_queue_len = submit_queue.queue.lock().await.len();
+
+            submit_delivery_check_queue_len + submit_queue_len > BACKPRESSURE_QUEUE_LENGTH
         };
 
         // Pop messages here according to the configured batch.
@@ -381,8 +413,11 @@ async fn prepare_task(
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
                     // TODO: push multiple messages at once
-                    submit_queue
-                        .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                    submit_delivery_check_queue
+                        .push(
+                            op,
+                            Some(PendingOperationStatus::ReadyToDeliveryCheckBeforeSubmit),
+                        )
                         .await;
                 }
                 PendingOperationResult::NotReady => {
@@ -409,6 +444,67 @@ async fn prepare_task(
         if not_ready_count == batch_len {
             // none of the operations are ready yet, so wait for a little bit
             sleep(Duration::from_millis(500)).await;
+        }
+    }
+}
+
+#[instrument(skip_all, fields(%domain))]
+async fn submit_delivery_check_queue_task(
+    domain: HyperlaneDomain,
+    mut submit_delivery_check_queue: OpQueue,
+    submit_queue: OpQueue,
+    confirm_queue: OpQueue,
+    max_batch_size: u32,
+) {
+    // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
+    let ops_to_check_delivery = max_batch_size as usize;
+    loop {
+        // Pop messages here according to the configured batch.
+        let batch = submit_delivery_check_queue
+            .pop_many(ops_to_check_delivery)
+            .await;
+        if batch.is_empty() {
+            // queue is empty so give some time before checking again to prevent burning CPU
+            sleep(Duration::from_millis(100)).await;
+            continue;
+        }
+        let mut task_futures = vec![];
+        for mut op in batch {
+            trace!(?op, "Delivery check operation before submit");
+            debug_assert_eq!(*op.destination_domain(), domain);
+
+            let submit_queue_len = submit_queue.queue.lock().await.len();
+            if submit_queue_len > BACKPRESSURE_QUEUE_LENGTH {
+                task_futures.push(async move {
+                    let result = op.delivery_check().await;
+                    (op, result)
+                });
+            } else {
+                debug!(?op, "Operation is ready to be submitted");
+                submit_queue
+                    .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                    .await;
+            }
+        }
+        let res = join_all(task_futures).await;
+        for (op, delivery_check_result) in res.into_iter() {
+            match delivery_check_result {
+                PendingOperationResult::NotReady => {
+                    submit_delivery_check_queue.push(op, None).await;
+                }
+                PendingOperationResult::Confirm(reason) => {
+                    debug!(
+                        ?op,
+                        "Pushing operation to confirm queue since message was delivered"
+                    );
+                    confirm_queue
+                        .push(op, Some(PendingOperationStatus::Confirm(reason)))
+                        .await;
+                }
+                _ => {
+                    warn!(?op, "Unexpected result after delivery check");
+                }
+            }
         }
     }
 }
