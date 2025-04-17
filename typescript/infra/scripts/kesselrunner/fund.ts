@@ -4,9 +4,8 @@ import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
+  funderConfig,
   getKesselRunMultiProvider,
-  ltOwner,
-  relayerAddress,
   setDeployerKey,
 } from '../../src/kesselrunner/config.js';
 
@@ -81,8 +80,11 @@ async function printOwnerAndRelayerBalances() {
           }
         };
 
-        await topUpEntity(relayerAddress, 'relayer');
-        await topUpEntity(ltOwner, 'owner');
+        for (const [entityType, entityAddress] of Object.entries(
+          funderConfig,
+        )) {
+          await topUpEntity(entityAddress, entityType);
+        }
       } catch (error) {
         rootLogger.error(`Error topping up on chain ${chain}:`, error);
       }

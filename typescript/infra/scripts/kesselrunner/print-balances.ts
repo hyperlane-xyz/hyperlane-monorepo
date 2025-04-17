@@ -3,25 +3,21 @@ import { formatUnits } from 'ethers/lib/utils.js';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
+  funderConfig,
   getKesselRunMultiProvider,
-  relayerAddress,
 } from '../../src/kesselrunner/config.js';
 
-async function printOwnerAndRelayerBalances() {
+async function printBalances() {
   const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
 
   const balancesObject = await Promise.all(
     targetNetworks.flatMap((chain) => {
-      return ['owner', 'relayer'].map(async (type) => {
+      return Object.entries(funderConfig).map(async ([type, address]) => {
         try {
           const provider = multiProvider.getProvider(chain);
           const { decimals, symbol } = await multiProvider.getNativeToken(
             chain,
           );
-          const address =
-            type === 'owner'
-              ? multiProvider.getSignerAddress(chain)
-              : relayerAddress;
           const balance = await provider.getBalance(address);
           const formattedBalance = formatUnits(balance, decimals);
           return {
@@ -61,7 +57,7 @@ async function printOwnerAndRelayerBalances() {
   console.table(formattedBalances);
 }
 
-printOwnerAndRelayerBalances().catch((error) => {
-  rootLogger.error('Error printing owner and relayer balances:', error);
+printBalances().catch((error) => {
+  rootLogger.error('Error printing balances:', error);
   process.exit(1);
 });
