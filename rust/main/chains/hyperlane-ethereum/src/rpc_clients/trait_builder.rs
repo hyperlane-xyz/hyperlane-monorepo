@@ -284,9 +284,8 @@ fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M>
 where
     M: Middleware + 'static,
 {
-    // Increase the gas price by 12.5% every 90 seconds
-    // (These are the default values from ethers doc comments)
-    const COEFFICIENT: f64 = 1.125;
+    // Increase the gas price by 25% every 90 seconds
+    const COEFFICIENT: f64 = 1.25;
 
     // escalating creates a new tx hash, and the submitter tracks each tx hash for at most
     // `PENDING_TX_TIMEOUT_SECS`. So the escalator will send a new tx when the initial
