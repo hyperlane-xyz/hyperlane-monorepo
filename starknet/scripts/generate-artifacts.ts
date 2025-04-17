@@ -15,4 +15,7 @@ new StarknetArtifactGenerator(
   DEFAULT_ROOT_OUTPUT_DIR,
 )
   .generate()
+  .then((processedFiles) => {
+    console.log(`Artifacts generated successfully: ${processedFiles.size}`);
+  })
   .catch(console.error);

@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { promises as fs } from 'fs';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { dirname, join } from 'path';
-import sinon from 'sinon';
 import { fileURLToPath } from 'url';
 
 import { StarknetArtifactGenerator } from '../../scripts/StarknetArtifactGenerator.js';
@@ -22,7 +21,6 @@ const TEST_OUTPUT_DIR = join(TMP_DIR, 'dist/artifacts');
 
 describe('StarknetArtifactGenerator', () => {
   let generator: StarknetArtifactGenerator;
-  let consoleErrorSpy: sinon.SinonSpy;
 
   beforeEach(async () => {
     await Promise.all([
@@ -37,13 +35,9 @@ describe('StarknetArtifactGenerator', () => {
       TEST_RELEASE_DIR,
       TEST_OUTPUT_DIR,
     );
-
-    consoleErrorSpy = sinon.spy(console, 'error');
   });
 
   afterEach(async () => {
-    consoleErrorSpy.restore();
-
     await fs.rm(TMP_DIR, { recursive: true, force: true }).catch(() => {});
   });
 
@@ -163,7 +157,6 @@ describe('StarknetArtifactGenerator', () => {
         errorThrown = true;
       }
       expect(errorThrown).to.be.true;
-      expect(consoleErrorSpy.callCount).to.equal(1);
     });
   });
 

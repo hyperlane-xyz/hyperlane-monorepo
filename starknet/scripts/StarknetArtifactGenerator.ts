@@ -8,10 +8,9 @@ import { ContractClass, ContractType } from '../src/types.js';
 
 import { Templates } from './Templates.js';
 
-type ProcessedFilesMap = Map<
-  string,
-  { type: ContractType; sierra: boolean; casm: boolean }
->;
+type ProcessedFileInfo = { type: ContractType; sierra: boolean; casm: boolean };
+type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
+type ReadonlyProcessedFilesMap = ReadonlyMap<string, ProcessedFileInfo>;
 
 export class StarknetArtifactGenerator {
   private processedFiles: ProcessedFilesMap;
@@ -221,7 +220,7 @@ export class StarknetArtifactGenerator {
     );
   }
 
-  async generate() {
+  async generate(): Promise<ReadonlyProcessedFilesMap> {
     try {
       await this.createOutputDirectory();
 
@@ -236,11 +235,8 @@ export class StarknetArtifactGenerator {
       await fs.writeFile(join(this.rootOutputDir, 'index.js'), jsContent);
       await fs.writeFile(join(this.rootOutputDir, 'index.d.ts'), dtsContent);
 
-      console.log(
-        `Successfully processed ${this.processedFiles.size} Starknet contracts`,
-      );
+      return new Map(this.processedFiles);
     } catch (error) {
-      console.error('Error processing Starknet artifacts:', error);
       throw error;
     }
   }
