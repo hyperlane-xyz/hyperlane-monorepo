@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { assert, expect } from 'chai';
 import { promises as fs } from 'fs';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { dirname, join } from 'path';
@@ -89,12 +89,28 @@ describe('StarknetArtifactGenerator', () => {
         ContractClass.SIERRA,
       );
 
-      expect(jsContent).to.include('export const Test =');
-      expect(jsContent).to.include('sierra_program');
-      expect(jsContent).to.include('contract_class_version');
-      expect(jsContent).to.include('"abi":');
-      expect(jsContent).to.include('test_function');
-      expect(jsContent).to.include('"sierra_program":[]');
+      // Use regex to extract the JSON object string from the "export const ... = {...};" line.
+      const jsonMatch = jsContent.match(/^export const \w+ = (\{.*\});$/s);
+      // Assert that the regex successfully found and captured the JSON object pattern.
+      assert(jsonMatch, 'Should find JSON object in JS content');
+
+      // Parse the JSON object string from the "export const ... = {...};" line.
+      let parsedArtifact = JSON.parse(jsonMatch[1]);
+
+      expect(parsedArtifact).to.be.an('object');
+      expect(parsedArtifact)
+        .to.have.property('sierra_program')
+        .that.is.an('array');
+
+      expect(parsedArtifact)
+        .to.have.property('entry_points_by_type')
+        .deep.equal(artifact.entry_points_by_type);
+      expect(parsedArtifact).to.have.property('abi').that.is.an('array');
+
+      const hasTestFunction = parsedArtifact.abi.some(
+        (item: any) => item.name === 'test_function',
+      );
+      expect(hasTestFunction, 'ABI should contain "test_function"').to.be.true;
     });
 
     it('generateDeclarationContent: generates correct TypeScript declaration files', () => {
@@ -114,6 +130,7 @@ describe('StarknetArtifactGenerator', () => {
         TEST_RELEASE_DIR,
         `contracts_Test${CONTRACT_SUFFIXES.SIERRA_JSON}`,
       );
+      const artifact = await generator.readArtifactFile(filePath);
 
       const processResult = await generator.processArtifact(filePath);
 
@@ -136,11 +153,39 @@ describe('StarknetArtifactGenerator', () => {
       await fs.access(dtsPath);
 
       const jsContent = await fs.readFile(jsPath, 'utf-8');
-      expect(jsContent).to.include('export const contracts_Test =');
-      expect(jsContent).to.include('"sierra_program":[]');
+
+      // Use regex to extract the JSON object string from the "export const ... = {...};" line.
+      const jsonMatch = jsContent.match(/^export const \w+ = (\{.*\});$/s);
+
+      // Assert that the regex successfully found and captured the JSON object pattern.
+      assert(jsonMatch, 'Should find JSON object in generated JS file');
+
+      // Parse the JSON object string from the "export const ... = {...};" line.
+      let parsedJsArtifact = JSON.parse(jsonMatch[1]);
+
+      expect(parsedJsArtifact).to.be.an('object');
+      expect(parsedJsArtifact)
+        .to.have.property('sierra_program')
+        .that.is.an('array');
+      expect(parsedJsArtifact).to.have.property(
+        'contract_class_version',
+        artifact.contract_class_version,
+      );
+      expect(parsedJsArtifact)
+        .to.have.property('entry_points_by_type')
+        .deep.equal(artifact.entry_points_by_type);
+      expect(parsedJsArtifact)
+        .to.have.property('abi')
+        .deep.equal(
+          typeof artifact.abi === 'string'
+            ? JSON.parse(artifact.abi)
+            : artifact.abi,
+        );
 
       const dtsContent = await fs.readFile(dtsPath, 'utf-8');
-      expect(dtsContent).to.include('CompiledContract');
+      expect(dtsContent).to.include(
+        'export declare const contracts_Test: CompiledContract',
+      );
     });
 
     it('generate: handles malformed artifact files', async () => {
