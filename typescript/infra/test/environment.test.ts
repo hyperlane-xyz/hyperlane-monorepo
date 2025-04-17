@@ -46,7 +46,7 @@ describe('Environment', () => {
           );
 
           const isZksyncChain =
-            chainMetadata.technicalStack === ChainTechnicalStack.ZKSync;
+            chainMetadata.technicalStack === ChainTechnicalStack.ZkSync;
 
           // For zkSync chains, use defaultIsm directly as the routing ISM
           // For non-zkSync chains, find the routing ISM within the aggregation modules

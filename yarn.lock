@@ -7949,7 +7949,6 @@ __metadata:
     prettier: "npm:^2.8.8"
     syncpack: "npm:^13.0.0"
     tsx: "npm:^4.19.1"
-    zksync-ethers: "npm:^5.10.0"
   languageName: unknown
   linkType: soft
 

@@ -567,7 +567,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // if zksync we can't use the proxy factories, so we need to deploy directly
         const isZksync =
           this.multiProvider.getChainMetadata(destination).technicalStack ===
-          ChainTechnicalStack.ZKSync;
+          ChainTechnicalStack.ZkSync;
         if (isZksync) {
           assert(
             this.deployer,

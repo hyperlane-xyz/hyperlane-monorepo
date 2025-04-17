@@ -37,7 +37,7 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   }
   // ZkSync gas usage is different from the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
-  if (getChain(remote).technicalStack === ChainTechnicalStack.ZKSync) {
+  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
     overhead *= 2;
   }
   return overhead;

@@ -102,7 +102,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
-      if (technicalStack === ChainTechnicalStack.ZKSync) {
+      if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = new zk.Provider('http://127.0.0.1:8011', 260);
       } else {
         this.providers[name] = new providers.JsonRpcProvider(
@@ -111,7 +111,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         );
       }
     } else if (rpcUrls.length) {
-      if (technicalStack === ChainTechnicalStack.ZKSync) {
+      if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
       } else {
         this.providers[name] = this.providerBuilder(rpcUrls, chainId);
@@ -341,7 +341,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
 
-    if (technicalStack === ChainTechnicalStack.ZKSync) {
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) {
         throw new Error(`No ZKSync contract artifact provided!`);
       }

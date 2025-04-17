@@ -80,7 +80,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const chainTechnicalStack = this.multiProvider.getChainMetadata(
       this.chain,
     ).technicalStack;
-    this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZKSync;
+    this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
   }
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {

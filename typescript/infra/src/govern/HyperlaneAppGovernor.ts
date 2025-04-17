@@ -527,7 +527,7 @@ export abstract class HyperlaneAppGovernor<
     // have to fallback to manual submission because we are not allowed to
     // estimate gas for non-signer addresses on ZKSync
     const { technicalStack } = multiProvider.getChainMetadata(chain);
-    if (technicalStack === ChainTechnicalStack.ZKSync) {
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
       return { type: SubmissionType.MANUAL, chain, call };
     }
 

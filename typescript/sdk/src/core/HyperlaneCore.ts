@@ -260,7 +260,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     // transaction.from must be a signer on zksync
     if (
       this.multiProvider.getChainMetadata(this.getDestination(message))
-        .technicalStack === ChainTechnicalStack.ZKSync
+        .technicalStack === ChainTechnicalStack.ZkSync
     )
       return '0';
     return (

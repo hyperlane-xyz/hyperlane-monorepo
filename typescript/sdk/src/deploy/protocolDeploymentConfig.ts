@@ -1,7 +1,7 @@
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 
 export const skipStaticDeployment: ChainTechnicalStack[] = [
-  ChainTechnicalStack.ZKSync,
+  ChainTechnicalStack.ZkSync,
 ];
 
 export function shouldSkipStaticDeployment(
