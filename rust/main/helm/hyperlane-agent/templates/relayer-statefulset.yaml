@@ -108,6 +108,10 @@ spec:
           - name: HYPERLANE_RELAYER_ENVIRONMENT_VARIABLE_ENDPOINT_ENABLED
             value: {{ . | quote }}
           {{- end }}
+          {{- with .Values.hyperlane.relayer.maxSubmitQueueLength }}
+          - name: HYP_MAXSUBMITQUEUELENGTH
+            value: {{ . | quote }}
+          {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:

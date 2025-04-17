@@ -437,7 +437,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '17318bf-20250416-215418',
+      tag: '67d143b-20250417-123821',
     },
     whitelist: kesselMatchingList,
     gasPaymentEnforcement,
@@ -448,8 +448,8 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     },
     resources: {
       requests: {
-        cpu: '10000m',
-        memory: '40Gi',
+        cpu: '30000m',
+        memory: '100Gi',
       },
     },
     dbBootstrap: true,
@@ -462,6 +462,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
       defaultBatchSize: 32,
       bypassBatchSimulation: true,
     },
+    maxSubmitQueueLength: 150,
   },
 });
 

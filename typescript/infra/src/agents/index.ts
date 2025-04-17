@@ -228,6 +228,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
         this.config.relayerConfig.environmentVariableEndpointEnabled ?? true,
       cacheDefaultExpirationSeconds:
         this.config.relayerConfig.cache?.defaultExpirationSeconds,
+      maxSubmitQueueLength: this.config.relayerConfig.maxSubmitQueueLength,
     };
 
     const signers = await this.config.signers();

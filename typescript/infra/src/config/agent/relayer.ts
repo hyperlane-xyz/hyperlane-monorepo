@@ -76,6 +76,7 @@ export interface BaseRelayerConfig {
   environmentVariableEndpointEnabled?: boolean;
   cache?: RelayerCacheConfig;
   batch?: RelayerBatchConfig;
+  maxSubmitQueueLength?: number;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -111,6 +112,8 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   environmentVariableEndpointEnabled?: boolean;
   // Config for the cache
   cacheDefaultExpirationSeconds?: number;
+  // Max length of the submit queue to apply backpressure
+  maxSubmitQueueLength?: number;
 }
 
 export interface RelayerDbBootstrapConfig {
