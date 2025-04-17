@@ -3,15 +3,15 @@ import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts.js';
+import { Contexts } from '../../../config/contexts.js';
 import {
   getGovernanceSafes,
   getGovernanceSigners,
-} from '../../config/environments/mainnet3/governance/utils.js';
-import { GovernanceType, withGovernanceType } from '../../src/governance.js';
-import { Role } from '../../src/roles.js';
-import { getOwnerChanges, getSafeAndService } from '../../src/utils/safe.js';
-import { getEnvironmentConfig } from '../core-utils.js';
+} from '../../../config/environments/mainnet3/governance/utils.js';
+import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
+import { Role } from '../../../src/roles.js';
+import { getOwnerChanges, getSafeAndService } from '../../../src/utils/safe.js';
+import { getEnvironmentConfig } from '../../core-utils.js';
 
 enum SafeConfigViolationType {
   missingOwners = 'missingOwners',
