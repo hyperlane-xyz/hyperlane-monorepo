@@ -96,17 +96,54 @@ async function main() {
   }
 
   if (violations.length > 0) {
-    console.table(violations, [
-      'type',
-      'chain',
-      'safeAddress',
-      'owners',
-      'expected',
-      'actual',
-    ]);
+    // Display threshold mismatches in a table
+    const thresholdViolations = violations.filter(
+      (v) => v.type === SafeConfigViolationType.thresholdMismatch,
+    );
+    if (thresholdViolations.length > 0) {
+      console.table(thresholdViolations, [
+        'chain',
+        'safeAddress',
+        'expected',
+        'actual',
+      ]);
+    }
+
+    // Group other violations by chain
+    const violationsByChain = violations
+      .filter((v) => v.type !== SafeConfigViolationType.thresholdMismatch)
+      .reduce((acc, v) => {
+        if (!acc[v.chain]) acc[v.chain] = [];
+        acc[v.chain].push(v);
+        return acc;
+      }, {} as Record<string, SafeConfigViolation[]>);
+
+    // Display chain-specific violations as bulleted lists
+    for (const [chain, chainViolations] of Object.entries(violationsByChain)) {
+      rootLogger.info(`\nChain: ${chain}`);
+
+      const missingSigs = chainViolations.find(
+        (v) => v.type === SafeConfigViolationType.missingOwners,
+      );
+      if (missingSigs?.owners?.length) {
+        rootLogger.info('Missing signers:');
+        missingSigs.owners.forEach((owner) => rootLogger.info(`  • ${owner}`));
+      }
+
+      const extraSigs = chainViolations.find(
+        (v) => v.type === SafeConfigViolationType.unexpectedOwners,
+      );
+      if (extraSigs?.owners?.length) {
+        rootLogger.info('Extraneous signers:');
+        extraSigs.owners.forEach((owner) => rootLogger.info(`  • ${owner}`));
+      }
+    }
   } else {
     rootLogger.info('No violations found');
   }
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  rootLogger.error(error);
+  process.exit(1);
+});
