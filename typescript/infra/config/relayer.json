@@ -14,6 +14,10 @@
     "hyperlane": "0x16626cd24fd1f228a031e48b77602ae25f8930db",
     "neutron": "0xf2c72c0befa494d62949a1699a99e2c605a0b636",
     "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16",
-    "vanguard0": "0x2c9209efcaff2778d945e18fb24174e16845dc62"
+    "vanguard0": "0x2c9209efcaff2778d945e18fb24174e16845dc62",
+    "vanguard1": "0x939043d9db00f6ada1b742239beb7ddd5bf82096",
+    "vanguard2": "0x45b58e4d46a89c003cc7126bd971eb3794a66aeb",
+    "vanguard3": "0x1f4fdb150e8c9fda70687a2fd481e305af1e7f8e",
+    "vanguard4": "0xe41b227e7aaaf7bbd1d60258de0dd76a11a0c3fc"
   }
 }

@@ -446,7 +446,12 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     cache: {
       enabled: true,
     },
-    resources: relayerResources,
+    resources: {
+      requests: {
+        cpu: '10000m',
+        memory: '40Gi',
+      },
+    },
     dbBootstrap: true,
     mixing: {
       enabled: true,

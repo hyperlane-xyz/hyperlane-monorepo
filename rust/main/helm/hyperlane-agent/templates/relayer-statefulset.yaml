@@ -52,7 +52,9 @@ spec:
           - sh
           - -c
           - |
-            if [ -z "$(ls -A {{ .Values.hyperlane.dbPath }})" ]; then
+            if find {{ .Values.hyperlane.dbPath }} -type f | grep -q .; then
+              echo "Files already exist in {{ .Values.hyperlane.dbPath }} — skipping bootstrap"
+            else
               echo "No data found in {{ .Values.hyperlane.dbPath }} — bootstrapping from GCS"
               gsutil cp gs://{{ .Values.hyperlane.relayer.dbBootstrap.bucket }}/{{ .Values.hyperlane.relayer.dbBootstrap.object_targz }} /tmp/seed.tar.gz
               # GNU tar has more options than busybox tar
@@ -60,8 +62,7 @@ spec:
               apk add tar
               echo "Extracting data to {{ .Values.hyperlane.dbPath }}"
               tar --no-overwrite-dir --no-same-owner -xzf /tmp/seed.tar.gz -C {{ .Values.hyperlane.dbPath }}
-            else
-              echo "Data already exists in {{ .Values.hyperlane.dbPath }} — skipping bootstrap"
+              chown -R 1000:2000 {{ .Values.hyperlane.dbPath }}
             fi
         env:
           - name: GOOGLE_APPLICATION_CREDENTIALS
