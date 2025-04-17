@@ -14,6 +14,12 @@ import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
+import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
+import { awSafes } from '../../config/environments/mainnet3/governance/safe/aw.js';
+import {
+  DEPLOYER,
+  upgradeTimelocks,
+} from '../../config/environments/mainnet3/owners.js';
 import { getHyperlaneCore } from '../../scripts/core-utils.js';
 import { CloudAgentKey } from '../agents/keys.js';
 import { Role } from '../roles.js';
@@ -89,7 +95,28 @@ export async function getRouterConfigsForAllVms(
     envConfig.environment,
     multiProvider,
   );
-  const evmRouterConfig = core.getRouterConfig(envConfig.owners);
+
+  // Core deployment governance is changing.
+  // For now stick with the previous ownership setup.
+  const ownerConfigs: ChainMap<OwnableConfig> = objMap(
+    envConfig.owners,
+    (chain, _) => {
+      const owner = awIcas[chain] ?? awSafes[chain] ?? DEPLOYER;
+      return {
+        owner,
+        ownerOverrides: {
+          proxyAdmin: upgradeTimelocks[chain] ?? owner,
+          validatorAnnounce: DEPLOYER,
+          testRecipient: DEPLOYER,
+          fallbackRoutingHook: DEPLOYER,
+          ...(awSafes[chain] && { _safeAddress: awSafes[chain] }),
+          ...(awIcas[chain] && { _icaAddress: awIcas[chain] }),
+        },
+      };
+    },
+  );
+
+  const evmRouterConfig = core.getRouterConfig(ownerConfigs);
 
   const allRouterConfigs: ChainMap<RouterConfig> = objMap(
     chainAddresses,
