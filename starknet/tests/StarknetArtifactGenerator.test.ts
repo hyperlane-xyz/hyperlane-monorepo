@@ -138,6 +138,9 @@ describe('StarknetArtifactGenerator', () => {
       const jsContent = await fs.readFile(jsPath, 'utf-8');
       expect(jsContent).to.include('export const contracts_Test =');
       expect(jsContent).to.include('"sierra_program":[]');
+
+      const dtsContent = await fs.readFile(dtsPath, 'utf-8');
+      expect(dtsContent).to.include('CompiledContract');
     });
 
     it('generate: handles malformed artifact files', async () => {
