@@ -219,6 +219,27 @@ impl PendingOperation for PendingMessage {
     }
 
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
+    async fn delivery_check(&mut self) -> PendingOperationResult {
+        let is_already_delivered = match self
+            .ctx
+            .destination_mailbox
+            .delivered(self.message.id())
+            .await
+        {
+            Ok(is_delivered) => is_delivered,
+            Err(_) => {
+                return PendingOperationResult::NotReady;
+            }
+        };
+
+        if is_already_delivered {
+            return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
+        } else {
+            return PendingOperationResult::NotReady;
+        }
+    }
+
+    #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");

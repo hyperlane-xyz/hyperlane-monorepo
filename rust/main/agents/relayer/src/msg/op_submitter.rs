@@ -339,6 +339,12 @@ async fn prepare_task(
     // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
     let ops_to_prepare = max_batch_size as usize;
     loop {
+        // get submit queue length to apply backpressure
+        let backpressure = {
+            let queue = submit_queue.queue.lock().await;
+            queue.len() > 100
+        };
+
         // Pop messages here according to the configured batch.
         let mut batch = prepare_queue.pop_many(ops_to_prepare).await;
         if batch.is_empty() {
@@ -351,7 +357,12 @@ async fn prepare_task(
         for op in op_refs {
             trace!(?op, "Preparing operation");
             debug_assert_eq!(*op.destination_domain(), domain);
-            task_prep_futures.push(op.prepare());
+
+            if !backpressure {
+                task_prep_futures.push(op.prepare());
+            } else {
+                task_prep_futures.push(op.delivery_check());
+            }
         }
         let res = join_all(task_prep_futures).await;
         let not_ready_count = res

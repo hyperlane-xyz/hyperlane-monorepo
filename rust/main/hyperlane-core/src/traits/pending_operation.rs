@@ -118,6 +118,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
         (destination, app_context)
     }
 
+    /// Delivery check
+    async fn delivery_check(&mut self) -> PendingOperationResult;
+
     /// Prepare to submit this operation. This will be called before every
     /// submission and will usually have a very short gap between it and the
     /// submit call.
