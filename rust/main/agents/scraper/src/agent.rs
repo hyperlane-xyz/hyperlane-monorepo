@@ -441,6 +441,7 @@ mod test {
                         gas_limit: None,
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
+                        ..Default::default()
                     },
                     operation_batch: OperationBatchConfig {
                         batch_contract_address: None,
