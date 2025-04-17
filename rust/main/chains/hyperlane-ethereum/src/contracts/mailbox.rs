@@ -8,9 +8,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use ethers::providers::ProviderError;
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Block, BlockNumber, H256 as TxHash};
+use ethers::types::{Block, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
@@ -438,19 +437,13 @@ where
     }
 
     async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) -> ChainResult<()> {
-        let latest_block = self
-            .provider
-            .get_block(BlockNumber::Latest)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
-        let eip1559_fee =
-            estimate_eip1559_fees(self.provider.clone(), None, &latest_block, &self.domain, tx)
+        let (eip1559_fee, latest_block) =
+            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx)
                 .await
-                .ok();
+                .map_err(ChainCommunicationError::from_other)?;
         let mut cache = self.cache.lock().await;
         cache.latest_block = Some(latest_block);
-        cache.eip1559_fee = eip1559_fee;
+        cache.eip1559_fee = Some(eip1559_fee);
         Ok(())
     }
 }

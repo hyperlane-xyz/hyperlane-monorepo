@@ -18,11 +18,13 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use tokio::join;
+use tokio::sync::Mutex;
+use tracing::{debug, error, info, instrument, warn};
+
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256, U256,
 };
-use tokio::sync::Mutex;
-use tracing::{debug, error, info, instrument, warn};
 
 use crate::{EthereumMailboxCache, EthereumReorgPeriod, Middleware, TransactionOverrides};
 
@@ -163,10 +165,10 @@ where
     }
 
     let eip1559_fee_result = match cached_eip1559_fee {
-        Some(fee) => Ok(fee),
-        None => estimate_eip1559_fees(provider.clone(), None, &latest_block, domain, &tx.tx).await,
+        Some(fee) => Ok((fee, latest_block)),
+        None => estimate_eip1559_fees(provider.clone(), None, domain, &tx.tx).await,
     };
-    let (base_fee, max_fee, max_priority_fee) = match eip1559_fee_result {
+    let ((base_fee, max_fee, max_priority_fee), _) = match eip1559_fee_result {
         Ok(result) => result,
         Err(err) => {
             warn!(?err, "Failed to estimate EIP-1559 fees");
@@ -223,32 +225,44 @@ pub type Eip1559Fee = (
     EthersU256, // max priority fee
 );
 
+async fn latest_block<M>(provider: Arc<M>) -> ChainResult<Block<TxHash>>
+where
+    M: Middleware + 'static,
+{
+    let latest_block = provider
+        .get_block(BlockNumber::Latest)
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    Ok(latest_block)
+}
+
 /// Use this to estimate EIP 1559 fees with some chain-specific logic.
 pub(crate) async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
-    latest_block: &Block<TxHash>,
     domain: &HyperlaneDomain,
     tx: &TypedTransaction,
-) -> ChainResult<Eip1559Fee>
+) -> ChainResult<(Eip1559Fee, Block<TxHash>)>
 where
     M: Middleware + 'static,
 {
     if domain.is_zksync_stack() {
-        estimate_eip1559_fees_zksync(provider, latest_block, tx).await
+        estimate_eip1559_fees_zksync(provider, tx).await
     } else {
-        estimate_eip1559_fees_default(provider, estimator, latest_block).await
+        estimate_eip1559_fees_default(provider, estimator).await
     }
 }
 
 async fn estimate_eip1559_fees_zksync<M>(
     provider: Arc<M>,
-    latest_block: &Block<TxHash>,
     tx: &TypedTransaction,
-) -> ChainResult<Eip1559Fee>
+) -> ChainResult<(Eip1559Fee, Block<TxHash>)>
 where
     M: Middleware + 'static,
 {
+    let latest_block = latest_block(provider.clone()).await?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
@@ -257,7 +271,10 @@ where
     let max_fee_per_gas = response.max_fee_per_gas;
     let max_priority_fee_per_gas = response.max_priority_fee_per_gas;
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    Ok((
+        (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
+        latest_block,
+    ))
 }
 
 async fn zksync_estimate_fee<M>(
@@ -304,23 +321,26 @@ struct ZksyncEstimateFeeResponse {
 async fn estimate_eip1559_fees_default<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
-    latest_block: &Block<TxHash>,
-) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+) -> ChainResult<((EthersU256, EthersU256, EthersU256), Block<TxHash>)>
 where
     M: Middleware + 'static,
 {
+    let latest_block = latest_block(provider.clone());
+    let fee_history = provider.fee_history(
+        EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+        BlockNumber::Latest,
+        &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+    );
+
+    let (latest_block, fee_history) = join!(latest_block, fee_history);
+    let (latest_block, fee_history) = (
+        latest_block?,
+        fee_history.map_err(ChainCommunicationError::from_other)?,
+    );
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
-
-    let fee_history = provider
-        .fee_history(
-            EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-            BlockNumber::Latest,
-            &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
-        )
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
 
     // use the provided fee estimator function, or fallback to the default implementation.
     let (max_fee_per_gas, max_priority_fee_per_gas) = if let Some(es) = estimator {
@@ -329,7 +349,10 @@ where
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    Ok((
+        (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
+        latest_block,
+    ))
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
