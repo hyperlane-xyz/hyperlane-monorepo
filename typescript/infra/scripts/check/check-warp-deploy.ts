@@ -28,7 +28,24 @@ async function main() {
     context,
     pushMetrics,
     interactive,
-  } = await getCheckWarpDeployArgs().argv;
+    warpRouteId,
+  } = await getCheckWarpDeployArgs()
+    .option({
+      interactive: {
+        type: 'boolean',
+        alias: 'i',
+        default: false,
+        description: 'Run in interactive mode',
+      },
+    })
+    .option({
+      warpRouteId: {
+        type: 'string',
+        alias: 'w',
+        default: undefined,
+        description: 'Warp route ID to check',
+      },
+    }).argv;
 
   const metricsRegister = new Registry();
   const checkerViolationsGauge = new Gauge(
@@ -48,7 +65,9 @@ async function main() {
   );
 
   let warpIdsToCheck: string[];
-  if (interactive) {
+  if (warpRouteId && warpRouteId.length > 0) {
+    warpIdsToCheck = [warpRouteId];
+  } else if (interactive) {
     warpIdsToCheck = await getWarpRouteIdsInteractive();
   } else {
     console.log(chalk.yellow('Skipping the following warp routes:'));

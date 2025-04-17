@@ -126,13 +126,12 @@ export class HyperlaneRouterChecker<
     }
   }
 
-  async checkEnrolledRouters(chain: ChainName): Promise<void> {
+  async checkEnrolledRouters(
+    chain: ChainName,
+    expectedRemoteChains: ChainName[] = [],
+  ): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
     const actualRemoteChains = await this.app.remoteChains(chain);
-    const expectedRemoteChains = this.app
-      .chains()
-      .filter((c) => c !== chain)
-      .sort();
 
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};

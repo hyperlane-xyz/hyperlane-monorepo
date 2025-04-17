@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 
 import {
   ChainAddresses,
+  IRegistry,
   MergedRegistry,
   PartialRegistry,
   warpConfigToWarpAddresses,
@@ -65,6 +66,14 @@ export function getRegistry(): FileSystemRegistry {
   return registry;
 }
 
+function getRegistryFromUris(registryUris?: string[]): IRegistry {
+  if (registryUris && registryUris.length > 0) {
+    return getMergedRegistry({ registryUris, enableProxy: true });
+  } else {
+    return getRegistry();
+  }
+}
+
 export function getChains(): ChainName[] {
   return getRegistry().getChains();
 }
@@ -115,30 +124,26 @@ export function getWarpAddresses(
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
 
-export async function getWarpCoreConfigFromMergedRegistry(
+export async function getWarpAddressesFrom(
   warpRouteId: string,
-  registryUris: string[],
-): Promise<WarpCoreConfig> {
-  const registry = getMergedRegistry({ registryUris, enableProxy: true });
+  registryUris?: string[],
+): Promise<ChainMap<ChainAddresses>> {
+  const registry = getRegistryFromUris(registryUris);
   const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
-
   if (!warpRouteConfig) {
     throw new Error(
-      `Warp route config for ${warpRouteId} not found in registry`,
+      `Warp route config for ${warpRouteId} not found in ${registry.uri}`,
     );
   }
-  return warpRouteConfig;
+  return warpConfigToWarpAddresses(warpRouteConfig);
 }
 
-export async function getWarpAddressesFromMergedRegistry(
+export async function findWarpDeployConfig(
   warpRouteId: string,
-  registryUris: string[],
-): Promise<ChainMap<ChainAddresses>> {
-  const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
-    warpRouteId,
-    registryUris,
-  );
-  return warpConfigToWarpAddresses(warpCoreConfig);
+  registryUris?: string[],
+): Promise<WarpRouteDeployConfig | null> {
+  const registry = getRegistryFromUris(registryUris);
+  return registry.getWarpDeployConfig(warpRouteId);
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {
