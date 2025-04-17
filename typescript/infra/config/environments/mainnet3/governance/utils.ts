@@ -1,4 +1,5 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { GovernanceType } from '../../../../src/governance.js';
 
@@ -6,6 +7,8 @@ import { awIcas } from './ica/aw.js';
 import { regularIcas } from './ica/regular.js';
 import { awSafes } from './safe/aw.js';
 import { regularSafes } from './safe/regular.js';
+import { awSigners, awThreshold } from './signers/aw.js';
+import { regularSigners, regularThreshold } from './signers/regular.js';
 
 export function getGovernanceSafes(governanceType: GovernanceType) {
   switch (governanceType) {
@@ -29,6 +32,23 @@ export function getGovernanceIcas(governanceType: GovernanceType) {
   }
 }
 
+export function getGovernanceSigners(governanceType: GovernanceType): {
+  signers: Address[];
+  threshold: number;
+} {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return {
+        signers: regularSigners,
+        threshold: regularThreshold,
+      };
+    case GovernanceType.AbacusWorks:
+      return {
+        signers: awSigners,
+        threshold: awThreshold,
+      };
+  }
+}
 export function getSafeChains(): Set<ChainName> {
   return new Set(
     ...Object.keys(getGovernanceSafes(GovernanceType.AbacusWorks)),

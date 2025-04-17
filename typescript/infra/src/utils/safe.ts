@@ -23,7 +23,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
@@ -308,16 +307,20 @@ export async function deleteSafeTx(
   }
 }
 
-export async function updateSafeOwner(
-  safeSdk: Safe.default,
-  owners?: Address[],
-  threshold?: number,
-): Promise<AnnotatedCallData[]> {
+export async function updateSafeOwner({
+  safeSdk,
+  owners,
+  threshold,
+}: {
+  safeSdk: Safe.default;
+  owners?: Address[];
+  threshold?: number;
+}): Promise<AnnotatedCallData[]> {
   const currentThreshold = await safeSdk.getThreshold();
   const newThreshold = threshold ?? currentThreshold;
 
   const currentOwners = await safeSdk.getOwners();
-  const newOwners = owners ?? safeSigners.signers;
+  const newOwners = owners ?? currentOwners;
 
   const ownersToRemove = currentOwners.filter(
     (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
