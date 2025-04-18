@@ -248,7 +248,7 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let mut gas_price = tx.tx.gas_price();
+    let gas_price = tx.tx.gas_price();
     // if no gas price was set in the tx, leave the tx as is and return early
     let Some(mut gas_price) = gas_price else {
         return tx;
