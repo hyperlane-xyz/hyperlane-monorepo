@@ -15,7 +15,6 @@ use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
-use itertools::Itertools;
 use tokio::join;
 use tokio::sync::Mutex;
 use tracing::instrument;
@@ -363,34 +362,27 @@ where
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
     ) -> ChainResult<BatchSimulation<M>> {
-        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone());
         let call_results = batch.call().await?;
 
-        let failed_calls = contract_calls
-            .iter()
-            .zip(call_results.iter())
-            .enumerate()
-            .filter_map(
-                |(index, (_, result))| {
-                    if !result.success {
-                        Some(index)
-                    } else {
-                        None
-                    }
-                },
-            )
-            .collect_vec();
+        let (successful, failed) = multicall::filter_failed(contract_calls, call_results);
+
+        if successful.is_empty() {
+            return Ok(BatchSimulation::failed(failed.len()));
+        }
+
+        let successful_calls_len = successful.len();
+        let successful_batch = multicall::batch::<_, ()>(multicall, successful.clone());
+        let estimated = multicall::estimate(successful_batch, successful).await?;
 
         // only send a batch if there are at least two successful calls
-        let call_count = contract_calls.len();
-        let successful_calls = call_count - failed_calls.len();
-        if successful_calls >= 2 {
+        if successful_calls_len >= 2 {
             Ok(BatchSimulation::new(
-                Some(self.submittable_batch(batch)),
-                failed_calls,
+                Some(self.submittable_batch(estimated)),
+                failed,
             ))
         } else {
-            Ok(BatchSimulation::failed(call_count))
+            Ok(BatchSimulation::failed(failed.len()))
         }
     }
 
@@ -412,7 +404,7 @@ where
         contract_calls: Vec<ContractCall<M, ()>>,
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
-        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone());
         let call_with_gas_overrides = fill_tx_gas_params(
             batch,
             self.provider.clone(),
