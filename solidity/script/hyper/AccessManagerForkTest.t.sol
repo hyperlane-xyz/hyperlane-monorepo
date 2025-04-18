@@ -46,6 +46,57 @@ contract AccessManagerForkTest is Test {
         assertGt(delay, 0, "Expected scheduling delay > 0");
     }
 
+    function testBaseConfiguration() public {
+        // Check that the FOUNDATION_AND_DEPUTIES_MULTISIG has the proposer role on the timelock
+        assertTrue(
+            timelock.hasRole(
+                keccak256("PROPOSER_ROLE"),
+                FOUNDATION_AND_DEPUTIES_MULTISIG
+            ),
+            "FOUNDATION_AND_DEPUTIES_MULTISIG does not have proposer role"
+        );
+        // Check that the SECURITY_COUNCIL has the canceller role on the timelock
+        assertTrue(
+            timelock.hasRole(keccak256("CANCELLER_ROLE"), SECURITY_COUNCIL),
+            "SECURITY_COUNCIL does not have canceller role"
+        );
+        // Check that 0x0 has the executor role on the timelock
+        assertTrue(
+            timelock.hasRole(keccak256("EXECUTOR_ROLE"), address(0)),
+            "0x0 does not have executor role"
+        );
+
+        // Check that the deployer key 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba no longer has any role on the timelock
+        assertFalse(
+            timelock.hasRole(
+                keccak256("PROPOSER_ROLE"),
+                0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba
+            ),
+            "Deployer key should not have proposer role"
+        );
+        assertFalse(
+            timelock.hasRole(
+                keccak256("CANCELLER_ROLE"),
+                0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba
+            ),
+            "Deployer key should not have canceller role"
+        );
+        assertFalse(
+            timelock.hasRole(
+                keccak256("EXECUTOR_ROLE"),
+                0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba
+            ),
+            "Deployer key should not have executor role"
+        );
+        assertFalse(
+            timelock.hasRole(
+                keccak256("TIMELOCK_ADMIN_ROLE"),
+                0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba
+            ),
+            "Deployer key should not have executor role"
+        );
+    }
+
     function testScheduleAndExecuteCallRemote() public {
         // Impersonate FOUNDATION_AND_DEPUTIES_MULTISIG and schedule the call
         vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
