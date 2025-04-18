@@ -46,7 +46,7 @@ contract AccessManagerForkTest is Test {
         assertGt(delay, 0, "Expected scheduling delay > 0");
     }
 
-    function testBaseConfiguration() public {
+    function testBaseConfiguration() public view {
         // Check that the FOUNDATION_AND_DEPUTIES_MULTISIG has the proposer role on the timelock
         assertTrue(
             timelock.hasRole(
@@ -94,6 +94,19 @@ contract AccessManagerForkTest is Test {
                 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba
             ),
             "Deployer key should not have executor role"
+        );
+
+        // Check that the access manager has the timelock as its admin
+        (bool amHasRole, ) = accessManager.hasRole(0, address(timelock));
+        assertTrue(amHasRole, "AccessManager admin should be the timelock");
+        // Check that the original deployer does not have admin still
+        (bool deployerHasRole, ) = accessManager.hasRole(
+            0,
+            0x79fa1F70fBBA4Dd07510B21b32525b602FaDf31c
+        );
+        assertFalse(
+            deployerHasRole,
+            "Deployer key should not have AccessManager admin role"
         );
     }
 
