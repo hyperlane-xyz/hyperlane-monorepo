@@ -438,9 +438,7 @@ where
 
     async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) -> ChainResult<()> {
         let (eip1559_fee, latest_block) =
-            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx)
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
+            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx).await?;
         let mut cache = self.cache.lock().await;
         cache.latest_block = Some(latest_block);
         cache.eip1559_fee = Some(eip1559_fee);
