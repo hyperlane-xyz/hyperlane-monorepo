@@ -15,7 +15,6 @@ export const MILLENNIUM_FALCON_ABI = `[{"inputs":[{"components":[{"internalType"
 
 export const KESSEL_RUN_FUNDER_CONFIG = {
   owner: '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a',
-  relayer: '0xf2c72c0befa494d62949a1699a99e2c605a0b636',
   vanguard0: '0x2c9209efcaff2778d945e18fb24174e16845dc62',
   vanguard1: '0x939043d9db00f6ada1b742239beb7ddd5bf82096',
   vanguard2: '0x45b58e4d46a89c003cc7126bd971eb3794a66aeb',
