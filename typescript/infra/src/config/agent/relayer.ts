@@ -5,15 +5,12 @@ import { z } from 'zod';
 import {
   AgentConfig,
   ChainMap,
-  ChainName,
   GasPaymentEnforcement,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
   IsmCacheConfig,
-  IsmCachePolicy,
   MatchingList,
-  ModuleType,
   RelayerConfig as RelayerAgentConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -59,6 +56,7 @@ export interface RelayerBatchConfig {
   bypassBatchSimulation?: boolean;
   defaultBatchSize?: number;
   batchSizeOverrides?: ChainMap<number>;
+  maxSubmitQueueLength?: ChainMap<number>;
 }
 
 // Incomplete basic relayer agent config
@@ -76,7 +74,6 @@ export interface BaseRelayerConfig {
   environmentVariableEndpointEnabled?: boolean;
   cache?: RelayerCacheConfig;
   batch?: RelayerBatchConfig;
-  maxSubmitQueueLength?: number;
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
 }
@@ -114,8 +111,6 @@ export interface HelmRelayerValues extends HelmStatefulSetValues {
   environmentVariableEndpointEnabled?: boolean;
   // Config for the cache
   cacheDefaultExpirationSeconds?: number;
-  // Max length of the submit queue to apply backpressure
-  maxSubmitQueueLength?: number;
 }
 
 export interface RelayerDbBootstrapConfig {
@@ -267,7 +262,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   get requiresAwsCredentials(): boolean {
     // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
     if (!this.aws) {
-      console.warn(
+      this.logger.warn(
         `Relayer does not have AWS credentials. Be sure this is a non-k8s-based environment!`,
       );
       return false;

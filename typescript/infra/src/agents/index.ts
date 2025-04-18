@@ -20,7 +20,6 @@ import {
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import {
-  RelayerBatchConfig,
   RelayerConfigHelper,
   RelayerConfigMapConfig,
   RelayerDbBootstrapConfig,
@@ -36,7 +35,6 @@ import {
   fetchGCPSecret,
   gcpSecretExistsUsingClient,
   getGcpSecretLatestVersionName,
-  grantServiceAccountRoleIfNotExists,
   grantServiceAccountStorageRoleIfNotExists,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
@@ -57,6 +55,7 @@ const HELM_CHART_PATH = join(
 export interface BatchConfig {
   maxBatchSize: number;
   bypassBatchSimulation: boolean;
+  maxSubmitQueueLength?: number;
 }
 
 export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
@@ -126,6 +125,9 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             blocks: { reorgPeriod },
             maxBatchSize: batchConfig.maxBatchSize,
             bypassBatchSimulation: batchConfig.bypassBatchSimulation,
+            ...(batchConfig.maxSubmitQueueLength
+              ? { maxSubmitQueueLength: batchConfig.maxSubmitQueueLength }
+              : {}),
             priorityFeeOracle,
             transactionSubmitter,
           };
@@ -151,7 +153,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
     return this.config.agentRoleConfig.resources;
   }
 
-  batchConfig(chain: ChainName): BatchConfig {
+  batchConfig(_: ChainName): BatchConfig {
     return {
       maxBatchSize: 32,
       bypassBatchSimulation: false,
@@ -228,7 +230,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
         this.config.relayerConfig.environmentVariableEndpointEnabled ?? true,
       cacheDefaultExpirationSeconds:
         this.config.relayerConfig.cache?.defaultExpirationSeconds,
-      maxSubmitQueueLength: this.config.relayerConfig.maxSubmitQueueLength,
     };
 
     const signers = await this.config.signers();
@@ -270,6 +271,8 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       bypassBatchSimulation:
         this.config.relayerConfig.batch?.bypassBatchSimulation ??
         defaultBatchConfig.bypassBatchSimulation,
+      maxSubmitQueueLength:
+        this.config.relayerConfig.batch?.maxSubmitQueueLength?.[chain],
     };
   }
 

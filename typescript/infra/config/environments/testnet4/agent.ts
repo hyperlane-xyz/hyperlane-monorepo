@@ -490,11 +490,17 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
       defaultBatchSize: 32,
       batchSizeOverrides: {
         // Slightly lower to ideally fit within 5M
-        sepolia: 23,
+        sepolia: 26,
       },
       bypassBatchSimulation: true,
+      maxSubmitQueueLength: {
+        arbitrumsepolia: 250,
+        basesepolia: 250,
+        bsctestnet: 250,
+        optimismsepolia: 250,
+        sepolia: 100,
+      },
     },
-    maxSubmitQueueLength: 400,
     txIdIndexingEnabled: false,
     igpIndexingEnabled: false,
   },
