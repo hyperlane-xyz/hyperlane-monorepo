@@ -580,6 +580,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
       // outside of Solana are ignored.
       { originDomain: getDomainId('infinityvm') },
+      // Temporary workaround due to funky Zeronetwork gas amounts.
+      { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
