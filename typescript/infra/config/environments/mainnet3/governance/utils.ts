@@ -6,8 +6,10 @@ import { GovernanceType } from '../../../../src/governance.js';
 import { awIcas } from './ica/aw.js';
 import { regularIcas } from './ica/regular.js';
 import { awSafes } from './safe/aw.js';
+import { irregularSafes } from './safe/irregular.js';
 import { regularSafes } from './safe/regular.js';
 import { awSigners, awThreshold } from './signers/aw.js';
+import { irregularSigners, irregularThreshold } from './signers/irregular.js';
 import { regularSigners, regularThreshold } from './signers/regular.js';
 
 export function getGovernanceSafes(governanceType: GovernanceType) {
@@ -16,6 +18,8 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
       return regularSafes;
     case GovernanceType.AbacusWorks:
       return awSafes;
+    case GovernanceType.Irregular:
+      return irregularSafes;
     default:
       throw new Error(`Unknown governance type: ${governanceType}`);
   }
@@ -27,6 +31,8 @@ export function getGovernanceIcas(governanceType: GovernanceType) {
       return regularIcas;
     case GovernanceType.AbacusWorks:
       return awIcas;
+    case GovernanceType.Irregular:
+      return {};
     default:
       throw new Error(`Unknown governance type: ${governanceType}`);
   }
@@ -46,6 +52,11 @@ export function getGovernanceSigners(governanceType: GovernanceType): {
       return {
         signers: awSigners,
         threshold: awThreshold,
+      };
+    case GovernanceType.Irregular:
+      return {
+        signers: irregularSigners,
+        threshold: irregularThreshold,
       };
   }
 }
