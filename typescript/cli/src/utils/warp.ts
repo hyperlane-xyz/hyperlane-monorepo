@@ -90,14 +90,12 @@ export async function getWarpConfigs({
 
   let selectedId = warpRouteId;
   if (!selectedId) {
-    const routeIds = Object.keys(
-      filterWarpRoutesIds(
-        (await context.registry.listRegistryContent()).deployments.warpRoutes,
-        symbol ? { symbol } : undefined,
-      ),
+    const { ids: routeIds } = filterWarpRoutesIds(
+      (await context.registry.listRegistryContent()).deployments.warpRoutes,
+      symbol ? { symbol } : undefined,
     );
 
-    assert(routeIds.length === 0, 'No valid warp routes found in registry');
+    assert(routeIds.length !== 0, 'No valid warp routes found in registry');
 
     selectedId = (await search({
       message: 'Select a warp route:',
