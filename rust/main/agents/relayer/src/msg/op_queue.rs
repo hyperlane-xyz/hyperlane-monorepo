@@ -153,6 +153,11 @@ impl OpQueue {
         queue.append(&mut reprioritized_queue);
         retry_responses
     }
+
+    pub async fn len(&self) -> usize {
+        let queue = self.queue.lock().await;
+        queue.len()
+    }
 }
 
 #[cfg(test)]

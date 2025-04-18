@@ -155,6 +155,9 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
 
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]
+// TODO: re-enable this clippy check once the new submitter is shipped,
+// since it might take in configs in a different way
+#[allow(clippy::large_enum_variant)]
 pub enum ChainConnectionConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
