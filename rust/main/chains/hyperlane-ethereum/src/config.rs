@@ -72,6 +72,9 @@ pub struct TransactionOverrides {
     pub gas_price_multiplier_denominator: Option<U256>,
     /// Gas price multiplier numerator to use for transactions, eg 100
     pub gas_price_multiplier_numerator: Option<U256>,
+
+    /// Gas price cap, in wei.
+    pub gas_price_cap: Option<U256>,
 }
 
 /// Ethereum reorg period
