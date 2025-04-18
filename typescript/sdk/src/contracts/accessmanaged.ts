@@ -55,8 +55,12 @@ export function configureAccess<
   for (const [index, [role]] of Object.entries<RoleConfig<Role>[Role]>(
     config.roles,
   ).entries()) {
-    const roleId =
-      role in RESERVED_ROLES ? RESERVED_ROLES[role] : BigInt(index) + 1n;
+    if (role in RESERVED_ROLES) {
+      roleIds[role] = RESERVED_ROLES[role];
+      continue;
+    }
+
+    const roleId = BigInt(index) + 1n;
     roleIds[role] = roleId;
 
     const data = manager.encodeFunctionData('labelRole', [roleId, role]);
