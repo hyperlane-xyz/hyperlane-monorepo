@@ -460,7 +460,8 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4895798-20250418-192837', //includes gasPriceCap overrides
+      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
+      tag: '9d20c65-20250418-220918',
     },
     whitelist: kesselMatchingList,
     gasPaymentEnforcement: [
@@ -494,11 +495,11 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
       },
       bypassBatchSimulation: true,
       maxSubmitQueueLength: {
-        arbitrumsepolia: 250,
-        basesepolia: 250,
-        bsctestnet: 250,
-        optimismsepolia: 250,
-        sepolia: 100,
+        arbitrumsepolia: 350,
+        basesepolia: 350,
+        bsctestnet: 350,
+        optimismsepolia: 350,
+        sepolia: 75,
       },
     },
     txIdIndexingEnabled: false,
