@@ -218,8 +218,8 @@ contract AccessManagerForkTest is Test {
         vm.warp(block.timestamp + TIMELOCK_DELAY + 1);
         vm.roll(block.number + 1);
 
-        // Execute the proposal via timelock
-        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        // Execute the proposal via timelock (anyone can)
+        vm.prank(address(0x1));
         timelock.execute(address(accessManager), 0, callData, bytes32(0), salt);
     }
 
