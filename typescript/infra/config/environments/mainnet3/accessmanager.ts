@@ -29,6 +29,8 @@ export type ManagedContracts = {
 const DAY = 24 * 60 * 60;
 
 const DEPUTIES_MULTISIG = '0xec2EdC01a2Fbade68dBcc80947F43a5B408cC3A0';
+const ACCESS_MANAGER_TIMELOCK_ADMIN =
+  '0xfA842f02439Af6d91d7D44525956F9E5e00e339f';
 
 const PROXY_ADMIN_TARGET = {
   authority: {
@@ -52,8 +54,7 @@ const WARP_ROUTE_TARGET_AUTHORITY = {
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
     [Roles.ADMIN]: {
-      // TODO: Set this to Timelock
-      members: new Set([DEPUTIES_MULTISIG]),
+      members: new Set([ACCESS_MANAGER_TIMELOCK_ADMIN]),
     },
     [Roles.SevenDay]: {
       guardian: Roles.SecurityCouncil,
