@@ -460,7 +460,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '4895798-20250418-192837', //includes gasPriceCap overrides
     },
     whitelist: kesselMatchingList,
     gasPaymentEnforcement: [
