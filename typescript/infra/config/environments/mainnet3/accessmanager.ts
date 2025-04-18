@@ -25,26 +25,27 @@ export type ManagedContracts = {
 
 const DAY = 24 * 60 * 60;
 
-const FOUNDATION = '0x0000000000000000000000000000000000000001'; // replace with actual addresses
+const DEPUTIES_MULTISIG = '0xec2EdC01a2Fbade68dBcc80947F43a5B408cC3A0';
 
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
     [Roles.ADMIN]: {
-      members: new Set([FOUNDATION]),
+      // TODO: Set this to Timelock
+      members: new Set([DEPUTIES_MULTISIG]),
     },
     [Roles.SevenDay]: {
       guardian: Roles.SecurityCouncil,
-      members: new Set([FOUNDATION]),
+      members: new Set([DEPUTIES_MULTISIG]),
       executionDelay: 7 * DAY,
     },
     [Roles.ThirtyDay]: {
       guardian: Roles.SecurityCouncil,
-      members: new Set([FOUNDATION]),
+      members: new Set([DEPUTIES_MULTISIG]),
       executionDelay: 30 * DAY,
     },
     [Roles.SecurityCouncil]: {
       members: new Set([
-        '0x0000000000000000000000000000000000000002', // replace with actual addresses
+        '0xE8055e2763DcbA5a88B1278514312d7C04f0473D', // Security Council Multisig
       ]),
     },
   },
