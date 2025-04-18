@@ -1,3 +1,5 @@
+import { keccak256 } from '@ethersproject/keccak256';
+import { toUtf8Bytes } from '@ethersproject/strings';
 import { BaseContract } from 'ethers';
 
 import { IAccessManager__factory } from '@hyperlane-xyz/core';
@@ -51,15 +53,16 @@ export function configureAccess<
 
   const manager = IAccessManager__factory.createInterface();
 
-  const roleIds: Record<string, bigint> = RESERVED_ROLES;
+  const roleIds: Record<string, bigint> = { ...RESERVED_ROLES };
 
-  // Assign IDs to custom roles in deterministic (sorted) order
-  const customRoles = Object.keys(config.roles)
-    .filter((role): role is Role => !(role in RESERVED_ROLES))
-    .sort();
-
-  for (const [index, role] of customRoles.entries()) {
-    const roleId = BigInt(index) + 1n;
+  // Assign IDs based on truncated keccak256 hash of the role label
+  for (const role of Object.keys(config.roles).filter(
+    (role): role is Role => !(role in RESERVED_ROLES),
+  )) {
+    const fullHash = keccak256(toUtf8Bytes(role));
+    // take first 8 bytes (16 hex chars) of the hash as uint64
+    const truncatedHex = '0x' + fullHash.slice(2, 18);
+    const roleId = BigInt(truncatedHex);
     roleIds[role] = roleId;
     const data = manager.encodeFunctionData('labelRole', [roleId, role]);
     const annotation = `label role ID ${roleId} with ${role}`;
