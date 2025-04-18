@@ -63,25 +63,11 @@ impl HyperlaneSigner for SingletonSignerHandle {
     async fn sign_hash(&self, hash: &H256) -> Result<HyperlaneSignature, HyperlaneSignerError> {
         let (tx, rx) = oneshot::channel();
         let task = (*hash, tx);
-        let start = std::time::Instant::now();
         self.tx.send(task).map_err(SingletonSignerError::from)?;
-        let elapsed = start.elapsed();
-        tracing::info!(
-            elapsed = ?elapsed,
-            "SingletonSignerHandle: sent sign hash task"
-        );
-        let start = std::time::Instant::now();
-        let r = match rx.await {
+        match rx.await {
             Ok(res) => res.map(Into::into),
             Err(err) => Err(SingletonSignerError::from(err).into()),
-        };
-        let elapsed = start.elapsed();
-        tracing::info!(
-            start = ?start,
-            elapsed = ?elapsed,
-            "SingletonSignerHandle: received sign hash result"
-        );
-        r
+        }
     }
 }
 
@@ -108,7 +94,6 @@ impl SingletonSigner {
     /// Run this signer's event loop.
     pub async fn run(mut self) {
         while let Some((hash, tx)) = self.rx.recv().await {
-            let start = std::time::Instant::now();
             let mut retries = self.retries;
             let res = loop {
                 match self.inner.sign_hash(&hash).await {
@@ -122,25 +107,11 @@ impl SingletonSigner {
                     }
                 }
             };
-            let elapsed = start.elapsed();
-            tracing::info!(
-                start = ?start,
-                elapsed = ?elapsed,
-                retries = retries,
-                "SingletonSigner: signed hash"
-            );
-            let start = std::time::Instant::now();
             if tx.send(res.map(Into::into)).is_err() {
                 warn!(
                     "Failed to send signature back to the signer handle because the channel was closed"
                 );
             }
-            let elapsed = start.elapsed();
-            tracing::info!(
-                start = ?start,
-                elapsed = ?elapsed,
-                "SingletonSigner: sent signature back to the signer handle"
-            );
         }
     }
 }

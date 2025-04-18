@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::server as validator_server;
 use async_trait::async_trait;
@@ -57,6 +57,7 @@ pub struct Validator {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
+    max_sign_concurrency: usize,
 }
 
 /// Metadata for `validator`
@@ -181,6 +182,7 @@ impl BaseAgent for Validator {
             core_metrics: metrics,
             runtime_metrics,
             agent_metadata,
+            max_sign_concurrency: settings.max_sign_concurrency,
         })
     }
 
@@ -302,6 +304,7 @@ impl Validator {
             self.checkpoint_syncer.clone(),
             Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
+            self.max_sign_concurrency,
         );
 
         let tip_tree = self
