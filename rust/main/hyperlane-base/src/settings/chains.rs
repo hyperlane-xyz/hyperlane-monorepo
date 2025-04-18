@@ -157,7 +157,7 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
 #[derive(Clone, Debug)]
 pub enum ChainConnectionConf {
     /// Ethereum configuration
-    Ethereum(h_eth::ConnectionConf),
+    Ethereum(Arc<h_eth::ConnectionConf>),
     /// Fuel configuration
     Fuel(h_fuel::ConnectionConf),
     /// Sealevel configuration.

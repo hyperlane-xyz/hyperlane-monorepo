@@ -68,6 +68,7 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("maxPriorityFeePerGas")
                 .parse_u256()
                 .end(),
+
             min_gas_price: value_parser
                 .chain(err)
                 .get_opt_key("minGasPrice")
@@ -81,6 +82,28 @@ pub fn build_ethereum_connection_conf(
             min_priority_fee_per_gas: value_parser
                 .chain(err)
                 .get_opt_key("minPriorityFeePerGas")
+                .parse_u256()
+                .end(),
+
+            gas_limit_multiplier_denominator: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitMultiplierDenominator")
+                .parse_u256()
+                .end(),
+            gas_limit_multiplier_numerator: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitMultiplierNumerator")
+                .parse_u256()
+                .end(),
+
+            gas_price_multiplier_denominator: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceMultiplierDenominator")
+                .parse_u256()
+                .end(),
+            gas_price_multiplier_numerator: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceMultiplierNumerator")
                 .parse_u256()
                 .end(),
         })

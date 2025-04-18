@@ -30,12 +30,12 @@ use crate::{EthereumMailboxCache, EthereumReorgPeriod, Middleware, TransactionOv
 pub const GAS_LIMIT_BUFFER: u32 = 75_000;
 
 // A multiplier to apply to the estimated gas limit, i.e. 10%.
-pub const GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
-pub const GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 // A multiplier to apply to the estimated gas price, i.e. 10%.
-pub const GAS_PRICE_MULTIPLIER_NUMERATOR: u32 = 11;
-pub const GAS_PRICE_MULTIPLIER_DENOMINATOR: u32 = 10;
+pub const DEFAULT_GAS_PRICE_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const DEFAULT_GAS_PRICE_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
 
@@ -44,8 +44,8 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
     // by the time the transaction lands on chain, requiring a higher gas limit.
     // In this case, we apply a multiplier to the gas estimate.
     let gas = if domain.is_arbitrum_nitro() {
-        gas.saturating_mul(GAS_LIMIT_MULTIPLIER_NUMERATOR.into())
-            .checked_div(GAS_LIMIT_MULTIPLIER_DENOMINATOR.into())
+        gas.saturating_mul(DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR.into())
+            .checked_div(DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR.into())
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
             })?
@@ -57,10 +57,19 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
     Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
 }
 
-pub fn apply_gas_price_multiplier(gas_price: EthersU256) -> EthersU256 {
-    let multiplied = gas_price
-        .saturating_mul(GAS_PRICE_MULTIPLIER_NUMERATOR.into())
-        .checked_div(GAS_PRICE_MULTIPLIER_DENOMINATOR.into());
+pub fn apply_gas_price_multiplier(
+    gas_price: EthersU256,
+    transaction_overrides: &TransactionOverrides,
+) -> EthersU256 {
+    let numerator: EthersU256 = transaction_overrides
+        .gas_price_multiplier_numerator
+        .map(Into::into)
+        .unwrap_or(DEFAULT_GAS_PRICE_MULTIPLIER_NUMERATOR.into());
+    let denominator: EthersU256 = transaction_overrides
+        .gas_price_multiplier_denominator
+        .map(Into::into)
+        .unwrap_or(DEFAULT_GAS_PRICE_MULTIPLIER_DENOMINATOR.into());
+    let multiplied = gas_price.saturating_mul(numerator).checked_div(denominator);
     let Some(multiplied) = multiplied else {
         warn!(
             ?gas_price,
@@ -239,7 +248,7 @@ where
 {
     let gas_price = max_between_options(
         tx.tx.gas_price(),
-        transaction_overrides.min_fee_per_gas.map(Into::into),
+        transaction_overrides.min_gas_price.map(Into::into),
     );
     if let Some(gas_price) = gas_price {
         return tx.gas_price(gas_price);
@@ -265,7 +274,7 @@ fn apply_1559_multipliers_and_overrides(
         .max_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_fee);
-    let mut max_fee = apply_gas_price_multiplier(max_fee);
+    let mut max_fee = apply_gas_price_multiplier(max_fee, transaction_overrides);
     if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
         max_fee = max_fee.max(min_fee.into());
     }
@@ -274,7 +283,7 @@ fn apply_1559_multipliers_and_overrides(
         .max_priority_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_priority_fee);
-    let mut max_priority_fee = apply_gas_price_multiplier(max_priority_fee);
+    let mut max_priority_fee = apply_gas_price_multiplier(max_priority_fee, transaction_overrides);
 
     if let Some(min_priority_fee) = transaction_overrides.min_priority_fee_per_gas {
         max_priority_fee = max_priority_fee.max(min_priority_fee.into());
