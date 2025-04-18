@@ -13,6 +13,7 @@ use ethers::types::{Block, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
+use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use tokio::join;
@@ -373,12 +374,12 @@ where
 
         let successful_calls_len = successful.len();
         let successful_batch = multicall::batch::<_, ()>(multicall, successful.clone());
-        let estimated = multicall::estimate(successful_batch, successful).await?;
 
         // only send a batch if there are at least two successful calls
         if successful_calls_len >= 2 {
             Ok(BatchSimulation::new(
-                Some(self.submittable_batch(estimated)),
+                Some(self.submittable_batch(successful_batch)),
+                successful,
                 failed,
             ))
         } else {
@@ -441,6 +442,8 @@ where
 #[derive(new)]
 pub struct BatchSimulation<M> {
     pub call: Option<SubmittableBatch<M>>,
+    /// Successful individual calls
+    pub successful: Vec<ContractCall<M, ()>>,
     /// Indexes of excluded calls in the batch (because they either failed the simulation
     /// or they were the only successful call)
     pub excluded_call_indexes: Vec<usize>,
@@ -448,7 +451,7 @@ pub struct BatchSimulation<M> {
 
 impl<M> BatchSimulation<M> {
     pub fn failed(ops_count: usize) -> Self {
-        Self::new(None, (0..ops_count).collect())
+        Self::new(None, vec![], (0..ops_count).collect())
     }
 }
 
@@ -457,7 +460,9 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
         self,
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
-        if let Some(submittable_batch) = self.call {
+        if let Some(mut submittable_batch) = self.call {
+            let estimated = multicall::estimate(submittable_batch.call, self.successful).await?;
+            submittable_batch.call = estimated;
             let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
@@ -605,8 +610,24 @@ where
         };
 
         let (simulate_result, refresh_result) = join!(simulate_future, refresh_cache_future);
+        let (mut simulation, _) = (simulate_result?, refresh_result?);
 
-        let (simulation, _) = (simulate_result?, refresh_result?);
+        let filled_tx_params_futures = simulation.successful.iter().map(|tx| {
+            fill_tx_gas_params(
+                tx.clone(),
+                self.provider.clone(),
+                &self.conn.transaction_overrides,
+                &self.domain,
+                true,
+                self.cache.clone(),
+            )
+        });
+        let contract_calls = join_all(filled_tx_params_futures)
+            .await
+            .into_iter()
+            .collect::<ChainResult<Vec<_>>>()?;
+
+        simulation.successful = contract_calls;
 
         simulation.try_submit(self.cache.clone()).await
     }
