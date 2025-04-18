@@ -10,6 +10,7 @@ export enum Contexts {
   Vanguard4 = 'vanguard4',
   Vanguard5 = 'vanguard5',
   Vanguard6 = 'vanguard6',
+  Vanguard7 = 'vanguard7',
 }
 
 function isValidContext(context: string): context is Contexts {
