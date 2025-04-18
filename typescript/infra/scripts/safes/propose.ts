@@ -21,56 +21,8 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const VAULTS = [
   {
-    name: 'EtherFi LBTC',
-    vault: '0xd4E20ECA1f996Dab35883dC0AD5E3428AF888D45',
-  },
-  {
-    name: 'EtherFi wstETH',
-    vault: '0x450a90fdEa8B87a6448Ca1C87c88Ff65676aC45b',
-  },
-  {
-    name: 'Renzo pzETH',
-    vault: '0xa88e91cEF50b792f9449e2D4C699b6B3CcE1D19F',
-  },
-  {
-    name: 'Swell swETH',
-    vault: '0x65b560d887c010c4993c8f8b36e595c171d69d63',
-  },
-  {
-    name: 'Swell WBTC',
-    vault: '0x9e405601B645d3484baeEcf17bBF7aD87680f6e8',
-  },
-  {
-    name: 'MEV Mellow wstETH',
-    vault: '0x446970400e1787814CA050A4b45AE9d21B3f7EA7',
-  },
-  {
-    name: 'MEV Symbiotic wstETH',
-    vault: '0x4e0554959A631B3D3938ffC158e0a7b2124aF9c5',
-  },
-  {
-    name: 'Gauntlet wstETH',
-    vault: '0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da',
-  },
-  {
-    name: 'Gauntlet cbETH',
-    vault: '0xB8Fd82169a574eB97251bF43e443310D33FF056C',
-  },
-  {
-    name: 'Gauntlet rETH',
-    vault: '0xaF07131C497E06361dc2F75de63dc1d3e113f7cb',
-  },
-  {
-    name: 'Gauntlet wBETH',
-    vault: '0x81bb35c4152B605574BAbD320f8EABE2871CE8C6',
-  },
-  {
-    name: 'P2P wstETH',
-    vault: '0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E',
-  },
-  {
-    name: 'Re7 wstETH',
-    vault: '0x3D93b33f5E5fe74D54676720e70EA35210cdD46E',
+    name: 'stHYPER',
+    vault: '0xE1F23869776c82f691d9Cb34597Ab1830Fb0De58',
   },
 ];
 

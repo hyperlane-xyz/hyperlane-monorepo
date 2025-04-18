@@ -10,8 +10,8 @@ import { AccessManagerConfig } from '@hyperlane-xyz/sdk';
 
 enum Roles {
   ADMIN = 'ADMIN',
-  Fast = 'Seven Day Foundation',
-  Slow = 'Thirty Day Foundation',
+  SevenDay = 'Seven Day Multisig',
+  ThirtyDay = 'Thirty Day Multisig',
   SecurityCouncil = 'Security Council',
 }
 
@@ -28,67 +28,67 @@ export type ManagedContracts = {
 
 const DAY = 24 * 60 * 60;
 
-const FOUNDATION = '0x0000000000000000000000000000000000000001'; // replace with actual addresses
+const DEPUTIES_MULTISIG = '0xec2EdC01a2Fbade68dBcc80947F43a5B408cC3A0';
 
 const PROXY_ADMIN_TARGET = {
   authority: {
-    'upgrade(address,address)': Roles.Slow,
-    'upgradeAndCall(address,address,bytes)': Roles.Slow,
-    'changeProxyAdmin(address,address)': Roles.Slow,
-    'transferOwnership(address)': Roles.Slow,
+    'upgrade(address,address)': Roles.ThirtyDay,
+    'upgradeAndCall(address,address,bytes)': Roles.ThirtyDay,
+    'changeProxyAdmin(address,address)': Roles.ThirtyDay,
+    'transferOwnership(address)': Roles.ThirtyDay,
   },
 };
 
 const WARP_ROUTE_TARGET_AUTHORITY = {
-  'setInterchainSecurityModule(address)': Roles.Fast,
-  'setHook(address)': Roles.Fast,
-  'enrollRemoteRouter(uint32,address)': Roles.Slow,
-  'enrollRemoteRouters(uint32[],address[])': Roles.Slow,
-  'unenrollRemoteRouter(uint32,address)': Roles.Slow,
-  'unenrollRemoteRouters(uint32[],address[])': Roles.Slow,
-  'transferOwnership(address)': Roles.Slow,
+  'setInterchainSecurityModule(address)': Roles.SevenDay,
+  'setHook(address)': Roles.SevenDay,
+  'enrollRemoteRouter(uint32,address)': Roles.SevenDay,
+  'enrollRemoteRouters(uint32[],address[])': Roles.SevenDay,
+  'unenrollRemoteRouter(uint32,address)': Roles.SevenDay,
+  'unenrollRemoteRouters(uint32[],address[])': Roles.SevenDay,
+  'transferOwnership(address)': Roles.SevenDay,
 };
 
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
     [Roles.ADMIN]: {
-      members: new Set([FOUNDATION]),
+      // TODO: Set this to Timelock
+      members: new Set([DEPUTIES_MULTISIG]),
     },
-    [Roles.Fast]: {
+    [Roles.SevenDay]: {
       guardian: Roles.SecurityCouncil,
-      members: new Set([FOUNDATION]),
+      members: new Set([DEPUTIES_MULTISIG]),
       executionDelay: 7 * DAY,
     },
-    [Roles.Slow]: {
+    [Roles.ThirtyDay]: {
       guardian: Roles.SecurityCouncil,
-      members: new Set([FOUNDATION]),
+      members: new Set([DEPUTIES_MULTISIG]),
       executionDelay: 30 * DAY,
     },
     [Roles.SecurityCouncil]: {
       members: new Set([
-        '0x0000000000000000000000000000000000000002', // replace with actual addresses
+        '0xE8055e2763DcbA5a88B1278514312d7C04f0473D', // Security Council Multisig
       ]),
-      grantDelay: 7 * DAY,
     },
   },
   targets: {
     interchainAccountRouter: {
       authority: {
-        'callRemote(uint32,(bytes32,uint256,bytes)[])': Roles.Slow,
-        'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)': Roles.Slow,
-        'callRemote(uint32,address,uint256,bytes)': Roles.Slow,
-        'callRemote(uint32,address,uint256,bytes,bytes)': Roles.Slow,
+        'callRemote(uint32,(bytes32,uint256,bytes)[])': Roles.SevenDay,
+        'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)': Roles.SevenDay,
+        'callRemote(uint32,address,uint256,bytes)': Roles.SevenDay,
+        'callRemote(uint32,address,uint256,bytes,bytes)': Roles.SevenDay,
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])':
-          Roles.Slow,
+          Roles.SevenDay,
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)':
-          Roles.Slow,
+          Roles.SevenDay,
       },
     },
     hyperToken: {
       authority: {
         ...WARP_ROUTE_TARGET_AUTHORITY,
-        'mint(address,uint256)': Roles.Fast,
-        'burn(address,uint256)': Roles.Fast,
+        'grantRole(bytes32,address)': Roles.ThirtyDay,
+        'revokeRole(bytes32,address)': Roles.ThirtyDay,
       },
     },
     stakedHyperWarpRoute: {
@@ -101,17 +101,19 @@ const config: AccessManagerConfig<Roles, ManagedContracts> = {
     // - migrate proposer from AW safe to access manager
     network: {
       authority: {
-        'grantRole(bytes32,address)': Roles.Slow,
-        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)': Roles.Slow,
+        'grantRole(bytes32,address)': Roles.SevenDay,
+        // setMaxNetworkLimit
+        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)':
+          Roles.SevenDay,
         'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)':
-          Roles.Slow,
+          Roles.SevenDay,
       },
     },
     vault: {
       authority: {
-        'migrate(uint64,bytes)': Roles.Slow,
-        'setDepositLimit(uint256)': Roles.Fast,
-        'setDepositWhitelist(bool)': Roles.Fast,
+        'migrate(uint64,bytes)': Roles.ThirtyDay,
+        'setDepositLimit(uint256)': Roles.SevenDay,
+        'setDepositWhitelist(bool)': Roles.SevenDay,
       },
     },
   },

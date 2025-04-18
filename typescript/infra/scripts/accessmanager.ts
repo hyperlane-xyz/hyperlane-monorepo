@@ -120,7 +120,7 @@ async function main() {
     INITIAL_ADMIN,
   );
 
-  console.dir(reconfigureData);
+  console.log(JSON.stringify(reconfigureData));
 }
 
 main()
