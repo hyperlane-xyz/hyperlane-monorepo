@@ -36,7 +36,7 @@ export const KESSEL_RUN_TARGET_NETWORKS = [
   'optimismsepolia',
 ];
 
-export const KESSEL_RUN_HOURLY_RATE = 250000;
+export const KESSEL_RUN_HOURLY_RATE = 2500000;
 
 export const KESSEL_RUN_CONFIG: {
   bursts: number;
@@ -46,7 +46,7 @@ export const KESSEL_RUN_CONFIG: {
   distro: ChainMap<number>;
   multicallBatchSize: number;
 } = {
-  bursts: 120,
+  bursts: 60,
   burstInterval: 5, // seconds
   distArbOp: {
     arbitrumsepolia: 0.02,

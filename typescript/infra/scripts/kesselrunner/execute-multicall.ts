@@ -80,7 +80,7 @@ async function preCalculateGasEstimates(
         'dispatch(uint32,bytes32,bytes,bytes,address)'
       ](...dispatchParams, { value: quote });
 
-      gasCache[origin][destination] = addBufferToGasLimit(estimateGas);
+      gasCache[origin][destination] = addBufferToGasLimit(estimateGas, 2);
       igpCache[origin][destination] = quote;
       rootLogger.debug(
         `Gas estimate for ${origin} to ${destination}: ${estimateGas.toString()}`,
@@ -266,7 +266,9 @@ async function doTheKesselRun() {
         while (txCount > 0) {
           const batchSize = Math.min(
             txCount,
-            KESSEL_RUN_CONFIG.multicallBatchSize,
+            origin === 'optimismsepolia'
+              ? 10
+              : KESSEL_RUN_CONFIG.multicallBatchSize,
           );
           txCount -= batchSize;
 
