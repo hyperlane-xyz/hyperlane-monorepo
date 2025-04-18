@@ -1,4 +1,5 @@
 import {
+  HypERC4626Collateral,
   HyperToken,
   IVaultTokenized,
   InterchainAccountRouter,
@@ -16,7 +17,9 @@ enum Roles {
 
 export type ManagedContracts = {
   hyperToken: HyperToken;
-  proxyAdmin: ProxyAdmin;
+  hyperProxyAdmin: ProxyAdmin;
+  stakedHyperWarpRoute: HypERC4626Collateral;
+  stakedHyperProxyAdmin: ProxyAdmin;
   vault: IVaultTokenized;
   network: TimelockController;
   interchainAccountRouter: InterchainAccountRouter;
@@ -26,6 +29,25 @@ export type ManagedContracts = {
 const DAY = 24 * 60 * 60;
 
 const FOUNDATION = '0x0000000000000000000000000000000000000001'; // replace with actual addresses
+
+const PROXY_ADMIN_TARGET = {
+  authority: {
+    'upgrade(address,address)': Roles.Slow,
+    'upgradeAndCall(address,address,bytes)': Roles.Slow,
+    'changeProxyAdmin(address,address)': Roles.Slow,
+    'transferOwnership(address)': Roles.Slow,
+  },
+};
+
+const WARP_ROUTE_TARGET_AUTHORITY = {
+  'setInterchainSecurityModule(address)': Roles.Fast,
+  'setHook(address)': Roles.Fast,
+  'enrollRemoteRouter(uint32,address)': Roles.Slow,
+  'enrollRemoteRouters(uint32[],address[])': Roles.Slow,
+  'unenrollRemoteRouter(uint32,address)': Roles.Slow,
+  'unenrollRemoteRouters(uint32[],address[])': Roles.Slow,
+  'transferOwnership(address)': Roles.Slow,
+};
 
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
@@ -64,20 +86,16 @@ const config: AccessManagerConfig<Roles, ManagedContracts> = {
     },
     hyperToken: {
       authority: {
-        'mint(address,uint256)': Roles.Slow,
-        'burn(address,uint256)': Roles.Slow,
-        'setInterchainSecurityModule(address)': Roles.Slow,
-        'setHook(address)': Roles.Slow,
+        ...WARP_ROUTE_TARGET_AUTHORITY,
+        'mint(address,uint256)': Roles.Fast,
+        'burn(address,uint256)': Roles.Fast,
       },
     },
-    proxyAdmin: {
-      authority: {
-        'upgrade(address,address)': Roles.Slow,
-        'upgradeAndCall(address,address,bytes)': Roles.Slow,
-        'changeProxyAdmin(address,address)': Roles.Slow,
-        'transferOwnership(address)': Roles.Slow,
-      },
+    stakedHyperWarpRoute: {
+      authority: WARP_ROUTE_TARGET_AUTHORITY,
     },
+    hyperProxyAdmin: PROXY_ADMIN_TARGET,
+    stakedHyperProxyAdmin: PROXY_ADMIN_TARGET,
     // TODO:
     // - migrate timelock admin from AW safe to access manager
     // - migrate proposer from AW safe to access manager
