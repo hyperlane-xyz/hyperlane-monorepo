@@ -220,6 +220,12 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
+    let bypass_batch_simulation = chain
+        .chain(&mut err)
+        .get_opt_key("bypassBatchSimulation")
+        .parse_bool()
+        .unwrap_or(false);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -230,6 +236,7 @@ fn parse_chain(
         OperationBatchConfig {
             batch_contract_address,
             max_batch_size,
+            bypass_batch_simulation,
         },
     );
 

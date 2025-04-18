@@ -9,6 +9,7 @@ import {
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
   IsmCachePolicy,
+  IsmCacheSelectorType,
   MatchingList,
   ModuleType,
   RpcConsensusType,
@@ -579,6 +580,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
       // outside of Solana are ignored.
       { originDomain: getDomainId('infinityvm') },
+      // Temporary workaround due to funky Zeronetwork gas amounts.
+      { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -740,19 +743,24 @@ const blacklist: MatchingList = [
   })),
 ];
 
-const defaultIsmCacheConfig: IsmCacheConfig = {
-  // Default ISM Routing ISMs change configs based off message content,
-  // so they are not specified here.
-  moduleTypes: [
-    ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
-    ModuleType.MESSAGE_ID_MULTISIG,
-  ],
-  // SVM is explicitly not cached as the default ISM is a multisig ISM
-  // that routes internally.
-  chains: ethereumChainNames,
-  cachePolicy: IsmCachePolicy.IsmSpecific,
-};
+const ismCacheConfigs: Array<IsmCacheConfig> = [
+  {
+    selector: {
+      type: IsmCacheSelectorType.DefaultIsm,
+    },
+    // Default ISM Routing ISMs change configs based off message content,
+    // so they are not specified here.
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
+];
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -763,12 +771,12 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ef039ae-20250411-104801',
+      tag: 'da3978b-20250414-155929',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     allowContractCallCaching: true,
     resources: relayerResources,
   },
@@ -801,7 +809,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ef039ae-20250411-104801',
+      tag: 'da3978b-20250414-155929',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -809,7 +817,7 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     allowContractCallCaching: true,
     resources: relayerResources,
   },
@@ -837,12 +845,12 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ef039ae-20250411-104801',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
-    defaultIsmCacheConfig,
+    ismCacheConfigs,
     allowContractCallCaching: true,
     resources: relayerResources,
   },
