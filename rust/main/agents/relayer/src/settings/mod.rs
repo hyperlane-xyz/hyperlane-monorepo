@@ -70,6 +70,10 @@ pub struct RelayerSettings {
     pub ism_cache_configs: Vec<IsmCacheConfig>,
     /// Maximum number of retries per operation
     pub max_retries: u32,
+    /// Whether to enable indexing of hook events given tx ids from indexed messages.
+    pub tx_id_indexing_enabled: bool,
+    /// Whether to enable IGP indexing.
+    pub igp_indexing_enabled: bool,
 }
 
 /// Config for gas payment enforcement
@@ -341,6 +345,18 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_u32()
             .unwrap_or(DEFAULT_MAX_MESSAGE_RETRIES);
 
+        let tx_id_indexing_enabled = p
+            .chain(&mut err)
+            .get_opt_key("txIdIndexingEnabled")
+            .parse_bool()
+            .unwrap_or(true);
+
+        let igp_indexing_enabled = p
+            .chain(&mut err)
+            .get_opt_key("igpIndexingEnabled")
+            .parse_bool()
+            .unwrap_or(true);
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -357,6 +373,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             allow_contract_call_caching,
             ism_cache_configs,
             max_retries: max_message_retries,
+            tx_id_indexing_enabled,
+            igp_indexing_enabled,
         })
     }
 }

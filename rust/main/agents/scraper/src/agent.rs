@@ -273,6 +273,7 @@ impl Scraper {
                 &contract_sync_metrics.clone(),
                 store.into(),
                 true,
+                true,
             )
             .await
             .map_err(|err| {
@@ -308,6 +309,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -346,6 +348,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -441,6 +444,7 @@ mod test {
                         gas_limit: None,
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
+                        ..Default::default()
                     },
                     operation_batch: OperationBatchConfig {
                         batch_contract_address: None,
