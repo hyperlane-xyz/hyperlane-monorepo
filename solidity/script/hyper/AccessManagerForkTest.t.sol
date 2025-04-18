@@ -5,22 +5,24 @@ import "forge-std/Test.sol";
 import {IAccessManager} from "../../contracts/interfaces/IAccessManager.sol";
 import {TimelockController} from "../../contracts/upgrade/TimelockController.sol";
 
+// TODO: execute some other scopes
 contract AccessManagerForkTest is Test {
     address constant AM = 0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863;
     address constant FOUNDATION_AND_DEPUTIES_MULTISIG =
-        0x0000000000000000000000000000000000000001;
+        0xec2EdC01a2Fbade68dBcc80947F43a5B408cC3A0;
     address constant ATTACKER = 0x0000000000000000000000000000000000000003;
     address constant SECURITY_COUNCIL =
-        0x0000000000000000000000000000000000000002;
+        0xE8055e2763DcbA5a88B1278514312d7C04f0473D;
     address constant TARGET = 0x5E532F7B610618eE73C2B462978e94CB1F7995Ce;
+    address payable TIMELOCK_ADMIN =
+        payable(0xfA842f02439Af6d91d7D44525956F9E5e00e339f);
     bytes4 constant SELECTOR =
         bytes4(keccak256("callRemote(uint32,address,uint256,bytes)"));
     bytes constant TEST_CALLDATA =
         abi.encodeWithSelector(SELECTOR, 8453, TARGET, 0, "test payload");
     IAccessManager accessManager = IAccessManager(AM);
-
-    uint256 constant TIMELOCK_DELAY = 30 days;
-    TimelockController timelock;
+    uint256 constant TIMELOCK_DELAY = 14 days;
+    TimelockController timelock = TimelockController(TIMELOCK_ADMIN);
 
     function setUp() public {
         string memory rpcUrl;
@@ -42,27 +44,6 @@ contract AccessManagerForkTest is Test {
             "FOUNDATION_AND_DEPUTIES_MULTISIG does not have expected role"
         );
         assertGt(delay, 0, "Expected scheduling delay > 0");
-
-        // make AM admin a timelock
-        // deploy timelock
-
-        address[] memory proposers = new address[](1);
-        proposers[0] = FOUNDATION_AND_DEPUTIES_MULTISIG;
-        address[] memory executors = new address[](1);
-        executors[0] = address(0);
-
-        timelock = new TimelockController(
-            TIMELOCK_DELAY,
-            proposers,
-            executors,
-            address(0)
-        );
-
-        // set timelock as admin of AM
-        vm.startPrank(FOUNDATION_AND_DEPUTIES_MULTISIG);
-        accessManager.grantRole(0, address(timelock), 0);
-        accessManager.renounceRole(0, FOUNDATION_AND_DEPUTIES_MULTISIG);
-        vm.stopPrank();
     }
 
     function testScheduleAndExecuteCallRemote() public {
