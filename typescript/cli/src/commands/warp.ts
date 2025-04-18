@@ -4,7 +4,6 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
-  WarpRouteDeployConfigMailboxRequired,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
