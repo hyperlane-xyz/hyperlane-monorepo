@@ -490,7 +490,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
       defaultBatchSize: 32,
       bypassBatchSimulation: true,
     },
-    maxSubmitQueueLength: 150,
+    maxSubmitQueueLength: 400,
     txIdIndexingEnabled: false,
     igpIndexingEnabled: false,
   },
