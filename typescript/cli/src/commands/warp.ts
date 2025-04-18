@@ -395,7 +395,7 @@ export const check: CommandModuleWithContext<{
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
-      warpDeployConfig as WarpRouteDeployConfigMailboxRequired,
+      warpDeployConfig,
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     );
 
