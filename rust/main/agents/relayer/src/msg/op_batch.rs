@@ -188,7 +188,7 @@ mod tests {
         CoreMetrics,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
+        config::OpSubmissionConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
         MessageSubmissionData, ReorgPeriod, SubmitterType, H160, U256,
     };
     use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
@@ -347,10 +347,11 @@ mod tests {
                     ],
                 },
                 transaction_overrides: Default::default(),
-                operation_batch: OperationBatchConfig {
+                op_submission_config: OpSubmissionConfig {
                     batch_contract_address: None,
                     max_batch_size: 32,
                     bypass_batch_simulation: false,
+                    ..Default::default()
                 },
             }),
             metrics_conf: Default::default(),
