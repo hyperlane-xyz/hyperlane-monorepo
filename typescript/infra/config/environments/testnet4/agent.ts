@@ -4,6 +4,7 @@ import {
   IsmCacheConfig,
   IsmCachePolicy,
   IsmCacheSelectorType,
+  MatchingList,
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -232,9 +233,31 @@ const scraperResources = {
 
 // Kessel is a load test, these are contracts involved in the load
 // test that we want to have certain relayers focus on or ignore.
-const kesselMatchingList = [
+const kesselMatchingList: MatchingList = [
+  // classic kessel test recipient
   {
     recipientAddress: '0x492b3653A38e229482Bab2f7De4A094B18017246',
+  },
+  // kessel run spice route
+  {
+    destinationDomain: getDomainId('basesepolia'),
+    recipientAddress: '0x4Cd2d5deD9D1ef5013fddCDceBeaCB32DFb5ad47',
+  },
+  {
+    destinationDomain: getDomainId('bsctestnet'),
+    recipientAddress: '0x975B8Cf9501cBaD717812fcdE3b51a390AD77540',
+  },
+  {
+    destinationDomain: getDomainId('optimismsepolia'),
+    recipientAddress: '0x554B0724432Ef42CB4a2C12E756F6F022e37aD8F',
+  },
+  {
+    destinationDomain: getDomainId('arbitrumsepolia'),
+    recipientAddress: '0xdED2d823A5e4E82AfbBB68A3e9D947eE03EFbA9d',
+  },
+  {
+    destinationDomain: getDomainId('sepolia'),
+    recipientAddress: '0x51BB50884Ec21063DEC3DCA0B2d4aCeF2559E65a',
   },
 ];
 
