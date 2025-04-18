@@ -14,6 +14,8 @@ use crate::{ConnectionConf, EthereumProvider};
 
 use super::EthereumMailboxCache;
 
+const MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u64 = 80;
+const MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR: u64 = 100;
 const ALLOW_BATCH_FAILURES: bool = true;
 
 /// Conservative estimate picked by subtracting the gas used by individual calls from the total cost of `aggregate3`
@@ -127,5 +129,11 @@ where
         gas_limit = gas_limit.max(gas_sum)
     }
 
-    Ok(batch.gas(gas_limit))
+    // in practice, even when the full batch lands, no more than 65% of the gas limit is used.
+    // this sets the limit lower, but still allows for some overhead, to make it more likely
+    // that the tx gets included (due to the lower gas limit)
+    let scaled_down_gas_limit = gas_limit * MULTICALL_GAS_LIMIT_MULTIPLIER_DENOMINATOR
+        / MULTICALL_GAS_LIMIT_MULTIPLIER_NUMERATOR;
+
+    Ok(batch.gas(scaled_down_gas_limit))
 }
