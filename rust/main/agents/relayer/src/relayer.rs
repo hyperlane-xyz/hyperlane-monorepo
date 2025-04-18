@@ -462,9 +462,13 @@ impl BaseAgent for Relayer {
                 // Default to submitting one message at a time if there is no batch config
                 self.core.settings.chains[dest_domain.name()]
                     .connection
-                    .operation_batch_config()
+                    .operation_submission_config()
                     .map(|c| c.max_batch_size)
                     .unwrap_or(1),
+                self.core.settings.chains[dest_domain.name()]
+                    .connection
+                    .operation_submission_config()
+                    .and_then(|c| c.max_submit_queue_length),
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
@@ -1038,8 +1042,8 @@ mod test {
         CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain,
-        ReorgPeriod, H256,
+        config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod,
+        H256,
     };
     use hyperlane_ethereum as h_eth;
 
@@ -1098,7 +1102,7 @@ mod test {
                         max_priority_fee_per_gas: None,
                         ..Default::default()
                     },
-                    operation_batch: OperationBatchConfig {
+                    op_submission_config: OpSubmissionConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
                         ..Default::default()

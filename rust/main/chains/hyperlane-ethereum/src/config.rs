@@ -1,7 +1,7 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::{
-    config::OperationBatchConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+    config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
 };
 use url::Url;
 
@@ -38,7 +38,7 @@ pub struct ConnectionConf {
     /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
 }
 
 /// Ethereum transaction overrides.

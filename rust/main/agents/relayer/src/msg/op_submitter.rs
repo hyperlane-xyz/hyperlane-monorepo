@@ -2,7 +2,7 @@
 #![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::fmt::Debug;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
@@ -36,19 +36,6 @@ use super::op_queue::OperationPriorityQueue;
 /// This value needs to be manually updated if we ever
 /// update the number of queues an OpSubmitter has.
 pub const SUBMITTER_QUEUE_COUNT: usize = 3;
-
-/// Target max length of the submit queue. The prepare queue will
-/// hold off on pushing new messages to the submit queue until
-/// the submit queue is below this length.
-pub static MAX_SUBMIT_QUEUE_LEN: OnceLock<Option<usize>> = OnceLock::new();
-
-fn max_submit_queue_len() -> Option<usize> {
-    *MAX_SUBMIT_QUEUE_LEN.get_or_init(|| {
-        std::env::var("HYP_MAXSUBMITQUEUELENGTH")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-    })
-}
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -106,6 +93,7 @@ pub struct SerialSubmitter {
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
     max_batch_size: u32,
+    max_submit_queue_len: Option<u32>,
     /// tokio task monitor
     task_monitor: TaskMonitor,
     prepare_queue: OpQueue,
@@ -123,6 +111,7 @@ impl SerialSubmitter {
         retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
+        max_submit_queue_len: Option<u32>,
         task_monitor: TaskMonitor,
         payload_dispatcher_entrypoint: Option<PayloadDispatcherEntrypoint>,
         db: HyperlaneRocksDB,
@@ -149,6 +138,7 @@ impl SerialSubmitter {
             rx: Some(rx),
             metrics,
             max_batch_size,
+            max_submit_queue_len,
             task_monitor,
             prepare_queue,
             submit_queue,
@@ -232,6 +222,7 @@ impl SerialSubmitter {
                     self.submit_queue.clone(),
                     self.confirm_queue.clone(),
                     self.max_batch_size,
+                    self.max_submit_queue_len,
                     self.metrics.clone(),
                 ),
             ))
@@ -347,14 +338,15 @@ async fn prepare_task(
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
     max_batch_size: u32,
+    max_submit_queue_len: Option<u32>,
     metrics: SerialSubmitterMetrics,
 ) {
     // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
     let ops_to_prepare = max_batch_size as usize;
     loop {
         // Apply backpressure to the prepare queue if the submit queue is too long.
-        if let Some(max_len) = max_submit_queue_len() {
-            let submit_queue_len = submit_queue.len().await;
+        if let Some(max_len) = max_submit_queue_len {
+            let submit_queue_len = submit_queue.len().await as u32;
             if submit_queue_len >= max_len {
                 debug!(
                     %submit_queue_len,
