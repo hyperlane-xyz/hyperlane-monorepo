@@ -97,15 +97,18 @@ export async function getWarpConfigs({
 
     assert(routeIds.length !== 0, 'No valid warp routes found in registry');
 
-    selectedId = (await search({
-      message: 'Select a warp route:',
-      source: (term) => {
-        return routeIds.filter((id) =>
-          id.toLowerCase().includes(term?.toLowerCase() || ''),
-        );
-      },
-      pageSize: 20,
-    })) as string;
+    selectedId =
+      routeIds.length === 1
+        ? routeIds[0]
+        : ((await search({
+            message: 'Select a warp route:',
+            source: (term) => {
+              return routeIds.filter((id) =>
+                id.toLowerCase().includes(term?.toLowerCase() || ''),
+              );
+            },
+            pageSize: 20,
+          })) as string);
   }
 
   const warpCoreConfig = await context.registry.getWarpRoute(selectedId);
