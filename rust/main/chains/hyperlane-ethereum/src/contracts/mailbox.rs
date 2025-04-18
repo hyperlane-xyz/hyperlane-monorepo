@@ -13,9 +13,9 @@ use ethers::types::{Block, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
+use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
-use itertools::Itertools;
 use tokio::join;
 use tokio::sync::Mutex;
 use tracing::instrument;
@@ -363,34 +363,27 @@ where
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
     ) -> ChainResult<BatchSimulation<M>> {
-        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone());
         let call_results = batch.call().await?;
 
-        let failed_calls = contract_calls
-            .iter()
-            .zip(call_results.iter())
-            .enumerate()
-            .filter_map(
-                |(index, (_, result))| {
-                    if !result.success {
-                        Some(index)
-                    } else {
-                        None
-                    }
-                },
-            )
-            .collect_vec();
+        let (successful, failed) = multicall::filter_failed(contract_calls, call_results);
+
+        if successful.is_empty() {
+            return Ok(BatchSimulation::failed(failed.len()));
+        }
+
+        let successful_calls_len = successful.len();
+        let successful_batch = multicall::batch::<_, ()>(multicall, successful.clone());
 
         // only send a batch if there are at least two successful calls
-        let call_count = contract_calls.len();
-        let successful_calls = call_count - failed_calls.len();
-        if successful_calls >= 2 {
+        if successful_calls_len >= 2 {
             Ok(BatchSimulation::new(
-                Some(self.submittable_batch(batch)),
-                failed_calls,
+                Some(self.submittable_batch(successful_batch)),
+                successful,
+                failed,
             ))
         } else {
-            Ok(BatchSimulation::failed(call_count))
+            Ok(BatchSimulation::failed(failed.len()))
         }
     }
 
@@ -412,7 +405,7 @@ where
         contract_calls: Vec<ContractCall<M, ()>>,
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
-        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone());
         let call_with_gas_overrides = fill_tx_gas_params(
             batch,
             self.provider.clone(),
@@ -436,19 +429,25 @@ where
         batch_simulation.try_submit(cache).await
     }
 
-    async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) -> ChainResult<()> {
-        let (eip1559_fee, latest_block) =
-            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx).await?;
+    async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) {
+        let Some((eip1559_fee, latest_block)) =
+            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx)
+                .await
+                .ok()
+        else {
+            return;
+        };
         let mut cache = self.cache.lock().await;
         cache.latest_block = Some(latest_block);
         cache.eip1559_fee = Some(eip1559_fee);
-        Ok(())
     }
 }
 
 #[derive(new)]
 pub struct BatchSimulation<M> {
     pub call: Option<SubmittableBatch<M>>,
+    /// Successful individual calls
+    pub successful: Vec<ContractCall<M, ()>>,
     /// Indexes of excluded calls in the batch (because they either failed the simulation
     /// or they were the only successful call)
     pub excluded_call_indexes: Vec<usize>,
@@ -456,7 +455,7 @@ pub struct BatchSimulation<M> {
 
 impl<M> BatchSimulation<M> {
     pub fn failed(ops_count: usize) -> Self {
-        Self::new(None, (0..ops_count).collect())
+        Self::new(None, vec![], (0..ops_count).collect())
     }
 }
 
@@ -465,7 +464,9 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
         self,
         cache: Arc<Mutex<EthereumMailboxCache>>,
     ) -> ChainResult<BatchResult> {
-        if let Some(submittable_batch) = self.call {
+        if let Some(mut submittable_batch) = self.call {
+            let estimated = multicall::estimate(submittable_batch.call, self.successful).await?;
+            submittable_batch.call = estimated;
             let batch_outcome = submittable_batch.submit(cache).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome),
@@ -607,14 +608,28 @@ where
         let refresh_cache_future = async {
             if let Some(contract_call) = contract_calls.first() {
                 self.refresh_block_and_fee_cache(&contract_call.tx).await
-            } else {
-                Ok(())
             }
         };
 
-        let (simulate_result, refresh_result) = join!(simulate_future, refresh_cache_future);
+        let (simulate_result, _) = join!(simulate_future, refresh_cache_future);
+        let mut simulation = simulate_result?;
 
-        let (simulation, _) = (simulate_result?, refresh_result?);
+        let filled_tx_params_futures = simulation.successful.iter().map(|tx| {
+            fill_tx_gas_params(
+                tx.clone(),
+                self.provider.clone(),
+                &self.conn.transaction_overrides,
+                &self.domain,
+                false,
+                self.cache.clone(),
+            )
+        });
+        let contract_calls = join_all(filled_tx_params_futures)
+            .await
+            .into_iter()
+            .collect::<ChainResult<Vec<_>>>()?;
+
+        simulation.successful = contract_calls;
 
         simulation.try_submit(self.cache.clone()).await
     }
@@ -699,7 +714,7 @@ mod test {
         providers::{MockProvider, Provider},
         types::{Block, Transaction, U256 as EthersU256},
     };
-
+    use ethers_core::types::FeeHistory;
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
         TxCostEstimate, H160, H256, U256,
@@ -805,17 +820,31 @@ mod test {
         // order, so we start with the final RPCs and work toward the first
         // RPCs
 
-        // RPC 4: eth_gasPrice by process_estimate_costs
+        // RPC 6: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
         let gas_price: U256 =
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
+
+        let fee_history = FeeHistory {
+            oldest_block: ethers::types::U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+            reward: vec![vec![]],
+        };
+
+        // RPC 5: eth_feeHistory from the estimate_eip1559_fees_default
+        mock_provider.push(fee_history).unwrap();
 
         let latest_block_gas_limit = U256::from(12345u32);
         let latest_block: Block<Transaction> = Block {
             gas_limit: latest_block_gas_limit.into(),
             ..Block::<Transaction>::default()
         };
+
+        // RPC 4: eth_getBlockByNumber from the estimate_eip1559_fees_default
+        mock_provider.push(latest_block.clone()).unwrap();
+
         // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
         // to get the latest block gas limit and for eip 1559 fee estimation
         mock_provider.push(latest_block).unwrap();

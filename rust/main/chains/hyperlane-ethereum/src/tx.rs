@@ -18,8 +18,8 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use tokio::join;
 use tokio::sync::Mutex;
+use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
 
 use hyperlane_core::{
@@ -402,17 +402,19 @@ where
     M: Middleware + 'static,
 {
     let latest_block = latest_block(provider.clone());
-    let fee_history = provider.fee_history(
-        EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-        BlockNumber::Latest,
-        &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
-    );
 
-    let (latest_block, fee_history) = join!(latest_block, fee_history);
-    let (latest_block, fee_history) = (
-        latest_block?,
-        fee_history.map_err(ChainCommunicationError::from_other)?,
-    );
+    let fee_history = async {
+        provider
+            .fee_history(
+                EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                BlockNumber::Latest,
+                &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    };
+
+    let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
 
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
