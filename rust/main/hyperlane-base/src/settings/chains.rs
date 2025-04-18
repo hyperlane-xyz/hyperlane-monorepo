@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
+    config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
     IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
@@ -184,11 +184,11 @@ impl ChainConnectionConf {
     }
 
     /// Get the message batch configuration for this chain.
-    pub fn operation_batch_config(&self) -> Option<&OperationBatchConfig> {
+    pub fn operation_submission_config(&self) -> Option<&OpSubmissionConfig> {
         match self {
-            Self::Ethereum(conf) => Some(&conf.operation_batch),
-            Self::Cosmos(conf) => Some(&conf.operation_batch),
-            Self::Sealevel(conf) => Some(&conf.operation_batch),
+            Self::Ethereum(conf) => Some(&conf.op_submission_config),
+            Self::Cosmos(conf) => Some(&conf.op_submission_config),
+            Self::Sealevel(conf) => Some(&conf.op_submission_config),
             _ => None,
         }
     }
