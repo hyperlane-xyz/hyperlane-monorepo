@@ -7,7 +7,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { HyperlaneContracts, HyperlaneFactories } from './types.js';
 
-const RESERVED_ROLES: Record<string, bigint> = {
+const RESERVED_ROLES = {
   ADMIN: 0n, // uint64 min
   PUBLIC: 2n ** 64n - 1n, // uint64 max
 };
@@ -51,18 +51,16 @@ export function configureAccess<
 
   const manager = IAccessManager__factory.createInterface();
 
-  const roleIds = RESERVED_ROLES;
-  for (const [index, [role]] of Object.entries<RoleConfig<Role>[Role]>(
-    config.roles,
-  ).entries()) {
-    if (role in RESERVED_ROLES) {
-      roleIds[role] = RESERVED_ROLES[role];
-      continue;
-    }
+  const roleIds: Record<string, bigint> = RESERVED_ROLES;
 
+  // Assign IDs to custom roles in deterministic (sorted) order
+  const customRoles = Object.keys(config.roles)
+    .filter((role): role is Role => !(role in RESERVED_ROLES))
+    .sort();
+
+  for (const [index, role] of customRoles.entries()) {
     const roleId = BigInt(index) + 1n;
     roleIds[role] = roleId;
-
     const data = manager.encodeFunctionData('labelRole', [roleId, role]);
     const annotation = `label role ID ${roleId} with ${role}`;
     transactions.push({ data, annotation });
