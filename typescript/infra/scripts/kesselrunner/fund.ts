@@ -37,7 +37,9 @@ async function fundAgents() {
           }
           // kesselrunner on bsctestnet & arbitrumsepolia get 10 tokens
           else if (
-            ['bsctestnet', 'arbitrumsepolia'].includes(chain) &&
+            ['bsctestnet', 'arbitrumsepolia', 'optimismsepolia'].includes(
+              chain,
+            ) &&
             entityType === 'owner'
           ) {
             topUpAmount = 10;

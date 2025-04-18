@@ -64,7 +64,7 @@ async function preCalculateGasEstimates(
       ](domainCache[destination], WARP_RECEIVER, WARP_SEND, {
         value: quote,
       });
-      gasCache[origin][destination] = addBufferToGasLimit(estimateGas);
+      gasCache[origin][destination] = addBufferToGasLimit(estimateGas, 2);
 
       rootLogger.debug(
         `Gas estimate for ${origin} to ${destination}: ${estimateGas.toString()}`,
