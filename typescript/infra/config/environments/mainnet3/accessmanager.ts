@@ -1,4 +1,5 @@
 import {
+  HypERC4626Collateral,
   HyperToken,
   IVaultTokenized,
   InterchainAccountRouter,
@@ -16,7 +17,9 @@ enum Roles {
 
 export type ManagedContracts = {
   hyperToken: HyperToken;
-  proxyAdmin: ProxyAdmin;
+  hyperProxyAdmin: ProxyAdmin;
+  stakedHyperWarpRoute: HypERC4626Collateral;
+  stakedHyperProxyAdmin: ProxyAdmin;
   vault: IVaultTokenized;
   network: TimelockController;
   interchainAccountRouter: InterchainAccountRouter;
@@ -28,6 +31,25 @@ const DAY = 24 * 60 * 60;
 const DEPUTIES_MULTISIG = '0xec2EdC01a2Fbade68dBcc80947F43a5B408cC3A0';
 const ACCESS_MANAGER_TIMELOCK_ADMIN =
   '0xfA842f02439Af6d91d7D44525956F9E5e00e339f';
+
+const PROXY_ADMIN_TARGET = {
+  authority: {
+    'upgrade(address,address)': Roles.ThirtyDay,
+    'upgradeAndCall(address,address,bytes)': Roles.ThirtyDay,
+    'changeProxyAdmin(address,address)': Roles.ThirtyDay,
+    'transferOwnership(address)': Roles.ThirtyDay,
+  },
+};
+
+const WARP_ROUTE_TARGET_AUTHORITY = {
+  'setInterchainSecurityModule(address)': Roles.SevenDay,
+  'setHook(address)': Roles.SevenDay,
+  'enrollRemoteRouter(uint32,bytes32)': Roles.SevenDay,
+  'enrollRemoteRouters(uint32[],bytes32[])': Roles.SevenDay,
+  'unenrollRemoteRouter(uint32)': Roles.SevenDay,
+  'unenrollRemoteRouters(uint32[])': Roles.SevenDay,
+  'transferOwnership(address)': Roles.SevenDay,
+};
 
 const config: AccessManagerConfig<Roles, ManagedContracts> = {
   roles: {
@@ -65,20 +87,16 @@ const config: AccessManagerConfig<Roles, ManagedContracts> = {
     },
     hyperToken: {
       authority: {
-        'mint(address,uint256)': Roles.ThirtyDay,
-        'burn(address,uint256)': Roles.ThirtyDay,
-        'setInterchainSecurityModule(address)': Roles.SevenDay,
-        'setHook(address)': Roles.SevenDay,
+        ...WARP_ROUTE_TARGET_AUTHORITY,
+        'grantRole(bytes32,address)': Roles.ThirtyDay,
+        'revokeRole(bytes32,address)': Roles.ThirtyDay,
       },
     },
-    proxyAdmin: {
-      authority: {
-        'upgrade(address,address)': Roles.ThirtyDay,
-        'upgradeAndCall(address,address,bytes)': Roles.ThirtyDay,
-        'changeProxyAdmin(address,address)': Roles.ThirtyDay,
-        'transferOwnership(address)': Roles.ThirtyDay,
-      },
+    stakedHyperWarpRoute: {
+      authority: WARP_ROUTE_TARGET_AUTHORITY,
     },
+    hyperProxyAdmin: PROXY_ADMIN_TARGET,
+    stakedHyperProxyAdmin: PROXY_ADMIN_TARGET,
     // TODO:
     // - migrate timelock admin from AW safe to access manager
     // - migrate proposer from AW safe to access manager

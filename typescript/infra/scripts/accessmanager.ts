@@ -1,4 +1,5 @@
 import {
+  HypERC4626Collateral__factory,
   HyperToken__factory,
   ICompoundStakerRewards__factory,
   IVaultTokenized__factory,
@@ -39,11 +40,18 @@ async function main() {
   )?.addressOrDenom;
 
   const stakedHyperConfig = getWarpCoreConfig(WarpRouteIds.StakedHyper);
+  const stakedHyperWarpRouteAddress = stakedHyperConfig.tokens.find(
+    (token) => token.chainName === COLLATERAL_CHAIN,
+  )?.addressOrDenom;
   const compoundStakerRewards = stakedHyperConfig.tokens.find(
     (token) => token.chainName === COLLATERAL_CHAIN,
   )?.collateralAddressOrDenom;
 
-  if (!hyperTokenAddress || !compoundStakerRewards) {
+  if (
+    !stakedHyperWarpRouteAddress ||
+    !hyperTokenAddress ||
+    !compoundStakerRewards
+  ) {
     throw new Error(`Missing token addresses for ${COLLATERAL_CHAIN}`);
   }
 
@@ -59,9 +67,27 @@ async function main() {
   const provider = multiProvider.getProvider(COLLATERAL_CHAIN);
 
   const hyperToken = HyperToken__factory.connect(hyperTokenAddress, provider);
+  const hyperProxyAdminAddress = await fetchProxyAdmin(
+    provider,
+    hyperTokenAddress,
+  );
+  const hyperProxyAdmin = ProxyAdmin__factory.connect(
+    hyperProxyAdminAddress,
+    provider,
+  );
 
-  const proxyAdminAddress = await fetchProxyAdmin(provider, hyperTokenAddress);
-  const proxyAdmin = ProxyAdmin__factory.connect(proxyAdminAddress, provider);
+  const stakedHyperWarpRoute = HypERC4626Collateral__factory.connect(
+    stakedHyperWarpRouteAddress,
+    provider,
+  );
+  const stakedHyperProxyAdminAddress = await fetchProxyAdmin(
+    provider,
+    stakedHyperWarpRouteAddress,
+  );
+  const stakedHyperProxyAdmin = ProxyAdmin__factory.connect(
+    stakedHyperProxyAdminAddress,
+    provider,
+  );
 
   const network = TimelockController__factory.connect(NETWORK, provider);
 
@@ -80,7 +106,9 @@ async function main() {
 
   const contracts: ManagedContracts = {
     hyperToken,
-    proxyAdmin,
+    stakedHyperWarpRoute,
+    hyperProxyAdmin,
+    stakedHyperProxyAdmin,
     vault,
     network,
     interchainAccountRouter,

@@ -1,3 +1,5 @@
+import { keccak256 } from '@ethersproject/keccak256';
+import { toUtf8Bytes } from '@ethersproject/strings';
 import { BaseContract } from 'ethers';
 
 import { IAccessManager__factory } from '@hyperlane-xyz/core';
@@ -7,7 +9,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { HyperlaneContracts, HyperlaneFactories } from './types.js';
 
-const RESERVED_ROLES: Record<string, bigint> = {
+const RESERVED_ROLES = {
   ADMIN: 0n, // uint64 min
   PUBLIC: 2n ** 64n - 1n, // uint64 max
 };
@@ -51,16 +53,19 @@ export function configureAccess<
 
   const manager = IAccessManager__factory.createInterface();
 
-  const roleIds = RESERVED_ROLES;
-  for (const [index, [role]] of Object.entries<RoleConfig<Role>[Role]>(
-    config.roles,
-  ).entries()) {
-    const roleId =
-      role in RESERVED_ROLES ? RESERVED_ROLES[role] : BigInt(index) + 1n;
-    roleIds[role] = roleId;
+  const roleIds: Record<string, bigint> = { ...RESERVED_ROLES };
 
+  // Assign IDs based on truncated keccak256 hash of the role label
+  for (const role of Object.keys(config.roles).filter(
+    (role): role is Role => !Object.keys(RESERVED_ROLES).includes(role),
+  )) {
+    const fullHash = keccak256(toUtf8Bytes(role));
+    // take first 8 bytes (16 hex chars) of the hash as uint64
+    const truncatedHex = '0x' + fullHash.slice(2, 18);
+    const roleId = BigInt(truncatedHex);
+    roleIds[role] = roleId;
     const data = manager.encodeFunctionData('labelRole', [roleId, role]);
-    const annotation = `label role ID ${roleId} with ${role}`;
+    const annotation = `label role ${role} with ID ${roleId}`;
     transactions.push({ data, annotation });
   }
 

@@ -46,7 +46,7 @@ contract AccessManagerForkTest is Test {
         assertGt(delay, 0, "Expected scheduling delay > 0");
     }
 
-    function testBaseConfiguration() public {
+    function testBaseConfiguration() public view {
         // Check that the FOUNDATION_AND_DEPUTIES_MULTISIG has the proposer role on the timelock
         assertTrue(
             timelock.hasRole(
@@ -94,6 +94,19 @@ contract AccessManagerForkTest is Test {
                 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba
             ),
             "Deployer key should not have executor role"
+        );
+
+        // Check that the access manager has the timelock as its admin
+        (bool amHasRole, ) = accessManager.hasRole(0, address(timelock));
+        assertTrue(amHasRole, "AccessManager admin should be the timelock");
+        // Check that the original deployer does not have admin still
+        (bool deployerHasRole, ) = accessManager.hasRole(
+            0,
+            0x79fa1F70fBBA4Dd07510B21b32525b602FaDf31c
+        );
+        assertFalse(
+            deployerHasRole,
+            "Deployer key should not have AccessManager admin role"
         );
     }
 
@@ -223,11 +236,20 @@ contract AccessManagerForkTest is Test {
         timelock.execute(address(accessManager), 0, callData, bytes32(0), salt);
     }
 
+    function roleIdFromLabel(
+        string memory label
+    ) internal pure returns (uint64 roleId) {
+        bytes32 fullHash = keccak256(abi.encodePacked(label));
+        assembly {
+            roleId := shr(192, fullHash)
+        }
+    }
+
     // Here are test cases that were discovered and had to be remediated
 
     // TODO: this is bad
     function testBADAttackerCanRemoveSecurityCouncil() public {
-        uint64 guardianRole = 4;
+        uint64 guardianRole = roleIdFromLabel("Security Council");
 
         // Precondition: SECURITY_COUNCIL holds the guardian role.
         (bool hasRole, ) = accessManager.hasRole(
