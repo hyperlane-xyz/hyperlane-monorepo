@@ -429,13 +429,17 @@ where
         batch_simulation.try_submit(cache).await
     }
 
-    async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) -> ChainResult<()> {
-        let (eip1559_fee, latest_block) =
-            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx).await?;
+    async fn refresh_block_and_fee_cache(&self, tx: &TypedTransaction) {
+        let Some((eip1559_fee, latest_block)) =
+            estimate_eip1559_fees(self.provider.clone(), None, &self.domain, tx)
+                .await
+                .ok()
+        else {
+            return;
+        };
         let mut cache = self.cache.lock().await;
         cache.latest_block = Some(latest_block);
         cache.eip1559_fee = Some(eip1559_fee);
-        Ok(())
     }
 }
 
@@ -604,13 +608,11 @@ where
         let refresh_cache_future = async {
             if let Some(contract_call) = contract_calls.first() {
                 self.refresh_block_and_fee_cache(&contract_call.tx).await
-            } else {
-                Ok(())
             }
         };
 
-        let (simulate_result, refresh_result) = join!(simulate_future, refresh_cache_future);
-        let (mut simulation, _) = (simulate_result?, refresh_result?);
+        let (simulate_result, _) = join!(simulate_future, refresh_cache_future);
+        let mut simulation = simulate_result?;
 
         let filled_tx_params_futures = simulation.successful.iter().map(|tx| {
             fill_tx_gas_params(
