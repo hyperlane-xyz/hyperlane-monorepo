@@ -21,8 +21,6 @@ export const KESSEL_RUN_FUNDER_CONFIG = {
   vanguard3: '0x1f4fdb150e8c9fda70687a2fd481e305af1e7f8e',
   vanguard4: '0xe41b227e7aaaf7bbd1d60258de0dd76a11a0c3fc',
   vanguard5: '0xb1d77c39166972c0873b6ae016d1a54ec3ce289b',
-  vanguard6: '0x59f4ee751c5ef680382bdf0bebfa92f278e17284',
-  vanguard7: '0xd4df81362263d4fbb9ccf6002b0a028b893701b0',
 } as const;
 
 // rc-testnet4-key-kesselrunner-validator-0
