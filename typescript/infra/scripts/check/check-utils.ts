@@ -23,10 +23,7 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
-import {
-  findWarpDeployConfig,
-  getWarpAddressesFrom,
-} from '../../config/registry.js';
+import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -208,10 +205,6 @@ export async function getGovernor(
       registryUris,
     );
     const warpAddresses = await getWarpAddressesFrom(warpRouteId, registryUris);
-    const warpDeployConfig = await findWarpDeployConfig(
-      warpRouteId,
-      registryUris,
-    );
 
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
@@ -279,8 +272,6 @@ export async function getGovernor(
       app,
       config as any,
       ismFactory,
-      undefined,
-      warpDeployConfig,
     );
     governor = new ProxiedRouterGovernor(checker, ica);
   } else {

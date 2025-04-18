@@ -17,7 +17,6 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
-  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -136,14 +135,6 @@ export async function getWarpAddressesFrom(
     );
   }
   return warpConfigToWarpAddresses(warpRouteConfig);
-}
-
-export async function findWarpDeployConfig(
-  warpRouteId: string,
-  registryUris?: string[],
-): Promise<WarpRouteDeployConfig | null> {
-  const registry = getRegistryFromUris(registryUris);
-  return registry.getWarpDeployConfig(warpRouteId);
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {

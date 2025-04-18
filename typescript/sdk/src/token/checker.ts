@@ -1,5 +1,4 @@
 import { BigNumber } from 'ethers';
-import pino from 'pino';
 
 import {
   ERC20,
@@ -16,11 +15,9 @@ import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
 import { TokenMismatchViolation } from '../deploy/types.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
 import { TokenType } from './config.js';
@@ -28,7 +25,6 @@ import { HypERC20Factories } from './contracts.js';
 import {
   HypTokenRouterConfig,
   TokenMetadata,
-  WarpRouteDeployConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
@@ -40,27 +36,12 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20App,
   HypTokenRouterConfig
 > {
-  constructor(
-    multiProvider: MultiProvider,
-    app: HypERC20App,
-    configMap: ChainMap<HypTokenRouterConfig>,
-    ismFactory?: HyperlaneIsmFactory,
-    logger?: pino.Logger,
-    readonly warpDeployConfig?: WarpRouteDeployConfig | null,
-  ) {
-    super(multiProvider, app, configMap, ismFactory, logger);
-  }
-
   async checkChain(chain: ChainName): Promise<void> {
     let expectedChains: string[];
-    if (this.warpDeployConfig) {
-      expectedChains = Object.keys(this.warpDeployConfig);
-      const thisChainConfig = this.warpDeployConfig[chain];
-      if (thisChainConfig?.remoteRouters) {
-        expectedChains = Object.keys(thisChainConfig.remoteRouters);
-      }
-    } else {
-      expectedChains = this.app.chains();
+    expectedChains = Object.keys(this.configMap);
+    const thisChainConfig = this.configMap[chain];
+    if (thisChainConfig?.remoteRouters) {
+      expectedChains = Object.keys(thisChainConfig.remoteRouters);
     }
     expectedChains = expectedChains.filter((chn) => chn !== chain).sort();
 
