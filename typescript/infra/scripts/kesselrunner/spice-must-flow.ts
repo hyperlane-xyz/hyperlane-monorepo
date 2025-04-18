@@ -1,22 +1,22 @@
 import chalk from 'chalk';
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  ChainName,
-  HyperlaneCore,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { HypERC20, HypERC20__factory } from '@hyperlane-xyz/core';
+import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   Address,
   addBufferToGasLimit,
+  addressToByteHexString,
   addressToBytes32,
+  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import {
   KESSEL_RUN_CONFIG,
+  KESSEL_RUN_FUNDER_CONFIG,
   KESSEL_RUN_HOURLY_RATE,
+  KESSEL_RUN_SPICE_ROUTE,
   MULTICALL3_ABI,
   MULTICALL3_ADDRESS,
 } from '../../src/kesselrunner/config.js';
@@ -27,19 +27,23 @@ import {
 } from '../../src/kesselrunner/types.js';
 import { getKesselRunMultiProvider } from '../../src/kesselrunner/utils.js';
 
-const testRecipient = '0x492b3653A38e229482Bab2f7De4A094B18017246';
-// 64 bytes
-const body = "It's the ship that made the Kessel Run in less than 12 parsecs!!";
-const DEFAULT_METADATA = '0x0001';
-
 const multicall3 = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI);
 
+const DEFAULT_HOOK_METADATA = '0x0001';
+const WARP_SEND = 1;
+
 const gasCache: ChainMap<ChainMap<ethers.BigNumber>> = {};
-const igpCache: ChainMap<ChainMap<ethers.BigNumber>> = {};
+const hyperCache: ChainMap<HypERC20> = {};
+const domainCache: ChainMap<number> = {};
 const merkleTreeHookCache: ChainMap<Address> = {};
 
+const WARP_RECEIVER = addressToBytes32(
+  addressToByteHexString(KESSEL_RUN_FUNDER_CONFIG.owner),
+);
+
+const PROTOCOL_FEE = ethers.BigNumber.from(1);
+
 async function preCalculateGasEstimates(
-  core: HyperlaneCore,
   origins: string[],
   destinations: string[],
 ) {
@@ -48,40 +52,25 @@ async function preCalculateGasEstimates(
 
   for (const origin of origins) {
     gasCache[origin] = {};
-    igpCache[origin] = {};
     for (const destination of destinations) {
       if (origin === destination) continue;
 
       rootLogger.debug(
         `Calculating gas estimate from ${origin} to ${destination}`,
       );
-      const messageBody = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body));
-      const mailbox = core.getContracts(origin).mailbox;
-      const destinationDomain = core.multiProvider.getDomainId(destination);
-      const recipientBytes32 = addressToBytes32(testRecipient);
-      const quote = await core.quoteGasPayment(
-        origin,
-        destination,
-        recipientBytes32,
-        messageBody,
-        DEFAULT_METADATA,
+
+      const estimateGas = await hyperCache[origin].estimateGas[
+        'transferRemote(uint32,bytes32,uint256,bytes,address)'
+      ](
+        domainCache[destination],
+        WARP_RECEIVER,
+        WARP_SEND,
+        DEFAULT_HOOK_METADATA,
         merkleTreeHookCache[origin],
+        { value: PROTOCOL_FEE },
       );
-
-      const dispatchParams = [
-        destinationDomain,
-        recipientBytes32,
-        messageBody,
-        DEFAULT_METADATA,
-        merkleTreeHookCache[origin],
-      ] as const;
-
-      const estimateGas = await mailbox.estimateGas[
-        'dispatch(uint32,bytes32,bytes,bytes,address)'
-      ](...dispatchParams, { value: quote });
-
       gasCache[origin][destination] = addBufferToGasLimit(estimateGas);
-      igpCache[origin][destination] = quote;
+
       rootLogger.debug(
         `Gas estimate for ${origin} to ${destination}: ${estimateGas.toString()}`,
       );
@@ -98,38 +87,28 @@ async function preCalculateGasEstimates(
 async function prepareMessages(
   origin: ChainName,
   destination: ChainName,
-  core: HyperlaneCore,
   count: number,
 ): Promise<PreparedMulticall> {
   const call3Values: Call3Value[] = [];
 
-  const value = igpCache[origin][destination];
   const gasLimit = gasCache[origin][destination];
-
-  const totalValue = value.mul(count);
   const totalGasLimit = gasLimit.mul(count);
 
   for (let i = 0; i < count; i++) {
-    const messageBody = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body));
-    const destinationDomain = core.multiProvider.getDomainId(destination);
-    const recipientBytes32 = addressToBytes32(testRecipient);
-
     call3Values.push({
-      target: core.getContracts(origin).mailbox.address,
+      target: hyperCache[origin].address,
       allowFailure: true,
-      value,
-      callData: core
-        .getContracts(origin)
-        .mailbox.interface.encodeFunctionData(
-          'dispatch(uint32,bytes32,bytes,bytes,address)',
-          [
-            destinationDomain,
-            recipientBytes32,
-            messageBody,
-            DEFAULT_METADATA,
-            merkleTreeHookCache[origin],
-          ],
-        ),
+      value: PROTOCOL_FEE,
+      callData: hyperCache[origin].interface.encodeFunctionData(
+        'transferRemote(uint32,bytes32,uint256,bytes,address)',
+        [
+          domainCache[destination],
+          WARP_RECEIVER,
+          WARP_SEND,
+          DEFAULT_HOOK_METADATA,
+          merkleTreeHookCache[origin],
+        ],
+      ),
     });
   }
 
@@ -142,7 +121,7 @@ async function prepareMessages(
     destination,
     to: MULTICALL3_ADDRESS,
     data: multicallData,
-    value: totalValue,
+    value: PROTOCOL_FEE.mul(count),
     gasLimit: totalGasLimit,
   };
 }
@@ -186,29 +165,29 @@ async function doTheKesselRun() {
   const { multiProvider, targetNetworks, registry } =
     await getKesselRunMultiProvider();
 
-  const chainAddresses = await registry.getAddresses();
-  const filteredChainAddresses = Object.fromEntries(
-    Object.entries(chainAddresses).filter(([chain]) =>
-      targetNetworks.includes(chain),
-    ),
-  );
-
   // cache the merkle tree hook addresses for each chain
+  const chainAddresses = await registry.getAddresses();
   for (const chain of targetNetworks) {
     merkleTreeHookCache[chain] = chainAddresses[chain].merkleTreeHook;
   }
-
-  const core = HyperlaneCore.fromAddressesMap(
-    filteredChainAddresses,
-    multiProvider,
-  );
 
   const startingNonces = await getNonces(multiProvider, targetNetworks);
   rootLogger.info('Starting nonces:');
   // eslint-disable-next-line no-console
   console.table(startingNonces);
 
-  await preCalculateGasEstimates(core, targetNetworks, targetNetworks);
+  for (const { chainName, addressOrDenom } of Object.values(
+    KESSEL_RUN_SPICE_ROUTE.tokens,
+  )) {
+    assert(addressOrDenom, `Token address not found for chain ${chainName}`);
+    hyperCache[chainName] = HypERC20__factory.connect(
+      addressOrDenom,
+      multiProvider.getSigner(chainName),
+    );
+    domainCache[chainName] = multiProvider.getDomainId(chainName);
+  }
+
+  await preCalculateGasEstimates(targetNetworks, targetNetworks);
 
   for (let i = 0; i < KESSEL_RUN_CONFIG.bursts; i++) {
     rootLogger.info(`Starting burst ${i + 1} of ${KESSEL_RUN_CONFIG.bursts}`);
@@ -270,12 +249,7 @@ async function doTheKesselRun() {
           );
           txCount -= batchSize;
 
-          const batch = await prepareMessages(
-            origin,
-            destination,
-            core,
-            batchSize,
-          );
+          const batch = await prepareMessages(origin, destination, batchSize);
 
           multicallMap[origin].push({
             ...batch,
@@ -317,7 +291,7 @@ async function doTheKesselRun() {
     // Prepare all transactions in a single array
     const allTransactions = targetNetworks.flatMap((origin) => {
       const multicallData = multicallMap[origin];
-      const signer = core.multiProvider.getSigner(origin);
+      const signer = multiProvider.getSigner(origin);
       return multicallData.map(
         ({ to, data, value, gasLimit, nonce, destination }) => ({
           signer,

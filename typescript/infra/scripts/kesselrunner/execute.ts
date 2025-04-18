@@ -9,10 +9,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  HOURLY_RATE,
-  getKesselRunMultiProvider,
-  kesselRunConfig,
+  KESSEL_RUN_CONFIG,
+  KESSEL_RUN_HOURLY_RATE,
 } from '../../src/kesselrunner/config.js';
+import { getKesselRunMultiProvider } from '../../src/kesselrunner/utils.js';
 
 const testRecipient = '0x492b3653A38e229482Bab2f7De4A094B18017246';
 // 64 bytes
@@ -187,8 +187,8 @@ async function doTheKesselRun() {
     targetNetworks,
   );
 
-  for (let i = 0; i < kesselRunConfig.bursts; i++) {
-    rootLogger.info(`Starting burst ${i + 1} of ${kesselRunConfig.bursts}`);
+  for (let i = 0; i < KESSEL_RUN_CONFIG.bursts; i++) {
+    rootLogger.info(`Starting burst ${i + 1} of ${KESSEL_RUN_CONFIG.bursts}`);
 
     const messageParams: Array<{
       origin: string;
@@ -210,15 +210,17 @@ async function doTheKesselRun() {
       );
 
       const ratePerOrigin =
-        HOURLY_RATE *
-        kesselRunConfig.distro[origin as keyof typeof kesselRunConfig.distro];
+        KESSEL_RUN_HOURLY_RATE *
+        KESSEL_RUN_CONFIG.distro[
+          origin as keyof typeof KESSEL_RUN_CONFIG.distro
+        ];
 
       const distributionConfig = [
         'arbitrumsepolia',
         'optimismsepolia',
       ].includes(origin)
-        ? kesselRunConfig.distArbOp
-        : kesselRunConfig.distBaseBscEth;
+        ? KESSEL_RUN_CONFIG.distArbOp
+        : KESSEL_RUN_CONFIG.distBaseBscEth;
 
       for (const [destination, bridgeDistribution] of Object.entries(
         distributionConfig,
@@ -228,7 +230,7 @@ async function doTheKesselRun() {
           Math.floor(
             ratePerOrigin *
               bridgeDistribution *
-              (kesselRunConfig.burstInterval / 3600),
+              (KESSEL_RUN_CONFIG.burstInterval / 3600),
           ),
         );
         rootLogger.debug(
@@ -295,12 +297,12 @@ async function doTheKesselRun() {
     );
 
     rootLogger.info(`Completed burst ${i + 1}`);
-    if (i < kesselRunConfig.bursts - 1) {
+    if (i < KESSEL_RUN_CONFIG.bursts - 1) {
       rootLogger.info(
-        `Waiting for ${kesselRunConfig.burstInterval}s before next burst`,
+        `Waiting for ${KESSEL_RUN_CONFIG.burstInterval}s before next burst`,
       );
       const interval = 5000; // 5 seconds in milliseconds
-      let remainingTime = kesselRunConfig.burstInterval;
+      let remainingTime = KESSEL_RUN_CONFIG.burstInterval;
 
       const intervalId = setInterval(() => {
         remainingTime -= interval;
@@ -315,7 +317,7 @@ async function doTheKesselRun() {
         setTimeout(() => {
           clearInterval(intervalId);
           resolve();
-        }, kesselRunConfig.burstInterval * 1000),
+        }, KESSEL_RUN_CONFIG.burstInterval * 1000),
       );
     }
   }
