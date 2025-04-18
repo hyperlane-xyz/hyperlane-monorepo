@@ -1,38 +1,38 @@
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  funderConfig,
-  getKesselRunMultiProvider,
-} from '../../src/kesselrunner/config.js';
+import { KESSEL_RUN_FUNDER_CONFIG } from '../../src/kesselrunner/config.js';
+import { getKesselRunMultiProvider } from '../../src/kesselrunner/utils.js';
 
 async function printNonces() {
   const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
 
   const noncesObject = await Promise.all(
     targetNetworks.flatMap((chain) => {
-      return Object.entries(funderConfig).map(async ([type, address]) => {
-        try {
-          const provider = multiProvider.getProvider(chain);
-          const nonce = await provider.getTransactionCount(address);
-          return {
-            chain,
-            type,
-            nonce,
-            address,
-          };
-        } catch (error) {
-          rootLogger.error(
-            `Error fetching nonce for ${type} on chain ${chain}:`,
-            error,
-          );
-          return {
-            chain,
-            type,
-            nonce: 'ERROR',
-            address: 'ERROR',
-          };
-        }
-      });
+      return Object.entries(KESSEL_RUN_FUNDER_CONFIG).map(
+        async ([type, address]) => {
+          try {
+            const provider = multiProvider.getProvider(chain);
+            const nonce = await provider.getTransactionCount(address);
+            return {
+              chain,
+              type,
+              nonce,
+              address,
+            };
+          } catch (error) {
+            rootLogger.error(
+              `Error fetching nonce for ${type} on chain ${chain}:`,
+              error,
+            );
+            return {
+              chain,
+              type,
+              nonce: 'ERROR',
+              address: 'ERROR',
+            };
+          }
+        },
+      );
     }),
   );
 

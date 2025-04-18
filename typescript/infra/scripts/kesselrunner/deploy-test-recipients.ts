@@ -13,7 +13,7 @@ import {
 import {
   getIsmConfigMap,
   getKesselRunMultiProvider,
-} from '../../src/kesselrunner/config.js';
+} from '../../src/kesselrunner/utils.js';
 import { Modules } from '../agent-utils.js';
 
 async function deployTestRecipients() {

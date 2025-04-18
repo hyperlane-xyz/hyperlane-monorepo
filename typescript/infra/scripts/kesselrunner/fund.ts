@@ -2,11 +2,11 @@ import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { KESSEL_RUN_FUNDER_CONFIG } from '../../src/kesselrunner/config.js';
 import {
-  funderConfig,
   getKesselRunMultiProvider,
   setDeployerKey,
-} from '../../src/kesselrunner/config.js';
+} from '../../src/kesselrunner/utils.js';
 
 async function printOwnerAndRelayerBalances() {
   const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
@@ -32,7 +32,8 @@ async function printOwnerAndRelayerBalances() {
           let topUpAmount = 1;
           // vanguard entities get 2 tokens
           if (entityType.startsWith('vanguard')) {
-            topUpAmount = 2;
+            // need more for sepolia
+            topUpAmount = chain === 'sepolia' ? 10 : 2;
           }
           // kesselrunner on bsctestnet & arbitrumsepolia get 10 tokens
           else if (
@@ -77,7 +78,7 @@ async function printOwnerAndRelayerBalances() {
         };
 
         for (const [entityType, entityAddress] of Object.entries(
-          funderConfig,
+          KESSEL_RUN_FUNDER_CONFIG,
         )) {
           await topUpEntity(entityAddress, entityType);
         }
