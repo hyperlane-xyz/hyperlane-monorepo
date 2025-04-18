@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import {IAccessManager} from "../../contracts/interfaces/IAccessManager.sol";
+import {TimelockController} from "../../contracts/upgrade/TimelockController.sol";
 
 contract AccessManagerForkTest is Test {
     address constant AM = 0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863;
@@ -17,6 +18,9 @@ contract AccessManagerForkTest is Test {
     bytes constant TEST_CALLDATA =
         abi.encodeWithSelector(SELECTOR, 8453, TARGET, 0, "test payload");
     IAccessManager accessManager = IAccessManager(AM);
+
+    uint256 constant TIMELOCK_DELAY = 30 days;
+    TimelockController timelock;
 
     function setUp() public {
         string memory rpcUrl;
@@ -38,6 +42,27 @@ contract AccessManagerForkTest is Test {
             "FOUNDATION_AND_DEPUTIES_MULTISIG does not have expected role"
         );
         assertGt(delay, 0, "Expected scheduling delay > 0");
+
+        // make AM admin a timelock
+        // deploy timelock
+
+        address[] memory proposers = new address[](1);
+        proposers[0] = FOUNDATION_AND_DEPUTIES_MULTISIG;
+        address[] memory executors = new address[](1);
+        executors[0] = address(0);
+
+        timelock = new TimelockController(
+            TIMELOCK_DELAY,
+            proposers,
+            executors,
+            address(0)
+        );
+
+        // set timelock as admin of AM
+        vm.startPrank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        accessManager.grantRole(0, address(timelock), 0);
+        accessManager.renounceRole(0, FOUNDATION_AND_DEPUTIES_MULTISIG);
+        vm.stopPrank();
     }
 
     function testScheduleAndExecuteCallRemote() public {
@@ -105,6 +130,67 @@ contract AccessManagerForkTest is Test {
         accessManager.execute(TARGET, TEST_CALLDATA);
     }
 
+    function testTimelockCanGrantRoleMembershipViaProposal(
+        uint32 testRole,
+        address testAccount,
+        uint32 executionDelay
+    ) public {
+        // Precondition: testAccount should not have the role
+        (bool hasRole, ) = accessManager.hasRole(testRole, testAccount);
+        assertFalse(
+            hasRole,
+            "Precondition: testAccount should not have the role"
+        );
+
+        // Create proposal data for grantRole(testRole, testAccount, executionDelay)
+        bytes memory proposalData = abi.encodeWithSelector(
+            IAccessManager.grantRole.selector,
+            testRole,
+            testAccount,
+            executionDelay
+        );
+
+        executeAdminActionViaTimelock(proposalData);
+
+        // // Verify that testAccount now has testRole with the specified executionDelay
+        (bool grantedHasRole, uint32 grantedDelay) = accessManager.hasRole(
+            testRole,
+            testAccount
+        );
+        assertTrue(
+            grantedHasRole,
+            "testAccount should have testRole after proposal execution"
+        );
+        assertEq(executionDelay, grantedDelay, "executionDelay should match");
+    }
+
+    function executeAdminActionViaTimelock(bytes memory callData) internal {
+        // Schedule the proposal via timelock
+        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        bytes32 salt = keccak256("testTimelockGrantRole");
+        timelock.schedule(
+            address(accessManager),
+            0,
+            callData,
+            bytes32(0),
+            salt,
+            TIMELOCK_DELAY
+        );
+
+        // Expect revert on the timelock
+        vm.expectRevert("TimelockController: operation is not ready");
+        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        timelock.execute(address(accessManager), 0, callData, bytes32(0), salt);
+
+        // Fast forward time past the timelock delay
+        vm.warp(block.timestamp + TIMELOCK_DELAY + 1);
+        vm.roll(block.number + 1);
+
+        // Execute the proposal via timelock
+        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        timelock.execute(address(accessManager), 0, callData, bytes32(0), salt);
+    }
+
     // Here are test cases that were discovered and had to be remediated
 
     // TODO: this is bad
@@ -122,8 +208,16 @@ contract AccessManagerForkTest is Test {
         );
 
         // FOUNDATION_AND_DEPUTIES_MULTISIG uses its admin role to revoke SECURITY_COUNCIL's guardian role.
-        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
-        accessManager.revokeRole(guardianRole, SECURITY_COUNCIL);
+        // vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        // accessManager.revokeRole(guardianRole, SECURITY_COUNCIL);
+
+        // Revoke via Timelock
+        bytes memory proposalData = abi.encodeWithSelector(
+            IAccessManager.revokeRole.selector,
+            guardianRole,
+            SECURITY_COUNCIL
+        );
+        executeAdminActionViaTimelock(proposalData);
 
         // Postcondition: SECURITY_COUNCIL no longer holds the guardian role.
         (hasRole, ) = accessManager.hasRole(guardianRole, SECURITY_COUNCIL);
@@ -139,9 +233,14 @@ contract AccessManagerForkTest is Test {
         uint64 roleId = accessManager.getTargetFunctionRole(TARGET, SELECTOR);
 
         // Use the FOUNDATION_AND_DEPUTIES_MULTISIG (admin) to reduce the execution delay to 0.
-        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
-        // Instead, have the FOUNDATION_AND_DEPUTIES_MULTISIG call grantRole with executionDelay = 0 on the role associated with the function.
-        accessManager.grantRole(roleId, ATTACKER, 0);
+
+        bytes memory proposalData = abi.encodeWithSelector(
+            IAccessManager.grantRole.selector,
+            roleId,
+            ATTACKER,
+            0
+        );
+        executeAdminActionViaTimelock(proposalData);
 
         // Immediately execute the scheduled operation.
         vm.prank(ATTACKER);
@@ -153,19 +252,32 @@ contract AccessManagerForkTest is Test {
         // Retrieve the role ID for the TARGET and SELECTOR.
         uint64 roleId = accessManager.getTargetFunctionRole(TARGET, SELECTOR);
         // set roleAdmin to role 2
-        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
-        accessManager.setRoleAdmin(roleId, 2);
+        bytes memory proposalData = abi.encodeWithSelector(
+            IAccessManager.setRoleAdmin.selector,
+            roleId,
+            2
+        );
+        executeAdminActionViaTimelock(proposalData);
 
         // now bad
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = SELECTOR;
-        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
-        accessManager.setTargetFunctionRole(TARGET, selectors, 5);
+        bytes memory setData = abi.encodeWithSelector(
+            IAccessManager.setTargetFunctionRole.selector,
+            TARGET,
+            selectors,
+            5
+        );
+        executeAdminActionViaTimelock(setData);
 
-        // Use the FOUNDATION_AND_DEPUTIES_MULTISIG (admin) to reduce the execution delay to 0.
-        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
-        // Instead, have the FOUNDATION_AND_DEPUTIES_MULTISIG call grantRole with executionDelay = 0 on the role associated with the function.
-        accessManager.grantRole(5, ATTACKER, 0);
+        // Use the admin to reduce the execution delay to 0.
+        bytes memory grantRoleData = abi.encodeWithSelector(
+            IAccessManager.grantRole.selector,
+            5,
+            ATTACKER,
+            0
+        );
+        executeAdminActionViaTimelock(grantRoleData);
 
         // // Schedule the operation.
         // vm.prank(ATTACKER);
