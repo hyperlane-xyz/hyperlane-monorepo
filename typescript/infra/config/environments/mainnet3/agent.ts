@@ -915,6 +915,4 @@ export const agents = {
   [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
   [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
   [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
-  [Contexts.Vanguard6]: getVanguardRootAgentConfig(6),
-  [Contexts.Vanguard7]: getVanguardRootAgentConfig(7),
 };
