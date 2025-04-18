@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import { HypERC20, HypERC20__factory } from '@hyperlane-xyz/core';
 import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
-  Address,
   addBufferToGasLimit,
   addressToByteHexString,
   addressToBytes32,
@@ -29,19 +28,16 @@ import { getKesselRunMultiProvider } from '../../src/kesselrunner/utils.js';
 
 const multicall3 = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI);
 
-const DEFAULT_HOOK_METADATA = '0x0001';
 const WARP_SEND = 1;
 
 const gasCache: ChainMap<ChainMap<ethers.BigNumber>> = {};
+const igpCache: ChainMap<ChainMap<ethers.BigNumber>> = {};
 const hyperCache: ChainMap<HypERC20> = {};
 const domainCache: ChainMap<number> = {};
-const merkleTreeHookCache: ChainMap<Address> = {};
 
 const WARP_RECEIVER = addressToBytes32(
   addressToByteHexString(KESSEL_RUN_FUNDER_CONFIG.owner),
 );
-
-const PROTOCOL_FEE = ethers.BigNumber.from(1);
 
 async function preCalculateGasEstimates(
   origins: string[],
@@ -52,6 +48,7 @@ async function preCalculateGasEstimates(
 
   for (const origin of origins) {
     gasCache[origin] = {};
+    igpCache[origin] = {};
     for (const destination of destinations) {
       if (origin === destination) continue;
 
@@ -59,16 +56,16 @@ async function preCalculateGasEstimates(
         `Calculating gas estimate from ${origin} to ${destination}`,
       );
 
-      const estimateGas = await hyperCache[origin].estimateGas[
-        'transferRemote(uint32,bytes32,uint256,bytes,address)'
-      ](
+      const quote = await hyperCache[origin].quoteGasPayment(
         domainCache[destination],
-        WARP_RECEIVER,
-        WARP_SEND,
-        DEFAULT_HOOK_METADATA,
-        merkleTreeHookCache[origin],
-        { value: PROTOCOL_FEE },
       );
+      igpCache[origin][destination] = quote;
+
+      const estimateGas = await hyperCache[origin].estimateGas[
+        'transferRemote(uint32,bytes32,uint256)'
+      ](domainCache[destination], WARP_RECEIVER, WARP_SEND, {
+        value: quote,
+      });
       gasCache[origin][destination] = addBufferToGasLimit(estimateGas);
 
       rootLogger.debug(
@@ -91,23 +88,20 @@ async function prepareMessages(
 ): Promise<PreparedMulticall> {
   const call3Values: Call3Value[] = [];
 
+  const value = igpCache[origin][destination];
+  const totalValue = value.mul(count);
+
   const gasLimit = gasCache[origin][destination];
   const totalGasLimit = gasLimit.mul(count);
 
   for (let i = 0; i < count; i++) {
     call3Values.push({
       target: hyperCache[origin].address,
-      allowFailure: true,
-      value: PROTOCOL_FEE,
+      allowFailure: false,
+      value,
       callData: hyperCache[origin].interface.encodeFunctionData(
-        'transferRemote(uint32,bytes32,uint256,bytes,address)',
-        [
-          domainCache[destination],
-          WARP_RECEIVER,
-          WARP_SEND,
-          DEFAULT_HOOK_METADATA,
-          merkleTreeHookCache[origin],
-        ],
+        'transferRemote(uint32,bytes32,uint256)',
+        [domainCache[destination], WARP_RECEIVER, WARP_SEND],
       ),
     });
   }
@@ -121,7 +115,7 @@ async function prepareMessages(
     destination,
     to: MULTICALL3_ADDRESS,
     data: multicallData,
-    value: PROTOCOL_FEE.mul(count),
+    value: totalValue,
     gasLimit: totalGasLimit,
   };
 }
@@ -162,14 +156,7 @@ async function getNonces(
 }
 
 async function doTheKesselRun() {
-  const { multiProvider, targetNetworks, registry } =
-    await getKesselRunMultiProvider();
-
-  // cache the merkle tree hook addresses for each chain
-  const chainAddresses = await registry.getAddresses();
-  for (const chain of targetNetworks) {
-    merkleTreeHookCache[chain] = chainAddresses[chain].merkleTreeHook;
-  }
+  const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
 
   const startingNonces = await getNonces(multiProvider, targetNetworks);
   rootLogger.info('Starting nonces:');
