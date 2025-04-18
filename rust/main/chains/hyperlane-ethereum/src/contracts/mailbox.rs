@@ -691,7 +691,7 @@ mod test {
         providers::{MockProvider, Provider},
         types::{Block, Transaction, U256 as EthersU256},
     };
-
+    use ethers_core::types::FeeHistory;
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
         TxCostEstimate, H160, H256, U256,
@@ -797,17 +797,31 @@ mod test {
         // order, so we start with the final RPCs and work toward the first
         // RPCs
 
-        // RPC 4: eth_gasPrice by process_estimate_costs
+        // RPC 6: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
         let gas_price: U256 =
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
+
+        let fee_history = FeeHistory {
+            oldest_block: ethers::types::U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+            reward: vec![vec![]],
+        };
+
+        // RPC 5: eth_feeHistory from the estimate_eip1559_fees_default
+        mock_provider.push(fee_history).unwrap();
 
         let latest_block_gas_limit = U256::from(12345u32);
         let latest_block: Block<Transaction> = Block {
             gas_limit: latest_block_gas_limit.into(),
             ..Block::<Transaction>::default()
         };
+
+        // RPC 4: eth_getBlockByNumber from the estimate_eip1559_fees_default
+        mock_provider.push(latest_block.clone()).unwrap();
+
         // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
         // to get the latest block gas limit and for eip 1559 fee estimation
         mock_provider.push(latest_block).unwrap();
