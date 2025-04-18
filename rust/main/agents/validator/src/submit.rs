@@ -281,7 +281,7 @@ impl ValidatorSubmitter {
             match self.signer.sign(checkpoint).await {
                 Ok(signed_checkpoint) => return Ok(signed_checkpoint),
                 Err(err) => {
-                    error!(
+                    tracing::warn!(
                         ?checkpoint,
                         attempt = i,
                         retries = signer_retries,
@@ -293,7 +293,7 @@ impl ValidatorSubmitter {
             }
         }
 
-        tracing::error!(
+        tracing::warn!(
             ?checkpoint,
             retries = signer_retries,
             "Error signing checkpoint with direct signer after all retries, falling back to singleton signer"
