@@ -44,10 +44,10 @@ const PROXY_ADMIN_TARGET = {
 const WARP_ROUTE_TARGET_AUTHORITY = {
   'setInterchainSecurityModule(address)': Roles.SevenDay,
   'setHook(address)': Roles.SevenDay,
-  'enrollRemoteRouter(uint32,address)': Roles.SevenDay,
-  'enrollRemoteRouters(uint32[],address[])': Roles.SevenDay,
-  'unenrollRemoteRouter(uint32,address)': Roles.SevenDay,
-  'unenrollRemoteRouters(uint32[],address[])': Roles.SevenDay,
+  'enrollRemoteRouter(uint32,bytes32)': Roles.SevenDay,
+  'enrollRemoteRouters(uint32[],bytes32[])': Roles.SevenDay,
+  'unenrollRemoteRouter(uint32)': Roles.SevenDay,
+  'unenrollRemoteRouters(uint32[])': Roles.SevenDay,
   'transferOwnership(address)': Roles.SevenDay,
 };
 

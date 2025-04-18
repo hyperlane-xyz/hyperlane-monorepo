@@ -223,11 +223,20 @@ contract AccessManagerForkTest is Test {
         timelock.execute(address(accessManager), 0, callData, bytes32(0), salt);
     }
 
+    function roleIdFromLabel(
+        string memory label
+    ) internal pure returns (uint64 roleId) {
+        bytes32 fullHash = keccak256(abi.encodePacked(label));
+        assembly {
+            roleId := shr(192, fullHash)
+        }
+    }
+
     // Here are test cases that were discovered and had to be remediated
 
     // TODO: this is bad
     function testBADAttackerCanRemoveSecurityCouncil() public {
-        uint64 guardianRole = 4;
+        uint64 guardianRole = roleIdFromLabel("Security Council");
 
         // Precondition: SECURITY_COUNCIL holds the guardian role.
         (bool hasRole, ) = accessManager.hasRole(

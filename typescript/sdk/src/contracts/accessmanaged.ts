@@ -57,7 +57,7 @@ export function configureAccess<
 
   // Assign IDs based on truncated keccak256 hash of the role label
   for (const role of Object.keys(config.roles).filter(
-    (role): role is Role => !(role in RESERVED_ROLES),
+    (role): role is Role => !Object.keys(RESERVED_ROLES).includes(role),
   )) {
     const fullHash = keccak256(toUtf8Bytes(role));
     // take first 8 bytes (16 hex chars) of the hash as uint64
@@ -65,7 +65,7 @@ export function configureAccess<
     const roleId = BigInt(truncatedHex);
     roleIds[role] = roleId;
     const data = manager.encodeFunctionData('labelRole', [roleId, role]);
-    const annotation = `label role ID ${roleId} with ${role}`;
+    const annotation = `label role ${role} with ID ${roleId}`;
     transactions.push({ data, annotation });
   }
 
