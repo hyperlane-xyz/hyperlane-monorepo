@@ -106,6 +106,12 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("gasPriceMultiplierNumerator")
                 .parse_u256()
                 .end(),
+
+            gas_price_cap: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceCap")
+                .parse_u256()
+                .end(),
         })
         .unwrap_or_default();
 
