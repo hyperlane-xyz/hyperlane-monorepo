@@ -32,3 +32,10 @@ export type KesselRunner = {
   multiProvider: MultiProvider;
   registry: IRegistry;
 };
+
+export type TransferCall = {
+  destination: number;
+  recipient: string;
+  amount: ethers.BigNumber;
+  value: ethers.BigNumber;
+};

@@ -8,7 +8,7 @@ import {
   setDeployerKey,
 } from '../../src/kesselrunner/utils.js';
 
-async function printOwnerAndRelayerBalances() {
+async function fundAgents() {
   const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
 
   await setDeployerKey(multiProvider);
@@ -89,7 +89,7 @@ async function printOwnerAndRelayerBalances() {
   );
 }
 
-printOwnerAndRelayerBalances().catch((error) => {
-  rootLogger.error('Error printing owner and relayer balances:', error);
+fundAgents().catch((error) => {
+  rootLogger.error('Error funding agents:', error);
   process.exit(1);
 });

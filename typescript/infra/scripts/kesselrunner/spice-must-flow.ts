@@ -16,17 +16,15 @@ import {
   KESSEL_RUN_FUNDER_CONFIG,
   KESSEL_RUN_HOURLY_RATE,
   KESSEL_RUN_SPICE_ROUTE,
-  MULTICALL3_ABI,
-  MULTICALL3_ADDRESS,
+  MILLENNIUM_FALCON_ABI,
+  MILLENNIUM_FALCON_ADDRESS,
 } from '../../src/kesselrunner/config.js';
 import {
-  Call3Value,
   PreparedMulticall,
   QueuedMulticall,
+  TransferCall,
 } from '../../src/kesselrunner/types.js';
 import { getKesselRunMultiProvider } from '../../src/kesselrunner/utils.js';
-
-const multicall3 = new ethers.Contract(MULTICALL3_ADDRESS, MULTICALL3_ABI);
 
 const WARP_SEND = 1;
 
@@ -81,40 +79,40 @@ async function preCalculateGasEstimates(
   );
 }
 
-async function prepareMessages(
+async function prepareForLightSpeed(
   origin: ChainName,
   destination: ChainName,
   count: number,
 ): Promise<PreparedMulticall> {
-  const call3Values: Call3Value[] = [];
-
   const value = igpCache[origin][destination];
   const totalValue = value.mul(count);
-
   const gasLimit = gasCache[origin][destination];
   const totalGasLimit = gasLimit.mul(count);
 
+  const calls: TransferCall[] = [];
+
   for (let i = 0; i < count; i++) {
-    call3Values.push({
-      target: hyperCache[origin].address,
-      allowFailure: false,
-      value,
-      callData: hyperCache[origin].interface.encodeFunctionData(
-        'transferRemote(uint32,bytes32,uint256)',
-        [domainCache[destination], WARP_RECEIVER, WARP_SEND],
-      ),
+    calls.push({
+      destination: domainCache[destination],
+      recipient: WARP_RECEIVER,
+      amount: ethers.BigNumber.from(WARP_SEND),
+      value: value,
     });
   }
 
-  const multicallData = multicall3.interface.encodeFunctionData(
-    'aggregate3Value',
-    [call3Values],
+  const milleniumFalcon = new ethers.Contract(
+    MILLENNIUM_FALCON_ADDRESS[origin],
+    MILLENNIUM_FALCON_ABI,
+  );
+  const multiSendData = milleniumFalcon.interface.encodeFunctionData(
+    'punchIt',
+    [calls],
   );
 
   return {
     destination,
-    to: MULTICALL3_ADDRESS,
-    data: multicallData,
+    to: MILLENNIUM_FALCON_ADDRESS[origin],
+    data: multiSendData,
     value: totalValue,
     gasLimit: totalGasLimit,
   };
@@ -236,7 +234,11 @@ async function doTheKesselRun() {
           );
           txCount -= batchSize;
 
-          const batch = await prepareMessages(origin, destination, batchSize);
+          const batch = await prepareForLightSpeed(
+            origin,
+            destination,
+            batchSize,
+          );
 
           multicallMap[origin].push({
             ...batch,
