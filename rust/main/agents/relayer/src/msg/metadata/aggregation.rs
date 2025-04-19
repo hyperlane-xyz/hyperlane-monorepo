@@ -193,7 +193,9 @@ impl AggregationIsmMetadataBuilder {
         ism_addresses: Vec<H256>,
     ) -> Result<Metadata, MetadataBuildError> {
         if threshold > 1 {
-            return Err(MetadataBuildError::CouldNotFetch);
+            return Err(MetadataBuildError::FastPathError(
+                "Aggregation ISM threshold > 1".to_string(),
+            ));
         }
         let sub_isms = join_all(ism_addresses.iter().map(|sub_ism_address| {
             message_builder::ism_and_module_type(self.base.clone(), *sub_ism_address)
@@ -209,10 +211,15 @@ impl AggregationIsmMetadataBuilder {
                     None
                 }
             })
-            .ok_or(MetadataBuildError::CouldNotFetch)?;
+            .ok_or(MetadataBuildError::FastPathError(
+                "No MessageIdMultisigIsm submodule in aggregation ISM".to_string(),
+            ))?;
         let message_id_multisig_ism_address = ism_addresses
             .get(message_id_multisig_ism_index)
-            .ok_or(MetadataBuildError::CouldNotFetch)?;
+            .ok_or(MetadataBuildError::FastPathError(format!(
+                "No ism address found for messageIdMultisig index {}",
+                message_id_multisig_ism_index
+            )))?;
         let sub_module_and_meta = message_builder::build_message_metadata(
             self.base.clone(),
             *message_id_multisig_ism_address,
@@ -232,7 +239,9 @@ impl AggregationIsmMetadataBuilder {
             .map_err(|err| MetadataBuildError::FastPathError(err.to_string()))?
             .is_none()
         {
-            return Err(MetadataBuildError::CouldNotFetch);
+            return Err(MetadataBuildError::FastPathError(
+                "Fast path metadata failed dry run (returned None)".to_string(),
+            ));
         }
         let sub_module_metadata = SubModuleMetadata::new(message_id_multisig_ism_index, metadata);
         let metadata = Metadata::new(Self::format_metadata(&mut [sub_module_metadata], 1));
