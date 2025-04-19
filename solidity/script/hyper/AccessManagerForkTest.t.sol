@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import {IAccessManager} from "../../contracts/interfaces/IAccessManager.sol";
 import {TimelockController} from "../../contracts/upgrade/TimelockController.sol";
+import {HyperToken} from "../../contracts/token/extensions/HyperToken.sol";
 
 // TODO: execute some other scopes
 contract AccessManagerForkTest is Test {
@@ -22,6 +23,8 @@ contract AccessManagerForkTest is Test {
         abi.encodeWithSelector(SELECTOR, 8453, TARGET, 0, "test payload");
     IAccessManager accessManager = IAccessManager(AM);
     uint256 constant TIMELOCK_DELAY = 14 days;
+    uint256 constant SEVEN_DAYS = 7 days;
+    uint256 constant THIRTY_DAYS = 30 days;
     TimelockController timelock = TimelockController(TIMELOCK_ADMIN);
 
     function setUp() public {
@@ -130,14 +133,8 @@ contract AccessManagerForkTest is Test {
         );
         accessManager.execute(TARGET, TEST_CALLDATA);
 
-        // Retrieve the required delay for execution
-        (, uint32 delay) = IAccessManager(AM).canCall(
-            FOUNDATION_AND_DEPUTIES_MULTISIG,
-            TARGET,
-            SELECTOR
-        );
         // Fast-forward time and mine a new block
-        vm.warp(block.timestamp + delay);
+        vm.warp(block.timestamp + SEVEN_DAYS);
         vm.roll(block.number + 1);
 
         // Execute the scheduled call
@@ -340,5 +337,34 @@ contract AccessManagerForkTest is Test {
         // Immediately execute the scheduled operation.
         vm.prank(ATTACKER);
         accessManager.execute(TARGET, TEST_CALLDATA);
+    }
+
+    // Additional tests
+    function testMintHyperTokenAfterThirtyDayDelay() public {
+        address hyperToken = 0x93A2Db22B7c736B341C32Ff666307F4a9ED910F5; // Replace with actual address if needed
+        address recipient = address(0xBEEF);
+        uint256 amount = 1e18;
+        bytes32 MINTER_ROLE = keccak256("MINTER_ROLE");
+
+        // Grant MINTER_ROLE to this test contract
+        bytes memory grantRoleCallData = abi.encodeWithSignature(
+            "grantRole(bytes32,address)",
+            MINTER_ROLE,
+            address(this)
+        );
+
+        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        accessManager.schedule(hyperToken, grantRoleCallData, 0);
+
+        // Fast-forward 30 days
+        vm.warp(block.timestamp + THIRTY_DAYS);
+        vm.roll(block.number + 1);
+
+        // Execute role grant
+        vm.prank(FOUNDATION_AND_DEPUTIES_MULTISIG);
+        accessManager.execute(hyperToken, grantRoleCallData);
+
+        // Mint tokens directly from the test contract
+        HyperToken(hyperToken).mint(recipient, amount);
     }
 }
