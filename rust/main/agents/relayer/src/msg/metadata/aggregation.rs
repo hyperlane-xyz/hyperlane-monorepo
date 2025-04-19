@@ -244,7 +244,10 @@ impl AggregationIsmMetadataBuilder {
             ));
         }
         let sub_module_metadata = SubModuleMetadata::new(message_id_multisig_ism_index, metadata);
-        let metadata = Metadata::new(Self::format_metadata(&mut [sub_module_metadata], 1));
+        let metadata = Metadata::new(Self::format_metadata(
+            &mut [sub_module_metadata],
+            ism_addresses.len(),
+        ));
         Ok(metadata)
     }
 }
