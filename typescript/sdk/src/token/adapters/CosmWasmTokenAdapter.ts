@@ -72,6 +72,13 @@ export class CwNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx(
     _params: TransferParams,
   ): Promise<ExecuteInstruction> {
@@ -151,6 +158,13 @@ export class CwTokenAdapter
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -459,5 +473,12 @@ export class CwHypCollateralAdapter
     public readonly addresses: { warpRouter: Address; token: Address },
   ) {
     super(chainName, multiProvider, addresses);
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
   }
 }

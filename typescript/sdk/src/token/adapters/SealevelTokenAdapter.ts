@@ -118,6 +118,13 @@ export class SealevelNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx(): Promise<Transaction> {
     throw new Error('Approve not required for native tokens');
   }
@@ -185,6 +192,13 @@ export class SealevelTokenAdapter
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
