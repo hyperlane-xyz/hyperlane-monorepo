@@ -885,8 +885,11 @@ impl ChainConf {
                 let ism = Box::new(h_cosmos::CosmosRoutingIsm::new(provider, locator.clone())?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::CosmosNative(_) => {
-                Err(eyre!("Cosmos Native does not support routing ISM yet")).context(ctx)
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let ism: Box<hyperlane_cosmos_native::CosmosNativeIsm> =
+                    Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
+                Ok(ism as Box<dyn RoutingIsm>)
             }
         }
         .context(ctx)
