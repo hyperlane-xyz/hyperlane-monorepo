@@ -9,6 +9,6 @@ export const aggregationIsm = (validatorKey: string): AggregationIsmConfig => {
       merkleRootMultisig(validatorKey),
       messageIdMultisig(validatorKey),
     ],
-    threshold: 2,
+    threshold: 1,
   };
 };
