@@ -15,7 +15,9 @@ contract HypERC721Collateral is TokenRouter {
 
     /**
      * @notice Constructor
+     *
      * @param erc721 Address of the token to keep as collateral
+     * @param _mailbox Address of the mailbox contract that will process and handle remote transfers for the `wrappedToken`.
      */
     constructor(address erc721, address _mailbox) TokenRouter(_mailbox) {
         wrappedToken = IERC721(erc721);
@@ -23,9 +25,10 @@ contract HypERC721Collateral is TokenRouter {
 
     /**
      * @notice Initializes the Hyperlane router
+     *
      * @param _hook The post-dispatch hook contract.
-       @param _interchainSecurityModule The interchain security module contract.
-       @param _owner The this contract.
+     * @param _interchainSecurityModule The interchain security module contract.
+     * @param _owner The owner of this contract.
      */
     function initialize(
         address _hook,
