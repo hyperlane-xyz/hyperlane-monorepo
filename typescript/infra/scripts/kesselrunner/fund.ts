@@ -40,6 +40,13 @@ async function fundAgents() {
             topUpAmount = 10;
           }
 
+          // divide all the above by 10 on mainnet so we don't just burn through a ton of funds
+          if (
+            ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'].includes(chain)
+          ) {
+            topUpAmount = topUpAmount / 10;
+          }
+
           if (formattedEntityBalance < topUpAmount) {
             const topUpValue = parseUnits(
               (topUpAmount - formattedEntityBalance).toFixed(3),

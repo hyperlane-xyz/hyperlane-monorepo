@@ -161,8 +161,8 @@ async function doTheKesselRun() {
   // eslint-disable-next-line no-console
   console.table(startingNonces);
 
-  for (const { chainName, addressOrDenom } of Object.values(
-    KESSEL_RUN_SPICE_ROUTE.tokens,
+  for (const [chainName, addressOrDenom] of Object.entries(
+    KESSEL_RUN_SPICE_ROUTE,
   )) {
     assert(addressOrDenom, `Token address not found for chain ${chainName}`);
     hyperCache[chainName] = HypERC20__factory.connect(
@@ -201,6 +201,8 @@ async function doTheKesselRun() {
       const distributionConfig = [
         'arbitrumsepolia',
         'optimismsepolia',
+        'arbitrum',
+        'optimism',
       ].includes(origin)
         ? KESSEL_RUN_CONFIG.distArbOp
         : KESSEL_RUN_CONFIG.distBaseBscEth;

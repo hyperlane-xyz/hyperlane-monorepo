@@ -14,8 +14,8 @@ async function printBalances() {
   const { multiProvider, targetNetworks } = await getKesselRunMultiProvider();
 
   const spiceBalancesObject = await Promise.all(
-    Object.values(KESSEL_RUN_SPICE_ROUTE.tokens).map(
-      async ({ chainName, addressOrDenom }) => {
+    Object.entries(KESSEL_RUN_SPICE_ROUTE).map(
+      async ([chainName, addressOrDenom]) => {
         try {
           const signer = multiProvider.getSigner(chainName);
           const spiceToken = IERC20__factory.connect(addressOrDenom!, signer);

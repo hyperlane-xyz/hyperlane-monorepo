@@ -9,13 +9,13 @@ import {
 } from '../../src/kesselrunner/config.js';
 import { getKesselRunMultiProvider } from '../../src/kesselrunner/utils.js';
 
-const EXPECTED_SPICE_BALANCE = 1000000000;
+const EXPECTED_SPICE_BALANCE = 1;
 
 async function loadSpiceOntoFalcon() {
   const { multiProvider } = await getKesselRunMultiProvider();
 
-  for (const { chainName, addressOrDenom } of Object.values(
-    KESSEL_RUN_SPICE_ROUTE.tokens,
+  for (const [chainName, addressOrDenom] of Object.entries(
+    KESSEL_RUN_SPICE_ROUTE,
   )) {
     try {
       if (!addressOrDenom) {
