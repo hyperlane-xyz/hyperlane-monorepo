@@ -4,6 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  WarpCoreConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -107,7 +108,7 @@ export const apply: CommandModuleWithWriteContext<{
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
+    const [warpId, warpCoreConfig] = await getWarpCoreConfigOrExit({
       symbol,
       warp,
       context,
@@ -118,6 +119,7 @@ export const apply: CommandModuleWithWriteContext<{
     const warpDeployConfig = await readWarpRouteDeployConfig(config, context);
 
     await runWarpRouteApply({
+      warpRouteId: warpId,
       context,
       warpDeployConfig,
       warpCoreConfig,
@@ -284,7 +286,7 @@ const send: CommandModuleWithWriteContext<
     recipient,
     roundTrip,
   }) => {
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
+    const [, warpCoreConfig] = await getWarpCoreConfigOrExit({
       symbol,
       warp,
       context,
@@ -372,13 +374,16 @@ export const check: CommandModuleWithContext<{
       symbol,
     });
 
-    const warpCoreConfig =
-      context.warpCoreConfig ??
-      (await getWarpCoreConfigOrExit({
+    let warpCoreConfig: WarpCoreConfig;
+    if (context.warpCoreConfig) {
+      warpCoreConfig = context.warpCoreConfig;
+    } else {
+      [, warpCoreConfig] = await getWarpCoreConfigOrExit({
         context,
         warp,
         symbol,
-      }));
+      });
+    }
 
     if (!warpCoreConfig) {
       throw new Error('No warp core config found');
@@ -412,7 +417,7 @@ export const verify: CommandModuleWithWriteContext<{
   },
   handler: async ({ context, symbol }) => {
     logCommandHeader('Hyperlane Warp Verify');
-    const warpCoreConfig = await selectRegistryWarpRoute(
+    const [, warpCoreConfig] = await selectRegistryWarpRoute(
       context.registry,
       symbol,
     );

@@ -24,18 +24,20 @@ export async function runTokenSelectionStep(
 export async function selectRegistryWarpRoute(
   registry: IRegistry,
   symbol: string,
-): Promise<WarpCoreConfig> {
+): Promise<[string, WarpCoreConfig]> {
   const matching = await registry.getWarpRoutes({
     symbol,
   });
   const routes = Object.entries(matching);
 
   let warpCoreConfig: WarpCoreConfig;
+  let warpId: string;
   if (routes.length === 0) {
     logRed(`No warp routes found for symbol ${symbol}`);
     process.exit(0);
   } else if (routes.length === 1) {
     warpCoreConfig = routes[0][1];
+    warpId = routes[0][0];
   } else {
     logGreen(`Multiple warp routes found for symbol ${symbol}`);
     const chosenRouteId = await select({
@@ -45,7 +47,8 @@ export async function selectRegistryWarpRoute(
       })),
     });
     warpCoreConfig = matching[chosenRouteId];
+    warpId = chosenRouteId;
   }
 
-  return warpCoreConfig;
+  return [warpId, warpCoreConfig];
 }

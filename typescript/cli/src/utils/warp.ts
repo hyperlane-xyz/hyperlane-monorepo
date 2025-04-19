@@ -20,16 +20,24 @@ export async function getWarpCoreConfigOrExit({
   context: CommandContext;
   symbol?: string;
   warp?: string;
-}): Promise<WarpCoreConfig> {
+}): Promise<[string, WarpCoreConfig]> {
   let warpCoreConfig: WarpCoreConfig;
+  let warpId: string;
   if (symbol) {
-    warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
+    [warpId, warpCoreConfig] = await selectRegistryWarpRoute(
+      context.registry,
+      symbol,
+    );
   } else if (warp) {
     warpCoreConfig = readWarpCoreConfig(warp);
+    // TODO make this more resilient
+    warpId = warp.split('/').pop()!;
+
+    console.log(warpId);
   } else {
     logRed(`Please specify either a symbol or warp config`);
     process.exit(0);
   }
 
-  return warpCoreConfig;
+  return [warpId, warpCoreConfig];
 }

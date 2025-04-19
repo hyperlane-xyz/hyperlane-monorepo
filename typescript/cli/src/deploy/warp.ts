@@ -90,6 +90,7 @@ interface DeployParams {
 }
 
 interface WarpApplyParams extends DeployParams {
+  warpRouteId: string;
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
@@ -611,11 +612,10 @@ export async function extendWarpRoute(
     );
 
   // Write the updated artifacts
-  await writeDeploymentArtifacts(
-    updatedWarpCoreConfig,
-    context,
-    addWarpRouteOptions,
-  );
+  await writeDeploymentArtifacts(updatedWarpCoreConfig, context, {
+    ...addWarpRouteOptions,
+    id: params.warpRouteId,
+  });
 
   return updatedWarpCoreConfig;
 }

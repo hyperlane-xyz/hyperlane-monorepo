@@ -11,6 +11,7 @@ import {
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   TokenStandard,
+  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -35,13 +36,17 @@ export async function runWarpRouteRead({
 
   let addresses: ChainMap<string>;
   if (symbol || warp) {
-    const warpCoreConfig =
-      context.warpCoreConfig ?? // this case is be handled by MultiChainHandler.forWarpCoreConfig() interceptor
-      (await getWarpCoreConfigOrExit({
+    let warpCoreConfig: WarpCoreConfig;
+
+    if (context.warpCoreConfig) {
+      warpCoreConfig = context.warpCoreConfig;
+    } else {
+      [, warpCoreConfig] = await getWarpCoreConfigOrExit({
         context,
         warp,
         symbol,
-      }));
+      });
+    }
 
     // TODO: merge with XERC20TokenAdapter and WarpRouteReader
     const xerc20Limits = await Promise.all(

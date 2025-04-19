@@ -7650,7 +7650,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:11.1.0"
+    "@hyperlane-xyz/registry": "file:../../../hyperlane-registry"
     "@hyperlane-xyz/sdk": "npm:12.1.0"
     "@hyperlane-xyz/utils": "npm:12.1.0"
     "@inquirer/core": "npm:9.0.10"
@@ -7851,7 +7851,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:12.1.0"
-    "@hyperlane-xyz/registry": "npm:11.1.0"
+    "@hyperlane-xyz/registry": "file:../../../hyperlane-registry"
     "@hyperlane-xyz/sdk": "npm:12.1.0"
     "@hyperlane-xyz/utils": "npm:12.1.0"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7913,6 +7913,26 @@ __metadata:
     tsx: "npm:^4.19.1"
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/registry@file:../../../hyperlane-registry::locator=%40hyperlane-xyz%2Fcli%40workspace%3Atypescript%2Fcli":
+  version: 13.4.0
+  resolution: "@hyperlane-xyz/registry@file:../../../hyperlane-registry#../../../hyperlane-registry::hash=63041c&locator=%40hyperlane-xyz%2Fcli%40workspace%3Atypescript%2Fcli"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 10/9564c9b59b1ee21fe03d1fe06c4d5636d6cc4953017c04846004aa2105ddacfa1fec37a6bab7a3002c4013eb505b46d73bd69c28fa86f28f6fb6dd2c8be6959f
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/registry@file:../../../hyperlane-registry::locator=%40hyperlane-xyz%2Finfra%40workspace%3Atypescript%2Finfra":
+  version: 13.4.0
+  resolution: "@hyperlane-xyz/registry@file:../../../hyperlane-registry#../../../hyperlane-registry::hash=63041c&locator=%40hyperlane-xyz%2Finfra%40workspace%3Atypescript%2Finfra"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 10/9564c9b59b1ee21fe03d1fe06c4d5636d6cc4953017c04846004aa2105ddacfa1fec37a6bab7a3002c4013eb505b46d73bd69c28fa86f28f6fb6dd2c8be6959f
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/registry@npm:11.1.0":
   version: 11.1.0

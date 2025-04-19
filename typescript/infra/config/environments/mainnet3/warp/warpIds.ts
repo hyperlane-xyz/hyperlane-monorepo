@@ -98,4 +98,6 @@ export enum WarpRouteIds {
   SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
+
+  ArbitrumPolygon = 'POL/a6e457cd-9763-4a78-86cb-9528621bf519',
 }

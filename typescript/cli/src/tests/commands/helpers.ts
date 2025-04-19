@@ -305,6 +305,7 @@ export async function setupIncompleteWarpRouteExtension(
 
   await extendWarpRouteWithoutApplyTransactions(
     {
+      warpRouteId: '',
       context: {
         ...context,
         signer: signer3,

@@ -57,7 +57,7 @@ export const relayerCommand: CommandModuleWithContext<
 
     // add warp route addresses to whitelist
     if (symbol || warp) {
-      const warpRoute = await getWarpCoreConfigOrExit({
+      const [, warpRoute] = await getWarpCoreConfigOrExit({
         context,
         symbol,
         warp,
