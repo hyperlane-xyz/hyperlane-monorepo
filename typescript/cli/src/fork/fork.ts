@@ -62,6 +62,7 @@ export const ForkedChainConfigSchema = z.object({
         data: TransactionDataSchema.optional(),
         value: z.string().optional(),
         to: ZHash.optional(),
+        timeSkip: z.number().optional(),
         eventAssertions: z.array(EventAssertionSchema).default([]),
       }),
     )
@@ -237,6 +238,13 @@ async function handleTransactions(
     transaction.eventAssertions.forEach((eventAssertion) =>
       assertEvent(eventAssertion, txReceipt.logs),
     );
+
+    if (transaction.timeSkip) {
+      logGray(
+        `Forwarding time by "${transaction.timeSkip}" seconds on chain ${chainName}`,
+      );
+      await provider.send('evm_increaseTime', [transaction.timeSkip]);
+    }
   }
   logGray(`Successfully executed all transactions on chain ${chainName}`);
 }
