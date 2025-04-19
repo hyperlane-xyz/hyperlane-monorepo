@@ -30,7 +30,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, mustBeValidContext } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -777,7 +777,9 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    allowContractCallCaching: true,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
@@ -818,7 +820,9 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    allowContractCallCaching: true,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
@@ -851,13 +855,64 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    allowContractCallCaching: true,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
 };
+
+const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
+  ...contextBase,
+  context: mustBeValidContext(`vanguard${index}`),
+  contextChainNames: {
+    validator: [],
+    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '385b307-20250418-150728',
+    },
+    whitelist: [
+      {
+        originDomain: getDomainId('base'),
+        senderAddress: '0x000000000000000000000000000000000000dead',
+        destinationDomain: getDomainId('arbitrum'),
+        recipientAddress: '0x000000000000000000000000000000000000dead',
+      },
+    ],
+    blacklist,
+    gasPaymentEnforcement,
+    metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
+    resources: relayerResources,
+    dbBootstrap: true,
+    batch: {
+      defaultBatchSize: 32,
+      batchSizeOverrides: {
+        // Slightly lower to ideally fit within 5M
+        ethereum: 23,
+      },
+      bypassBatchSimulation: true,
+    },
+  },
+});
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
+  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
+  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
+  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
+  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
+  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };
