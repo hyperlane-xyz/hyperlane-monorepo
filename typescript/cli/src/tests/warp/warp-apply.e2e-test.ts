@@ -3,8 +3,8 @@ import { Wallet } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  DerivedTokenRouterConfig,
   HookType,
-  HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
   normalizeConfig,
@@ -142,7 +142,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
 
     // Extend with new config
-    const config: HypTokenRouterConfig = {
+    const config: DerivedTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',

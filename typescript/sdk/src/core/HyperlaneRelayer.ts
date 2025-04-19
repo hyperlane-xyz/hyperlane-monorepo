@@ -84,6 +84,10 @@ export function messageMatchesWhitelist(
   return true;
 }
 
+interface DerivedRelayerCache extends RelayerCache {
+  hook: Record<string, Record<string, DerivedHookConfig>>;
+}
+
 export class HyperlaneRelayer {
   protected multiProvider: MultiProvider;
   protected metadataBuilder: BaseMetadataBuilder;
@@ -93,7 +97,7 @@ export class HyperlaneRelayer {
   protected readonly whitelist: ChainMap<Set<Address>> | undefined;
 
   public backlog: RelayerCache['backlog'];
-  public cache: RelayerCache | undefined;
+  public cache: DerivedRelayerCache | undefined;
 
   protected stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
 
@@ -139,7 +143,7 @@ export class HyperlaneRelayer {
   ): Promise<DerivedHookConfig> {
     let config: DerivedHookConfig | undefined;
     if (this.cache?.hook[chain]?.[hook]) {
-      config = this.cache.hook[chain][hook] as DerivedHookConfig | undefined;
+      config = this.cache.hook[chain][hook];
     } else {
       const evmHookReader = new EvmHookReader(
         this.multiProvider,

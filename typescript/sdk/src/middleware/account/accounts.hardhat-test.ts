@@ -15,7 +15,7 @@ import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { RouterConfig } from '../../router/types.js';
+import { MailboxAddress, RouterConfig } from '../../router/types.js';
 import { ChainMap } from '../../types.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
@@ -35,7 +35,7 @@ describe('InterchainAccounts', async () => {
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let app: InterchainAccount;
-  let config: ChainMap<RouterConfig>;
+  let config: ChainMap<RouterConfig & MailboxAddress>;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
