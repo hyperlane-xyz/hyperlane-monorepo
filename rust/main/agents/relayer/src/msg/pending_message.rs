@@ -987,7 +987,7 @@ impl PendingMessage {
             .build(ism_address, &self.message, params)
             .await
             .map_err(|err| match &err {
-                MetadataBuildError::FailedToBuild(_) => {
+                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
                     self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
                 }
                 MetadataBuildError::CouldNotFetch => {
