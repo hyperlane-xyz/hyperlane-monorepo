@@ -327,6 +327,11 @@ impl CoreMetrics {
         })
     }
 
+    /// Get the prometheus registry for this core metrics instance.
+    pub fn registry(&self) -> Registry {
+        self.registry.clone()
+    }
+
     /// Create the provider metrics attached to this core metrics instance.
     pub fn provider_metrics(&self) -> MiddlewareMetrics {
         self.provider_metrics

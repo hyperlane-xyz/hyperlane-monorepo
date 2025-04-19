@@ -1,7 +1,7 @@
 use std::env;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub is_ci_env: bool,
     pub ci_mode: bool,

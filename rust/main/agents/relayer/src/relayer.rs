@@ -36,7 +36,8 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use submitter::{
-    DatabaseOrPath, PayloadDispatcher, PayloadDispatcherEntrypoint, PayloadDispatcherSettings,
+    DatabaseOrPath, DispatcherMetrics, PayloadDispatcher, PayloadDispatcherEntrypoint,
+    PayloadDispatcherSettings,
 };
 
 use crate::{
@@ -189,10 +190,13 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+        let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
+            .expect("Creating dispatcher metrics is infallible");
         let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
             &settings,
             core_metrics.clone(),
             &chain_metrics,
+            dispatcher_metrics.clone(),
             db.clone(),
         )
         .await;
@@ -203,6 +207,7 @@ impl BaseAgent for Relayer {
             &settings,
             core_metrics.clone(),
             &chain_metrics,
+            dispatcher_metrics,
             db.clone(),
         )
         .await;
@@ -900,6 +905,7 @@ impl Relayer {
         settings: &RelayerSettings,
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
+        dispatcher_metrics: DispatcherMetrics,
         db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
         settings.destination_chains.iter()
@@ -911,7 +917,7 @@ impl Relayer {
                 db: DatabaseOrPath::Database(db.clone()),
                 metrics: core_metrics.clone(),
             }))
-            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s)))
+            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone())))
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
@@ -931,6 +937,7 @@ impl Relayer {
         settings: &RelayerSettings,
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
+        dispatcher_metrics: DispatcherMetrics,
         db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcher> {
         settings
@@ -951,7 +958,10 @@ impl Relayer {
             })
             .map(|(chain, s)| {
                 let chain_name = chain.to_string();
-                (chain, PayloadDispatcher::try_from_settings(s, chain_name))
+                (
+                    chain,
+                    PayloadDispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()),
+                )
             })
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),

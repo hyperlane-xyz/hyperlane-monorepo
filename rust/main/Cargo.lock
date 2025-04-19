@@ -10296,6 +10296,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel",
  "mockall",
+ "prometheus",
  "serde",
  "serde_json",
  "solana-client",

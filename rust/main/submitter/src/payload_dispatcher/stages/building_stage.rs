@@ -19,6 +19,8 @@ use super::{state::PayloadDispatcherState, utils::call_until_success_or_nonretry
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
 
+pub const STAGE_NAME: &str = "BuildingStage";
+
 #[derive(new)]
 pub(crate) struct BuildingStage {
     /// This queue is the entrypoint and event driver of the Building Stage
@@ -26,12 +28,14 @@ pub(crate) struct BuildingStage {
     /// This channel is the exitpoint of the Building Stage
     inclusion_stage_sender: mpsc::Sender<Transaction>,
     pub(crate) state: PayloadDispatcherState,
+    domain: String,
 }
 
 impl BuildingStage {
     #[instrument(skip(self), name = "BuildingStage::run")]
     pub async fn run(&self) {
         loop {
+            self.update_metrics().await;
             // event-driven by the Building queue
             let payload = match self.queue.lock().await.pop_front() {
                 Some(payload) => payload,
@@ -95,6 +99,7 @@ impl BuildingStage {
         let simulation_success = call_until_success_or_nonretryable_error(
             || self.state.adapter.simulate_tx(&tx),
             "Simulating transaction",
+            &self.state,
         )
         .await
         .unwrap_or(false);
@@ -110,6 +115,7 @@ impl BuildingStage {
         call_until_success_or_nonretryable_error(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
+            &self.state,
         )
         .await?;
         self.state.store_tx(&tx).await;
@@ -136,6 +142,16 @@ impl BuildingStage {
         info!(?tx, "Transaction sent to Inclusion Stage");
         Ok(())
     }
+
+    async fn update_metrics(&self) {
+        self.state
+            .metrics
+            .update_liveness_metric(STAGE_NAME, &self.domain);
+        let length = self.queue.lock().await.len();
+        self.state
+            .metrics
+            .update_queue_length_metric(STAGE_NAME, length as u64, &self.domain);
+    }
 }
 
 fn get_full_payloads_from_details(
@@ -158,6 +174,7 @@ mod tests {
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
+            metrics::DispatcherMetrics,
             test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
             PayloadDb, PayloadDispatcherState, TransactionDb,
         },
@@ -339,10 +356,17 @@ mod tests {
         BuildingStageQueue,
     ) {
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
-        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let state = PayloadDispatcherState::new(
+            payload_db,
+            tx_db,
+            adapter,
+            DispatcherMetrics::dummy_instance(),
+            "dummy_domain".to_string(),
+        );
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
-        let building_stage = BuildingStage::new(queue.clone(), sender, state);
+        let building_stage =
+            BuildingStage::new(queue.clone(), sender, state, "test_domain".to_string());
         (building_stage, receiver, queue)
     }
 
