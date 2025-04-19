@@ -344,12 +344,6 @@ contract AccessManagerForkTest is Test {
         address hyperToken = 0x93A2Db22B7c736B341C32Ff666307F4a9ED910F5; // Replace with actual address if needed
         address recipient = address(0xBEEF);
         uint256 amount = 1e18;
-
-        // TODO: remove this, but we have to give the AM the admin role on the token
-        // Grant the AccessManager the admin role on the HyperToken
-        vm.prank(0x79fa1F70fBBA4Dd07510B21b32525b602FaDf31c);
-        HyperToken(hyperToken).grantRole(0, AM);
-
         bytes32 MINTER_ROLE = keccak256("MINTER_ROLE");
 
         // Grant MINTER_ROLE to this test contract
