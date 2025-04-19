@@ -24,7 +24,6 @@ import {
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys.js';
-import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {
   ContextAndRoles,
@@ -153,7 +152,11 @@ async function main() {
 
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
-    .default('skip-igp-claim', false).argv;
+    .default('skip-igp-claim', false)
+
+    .array('chain-skip-override')
+    .describe('chain-skip-override', 'Array of chains to skip funding for')
+    .default('chain-skip-override', []).argv;
 
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
@@ -171,6 +174,7 @@ async function main() {
         multiProvider,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
@@ -187,6 +191,7 @@ async function main() {
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
+          argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
@@ -239,6 +244,7 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
+    public readonly chainSkipOverride: ChainName[],
     public readonly desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -291,6 +297,7 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -366,6 +373,7 @@ class ContextFunder {
       context,
       contextsAndRolesToFund[context]!,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
       igpClaimThresholdPerChain,
@@ -379,6 +387,7 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -396,9 +405,6 @@ class ContextFunder {
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
-    const chainsToFund = supportedChainNames.filter(
-      (chain) => !chainsToSkip.includes(chain),
-    );
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -409,7 +415,7 @@ class ContextFunder {
       }
       fundableRoleKeys[role] = roleAddress;
 
-      for (const chain of chainsToFund) {
+      for (const chain of supportedChainNames) {
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
@@ -434,6 +440,7 @@ class ContextFunder {
       context,
       rolesToFund,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
       igpClaimThresholdPerChain,
@@ -454,6 +461,14 @@ class ContextFunder {
   }
 
   private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
+    if (this.chainSkipOverride.includes(chain)) {
+      logger.warn(
+        { chain },
+        `Configured to skip funding operations for chain ${chain}, skipping`,
+      );
+      return;
+    }
+
     const { promise, cleanup } = createTimeoutPromise(
       CHAIN_FUNDING_TIMEOUT_MS,
       `Timed out funding chain ${chain} after ${

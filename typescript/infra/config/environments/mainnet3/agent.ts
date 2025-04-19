@@ -7,7 +7,11 @@ import {
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  IsmCacheSelectorType,
   MatchingList,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -19,23 +23,23 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   MetricAppContext,
+  consistentSenderRecipientMatchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
+import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, mustBeValidContext } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
-import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
-import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -71,7 +75,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -91,7 +94,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -117,7 +122,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -140,7 +145,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
@@ -151,6 +158,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
@@ -207,7 +215,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -227,7 +234,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -253,7 +262,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -276,7 +285,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
@@ -287,6 +298,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
@@ -343,7 +355,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: true,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -363,7 +374,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conwai: true,
     coredao: true,
     corn: true,
+    coti: true,
     cyber: true,
+    deepbrainchain: true,
     degenchain: true,
     dogechain: true,
     duckchain: true,
@@ -389,7 +402,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvm: true,
+    infinityvm: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -412,7 +425,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     morph: true,
     nero: true,
     neutron: true,
+    nibiru: true,
     oortmainnet: true,
+    opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
@@ -423,6 +438,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     rarichain: true,
+    reactive: true,
     real: true,
     redstone: true,
     rivalz: true,
@@ -467,6 +483,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zksync: true,
     zoramainnet: true,
   },
+};
+
+// Chains not in our core set of supported chains, and supported ONLY by the scraper
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
+  forma: true,
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
@@ -559,6 +580,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
       // outside of Solana are ignored.
       { originDomain: getDomainId('infinityvm') },
+      // Temporary workaround due to funky Zeronetwork gas amounts.
+      { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -602,11 +625,20 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     {
       name: 'velo_message_module',
-      matchingList: routerMatchingList(veloMessageModuleAddresses),
+      // Almost all messages to / from this address relate to the Velo Message Module.
+      // The only exception is Metal, which had an initial misconfiguration that the Velo
+      // team resolved with a different contract deploy. We can still only match on this address
+      // as Metal is the only exception, so it's always receiving from or sending messages to this address.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xF385603a12Be8b7B885222329c581FDD1C30071D',
+      ),
     },
     {
       name: 'velo_token_bridge',
-      matchingList: routerMatchingList(veloTokenBridgeAddresses),
+      // All messages to / from this address relate to the Velo Token Bridge.
+      matchingList: consistentSenderRecipientMatchingList(
+        '0xA7287a56C01ac8Baaf8e7B662bDB41b10889C7A6',
+      ),
     },
     {
       // https://github.com/bgd-labs/aave-delivery-infrastructure?tab=readme-ov-file#deployed-addresses
@@ -706,14 +738,28 @@ const blacklistedMessageIds = [
 
 // Blacklist matching list intended to be used by all contexts.
 const blacklist: MatchingList = [
-  {
-    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
-    // A temporary measure to prevent some wasted effort on our relayer.
-    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
-  },
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
+];
+
+const ismCacheConfigs: Array<IsmCacheConfig> = [
+  {
+    selector: {
+      type: IsmCacheSelectorType.DefaultIsm,
+    },
+    // Default ISM Routing ISMs change configs based off message content,
+    // so they are not specified here.
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
 ];
 
 const hyperlane: RootAgentConfig = {
@@ -725,27 +771,32 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f887ebf-20250321-173043',
+      tag: 'da3978b-20250414-155929',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: 'f5174e6-20250310-182921',
+      tag: '385b307-20250418-150728',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
   },
   scraper: {
+    scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'af7146e-20250314-172005',
+      tag: '8ab7c80-20250326-191115',
     },
     resources: scraperResources,
   },
@@ -760,7 +811,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f887ebf-20250321-173043',
+      tag: 'da3978b-20250414-155929',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -768,12 +819,16 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '11a4e95-20250116-145528',
+      tag: '385b307-20250418-150728',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -794,17 +849,70 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cc3af7d-20250304-172021',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
 };
+
+const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
+  ...contextBase,
+  context: mustBeValidContext(`vanguard${index}`),
+  contextChainNames: {
+    validator: [],
+    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '385b307-20250418-150728',
+    },
+    whitelist: [
+      {
+        originDomain: getDomainId('base'),
+        senderAddress: '0x000000000000000000000000000000000000dead',
+        destinationDomain: getDomainId('arbitrum'),
+        recipientAddress: '0x000000000000000000000000000000000000dead',
+      },
+    ],
+    blacklist,
+    gasPaymentEnforcement,
+    metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
+    resources: relayerResources,
+    dbBootstrap: true,
+    batch: {
+      defaultBatchSize: 32,
+      batchSizeOverrides: {
+        // Slightly lower to ideally fit within 5M
+        ethereum: 23,
+      },
+      bypassBatchSimulation: true,
+    },
+  },
+});
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
+  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
+  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
+  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
+  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
+  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

@@ -38,8 +38,6 @@ import {
 
 import {
   icaOwnerChain,
-  icas,
-  safes,
   timelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -102,6 +100,8 @@ export class GovernTransactionReader {
     readonly chainAddresses: ChainMap<Record<string, string>>,
     readonly coreConfig: ChainMap<CoreConfig>,
     warpRoutes: Record<string, WarpCoreConfig>,
+    readonly safes: ChainMap<string>,
+    readonly icas: ChainMap<string>,
   ) {
     // Populate maps with warp route addresses and additional token details
     for (const warpRoute of Object.values(warpRoutes)) {
@@ -640,12 +640,12 @@ export class GovernTransactionReader {
       this.chainAddresses,
       this.multiProvider,
     ).getAccount(remoteChainName, {
-      owner: safes[icaOwnerChain],
+      owner: this.safes[icaOwnerChain],
       origin: icaOwnerChain,
       routerOverride: router,
       ismOverride: ism,
     });
-    const expectedRemoteIcaAddress = icas[remoteChainName as keyof typeof icas];
+    const expectedRemoteIcaAddress = this.icas[remoteChainName];
     let remoteIcaInsight = '✅ matches expected ICA';
     if (
       !expectedRemoteIcaAddress ||
@@ -837,7 +837,7 @@ export class GovernTransactionReader {
       return this.multiSendCallOnlyAddressCache[chain];
     }
 
-    const safe = safes[chain];
+    const safe = this.safes[chain];
     if (!safe) {
       return undefined;
     }

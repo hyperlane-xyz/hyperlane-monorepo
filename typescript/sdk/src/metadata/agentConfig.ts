@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 
+import { ModuleType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -349,6 +350,45 @@ const MetricAppContextSchema = z.object({
   ),
 });
 
+export enum IsmCachePolicy {
+  MessageSpecific = 'messageSpecific',
+  IsmSpecific = 'ismSpecific',
+}
+
+export enum IsmCacheSelectorType {
+  DefaultIsm = 'defaultIsm',
+  AppContext = 'appContext',
+}
+
+const IsmCacheSelector = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(IsmCacheSelectorType.DefaultIsm),
+  }),
+  z.object({
+    type: z.literal(IsmCacheSelectorType.AppContext),
+    context: z.string(),
+  }),
+]);
+
+const IsmCacheConfigSchema = z.object({
+  selector: IsmCacheSelector.describe(
+    'The selector to use for the ISM cache policy',
+  ),
+  moduleTypes: z
+    .array(z.nativeEnum(ModuleType))
+    .describe('The ISM module types to use the cache policy for.'),
+  chains: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'The chains to use the cache policy for. If not specified, all chains will be used.',
+    ),
+  cachePolicy: z
+    .nativeEnum(IsmCachePolicy)
+    .describe('The cache policy to use.'),
+});
+export type IsmCacheConfig = z.infer<typeof IsmCacheConfigSchema>;
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
@@ -398,6 +438,28 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
     ),
+  ismCacheConfigs: z
+    .union([z.array(IsmCacheConfigSchema), z.string().min(1)])
+    .optional()
+    .describe(
+      'The ISM cache configs to be used. If not specified, default caching will be used.',
+    ),
+  allowContractCallCaching: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, allows caching of certain contract calls that can be appropriately cached.',
+    ),
+  txIdIndexingEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether to enable TX ID based indexing for hook events given indexed messages',
+    ),
+  igpIndexingEnabled: z
+    .boolean()
+    .optional()
+    .describe('Whether to enable IGP indexing'),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;

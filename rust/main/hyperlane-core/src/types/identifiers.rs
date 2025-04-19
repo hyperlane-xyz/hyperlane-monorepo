@@ -81,7 +81,7 @@ impl Decode for HyperlaneIdentifier {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash, Default)]
 /// Unique identifier type
 pub struct UniqueIdentifier(Uuid);
 
@@ -89,6 +89,11 @@ impl UniqueIdentifier {
     /// Create a new unique identifier
     pub fn new(uuid: Uuid) -> Self {
         UniqueIdentifier(uuid)
+    }
+
+    /// Create a new random unique identifier
+    pub fn random() -> Self {
+        UniqueIdentifier(Uuid::new_v4())
     }
 }
 
