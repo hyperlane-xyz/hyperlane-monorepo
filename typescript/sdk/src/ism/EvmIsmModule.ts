@@ -77,6 +77,7 @@ export class EvmIsmModule extends HyperlaneModule<
       { [params.chain]: params.addresses },
       multiProvider,
       ccipContractCache,
+      contractVerifier,
     );
 
     this.mailbox = params.addresses.mailbox;
