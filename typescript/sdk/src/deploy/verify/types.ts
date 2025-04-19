@@ -27,6 +27,7 @@ export type SolidityStandardJsonInput = {
 export type BuildArtifact = {
   input: SolidityStandardJsonInput;
   solcLongVersion: string;
+  zk_version?: string; //only for zksync
 };
 
 // see https://etherscan.io/contract-license-types
@@ -51,6 +52,14 @@ export type CompilerOptions = {
   codeformat: 'solidity-standard-json-input';
   compilerversion: string; // see https://etherscan.io/solcversions for list of support versions
   licenseType?: ExplorerLicenseType;
+  zksolcversion?: string; //only for zksync chains
+};
+
+export type ZKSyncCompilerOptions = {
+  codeFormat: 'solidity-standard-json-input';
+  compilerSolcVersion: string;
+  compilerZksolcVersion: string;
+  optimizationUsed: boolean;
 };
 
 export enum ExplorerApiActions {
