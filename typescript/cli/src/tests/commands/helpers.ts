@@ -45,6 +45,7 @@ export const E2E_TEST_BURN_ADDRESS =
 
 export const CHAIN_NAME_2 = 'anvil2';
 export const CHAIN_NAME_3 = 'anvil3';
+export const CHAIN_NAME_4 = 'anvil4';
 
 export const EXAMPLES_PATH = './examples';
 export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;

@@ -22,6 +22,14 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
+import {
+  Executor,
+  IExecutor,
+  IMonitor,
+  IStrategy,
+  Monitor,
+  Strategy,
+} from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -62,6 +70,7 @@ export const warpCommand: CommandModule = {
       .command(deploy)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -396,6 +405,55 @@ export const check: CommandModuleWithContext<{
     });
 
     process.exit(0);
+  },
+};
+
+export const rebalancer: CommandModuleWithContext<{
+  warpRouteId: string;
+  checkFrequency: number;
+}> = {
+  command: 'rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
+  builder: {
+    warpRouteId: {
+      type: 'string',
+      description: 'The warp route ID to rebalance',
+      demandOption: true,
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms',
+      demandOption: true,
+      alias: 'v',
+    },
+  },
+  handler: async ({ context, warpRouteId, checkFrequency }) => {
+    logCommandHeader('Hyperlane Warp Rebalancer');
+
+    // Instantiates the warp route monitor
+    const monitor: IMonitor = new Monitor(
+      context.registry,
+      warpRouteId,
+      checkFrequency,
+    );
+
+    // Instantiates the strategy that will process monitor events and determine whether a rebalance is needed
+    const strategy: IStrategy = new Strategy();
+
+    // Instantiates the executor that will process strategy results and execute the rebalance
+    const executor: IExecutor = new Executor();
+
+    // Subscribes the strategy to the monitor
+    monitor.subscribe((event) => strategy.handleMonitorEvent(event));
+
+    // Subscribes the executor to the strategy
+    strategy.subscribe((event) => executor.handleStrategyEvent(event));
+
+    // Starts the monitor to begin polling balances.
+    // This will keep running until the process is terminated
+    await monitor.start();
+
+    logGreen('Rebalancer started successfully 🚀');
   },
 };
 
