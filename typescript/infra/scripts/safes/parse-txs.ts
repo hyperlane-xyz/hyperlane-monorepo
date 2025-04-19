@@ -102,11 +102,12 @@ async function main() {
     process.exit(1);
   } else {
     rootLogger.info('✅✅✅✅✅ No fatal errors ✅✅✅✅✅');
-    const chainResults = Object.fromEntries(chainResultEntries);
-    const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
-    writeYamlAtPath(resultsPath, chainResults);
-    rootLogger.info(`Results written to ${resultsPath}`);
   }
+
+  const chainResults = Object.fromEntries(chainResultEntries);
+  const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
+  writeYamlAtPath(resultsPath, chainResults);
+  rootLogger.info(`Results written to ${resultsPath}`);
 }
 
 main().catch((err) => {
