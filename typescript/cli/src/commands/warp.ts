@@ -21,7 +21,7 @@ import {
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
-import { runWarpRouteRead } from '../read/warp.js';
+import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -31,7 +31,11 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
-import { getWarpCoreConfigOrExit } from '../utils/warp.js';
+import {
+  filterWarpConfigsToMatchingChains,
+  getWarpConfigs,
+  getWarpCoreConfigOrExit,
+} from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -46,6 +50,7 @@ import {
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
+  warpRouteIdCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
@@ -341,9 +346,10 @@ const send: CommandModuleWithWriteContext<
 };
 
 export const check: CommandModuleWithContext<{
-  config: string;
+  config?: string;
   symbol?: string;
   warp?: string;
+  warpRouteId?: string;
 }> = {
   command: 'check',
   describe:
@@ -358,35 +364,37 @@ export const check: CommandModuleWithContext<{
       demandOption: false,
     },
     config: inputFileCommandOption({
-      defaultPath: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
       description: 'The path to a warp route deployment configuration file',
+      demandOption: false,
+      alias: 'wd',
     }),
+    warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, symbol, warp }) => {
+  handler: async ({ context, symbol, warp, warpRouteId, config }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    const warpRouteConfig = await readWarpRouteDeployConfig(config, context);
-    const onChainWarpConfig = await runWarpRouteRead({
+    let { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context,
-      warp,
+      warpRouteId,
       symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
     });
 
-    const warpCoreConfig =
-      context.warpCoreConfig ??
-      (await getWarpCoreConfigOrExit({
-        context,
-        warp,
-        symbol,
-      }));
+    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
+      warpDeployConfig,
+      warpCoreConfig,
+    ));
 
-    if (!warpCoreConfig) {
-      throw new Error('No warp core config found');
-    }
+    // Get on-chain config
+    const onChainWarpConfig = await getWarpRouteConfigsByCore({
+      context,
+      warpCoreConfig,
+    });
 
     const expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
-      warpRouteConfig,
+      warpDeployConfig,
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     );
 
