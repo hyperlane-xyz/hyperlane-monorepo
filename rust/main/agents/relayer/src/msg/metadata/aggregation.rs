@@ -196,7 +196,7 @@ impl AggregationIsmMetadataBuilder {
             return Err(MetadataBuildError::CouldNotFetch);
         }
         let sub_isms = join_all(ism_addresses.iter().map(|sub_ism_address| {
-            message_builder::ism_and_module_type(self.base.clone(), sub_ism_address.clone())
+            message_builder::ism_and_module_type(self.base.clone(), *sub_ism_address)
         }))
         .await;
         let (message_id_multisig_ism_index, message_id_multisig_ism) = sub_isms
@@ -229,8 +229,7 @@ impl AggregationIsmMetadataBuilder {
             .ism
             .dry_run_verify(message, &metadata)
             .await
-            .ok()
-            .flatten()
+            .map_err(|err| MetadataBuildError::FastPathError(err.to_string()))?
             .is_none()
         {
             return Err(MetadataBuildError::CouldNotFetch);
@@ -261,15 +260,22 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         let threshold = threshold as usize;
 
-        if let Ok(metadata) = self
+        match self
             .try_build_fast_path(message, params.clone(), threshold, ism_addresses.clone())
             .await
         {
-            info!("Built metadata using fast path");
-            return Ok(metadata);
+            Ok(metadata) => {
+                info!("Built metadata using fast path");
+                return Ok(metadata);
+            }
+            Err(err) => {
+                warn!(
+                    ?err,
+                    "Fast path failed, falling back to the other submodules in the aggregation ISM"
+                );
+            }
         }
 
-        warn!("Could not build metadata using fast path, falling back to the other submodules in the aggregation ISM");
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|sub_ism_address| {
             message_builder::build_message_metadata(
                 self.base.clone(),
