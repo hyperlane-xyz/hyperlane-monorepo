@@ -20,24 +20,24 @@ abstract contract TokenRouter is GasRouter {
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
      * @param recipient The address of the recipient on the destination chain.
-     * @param amount The amount of tokens sent in to the remote recipient.
+     * @param amountOrId The amount of tokens (or the token identifier for NFTs) sent in to the remote recipient.
      */
     event SentTransferRemote(
         uint32 indexed destination,
         bytes32 indexed recipient,
-        uint256 amount
+        uint256 amountOrId
     );
 
     /**
      * @dev Emitted on `_handle` when a transfer message is processed.
      * @param origin The identifier of the origin chain.
      * @param recipient The address of the recipient on the destination chain.
-     * @param amount The amount of tokens received from the remote sender.
+     * @param amountOrId The amount of tokens (or the token identifier for NFTs) received from the remote sender.
      */
     event ReceivedTransferRemote(
         uint32 indexed origin,
         bytes32 indexed recipient,
-        uint256 amount
+        uint256 amountOrId
     );
 
     constructor(address _mailbox) GasRouter(_mailbox) {}
@@ -46,9 +46,9 @@ abstract contract TokenRouter is GasRouter {
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * @dev Emits `SentTransferRemote` event on the origin chain.
-     * @param _destination The identifier of the destination chain.
+     * @param _destination The identifier of the destination chain. (_e.g: chain ID_)
      * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _amountOrId The amount of tokens or tokenId identifier to be sent to the remote recipient.
      * @return messageId The identifier of the dispatched message.
      */
     function transferRemote(
@@ -65,9 +65,9 @@ abstract contract TokenRouter is GasRouter {
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * @dev The metadata is the token metadata, and is DIFFERENT than the hook metadata.
      * @dev Emits `SentTransferRemote` event on the origin chain.
-     * @param _destination The identifier of the destination chain.
+     * @param _destination The identifier of the destination chain. (_e.g: chain ID_)
      * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _amountOrId The amount of tokens or tokenId identifier to be sent to the remote recipient.
      * @param _hookMetadata The metadata passed into the hook
      * @param _hook The post dispatch hook to be called by the Mailbox
      * @return messageId The identifier of the dispatched message.
@@ -201,14 +201,14 @@ abstract contract TokenRouter is GasRouter {
         bytes calldata _message
     ) internal virtual override {
         bytes32 recipient = _message.recipient();
-        uint256 amount = _message.amount();
+        uint256 amountOrId = _message.amount();
         bytes calldata metadata = _message.metadata();
 
-        emit ReceivedTransferRemote(_origin, recipient, amount);
+        emit ReceivedTransferRemote(_origin, recipient, amountOrId);
 
         _transferTo(
             recipient.bytes32ToAddress(),
-            _inboundAmount(amount),
+            _inboundAmount(amountOrId),
             metadata
         );
     }
