@@ -209,9 +209,15 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Update the latest index of this syncer if necessary
     #[instrument(skip(self, index))]
     async fn update_latest_index(&self, index: u32) -> Result<()> {
-        let curr = self.latest_index().await?.unwrap_or(0);
-        if index > curr {
-            self.write_latest_index(index).await?;
+        let latest = self.latest_index().await?;
+        // Update the index if:
+        // 1. The current index is not set (None), or
+        // 2. The new index is greater than the current one
+        // This fixes Issue #4260 - checkpoint_latest_index.json does not update if the index is 0
+        match latest {
+            None => self.write_latest_index(index).await?,
+            Some(curr) if index > curr => self.write_latest_index(index).await?,
+            _ => {}
         }
         Ok(())
     }
