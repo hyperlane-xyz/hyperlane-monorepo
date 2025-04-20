@@ -826,7 +826,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c0bc208-20250415-142808',
+      tag: '8117739-20250420-201559',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -866,7 +866,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c0bc208-20250415-142808',
+      tag: '8117739-20250420-201559',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -904,7 +904,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c0bc208-20250415-142808',
+      tag: '8117739-20250420-201559',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement,
@@ -931,7 +931,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     docker: {
       repo,
       // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '9d20c65-20250418-220918',
+      tag: '8117739-20250420-201559',
     },
     whitelist: vanguardMatchingList,
     // Not specifying a blacklist for optimization purposes -- all the message IDs
