@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import yargs from 'yargs';
 
@@ -188,11 +187,13 @@ async function fundVanguards() {
 
     await Promise.all(
       Object.entries(topUpsNeeded).map(async ([chain, topUps]) => {
-        for (const { vanguard, balance } of topUps) {
+        for (const { vanguard, balance: topUpAmount } of topUps) {
           try {
             const signer = multiProvider.getSigner(chain);
             const signerBalance = await signer.getBalance();
-            const amount = BigNumber.from(balance);
+
+            // Convert balance to a BigNumber by using parseUnits
+            const amount = parseUnits(topUpAmount, TOKEN_DECIMALS);
 
             if (signerBalance.lt(amount)) {
               rootLogger.warn(
