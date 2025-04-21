@@ -44,12 +44,26 @@ impl OperationBatch {
         };
 
         if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-            let reason = ReprepareReason::ErrorSubmitting;
-            let status = Some(PendingOperationStatus::Retry(reason.clone()));
-            for mut op in excluded_ops.into_iter() {
-                op.on_reprepare(None, reason.clone());
-                prepare_queue.push(op, status.clone()).await;
+            let Some(first_item) = excluded_ops.first() else {
+                return; // not possible since `excluded_ops` is not empty
+            };
+            let Some(mailbox) = first_item.try_get_mailbox() else {
+                return; // we expect that excluded ops have mailbox
+            };
+
+            if mailbox.supports_batching() {
+                warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
+                let reason = ReprepareReason::ErrorSubmitting;
+                let status = Some(PendingOperationStatus::Retry(reason.clone()));
+                for mut op in excluded_ops.into_iter() {
+                    op.on_reprepare(None, reason.clone());
+                    prepare_queue.push(op, status.clone()).await;
+                }
+            } else {
+                warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
+                OperationBatch::new(excluded_ops, self.domain)
+                    .submit_serially(prepare_queue, confirm_queue, metrics)
+                    .await;
             }
         }
     }
