@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 use super::{
     op_queue::OpQueue,
@@ -45,9 +45,11 @@ impl OperationBatch {
 
         if !excluded_ops.is_empty() {
             let Some(first_item) = excluded_ops.first() else {
+                error!(excluded_ops=?excluded_ops, "Excluded ops are empty while they shouldn't be");
                 return; // not possible since `excluded_ops` is not empty
             };
             let Some(mailbox) = first_item.try_get_mailbox() else {
+                error!(excluded_ops=?excluded_ops, "Excluded ops don't have mailbox while they should have");
                 return; // we expect that excluded ops have mailbox
             };
 
