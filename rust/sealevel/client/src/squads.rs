@@ -212,7 +212,7 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
             continue;
         };
         println!(
-            "\tProgram called: {:?}",
+            "\tProgram called: {}",
             pubkey_classifier.classify(program_id)
         );
 
@@ -265,8 +265,8 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
                 println!("\tMailbox instruction: {:?}", instruction);
                 if let MailboxInstruction::TransferOwnership(new_owner) = instruction {
                     println!(
-                        "\tTransfer ownership to {:?}",
-                        new_owner.map(|owner| pubkey_classifier.classify(&owner))
+                        "\tTransfer ownership to {}",
+                        new_owner.map_or("None".into(), |owner| pubkey_classifier.classify(&owner))
                     );
                 }
                 continue;
@@ -280,8 +280,8 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
                 println!("\tMultisig ISM instruction: {:?}", instruction);
                 if let MultisigIsmInstruction::TransferOwnership(new_owner) = instruction {
                     println!(
-                        "\tTransfer ownership to {:?}",
-                        new_owner.map(|owner| pubkey_classifier.classify(&owner))
+                        "\tTransfer ownership to {}",
+                        new_owner.map_or("None".into(), |owner| pubkey_classifier.classify(&owner))
                     );
                 }
                 continue;
@@ -289,7 +289,7 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
             Err(_) => {}
         }
 
-        println!("\t⚠️⚠️⚠️⚠️⚠️ Unknown instruction!");
+        println!("\n ⚠️ Unknown instruction! ⚠️");
     }
 }
 
@@ -367,7 +367,7 @@ impl PubkeyClassifier {
             );
         };
 
-        "⚠️ Unknown ⚠️".into()
+        format!("{} (⚠️ Unknown ⚠️)", pubkey)
     }
 }
 
