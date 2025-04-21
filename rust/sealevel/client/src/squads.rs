@@ -371,13 +371,6 @@ impl PubkeyClassifier {
     }
 }
 
-// // Pubkey can be a program ID or a program data account
-// fn pubkey_with_insight(
-//     pubkey: Pubkey
-// ) -> String {
-
-// }
-
 // Vendored (and slightly altered, to not require Anchor) to avoid needing
 // to import from Squads directly and going through the dependency pain
 
