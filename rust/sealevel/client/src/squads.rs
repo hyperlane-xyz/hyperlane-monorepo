@@ -1,12 +1,77 @@
+use std::{collections::HashMap, fs::File, path::PathBuf};
+
 use account_utils::DiscriminatorDecode;
 use borsh::{BorshDeserialize, BorshSerialize};
 use clap::{Args, Subcommand};
 use hyperlane_sealevel_mailbox::instruction::Instruction as MailboxInstruction;
 use hyperlane_sealevel_multisig_ism_message_id::instruction::Instruction as MultisigIsmInstruction;
+use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey;
-use solana_sdk::{account::Account, pubkey::Pubkey};
+use solana_sdk::{
+    account::Account, account_utils::StateMut, bpf_loader_upgradeable::UpgradeableLoaderState,
+    pubkey::Pubkey,
+};
 
-use crate::Context;
+use crate::{read_core_program_ids, router::ChainMetadata, Context, EnvironmentArgs};
+
+const COMPUTE_BUDGET_PROGRAM_ID: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
+const BPF_LOADER_UPGRADEABLE_PROGRAM_ID: Pubkey =
+    pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
+
+const CHAIN_CORE_OWNERS: &[(&str, &[(&str, Pubkey)])] = &[
+    (
+        "soon",
+        &[
+            (
+                "OLD pre-TGE owner",
+                pubkey!("E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62"),
+            ),
+            (
+                "NEW post-TGE owner",
+                pubkey!("7Y6WDpMfNeb1b4YYbyUkF41z1DuPhvDDuWWJCHPRNa9Y"),
+            ),
+        ],
+    ),
+    (
+        "solanamainnet",
+        &[
+            (
+                "OLD pre-TGE owner",
+                pubkey!("BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ"),
+            ),
+            (
+                "NEW post-TGE owner",
+                pubkey!("3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa"),
+            ),
+        ],
+    ),
+    (
+        "eclipsemainnet",
+        &[
+            (
+                "OLD pre-TGE owner",
+                pubkey!("E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr"),
+            ),
+            (
+                "NEW post-TGE owner",
+                pubkey!("D742EWw9wpV47jRAvEenG1oWHfMmpiQNJLjHTBfXhuRm"),
+            ),
+        ],
+    ),
+    (
+        "sonicsvm",
+        &[
+            (
+                "OLD pre-TGE owner",
+                pubkey!("FeJQJrHNEeg9TNMpTmTg6h1JoKqSqctJbMj4H8CksPdD"),
+            ),
+            (
+                "NEW post-TGE owner",
+                pubkey!("8ECSwp5yo2EeZkozSrpPnMj5Rmcwa4VBYCETE9LHmc9y"),
+            ),
+        ],
+    ),
+];
 
 #[derive(Args)]
 pub(crate) struct SquadsCmd {
@@ -21,29 +86,96 @@ pub(crate) enum SquadsSubCmd {
 
 #[derive(Args)]
 pub(crate) struct SquadsVerifyCmd {
+    /// Environment
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    chain_config_file: PathBuf,
     /// The path to the squads file to verify
     #[arg(long, short)]
     tx_pubkeys: Vec<Pubkey>,
+    #[arg(long)]
+    chain: String,
 }
 
 pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
     match cmd.cmd {
         SquadsSubCmd::Verify(verify) => {
-            let accounts = ctx
-                .client
+            let chain_config_file = File::open(verify.chain_config_file).unwrap();
+            let chain_configs: HashMap<String, ChainMetadata> =
+                serde_json::from_reader(chain_config_file).unwrap();
+
+            let chain_config = chain_configs
+                .get(&verify.chain)
+                .expect("No chain config found");
+
+            let client = chain_config.client();
+
+            // Read existing core program IDs
+            let core_program_ids = read_core_program_ids(
+                &verify.env_args.environments_dir,
+                &verify.env_args.environment,
+                &verify.chain,
+            );
+            let core_programs = vec![
+                ProgramIdWithMetadata::new("Mailbox".into(), core_program_ids.mailbox),
+                ProgramIdWithMetadata::new(
+                    "Validator Announce".into(),
+                    core_program_ids.validator_announce,
+                ),
+                ProgramIdWithMetadata::new(
+                    "Multisig ISM Message ID".into(),
+                    core_program_ids.multisig_ism_message_id,
+                ),
+                ProgramIdWithMetadata::new("IGP program".into(), core_program_ids.igp_program_id),
+            ];
+
+            // Chain -> (Label, Owner)
+            let chain_owner_lookups: HashMap<String, Vec<(Pubkey, String)>> = CHAIN_CORE_OWNERS
+                .into_iter()
+                .map(|c| {
+                    (
+                        c.0.to_owned(),
+                        c.1.into_iter()
+                            .map(|inner| (inner.1, format!("{} - {}", inner.0, c.0)))
+                            .collect(),
+                    )
+                })
+                .collect();
+            let chain_owner_lookup = chain_owner_lookups
+                .get(&verify.chain)
+                .expect("No expected core chain owners")
+                .clone();
+
+            let mut classification_accounts = vec![
+                (COMPUTE_BUDGET_PROGRAM_ID, "Compute Budget program".into()),
+                (
+                    BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+                    "BPF Loader Upgradeable program".into(),
+                ),
+            ];
+            classification_accounts.extend(chain_owner_lookup.into_iter());
+
+            let pubkey_classifier =
+                PubkeyClassifier::new(&client, classification_accounts, core_programs);
+
+            let accounts = client
                 .get_multiple_accounts_with_commitment(&verify.tx_pubkeys, ctx.commitment)
                 .unwrap()
                 .value;
 
             for (i, account) in accounts.iter().enumerate() {
+                println!("\n\n\n\n=================================================");
+                println!("=================================================");
+                println!("=================================================");
                 println!(
-                    "\n\n\n=======\n=======\n=======\nTx pubkey: {:?} ({} of {})",
+                    "Tx proposal pubkey: {:?} ({} of {})",
                     verify.tx_pubkeys[i],
                     i + 1,
                     verify.tx_pubkeys.len()
                 );
                 if let Some(account) = account {
-                    parse_tx_account(account.clone());
+                    parse_tx_account(account.clone(), &pubkey_classifier);
                 } else {
                     println!("Account not found");
                 }
@@ -52,7 +184,7 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
     }
 }
 
-fn parse_tx_account(account: Account) {
+fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
     let mut data = account.data.as_slice();
     let discriminator = &data[..8];
     if discriminator != VAULT_TRANSACTION_DISCRIMINATOR {
@@ -76,15 +208,67 @@ fn parse_tx_account(account: Account) {
             .account_keys
             .get(instruction.program_id_index as usize)
         else {
-            println!("\tA system program instruction that is ignored by the vault but our tooling sets anyways (e.g. setting compute units, or compute unit price). Just ignore it.");
+            println!("\tA system program instruction that is ignored by the vault but our tooling sets anyways. Just ignore it.");
             continue;
         };
-        println!("\tProgram ID: {:?}", program_id);
+        println!(
+            "\tProgram called: {:?}",
+            pubkey_classifier.classify(program_id)
+        );
+
+        if *program_id == COMPUTE_BUDGET_PROGRAM_ID {
+            println!("\tComputeBudget instruction (e.g. setting limit or price), can ignore");
+            continue;
+        }
+
+        if *program_id == BPF_LOADER_UPGRADEABLE_PROGRAM_ID {
+            println!("\tBPF Loader Upgradeable instruction (how the system manages programs)");
+            // Setting the upgrade authority, found here https://explorer.eclipse.xyz/tx/3RQ9V2HSbg4aZwr3LTMMwzrEBHa18KHMVwngXsHF2t5YZJ1Hb4MiBd7hovdPanLJT7Lmy2uuide55WmQvXDPjGx5
+            if instruction.data == &[4, 0, 0, 0] {
+                println!("\tSetting the upgrade authority:");
+                let target_program = vault_transaction
+                    .message
+                    .account_keys
+                    .get(instruction.account_indexes[0] as usize)
+                    .unwrap();
+                println!(
+                    "\t\tTarget program: {}",
+                    pubkey_classifier.classify(target_program)
+                );
+                let old_upgrade_authority = vault_transaction
+                    .message
+                    .account_keys
+                    .get(instruction.account_indexes[1] as usize)
+                    .unwrap();
+                println!(
+                    "\t\tOld upgrade authority: {}",
+                    pubkey_classifier.classify(old_upgrade_authority)
+                );
+                let new_upgrade_authority = vault_transaction
+                    .message
+                    .account_keys
+                    .get(instruction.account_indexes[2] as usize)
+                    .unwrap();
+                println!(
+                    "\t\tNew upgrade authority: {}",
+                    pubkey_classifier.classify(new_upgrade_authority)
+                );
+            } else {
+                println!("⚠️ Unknown instruction")
+            }
+            continue;
+        }
 
         // Try to parse as a MailboxInstruction
         match MailboxInstruction::try_from_slice(&instruction.data) {
             Ok(instruction) => {
                 println!("\tMailbox instruction: {:?}", instruction);
+                if let MailboxInstruction::TransferOwnership(new_owner) = instruction {
+                    println!(
+                        "\tTransfer ownership to {:?}",
+                        new_owner.map(|owner| pubkey_classifier.classify(&owner))
+                    );
+                }
                 continue;
             }
             Err(_) => {}
@@ -94,41 +278,108 @@ fn parse_tx_account(account: Account) {
         match MultisigIsmInstruction::decode(&instruction.data) {
             Ok(instruction) => {
                 println!("\tMultisig ISM instruction: {:?}", instruction);
+                if let MultisigIsmInstruction::TransferOwnership(new_owner) = instruction {
+                    println!(
+                        "\tTransfer ownership to {:?}",
+                        new_owner.map(|owner| pubkey_classifier.classify(&owner))
+                    );
+                }
                 continue;
             }
             Err(_) => {}
         }
 
-        if *program_id == pubkey!("BPFLoaderUpgradeab1e11111111111111111111111") {
-            println!("\tBPFLoaderUpgradeab1e11111111111111111111111 instruction");
-            // Setting the upgrade authority, found here https://explorer.eclipse.xyz/tx/3RQ9V2HSbg4aZwr3LTMMwzrEBHa18KHMVwngXsHF2t5YZJ1Hb4MiBd7hovdPanLJT7Lmy2uuide55WmQvXDPjGx5
-            if instruction.data == &[4, 0, 0, 0] {
-                println!("\tSetting the upgrade authority:");
-                let target_program = vault_transaction
-                    .message
-                    .account_keys
-                    .get(instruction.account_indexes[0] as usize)
-                    .unwrap();
-                println!("\t\tTarget program: {:?}", target_program);
-                let old_upgrade_authority = vault_transaction
-                    .message
-                    .account_keys
-                    .get(instruction.account_indexes[1] as usize)
-                    .unwrap();
-                println!("\t\tOld upgrade authority: {:?}", old_upgrade_authority);
-                let new_upgrade_authority = vault_transaction
-                    .message
-                    .account_keys
-                    .get(instruction.account_indexes[2] as usize)
-                    .unwrap();
-                println!("\t\tNew upgrade authority: {:?}", new_upgrade_authority);
-            }
-            continue;
-        }
-
         println!("\t⚠️⚠️⚠️⚠️⚠️ Unknown instruction!");
     }
 }
+
+#[derive(Debug, Clone)]
+struct ProgramIdWithMetadata {
+    name: String,
+    program_id: Pubkey,
+}
+
+impl ProgramIdWithMetadata {
+    fn new(name: String, program_id: Pubkey) -> Self {
+        Self { name, program_id }
+    }
+}
+
+struct PubkeyClassifier {
+    lookup: HashMap<Pubkey, String>,
+    programdata_to_program_id: HashMap<Pubkey, Pubkey>,
+}
+
+impl PubkeyClassifier {
+    pub fn new(
+        client: &RpcClient,
+        general_accounts: Vec<(Pubkey, String)>,
+        programs: Vec<ProgramIdWithMetadata>,
+    ) -> Self {
+        let accounts = client
+            .get_multiple_accounts_with_commitment(
+                &programs.iter().map(|p| p.program_id).collect::<Vec<_>>(),
+                Default::default(),
+            )
+            .unwrap()
+            .value;
+
+        let mut lookup: HashMap<Pubkey, String> = general_accounts.into_iter().collect();
+        let mut programdata_to_program_id = HashMap::new();
+
+        for (i, account) in accounts.iter().enumerate() {
+            let program = programs[i].clone();
+
+            let Some(program_account) = account else {
+                panic!("Expected account for program {:?}", program);
+            };
+
+            // Get the program data account address by looking at the program state
+            let programdata_address = if let Ok(UpgradeableLoaderState::Program {
+                programdata_address,
+            }) = program_account.state()
+            {
+                programdata_address
+            } else {
+                panic!("Unable to deserialize program account {:?}", program);
+            };
+
+            programdata_to_program_id.insert(programdata_address, program.program_id);
+            lookup.insert(program.program_id, program.name);
+        }
+
+        Self {
+            lookup,
+            programdata_to_program_id,
+        }
+    }
+
+    pub fn classify(&self, pubkey: &Pubkey) -> String {
+        if let Some(lookup_match) = self.lookup.get(pubkey) {
+            return format!("{} ({})", pubkey, lookup_match);
+        }
+
+        if let Some(programdata_match) = self.programdata_to_program_id.get(pubkey) {
+            return format!(
+                "{} (Program Data account of {})",
+                pubkey,
+                self.classify(programdata_match)
+            );
+        };
+
+        "⚠️ Unknown ⚠️".into()
+    }
+}
+
+// // Pubkey can be a program ID or a program data account
+// fn pubkey_with_insight(
+//     pubkey: Pubkey
+// ) -> String {
+
+// }
+
+// Vendored (and slightly altered, to not require Anchor) to avoid needing
+// to import from Squads directly and going through the dependency pain
 
 const VAULT_TRANSACTION_DISCRIMINATOR: &[u8] = &[168, 250, 162, 100, 81, 14, 162, 207];
 

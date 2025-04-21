@@ -119,7 +119,7 @@ enum HyperlaneSealevelCmd {
 }
 
 #[derive(Args)]
-struct EnvironmentArgs {
+pub struct EnvironmentArgs {
     #[arg(long)]
     environment: String,
     #[arg(long)]
