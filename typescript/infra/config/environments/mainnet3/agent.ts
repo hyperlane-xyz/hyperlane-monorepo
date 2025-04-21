@@ -965,7 +965,8 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     batch: {
       defaultBatchSize: 32,
       batchSizeOverrides: {
-        ethereum: 15,
+        // Slightly lower to ideally fit within 5M
+        ethereum: 26,
       },
       bypassBatchSimulation: true,
       maxSubmitQueueLength: {
