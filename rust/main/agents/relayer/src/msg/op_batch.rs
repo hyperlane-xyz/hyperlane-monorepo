@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 use super::{
     op_queue::OpQueue,
@@ -43,13 +43,25 @@ impl OperationBatch {
             }
         };
 
-        if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-            let reason = ReprepareReason::ErrorSubmitting;
-            let status = Some(PendingOperationStatus::Retry(reason.clone()));
-            for mut op in excluded_ops.into_iter() {
-                op.on_reprepare(None, reason.clone());
-                prepare_queue.push(op, status.clone()).await;
+        if let Some(first_item) = excluded_ops.first() {
+            let Some(mailbox) = first_item.try_get_mailbox() else {
+                error!(excluded_ops=?excluded_ops, "Excluded ops don't have mailbox while they should have");
+                return; // we expect that excluded ops have mailbox
+            };
+
+            if mailbox.supports_batching() {
+                warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
+                let reason = ReprepareReason::ErrorSubmitting;
+                let status = Some(PendingOperationStatus::Retry(reason.clone()));
+                for mut op in excluded_ops.into_iter() {
+                    op.on_reprepare(None, reason.clone());
+                    prepare_queue.push(op, status.clone()).await;
+                }
+            } else {
+                info!(excluded_ops=?excluded_ops, "Chain does not support batching. Submitting serially.");
+                OperationBatch::new(excluded_ops, self.domain)
+                    .submit_serially(prepare_queue, confirm_queue, metrics)
+                    .await;
             }
         }
     }
@@ -145,7 +157,7 @@ impl OperationBatch {
         }
     }
 
-    async fn _submit_serially(
+    async fn submit_serially(
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
