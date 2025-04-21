@@ -50,9 +50,9 @@ contract InterchainAccountRouter is Router {
     bytes32 internal bytecodeHash;
 
     // ============ Public Storage ============
-    mapping(uint32 => bytes32) public isms;
+    mapping(uint32 destinationDomain => bytes32 ism) public isms;
     // reverse lookup from the ICA account to the remote owner
-    mapping(address => AccountOwner) public accountOwners;
+    mapping(address ICA => AccountOwner owner) public accountOwners;
 
     // ============ Upgrade Gap ============
 
