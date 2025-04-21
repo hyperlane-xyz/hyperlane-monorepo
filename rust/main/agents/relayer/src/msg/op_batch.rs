@@ -43,11 +43,7 @@ impl OperationBatch {
             }
         };
 
-        if !excluded_ops.is_empty() {
-            let Some(first_item) = excluded_ops.first() else {
-                error!(excluded_ops=?excluded_ops, "Excluded ops are empty while they shouldn't be");
-                return; // not possible since `excluded_ops` is not empty
-            };
+        if let Some(first_item) = excluded_ops.first() {
             let Some(mailbox) = first_item.try_get_mailbox() else {
                 error!(excluded_ops=?excluded_ops, "Excluded ops don't have mailbox while they should have");
                 return; // we expect that excluded ops have mailbox
@@ -62,7 +58,7 @@ impl OperationBatch {
                     prepare_queue.push(op, status.clone()).await;
                 }
             } else {
-                warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
+                info!(excluded_ops=?excluded_ops, "Chain does not support batching. Submitting serially.");
                 OperationBatch::new(excluded_ops, self.domain)
                     .submit_serially(prepare_queue, confirm_queue, metrics)
                     .await;
