@@ -52,44 +52,44 @@ const VANGUARD_FUNDING_CONFIGS: Record<
   Record<VanguardName, string>
 > = {
   base: {
-    vanguard0: '1', // 1x gas cap
-    vanguard1: '1', // 1x gas cap
-    vanguard2: '1', // 1x gas cap
-    vanguard3: '1', // 5x gas cap
-    vanguard4: '1', // 5x gas cap
-    vanguard5: '1', // 10x gas cap
+    vanguard0: '1',
+    vanguard1: '1',
+    vanguard2: '1',
+    vanguard3: '1',
+    vanguard4: '1',
+    vanguard5: '1',
   },
   arbitrum: {
-    vanguard0: '1', // 1x gas cap
-    vanguard1: '1', // 1x gas cap
-    vanguard2: '1', // 1x gas cap
-    vanguard3: '1', // 5x gas cap
-    vanguard4: '1', // 5x gas cap
-    vanguard5: '1', // 10x gas cap
+    vanguard0: '1',
+    vanguard1: '1',
+    vanguard2: '1',
+    vanguard3: '1',
+    vanguard4: '1',
+    vanguard5: '1',
   },
   optimism: {
-    vanguard0: '1', // 1x gas cap
-    vanguard1: '1', // 1x gas cap
-    vanguard2: '1', // 1x gas cap
-    vanguard3: '1', // 5x gas cap
-    vanguard4: '1', // 5x gas cap
-    vanguard5: '1', // 10x gas cap
+    vanguard0: '1',
+    vanguard1: '1',
+    vanguard2: '1',
+    vanguard3: '1',
+    vanguard4: '1',
+    vanguard5: '1',
   },
   ethereum: {
-    vanguard0: '5', // 1x gas cap
-    vanguard1: '5', // 1x gas cap
-    vanguard2: '5', // 1x gas cap
-    vanguard3: '5', // 5x gas cap
-    vanguard4: '5', // 5x gas cap
-    vanguard5: '5', // 10x gas cap
+    vanguard0: '5',
+    vanguard1: '5',
+    vanguard2: '5',
+    vanguard3: '5',
+    vanguard4: '5',
+    vanguard5: '5',
   },
   bsc: {
-    vanguard0: '10', // 1x gas cap
-    vanguard1: '10', // 1x gas cap
-    vanguard2: '5', // 1x gas cap
-    vanguard3: '5', // 5x gas cap
-    vanguard4: '5', // 5x gas cap
-    vanguard5: '5', // 10x gas cap
+    vanguard0: '10',
+    vanguard1: '10',
+    vanguard2: '5',
+    vanguard3: '5',
+    vanguard4: '5',
+    vanguard5: '5',
   },
 } as const;
 
@@ -187,8 +187,8 @@ async function fundVanguards() {
     }
 
     await Promise.all(
-      Object.entries(topUpsNeeded).map(([chain, topUps]) =>
-        topUps.map(async ({ vanguard, balance }) => {
+      Object.entries(topUpsNeeded).map(async ([chain, topUps]) => {
+        for (const { vanguard, balance } of topUps) {
           try {
             const signer = multiProvider.getSigner(chain);
             const signerBalance = await signer.getBalance();
@@ -203,11 +203,11 @@ async function fundVanguards() {
                   )}, Available: ${formatUnits(signerBalance, TOKEN_DECIMALS)}`,
                 ),
               );
-              return;
+              continue;
             }
 
-            return multiProvider.sendTransaction(chain, {
-              to: VANGUARD_ADDRESSES[`${vanguard}`],
+            await multiProvider.sendTransaction(chain, {
+              to: VANGUARD_ADDRESSES[vanguard],
               value: amount,
             });
           } catch (error) {
@@ -217,10 +217,10 @@ async function fundVanguards() {
                 error,
               ),
             );
-            return;
+            continue;
           }
-        }),
-      ),
+        }
+      }),
     );
   } else {
     rootLogger.info(chalk.bold.green('\nNo vanguards needed topping up'));
