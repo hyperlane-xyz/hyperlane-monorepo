@@ -17,7 +17,7 @@ abstract contract FastTokenRouter is FungibleTokenRouter {
 
     uint256 public fastTransferId;
     // maps `fastTransferId` to the filler address.
-    mapping(bytes32 => address) filledFastTransfers;
+    mapping(bytes32 fastTransferId => address filler) filledFastTransfers;
 
     /**
      * @dev delegates transfer logic to `_transferTo`.
