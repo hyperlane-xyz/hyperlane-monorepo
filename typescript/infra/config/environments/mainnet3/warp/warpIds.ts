@@ -98,4 +98,8 @@ export enum WarpRouteIds {
   SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
+
+  // HYPER routes
+  HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
+  stHYPER = 'stHYPER/bsc-ethereum',
 }
