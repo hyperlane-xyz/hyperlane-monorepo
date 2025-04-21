@@ -157,7 +157,7 @@ impl OperationBatch {
         }
     }
 
-    async fn _submit_serially(
+    async fn submit_serially(
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
