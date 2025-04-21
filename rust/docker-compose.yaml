@@ -1,6 +1,6 @@
 services:
   relayer-service:
-    image: gcr.io/abacus-labs-dev/hyperlane-agent:da3978b-20250414-155929
+    image: gcr.io/abacus-labs-dev/hyperlane-agent:8117739-20250420-201559
     command: >
       /bin/sh -c "./relayer
       --db /relayer/database
