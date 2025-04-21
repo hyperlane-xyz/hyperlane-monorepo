@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -41,6 +42,23 @@ pub enum ModuleType {
     Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
+    /// Arbitrum L2 to L1 ISM
+    ArbL2ToL1,
+    /// Weighted Merkle Root Multisig ISM
+    WeightedMerkleRootMultisig,
+    /// Weighted Message ID Multisig ISM
+    WeightedMessageIdMultisig,
+    /// Optimism L2 to L1 ISM
+    OpL2ToL1,
+    /// Polymer ISM
+    Polymer,
+}
+
+impl Hash for ModuleType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Use the discriminant (enum variant index) for hashing
+        std::mem::discriminant(self).hash(state);
+    }
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over
