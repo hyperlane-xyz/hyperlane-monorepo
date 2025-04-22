@@ -7,6 +7,7 @@ mod multisig;
 mod null_metadata;
 mod polymer;
 mod routing;
+mod utils;
 
 pub(crate) use base::{
     AppContextClassifier, IsmAwareAppContextClassifier, MessageMetadataBuildParams, Metadata,

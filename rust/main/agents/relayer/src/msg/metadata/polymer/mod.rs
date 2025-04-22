@@ -1,17 +1,15 @@
 use async_trait::async_trait;
-use derive_more::Deref;
 use derive_new::new;
-use eyre::Context;
 use tracing::{debug, instrument};
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
 use super::{
     base::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuildError,
-    MetadataBuilder,
+    MetadataBuilder, utils::parse_directive_to_polymer_request,
 };
 
-mod polymer;
+pub mod polymer;
 pub use polymer::PolymerProofProvider;
 
 #[derive(Clone, Debug, new)]
@@ -29,19 +27,9 @@ impl MetadataBuilder for PolymerMetadataBuilder {
         message: &HyperlaneMessage,
         _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        // Extract the chain ID, block number, tx index, and log index from the message
-        // These values should be encoded in the message's body or metadata
-        let chain_id = message.origin as u64;
-        let block_number = 0; // TODO: Get from Log metadata
-        let tx_index = 0; // TODO: Get from Log metadata
-        let log_index = 0; // TODO: Get from Log metadata
-
-        let request = polymer::PolymerProofRequest {
-            chain_id,
-            block_number,
-            tx_index,
-            log_index,
-        };
+        // Parse the directive into a PolymerProofRequest
+        let request = parse_directive_to_polymer_request(message)
+            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
 
         // Fetch the proof from the Polymer proof provider
         let response = self
