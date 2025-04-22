@@ -18,8 +18,6 @@ const safeOwners: ChainMap<Address> = {
   polygon: '0x7a412dD3812369226cd42023FC9301A66788122e',
 };
 
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
-
 export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig =
   async (
     routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -28,28 +26,24 @@ export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig =
       ...routerConfig.arbitrum,
       owner: safeOwners.arbitrum,
       type: TokenType.native,
-      interchainSecurityModule: ISM_CONFIG,
     };
 
     const base: HypTokenRouterConfig = {
       ...routerConfig.base,
       owner: safeOwners.base,
       type: TokenType.native,
-      interchainSecurityModule: ISM_CONFIG,
     };
 
     const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
       owner: safeOwners.ethereum,
       type: TokenType.native,
-      interchainSecurityModule: ISM_CONFIG,
     };
 
     const lumiaprism: HypTokenRouterConfig = {
       ...routerConfig.lumiaprism,
       owner: safeOwners.lumiaprism,
       type: TokenType.synthetic,
-      interchainSecurityModule: ISM_CONFIG,
       symbol: 'WETH',
     };
 
@@ -57,7 +51,6 @@ export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig =
       ...routerConfig.optimism,
       owner: safeOwners.optimism,
       type: TokenType.native,
-      interchainSecurityModule: ISM_CONFIG,
     };
 
     const polygon: HypTokenRouterConfig = {
@@ -65,7 +58,6 @@ export const getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig =
       owner: safeOwners.polygon,
       token: tokens.polygon.WETH,
       type: TokenType.collateral,
-      interchainSecurityModule: ISM_CONFIG,
     };
 
     return {
