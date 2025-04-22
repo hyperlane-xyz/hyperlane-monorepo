@@ -51,7 +51,7 @@ impl OperationBatch {
 
             if mailbox.supports_batching() {
                 warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-                let reason = ReprepareReason::ErrorSubmitting;
+                let reason = ReprepareReason::ErrorEstimatingGas;
                 let status = Some(PendingOperationStatus::Retry(reason.clone()));
                 for mut op in excluded_ops.into_iter() {
                     op.on_reprepare(None, reason.clone());

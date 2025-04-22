@@ -251,6 +251,15 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       effect: 'NoSchedule',
     });
 
+    if (this.context.includes('vanguard')) {
+      values.tolerations.push({
+        key: 'context-family',
+        operator: 'Equal',
+        value: 'vanguard',
+        effect: 'NoSchedule',
+      });
+    }
+
     return values;
   }
 
