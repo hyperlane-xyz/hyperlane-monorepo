@@ -174,11 +174,9 @@ contract OPL2ToL1CcipReadIsm is
 
         bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
 
-        if (opPortal.finalizedWithdrawals(withdrawalHash)) {
-            return;
+        if (!opPortal.finalizedWithdrawals(withdrawalHash)) {
+            opPortal.finalizeWithdrawalTransaction(_tx);
         }
-
-        opPortal.finalizeWithdrawalTransaction(_tx);
     }
 
     /// @dev Copied from Hashing.sol of Optimism
