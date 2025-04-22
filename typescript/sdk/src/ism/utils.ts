@@ -614,20 +614,18 @@ export function isStaticDeploymentSupported(
 /**
  * Checks if the given ISM type is compatible with the chain's technical stack.
  *
- * @param {Object} params - The parameters object
- * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain
  * @param {IsmType} params.ismType - The type of Interchain Security Module (ISM)
+ * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain
  * @returns {boolean} True if the ISM type is compatible with the chain, false otherwise
  */
 export function isIsmCompatible({
-  chainTechnicalStack,
   ismType,
+  chainTechnicalStack,
 }: {
-  chainTechnicalStack: ChainTechnicalStack | undefined;
   ismType: IsmType;
+  chainTechnicalStack: ChainTechnicalStack | undefined;
 }): boolean {
   // Skip compatibility check for non-static ISMs as they're always supported
   if (!isStaticIsm(ismType)) return true;
-
   return isStaticDeploymentSupported(chainTechnicalStack);
 }
