@@ -589,6 +589,40 @@ people:
         ],
       },
     },
+    {
+      name: 'should handle missing sort keys by placing them at the end',
+      original: `projects:
+  - name: Alpha
+    priority: 2
+    status: active
+  - name: Beta
+    status: pending
+  - name: Gamma
+    priority: 1
+    status: active
+  - name: Delta
+    priority: 3
+    status: inactive
+  - name: Epsilon
+    status: active`,
+      expected: `projects:
+  - name: Gamma
+    priority: 1
+    status: active
+  - name: Alpha
+    priority: 2
+    status: active
+  - name: Delta
+    priority: 3
+    status: inactive
+  - name: Beta
+    status: pending
+  - name: Epsilon
+    status: active`,
+      options: {
+        arrays: [{ path: 'projects', sortKey: 'priority' }],
+      },
+    },
   ];
 
   testCases.forEach(
