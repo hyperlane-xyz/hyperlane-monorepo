@@ -52,12 +52,6 @@ contract OPL2ToL1CcipReadIsm is
         opPortal = IOptimismPortal(_opPortal);
     }
 
-    // TODO: remove
-    function setUrls(string[] memory _urls) external {
-        require(_urls.length > 0, "URLs array is empty");
-        urls = _urls;
-    }
-
     function getOffchainVerifyInfo(
         bytes calldata _message
     ) external view override {
