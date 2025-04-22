@@ -15,9 +15,31 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsctestnet: {
     transactionOverrides: {
-      gasPrice: 8 * 10 ** 9, // 8 gwei
+      gasPrice: 1 * 10 ** 9, // 1 gwei
+      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
     },
   },
+  arbitrumsepolia: {
+    transactionOverrides: {
+      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
+    },
+  },
+  basesepolia: {
+    transactionOverrides: {
+      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
+    },
+  },
+  optimismsepolia: {
+    transactionOverrides: {
+      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
+    },
+  },
+  sepolia: {
+    transactionOverrides: {
+      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
+    },
+  },
+
   // deploy-only overrides
   // scrollsepolia: {
   //   transactionOverrides: {

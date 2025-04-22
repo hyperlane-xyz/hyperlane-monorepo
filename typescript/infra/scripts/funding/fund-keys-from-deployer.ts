@@ -91,6 +91,10 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
+// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
+const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
+const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
+
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
 // The --contexts-and-roles flag is used to specify the contexts and the key roles
@@ -152,7 +156,11 @@ async function main() {
 
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
-    .default('skip-igp-claim', false).argv;
+    .default('skip-igp-claim', false)
+
+    .array('chain-skip-override')
+    .describe('chain-skip-override', 'Array of chains to skip funding for')
+    .default('chain-skip-override', []).argv;
 
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
@@ -170,6 +178,7 @@ async function main() {
         multiProvider,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
@@ -186,6 +195,7 @@ async function main() {
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
+          argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
@@ -238,6 +248,7 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
+    public readonly chainSkipOverride: ChainName[],
     public readonly desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -252,6 +263,18 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
+        // Skip funding for vanguard contexts on non-vanguard chains
+        if (
+          VANGUARD_CONTEXTS.includes(this.context) &&
+          !VANGUARD_CHAINS.includes(chain)
+        ) {
+          logger.warn(
+            { chain, context: this.context },
+            'Skipping funding for vanguard context on non-vanguard chain',
+          );
+          return false;
+        }
+
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -290,6 +313,7 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -365,6 +389,7 @@ class ContextFunder {
       context,
       contextsAndRolesToFund[context]!,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
       igpClaimThresholdPerChain,
@@ -378,6 +403,7 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -430,6 +456,7 @@ class ContextFunder {
       context,
       rolesToFund,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
       igpClaimThresholdPerChain,
@@ -450,6 +477,14 @@ class ContextFunder {
   }
 
   private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
+    if (this.chainSkipOverride.includes(chain)) {
+      logger.warn(
+        { chain },
+        `Configured to skip funding operations for chain ${chain}, skipping`,
+      );
+      return;
+    }
+
     const { promise, cleanup } = createTimeoutPromise(
       CHAIN_FUNDING_TIMEOUT_MS,
       `Timed out funding chain ${chain} after ${

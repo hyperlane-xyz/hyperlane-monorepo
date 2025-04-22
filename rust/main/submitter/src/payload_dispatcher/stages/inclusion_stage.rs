@@ -15,7 +15,7 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
 };
-use tracing::{error, info, info_span, Instrument};
+use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
     error::SubmitterError,
@@ -24,19 +24,31 @@ use crate::{
     transaction::{DropReason as TxDropReason, Transaction, TransactionId, TransactionStatus},
 };
 
-use super::{utils::retry_until_success, PayloadDispatcherState};
+use super::{utils::call_until_success_or_nonretryable_error, PayloadDispatcherState};
 
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
 
-#[derive(new)]
-struct InclusionStage {
-    pool: InclusionStagePool,
+pub struct InclusionStage {
+    pub(crate) pool: InclusionStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     finality_stage_sender: mpsc::Sender<Transaction>,
     state: PayloadDispatcherState,
 }
 
 impl InclusionStage {
+    pub fn new(
+        tx_receiver: mpsc::Receiver<Transaction>,
+        finality_stage_sender: mpsc::Sender<Transaction>,
+        state: PayloadDispatcherState,
+    ) -> Self {
+        Self {
+            pool: Arc::new(Mutex::new(HashMap::new())),
+            tx_receiver,
+            finality_stage_sender,
+            state,
+        }
+    }
+
     pub async fn run(self) {
         let InclusionStage {
             pool,
@@ -87,6 +99,7 @@ impl InclusionStage {
             sleep(*estimated_block_time).await;
 
             let pool_snapshot = pool.lock().await.clone();
+            info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) =
                     Self::try_process_tx(tx.clone(), &finality_stage_sender, &state, &pool).await
@@ -97,17 +110,24 @@ impl InclusionStage {
         }
     }
 
+    #[instrument(
+        skip_all,
+        name = "InclusionStage::try_process_tx",
+        fields(tx_id = ?tx.id, tx_status = ?tx.status, payloads = ?tx.payload_details)
+    )]
     async fn try_process_tx(
         mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &PayloadDispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
-        let tx_status = retry_until_success(
+        info!(?tx, "Processing inclusion stage transaction");
+        let tx_status = call_until_success_or_nonretryable_error(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
         )
-        .await;
+        .await?;
+        info!(?tx, ?tx_status, "Transaction status");
 
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
@@ -134,39 +154,50 @@ impl InclusionStage {
         Ok(())
     }
 
+    #[instrument(skip_all, name = "InclusionStage::process_pending_tx")]
     async fn process_pending_tx(
         mut tx: Transaction,
         state: &PayloadDispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
-        let simulation_success =
-            retry_until_success(|| state.adapter.simulate_tx(&tx), "Simulating transaction").await;
+        info!(?tx, "Processing pending transaction");
+        let simulation_success = call_until_success_or_nonretryable_error(
+            || state.adapter.simulate_tx(&tx),
+            "Simulating transaction",
+        )
+        .await?;
         if !simulation_success {
+            warn!(?tx, "Transaction simulation failed");
             Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
             return Err(eyre!("Transaction simulation failed"));
         }
+        info!(?tx, "Transaction simulation succeeded");
 
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        retry_until_success(
+        tx = call_until_success_or_nonretryable_error(
             || {
                 let tx_clone = tx.clone();
                 async move {
                     let mut tx_clone_inner = tx_clone.clone();
-                    state.adapter.submit(&mut tx_clone_inner).await
+                    state.adapter.submit(&mut tx_clone_inner).await?;
+                    Ok(tx_clone_inner)
                 }
             },
             "Submitting transaction",
         )
-        .await;
+        .await?;
+        info!(?tx, "Transaction submitted to node");
 
         // update tx submission attempts
         tx.submission_attempts += 1;
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
-        pool.lock().await.remove(&tx.id);
+
+        // update the pool entry of this tx, to reflect any changes such as the gas price, hash, etc
+        pool.lock().await.insert(tx.id.clone(), tx.clone());
         Ok(())
     }
 
@@ -176,7 +207,7 @@ impl InclusionStage {
         reason: TxDropReason,
         pool: &InclusionStagePool,
     ) -> Result<()> {
-        info!(?tx, "Dropping tx");
+        warn!(?tx, "Dropping tx");
         let new_tx_status = TransactionStatus::Dropped(reason);
         update_tx_status(state, tx, new_tx_status.clone()).await?;
         // drop the payloads as well
@@ -197,8 +228,8 @@ mod tests {
     use crate::{
         payload_dispatcher::{
             test_utils::{
-                create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
-                MockAdapter,
+                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
+                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
             },
             PayloadDb, TransactionDb,
         },
@@ -225,7 +256,7 @@ mod tests {
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
         assert_eq!(txs_received.len(), TXS_TO_PROCESS);
-        assert_txs_not_in_db(txs_created.clone(), &pool).await;
+        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
             &tx_db,
@@ -256,7 +287,7 @@ mod tests {
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
         assert_eq!(txs_received.len(), 0);
-        assert_txs_not_in_db(txs_created.clone(), &pool).await;
+        assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
             &tx_db,
@@ -285,7 +316,7 @@ mod tests {
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
 
         assert_eq!(txs_received.len(), 0);
-        assert_txs_not_in_db(txs_created.clone(), &pool).await;
+        assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
         assert_tx_status(
             txs_received.clone(),
             &tx_db,
@@ -293,13 +324,6 @@ mod tests {
             TransactionStatus::Dropped(TxDropReason::FailedSimulation),
         )
         .await;
-    }
-
-    async fn assert_txs_not_in_db(txs: Vec<Transaction>, pool: &InclusionStagePool) {
-        let pool = pool.lock().await;
-        for tx in txs.iter() {
-            assert!(pool.get(&tx.id).is_none());
-        }
     }
 
     async fn set_up_test_and_run_stage(
@@ -318,13 +342,9 @@ mod tests {
 
         let state =
             PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Arc::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
-        let inclusion_stage = InclusionStage::new(
-            pool.clone(),
-            building_stage_receiver,
-            finality_stage_sender,
-            state,
-        );
+        let inclusion_stage =
+            InclusionStage::new(building_stage_receiver, finality_stage_sender, state);
+        let pool = inclusion_stage.pool.clone();
 
         let txs_created = create_random_txs_and_store_them(
             txs_to_process,

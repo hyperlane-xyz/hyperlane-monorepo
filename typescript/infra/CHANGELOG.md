@@ -1,5 +1,42 @@
 # @hyperlane-xyz/infra
 
+## 12.1.0
+
+### Minor Changes
+
+- acbf5936a: New check: HyperlaneRouterChecker now compares the list of domains
+  the Router is enrolled with against the warp route expectations.
+  It will raise a violation for missing remote domains.
+  `check-deploy` and `check-warp-deploy` scripts use this new check.
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/helloworld@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Minor Changes
+
+- d478ffd08: updated warp ids and added new soon routes
+
+### Patch Changes
+
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/helloworld@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
 ## 11.0.0
 
 ### Minor Changes
