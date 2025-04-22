@@ -9,50 +9,26 @@ import {Message} from "../libs/Message.sol";
  * @title PolymerISM
  * @author PolymerLabs
  * @notice A generic Interchain Security Module (ISM) for Hyperlane that verifies
- * messages using Polymer proofs of Hyperlane Mailbox `Dispatch` events.
+ * messages using Polymer for foreign state read requests.
  *
- * @dev This ISM verifies the authenticity of a `Dispatch` event from a specific
- * Mailbox contract on an origin chain, ensuring it targeted this local chain
- * and that the message content matches the proof. It *does not* perform
- * application-specific checks on the message content (e.g., original sender or
- * intended recipient specified within the event data). Such checks should be
- * implemented by the Hyperlane message recipient contract.
- *
- * This ISM expects the `_metadata` field in `verify` to contain *only* the
- * raw `polymerProofBytes` obtained from the Polymer proof service for the
- * corresponding `Dispatch` event on the origin chain.
+ * @dev This ISM verifies the authenticity of a Polymer foreign state read request.
+ * The request is expected to have been emitted by the Mailbox contract on the same chain.
+ * 
+ * The message payload is the response of the foreign state read request.
  */
 contract PolymerISM is IInterchainSecurityModule {
     // --- Libraries ---
     using Message for bytes;
-
-    // --- Constants ---
-
-    /**
-     * @dev The keccak256 hash of the signature of the Hyperlane Mailbox Dispatch event.
-     * keccak256("Dispatch(address,uint32,bytes32,bytes)")
-     * Used to ensure the Polymer proof corresponds to the correct event type.
-     */
-    bytes32 public constant DISPATCH_EVENT_SIGNATURE =
-        0x8a14c3cf157c13a16c714580a137977637f7e9e699b36f5b7ad738f3d04d36d1;
 
     // --- State Variables ---
 
     /// @notice The Polymer prover contract deployed on this (local) chain.
     ICrossL2ProverV2 public immutable polymerProver;
 
-    /// TODO: Add support for multiple Mailbox contract addresses.
-    /// @notice The Hyperlane Mailbox contract address on the origin chain.
-    /// @dev This is the contract expected to emit the Dispatch event proven by Polymer.
-    /// This naive appraoch assumes the Mailbox contract is deployed to the same address on all chains. 
-    /// This approach does not scale to multiple Mailbox contract addresses.
-    address public immutable originMailbox;
-
     // --- Events ---
 
     event PolymerISMConfigured(
-        address indexed polymerProver,
-        address indexed originMailbox
+        address indexed polymerProver
     );
 
     // --- Constructor ---
@@ -60,27 +36,17 @@ contract PolymerISM is IInterchainSecurityModule {
     /**
      * @notice Deploys and configures the PolymerISM.
      * @param _polymerProver Address of the ICrossL2ProverV2 contract on this chain.
-     * @param _originMailbox Address of the Mailbox contract on the origin chain.
      */
-    constructor(
-        address _polymerProver,
-        address _originMailbox
-    ) {
+    constructor(address _polymerProver) {
         require(
             _polymerProver != address(0),
             "PolymerISM: Invalid polymer prover address"
         );
-        require(
-            _originMailbox != address(0),
-            "PolymerISM: Invalid origin mailbox address"
-        );
 
         polymerProver = ICrossL2ProverV2(_polymerProver);
-        originMailbox = _originMailbox;
 
         emit PolymerISMConfigured(
-            _polymerProver,
-            _originMailbox
+            _polymerProver
         );
     }
 
@@ -125,55 +91,28 @@ contract PolymerISM is IInterchainSecurityModule {
 
         // --- Perform Generic Verification Checks ---
 
-        // Check 1: Verify message origin matches the chain ID from the proof
+        // Check 1: Verify that the FSR request was made from and to the same chain.
+        // NB: This is not strictly necessary, but it minimizes application-specific checks.
+        // We may want to enable a different read UX in the future.
         require(
-            _message.origin() == chainId_from_proof,
-            "PolymerISM: Message origin mismatch"
+            block.chainid == _message.origin() && block.chainid == _message.destination(),
+            "PolymerISM: FSR request origin mismatch"
         );
 
-        // Check 2: Verify the event was emitted by the correct Mailbox contract
-        require(
-            emittingContract_from_proof == originMailbox,
-            "PolymerISM: Proof emitter mismatch (origin mailbox)"
+        // Check 2: Combine topics and data into a complete EVM log
+        // The complete log should be: [chainId, emittingContract, topics[], data]
+        // The app must ensure that the chain ID and emitting contract are correct.
+        bytes memory log = abi.encodePacked(
+            chainId_from_proof,           // String ID
+            emittingContract_from_proof,  // Address
+            topics_from_proof,            // Topics array
+            data_from_proof               // Data
         );
 
-        // Check 3: Does the proven event match the Hyperlane Dispatch event signature?
-        // Dispatch has signature + 3 indexed topics = 4 total topics.
+        // Check 3: Does the complete log match the message body?
         require(
-            topics_from_proof.length == 128,
-            "PolymerISM: Invalid packed topics length for Dispatch event"
-        );
-        // Extract topic0 (event signature)
-        bytes32 signature_from_proof;
-        assembly {
-            signature_from_proof := mload(add(topics_from_proof, 0x20)) // 0x20 is the offset for the first element in a bytes array
-        }
-        require(
-            signature_from_proof == DISPATCH_EVENT_SIGNATURE,
-            "PolymerISM: Invalid event signature in proof"
-        );
-
-        // Check 4: Decode the indexed 'destination' topic. Must be this local domain.
-        // Extract topic2 (destination domain)
-        bytes32 destination_topic;
-        assembly {
-            destination_topic := mload(add(topics_from_proof, 0x60)) // Offset for the third topic (0x20 + 2*0x20 = 0x60)
-        }
-        // Topic 2: uint32 indexed destination (Hyperlane Mailbox Dispatch event format)
-        uint32 destination_from_proof = uint32(uint256(destination_topic));
-        require(
-            destination_from_proof == block.chainid,
-            "PolymerISM: Proof destination mismatch (local domain)"
-        );
-
-        // Check 5: Decode the non-indexed 'message' data from the proof's data field.
-        // The 'data' field of the Dispatch event contains only the abi.encode(bytes message).
-        bytes memory message_from_proof = abi.decode(data_from_proof, (bytes));
-
-        // Check 6: Does the message body from the proof match the message being verified?
-        require(
-            keccak256(message_from_proof) == keccak256(_message.body()),
-            "PolymerISM: Proof message content mismatch"
+            keccak256(log) == keccak256(_message.body()),
+            "PolymerISM: Proof log content mismatch"
         );
 
         // If all checks pass, the ISM considers the message verified *at this level*.
