@@ -55,6 +55,8 @@ pub struct ValidatorSettings {
     pub rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
+    /// Max sign concurrency
+    pub max_sign_concurrency: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,6 +155,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .end()
             .unwrap();
 
+        let max_sign_concurrency = p
+            .chain(&mut err)
+            .get_opt_key("maxSignConcurrency")
+            .parse_u64()
+            .unwrap_or(50) as usize;
+
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
         rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
@@ -177,6 +185,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             interval,
             rpcs,
             allow_public_rpcs,
+            max_sign_concurrency,
         })
     }
 }
