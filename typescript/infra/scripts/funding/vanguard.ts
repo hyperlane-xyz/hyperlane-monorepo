@@ -93,6 +93,8 @@ const VANGUARD_FUNDING_CONFIGS: Record<
   },
 } as const;
 
+const ACTIVE_VANGUARDS: VanguardName[] = ['vanguard0'];
+
 async function fundVanguards() {
   const { fund } = await yargs(process.argv.slice(2))
     .describe('fund', 'Fund vanguards')
@@ -134,7 +136,7 @@ async function fundVanguards() {
 
   await Promise.all(
     VANGUARD_NETWORKS.map(async (chain) => {
-      for (const vanguard of VANGUARDS) {
+      for (const vanguard of ACTIVE_VANGUARDS) {
         const address = VANGUARD_ADDRESSES[vanguard];
         try {
           const provider = multiProvider.getProvider(chain);
