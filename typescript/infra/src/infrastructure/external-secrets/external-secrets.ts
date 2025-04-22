@@ -85,18 +85,42 @@ async function getGcpExternalSecretsConfig(
   };
 }
 
+async function isExternalSecretsReleaseInstalled(
+  infraConfig: InfrastructureConfig,
+): Promise<boolean> {
+  try {
+    // Gives a non-zero exit code if the release is not installed
+    await execCmd(
+      `helm status external-secrets --namespace ${infraConfig.externalSecrets.namespace}`,
+    );
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Ensures the core `external-secrets` release (with all the CRDs etc) is up to date.
 async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
   // Prometheus's helm chart requires a repository to be added
   await addHelmRepoIfRequired(infraConfig.externalSecrets.helmChart);
-  // The name passed in must be in the form `repo/chartName`
-  const chartName = getDeployableHelmChartName(
-    infraConfig.externalSecrets.helmChart,
-  );
 
-  await execCmd(
-    `helm upgrade external-secrets ${chartName} --namespace ${infraConfig.externalSecrets.namespace} --create-namespace --version ${infraConfig.externalSecrets.helmChart.version} --install --set installCRDs=true `,
-  );
+  // Only install the release if it doesn't already exist. We've observed
+  // some issues attempting an upgrade when the external-secrets release
+  // already exists. Doing so could result in the CRD being deleted and
+  // recreated, which would cause all existing external-secrets CRDs to be
+  // deleted!
+  if (!(await isExternalSecretsReleaseInstalled(infraConfig))) {
+    // The name passed in must be in the form `repo/chartName`
+    const chartName = getDeployableHelmChartName(
+      infraConfig.externalSecrets.helmChart,
+    );
+
+    await execCmd(
+      `helm upgrade external-secrets ${chartName} --namespace ${infraConfig.externalSecrets.namespace} --create-namespace --version ${infraConfig.externalSecrets.helmChart.version} --install --set installCRDs=true `,
+    );
+  } else {
+    console.log('External-secrets release already installed.');
+  }
 
   // Wait for the external-secrets-webhook deployment to have a ready replica.
   // The webhook deployment is required in order for subsequent deployments

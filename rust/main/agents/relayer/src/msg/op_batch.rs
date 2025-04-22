@@ -4,11 +4,11 @@ use derive_new::new;
 use hyperlane_core::{
     rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
-    PendingOperation, PendingOperationStatus, QueueOperation, TxOutcome,
+    PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 
 use super::{
     op_queue::OpQueue,
@@ -43,11 +43,26 @@ impl OperationBatch {
             }
         };
 
-        if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
-            OperationBatch::new(excluded_ops, self.domain)
-                .submit_serially(prepare_queue, confirm_queue, metrics)
-                .await;
+        if let Some(first_item) = excluded_ops.first() {
+            let Some(mailbox) = first_item.try_get_mailbox() else {
+                error!(excluded_ops=?excluded_ops, "Excluded ops don't have mailbox while they should have");
+                return; // we expect that excluded ops have mailbox
+            };
+
+            if mailbox.supports_batching() {
+                warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
+                let reason = ReprepareReason::ErrorEstimatingGas;
+                let status = Some(PendingOperationStatus::Retry(reason.clone()));
+                for mut op in excluded_ops.into_iter() {
+                    op.on_reprepare(None, reason.clone());
+                    prepare_queue.push(op, status.clone()).await;
+                }
+            } else {
+                info!(excluded_ops=?excluded_ops, "Chain does not support batching. Submitting serially.");
+                OperationBatch::new(excluded_ops, self.domain)
+                    .submit_serially(prepare_queue, confirm_queue, metrics)
+                    .await;
+            }
         }
     }
 
@@ -185,7 +200,7 @@ mod tests {
         CoreMetrics,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
+        config::OpSubmissionConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
         MessageSubmissionData, ReorgPeriod, SubmitterType, H160, U256,
     };
     use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
@@ -344,10 +359,11 @@ mod tests {
                     ],
                 },
                 transaction_overrides: Default::default(),
-                operation_batch: OperationBatchConfig {
+                op_submission_config: OpSubmissionConfig {
                     batch_contract_address: None,
                     max_batch_size: 32,
                     bypass_batch_simulation: false,
+                    ..Default::default()
                 },
             }),
             metrics_conf: Default::default(),

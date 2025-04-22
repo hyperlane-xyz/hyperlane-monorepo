@@ -450,6 +450,16 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'If true, allows caching of certain contract calls that can be appropriately cached.',
     ),
+  txIdIndexingEnabled: z
+    .boolean()
+    .optional()
+    .describe(
+      'Whether to enable TX ID based indexing for hook events given indexed messages',
+    ),
+  igpIndexingEnabled: z
+    .boolean()
+    .optional()
+    .describe('Whether to enable IGP indexing'),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
