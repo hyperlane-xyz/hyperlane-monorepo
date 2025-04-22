@@ -9,7 +9,7 @@ import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
-import {Quotes, IValueTransferBridge} from "../../interfaces/IValueTransferBridge.sol";
+import {Quote, IValueTransferBridge} from "../../interfaces/IValueTransferBridge.sol";
 
 contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
     using TypeCasts for bytes32;
@@ -38,8 +38,8 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view override returns (Quotes[] memory quotes) {
-        quotes = new Quotes[](1);
+    ) external view override returns (Quote[] memory quotes) {
+        quotes = new Quote[](1);
 
         bytes memory tokenMessage = TokenMessage.format(
             _recipient,
@@ -47,7 +47,7 @@ contract OPValueTransferBridgeNative is ValueTransferBridgeNative {
             bytes("") // metadata
         );
 
-        quotes[0] = Quotes(
+        quotes[0] = Quote(
             address(0),
             _Router_quoteDispatch(
                 l1Domain,

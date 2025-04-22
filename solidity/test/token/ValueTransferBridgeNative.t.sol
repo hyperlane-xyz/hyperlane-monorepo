@@ -16,7 +16,7 @@ import {OPL2ToL1CcipReadHook} from "../../contracts/hooks/OPL2ToL1CcipReadHook.s
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
-import {Quotes} from "../../contracts/interfaces/IValueTransferBridge.sol";
+import {Quote} from "../../contracts/interfaces/IValueTransferBridge.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {MockOptimismMessenger, MockOptimismStandardBridge, MockL2ToL1MessagePasser} from "../../contracts/mock/MockOptimism.sol";
 import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
@@ -84,7 +84,7 @@ contract ValueTransferBridgeNativeTest is Test {
     address internal user = address(11);
     uint256 internal userBalance = 1 ether;
     bytes32 internal userB32 = user.addressToBytes32();
-    Quotes[] internal quotes;
+    Quote[] internal quotes;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
@@ -198,13 +198,13 @@ contract ValueTransferBridgeNativeTest is Test {
         );
     }
 
-    function _getQuotes() private returns (Quotes[] memory) {
+    function _getQuote() private returns (Quote[] memory) {
         return
             vtbOrigin.quoteTransferRemote(destination, userB32, transferAmount);
     }
 
     function _getMsgValue() private returns (uint256) {
-        Quotes[] memory quotes = _getQuotes();
+        Quote[] memory quotes = _getQuote();
 
         return transferAmount + quotes[0].amount;
     }
@@ -214,7 +214,7 @@ contract ValueTransferBridgeNativeTest is Test {
     }
 
     function test_transferRemote_expectTwoGasPayments() public {
-        Quotes[] memory quotes = _getQuotes();
+        Quote[] memory quotes = _getQuote();
 
         // Expects two gas payments
         _expectGasPayment(ccipReadHook.PROVE_WITHDRAWAL_GAS_LIMIT());
@@ -231,7 +231,7 @@ contract ValueTransferBridgeNativeTest is Test {
     }
 
     function test_transferRemote_expectReceivedMessageEvent() public {
-        Quotes[] memory quotes = _getQuotes();
+        Quote[] memory quotes = _getQuote();
 
         vm.prank(user);
         vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
@@ -252,7 +252,7 @@ contract ValueTransferBridgeNativeTest is Test {
     }
 
     function test_transferRemote_fundsReceived() public {
-        Quotes[] memory quotes = _getQuotes();
+        Quote[] memory quotes = _getQuote();
         vm.prank(user);
         vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
             destination,
@@ -278,7 +278,7 @@ contract ValueTransferBridgeNativeTest is Test {
             (bytes32)
         );
 
-        Quotes[] memory quotes = _getQuotes();
+        Quote[] memory quotes = _getQuote();
         vm.prank(user);
         vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
             destination,

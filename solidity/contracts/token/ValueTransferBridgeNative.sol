@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {HypNative} from "../token/HypNative.sol";
 import {TokenRouter} from "../token/libs/TokenRouter.sol";
 import {TokenMessage} from "../token/libs/TokenMessage.sol";
-import {Quotes, IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
+import {Quote, IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
 
 abstract contract ValueTransferBridgeNative is IValueTransferBridge, HypNative {
     constructor(address _mailbox) HypNative(_mailbox) {}

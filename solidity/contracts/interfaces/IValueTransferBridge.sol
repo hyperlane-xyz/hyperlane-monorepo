@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-struct Quotes {
+struct Quote {
     address token; // address(0) for the native token
     uint256 amount;
 }
@@ -32,5 +32,5 @@ interface IValueTransferBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view returns (Quotes[] memory quotes);
+    ) external view returns (Quote[] memory quotes);
 }
