@@ -437,20 +437,25 @@ export const rebalancer: CommandModuleWithContext<{
       checkFrequency,
     );
 
-    // Instantiates the strategy that will process monitor events and determine whether a rebalance is needed
+    // Instantiates the strategy that will get rebalancing routes based on monitor results
     const strategy: IStrategy = new Strategy();
 
-    // Instantiates the executor that will process strategy results and execute the rebalance
+    // Instantiates the executor that will process rebalancing routes
     const executor: IExecutor = new Executor();
 
-    // Subscribes the strategy to the monitor
-    monitor.subscribe((event) => strategy.handleMonitorEvent(event));
+    // Observe monitor events and process rebalancing routes
+    monitor.subscribe((event) => {
+      const balances = event.balances.reduce((acc, next) => {
+        acc[next.chain] = next.value;
+        return acc;
+      }, {} as Record<ChainName, bigint>);
 
-    // Subscribes the executor to the strategy
-    strategy.subscribe((event) => executor.handleStrategyEvent(event));
+      const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
+
+      executor.processRebalancingRoutes(rebalancingRoutes);
+    });
 
     // Starts the monitor to begin polling balances.
-    // This will keep running until the process is terminated
     await monitor.start();
 
     logGreen('Rebalancer started successfully 🚀');

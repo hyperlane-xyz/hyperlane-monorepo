@@ -105,21 +105,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Verify that it logs an expected output
       for await (const chunk of process.stdout) {
         if (
-          chunk.includes(`Executing strategy event: {
-  route: [
-    {
-      origin: 'anvil2',
-      destination: 'anvil2',
-      token: '0x59b670e9fA9D0A427751Af201D676719a970857b',
-      amount: 49000000000000000000n
-    },
-    {
-      origin: 'anvil3',
-      destination: 'anvil3',
-      token: '0x59b670e9fA9D0A427751Af201D676719a970857b',
-      amount: 51000000000000000000n
-    }
-  ]`)
+          chunk.includes(`Executing rebalancing routes: [
+  {
+    fromChain: 'anvil3',
+    toChain: 'anvil2',
+    amount: 1000000000000000000n
+  }
+]`)
         ) {
           process.kill();
           break;
