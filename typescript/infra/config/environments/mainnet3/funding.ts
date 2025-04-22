@@ -33,11 +33,6 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
     [Contexts.Vanguard0]: [Role.Relayer],
-    [Contexts.Vanguard1]: [Role.Relayer],
-    [Contexts.Vanguard2]: [Role.Relayer],
-    [Contexts.Vanguard3]: [Role.Relayer],
-    [Contexts.Vanguard4]: [Role.Relayer],
-    [Contexts.Vanguard5]: [Role.Relayer],
   },
   chainsToSkip: [],
   // desired balance config, must be set for each chain
