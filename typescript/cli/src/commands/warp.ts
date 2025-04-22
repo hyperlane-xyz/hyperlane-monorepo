@@ -411,6 +411,7 @@ export const check: CommandModuleWithContext<{
 export const rebalancer: CommandModuleWithContext<{
   warpRouteId: string;
   checkFrequency: number;
+  strategyTolerance: string;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -426,8 +427,20 @@ export const rebalancer: CommandModuleWithContext<{
       demandOption: true,
       alias: 'v',
     },
+    strategyTolerance: {
+      type: 'string',
+      description:
+        'Tolerance threshold for imbalance detection (specified in token base units; e.g., 1000000 for 1 USDC, 1000000000000000000 for 1 ETH)',
+      demandOption: false,
+      default: '0',
+    },
   },
-  handler: async ({ context, warpRouteId, checkFrequency }) => {
+  handler: async ({
+    context,
+    warpRouteId,
+    checkFrequency,
+    strategyTolerance,
+  }) => {
     logCommandHeader('Hyperlane Warp Rebalancer');
 
     // Instantiates the warp route monitor
@@ -438,7 +451,7 @@ export const rebalancer: CommandModuleWithContext<{
     );
 
     // Instantiates the strategy that will get rebalancing routes based on monitor results
-    const strategy: IStrategy = new Strategy();
+    const strategy: IStrategy = new Strategy(BigInt(strategyTolerance));
 
     // Instantiates the executor that will process rebalancing routes
     const executor: IExecutor = new Executor();

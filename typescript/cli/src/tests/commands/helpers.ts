@@ -20,7 +20,7 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
+import { Address, inCIMode, assert, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { CommandContext } from '../../context/types.js';
@@ -53,6 +53,7 @@ export const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config.yaml
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
 export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
+export const CHAIN_4_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_4}/metadata.yaml`;
 
 export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
@@ -521,4 +522,39 @@ export function hyperlaneRelayer(chains: string[], warp?: string) {
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
+}
+
+export async function createSnapshot(rpcUrl: string): Promise<string> {
+  return await snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
+}
+
+export async function restoreSnapshot(
+  rpcUrl: string,
+  snapshotId: string,
+): Promise<void> {
+  const result = await snapshotBaseCall<boolean>(rpcUrl, 'evm_revert', [
+    snapshotId,
+  ]);
+  assert(result, 'Failed to restore snapshot');
+}
+
+async function snapshotBaseCall<T>(
+  rpcUrl: string,
+  method: string,
+  params: any[],
+): Promise<T> {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: 1337,
+      jsonrpc: '2.0',
+      method,
+      params,
+    }),
+  });
+  const { result } = await response.json();
+  return result;
 }

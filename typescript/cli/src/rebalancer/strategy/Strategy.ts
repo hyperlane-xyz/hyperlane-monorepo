@@ -8,6 +8,11 @@ import {
 
 export class Strategy implements IStrategy {
   /**
+   * @param tolerance Value used to prevent rebalancing amounts that are already close to the target
+   */
+  constructor(private readonly tolerance: bigint = 0n) {}
+
+  /**
    * Get the optimized routes that will rebalance all chains to the same balance
    */
   getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
@@ -16,14 +21,21 @@ export class Strategy implements IStrategy {
     const total = entries.reduce((sum, [, balance]) => sum + balance, 0n);
     // Get the average balance
     const target = total / BigInt(entries.length);
+
+    // Skip rebalancing when the average balance is very small
+    if (target < this.tolerance) {
+      return [];
+    }
+
     const surpluss: { chain: ChainName; amount: bigint }[] = [];
     const deficits: { chain: ChainName; amount: bigint }[] = [];
 
-    // Group balances by balances with surplus or deficit
+    // Group balances by balances with surplus or deficit.
+    // The tolerance is used to consider "balanced" chains that are already close to the target
     for (const [chain, balance] of entries) {
-      if (balance < target) {
+      if (balance < target - this.tolerance) {
         deficits.push({ chain, amount: target - balance });
-      } else if (balance > target) {
+      } else if (balance > target + this.tolerance) {
         surpluss.push({ chain, amount: balance - target });
       } else {
         // Do nothing as the balance is already on target

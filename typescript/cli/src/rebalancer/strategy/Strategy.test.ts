@@ -87,7 +87,50 @@ describe('Strategy', () => {
     it('should return no routes', () => {
       const routes = strategy.getRebalancingRoutes(balances);
 
-      expect(routes).to.have.lengthOf(0);
+      expect(routes).to.be.empty;
+    });
+  });
+
+  describe('when tolerance is 10 ether', () => {
+    beforeEach(() => {
+      strategy = new Strategy(ethers.utils.parseEther('10').toBigInt());
+    });
+
+    describe('when balances for chain1, chain2, and chain3 are 80, 90, and 100 respectively', () => {
+      beforeEach(() => {
+        balances = {
+          [chain1]: ethers.utils.parseEther('80').toBigInt(),
+          [chain2]: ethers.utils.parseEther('90').toBigInt(),
+          [chain3]: ethers.utils.parseEther('100').toBigInt(),
+        };
+      });
+
+      it('should return no routes', () => {
+        const routes = strategy.getRebalancingRoutes(balances);
+
+        expect(routes).to.be.empty;
+      });
+    });
+
+    describe('when balances for chain1, chain2, and chain3 are 70, 90, and 110 respectively', () => {
+      beforeEach(() => {
+        balances = {
+          [chain1]: ethers.utils.parseEther('70').toBigInt(),
+          [chain2]: ethers.utils.parseEther('90').toBigInt(),
+          [chain3]: ethers.utils.parseEther('110').toBigInt(),
+        };
+      });
+
+      it('should return one route for 20 from chain3 to chain1', () => {
+        const routes = strategy.getRebalancingRoutes(balances);
+
+        expect(routes).to.have.lengthOf(1);
+        expect(routes[0]).to.deep.equal({
+          fromChain: 'chain3',
+          toChain: 'chain1',
+          amount: ethers.utils.parseEther('20').toBigInt(),
+        });
+      });
     });
   });
 });
