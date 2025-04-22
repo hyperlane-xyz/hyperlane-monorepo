@@ -91,7 +91,7 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
-// Need to ensure we don't find non-vanguard chains in the vanguard contexts
+// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
 const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
 const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
 
