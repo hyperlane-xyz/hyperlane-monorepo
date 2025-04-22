@@ -41,6 +41,7 @@ contract PolymerISM is IInterchainSecurityModule {
     /// @notice The Polymer prover contract deployed on this (local) chain.
     ICrossL2ProverV2 public immutable polymerProver;
 
+    /// TODO: Add support for multiple Mailbox contract addresses.
     /// @notice The Hyperlane Mailbox contract address on the origin chain.
     /// @dev This is the contract expected to emit the Dispatch event proven by Polymer.
     /// This naive appraoch assumes the Mailbox contract is deployed to the same address on all chains. 
