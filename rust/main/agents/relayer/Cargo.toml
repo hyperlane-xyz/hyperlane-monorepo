@@ -1,4 +1,3 @@
-
 [package]
 name = "relayer"
 documentation.workspace = true
@@ -46,6 +45,7 @@ tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
 uuid.workspace = true
+base64 = { version = "0.21", features = ["alloc"] }
 
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = [
