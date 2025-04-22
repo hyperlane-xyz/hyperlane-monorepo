@@ -132,5 +132,21 @@ describe('Strategy', () => {
         });
       });
     });
+
+    describe('when balances for chain1, chain2, and chain3 are lower than the tolerance', () => {
+      beforeEach(() => {
+        balances = {
+          [chain1]: ethers.utils.parseEther('9').toBigInt(),
+          [chain2]: ethers.utils.parseEther('9').toBigInt(),
+          [chain3]: ethers.utils.parseEther('9').toBigInt(),
+        };
+      });
+
+      it('should return no routes', () => {
+        const routes = strategy.getRebalancingRoutes(balances);
+
+        expect(routes).to.be.empty;
+      });
+    });
   });
 });
