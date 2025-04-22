@@ -2,7 +2,11 @@ import {
   BigNumber,
   PopulatedTransaction,
   constants as ethersConstants,
+  ethers
 } from 'ethers';
+import { ArcadiaSDK } from 'arcadia-sdk-wip';
+import { RefineResult } from 'arcadia-sdk-wip/types/Refine.js';
+import { RpcIntentState } from 'arcadia-sdk-wip/types/index.js';
 
 import {
   ERC20,
@@ -44,6 +48,7 @@ import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  IEvmKhalaniIntentTokenAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
@@ -887,5 +892,263 @@ export class EvmXERC20VSAdapter
       rateLimitPerSecond: rateLimitPerSecond.toString(),
       bridge,
     });
+  }
+}
+
+export class EvmKhalaniIntentTokenAdapter
+  extends EvmTokenAdapter
+  implements IEvmKhalaniIntentTokenAdapter<PopulatedTransaction>
+{
+  private arcadiaProvider: ethers.providers.JsonRpcProvider;
+  private mTokenContract;
+  private assetReservesContract;
+  private intentBookContract;
+  private intentService;
+  private refineService;
+  private depositService;
+  private chainId;
+  private tokensService;
+  private readonly arcadiaChainId = 1098411886;
+  private readonly intentBookAddress;
+
+  static getArcadiaSdk() {
+    return new ArcadiaSDK('EthersV5');
+  }
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      addressOrDenom: Address;
+    },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    const chainProvider = this.multiProvider.getEthersV5Provider(chainName);
+    const arcadiaSdk = EvmKhalaniIntentTokenAdapter.getArcadiaSdk();
+    const walletService = arcadiaSdk.walletService;
+    const contractService = arcadiaSdk.contractService;
+    const arcadiaChainInfo = walletService.getArcadiaChainInfo();
+
+    this.chainId = Number(this.multiProvider.getChainId(chainName));
+    this.tokensService = arcadiaSdk.tokensService;
+    this.intentService = arcadiaSdk.intentService;
+    this.refineService = arcadiaSdk.refineService;
+    this.depositService = arcadiaSdk.depositService;
+    this.intentBookAddress = contractService.getIntentBookAddress();
+    // instantiate arcadia provider (Khalani's chain)
+    this.arcadiaProvider = new ethers.providers.JsonRpcProvider(
+      arcadiaChainInfo.rpcUrl[0],
+    );
+
+    // instantiate assetReserves
+    this.assetReservesContract = new ethers.Contract(
+      this.addresses.addressOrDenom,
+      contractService.getAssetReservesABI(),
+      chainProvider,
+    ) as ethers.Contract & {
+      deposit: (
+        token: string,
+        amount: ethers.BigNumber,
+        destChain: number,
+      ) => Promise<ethers.ContractTransaction>;
+    };
+
+    // instantiate intentBook
+    this.intentBookContract = new ethers.Contract(
+      this.intentBookAddress,
+      contractService.getIntentBookABI(),
+      this.arcadiaProvider,
+    ) as ethers.Contract & {
+      getNonce: (address: string) => Promise<ethers.BigNumber>;
+    };
+
+    // Instantiate the mToken contract
+    // This token lives in Arcadia chain and tracks the user balances of the mirror tokens.
+    this.mTokenContract = new ethers.Contract(
+      contractService.getMTokenAddress(this.chainId, this.contract.address),
+      contractService.getMTokenABI(),
+      this.arcadiaProvider,
+    ) as ethers.Contract & {
+      balanceOf: (account: string) => Promise<ethers.BigNumber>;
+    };
+  }
+
+  private async getMTokenBalance(account: string): Promise<bigint> {
+    const balance = await this.mTokenContract.balanceOf(account);
+    return BigInt(balance.toString());
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    const balance = await this.contract.balanceOf(address);
+    return BigInt(balance.toString());
+  }
+
+  async isApproveRequired(
+    owner: Address,
+    _spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const allowance = await this.contract.allowance(
+      owner,
+      this.addresses.addressOrDenom,
+    );
+    return allowance.lt(weiAmountOrId);
+  }
+
+  async populateApproveTx({
+    weiAmountOrId,
+  }: TransferParams): Promise<PopulatedTransaction> {
+    return this.contract.populateTransaction.approve(
+      this.addresses.addressOrDenom,
+      weiAmountOrId.toString(),
+    );
+  }
+
+  async populateTransferTx({
+    weiAmountOrId,
+  }: TransferParams): Promise<PopulatedTransaction> {
+    const data = await this.assetReservesContract.populateTransaction.deposit(
+      this.contract.address,
+      BigNumber.from(weiAmountOrId),
+      this.arcadiaChainId,
+      {
+        value: this.depositService.getGasValue(),
+      },
+    );
+
+    return data;
+  }
+
+  async createRefine(
+    sender: string,
+    toChainId: number,
+    amount: string,
+  ): Promise<string> {
+    const currentNonce = await this.intentBookContract.getNonce(sender);
+
+    const refine = await this.refineService.createRefine({
+      accountAddress: sender,
+      fromChainId: this.chainId,
+      fromTokenAddress: this.addresses.token,
+      amount: BigInt(amount),
+      toChainId,
+      toTokenAddress: this.tokensService.getTokenInDestinyChain({
+        fromChainId: this.chainId,
+        toChainId,
+        tokenAddress: this.addresses.token,
+      }).address,
+      currentNonce: BigInt(currentNonce.add(1).toString()),
+    });
+
+    return refine;
+  }
+
+  async queryRefine(refineId: string): Promise<RefineResult> {
+    const result = await this.refineService.queryRefine(refineId);
+    if (result == 'RefinementNotFound') {
+      throw new Error('Refine not found');
+    }
+    return result as RefineResult;
+  }
+
+  async waitForMTokenMinting(
+    expectedBalance: bigint,
+    account: string,
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < 60_000) {
+      const currentBalance = await this.getMTokenBalance(account);
+      if (currentBalance >= expectedBalance) {
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    }
+
+    throw new Error('Timeout: waiting for mToken mining.');
+  }
+
+  async buildIntentSigningPayload(
+    refineResult: RefineResult,
+    account: string,
+  ): Promise<any> {
+    return this.intentService.buildSignIntentPayload({
+      refineResult,
+      account,
+    });
+  }
+
+  async proposeIntent(
+    refineResult: RefineResult,
+    signature: string,
+  ): Promise<{
+    transactionHash: string;
+    intentId: string;
+  }> {
+    return this.intentService.proposeIntent({
+      refineResult,
+      signature,
+    });
+  }
+
+  async getIntentStatus(intentId: string): Promise<RpcIntentState> {
+    return this.intentService.getIntentStatus(intentId);
+  }
+}
+
+export class EvmKhalaniHypAdapter
+  extends EvmKhalaniIntentTokenAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: {
+      token: Address;
+      addressOrDenom: Address;
+    },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+  set deadline(value: number) {
+    throw new Error('Method not implemented.');
+  }
+  getDomains(): Promise<Domain[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(_domain: Domain): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    throw new Error('Method not implemented.');
+  }
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not implemented.');
+  }
+
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+    _sender?: Address,
+    amount?: string,
+  ): Promise<InterchainGasQuote> {
+    if (!amount || !_sender) {
+      return { amount: 0n, addressOrDenom: this.addresses.addressOrDenom };
+    }
+
+    const refineId = await this.createRefine(_sender, _destination, amount);
+    const refine = await this.queryRefine(refineId);
+    return {
+      amount: BigInt(amount) - BigInt(refine.Refinement.outcome.mAmounts[0]),
+      addressOrDenom: this.addresses.addressOrDenom,
+    };
+  }
+
+  populateTransferRemoteTx(
+    _p: TransferRemoteParams,
+  ): Promise<PopulatedTransaction> {
+    return this.populateTransferTx(_p);
   }
 }

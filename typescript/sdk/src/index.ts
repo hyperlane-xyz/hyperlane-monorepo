@@ -534,6 +534,8 @@ export {
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
+export { type RefineResult as ArcadiaRefineResult } from 'arcadia-sdk-wip/types';
+export { getExtraLockBoxConfigs } from './token/xerc20.js';
 export {
   CosmIbcTokenAdapter,
   CosmIbcToWarpTokenAdapter,
@@ -557,7 +559,7 @@ export {
   EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
-  EvmXERC20VSAdapter,
+  EvmKhalaniHypAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,

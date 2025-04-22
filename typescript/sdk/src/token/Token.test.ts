@@ -123,7 +123,14 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
-
+  [TokenStandard.EvmKhalaniIntent]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmKhalaniIntent,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
   // Sealevel
   [TokenStandard.SealevelSpl]: {
     chainName: testSealevelChain.name,

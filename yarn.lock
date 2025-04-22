@@ -8484,7 +8484,7 @@ __metadata:
     "@types/ws": "npm:^8.5.5"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
-    arcadia-sdk-wip: "npm:^1.1.1"
+    arcadia-sdk-wip: "npm:^1.2.5"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
     chai-as-promised: "npm:^8.0.1"
@@ -19362,15 +19362,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"arcadia-sdk-wip@npm:^1.1.1":
-  version: 1.1.1
-  resolution: "arcadia-sdk-wip@npm:1.1.1"
+"arcadia-sdk-wip@npm:^1.2.5":
+  version: 1.2.5
+  resolution: "arcadia-sdk-wip@npm:1.2.5"
   dependencies:
     "@uniswap/permit2-sdk": "npm:^1.2.0"
     ethers-v6: "npm:ethers@^6.7.1"
   peerDependencies:
     ethers: ^5.7.0
-  checksum: 10/6be0c02f958ae81bad25d67f139929229cb7e88041d07da71ed74817a827139b70404384c2faff547b7a794188dce35cf077d4f7b68856ebf4ac706824acd977
+  checksum: 10/94f5077d2286b5391dbd15cedf41ab94b79de1317704d04d9c24c013f05ec92119a8df434f3c560eb90bad23ef815ba79f736f80957cab8e84f3684ff4f83587
   languageName: node
   linkType: hard
 
