@@ -29,9 +29,13 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
     IPostDispatchHook public immutable childHook;
 
     // ============ Constructor ============
-    constructor(address _mailbox, address _ccipReadIsm, address _childHook) {
-        mailbox = IMailbox(_mailbox);
-        childHook = IPostDispatchHook(_childHook);
+    constructor(
+        IMailbox _mailbox,
+        address _ccipReadIsm,
+        IPostDispatchHook _childHook
+    ) {
+        mailbox = _mailbox;
+        childHook = _childHook;
         ccipReadIsm = _ccipReadIsm.addressToBytes32();
     }
 
