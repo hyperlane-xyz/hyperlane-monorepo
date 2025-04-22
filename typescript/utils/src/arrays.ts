@@ -23,9 +23,9 @@ export function randomElement<T>(list: T[]) {
   return list[randomInt(list.length)];
 }
 
-export function sortArrayByKey<T extends Record<string, any>>(
+export function sortArrayByKey<T extends Record<keyof T, any>>(
   array: T[],
-  sortKey: string,
+  sortKey: keyof T,
 ): T[] {
   return sortBy(array, [
     (item) => {
