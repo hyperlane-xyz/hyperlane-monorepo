@@ -220,9 +220,11 @@ export {
 } from './ism/types.js';
 export {
   collectValidators,
-  moduleCanCertainlyVerify,
-  isStaticDeploymentSupported,
+  isHookCompatible,
   isIsmCompatible,
+  isStaticDeploymentSupported,
+  isStaticIsm,
+  moduleCanCertainlyVerify,
 } from './ism/utils.js';
 export {
   AgentChainMetadata,
