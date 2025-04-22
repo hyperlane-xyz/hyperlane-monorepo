@@ -147,7 +147,7 @@ describe('sort-yaml-arrays rule', () => {
       - name: Zack
         position: Designer`,
       options: {
-        arrays: [{ path: 'departments.*.employees', sortKey: 'name' }],
+        arrays: [{ path: 'departments[].employees', sortKey: 'name' }],
       },
     },
     {
@@ -386,6 +386,207 @@ people:
     port: 8080`,
       options: {
         arrays: [{ path: 'services', sortKey: 'name' }],
+      },
+    },
+    {
+      name: 'should handle array indexing with [] in path',
+      original: `data:
+  - list:
+      - value: 3
+      - value: 1
+  - list:
+      - value: 5
+      - value: 2`,
+      expected: `data:
+  - list:
+      - value: 1
+      - value: 3
+  - list:
+      - value: 2
+      - value: 5`,
+      options: {
+        arrays: [{ path: 'data[].list', sortKey: 'value' }],
+      },
+    },
+    {
+      name: 'should handle wildcard at beginning of path',
+      original: `store:
+  products:
+    - name: Laptop
+      price: 1200
+    - name: Phone
+      price: 800
+  services:
+    - name: Repair
+      price: 150
+    - name: Installation
+      price: 50`,
+      expected: `store:
+  products:
+    - name: Phone
+      price: 800
+    - name: Laptop
+      price: 1200
+  services:
+    - name: Installation
+      price: 50
+    - name: Repair
+      price: 150`,
+      options: {
+        arrays: [
+          { path: '*.products', sortKey: 'price' },
+          { path: '*.services', sortKey: 'price' },
+        ],
+      },
+    },
+    {
+      name: 'should handle multiple wildcards in path',
+      original: `departments:
+  engineering:
+    teams:
+      frontend:
+        members:
+          - name: Dave
+            level: 3
+          - name: Alice
+            level: 5
+      backend:
+        members:
+          - name: Bob
+            level: 4
+          - name: Carol
+            level: 2
+  design:
+    teams:
+      ux:
+        members:
+          - name: Eve
+            level: 3
+          - name: Frank
+            level: 1`,
+      expected: `departments:
+  engineering:
+    teams:
+      frontend:
+        members:
+          - name: Dave
+            level: 3
+          - name: Alice
+            level: 5
+      backend:
+        members:
+          - name: Carol
+            level: 2
+          - name: Bob
+            level: 4
+  design:
+    teams:
+      ux:
+        members:
+          - name: Frank
+            level: 1
+          - name: Eve
+            level: 3`,
+      options: {
+        arrays: [{ path: 'departments.*.teams.*.members', sortKey: 'level' }],
+      },
+    },
+    {
+      name: 'should handle array notation with number indexes',
+      original: `data:
+  - id: 1
+    items:
+      - order: B
+        quantity: 5
+      - order: A
+        quantity: 10
+  - id: 2
+    items:
+      - order: D
+        quantity: 2
+      - order: C
+        quantity: 8`,
+      expected: `data:
+  - id: 1
+    items:
+      - order: A
+        quantity: 10
+      - order: B
+        quantity: 5
+  - id: 2
+    items:
+      - order: C
+        quantity: 8
+      - order: D
+        quantity: 2`,
+      options: {
+        arrays: [{ path: 'data[].items', sortKey: 'order' }],
+      },
+    },
+    {
+      name: 'should handle complex path with array notation and wildcards',
+      original: `repositories:
+  - name: frontend
+    branches:
+      main:
+        commits:
+          - hash: abc123
+            priority: 3
+          - hash: def456
+            priority: 1
+      develop:
+        commits:
+          - hash: ghi789
+            priority: 2
+          - hash: jkl012
+            priority: 4
+  - name: backend
+    branches:
+      main:
+        commits:
+          - hash: mno345
+            priority: 5
+          - hash: pqr678
+            priority: 2
+      staging:
+        commits:
+          - hash: stu901
+            priority: 1
+          - hash: vwx234
+            priority: 3`,
+      expected: `repositories:
+  - name: frontend
+    branches:
+      main:
+        commits:
+          - hash: def456
+            priority: 1
+          - hash: abc123
+            priority: 3
+      develop:
+        commits:
+          - hash: ghi789
+            priority: 2
+          - hash: jkl012
+            priority: 4
+  - name: backend
+    branches:
+      main:
+        commits:
+          - hash: pqr678
+            priority: 2
+          - hash: mno345
+            priority: 5
+      staging:
+        commits:
+          - hash: stu901
+            priority: 1
+          - hash: vwx234
+            priority: 3`,
+      options: {
+        arrays: [
+          { path: 'repositories[].branches.*.commits', sortKey: 'priority' },
+        ],
       },
     },
   ];

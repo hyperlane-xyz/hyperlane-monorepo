@@ -368,26 +368,57 @@ export type ArraySortConfig = {
   }>;
 };
 
+/**
+ * Finds a matching sort key from configuration based on the given path array
+ * Supports various pattern formats including wildcards, array notation, and exact matches
+ */
 function findSortKeyForPath(
   path: string[],
   config: ArraySortConfig,
 ): string | null {
   const matchingConfig = config.arrays.find(({ path: configPath }) => {
     const patternParts = configPath.split('.');
-
-    if (path.length !== patternParts.length) {
-      return false;
-    }
-
-    return path.every((part, idx) => {
-      const patternPart = patternParts[idx];
-      if (patternPart === '*') return true;
-      if (patternPart.endsWith('[]')) return patternPart.slice(0, -2) === part;
-      return patternPart === part;
-    });
+    return isPathMatch(path, patternParts);
   });
 
   return matchingConfig?.sortKey || null;
+}
+
+function isPathMatch(path: string[], patternParts: string[]): boolean {
+  let pathIndex = 0;
+
+  for (
+    let patternIndex = 0;
+    patternIndex < patternParts.length;
+    patternIndex++
+  ) {
+    if (pathIndex >= path.length) return false;
+
+    const pattern = patternParts[patternIndex];
+    const pathSegment = path[pathIndex];
+
+    if (pattern === '*') {
+      pathIndex++;
+      continue;
+    }
+
+    if (pattern.endsWith('[]')) {
+      const prefix = pattern.slice(0, -2);
+      if (!prefix || pathSegment !== prefix) return false;
+
+      pathIndex++;
+      if (pathIndex >= path.length) return false;
+
+      if (isNaN(Number(path[pathIndex]))) return false;
+      pathIndex++;
+      continue;
+    }
+
+    if (pattern !== pathSegment) return false;
+    pathIndex++;
+  }
+
+  return pathIndex === path.length;
 }
 
 /**
