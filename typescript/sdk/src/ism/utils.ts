@@ -14,6 +14,7 @@ import {
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
+import { HookType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   deepEquals,
@@ -631,3 +632,22 @@ export function isIsmCompatible({
 
   return isStaticDeploymentSupported(chainTechnicalStack);
 }
+
+/**
+ * Checks if the given hook type is compatible with the chain's technical stack.
+ *
+ * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain
+ * @param {HookType} params.hookType - The type of hook
+ * @returns {boolean} True if the hook type is compatible with the chain, false otherwise
+ */
+export const isHookCompatible = ({
+  chainTechnicalStack,
+  hookType,
+}: {
+  chainTechnicalStack: ChainTechnicalStack | undefined;
+  hookType: HookType;
+}): boolean =>
+  !(
+    hookType === HookType.AGGREGATION &&
+    chainTechnicalStack === ChainTechnicalStack.ZkSync
+  );
