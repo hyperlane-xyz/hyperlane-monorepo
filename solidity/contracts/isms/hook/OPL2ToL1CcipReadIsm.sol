@@ -178,21 +178,4 @@ contract OPL2ToL1CcipReadIsm is
             opPortal.finalizeWithdrawalTransaction(_tx);
         }
     }
-
-    /// @dev Copied from Hashing.sol of Optimism
-    function _hashWithdrawal(
-        IOptimismPortal.WithdrawalTransaction memory _tx
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _tx.nonce,
-                    _tx.sender,
-                    _tx.target,
-                    _tx.value,
-                    _tx.gasLimit,
-                    _tx.data
-                )
-            );
-    }
 }
