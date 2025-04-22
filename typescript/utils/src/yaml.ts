@@ -1,4 +1,3 @@
-import { isArray, isObject } from 'lodash-es';
 import {
   Document,
   Node as YamlNode,
@@ -399,13 +398,8 @@ export function sortNestedArrays<T = any>(
   config: ArraySortConfig,
   path: string[] = [],
 ): T {
-  // Handle primitive values
-  if (!isObject(data) && !isArray(data)) {
-    return data;
-  }
-
   // Handle arrays
-  if (isArray(data)) {
+  if (Array.isArray(data)) {
     const sortKey = findSortKeyForPath(path, config);
 
     // Process each array item recursively
@@ -419,9 +413,13 @@ export function sortNestedArrays<T = any>(
   }
 
   // Handle objects
-  const result: Record<string, any> = {};
-  for (const [key, val] of Object.entries(data)) {
-    result[key] = sortNestedArrays(val, config, [...path, key]);
+  if (typeof data === 'object' && data !== null) {
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(data)) {
+      result[key] = sortNestedArrays(val, config, [...path, key]);
+    }
+    return result as T;
   }
-  return result as T;
+
+  return data;
 }
