@@ -1013,6 +1013,23 @@ impl PendingMessage {
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
             })?;
+
+	// TODO: Refactor this to avoid creating an ISM object twice.
+	// let ism: Box<dyn InterchainSecurityModule> = message_metadata_builder
+	//     .base_builder()
+	//     .build_ism(ism_address)
+	//     .await
+	//     .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+	// let module_type = message_metadata_builder.call_module_type(&ism).await?;
+	// if module_type == ModuleType::Polymer {
+	//     debug!(
+	// 	message_id = ?self.message.id(),
+	// 	"Message recipient is a Polymer ISM"
+	//     );
+	//     // TODO: Replace the Hyperlane message body with the FSR response (log).
+	// }
+
         Ok(metadata)
     }
 
