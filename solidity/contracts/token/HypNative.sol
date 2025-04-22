@@ -81,6 +81,26 @@ contract HypNative is FungibleTokenRouter {
         return _account.balance;
     }
 
+    function _transferRemoteWithHook(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual returns (bytes32 messageId) {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+        uint256 _hookPayment = msg.value - _amount;
+        return
+            TokenRouter._transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                _hookPayment,
+                _hookMetadata,
+                _hook
+            );
+    }
+
     /**
      * @inheritdoc TokenRouter
      * @dev No-op because native amount is transferred in `msg.value`

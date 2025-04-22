@@ -21,14 +21,11 @@ abstract contract ValueTransferBridgeNative is IValueTransferBridge, HypNative {
         override(HypNative, IValueTransferBridge)
         returns (bytes32)
     {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 _hookPayment = msg.value - _amount;
         return
-            TokenRouter._transferRemote(
+            HypNative._transferRemoteWithHook(
                 _destination,
                 _recipient,
                 _amount,
-                _hookPayment,
                 _getHookMetadata(),
                 address(hook)
             );
