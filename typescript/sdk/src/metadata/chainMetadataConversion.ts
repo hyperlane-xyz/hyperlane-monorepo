@@ -12,14 +12,15 @@ import {
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
 
 export function chainMetadataToViemChain(metadata: ChainMetadata): Chain {
+  const rpcUrls = metadata.rpcUrls.map((rpcUrl) => rpcUrl.http);
   return defineChain({
     id: getChainIdNumber(metadata),
     name: metadata.displayName || metadata.name,
     network: metadata.name,
     nativeCurrency: metadata.nativeToken || test1.nativeToken!,
     rpcUrls: {
-      public: { http: [metadata.rpcUrls[0].http] },
-      default: { http: [metadata.rpcUrls[0].http] },
+      public: { http: rpcUrls },
+      default: { http: rpcUrls },
     },
     blockExplorers: metadata.blockExplorers?.length
       ? {

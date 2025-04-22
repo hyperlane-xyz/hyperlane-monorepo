@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { safes } from '../../config/environments/mainnet3/owners.js';
+import { awSafes as safes } from '../../config/environments/mainnet3/governance/safe/aw.js';
 import { Role } from '../../src/roles.js';
 import {
   createSafeTransaction,
