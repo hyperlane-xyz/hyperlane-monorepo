@@ -826,7 +826,9 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b985a4-20250421-152948',
+      // Using an older image to ensure low-volume chains don't hit an edge case,
+      // see https://hyperlaneworkspace.slack.com/archives/C08GR6PBPGT/p1745272027027899?thread_ts=1745262374.703859&cid=C08GR6PBPGT
+      tag: '7b0f5a0-20250418-120540',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -866,7 +868,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b985a4-20250421-152948',
+      tag: '7b0f5a0-20250418-120540',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -904,7 +906,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b985a4-20250421-152948',
+      tag: '7b0f5a0-20250418-120540',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement,
@@ -931,7 +933,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     docker: {
       repo,
       // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '8117739-20250420-201559',
+      tag: '4569591-20250421-224434',
     },
     whitelist: vanguardMatchingList,
     // Not specifying a blacklist for optimization purposes -- all the message IDs
