@@ -150,7 +150,7 @@ impl SealevelTxAdapter {
     fn batch_size(conf: &ChainConf) -> Result<u32> {
         Ok(conf
             .connection
-            .operation_batch_config()
+            .operation_submission_config()
             .ok_or_else(|| eyre!("no operation batch config"))?
             .max_batch_size)
     }
