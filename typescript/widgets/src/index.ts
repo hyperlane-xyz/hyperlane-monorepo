@@ -111,6 +111,7 @@ export {
   useEthereumDisconnectFn,
   useEthereumTransactionFns,
   useEthereumWalletDetails,
+  useEthereumSignTypedData,
 } from './walletIntegrations/ethereum.js';
 export {
   getAccountAddressAndPubKey,
