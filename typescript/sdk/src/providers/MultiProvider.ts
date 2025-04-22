@@ -1,5 +1,6 @@
 import {
   BigNumber,
+  Contract,
   ContractFactory,
   ContractReceipt,
   ContractTransaction,
@@ -334,48 +335,40 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     params: Parameters<F['deploy']>,
     artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
-    // setup contract factory
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
-
     const metadata = this.getChainMetadata(chainNameOrId);
     const { technicalStack } = metadata;
 
-    let contract;
+    let contract: Contract;
+    let estimatedGas: BigNumber;
+
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
-      // Handle deployment for ZkSync protocol
       const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
-
-      const estimatedGas = await deployer.estimateDeployGas(artifact, params);
-
+      estimatedGas = await deployer.estimateDeployGas(artifact, params);
       contract = await deployer.deploy(artifact, params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
-
-      this.logger.trace(
-        `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
-      );
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
-      const estimatedGas = await signer.estimateGas(deployTx);
+      estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
-        gasLimit: addBufferToGasLimit(estimatedGas), // 10% buffer
+        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
-
-      // wait for deploy tx to be confirmed
-      await this.handleTx(chainNameOrId, contract.deployTransaction);
-
-      this.logger.trace(
-        `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
-        { transaction: deployTx },
-      );
     }
-    // return deployed contract
+
+    await this.handleTx(chainNameOrId, contract.deployTransaction);
+
+    this.logger.trace(
+      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
+      { transaction: contract.deployTransaction },
+    );
+
     return contract as Awaited<ReturnType<F['deploy']>>;
   }
 
