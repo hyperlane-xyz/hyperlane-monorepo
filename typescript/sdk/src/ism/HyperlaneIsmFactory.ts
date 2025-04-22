@@ -161,7 +161,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     // For static ISM types it checks whether the technical stack supports static contract deployment
     assert(
-      isIsmCompatible({ chainTechnicalStack: technicalStack, ismType }),
+      isIsmCompatible({ ismType, chainTechnicalStack: technicalStack }),
       `Technical stack ${technicalStack} is not compatible with ${ismType}`,
     );
 
