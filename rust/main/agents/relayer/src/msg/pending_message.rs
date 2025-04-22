@@ -1027,7 +1027,7 @@ impl PendingMessage {
 	// 	message_id = ?self.message.id(),
 	// 	"Message recipient is a Polymer ISM"
 	//     );
-	//     // TODO: Replace the Hyperlane message body with the FSR response (log).
+	//     // TODO: Replace the Hyperlane message body with the polymer proof response (log).
 	// }
 
         Ok(metadata)
