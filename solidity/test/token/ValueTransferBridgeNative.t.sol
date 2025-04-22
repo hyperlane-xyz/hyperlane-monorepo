@@ -17,6 +17,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {Quotes} from "../../contracts/interfaces/IValueTransferBridge.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {MockOptimismMessenger, MockOptimismStandardBridge, MockL2ToL1MessagePasser} from "../../contracts/mock/MockOptimism.sol";
 import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
@@ -110,9 +111,9 @@ contract ValueTransferBridgeNativeTest is Test {
 
     function deployHooks() public {
         ccipReadHook = new OPL2ToL1CcipReadHook(
-            address(environment.mailboxes(origin)),
+            environment.mailboxes(origin),
             address(ism),
-            address(0)
+            IPostDispatchHook(address(0))
         );
 
         StaticAggregationHookFactory factory = new StaticAggregationHookFactory();
