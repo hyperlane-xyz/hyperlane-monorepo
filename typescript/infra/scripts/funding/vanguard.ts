@@ -6,6 +6,7 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { Role } from '../../src/roles.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -106,22 +107,27 @@ async function fundVanguards() {
   );
 
   // Print balances before funding
-  const initialBalances: ChainMap<Record<string, string>> = {};
+  const currentBalances: ChainMap<Record<string, string>> = {};
   for (const chain of VANGUARD_NETWORKS) {
-    initialBalances[chain] = {};
+    currentBalances[chain] = {};
+    const provider = multiProvider.getProvider(chain);
+    const deployerBalance = await provider.getBalance(DEPLOYER);
+    currentBalances[chain]['deployer'] = Number(
+      formatUnits(deployerBalance, TOKEN_DECIMALS),
+    ).toFixed(3); // Round to 3 decimal places
+
     for (const vanguard of VANGUARDS) {
       const address = VANGUARD_ADDRESSES[vanguard];
-      const provider = multiProvider.getProvider(chain);
       const currentBalance = await provider.getBalance(address);
-      initialBalances[chain][vanguard] = Number(
+      currentBalances[chain][vanguard] = Number(
         formatUnits(currentBalance, TOKEN_DECIMALS),
       ).toFixed(3); // Round to 3 decimal places
     }
   }
 
-  rootLogger.info('\nInitial balances:');
+  rootLogger.info('\nCurrent balances:');
   // eslint-disable-next-line no-console
-  console.table(initialBalances);
+  console.table(currentBalances);
 
   // Track which vanguards were topped up
   const topUpsNeeded: ChainMap<VanguardBalance[]> = {};
@@ -182,7 +188,7 @@ async function fundVanguards() {
       rootLogger.info(chalk.italic.blue('\nFunding vanguards...'));
     } else {
       rootLogger.info(chalk.italic.yellow('\nDry run - not funding vanguards'));
-      return;
+      process.exit(0);
     }
 
     await Promise.all(
@@ -226,6 +232,8 @@ async function fundVanguards() {
   } else {
     rootLogger.info(chalk.bold.green('\nNo vanguards needed topping up'));
   }
+
+  process.exit(0);
 }
 
 fundVanguards().catch((error) => {
