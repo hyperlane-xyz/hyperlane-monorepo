@@ -5,6 +5,7 @@ mod ccip_read;
 mod message_builder;
 mod multisig;
 mod null_metadata;
+mod polymer;
 mod routing;
 
 pub(crate) use base::{
