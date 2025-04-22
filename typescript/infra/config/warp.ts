@@ -237,7 +237,7 @@ export async function getWarpConfig(
     const { owner, ownerOverrides } = config;
     return {
       owner,
-      ownerOverrides,
+      ...(ownerOverrides ? { ownerOverrides } : {}),
     };
   });
 
