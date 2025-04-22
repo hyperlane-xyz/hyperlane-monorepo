@@ -49,12 +49,11 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
         bytes calldata metadata,
         bytes calldata message
     ) internal view override returns (uint256) {
-        bytes memory messageBody = abi.encode(bytes32(0));
         return
             mailbox.quoteDispatch(
                 message.destination(),
                 ccipReadIsm,
-                messageBody,
+                _getMessageBody(message),
                 _getMessageMetadata(),
                 childHook
             );
