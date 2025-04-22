@@ -7,7 +7,7 @@ use hyperlane_base::settings::{ChainConf, RawChainConf};
 use crate::{
     chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, GasLimit},
     error::SubmitterError,
-    payload::FullPayload,
+    payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
 
@@ -34,10 +34,7 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
-    async fn build_transactions(
-        &self,
-        _payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError> {
+    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         todo!()
     }
 
@@ -53,7 +50,10 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
-    async fn reverted_payloads(&self, _tx: &Transaction) -> Result<Vec<Uuid>, SubmitterError> {
+    async fn reverted_payloads(
+        &self,
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
         todo!()
     }
 

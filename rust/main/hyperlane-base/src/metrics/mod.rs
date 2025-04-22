@@ -8,6 +8,7 @@ pub const NAMESPACE: &str = "hyperlane";
 mod core;
 
 mod agent_metrics;
+mod cache;
 mod json_rpc_client;
 mod provider;
 mod runtime_metrics;

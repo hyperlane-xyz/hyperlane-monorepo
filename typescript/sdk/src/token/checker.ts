@@ -43,17 +43,24 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
     const contracts = this.app.getContracts(chain);
+    const expectedConfig = this.configMap[chain];
+
+    // This is used to trigger checks for collateralProxyAdmin or collateralToken
+    const hasCollateralProxyOverrides =
+      expectedConfig.ownerOverrides?.collateralProxyAdmin ||
+      expectedConfig.ownerOverrides?.collateralToken;
 
     if (
-      isCollateralTokenConfig(this.configMap[chain]) ||
-      isXERC20TokenConfig(this.configMap[chain])
+      (isCollateralTokenConfig(this.configMap[chain]) ||
+        isXERC20TokenConfig(this.configMap[chain])) &&
+      hasCollateralProxyOverrides
     ) {
       let collateralToken = await this.getCollateralToken(chain);
 
       const provider = this.multiProvider.getProvider(chain);
 
       // XERC20s are Ownable
-      const expectedConfig = this.configMap[chain];
+
       if (expectedConfig.type === TokenType.XERC20Lockbox) {
         const lockbox = IXERC20Lockbox__factory.connect(
           expectedConfig.token,
@@ -75,7 +82,6 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           provider,
         );
       }
-
       if (await isProxy(provider, collateralToken.address)) {
         const admin = await proxyAdmin(provider, collateralToken.address);
         contracts['collateralProxyAdmin'] = ProxyAdmin__factory.connect(

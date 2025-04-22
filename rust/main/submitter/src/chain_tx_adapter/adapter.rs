@@ -19,7 +19,7 @@ use crate::{
 
 pub type GasLimit = U256;
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
     /// this is a vector because multiple payloads can be included in a single transaction
@@ -39,12 +39,7 @@ pub trait AdaptsChain: Send + Sync {
     ) -> Result<Option<GasLimit>, SubmitterError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    // should this instead return tuples of (Option<Transaction>, PayloadDetails) to
-    // make it clear which payloads failed and should be dropped?
-    async fn build_transactions(
-        &self,
-        payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
@@ -56,7 +51,10 @@ pub trait AdaptsChain: Send + Sync {
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
 
     /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
-    async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<Uuid>, SubmitterError>;
+    async fn reverted_payloads(
+        &self,
+        tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError>;
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;
