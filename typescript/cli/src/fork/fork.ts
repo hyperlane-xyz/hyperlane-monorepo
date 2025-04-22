@@ -8,11 +8,14 @@ import {
   Address,
   ProtocolType,
   deepEquals,
+  objMap,
+  objMerge,
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 
@@ -25,11 +28,13 @@ export const EventAssertionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal(EventAssertionType.RAW_TOPIC),
     topic: ZHash,
+    annotation: z.string().optional(),
   }),
   z.object({
     type: z.literal(EventAssertionType.TOPIC_SIGNATURE),
     signature: z.string(),
     args: z.array(z.string()).optional(),
+    annotation: z.string().optional(),
   }),
 ]);
 
@@ -52,21 +57,22 @@ const TransactionDataSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
+const ForkedChainTransactionConfigSchema = z.object({
+  annotation: z.string().optional(),
+  from: ZHash,
+  data: TransactionDataSchema.optional(),
+  value: z.string().optional(),
+  to: ZHash.optional(),
+  timeSkip: z.number().optional(),
+  eventAssertions: z.array(EventAssertionSchema).default([]),
+});
+type ForkedChainTransactionConfig = z.infer<
+  typeof ForkedChainTransactionConfigSchema
+>;
+
 export const ForkedChainConfigSchema = z.object({
   impersonateAccounts: z.array(ZHash).default([]),
-  transactions: z
-    .array(
-      z.object({
-        annotation: z.string().optional(),
-        from: ZHash,
-        data: TransactionDataSchema.optional(),
-        value: z.string().optional(),
-        to: ZHash.optional(),
-        timeSkip: z.number().optional(),
-        eventAssertions: z.array(EventAssertionSchema).default([]),
-      }),
-    )
-    .default([]),
+  transactions: z.array(ForkedChainTransactionConfigSchema).default([]),
 });
 
 export type ForkedChainConfig = z.infer<typeof ForkedChainConfigSchema>;
@@ -77,6 +83,121 @@ export type ForkedChainConfigByChain = z.infer<
   typeof ForkedChainConfigByChainSchema
 >;
 
+enum TransactionConfigType {
+  RAW_TRANSACTION = 'rawTransaction',
+  FILE = 'file',
+}
+
+export const RawForkedChainConfigSchema = z.object({
+  impersonateAccounts: z.array(ZHash).default([]),
+  transactions: z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal(TransactionConfigType.RAW_TRANSACTION),
+      transactions: z.array(ForkedChainTransactionConfigSchema),
+    }),
+    z.object({
+      type: z.literal(TransactionConfigType.FILE),
+      path: z.string(),
+      defaultSender: ZHash,
+      overrides: z
+        .record(ForkedChainTransactionConfigSchema.partial())
+        .default({}),
+    }),
+  ]),
+});
+
+export type RawForkedChainConfig = z.infer<typeof RawForkedChainConfigSchema>;
+
+export const RawForkedChainConfigByChainSchema = z.record(
+  RawForkedChainConfigSchema,
+);
+export type RawForkedChainConfigByChain = z.infer<
+  typeof RawForkedChainConfigByChainSchema
+>;
+
+type SafeTx = {
+  version: string;
+  chainId: string;
+  transactions: { to: string; value?: string; data?: string }[];
+};
+
+type TxFormatter = {
+  [Key in TransactionConfigType]: (
+    config: Extract<RawForkedChainConfig['transactions'], { type: Key }>,
+  ) => ForkedChainConfig['transactions'];
+};
+
+function forkedChainTransactionsFromRaw(
+  raw: RawForkedChainConfig['transactions'],
+): ForkedChainConfig['transactions'] {
+  const formatters: TxFormatter = {
+    [TransactionConfigType.FILE]: (config) => {
+      const safeTxs: SafeTx = readYamlOrJson(config.path);
+
+      const transactions = safeTxs.transactions.map(
+        (safeTx, idx): ForkedChainTransactionConfig => {
+          const overrides = config.overrides[idx] ?? {};
+
+          const baseTx: ForkedChainTransactionConfig = {
+            from: config.defaultSender,
+            data: {
+              type: TransactionDataType.RAW_CALLDATA,
+              calldata: safeTx.data ?? '0x',
+            },
+            to: safeTx.to,
+            value: safeTx.value,
+            eventAssertions: [],
+          };
+
+          return objMerge(baseTx, overrides);
+        },
+      );
+
+      return transactions;
+    },
+    [TransactionConfigType.RAW_TRANSACTION]: (config) => config.transactions,
+  };
+
+  const formatter = formatters[raw.type];
+
+  if (!formatter) {
+    throw new Error('henlo');
+  }
+
+  // @ts-ignore
+  return formatter(raw);
+}
+
+function forkedChainConfigFromRaw(
+  raw: RawForkedChainConfig,
+): ForkedChainConfig {
+  const parsedRawConfig = RawForkedChainConfigSchema.parse(raw);
+
+  const transactions = forkedChainTransactionsFromRaw(raw.transactions);
+  const transactionSenders = transactions.map((tx) => tx.from);
+
+  const impersonateAccounts = Array.from(
+    new Set([...transactionSenders, ...parsedRawConfig.impersonateAccounts]),
+  );
+
+  const forkedChainConfig: ForkedChainConfig = {
+    transactions,
+    impersonateAccounts,
+  };
+
+  return ForkedChainConfigSchema.parse(forkedChainConfig);
+}
+
+export function forkedChainConfigByChainFromRaw(
+  raw: RawForkedChainConfigByChain,
+): ForkedChainConfigByChain {
+  const forkConfigByChain = objMap(raw, (_chain, config) =>
+    forkedChainConfigFromRaw(config),
+  );
+
+  return ForkedChainConfigByChainSchema.parse(forkConfigByChain);
+}
+
 export async function runForkCommand({
   context,
   chainsToFork,
@@ -86,7 +207,7 @@ export async function runForkCommand({
 }: {
   context: CommandContext;
   chainsToFork: Set<ChainName>;
-  forkConfig: ForkedChainConfigByChain;
+  forkConfig: RawForkedChainConfigByChain;
   kill: boolean;
   basePort?: number;
 }): Promise<void> {
@@ -96,13 +217,14 @@ export async function runForkCommand({
   );
 
   let port = basePort;
+  const parsedForkConfig = forkedChainConfigByChainFromRaw(forkConfig);
   for (const chainName of filteredChainsToFork) {
     await forkChain(
       context.multiProvider,
       chainName,
       port,
       kill,
-      forkConfig[chainName],
+      parsedForkConfig[chainName],
     );
 
     port++;
@@ -196,6 +318,7 @@ async function handleTransactions(
   }
 
   logGray(`Executing transactions on chain ${chainName}`);
+  let txCounter = 0;
   for (const transaction of transactions) {
     const signer = provider.getSigner(transaction.from);
 
@@ -219,9 +342,8 @@ async function handleTransactions(
       );
     }
 
-    logGray(
-      `Executing transaction on chain ${chainName}: "${transaction.annotation}" `,
-    );
+    const annotation = transaction.annotation ?? `#${txCounter}`;
+    logGray(`Executing transaction on chain ${chainName}: "${annotation}"`);
     const pendingTx = await signer.sendTransaction({
       to: transaction.to,
       data: calldata,
@@ -235,8 +357,12 @@ async function handleTransactions(
       );
     }
 
-    transaction.eventAssertions.forEach((eventAssertion) =>
-      assertEvent(eventAssertion, txReceipt.logs),
+    transaction.eventAssertions.forEach((eventAssertion, idx) =>
+      assertEvent(eventAssertion, txReceipt.logs, {
+        chainName: chainName,
+        assertionIdx: idx,
+        transactionAnnotation: annotation,
+      }),
     );
 
     if (transaction.timeSkip) {
@@ -245,11 +371,21 @@ async function handleTransactions(
       );
       await provider.send('evm_increaseTime', [transaction.timeSkip]);
     }
+
+    txCounter++;
   }
   logGray(`Successfully executed all transactions on chain ${chainName}`);
 }
 
-function assertEvent(eventAssertion: EventAssertion, rawLogs: Log[]): void {
+function assertEvent(
+  eventAssertion: EventAssertion,
+  rawLogs: Log[],
+  meta: {
+    chainName: string;
+    assertionIdx: number;
+    transactionAnnotation: string;
+  },
+): void {
   const [rawLog] = rawLogs.filter((rawLog) =>
     eventAssertion.type === EventAssertionType.RAW_TOPIC
       ? assertEventByTopic(eventAssertion, rawLog)
@@ -265,6 +401,11 @@ function assertEvent(eventAssertion: EventAssertion, rawLogs: Log[]): void {
       } not found in transaction!`,
     );
   }
+
+  const annotation = eventAssertion.annotation ?? `#${meta.assertionIdx}`;
+  logGray(
+    `Successfully completed assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
+  );
 }
 
 function assertEventByTopic(

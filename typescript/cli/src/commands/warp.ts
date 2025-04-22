@@ -2,7 +2,6 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
-  ChainMap,
   ChainName,
   ChainSubmissionStrategySchema,
   expandWarpDeployConfig,
@@ -22,8 +21,8 @@ import {
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import {
-  ForkedChainConfig,
-  ForkedChainConfigByChainSchema,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
   runForkCommand,
 } from '../fork/fork.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
@@ -483,9 +482,9 @@ const fork: CommandModuleWithContext<{
       context,
     );
 
-    let forkConfig: ChainMap<ForkedChainConfig>;
+    let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {
-      forkConfig = ForkedChainConfigByChainSchema.parse(
+      forkConfig = RawForkedChainConfigByChainSchema.parse(
         readYamlOrJson(forkConfigPath),
       );
     } else {

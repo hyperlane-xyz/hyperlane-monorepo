@@ -1,9 +1,7 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
-
 import { CommandModuleWithContext } from '../context/types.js';
 import {
-  ForkedChainConfig,
-  ForkedChainConfigByChainSchema,
+  RawForkedChainConfigByChain,
+  RawForkedChainConfigByChainSchema,
   runForkCommand,
 } from '../fork/fork.js';
 import { readYamlOrJson } from '../utils/files.js';
@@ -36,9 +34,9 @@ export const forkCommand: CommandModuleWithContext<{
     },
   },
   handler: async ({ context, port, kill, forkConfig: forkConfigPath }) => {
-    let forkConfig: ChainMap<ForkedChainConfig>;
+    let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {
-      forkConfig = ForkedChainConfigByChainSchema.parse(
+      forkConfig = RawForkedChainConfigByChainSchema.parse(
         readYamlOrJson(forkConfigPath),
       );
     } else {
