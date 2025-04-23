@@ -62,14 +62,11 @@ contract PolymerISM is IInterchainSecurityModule {
 
     /**
      * @inheritdoc IInterchainSecurityModule
-     * @notice Verifies a Hyperlane message by validating a Polymer proof of the
-     * corresponding `Dispatch` event from the configured origin Mailbox.
-     * @param _metadata The raw Polymer proof bytes (`polymerProofBytes`) for the Dispatch event.
-     * @param _message The Hyperlane message bytes being verified. This *must* correspond
-     * to the `message` field within the proven Dispatch event.
-     * @return True if the Polymer proof is valid and confirms a `Dispatch` event
-     * from the origin chain targeting this chain with matching `message` content
-     * matching `message` content was emitted. False otherwise.
+     * @notice Verifies a requested log by validating a Polymer proof of the
+     * corresponding log from the requested chain.
+     * @param _metadata The raw Polymer proof bytes (`polymerProofBytes`) for the requested log.
+     * @param _message The raw log bytes being verified.
+     * @return True if the Polymer proof is valid and that the raw log bytes match the requested log.
      */
     function verify(
         bytes calldata _metadata,
