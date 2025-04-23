@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import { warpConfigToWarpAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
@@ -69,6 +70,7 @@ export const warpCommand: CommandModule = {
       .command(read)
       .command(send)
       .command(verify)
+      .command(addresses)
       .version(false)
       .demandCommand(),
 
@@ -426,5 +428,51 @@ export const verify: CommandModuleWithWriteContext<{
     );
 
     return runVerifyWarpRoute({ context, warpCoreConfig });
+  },
+};
+
+export const addresses: CommandModuleWithContext<{
+  warpRouteId?: string;
+  symbol?: string;
+  chain?: string;
+}> = {
+  command: 'addresses',
+  aliases: ['address', 'addy'],
+  describe: 'Display the addresses of Warp Route contracts',
+  builder: {
+    warpRouteId: warpRouteIdCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    chain: {
+      ...chainCommandOption,
+      demandOption: false,
+    },
+  },
+  handler: async ({ context, warpRouteId, symbol, chain }) => {
+    logCommandHeader('Hyperlane Warp Addresses');
+
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context,
+      symbol,
+      warp: warpRouteId,
+    });
+
+    const routerAddresses = warpConfigToWarpAddresses(warpCoreConfig);
+
+    if (chain) {
+      const chainAddresses = routerAddresses[chain];
+      if (!chainAddresses) {
+        log(`No warp route contracts found for chain: ${chain}`);
+        process.exit(1);
+      }
+      logBlue(`Warp route contracts for chain: ${chain}`);
+      log(JSON.stringify(chainAddresses, null, 2));
+    } else {
+      logBlue(`Warp route contracts for all chains:`);
+      log(JSON.stringify(routerAddresses, null, 2));
+    }
+    process.exit(0);
   },
 };
