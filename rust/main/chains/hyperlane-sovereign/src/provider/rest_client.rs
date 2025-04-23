@@ -261,6 +261,7 @@ impl SovereignRestClient {
             _body: Option<String>,
             _events: Option<Value>,
             _batch_number: Option<u32>,
+            timestamp: Option<u64>,
         }
 
         #[derive(Clone, Debug, Deserialize)]
@@ -280,10 +281,14 @@ impl SovereignRestClient {
         let response: Schema<Data> = serde_json::from_slice(&response)?;
 
         if let Some(response_data) = response.data {
-            if let (Some(hash), Some(number)) = (response_data.hash, response_data.number) {
+            if let (Some(hash), Some(number), Some(timestamp)) = (
+                response_data.hash,
+                response_data.number,
+                response_data.timestamp,
+            ) {
                 Ok(BlockInfo {
                     hash: H256::from_str(hash.as_str())?,
-                    timestamp: u64::default(), // TODO: Use the slot timestamp once <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/2661> merges
+                    timestamp,
                     number,
                 })
             } else {
