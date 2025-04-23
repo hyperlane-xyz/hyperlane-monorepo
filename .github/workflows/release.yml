@@ -10,7 +10,7 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  cli-install--release-test:
+  cli-install-cross-platform-release-test:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
