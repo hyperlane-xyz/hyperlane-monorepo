@@ -3,7 +3,7 @@ use std::str::FromStr;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use url::Url;
 
-use hyperlane_core::config::OperationBatchConfig;
+use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, NativeToken};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
@@ -61,9 +61,10 @@ fn provider(address: &str) -> WasmGrpcProvider {
             "untrn".to_owned(),
             RawCosmosAmount::new("untrn".to_owned(), "0".to_owned()),
             32,
-            OperationBatchConfig {
+            OpSubmissionConfig {
                 batch_contract_address: None,
                 max_batch_size: 1,
+                ..Default::default()
             },
             NativeToken {
                 decimals: 6,
