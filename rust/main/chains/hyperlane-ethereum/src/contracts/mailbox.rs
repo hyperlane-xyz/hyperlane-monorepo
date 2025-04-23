@@ -366,6 +366,7 @@ where
         let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone());
         let call_results = batch.call().await?;
 
+        let call_count = contract_calls.len();
         let (successful, failed) = multicall::filter_failed(contract_calls, call_results);
 
         if successful.is_empty() {
@@ -383,7 +384,7 @@ where
                 failed,
             ))
         } else {
-            Ok(BatchSimulation::failed(failed.len()))
+            Ok(BatchSimulation::failed(call_count))
         }
     }
 
