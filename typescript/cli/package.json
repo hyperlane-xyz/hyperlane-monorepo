@@ -61,7 +61,8 @@
   },
   "files": [
     "./cli-bundle",
-    "./examples"
+    "./examples",
+    "package.json"
   ],
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
