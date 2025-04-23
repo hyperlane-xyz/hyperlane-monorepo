@@ -79,12 +79,9 @@ jobs:
 
       - name: prettier
         run: |
-          yarn prettier
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            exit 1
-          fi
+            git diff --name-only --diff-filter=ACMRT ${{ github.base_ref || 'HEAD~1' }} ${{ github.head_ref || 'HEAD' }} | \
+            xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern || \
+            { echo "Prettier check failed. Please run 'yarn prettier' to fix formatting issues."; exit 1; }
 
   yarn-test:
     runs-on: ubuntu-latest

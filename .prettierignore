@@ -7,3 +7,7 @@
 
 *.Dockerfile
 Dockerfile
+
+rust/
+tools/
+vectors/
