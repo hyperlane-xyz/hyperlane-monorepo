@@ -23,7 +23,7 @@ import {
   getLUMIAGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig.js';
 import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
-import { getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
+import { getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
 import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBscEthereumMantleModePolygonScrollZeronetworkUSDTWarpConfig.js';
 import { getArbitrumEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumSolanaTreasureSMOLWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
@@ -109,7 +109,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
     getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC]:
-    getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC,
+    getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
     getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
