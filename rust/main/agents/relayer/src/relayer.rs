@@ -80,7 +80,7 @@ pub struct Relayer {
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
-        HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>>,
+        Option<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
@@ -220,6 +220,7 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
                 false,
+                settings.tx_id_indexing_enabled,
             )
             .await?
             .into_iter()
@@ -228,20 +229,27 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let interchain_gas_payment_syncs = settings
-            .contract_syncs::<InterchainGasPayment, _>(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+        let interchain_gas_payment_syncs = if settings.igp_indexing_enabled {
+            Some(
+                settings
+                    .contract_syncs::<InterchainGasPayment, _>(
+                        settings.origin_chains.iter(),
+                        &core_metrics,
+                        &contract_sync_metrics,
+                        dbs.iter()
+                            .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                            .collect(),
+                        false,
+                        settings.tx_id_indexing_enabled,
+                    )
+                    .await?
+                    .into_iter()
+                    .map(|(k, v)| (k, v as _))
                     .collect(),
-                false,
             )
-            .await?
-            .into_iter()
-            .map(|(k, v)| (k, v as _))
-            .collect();
+        } else {
+            None
+        };
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -254,6 +262,7 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
                 false,
+                settings.tx_id_indexing_enabled,
             )
             .await?
             .into_iter()
@@ -346,7 +355,7 @@ impl BaseAgent for Relayer {
                     ),
                     IsmCachePolicyClassifier::new(
                         default_ism_getter.clone(),
-                        settings.default_ism_cache_config.clone(),
+                        settings.ism_cache_configs.clone(),
                     ),
                 );
 
@@ -453,9 +462,13 @@ impl BaseAgent for Relayer {
                 // Default to submitting one message at a time if there is no batch config
                 self.core.settings.chains[dest_domain.name()]
                     .connection
-                    .operation_batch_config()
+                    .operation_submission_config()
                     .map(|c| c.max_batch_size)
                     .unwrap_or(1),
+                self.core.settings.chains[dest_domain.name()]
+                    .connection
+                    .operation_submission_config()
+                    .and_then(|c| c.max_submit_queue_length),
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
@@ -494,14 +507,17 @@ impl BaseAgent for Relayer {
                 .get(origin)
                 .and_then(|sync| sync.get_broadcaster());
             tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
-            tasks.push(
-                self.run_interchain_gas_payment_sync(
-                    origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                    task_monitor.clone(),
-                )
-                .await,
-            );
+            if let Some(interchain_gas_payment_syncs) = &self.interchain_gas_payment_syncs {
+                tasks.push(
+                    self.run_interchain_gas_payment_sync(
+                        origin,
+                        interchain_gas_payment_syncs,
+                        BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                        task_monitor.clone(),
+                    )
+                    .await,
+                );
+            }
             tasks.push(
                 self.run_merkle_tree_hook_sync(
                     origin,
@@ -628,16 +644,16 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
+        interchain_gas_payment_syncs: &HashMap<
+            HyperlaneDomain,
+            Arc<dyn ContractSyncer<InterchainGasPayment>>,
+        >,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
         let origin = origin.clone();
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
-        let contract_sync = self
-            .interchain_gas_payment_syncs
-            .get(&origin)
-            .unwrap()
-            .clone();
+        let contract_sync = interchain_gas_payment_syncs.get(&origin).unwrap().clone();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("gas_payment::", origin.name());
@@ -1026,8 +1042,8 @@ mod test {
         CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain,
-        ReorgPeriod, H256,
+        config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod,
+        H256,
     };
     use hyperlane_ethereum as h_eth;
 
@@ -1084,10 +1100,12 @@ mod test {
                         gas_limit: None,
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
+                        ..Default::default()
                     },
-                    operation_batch: OperationBatchConfig {
+                    op_submission_config: OpSubmissionConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
+                        ..Default::default()
                     },
                 }),
                 metrics_conf: PrometheusMiddlewareConf {
@@ -1132,8 +1150,10 @@ mod test {
             allow_local_checkpoint_syncers: true,
             metric_app_contexts: Vec::new(),
             allow_contract_call_caching: true,
-            default_ism_cache_config: Default::default(),
+            ism_cache_configs: Default::default(),
             max_retries: 1,
+            tx_id_indexing_enabled: true,
+            igp_indexing_enabled: true,
         }
     }
 

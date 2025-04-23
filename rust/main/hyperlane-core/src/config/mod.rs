@@ -24,11 +24,18 @@ pub type NoFilter = ();
 
 /// Config for batching messages
 #[derive(Debug, Clone, Default)]
-pub struct OperationBatchConfig {
+pub struct OpSubmissionConfig {
     /// Optional batch contract address (e.g. Multicall3 on EVM chains)
     pub batch_contract_address: Option<H256>,
+
     /// Batch size
     pub max_batch_size: u32,
+
+    /// bypass batch simulation
+    pub bypass_batch_simulation: bool,
+
+    /// max submit queue length
+    pub max_submit_queue_length: Option<u32>,
 }
 
 /// A trait that allows for constructing `Self` from a raw config type.
