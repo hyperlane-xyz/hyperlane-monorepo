@@ -50,7 +50,6 @@ function addOverridesToConfig(
     }),
   );
 }
-
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
@@ -130,6 +129,7 @@ describe('TokenDeployer', async () => {
           return undefined;
       }
     };
+
     describe('HypERC20Checker', async () => {
       let checker: HypERC20Checker;
       let app: HypERC20App;
