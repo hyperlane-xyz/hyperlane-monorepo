@@ -7,6 +7,7 @@ import { CONTRACT_SUFFIXES } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
 
 import { Templates } from './Templates.js';
+import { prettierOutputTransformer } from './prettier.js';
 
 type ProcessedFileInfo = { type: ContractType; sierra: boolean; casm: boolean };
 type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
@@ -197,11 +198,11 @@ export class StarknetArtifactGenerator {
     const outputFileName = `${name}.${contractClass}`;
     await fs.writeFile(
       join(this.rootOutputDir, outputFileName + '.js'),
-      jsContent,
+      jsContent, // No prettier output needed
     );
     await fs.writeFile(
       join(this.rootOutputDir, outputFileName + '.d.ts'),
-      dtsContent,
+      prettierOutputTransformer(dtsContent),
     );
 
     return { name, contractType, contractClass };
@@ -247,8 +248,15 @@ export class StarknetArtifactGenerator {
 
       const { jsContent, dtsContent } =
         this.generateIndexContents(processedFilesMap);
-      await fs.writeFile(join(this.rootOutputDir, 'index.js'), jsContent);
-      await fs.writeFile(join(this.rootOutputDir, 'index.d.ts'), dtsContent);
+
+      await fs.writeFile(
+        join(this.rootOutputDir, 'index.js'),
+        prettierOutputTransformer(jsContent),
+      );
+      await fs.writeFile(
+        join(this.rootOutputDir, 'index.d.ts'),
+        prettierOutputTransformer(dtsContent),
+      );
 
       return processedFilesMap;
     } catch (error) {

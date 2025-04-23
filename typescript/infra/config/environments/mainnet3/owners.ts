@@ -48,7 +48,7 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       {
         owner,
         ownerOverrides: {
-          proxyAdmin: owner,
+          proxyAdmin: upgradeTimelocks[local] ?? owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,

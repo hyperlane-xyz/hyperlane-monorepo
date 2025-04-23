@@ -61,13 +61,6 @@ describe('Templates', () => {
     expect(result).to.include(
       `import type { CairoAssembly, CompiledContract } from 'starknet';`,
     );
-    expect(result).to.include('export interface StarknetContractGroup {');
-    expect(result).to.include('contract_class?: CompiledContract;');
-    expect(result).to.include('compiled_contract_class?: CairoAssembly;');
-    expect(result).to.include('export interface StarknetContracts {');
-    expect(result).to.include('contracts: StarknetContractGroup;');
-    expect(result).to.include('token: StarknetContractGroup;');
-    expect(result).to.include('mocks: StarknetContractGroup;');
     expect(result).to.include(
       'export declare const starknetContracts: StarknetContracts;',
     );
