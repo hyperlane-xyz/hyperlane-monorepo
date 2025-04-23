@@ -20,7 +20,13 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+} from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import {
   Executor,
@@ -411,7 +417,7 @@ export const check: CommandModuleWithContext<{
 export const rebalancer: CommandModuleWithContext<{
   warpRouteId: string;
   checkFrequency: number;
-  strategyTolerance: string;
+  strategyConfigFile: string;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -427,51 +433,53 @@ export const rebalancer: CommandModuleWithContext<{
       demandOption: true,
       alias: 'v',
     },
-    strategyTolerance: {
+    strategyConfigFile: {
       type: 'string',
-      description:
-        'Tolerance threshold for imbalance detection (specified in token base units; e.g., 1000000 for 1 USDC, 1000000000000000000 for 1 ETH)',
-      demandOption: false,
-      default: '0',
+      description: 'The path to a strategy configuration file (.json or .yaml)',
+      demandOption: true,
+      alias: 's',
     },
   },
   handler: async ({
     context,
     warpRouteId,
     checkFrequency,
-    strategyTolerance,
+    strategyConfigFile,
   }) => {
-    logCommandHeader('Hyperlane Warp Rebalancer');
+    try {
+      // Instantiates the warp route monitor
+      const monitor: IMonitor = new Monitor(
+        context.registry,
+        warpRouteId,
+        checkFrequency,
+      );
 
-    // Instantiates the warp route monitor
-    const monitor: IMonitor = new Monitor(
-      context.registry,
-      warpRouteId,
-      checkFrequency,
-    );
+      // Instantiates the strategy that will get rebalancing routes based on monitor results
+      const strategy: IStrategy = Strategy.fromConfigFile(strategyConfigFile);
 
-    // Instantiates the strategy that will get rebalancing routes based on monitor results
-    const strategy: IStrategy = new Strategy(BigInt(strategyTolerance));
+      // Instantiates the executor that will process rebalancing routes
+      const executor: IExecutor = new Executor();
 
-    // Instantiates the executor that will process rebalancing routes
-    const executor: IExecutor = new Executor();
+      // Observe monitor events and process rebalancing routes
+      monitor.subscribe((event) => {
+        const balances = event.balances.reduce((acc, next) => {
+          acc[next.chain] = next.value;
+          return acc;
+        }, {} as Record<ChainName, bigint>);
 
-    // Observe monitor events and process rebalancing routes
-    monitor.subscribe((event) => {
-      const balances = event.balances.reduce((acc, next) => {
-        acc[next.chain] = next.value;
-        return acc;
-      }, {} as Record<ChainName, bigint>);
+        const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
 
-      const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
+        executor.processRebalancingRoutes(rebalancingRoutes);
+      });
 
-      executor.processRebalancingRoutes(rebalancingRoutes);
-    });
+      // Starts the monitor to begin polling balances.
+      await monitor.start();
 
-    // Starts the monitor to begin polling balances.
-    await monitor.start();
-
-    logGreen('Rebalancer started successfully 🚀');
+      logGreen('Rebalancer started successfully 🚀');
+    } catch (e) {
+      errorRed('Rebalancer could not be started:', (e as Error).message);
+      process.exit(1);
+    }
   },
 };
 

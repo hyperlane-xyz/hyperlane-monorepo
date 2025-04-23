@@ -1,5 +1,5 @@
 import { Wallet } from 'ethers';
-import { ProcessPromise } from 'zx';
+import { rmSync } from 'fs';
 import { $ } from 'zx';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
@@ -21,6 +21,7 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REBALANCER_STRATEGY_CONFIG_PATH,
   createSnapshot,
   deployOrUseExistingCore,
   deployToken,
@@ -41,16 +42,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   let warpDeploymentPath: string;
   let tokenSymbol: string;
   let warpRouteId: string;
-
-  let process: ProcessPromise | undefined;
-
   let snapshots: { rpcUrl: string; snapshotId: string }[] = [];
 
   before(async () => {
     const ogVerbose = $.verbose;
     $.verbose = false;
 
-    // Deploy core contracts on all chains
+    console.log('Deploying core contracts on all chains...');
+
     const [chain2Addresses, chain3Addresses, chain4Addresses] =
       await Promise.all([
         deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
@@ -58,14 +57,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
       ]);
 
-    // Deploy ERC20s
+    console.log('Deploying ERC20s...');
+
     const [tokenChain2, tokenChain3] = await Promise.all([
       deployToken(ANVIL_KEY, CHAIN_NAME_2),
       deployToken(ANVIL_KEY, CHAIN_NAME_3),
     ]);
     tokenSymbol = await tokenChain2.symbol();
 
-    // Deploy Warp Route
+    console.log('Deploying Warp Route...');
+
     warpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
       CHAIN_NAME_2,
       CHAIN_NAME_3,
@@ -100,11 +101,35 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       CHAIN_NAME_4,
     ]);
 
+    console.log('Bridging tokens...');
+
+    await Promise.all([
+      hyperlaneWarpSendRelay(
+        CHAIN_NAME_2,
+        CHAIN_NAME_4,
+        warpDeploymentPath,
+        true,
+        toWei(100),
+      ),
+      sleep(1000).then(() =>
+        hyperlaneWarpSendRelay(
+          CHAIN_NAME_3,
+          CHAIN_NAME_4,
+          warpDeploymentPath,
+          true,
+          toWei(100),
+        ),
+      ),
+    ]);
+
     $.verbose = ogVerbose;
   });
 
   beforeEach(async () => {
-    process = undefined;
+    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
+      [CHAIN_NAME_2]: { weight: '100', tolerance: '0' },
+      [CHAIN_NAME_3]: { weight: '100', tolerance: '0' },
+    });
 
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
@@ -131,8 +156,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   afterEach(async () => {
-    if (process) {
-      await process.kill();
+    try {
+      rmSync(REBALANCER_STRATEGY_CONFIG_PATH);
+    } catch (e) {
+      // Ignore
     }
 
     await Promise.all(
@@ -142,125 +169,73 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
+  async function startRebalancerAndExpectLog(log: string): Promise<void> {
+    const process = hyperlaneWarpRebalancer(
+      warpRouteId,
+      CHECK_FREQUENCY,
+      REBALANCER_STRATEGY_CONFIG_PATH,
+    );
+
+    return new Promise(async (resolve, reject) => {
+      process.catch((e) => {
+        // TODO: Do a pretty print of the error
+        reject(e.text());
+      });
+
+      for await (const chunk of process.stdout) {
+        if (chunk.includes(log)) {
+          resolve();
+          await process.kill();
+          break;
+        }
+      }
+    });
+  }
+
   it('should successfuly start the rebalancer', async () => {
-    process = hyperlaneWarpRebalancer(warpRouteId, CHECK_FREQUENCY);
-
-    for await (const chunk of process.stdout) {
-      if (chunk.includes('Rebalancer started successfully 🚀')) {
-        break;
-      }
-    }
+    await startRebalancerAndExpectLog('Rebalancer started successfully 🚀');
   });
 
-  describe('with no balance on collateral contracts', () => {
-    it('should report an empty array of routes being executed', async () => {
-      process = hyperlaneWarpRebalancer(warpRouteId, CHECK_FREQUENCY);
+  it('should throw when strategy config file does not exist', async () => {
+    rmSync(REBALANCER_STRATEGY_CONFIG_PATH);
 
-      for await (const chunk of process.stdout) {
-        if (chunk.includes('Executing rebalancing routes: []')) {
-          break;
-        }
-      }
-    });
+    await startRebalancerAndExpectLog(
+      `File doesn't exist at ${REBALANCER_STRATEGY_CONFIG_PATH}`,
+    );
   });
 
-  describe('with the same balance on all collateral contracts', () => {
-    beforeEach(async () => {
-      const ogVerbose = $.verbose;
-      $.verbose = false;
-
-      await Promise.all([
-        hyperlaneWarpSendRelay(
-          CHAIN_NAME_2,
-          CHAIN_NAME_4,
-          warpDeploymentPath,
-          true,
-          toWei(50),
-        ),
-        sleep(1000).then(() =>
-          hyperlaneWarpSendRelay(
-            CHAIN_NAME_3,
-            CHAIN_NAME_4,
-            warpDeploymentPath,
-            true,
-            toWei(50),
-          ),
-        ),
-      ]);
-
-      $.verbose = ogVerbose;
+  it('should throw if a strategy bigint cannot be parsed', async () => {
+    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
+      [CHAIN_NAME_2]: { weight: 'weight', tolerance: 0 },
+      [CHAIN_NAME_3]: { weight: 100, tolerance: 0 },
     });
 
-    it('should report an empty array of routes being executed', async () => {
-      process = hyperlaneWarpRebalancer(warpRouteId, CHECK_FREQUENCY);
+    await startRebalancerAndExpectLog(`Cannot convert weight to a BigInt`);
 
-      for await (const chunk of process.stdout) {
-        if (chunk.includes('Executing rebalancing routes: []')) {
-          break;
-        }
-      }
+    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
+      [CHAIN_NAME_2]: { weight: 100, tolerance: 0 },
+      [CHAIN_NAME_3]: { weight: 100, tolerance: 'tolerance' },
     });
+
+    await startRebalancerAndExpectLog(`Cannot convert tolerance to a BigInt`);
   });
 
-  describe('with different balances on collateral contracts', () => {
-    beforeEach(async () => {
-      const ogVerbose = $.verbose;
-      $.verbose = false;
+  it('should log that no routes are to be executed', async () => {
+    await startRebalancerAndExpectLog(`Executing rebalancing routes: []`);
+  });
 
-      await Promise.all([
-        hyperlaneWarpSendRelay(
-          CHAIN_NAME_2,
-          CHAIN_NAME_4,
-          warpDeploymentPath,
-          true,
-          toWei(40),
-        ),
-        sleep(1000).then(() =>
-          hyperlaneWarpSendRelay(
-            CHAIN_NAME_3,
-            CHAIN_NAME_4,
-            warpDeploymentPath,
-            true,
-            toWei(60),
-          ),
-        ),
-      ]);
-
-      $.verbose = ogVerbose;
+  it('should log that a single route is to be executed', async () => {
+    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
+      [CHAIN_NAME_2]: { weight: '75', tolerance: '0' },
+      [CHAIN_NAME_3]: { weight: '25', tolerance: '0' },
     });
 
-    it('should report an array of routes being executed', async () => {
-      process = hyperlaneWarpRebalancer(warpRouteId, CHECK_FREQUENCY);
-
-      for await (const chunk of process.stdout) {
-        if (
-          chunk.includes(
-            `Executing rebalancing routes: [
+    await startRebalancerAndExpectLog(`Executing rebalancing routes: [
   {
     fromChain: 'anvil3',
     toChain: 'anvil2',
-    amount: 10000000000000000000n
+    amount: 50000000000000000000n
   }
-]`,
-          )
-        ) {
-          break;
-        }
-      }
-    });
-
-    describe('with strategy tolerance of 10 ether', () => {
-      it('should report an empty array of routes being executed', async () => {
-        process = hyperlaneWarpRebalancer(warpRouteId, CHECK_FREQUENCY, {
-          strategyTolerance: BigInt(toWei(10)),
-        });
-
-        for await (const chunk of process.stdout) {
-          if (chunk.includes('Executing rebalancing routes: []')) {
-            break;
-          }
-        }
-      });
-    });
+]`);
   });
 });

@@ -164,19 +164,13 @@ export function hyperlaneWarpSendRelay(
 export function hyperlaneWarpRebalancer(
   warpRouteId: string,
   checkFrequency: number,
-  options: {
-    strategyTolerance?: bigint;
-  } = {},
+  strategyConfigFile: string,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --warpRouteId ${warpRouteId} \
         --checkFrequency ${checkFrequency} \
-        ${
-          options.strategyTolerance
-            ? ['--strategyTolerance', options.strategyTolerance]
-            : ''
-        }`;
+        --strategyConfigFile ${strategyConfigFile}`;
 }
 
 /**
