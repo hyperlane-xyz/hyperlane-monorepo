@@ -39,6 +39,12 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   // estimates. We double the overhead to help account for this.
   if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
     overhead *= 2;
+
+    // Zero Network gas usage has changed recently and now requires
+    // another 3x multiplier on top of the ZKSync overhead.
+    if (remote === 'zeronetwork') {
+      overhead *= 3;
+    }
   }
   return overhead;
 }
