@@ -89,8 +89,6 @@ contract PolymerISM is IInterchainSecurityModule {
             bytes memory data_from_proof
         ) = polymerProver.validateEvent(polymerProofBytes);
 
-        // --- Perform Generic Verification Checks ---
-
         // Check 1: Verify that the FSR request was made from and to the same chain.
         // NB: This is not strictly necessary, but it minimizes application-specific checks.
         // We may want to enable a different read UX in the future.
