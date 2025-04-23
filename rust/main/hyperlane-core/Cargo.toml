@@ -1,5 +1,3 @@
-cargo-features = ["workspace-inheritance"]
-
 [package]
 name = "hyperlane-core"
 documentation = { workspace = true }
