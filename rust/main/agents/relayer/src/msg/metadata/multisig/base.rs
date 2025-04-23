@@ -119,6 +119,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
                 self.as_ref().root_ism,
                 multisig_ism.domain(),
                 self.module_type(),
+                self.as_ref().app_context.as_ref(),
             )
             .await
         {

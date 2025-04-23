@@ -5,30 +5,34 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
-import { regularSafes } from '../../../config/environments/mainnet3/governance/safe/regular.js';
 import {
-  SIGNERS,
-  THRESHOLD,
-} from '../../../config/environments/mainnet3/governance/safe/safeConfig.js';
+  getGovernanceSafes,
+  getGovernanceSigners,
+} from '../../../config/environments/mainnet3/governance/utils.js';
 import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
+import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
 import { getSafeAndService, updateSafeOwner } from '../../../src/utils/safe.js';
 import { withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 async function main() {
-  const { propose } = await withPropose(yargs(process.argv.slice(2))).argv;
+  const { propose, governanceType = GovernanceType.Regular } =
+    await withGovernanceType(withPropose(yargs(process.argv.slice(2)))).argv;
+
+  const { signers, threshold } = getGovernanceSigners(governanceType);
+  const safes = getGovernanceSafes(governanceType);
 
   const envConfig = getEnvironmentConfig('mainnet3');
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
     true,
-    Object.keys(regularSafes),
+    Object.keys(safes),
   );
 
-  for (const [chain, safeAddress] of Object.entries(regularSafes)) {
+  for (const [chain, safeAddress] of Object.entries(safes)) {
     let safeSdk: Safe.default;
     try {
       ({ safeSdk } = await getSafeAndService(
@@ -55,7 +59,11 @@ async function main() {
 
     let transactions: AnnotatedCallData[];
     try {
-      transactions = await updateSafeOwner(safeSdk, SIGNERS, THRESHOLD);
+      transactions = await updateSafeOwner({
+        safeSdk,
+        owners: signers,
+        threshold,
+      });
     } catch (error) {
       rootLogger.error(`[${chain}] could not update safe owner: ${error}`);
       continue;

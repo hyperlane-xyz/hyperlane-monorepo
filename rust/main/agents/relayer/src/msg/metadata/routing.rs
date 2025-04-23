@@ -39,7 +39,12 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
         let cache_policy = self
             .base_builder()
             .ism_cache_policy_classifier()
-            .get_cache_policy(self.root_ism, ism.domain(), ModuleType::Routing)
+            .get_cache_policy(
+                self.root_ism,
+                ism.domain(),
+                ModuleType::Routing,
+                self.base.app_context.as_ref(),
+            )
             .await;
 
         let cache_result: Option<H256> = match cache_policy {
