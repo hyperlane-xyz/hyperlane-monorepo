@@ -3,7 +3,6 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
-import {TokenMessage} from "./libs/TokenMessage.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**

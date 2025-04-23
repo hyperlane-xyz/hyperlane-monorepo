@@ -16,7 +16,6 @@ import {ILayerZeroEndpoint} from "@layerzerolabs/lz-evm-v1-0.7/contracts/interfa
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
-import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";

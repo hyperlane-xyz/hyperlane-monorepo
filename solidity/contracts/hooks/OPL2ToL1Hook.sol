@@ -20,7 +20,6 @@ import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuth
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {InterchainGasPaymaster} from "./igp/InterchainGasPaymaster.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";

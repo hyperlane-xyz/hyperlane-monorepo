@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TypeCasts} from "../../libs/TypeCasts.sol";
-
+// ============ Internal Imports ============
+import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {TokenRouter} from "./TokenRouter.sol";
 import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
