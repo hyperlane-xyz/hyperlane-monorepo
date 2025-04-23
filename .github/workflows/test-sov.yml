@@ -1,0 +1,46 @@
+name: Run PR test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+    build:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout hyperlane-monorepo
+          uses: actions/checkout@v4
+
+        - name: Set up Rust toolchain
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            toolchain: stable
+            components: rustfmt, clippy
+
+        - name: Set up SSH and run cargo checks
+          run: |
+            mkdir -p ~/.ssh
+            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            eval "$(ssh-agent -s)"
+            ssh-add ~/.ssh/id_rsa
+
+            # Checks are grouped with ssh to prevent access errors with sovereign-sdk-wip dependency
+            cd rust/main
+            cargo clippy --bin relayer --bin validator -- -D warnings
+            cargo fmt --check
+
+        - name: Clone sovereign-sdk-wip
+          run: git clone git@github.com:Sovereign-Labs/sovereign-sdk-wip.git
+
+        - name: Build hyperlane-monorepo docker image
+          run: ./build.sh
+
+        - name: Run sov-tests
+          env:
+            CUSTOM_HLP_DOCKER_IMAGE: hyperlane
+          run: |
+            cd sovereign-sdk-wip
+            cargo test -p sov-hyperlane-integration -- with_agent
