@@ -214,6 +214,15 @@ const zeroLimits: XERC20LimitConfig = {
 };
 
 const productionExtraLockboxes = {
+  ethereum: [
+    {
+      lockbox: productionEthereumXERC20LockboxAddress,
+      limits: {
+        bufferCap: productionBufferCapByChain.ethereum,
+        rateLimitPerSecond: productionRateLimitByChain.ethereum,
+      },
+    },
+  ],
   base: [
     {
       // usdt
@@ -359,6 +368,15 @@ const stagingXERC20AddressesByChain: TypedSuperTokenChainMap<Address> = {
 };
 
 const stagingExtraLockboxes = {
+  ethereum: [
+    {
+      lockbox: stagingEthereumXERC20LockboxAddress,
+      limits: {
+        bufferCap: stagingBufferCapByChain.ethereum,
+        rateLimitPerSecond: stagingRateLimitByChain.ethereum,
+      },
+    },
+  ],
   base: [
     {
       // usdt
