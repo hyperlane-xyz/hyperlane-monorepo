@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {ICrossL2ProverV2} from "@polymerdao/prover-contracts/contracts/interfaces/ICrossL2ProverV2.sol";
+import {Message} from "../libs/Message.sol";
 
 /**
  * @title PolymerISM
@@ -22,6 +23,9 @@ import {ICrossL2ProverV2} from "@polymerdao/prover-contracts/contracts/interface
  * corresponding `Dispatch` event on the origin chain.
  */
 contract PolymerISM is IInterchainSecurityModule {
+    // --- Libraries ---
+    using Message for bytes;
+
     // --- Constants ---
 
     /**
@@ -37,23 +41,18 @@ contract PolymerISM is IInterchainSecurityModule {
     /// @notice The Polymer prover contract deployed on this (local) chain.
     ICrossL2ProverV2 public immutable polymerProver;
 
+    /// TODO: Add support for multiple Mailbox contract addresses.
     /// @notice The Hyperlane Mailbox contract address on the origin chain.
     /// @dev This is the contract expected to emit the Dispatch event proven by Polymer.
+    /// This naive appraoch assumes the Mailbox contract is deployed to the same address on all chains. 
+    /// This approach does not scale to multiple Mailbox contract addresses.
     address public immutable originMailbox;
-
-    /// @notice The Hyperlane domain ID of the origin chain where the Dispatch event occurred.
-    uint32 public immutable originDomain;
-
-    /// @notice The Hyperlane domain ID of this (local) chain where the ISM is deployed.
-    uint32 public immutable localDomain;
 
     // --- Events ---
 
     event PolymerISMConfigured(
         address indexed polymerProver,
-        address indexed originMailbox,
-        uint32 originDomain,
-        uint32 localDomain
+        address indexed originMailbox
     );
 
     // --- Constructor ---
@@ -62,14 +61,10 @@ contract PolymerISM is IInterchainSecurityModule {
      * @notice Deploys and configures the PolymerISM.
      * @param _polymerProver Address of the ICrossL2ProverV2 contract on this chain.
      * @param _originMailbox Address of the Mailbox contract on the origin chain.
-     * @param _originDomain Hyperlane domain ID of the origin chain.
-     * @param _localDomain Hyperlane domain ID of this local chain.
      */
     constructor(
         address _polymerProver,
-        address _originMailbox,
-        uint32 _originDomain,
-        uint32 _localDomain
+        address _originMailbox
     ) {
         require(
             _polymerProver != address(0),
@@ -79,23 +74,13 @@ contract PolymerISM is IInterchainSecurityModule {
             _originMailbox != address(0),
             "PolymerISM: Invalid origin mailbox address"
         );
-        require(_originDomain != 0, "PolymerISM: Invalid origin domain");
-        require(_localDomain != 0, "PolymerISM: Invalid local domain");
-        require(
-            _localDomain != _originDomain,
-            "PolymerISM: Domains cannot be the same"
-        );
 
         polymerProver = ICrossL2ProverV2(_polymerProver);
         originMailbox = _originMailbox;
-        originDomain = _originDomain;
-        localDomain = _localDomain;
 
         emit PolymerISMConfigured(
             _polymerProver,
-            _originMailbox,
-            _originDomain,
-            _localDomain
+            _originMailbox
         );
     }
 
@@ -117,7 +102,7 @@ contract PolymerISM is IInterchainSecurityModule {
      * @param _message The Hyperlane message bytes being verified. This *must* correspond
      * to the `message` field within the proven Dispatch event.
      * @return True if the Polymer proof is valid and confirms a `Dispatch` event
-     * from the `originMailbox` on `originDomain` targeting `localDomain` with
+     * from the origin chain targeting this chain with matching `message` content
      * matching `message` content was emitted. False otherwise.
      */
     function verify(
@@ -140,13 +125,13 @@ contract PolymerISM is IInterchainSecurityModule {
 
         // --- Perform Generic Verification Checks ---
 
-        // Check 1: Was the event emitted on the expected origin chain?
+        // Check 1: Verify message origin matches the chain ID from the proof
         require(
-            chainId_from_proof == originDomain,
-            "PolymerISM: Proof from wrong origin chain"
+            _message.origin() == chainId_from_proof,
+            "PolymerISM: Message origin mismatch"
         );
 
-        // Check 2: Was the event emitted by the configured origin Mailbox?
+        // Check 2: Verify the event was emitted by the correct Mailbox contract
         require(
             emittingContract_from_proof == originMailbox,
             "PolymerISM: Proof emitter mismatch (origin mailbox)"
@@ -177,7 +162,7 @@ contract PolymerISM is IInterchainSecurityModule {
         // Topic 2: uint32 indexed destination (Hyperlane Mailbox Dispatch event format)
         uint32 destination_from_proof = uint32(uint256(destination_topic));
         require(
-            destination_from_proof == localDomain,
+            destination_from_proof == block.chainid,
             "PolymerISM: Proof destination mismatch (local domain)"
         );
 
@@ -187,11 +172,11 @@ contract PolymerISM is IInterchainSecurityModule {
 
         // Check 6: Does the message body from the proof match the message being verified?
         require(
-            keccak256(message_from_proof) == keccak256(_message),
+            keccak256(message_from_proof) == keccak256(_message.body()),
             "PolymerISM: Proof message content mismatch"
         );
 
-        // If all generic checks pass, the ISM considers the message verified *at this level*.
+        // If all checks pass, the ISM considers the message verified *at this level*.
         // Further application-specific checks (on sender/recipient within the message)
         // must be done by the receiving contract.
         return true;
