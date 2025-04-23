@@ -116,7 +116,7 @@ mod test {
 
     use hyperlane_core::{H256, U256};
 
-    use crate::cache::moka::dynamic_expiry::DEFAULT_EXPIRATION;
+    use crate::cache::moka::dynamic_expiry::default_expiration;
 
     use super::*;
 
@@ -300,7 +300,7 @@ mod test {
                         // The second entry should have a TTL between 5 and 10 seconds
                         .is_some_and(|duration| duration.as_secs() > 5 && duration.as_secs() <= 10),
                     2 => ttl.is_some_and(|duration| {
-                        let default_secs = DEFAULT_EXPIRATION.as_secs();
+                        let default_secs = default_expiration().as_secs();
                         // The third entry should have a TTL of > 90% of the default
                         duration.as_secs() > ((default_secs * 9) / 10)
                             && duration.as_secs() <= default_secs
