@@ -227,7 +227,7 @@ impl ChainSpecificMetricsUpdater {
                 return;
             }
             _ => {
-                trace!(chain, "No chain metrics available");
+                debug!(chain, "No chain metrics available");
                 return;
             }
         };
