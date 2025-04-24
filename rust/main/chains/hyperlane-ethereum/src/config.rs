@@ -1,7 +1,7 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::{
-    config::OperationBatchConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+    config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
 };
 use url::Url;
 
@@ -38,7 +38,7 @@ pub struct ConnectionConf {
     /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
 }
 
 /// Ethereum transaction overrides.
@@ -55,6 +55,26 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+
+    /// Min gas price to use for Legacy transactions, in wei.
+    pub min_gas_price: Option<U256>,
+    /// Min fee per gas to use for EIP-1559 transactions.
+    pub min_fee_per_gas: Option<U256>,
+    /// Min priority fee per gas to use for EIP-1559 transactions.
+    pub min_priority_fee_per_gas: Option<U256>,
+
+    /// Gas limit multiplier denominator to use for transactions, eg 110
+    pub gas_limit_multiplier_denominator: Option<U256>,
+    /// Gas limit multiplier numerator to use for transactions, eg 100
+    pub gas_limit_multiplier_numerator: Option<U256>,
+
+    /// Gas price multiplier denominator to use for transactions, eg 110
+    pub gas_price_multiplier_denominator: Option<U256>,
+    /// Gas price multiplier numerator to use for transactions, eg 100
+    pub gas_price_multiplier_numerator: Option<U256>,
+
+    /// Gas price cap, in wei.
+    pub gas_price_cap: Option<U256>,
 }
 
 /// Ethereum reorg period

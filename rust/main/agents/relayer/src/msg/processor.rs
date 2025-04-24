@@ -404,10 +404,10 @@ impl MessageProcessorMetrics {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use std::time::Instant;
 
-    use prometheus::{IntCounter, IntCounterVec, Registry};
+    use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
     use tokio::{
         sync::{
             mpsc::{self, UnboundedReceiver},
@@ -438,10 +438,11 @@ mod test {
 
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
+        metrics::message_submission::MessageSubmissionMetrics,
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{
-                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
         },
@@ -450,7 +451,7 @@ mod test {
 
     use super::*;
 
-    struct DummyApplicationOperationVerifier {}
+    pub struct DummyApplicationOperationVerifier {}
 
     #[async_trait]
     impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
@@ -463,7 +464,7 @@ mod test {
         }
     }
 
-    fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
+    pub fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
         MessageProcessorMetrics {
             max_last_known_message_nonce_gauge: IntGauge::new(
                 "dummy_max_last_known_message_nonce_gauge",
@@ -477,7 +478,7 @@ mod test {
         }
     }
 
-    fn dummy_cache_metrics() -> MeteredCacheMetrics {
+    pub fn dummy_cache_metrics() -> MeteredCacheMetrics {
         MeteredCacheMetrics {
             hit_count: IntCounterVec::new(
                 prometheus::Opts::new("dummy_hit_count", "help string"),
@@ -492,10 +493,22 @@ mod test {
         }
     }
 
-    fn dummy_submission_metrics() -> MessageSubmissionMetrics {
+    pub fn dummy_submission_metrics() -> MessageSubmissionMetrics {
         MessageSubmissionMetrics {
+            origin: "".to_string(),
+            destination: "".to_string(),
             last_known_nonce: IntGauge::new("last_known_nonce_gauge", "help string").unwrap(),
             messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
+            metadata_build_count: IntCounterVec::new(
+                Opts::new("metadata_build_count", "help string"),
+                &["app_context", "origin", "remote", "status"],
+            )
+            .unwrap(),
+            metadata_build_duration: CounterVec::new(
+                Opts::new("metadata_build_duration", "help string"),
+                &["app_context", "origin", "remote", "status"],
+            )
+            .unwrap(),
         }
     }
 
@@ -512,7 +525,7 @@ mod test {
                     url: "http://example.com".parse().unwrap(),
                 },
                 transaction_overrides: Default::default(),
-                operation_batch: Default::default(),
+                op_submission_config: Default::default(),
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
@@ -549,7 +562,7 @@ mod test {
             cache,
             db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
-            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
+            IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         )
     }
 

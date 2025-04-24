@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 7.1.0
+
+### Minor Changes
+
+- e6f6d61a0: Refactor ZKsync artifact generation and validation logic
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.1.0
+
 ## 7.0.0
 
 ### Major Changes
