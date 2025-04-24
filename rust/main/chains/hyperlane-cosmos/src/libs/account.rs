@@ -4,8 +4,7 @@ use tendermint::account::Id as TendermintAccountId;
 use tendermint::public_key::PublicKey as TendermintPublicKey;
 
 use crypto::decompress_public_key;
-use hyperlane_core::Error::Overflow;
-use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
+use hyperlane_core::{AccountAddressType, ChainResult, H256};
 
 use crate::HyperlaneCosmosError;
 

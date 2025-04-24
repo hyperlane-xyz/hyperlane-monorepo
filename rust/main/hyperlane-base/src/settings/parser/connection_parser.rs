@@ -82,7 +82,8 @@ pub fn build_cosmos_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
-    operation_batch: OperationBatchConfig,
+    operation_batch: OpSubmissionConfig,
+    protocol: HyperlaneDomainProtocol,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
     let grpcs =
@@ -142,11 +143,18 @@ pub fn build_cosmos_connection_conf(
 
     let native_token = parse_native_token(chain, err, 18);
 
+    let gas_multiplier = chain
+        .chain(err)
+        .get_opt_key("gasMultiplier")
+        .parse_f64()
+        .end()
+        .unwrap_or(1.35);
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
     } else {
-        Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
+        let config = h_cosmos::ConnectionConf::new(
             grpcs,
             rpcs.to_owned(),
             chain_id.unwrap().to_string(),
@@ -156,105 +164,14 @@ pub fn build_cosmos_connection_conf(
             contract_address_bytes.unwrap().try_into().unwrap(),
             operation_batch,
             native_token,
-        )))
-    }
-}
-
-pub fn build_cosmos_native_connection_conf(
-    rpcs: &[Url],
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
-    operation_batch: OperationBatchConfig,
-) -> Option<ChainConnectionConf> {
-    let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
-
-    let chain_id = chain
-        .chain(&mut local_err)
-        .get_key("chainId")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
-            None
-        });
-
-    let prefix = chain
-        .chain(err)
-        .get_key("bech32Prefix")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(
-                &chain.cwp + "bech32Prefix",
-                eyre!("Missing bech32 prefix for chain"),
-            );
-            None
-        });
-
-    let canonical_asset = if let Some(asset) = chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset.to_string())
-    } else if let Some(hrp) = prefix {
-        Some(format!("u{}", hrp))
-    } else {
-        local_err.push(
-            &chain.cwp + "canonical_asset",
-            eyre!("Missing canonical asset for chain"),
+            gas_multiplier,
         );
-        None
-    };
 
-    let gas_price = chain
-        .chain(err)
-        .get_opt_key("gasPrice")
-        .and_then(parse_cosmos_gas_price)
-        .end();
-
-    let gas_multiplier = chain
-        .chain(err)
-        .get_opt_key("gasMultiplier")
-        .parse_f64()
-        .end()
-        .unwrap_or(1.8);
-
-    let contract_address_bytes = chain
-        .chain(err)
-        .get_opt_key("contractAddressBytes")
-        .parse_u64()
-        .end();
-
-    let native_token = parse_native_token(chain, err, 18);
-
-    if !local_err.is_ok() {
-        err.merge(local_err);
-        None
-    } else {
-        let gas_price = gas_price.unwrap();
-        let gas_price = h_cosmos_native::RawCosmosAmount {
-            denom: gas_price.denom,
-            amount: gas_price.amount,
-        };
-
-        Some(ChainConnectionConf::CosmosNative(
-            h_cosmos_native::ConnectionConf::new(
-                rpcs.to_owned(),
-                grpcs,
-                chain_id.unwrap().to_string(),
-                prefix.unwrap().to_string(),
-                canonical_asset.unwrap(),
-                gas_price,
-                gas_multiplier,
-                contract_address_bytes.unwrap().try_into().unwrap(),
-                operation_batch,
-                native_token,
-            ),
-        ))
+        Some(match protocol {
+            HyperlaneDomainProtocol::Cosmos => ChainConnectionConf::Cosmos(config),
+            HyperlaneDomainProtocol::CosmosNative => ChainConnectionConf::CosmosNative(config),
+            _ => panic!("Cannot build connection conf for non cosmos protocol"),
+        })
     }
 }
 
@@ -476,11 +393,8 @@ pub fn build_connection_conf(
             let urls = rpcs.to_vec();
             build_sealevel_connection_conf(&urls, chain, err, operation_batch)
         }
-        HyperlaneDomainProtocol::Cosmos => {
-            build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
-        }
-        HyperlaneDomainProtocol::CosmosNative => {
-            build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
+        HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => {
+            build_cosmos_connection_conf(rpcs, chain, err, operation_batch, domain_protocol)
         }
     }
 }

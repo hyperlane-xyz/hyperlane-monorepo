@@ -32,6 +32,8 @@ pub struct ConnectionConf {
     pub operation_batch: OperationBatchConfig,
     /// Native Token
     native_token: NativeToken,
+    /// Gas Multiplier
+    gas_multiplier: f64,
 }
 
 /// Untyped cosmos amount
@@ -123,6 +125,11 @@ impl ConnectionConf {
         self.contract_address_bytes
     }
 
+    /// Get the gas multiplier which might be different for each chain
+    pub fn get_gas_multiplier(&self) -> f64 {
+        self.gas_multiplier
+    }
+
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -135,6 +142,7 @@ impl ConnectionConf {
         contract_address_bytes: usize,
         operation_batch: OperationBatchConfig,
         native_token: NativeToken,
+        gas_multiplier: f64,
     ) -> Self {
         Self {
             grpc_urls,
@@ -146,6 +154,7 @@ impl ConnectionConf {
             contract_address_bytes,
             operation_batch,
             native_token,
+            gas_multiplier,
         }
     }
 }
