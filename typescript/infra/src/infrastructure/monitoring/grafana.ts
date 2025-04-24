@@ -1,5 +1,5 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { inCIMode, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AlertType,
@@ -10,7 +10,6 @@ import {
   walletNameQueryFormat,
 } from '../../config/funding/grafanaAlerts.js';
 import { fetchGCPSecret } from '../../utils/gcloud.js';
-import { inCIMode } from '../../utils/utils.js';
 
 export const logger = rootLogger.child({ module: 'grafana' });
 
