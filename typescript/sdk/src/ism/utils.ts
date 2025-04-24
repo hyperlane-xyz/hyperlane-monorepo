@@ -27,6 +27,7 @@ import {
 import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -37,6 +38,7 @@ import {
   ModuleType,
   RoutingIsmConfig,
   RoutingIsmDelta,
+  STATIC_ISM_TYPES,
   ismTypeToModuleType,
 } from './types.js';
 
@@ -585,4 +587,37 @@ export function collectValidators(
   }
 
   return new Set(validators);
+}
+
+/**
+ * Determines if static ISM deployment is supported on a given chain's technical stack
+ * @dev Currently, only ZkSync does not support static deployments
+ * @param chainTechnicalStack - The technical stack of the target chain
+ * @returns boolean - true if static deployment is supported, false for ZkSync
+ */
+export function isStaticDeploymentSupported(
+  chainTechnicalStack: ChainTechnicalStack | undefined,
+): boolean {
+  return chainTechnicalStack !== ChainTechnicalStack.ZkSync;
+}
+
+/**
+ * Checks if the given ISM type is compatible with the chain's technical stack.
+ *
+ * @param {Object} params - The parameters object
+ * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain
+ * @param {IsmType} params.ismType - The type of Interchain Security Module (ISM)
+ * @returns {boolean} True if the ISM type is compatible with the chain, false otherwise
+ */
+export function isIsmCompatible({
+  chainTechnicalStack,
+  ismType,
+}: {
+  chainTechnicalStack: ChainTechnicalStack | undefined;
+  ismType: IsmType;
+}): boolean {
+  // Skip compatibility check for non-static ISMs as they're always supported
+  if (!STATIC_ISM_TYPES.includes(ismType)) return true;
+
+  return isStaticDeploymentSupported(chainTechnicalStack);
 }

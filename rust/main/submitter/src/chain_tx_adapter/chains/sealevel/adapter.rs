@@ -150,7 +150,7 @@ impl SealevelTxAdapter {
     fn batch_size(conf: &ChainConf) -> Result<u32> {
         Ok(conf
             .connection
-            .operation_batch_config()
+            .operation_submission_config()
             .ok_or_else(|| eyre!("no operation batch config"))?
             .max_batch_size)
     }
@@ -221,10 +221,7 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(Some(estimated.estimate.compute_units.into()))
     }
 
-    async fn build_transactions(
-        &self,
-        payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError> {
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         info!(?payloads, "building transactions for payloads");
         let payloads_and_precursors = payloads
             .iter()
@@ -233,7 +230,10 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let estimated = self.estimate(not_estimated).await?;
+            let Ok(estimated) = self.estimate(not_estimated).await else {
+                transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
+                continue;
+            };
             let transaction = TransactionFactory::build(payload, estimated);
             transactions.push(TxBuildingResult::new(
                 vec![payload.details.clone()],
@@ -242,7 +242,7 @@ impl AdaptsChain for SealevelTxAdapter {
         }
 
         info!(?payloads, ?transactions, "built transactions for payloads");
-        Ok(transactions)
+        transactions
     }
 
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError> {

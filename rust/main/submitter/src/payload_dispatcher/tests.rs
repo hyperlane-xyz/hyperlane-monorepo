@@ -70,7 +70,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     let txs = vec![tx_building_result];
     adapter
         .expect_build_transactions()
-        .returning(move |_| Ok(txs.clone()));
+        .returning(move |_| txs.clone());
     adapter.expect_simulate_tx().returning(move |_| Ok(true));
     let mut counter = 0;
     adapter.expect_tx_status().returning(move |_| {

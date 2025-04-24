@@ -7,7 +7,11 @@ import {
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  IsmCacheSelectorType,
   MatchingList,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -26,10 +30,10 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, mustBeValidContext } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
@@ -576,6 +580,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
       // outside of Solana are ignored.
       { originDomain: getDomainId('infinityvm') },
+      // Temporary workaround due to funky Zeronetwork gas amounts.
+      { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -737,6 +743,25 @@ const blacklist: MatchingList = [
   })),
 ];
 
+const ismCacheConfigs: Array<IsmCacheConfig> = [
+  {
+    selector: {
+      type: IsmCacheSelectorType.DefaultIsm,
+    },
+    // Default ISM Routing ISMs change configs based off message content,
+    // so they are not specified here.
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
+];
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -746,17 +771,21 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '43369ea-20250410-181629',
+      tag: 'da3978b-20250414-155929',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '8ab7c80-20250326-191115',
+      tag: '385b307-20250418-150728',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -782,7 +811,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '43369ea-20250410-181629',
+      tag: 'da3978b-20250414-155929',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -790,12 +819,16 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '11a4e95-20250116-145528',
+      tag: '385b307-20250418-150728',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -816,17 +849,70 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe1f33b-20250408-120728',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
 };
+
+const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
+  ...contextBase,
+  context: mustBeValidContext(`vanguard${index}`),
+  contextChainNames: {
+    validator: [],
+    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      tag: '385b307-20250418-150728',
+    },
+    whitelist: [
+      {
+        originDomain: getDomainId('base'),
+        senderAddress: '0x000000000000000000000000000000000000dead',
+        destinationDomain: getDomainId('arbitrum'),
+        recipientAddress: '0x000000000000000000000000000000000000dead',
+      },
+    ],
+    blacklist,
+    gasPaymentEnforcement,
+    metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
+    resources: relayerResources,
+    dbBootstrap: true,
+    batch: {
+      defaultBatchSize: 32,
+      batchSizeOverrides: {
+        // Slightly lower to ideally fit within 5M
+        ethereum: 23,
+      },
+      bypassBatchSimulation: true,
+    },
+  },
+});
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
+  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
+  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
+  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
+  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
+  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

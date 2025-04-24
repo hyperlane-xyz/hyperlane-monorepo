@@ -84,6 +84,12 @@ contract MockMailbox is Mailbox {
         inboundProcessedNonce++;
     }
 
+    function handleAllInboundMessages() public payable {
+        while (inboundProcessedNonce < inboundUnprocessedNonce) {
+            handleNextInboundMessage();
+        }
+    }
+
     function handleMessage(bytes calldata message) external {
         IMessageRecipient(message.recipientAddress()).handle(
             message.origin(),
