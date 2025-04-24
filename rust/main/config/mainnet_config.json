@@ -3259,6 +3259,7 @@
       "gasCurrencyCoinGeckoId": "okb",
       "gnosisSafeTransactionServiceUrl": "https://app.safe.global/welcome?chain=xlayer",
       "index": {
+        "chunk": 999,
         "from": 3387690
       },
       "interchainAccountIsm": "0x29B37088724B745C0ABcE591449Cf042772160C2",
