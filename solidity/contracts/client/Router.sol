@@ -4,7 +4,6 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {MailboxClient} from "./MailboxClient.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 

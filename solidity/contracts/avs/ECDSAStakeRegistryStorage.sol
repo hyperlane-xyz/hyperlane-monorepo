@@ -3,7 +3,7 @@ pragma solidity ^0.8.12;
 
 import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.sol";
 import {CheckpointsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CheckpointsUpgradeable.sol";
-import {IECDSAStakeRegistryEventsAndErrors, Quorum, StrategyParams} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
+import {IECDSAStakeRegistryEventsAndErrors, Quorum} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 
 /// @author Layr Labs, Inc.
 abstract contract ECDSAStakeRegistryStorage is

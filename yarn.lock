@@ -7721,7 +7721,7 @@ __metadata:
     hardhat-ignore-warnings: "npm:^0.2.11"
     prettier: "npm:^2.8.8"
     prettier-plugin-solidity: "npm:^1.1.3"
-    solhint: "npm:^4.5.4"
+    solhint: "npm:^5.0.5"
     solhint-plugin-prettier: "npm:^0.0.5"
     solidity-bytes-utils: "npm:^0.8.0"
     solidity-coverage: "npm:^0.8.3"
@@ -7800,7 +7800,7 @@ __metadata:
     hardhat-gas-reporter: "npm:^1.0.9"
     prettier: "npm:^2.8.8"
     prettier-plugin-solidity: "npm:^1.1.3"
-    solhint: "npm:^4.5.4"
+    solhint: "npm:^5.0.5"
     solhint-plugin-prettier: "npm:^0.0.5"
     solidity-coverage: "npm:^0.8.3"
     ts-node: "npm:^10.8.0"
@@ -14645,10 +14645,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@solidity-parser/parser@npm:^0.18.0":
-  version: 0.18.0
-  resolution: "@solidity-parser/parser@npm:0.18.0"
-  checksum: 10/3b600b584f49bd84d6d27aeeb453c49c279df49324e104bda00d12cd3b26f18cb6230ff63db6a0ba1f383868620d318b15b7417a92aa8c580099449adaa13d76
+"@solidity-parser/parser@npm:^0.19.0":
+  version: 0.19.0
+  resolution: "@solidity-parser/parser@npm:0.19.0"
+  checksum: 10/2136708ecc988b534efcf836e95f4f02a1452ab0c026438014c35ce31b26dc011cc8c512d502fc7bcb968f850ab7e524838292bc36cad6a144fedb4c29685587
   languageName: node
   linkType: hard
 
@@ -35058,11 +35058,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"solhint@npm:^4.5.4":
-  version: 4.5.4
-  resolution: "solhint@npm:4.5.4"
+"solhint@npm:^5.0.5":
+  version: 5.0.5
+  resolution: "solhint@npm:5.0.5"
   dependencies:
-    "@solidity-parser/parser": "npm:^0.18.0"
+    "@solidity-parser/parser": "npm:^0.19.0"
     ajv: "npm:^6.12.6"
     antlr4: "npm:^4.13.1-patch-1"
     ast-parents: "npm:^0.0.1"
@@ -35086,7 +35086,7 @@ __metadata:
       optional: true
   bin:
     solhint: solhint.js
-  checksum: 10/0d839f4c81b83ec2fa9db5003971623b4ca6895348d55874bd9189c4af06c8c5328789410a2859496b7cbdee0ed0321694d63d83f5c94955f4d00bc15e317e41
+  checksum: 10/07cce3796e0123fda1e27bb0f81fb94290fb0d4bddc703a10236c81403a3a09fe1bfcbf37c583590778509546b92d43c0799456b4ae9dd183233fd8fe6e88554
   languageName: node
   linkType: hard
 

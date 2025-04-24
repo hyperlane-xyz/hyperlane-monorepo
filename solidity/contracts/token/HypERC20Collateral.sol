@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
 /*@@@@@@@       @@@@@@@@@
@@ -16,12 +16,10 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
-import {TokenMessage} from "./libs/TokenMessage.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
 
 // ============ External Imports ============
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
