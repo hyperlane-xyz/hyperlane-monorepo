@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { cosmoshub } from '@hyperlane-xyz/registry';
+import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -86,6 +87,7 @@ type AccountSummaryProps = {
   walletDetails: WalletDetails;
   onCopySuccess?: () => void;
   onClickDisconnect: () => Promise<void>;
+  chainName?: ChainName;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function AccountSummary({
@@ -94,14 +96,18 @@ export function AccountSummary({
   walletDetails,
   onClickDisconnect,
   className,
+  chainName = cosmoshub.name,
   ...rest
 }: AccountSummaryProps) {
   const numAddresses = account?.addresses?.length || 0;
   const onlyAddress =
-    numAddresses === 1 ? account.addresses[0].address : undefined;
+    numAddresses === 1
+      ? account.addresses[0].address
+      : account.addresses.find((a) => a.chainName === chainName)?.address;
 
   const onClickCopy = async () => {
-    const copyValue = account.addresses.map((a) => a.address).join(', ');
+    const copyValue =
+      onlyAddress || account.addresses.map((a) => a.address).join(',');
     await tryClipboardSet(copyValue);
     onCopySuccess?.();
   };

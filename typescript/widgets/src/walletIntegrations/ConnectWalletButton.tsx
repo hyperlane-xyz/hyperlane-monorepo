@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { cosmoshub } from '@hyperlane-xyz/registry';
+import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -17,6 +18,7 @@ type Props = {
   onClickWhenConnected: () => void;
   onClickWhenUnconnected: () => void;
   countClassName?: string;
+  chainName?: ChainName;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function ConnectWalletButton({
@@ -25,6 +27,7 @@ export function ConnectWalletButton({
   onClickWhenUnconnected,
   className,
   countClassName,
+  chainName = cosmoshub.name,
   ...rest
 }: Props) {
   const isSsr = useIsSsr();
@@ -34,6 +37,15 @@ export function ConnectWalletButton({
 
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];
+  const firstAddress = firstAccount
+    ? shortenAddress(
+        firstAccount.addresses.length === 1
+          ? firstAccount.addresses[0].address
+          : firstAccount.addresses.find((a) => a.chainName === chainName)
+              ?.address ?? 'Unknown',
+      )
+    : 'Unkown';
+
   const firstWallet =
     walletDetails[firstAccount?.protocol || ProtocolType.Ethereum];
 
@@ -71,14 +83,7 @@ export function ConnectWalletButton({
                 <div className="htw-text-xs htw-text-gray-500">
                   {firstWallet.name || 'Wallet'}
                 </div>
-                <div className="htw-text-xs">
-                  {readyAccounts[0].addresses.length
-                    ? shortenAddress(
-                        readyAccounts[0].addresses[0].address,
-                        true,
-                      )
-                    : 'Unknown'}
-                </div>
+                <div className="htw-text-xs">{firstAddress}</div>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>
