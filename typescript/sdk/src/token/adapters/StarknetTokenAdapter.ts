@@ -69,6 +69,13 @@ export class StarknetHypSyntheticAdapter
     );
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx({
     weiAmountOrId,
     recipient,

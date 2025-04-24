@@ -32,7 +32,6 @@ import {
 import {
   Address,
   Domain,
-  ProtocolType,
   addBufferToGasLimit,
   assert,
   eqAddress,
@@ -134,18 +133,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<DeployedIsm> {
     const { destination, config, origin, mailbox, existingIsmAddress } = params;
     if (typeof config === 'string') {
-      const chainMetadata = this.multiProvider.getChainMetadata(destination);
-      if (chainMetadata.protocol === ProtocolType.Ethereum) {
-        // @ts-ignore
-        return IInterchainSecurityModule__factory.connect(
-          config,
-          this.multiProvider.getSignerOrProvider(destination),
-        );
-      } else {
-        throw new Error(
-          `ISM address ${config} is not supported for ${destination}`,
-        );
-      }
+      // @ts-ignore
+      return IInterchainSecurityModule__factory.connect(
+        config,
+        this.multiProvider.getSignerOrProvider(destination),
+      );
     }
 
     const ismType = config.type;

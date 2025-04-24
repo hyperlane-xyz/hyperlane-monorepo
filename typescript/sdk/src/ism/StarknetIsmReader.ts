@@ -10,10 +10,10 @@ import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
-import { DerivedIsmConfig } from './EvmIsmReader.js';
 import { StarknetIsmContractName } from './starknet-utils.js';
 import {
   AggregationIsmConfig,
+  DerivedIsmConfig,
   IsmType,
   MultisigIsmConfig,
   RoutingIsmConfig,

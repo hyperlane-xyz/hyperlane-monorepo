@@ -101,6 +101,7 @@ describe('WarpCore', () => {
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
@@ -169,6 +170,7 @@ describe('WarpCore', () => {
       sinon.stub(t, 'getHypAdapter').returns({
         getBalance: () => Promise.resolve(MOCK_BALANCE),
         getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
@@ -222,6 +224,7 @@ describe('WarpCore', () => {
         getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
         getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
         getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
@@ -326,6 +329,7 @@ describe('WarpCore', () => {
       sinon.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         populateTransferRemoteTx: () => Promise.resolve({}),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
