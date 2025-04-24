@@ -21,7 +21,7 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rm -rf ./dist && tsc && prettier --write ./src --loglevel silent",
+    "build": "rm -rf ./dist && tsc && prettier --write ./src --log-level silent",
     "format": "prettier --write .",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
