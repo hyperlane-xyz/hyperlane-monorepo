@@ -27,7 +27,7 @@ verbosity = 4
 [rpc_endpoints]
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
-polygon = "https://rpc.ankr.com/polygon"
+polygon = "https://rpc-mainnet.matic.quiknode.pro"
 
 [fuzz]
 runs = 50
