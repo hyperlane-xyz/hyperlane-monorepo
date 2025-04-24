@@ -284,6 +284,12 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to retrieve payload id by message id")]
     /// Failed to retrieve payload id by message id
     ErrorRetrievingPayloadStatus,
+    #[strum(to_string = "Missing LogMeta in database")]
+    /// Missing LogMeta in database
+    MissingLogMeta,
+    #[strum(to_string = "Database error")]
+    /// Database error
+    DbError,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
