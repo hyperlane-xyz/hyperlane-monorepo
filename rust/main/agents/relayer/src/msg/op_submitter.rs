@@ -677,14 +677,19 @@ async fn confirm_lander_task(
             .map(|(op, result)| async {
                 let message_id = op.id();
                 match result {
-                    Ok(Some(payload_id)) => Some((op, entrypoint.payload_status(payload_id).await)),
-                    Ok(None) | Err(_) => {
+                    Ok(Some(ids)) if !ids.is_empty() => Some((
+                        op,
+                        entrypoint
+                            .payload_status(ids.into_iter().last().unwrap())
+                            .await,
+                    )),
+                    Ok(Some(_)) | Ok(None) | Err(_) => {
                         error!(
                             ?op,
                             %message_id,
                             "Error retrieving payload id by message id",
                         );
-                        send_back_on_failed_submisison(
+                        send_back_on_failed_submission(
                             op,
                             prepare_queue.clone(),
                             &metrics,
@@ -709,7 +714,7 @@ async fn confirm_lander_task(
             .map(|(op, status_result)| async {
                 let Ok(payload_status) = status_result else {
                     warn!(?op, "Error retrieving payload status",);
-                    send_back_on_failed_submisison(
+                    send_back_on_failed_submission(
                         op,
                         prepare_queue.clone(),
                         &metrics,
@@ -790,7 +795,7 @@ async fn process_confirm_result(
                 .await;
         }
         PendingOperationResult::Reprepare(reason) => {
-            send_back_on_failed_submisison(op, prepare_queue.clone(), &metrics, Some(reason)).await;
+            send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, Some(reason)).await;
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
@@ -800,7 +805,7 @@ async fn process_confirm_result(
     operation_result
 }
 
-async fn send_back_on_failed_submisison(
+async fn send_back_on_failed_submission(
     op: QueueOperation,
     prepare_queue: OpQueue,
     metrics: &SerialSubmitterMetrics,

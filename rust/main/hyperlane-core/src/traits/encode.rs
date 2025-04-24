@@ -208,6 +208,40 @@ impl Decode for UniqueIdentifier {
     }
 }
 
+impl Encode for Vec<UniqueIdentifier> {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut written = 0;
+        // Write the length of the vector as a u32
+        written += (self.len() as u64).write_to(writer)?;
+
+        // Write each `UniqueIdentifier` in the vector using its `Encode` implementation
+        written += self.iter().try_fold(0, |acc, item| {
+            item.write_to(writer).map(|bytes| acc + bytes)
+        })?;
+        Ok(written)
+    }
+}
+
+impl Decode for Vec<UniqueIdentifier> {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+    {
+        // Read the length of the vector
+        let len = u64::read_from(reader)? as usize;
+        // Read each `UniqueIdentifier` using its `Decode` implementation
+        let vec = (0..len).try_fold(vec![], |mut acc, _| {
+            let item = UniqueIdentifier::read_from(reader)?;
+            acc.push(item);
+            Ok::<Vec<UniqueIdentifier>, HyperlaneProtocolError>(acc)
+        })?;
+        Ok(vec)
+    }
+}
+
 impl Encode for GasPaymentKey {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where

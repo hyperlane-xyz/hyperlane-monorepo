@@ -664,13 +664,17 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
         payload_id: &UniqueIdentifier,
     ) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, payload_id)
+        let mut ids = self
+            .retrieve_payload_id_by_message_id(message_id)?
+            .unwrap_or_default();
+        ids.push(payload_id.clone());
+        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, &ids)
     }
 
     fn retrieve_payload_id_by_message_id(
         &self,
         message_id: &H256,
-    ) -> DbResult<Option<UniqueIdentifier>> {
+    ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
         self.retrieve_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id)
     }
 }
