@@ -14,6 +14,20 @@ jobs:
       YARN_ENABLE_SCRIPTS: false
       YARN_NODE_LINKER: pnp
     steps:
+      - name: Is this PR from a fork?
+        id: is-fork
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "This repo is ${{ github.repository }}"
+          echo "PR from ${{ github.event.pull_request.head.repo.full_name }}"
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "YARN_ENABLE_HARDENED_MODE=true" >> $GITHUB_ENV
+            echo "This is a fork, hardened mode enabled"
+          else
+            echo "YARN_ENABLE_HARDENED_MODE=false" >> $GITHUB_ENV
+            echo "This is not a fork, hardened mode disabled"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -50,9 +64,20 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Get changed files
+      - name: Get changed files (PR)
+        if: github.event_name == 'pull_request'
         run: |
-          git diff --name-only ${{ github.event.pull_request.base.sha || 'HEAD~10' }} ${{ github.event.pull_request.head.sha || github.sha }} > changed_files.txt
+          gh pr view "$PR_NUMBER" --json files -q '.files[] | select(.status != "removed") | .path' > changed_files.txt
+          echo Will check the following files:
+          cat changed_files.txt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+
+      - name: Get changed files
+        if: github.event_name == 'push'
+        run: |
+          git diff --name-only 'HEAD~10' ${{ github.sha }} > changed_files.txt
           echo Will check the following files:
           cat changed_files.txt
 
@@ -61,3 +86,8 @@ jobs:
           cat changed_files.txt |
           xargs -r yarn exec prettier --check --ignore-unknown
         continue-on-error: true
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f changed_files.txt

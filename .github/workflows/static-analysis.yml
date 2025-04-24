@@ -2,7 +2,7 @@ name: static-analysis
 
 on:
   push:
-  # Triggers the workflow on push to main
+    # Triggers the workflow on push to main
     branches: [main]
     paths:
       - 'solidity/**'
@@ -56,7 +56,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
-          category: "slither"
+          category: 'slither'
 
       - name: Olympix Integrated Security
         uses: olympix/integrated-security@main
@@ -70,4 +70,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: olympix.sarif
-          category: "olympix"
+          category: 'olympix'

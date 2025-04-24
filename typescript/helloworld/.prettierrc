@@ -17,5 +17,8 @@
   "importOrder": ["^@hyperlane-xyz/(.*)$", "^../(.*)$", "^./(.*)$"],
   "importOrderSeparation": true,
   "importOrderSortSpecifiers": true,
-  "plugins": ["prettier-plugin-solidity", "@trivago/prettier-plugin-sort-imports"]
+  "plugins": [
+    "prettier-plugin-solidity",
+    "@trivago/prettier-plugin-sort-imports"
+  ]
 }
