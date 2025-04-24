@@ -25,17 +25,17 @@ jobs:
       - name: Install yarn
         run: |
           corepack enable
-          corepack prepare yarn@stable --activate
           
       - name: Cache yarn packages
         uses: actions/cache@v4
         with:
           path: |
             .yarn/cache
+            .yarn/releases
           key: ${{ runner.os }}-yarn
       
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
         
       - name: Run prettier
-        run: yarn exec prettier --check --ignore-unknown
+        run: yarn exec prettier --check --ignore-unknown .
