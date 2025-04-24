@@ -43,9 +43,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   let tokenSymbol: string;
   let warpRouteId: string;
   let snapshots: { rpcUrl: string; snapshotId: string }[] = [];
+  let ogVerbose: boolean;
 
   before(async () => {
-    const ogVerbose = $.verbose;
+    ogVerbose = $.verbose;
     $.verbose = false;
 
     console.log('Deploying core contracts on all chains...');
@@ -121,7 +122,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         ),
       ),
     ]);
+  });
 
+  after(() => {
     $.verbose = ogVerbose;
   });
 
@@ -169,7 +172,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  async function startRebalancerAndExpectLog(log: string): Promise<void> {
+  async function startRebalancerAndExpectLog(
+    log: string,
+    timeout = 10000,
+  ): Promise<void> {
     const process = hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
@@ -177,13 +183,20 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     return new Promise(async (resolve, reject) => {
+      const timeoutId = setTimeout(async () => {
+        await process.kill();
+        reject(new Error(`Timeout waiting for log: "${log}"`));
+      }, timeout);
+
       process.catch((e) => {
+        clearTimeout(timeoutId);
         // TODO: Do a pretty print of the error
         reject(e.text());
       });
 
       for await (const chunk of process.stdout) {
         if (chunk.includes(log)) {
+          clearTimeout(timeoutId);
           resolve();
           await process.kill();
           break;
