@@ -34,12 +34,27 @@ export type MonitorEvent = {
  */
 export interface IMonitor {
   /**
-   * Allows subscribers to listen to monitored token data whenever it is emitted.
+   * Allows subscribers to listen to collateral balances.
    */
-  subscribe(fn: (event: MonitorEvent) => void): void;
+  on(eventName: 'collateralbalances', fn: (event: MonitorEvent) => void): this;
+
+  /**
+   * Allows subscribers to listen to error events.
+   */
+  on(eventName: 'error', fn: (event: Error) => void): this;
+
+  /**
+   * Allows subscribers to listen to start events.
+   */
+  on(eventName: 'start', fn: () => void): this;
 
   /**
    * Starts the monitoring long-running process.
    */
   start(): Promise<void>;
+
+  /**
+   * Stops the monitoring long-running process.
+   */
+  stop(): void;
 }

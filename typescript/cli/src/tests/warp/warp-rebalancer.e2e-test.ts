@@ -159,11 +159,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   afterEach(async () => {
-    try {
-      rmSync(REBALANCER_STRATEGY_CONFIG_PATH);
-    } catch (e) {
-      // Ignore
-    }
+    rmSync(REBALANCER_STRATEGY_CONFIG_PATH, { force: true });
 
     await Promise.all(
       snapshots.map(({ rpcUrl, snapshotId }) =>
@@ -172,7 +168,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  async function startRebalancerAndExpectLog(
+  function startRebalancerAndExpectLog(
     log: string,
     timeout = 10000,
   ): Promise<void> {
@@ -182,6 +178,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       REBALANCER_STRATEGY_CONFIG_PATH,
     );
 
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       const timeoutId = setTimeout(async () => {
         await process.kill();
@@ -194,7 +191,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         reject(e.text());
       });
 
-      for await (const chunk of process.stdout) {
+      for await (let chunk of process.stdout) {
+        chunk = typeof chunk === 'string' ? chunk : chunk.toString();
+
         if (chunk.includes(log)) {
           clearTimeout(timeoutId);
           resolve();
@@ -205,7 +204,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
   }
 
-  it('should successfuly start the rebalancer', async () => {
+  it('should successfully start the rebalancer', async () => {
     await startRebalancerAndExpectLog('Rebalancer started successfully 🚀');
   });
 
@@ -217,14 +216,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  it('should throw if a strategy bigint cannot be parsed', async () => {
+  it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
       [CHAIN_NAME_2]: { weight: 'weight', tolerance: 0 },
       [CHAIN_NAME_3]: { weight: 100, tolerance: 0 },
     });
 
     await startRebalancerAndExpectLog(`Cannot convert weight to a BigInt`);
+  });
 
+  it('should throw if a tolerance value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
       [CHAIN_NAME_2]: { weight: 100, tolerance: 0 },
       [CHAIN_NAME_3]: { weight: 100, tolerance: 'tolerance' },

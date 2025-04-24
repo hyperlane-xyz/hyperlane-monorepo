@@ -526,8 +526,8 @@ export function hyperlaneRelayer(chains: string[], warp?: string) {
         --yes`;
 }
 
-export async function createSnapshot(rpcUrl: string): Promise<string> {
-  return await snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
+export function createSnapshot(rpcUrl: string) {
+  return snapshotBaseCall<string>(rpcUrl, 'evm_snapshot', []);
 }
 
 export async function restoreSnapshot(

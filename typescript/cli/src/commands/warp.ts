@@ -34,6 +34,7 @@ import {
   IMonitor,
   IStrategy,
   Monitor,
+  MonitorPollingError,
   Strategy,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -460,24 +461,39 @@ export const rebalancer: CommandModuleWithContext<{
       // Instantiates the executor that will process rebalancing routes
       const executor: IExecutor = new Executor();
 
-      // Observe monitor events and process rebalancing routes
-      monitor.subscribe((event) => {
-        const balances = event.balances.reduce((acc, next) => {
-          acc[next.chain] = next.value;
-          return acc;
-        }, {} as Record<ChainName, bigint>);
+      await monitor
+        // Observe balances events and process rebalancing routes
+        .on('collateralbalances', (event) => {
+          const balances = event.balances.reduce((acc, next) => {
+            acc[next.chain] = next.value;
+            return acc;
+          }, {} as Record<ChainName, bigint>);
 
-        const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
+          const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
 
-        executor.processRebalancingRoutes(rebalancingRoutes);
-      });
-
-      // Starts the monitor to begin polling balances.
-      await monitor.start();
-
-      logGreen('Rebalancer started successfully 🚀');
+          executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
+            throw new Error(
+              `Error processing rebalancing routes: ${e.messages}`,
+            );
+          });
+        })
+        // Observe monitor errors and exit
+        .on('error', (e) => {
+          if (e instanceof MonitorPollingError) {
+            errorRed(e);
+          } else {
+            // This will catch `MonitorStartError` and generic errors
+            throw e;
+          }
+        })
+        // Observe monitor start and log success
+        .on('start', () => {
+          logGreen('Rebalancer started successfully 🚀');
+        })
+        // Finally, starts the monitor to begin polling balances.
+        .start();
     } catch (e) {
-      errorRed('Rebalancer could not be started:', (e as Error).message);
+      errorRed('Error on the rebalancer:', (e as Error).message);
       process.exit(1);
     }
   },
