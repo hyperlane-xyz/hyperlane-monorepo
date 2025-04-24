@@ -1,4 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 use axum::async_trait;
 use ethers::prelude::Selector;
@@ -7,11 +9,11 @@ use serde_json::Value;
 
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
+    config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
     IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
-    SequenceAwareIndexer, ValidatorAnnounce, H256,
+    SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -69,6 +71,10 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// Submitter type for this chain
+    pub submitter: SubmitterType,
+    /// The estimated block time, i.e. the average time the next block is added to the chain
+    pub estimated_block_time: Duration,
     /// The reorg period of the chain, i.e. the number of blocks until finality
     pub reorg_period: ReorgPeriod,
     /// Addresses of contracts on the chain
@@ -149,6 +155,9 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
 
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]
+// TODO: re-enable this clippy check once the new submitter is shipped,
+// since it might take in configs in a different way
+#[allow(clippy::large_enum_variant)]
 pub enum ChainConnectionConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
@@ -175,11 +184,11 @@ impl ChainConnectionConf {
     }
 
     /// Get the message batch configuration for this chain.
-    pub fn operation_batch_config(&self) -> Option<&OperationBatchConfig> {
+    pub fn operation_submission_config(&self) -> Option<&OpSubmissionConfig> {
         match self {
-            Self::Ethereum(conf) => Some(&conf.operation_batch),
-            Self::Cosmos(conf) => Some(&conf.operation_batch),
-            Self::Sealevel(conf) => Some(&conf.operation_batch),
+            Self::Ethereum(conf) => Some(&conf.op_submission_config),
+            Self::Cosmos(conf) => Some(&conf.op_submission_config),
+            Self::Sealevel(conf) => Some(&conf.op_submission_config),
             _ => None,
         }
     }
