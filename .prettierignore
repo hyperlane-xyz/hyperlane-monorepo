@@ -10,4 +10,5 @@ Dockerfile
 
 rust/
 tools/
+typescript/infra/helm/**/templates/
 vectors/
