@@ -41,7 +41,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         announcement: SignedType<Announcement>,
-        _chain_signer: String,
+        _chain_signer: H256,
     ) -> Option<U256> {
         todo!()
     }

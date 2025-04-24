@@ -103,7 +103,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         announcement: SignedType<Announcement>,
-        _chain_signer: String,
+        _chain_signer: H256,
     ) -> Option<U256> {
         // TODO: check user balance. For now, just try announcing and
         // allow the announce attempt to fail if there are not enough tokens.
