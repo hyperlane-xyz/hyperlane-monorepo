@@ -161,29 +161,3 @@ impl ChainSigner for hyperlane_cosmos::Signer {
         self.address.clone()
     }
 }
-
-#[async_trait]
-impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
-    async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::CosmosKey {
-            key,
-            prefix,
-            account_address_type,
-        } = conf
-        {
-            Ok(hyperlane_cosmos_native::Signer::new(
-                key.as_bytes().to_vec(),
-                prefix.clone(),
-                account_address_type,
-            )?)
-        } else {
-            bail!(format!("{conf:?} key is not supported by cosmos"));
-        }
-    }
-}
-
-impl ChainSigner for hyperlane_cosmos_native::Signer {
-    fn address_string(&self) -> String {
-        self.address.clone()
-    }
-}

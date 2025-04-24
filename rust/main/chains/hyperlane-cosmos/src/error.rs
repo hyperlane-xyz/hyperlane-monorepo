@@ -43,7 +43,7 @@ pub enum HyperlaneCosmosError {
     TonicGenError(#[from] tonic::codegen::StdError),
     /// Tendermint RPC Error
     #[error(transparent)]
-    TendermintError(#[from] Box<tendermint_rpc::error::Error>),
+    TendermintError(#[from] tendermint_rpc::error::Error),
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
@@ -74,6 +74,36 @@ pub enum HyperlaneCosmosError {
     /// Parsing attempt failed
     #[error("Parsing attempt failed. (Errors: {0:?})")]
     ParsingAttemptsFailed(Vec<HyperlaneCosmosError>),
+}
+
+impl From<cosmrs::ErrorReport> for HyperlaneCosmosError {
+    fn from(value: cosmrs::ErrorReport) -> Self {
+        HyperlaneCosmosError::CosmosErrorReport(Box::new(value))
+    }
+}
+
+impl From<tonic::Status> for HyperlaneCosmosError {
+    fn from(value: tonic::Status) -> Self {
+        HyperlaneCosmosError::GrpcError(Box::new(value))
+    }
+}
+
+impl From<cosmrs::Error> for HyperlaneCosmosError {
+    fn from(value: cosmrs::Error) -> Self {
+        HyperlaneCosmosError::CosmosError(Box::new(value))
+    }
+}
+
+impl From<cosmrs::tendermint::Error> for HyperlaneCosmosError {
+    fn from(value: cosmrs::tendermint::Error) -> Self {
+        HyperlaneCosmosError::CosmrsTendermintError(Box::new(value))
+    }
+}
+
+impl From<cosmwasm_std::StdError> for HyperlaneCosmosError {
+    fn from(value: cosmwasm_std::StdError) -> Self {
+        HyperlaneCosmosError::CosmWasmError(Box::new(value))
+    }
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
