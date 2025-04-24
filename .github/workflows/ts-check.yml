@@ -23,9 +23,17 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install yarn
+      - name: Enable corepack
         run: |
           corepack enable
+
+      - name: Cache Corepack Yarn installation
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Corepack
+          key: corepack-yarn-${{ runner.os }}-${{ hashFiles('**/.yarnrc.yml', '**/package.json') }}
+          restore-keys: |
+            corepack-yarn-${{ runner.os }}-
           
       - name: Cache yarn packages
         uses: actions/cache@v4
