@@ -90,7 +90,7 @@
     "slither": "slither .",
     "storage": "./storage.sh",
     "version:update": "sh ./bytecodeversion.sh",
-    "version:changed": "yarn version:update && git diff --exit-code",
+    "version:changed": "yarn version:update && git diff --exit-code contracts/PackageVersioned.sol",
     "version:exhaustive": "yarn tsx ./test/exhaustiveversion.test.ts"
   },
   "peerDependencies": {
