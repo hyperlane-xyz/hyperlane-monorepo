@@ -8,6 +8,8 @@
 *.Dockerfile
 Dockerfile
 
+typescript/*/dist/
+
 rust/
 tools/
 typescript/infra/helm/**/templates/
