@@ -17,6 +17,7 @@ import {
 import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 export const ezEthChainsToDeploy = [
@@ -469,26 +470,5 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   existingProxyAdmins: existingProxyAdmins,
 });
 
-// Create a GnosisSafeBuilder Strategy for each safe address
-export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
-  ezEthSafes: Record<string, string>,
-) {
-  return (): ChainSubmissionStrategy => {
-    return Object.fromEntries(
-      Object.entries(ezEthSafes).map(([chain, safeAddress]) => [
-        chain,
-        {
-          submitter: {
-            type: TxSubmitterType.GNOSIS_TX_BUILDER,
-            version: '1.0',
-            chain,
-            safeAddress,
-          },
-        },
-      ]),
-    );
-  };
-}
-
 export const getEZETHGnosisSafeBuilderStrategyConfig =
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
+  getGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
