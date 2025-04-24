@@ -13,7 +13,7 @@ import {
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
+import { awSafes } from '../../governance/safe/aw.js';
 
 // Environment-independent configuration
 const deploymentChains = [
@@ -98,7 +98,7 @@ const productionRateLimitByChain: TypedSuperTokenChainMap<string> = {
 };
 
 const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
-  ethereum: DEPLOYER,
+  ethereum: awSafes['ethereum'],
   celo: '0xf1b3fc934bB46c459253fb38555A400b94909800',
   optimism: '0x8E3340E241880F80359AA95Ae20Dc498d3f62503',
   base: '0x125d1b64dfd7898DD06ac3E060A432691b8Fa676',
@@ -110,13 +110,13 @@ const productionOwnerByChain: TypedSuperTokenChainMap<string> = {
   superseed: '0x0731a8e0DC88Df79d9643BD6C1f26cfe6fa53382',
   lisk: '0x6F0A0038FcDB2F1655219f1b92f7E9aD4b78Aa49',
   worldchain: '0x998238aF5A2DDC7ae08Dbe4B60b82EF63A1538cd',
-  sonic: DEPLOYER,
-  bitlayer: DEPLOYER,
-  ronin: DEPLOYER,
-  mantle: DEPLOYER,
-  metis: DEPLOYER,
-  linea: DEPLOYER,
-  metal: DEPLOYER,
+  sonic: awSafes['sonic'],
+  bitlayer: awSafes['bitlayer'],
+  ronin: awSafes['ronin'],
+  mantle: awSafes['mantle'],
+  metis: awSafes['metis'],
+  linea: awSafes['linea'],
+  metal: awSafes['metal'],
 };
 
 const productionOwnerOverridesByChain: ChainMap<
