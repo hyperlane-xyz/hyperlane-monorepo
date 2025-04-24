@@ -1,5 +1,9 @@
 # @hyperlane-xyz/utils
 
+## 12.1.0
+
+## 12.0.0
+
 ## 11.0.0
 
 ### Major Changes
