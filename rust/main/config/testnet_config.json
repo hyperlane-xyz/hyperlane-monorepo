@@ -269,7 +269,7 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1",
       "gasCurrencyCoinGeckoId": "binancecoin",
       "transactionOverrides": {
-        "gasPrice": 8000000000
+        "gasPrice": 1000000000
       }
     },
     "connextsepolia": {
@@ -2909,7 +2909,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": "0.001"
+        "amount": "2.0"
       },
       "index": {
         "chunk": 10,

@@ -1,6 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -16,7 +15,7 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsctestnet: {
     transactionOverrides: {
-      gasPrice: 8 * 10 ** 9, // 8 gwei
+      gasPrice: 1 * 10 ** 9, // 1 gwei
     },
   },
   kyvetestnet: {
@@ -24,6 +23,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: '2.0',
     },
   },
+
   // deploy-only overrides
   // scrollsepolia: {
   //   transactionOverrides: {
