@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       YARN_ENABLE_GLOBAL_CACHE: false
+      YARN_ENABLE_SCRIPTS: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
