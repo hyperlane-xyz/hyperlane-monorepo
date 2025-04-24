@@ -208,7 +208,7 @@ impl Decode for UniqueIdentifier {
     }
 }
 
-impl Encode for Vec<UniqueIdentifier> {
+impl<T: Encode> Encode for Vec<T> {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
@@ -217,7 +217,7 @@ impl Encode for Vec<UniqueIdentifier> {
         // Write the length of the vector as a u32
         written += (self.len() as u64).write_to(writer)?;
 
-        // Write each `UniqueIdentifier` in the vector using its `Encode` implementation
+        // Write each `T` in the vector using its `Encode` implementation
         written += self.iter().try_fold(0, |acc, item| {
             item.write_to(writer).map(|bytes| acc + bytes)
         })?;
@@ -225,18 +225,19 @@ impl Encode for Vec<UniqueIdentifier> {
     }
 }
 
-impl Decode for Vec<UniqueIdentifier> {
+impl<T: Decode> Decode for Vec<T> {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
     {
         // Read the length of the vector
         let len = u64::read_from(reader)? as usize;
-        // Read each `UniqueIdentifier` using its `Decode` implementation
+
+        // Read each `T` using its `Decode` implementation
         let vec = (0..len).try_fold(vec![], |mut acc, _| {
-            let item = UniqueIdentifier::read_from(reader)?;
+            let item = T::read_from(reader)?;
             acc.push(item);
-            Ok::<Vec<UniqueIdentifier>, HyperlaneProtocolError>(acc)
+            Ok::<Vec<T>, HyperlaneProtocolError>(acc)
         })?;
         Ok(vec)
     }
