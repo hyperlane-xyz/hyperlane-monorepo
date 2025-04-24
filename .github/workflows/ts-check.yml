@@ -30,7 +30,7 @@ jobs:
       - name: Cache Corepack Yarn installation
         uses: actions/cache@v4
         with:
-          path: ~/.cache/Corepack
+          path: ~/.cache/node/corepack
           key: corepack-yarn-${{ runner.os }}-${{ hashFiles('**/.yarnrc.yml', '**/package.json') }}
           restore-keys: |
             corepack-yarn-${{ runner.os }}-
