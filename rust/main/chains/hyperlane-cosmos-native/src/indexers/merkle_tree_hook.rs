@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 use hex::ToHex;
 use hyperlane_cosmos_rs::{
     hyperlane::core::post_dispatch::v1::{
-        InsertedIntoTree, TreeResponse, WrappedMerkleTreeHookResponse,
+        EventInsertedIntoTree, TreeResponse, WrappedMerkleTreeHookResponse,
     },
     prost::Name,
 };
@@ -131,7 +131,7 @@ impl MerkleTreeHook for CosmosNativeMerkleTreeHook {
 
 impl CosmosEventIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
     fn target_type() -> String {
-        InsertedIntoTree::full_name()
+        EventInsertedIntoTree::full_name()
     }
 
     fn provider(&self) -> &RpcProvider {
