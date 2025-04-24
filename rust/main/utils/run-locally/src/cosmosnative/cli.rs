@@ -12,6 +12,18 @@ use super::{
 };
 
 const GENESIS_FUND: u128 = 1000000000000;
+const IGP_ADDRESS: &str = "0x726f757465725f706f73745f6469737061746368000000040000000000000000";
+const MERKLE_ISM_ADDRESS: &str =
+    "0x726f757465725f69736d00000000000000000000000000040000000000000000";
+const ROUTING_ISM_ADDRESS: &str =
+    "0x726f757465725f69736d00000000000000000000000000010000000000000001";
+const MAILBOX_ADDRESS: &str = "0x68797065726c616e650000000000000000000000000000000000000000000000";
+const MERKLE_TREE_HOOK_ADDRESS: &str =
+    "0x726f757465725f706f73745f6469737061746368000000030000000000000001";
+const COLLATERAL_TOKEN_ADDRESS: &str =
+    "0x726f757465725f61707000000000000000000000000000010000000000000000";
+const SYNTHETIC_TOKEN_ADDRESS: &str =
+    "0x726f757465725f61707000000000000000000000000000020000000000000001";
 
 #[derive(Debug)]
 pub struct SimApp {
@@ -151,9 +163,6 @@ impl SimApp {
         // TODO: test against the tx result to see if everything was created correctly
         self.tx(vec!["hyperlane", "hooks", "igp", "create", DENOM]);
 
-        const IGP_ADDRESS: &str =
-            "0x726f757465725f706f73745f6469737061746368000000040000000000000000";
-
         // set the interchain gas config -> this determines the interchain gaspayments
         // cmd is following: igp-address remote-domain exchange-rate gas-price and gas-overhead
         // this config requires a payment of at least 0.200001uhyp
@@ -181,15 +190,10 @@ impl SimApp {
             "1",
         ]);
 
-        const MERKLE_ISM_ADDRESS: &str =
-            "0x726f757465725f69736d00000000000000000000000000040000000000000000";
-
         // create routing ism and configure it to use the merkle tree ism just created
         // cmd is following: create-routing
         // expected ism address: 0x726f757465725f69736d00000000000000000000000000010000000000000001
         self.tx(vec!["hyperlane", "ism", "create-routing"]);
-        const ROUTING_ISM_ADDRESS: &str =
-            "0x726f757465725f69736d00000000000000000000000000010000000000000001";
 
         // configure the routing ism to use the merkle tree ism
         // cmd is following: set-routing-ism-domain [routing-ism-id] [domain] [ism-id]
@@ -213,9 +217,6 @@ impl SimApp {
             local_domain,
         ]);
 
-        const MAILBOX_ADDRESS: &str =
-            "0x68797065726c616e650000000000000000000000000000000000000000000000";
-
         // create merkle_tree_hook
         // cmd is following: mailbox-address
         // expected merkle_tree_hook address: 0x726f757465725f706f73745f6469737061746368000000030000000000000001
@@ -226,9 +227,6 @@ impl SimApp {
             "create",
             MAILBOX_ADDRESS,
         ]);
-
-        const MERKLE_TREE_HOOK_ADDRESS: &str =
-            "0x726f757465725f706f73745f6469737061746368000000030000000000000001";
 
         // set mailbox to use the hooks
         // cmd is following: mailbox-id --required-hook [id] --default-hook [id]
@@ -260,11 +258,6 @@ impl SimApp {
             MAILBOX_ADDRESS,
             DENOM,
         ]);
-
-        const COLLATERAL_TOKEN_ADDRESS: &str =
-            "0x726f757465725f61707000000000000000000000000000010000000000000000";
-        const SYNTHETIC_TOKEN_ADDRESS: &str =
-            "0x726f757465725f61707000000000000000000000000000020000000000000001";
 
         // enroll the remote domain to this token
         // cmd is following: token-id receiver-domain receiver-contract gas
