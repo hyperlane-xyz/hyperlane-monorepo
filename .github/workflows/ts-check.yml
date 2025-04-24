@@ -48,7 +48,15 @@ jobs:
       
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Get changed files
+        run: |
+          git diff --name-only $(git merge-base ${{ github.sha }} origin/main) ${{ github.sha }} > changed_files.txt
+          echo Will check the following files:
+          cat changed_files.txt
         
       - name: Run prettier
-        run: yarn exec prettier --check --ignore-unknown .
+        run: >-
+          cat changed_files.txt |
+          xargs -r yarn exec prettier --check --ignore-unknown .
         continue-on-error: true
