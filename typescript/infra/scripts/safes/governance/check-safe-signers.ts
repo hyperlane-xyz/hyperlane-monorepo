@@ -45,55 +45,65 @@ async function main() {
     Object.keys(safes),
   );
 
-  for (const [chain, safeAddress] of Object.entries(safes)) {
-    let safeSdk: Safe.default;
-    try {
-      ({ safeSdk } = await getSafeAndService(
-        chain,
-        multiProvider,
-        safeAddress,
-      ));
-    } catch (error) {
-      rootLogger.error(`[${chain}] could not get safe: ${error}`);
-      continue;
-    }
+  const chainViolations = await Promise.all(
+    Object.entries(safes).map(async ([chain, safeAddress]) => {
+      let safeSdk: Safe.default;
+      try {
+        ({ safeSdk } = await getSafeAndService(
+          chain,
+          multiProvider,
+          safeAddress,
+        ));
+      } catch (error) {
+        rootLogger.error(`[${chain}] could not get safe: ${error}`);
+        return [];
+      }
 
-    const currentOwners = await safeSdk.getOwners();
-    const currentThreshold = await safeSdk.getThreshold();
-    const expectedOwners = signers;
-    const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
-      currentOwners,
-      expectedOwners,
-    );
+      const [currentOwners, currentThreshold] = await Promise.all([
+        safeSdk.getOwners(),
+        safeSdk.getThreshold(),
+      ]);
+      const expectedOwners = signers;
+      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        currentOwners,
+        expectedOwners,
+      );
 
-    if (ownersToRemove.length > 0) {
-      violations.push({
-        type: SafeConfigViolationType.unexpectedOwners,
-        chain,
-        safeAddress,
-        owners: ownersToRemove,
-      });
-    }
+      const chainViolations: SafeConfigViolation[] = [];
 
-    if (ownersToAdd.length > 0) {
-      violations.push({
-        type: SafeConfigViolationType.missingOwners,
-        chain,
-        safeAddress,
-        owners: ownersToAdd,
-      });
-    }
+      if (ownersToRemove.length > 0) {
+        chainViolations.push({
+          type: SafeConfigViolationType.unexpectedOwners,
+          chain,
+          safeAddress,
+          owners: ownersToRemove,
+        });
+      }
 
-    if (threshold !== currentThreshold) {
-      violations.push({
-        type: SafeConfigViolationType.thresholdMismatch,
-        chain,
-        safeAddress,
-        expected: threshold.toString(),
-        actual: currentThreshold.toString(),
-      });
-    }
-  }
+      if (ownersToAdd.length > 0) {
+        chainViolations.push({
+          type: SafeConfigViolationType.missingOwners,
+          chain,
+          safeAddress,
+          owners: ownersToAdd,
+        });
+      }
+
+      if (threshold !== currentThreshold) {
+        chainViolations.push({
+          type: SafeConfigViolationType.thresholdMismatch,
+          chain,
+          safeAddress,
+          expected: threshold.toString(),
+          actual: currentThreshold.toString(),
+        });
+      }
+
+      return chainViolations;
+    }),
+  );
+
+  violations.push(...chainViolations.flat());
 
   if (violations.length > 0) {
     // Display threshold mismatches in a table
@@ -101,6 +111,7 @@ async function main() {
       (v) => v.type === SafeConfigViolationType.thresholdMismatch,
     );
     if (thresholdViolations.length > 0) {
+      // eslint-disable-next-line no-console
       console.table(thresholdViolations, [
         'chain',
         'safeAddress',
