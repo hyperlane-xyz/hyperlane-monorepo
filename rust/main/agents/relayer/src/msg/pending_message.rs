@@ -963,6 +963,26 @@ impl PendingMessage {
     async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
         let ism_address = self.recipient_ism_address().await?;
 
+        // Retrieve LogMeta for the message
+        let log_meta = match self
+            .ctx
+            .origin_db
+            .retrieve_log_metadata_by_message_id(&self.message.id())
+        {
+            Ok(Some(meta)) => {
+                trace!(message_id=?self.message.id(), ?meta, "Retrieved LogMeta for message");
+                Some(meta)
+            }
+            Ok(None) => {
+                warn!(message_id=?self.message.id(), "LogMeta not found for message in DB");
+                return Err(self.on_reprepare::<String>(None, ReprepareReason::MissingLogMeta));
+            }
+            Err(e) => {
+                warn!(message_id=?self.message.id(), error=?e, "Failed to retrieve LogMeta for message from DB");
+                return Err(self.on_reprepare(Some(e), ReprepareReason::DbError));
+            }
+        };
+
         let message_metadata_builder = match MessageMetadataBuilder::new(
             self.ctx.metadata_builder.clone(),
             ism_address,
@@ -978,7 +998,10 @@ impl PendingMessage {
             }
         };
 
-        let params = MessageMetadataBuildParams::default();
+        let params = MessageMetadataBuildParams {
+            log_meta,
+            ..Default::default()
+        };
 
         let metadata = message_metadata_builder
             .build(ism_address, &self.message, params)

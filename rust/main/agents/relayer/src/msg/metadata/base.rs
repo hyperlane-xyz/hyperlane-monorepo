@@ -68,6 +68,8 @@ pub struct MessageMetadataBuildParams {
     /// This value is global and is shared when doing a .clone()
     /// in order to track all recursion branches
     pub ism_count: Arc<Mutex<u32>>,
+    /// Log metadata for the message
+    pub log_meta: Option<LogMeta>,
 }
 
 #[derive(Debug)]
