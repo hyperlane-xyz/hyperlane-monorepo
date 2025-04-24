@@ -86,7 +86,7 @@ jobs:
           cat changed_files.txt |
           xargs -r yarn exec prettier --check --ignore-unknown
         continue-on-error: true
-      
+
       - name: Clean up
         if: always()
         run: |

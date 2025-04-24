@@ -1,13 +1,13 @@
-name: "Install Hyperlane CLI"
-description: "Install the Hyperlane CLI by packaging from a local build"
+name: 'Install Hyperlane CLI'
+description: 'Install the Hyperlane CLI by packaging from a local build'
 
 inputs:
   ref:
-    description: "The Git ref to checkout"
+    description: 'The Git ref to checkout'
     required: true
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: yarn-build
       uses: ./.github/actions/yarn-build-with-cache
