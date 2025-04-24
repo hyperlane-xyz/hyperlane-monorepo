@@ -7890,6 +7890,9 @@ __metadata:
     yargs: "npm:^17.7.2"
   peerDependencies:
     "@ethersproject/abi": "*"
+  dependenciesMeta:
+    "@ethersproject/hardware-wallets":
+      optional: true
   languageName: unknown
   linkType: soft
 
