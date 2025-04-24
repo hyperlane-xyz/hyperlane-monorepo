@@ -46,15 +46,17 @@ async function main() {
         ),
       );
   }
-  const output = [];
+  const output: {
+    chain: string;
+    validator: string;
+    status: CheckResult;
+    rpcs: number | string;
+    private: string;
+  }[] = [];
 
   await Promise.all(
     targetNetworks.map(async (chain) => {
       const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
-      // // TODO: check if the validator has announced itself
-      // const announcedValidators =
-      //   await validatorAnnounce.getAnnouncedValidators();
-
       const defaultValidatorConfigs =
         defaultMultisigConfigs[chain].validators || [];
       const validators = defaultValidatorConfigs.map((v) => v.address);
