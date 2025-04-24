@@ -88,6 +88,10 @@ class CosmNativeTokenAdapter
     throw new Error('Approve not required for native tokens');
   }
 
+  async isRevokeApprovalRequired(_: Address, __: Address): Promise<boolean> {
+    return false;
+  }
+
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<MsgSendEncodeObject> {
