@@ -213,7 +213,7 @@ mod tests {
     use crate::settings::ChainSigner;
 
     #[test]
-    fn chain_signer_ethereum() {
+    fn address_h256_ethereum() {
         const PRIVATE_KEY: &str =
             "2bcd4cb33dc9b879d74aebb847b0fdd27868ade2b3a999988debcaae763283c6";
         const PUBLIC_KEY: &str = "0000000000000000000000000bec35c9af305b1b8849d652f4b542d19ef7e8f9";
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn chain_signer_sealevel() {
+    fn address_h256_sealevel() {
         const PRIVATE_KEY: &str =
             "0d861aa9ee7b09fe0305a649ec9aa0dfede421817dbe995b48964e5a79fc89e50f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
         const PUBLIC_KEY: &str = "0f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
@@ -254,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn chain_signer_fuel() {
+    fn address_h256_fuel() {
         const PRIVATE_KEY: &str =
             "0a83ee2a87f328704512567198ee25578c27c707b26fdf3be9ea8bf8588f3b65";
         const PUBLIC_KEY: &str = "b43425b2256e7dcdd61752808b137b23f4f697cfaf21175ed81d0610ebab5a87";
@@ -277,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn chain_signer_cosmos() {
+    fn address_h256_cosmos() {
         const PRIVATE_KEY: &str =
             "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         const PUBLIC_KEY: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn chain_signer_cosmosnative() {
+    fn address_h256_cosmosnative() {
         const PRIVATE_KEY: &str =
             "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         const PUBLIC_KEY: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
