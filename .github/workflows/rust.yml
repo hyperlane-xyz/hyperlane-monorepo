@@ -5,9 +5,9 @@ on:
   push:
     branches: [main]
   # Triggers on pull requests
-  pull_request:
-    branches:
-      - '*'
+  # pull_request:
+  #   branches:
+  #     - '*'
   merge_group:
   workflow_dispatch:
 

@@ -8,10 +8,10 @@ on:
       - 'solidity/**'
       - '.github/workflows/static-analysis.yml'
   # Triggers the workflow on pull request
-  pull_request:
-    paths:
-      - 'solidity/**'
-      - '.github/workflows/static-analysis.yml'
+  # pull_request:
+  #   paths:
+  #     - 'solidity/**'
+  #     - '.github/workflows/static-analysis.yml'
 
 jobs:
   slither:
