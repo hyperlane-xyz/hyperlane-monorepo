@@ -366,26 +366,19 @@ where
         let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone());
         let call_results = batch.call().await?;
 
-        let call_count = contract_calls.len();
         let (successful, failed) = multicall::filter_failed(contract_calls, call_results);
 
         if successful.is_empty() {
             return Ok(BatchSimulation::failed(failed.len()));
         }
 
-        let successful_calls_len = successful.len();
         let successful_batch = multicall::batch::<_, ()>(multicall, successful.clone());
 
-        // only send a batch if there are at least two successful calls
-        if successful_calls_len >= 2 {
-            Ok(BatchSimulation::new(
-                Some(self.submittable_batch(successful_batch)),
-                successful,
-                failed,
-            ))
-        } else {
-            Ok(BatchSimulation::failed(call_count))
-        }
+        Ok(BatchSimulation::new(
+            Some(self.submittable_batch(successful_batch)),
+            successful,
+            failed,
+        ))
     }
 
     fn submittable_batch(
