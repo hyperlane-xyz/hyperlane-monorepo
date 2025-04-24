@@ -31,7 +31,7 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "target": "es2022",
+    "target": "es2022"
   },
   "exclude": ["./node_modules/", "./dist/", "./src/types/hardhat.d.ts"],
   "include": ["./src/"],
