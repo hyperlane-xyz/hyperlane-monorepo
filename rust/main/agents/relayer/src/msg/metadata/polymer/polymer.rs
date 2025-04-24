@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose, Engine};
 use derive_new::new;
-use eyre::Result;
 use ethers::types::Bytes;
+use eyre::Result;
 use tracing::debug;
 
 /// Message sent to the Polymer proof provider
@@ -89,7 +89,9 @@ impl PolymerProofProvider {
             let result = response.json::<serde_json::Value>().await?;
             if result["status"] == "ready" || result["status"] == "complete" {
                 let proof = general_purpose::STANDARD.decode(result["proof"].as_str().unwrap())?;
-                return Ok(PolymerProofResponse { proof: Bytes::from(proof) });
+                return Ok(PolymerProofResponse {
+                    proof: Bytes::from(proof),
+                });
             }
 
             attempts += 1;

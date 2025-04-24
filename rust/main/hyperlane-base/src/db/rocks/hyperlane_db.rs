@@ -38,6 +38,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_ID_BY_MESSAGE_ID: &str = "payload_id_by_message_id_";
+const LOG_META_BY_MESSAGE_ID: &str = "log_meta_by_message_id_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -672,6 +673,14 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<UniqueIdentifier>> {
         self.retrieve_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_log_metadata_by_message_id(&self, message_id: &H256, meta: &LogMeta) -> DbResult<()> {
+        self.store_value_by_key(LOG_META_BY_MESSAGE_ID, message_id, meta)
+    }
+
+    fn retrieve_log_metadata_by_message_id(&self, message_id: &H256) -> DbResult<Option<LogMeta>> {
+        self.retrieve_value_by_key(LOG_META_BY_MESSAGE_ID, message_id)
     }
 }
 

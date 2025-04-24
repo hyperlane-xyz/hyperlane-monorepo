@@ -59,4 +59,4 @@ impl MetadataBuilder for PolymerMetadataBuilder {
         let proof_bytes = response.proof.to_vec();
         Ok(Metadata::new(proof_bytes))
     }
-} 
+}
