@@ -1,0 +1,27 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "WFRGSWjaz8tbAxsJitmbfRuFV2mSNwy7BMWcCwaA28U",
+    "owner": ""
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Wrapped Fragmetric Restaked SOL",
+    "symbol": "wfragSOL",
+    "uri": "",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": ""
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Wrapped Fragmetric Restaked SOL",
+    "symbol": "wfragSOL",
+    "uri": "",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
+    "owner": ""
+  }
+}
