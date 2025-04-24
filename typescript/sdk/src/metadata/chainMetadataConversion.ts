@@ -98,7 +98,7 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
         ],
         base: nativeToken.denom!,
         name: nativeToken.name,
-        display: nativeToken.name,
+        display: nativeToken.denom!,
         symbol: nativeToken.symbol,
         type_asset: 'sdk.coin',
       },
