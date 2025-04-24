@@ -170,6 +170,16 @@ while IFS=, read -r _ _ _ RECIPIENT_NAME RECIPIENT_ADDR CHAIN AMOUNT TOKEN_SYMBO
   actual_balance=$(get_token_balance "$TOKEN_CONTRACT" "$RECIPIENT_ADDR")
   expected_balance=$(to_wei "$AMOUNT")
   
+<<<<<<< HEAD
+  # Skip transfer if the recipient already has the expected balance
+  if [[ "$actual_balance" == "$expected_balance" ]]; then
+    echo "✅ Skipping transfer to $RECIPIENT_ADDR for $TOKEN_SYMBOL (already has correct balance)"
+    continue
+  fi
+
+  echo "Transferring $AMOUNT $TOKEN_SYMBOL → $RECIPIENT_NAME ($RECIPIENT_ADDR)"
+  send_token "$TOKEN_CONTRACT" "$RECIPIENT_ADDR" "$AMOUNT"
+=======
   DIFF=$(echo "$expected_balance - $actual_balance" | bc)
   if (( $(echo "$DIFF <= 0" | bc -l) )); then
     echo "✅ Skipping transfer to $RECIPIENT_ADDR for $TOKEN_SYMBOL (already has correct or excess balance)"
@@ -184,6 +194,7 @@ while IFS=, read -r _ _ _ RECIPIENT_NAME RECIPIENT_ADDR CHAIN AMOUNT TOKEN_SYMBO
 
   echo "Transferring $(cast --from-wei "$DIFF") $TOKEN_SYMBOL → $RECIPIENT_NAME ($RECIPIENT_ADDR)"
   send_token "$TOKEN_CONTRACT" "$RECIPIENT_ADDR" $(cast --from-wei "$DIFF")
+>>>>>>> hyper
 
 done < "$TMP_CSV"
 
@@ -203,13 +214,21 @@ while IFS=, read -r _ _ _ RECIPIENT_NAME RECIPIENT_ADDR CHAIN AMOUNT TOKEN_SYMBO
       
       # Check if the actual balance matches the expected balance
       if [[ "$ACTUAL_BALANCE" != "$EXPECTED_BALANCE_WEI" ]]; then
+<<<<<<< HEAD
+        echo "❌ Mismatch for $RECIPIENT_NAME ($RECIPIENT_ADDR) ($TOKEN_SYMBOL): expected $(format_eth "$EXPECTED_BALANCE_WEI"), got $(format_eth "$ACTUAL_BALANCE")"
+=======
         echo "❌ Mismatch for $RECIPIENT_NAME ($RECIPIENT_ADDR) ($TOKEN_SYMBOL): expected $(format_eth_number "$EXPECTED_BALANCE_WEI"), got $(format_eth_number "$ACTUAL_BALANCE")"
+>>>>>>> hyper
       else
         echo "✅ $TOKEN_SYMBOL balance correct for $RECIPIENT_NAME ($RECIPIENT_ADDR): $(format_eth_number "$ACTUAL_BALANCE")"
       fi
     fi
   done
+<<<<<<< HEAD
+done < <(tail -n +2 "$TMP_CSV")
+=======
 done < "$TMP_CSV"
+>>>>>>> hyper
 
 ##### Step 6: Report Final Balances #####
 echo ""
