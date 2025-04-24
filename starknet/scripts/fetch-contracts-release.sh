@@ -5,10 +5,10 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # Constants
-readonly REPO="astraly-labs/hyperlane_starknet"
+readonly REPO="hyperlane-xyz/hyperlane_starknet"
 readonly GITHUB_RELEASES_API="https://api.github.com/repos/${REPO}/releases"
 readonly TARGET_DIR="./release"
-readonly VERSION="v0.3.1"
+readonly VERSION="v0.3.2"
 
 # Color definitions
 declare -r COLOR_GREEN='\033[0;32m'
@@ -72,7 +72,7 @@ download_and_extract() {
         exit 1
     fi
 
-    log_success "Downloading version ${version}..."
+    log_success "Downloading version ${version} from ${download_url}"
     
     if ! curl -L "$download_url" -o "${TARGET_DIR}/release.zip"; then
         log_error "Download failed"
