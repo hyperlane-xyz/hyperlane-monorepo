@@ -210,7 +210,7 @@ impl AggregationIsmMetadataBuilder {
         else {
             debug!(
                 ?threshold,
-                reason = "Aggregation ISM does not have MessageIdMultisig",
+                reason = "Aggregation ISM does not have a MessageIdMultisig submodule",
                 "Fast path is not available"
             );
             return Ok(None);
