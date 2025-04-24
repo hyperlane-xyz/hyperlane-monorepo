@@ -106,6 +106,7 @@ export function useStarknetTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
   const { account } = useAccount();
+
   const { sendAsync } = useSendTransaction({});
   const { switchChainAsync } = useSwitchChain({});
 
