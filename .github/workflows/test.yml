@@ -84,6 +84,8 @@ jobs:
         run: |
           gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[] | select (.status != "removed") | .path' > changed_files.txt
           echo "Changed files: $(cat changed_files.txt)"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Run prettier (changed files)
         if: github.event_name == 'pull_request'
