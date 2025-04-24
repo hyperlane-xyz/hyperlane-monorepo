@@ -11,7 +11,7 @@
     "decimals": 9,
     "name": "Wrapped Fragmetric Restaked JTO",
     "symbol": "wfragJTO",
-    "uri": "",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f4e41f22aabd09d15d41f35559c1a9ebf65b9616/deployments/warp_routes/WFRAGJTO/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
     "owner": ""
   },
@@ -20,7 +20,7 @@
     "decimals": 9,
     "name": "Wrapped Fragmetric Restaked JTO",
     "symbol": "wfragJTO",
-    "uri": "",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f4e41f22aabd09d15d41f35559c1a9ebf65b9616/deployments/warp_routes/WFRAGJTO/metadata.json",
     "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
     "owner": ""
   }
