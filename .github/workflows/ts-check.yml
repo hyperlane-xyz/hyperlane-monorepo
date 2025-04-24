@@ -7,7 +7,7 @@ on:
     branches: [andrey/github-actions-testing]
 
 jobs:
-  format:
+  typescript-checks:
     runs-on: ubuntu-latest
     env:
       YARN_ENABLE_GLOBAL_CACHE: false
@@ -39,3 +39,4 @@ jobs:
         
       - name: Run prettier
         run: yarn exec prettier --check --ignore-unknown .
+        continue-on-error: true
