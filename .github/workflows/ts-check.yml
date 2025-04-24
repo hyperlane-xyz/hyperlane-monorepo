@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
 
       - name: Install node
         uses: actions/setup-node@v4
@@ -51,7 +52,7 @@ jobs:
 
       - name: Get changed files
         run: |
-          git diff --name-only $(git merge-base ${{ github.sha }} origin/main) ${{ github.sha }} > changed_files.txt
+          git diff --name-only ${{ github.event.pull_request.base.sha || 'HEAD~10' }} ${{ github.event.pull_request.head.sha || github.sha }} > changed_files.txt
           echo Will check the following files:
           cat changed_files.txt
         
