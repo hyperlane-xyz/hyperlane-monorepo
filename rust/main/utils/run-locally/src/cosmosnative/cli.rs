@@ -297,10 +297,8 @@ impl SimApp {
         ]);
 
         Contracts {
-            mailbox: MAILBOX_ADDRESS
-                .to_owned(),
-            merkle_tree_hook: MERKLE_TREE_HOOK_ADDRESS
-                .to_owned(),
+            mailbox: MAILBOX_ADDRESS.to_owned(),
+            merkle_tree_hook: MERKLE_TREE_HOOK_ADDRESS.to_owned(),
             igp: IGP_ADDRESS.to_owned(),
             tokens: vec![
                 COLLATERAL_TOKEN_ADDRESS.to_owned(),
