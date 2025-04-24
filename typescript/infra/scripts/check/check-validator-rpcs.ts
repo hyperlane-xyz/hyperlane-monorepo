@@ -24,6 +24,7 @@ async function main() {
     chains && chains.length > 0 ? chains : config.supportedChainNames
   ).filter((chain) => isEthereumProtocolChain(chain) && chain !== 'lumia');
 
+  // set useSecrets to `false` to compare with public RPCs instead of private ones
   const registry = await config.getRegistry(false);
   const metadata = await registry.getMetadata();
 
@@ -50,7 +51,7 @@ async function main() {
     chain: string;
     validator: string;
     status: CheckResult;
-    rpcs: number | string;
+    rpcs: string;
     private: string;
   }[] = [];
 
@@ -77,14 +78,14 @@ async function main() {
           const matchCount = publicRpcs.filter((rpc) =>
             metadata.rpcs?.some((x) => x == rpc),
           ).length;
-          const rpcs = metadata.rpcs?.length || 0;
+          const rpcCount = metadata.rpcs?.length;
 
           output.push({
             chain,
             validator: alias ?? validator,
             status: CheckResult.OK,
-            rpcs: rpcs || '?',
-            private: rpcs == 0 ? '?/?' : `${rpcs - matchCount}/${rpcs || `?`}`,
+            rpcs: `${rpcCount ?? '?'}`,
+            private: !rpcCount ? '?/?' : `${rpcCount - matchCount}/${rpcCount}`,
           });
         } catch {
           output.push({
