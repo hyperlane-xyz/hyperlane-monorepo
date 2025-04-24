@@ -429,10 +429,7 @@ impl Validator {
                     info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
                     let balance_delta = self
                         .validator_announce
-                        .announce_tokens_needed(
-                            signed_announcement.clone(),
-                            Some(chain_signer.clone()),
-                        )
+                        .announce_tokens_needed(signed_announcement.clone(), chain_signer.clone())
                         .await
                         .unwrap_or_default();
                     if balance_delta > U256::zero() {
