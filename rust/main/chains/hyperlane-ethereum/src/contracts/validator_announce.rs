@@ -153,23 +153,26 @@ where
     async fn announce_tokens_needed(
         &self,
         announcement: SignedType<Announcement>,
-        chain_signer: Option<String>,
+        chain_signer: String,
     ) -> Option<U256> {
-        let validator = announcement.value.validator;
-        let eth_h160: ethers::types::H160 = validator.into();
-
         let Ok(contract_call) = self.announce_contract_call(announcement).await else {
             trace!("Unable to get announce contract call");
             return None;
         };
 
-        let chain_signer = chain_signer
-            .and_then(|s| ethers::types::H160::from_str(&s).ok())
-            .unwrap_or(eth_h160);
-
-        let Ok(balance) = self.provider.get_balance(chain_signer, None).await else {
-            trace!("Unable to query balance");
-            return None;
+        let balance = match ethers::types::H160::from_str(&chain_signer) {
+            Ok(signer) => {
+                if let Ok(balance) = self.provider.get_balance(signer, None).await {
+                    balance
+                } else {
+                    trace!("Unable to query balance");
+                    return None;
+                }
+            }
+            _ => {
+                trace!("Unable to query balance");
+                return None;
+            }
         };
 
         let Some(max_cost) = contract_call.tx.max_cost() else {
