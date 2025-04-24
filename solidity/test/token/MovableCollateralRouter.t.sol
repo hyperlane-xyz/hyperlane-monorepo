@@ -59,7 +59,7 @@ contract MovableCollateralRouterTest is Test {
         token.approve(address(vtb), 1e18);
 
         // Execute
-        router.moveCollateral(
+        router.rebalance(
             destinationDomain,
             bytes32(uint256(uint160(alice))),
             1e18,
@@ -79,7 +79,7 @@ contract MovableCollateralRouterTest is Test {
         );
         vm.expectRevert(revertBytes);
         // Execute
-        router.moveCollateral(
+        router.rebalance(
             destinationDomain,
             bytes32(uint256(uint160(alice))),
             1e18,
@@ -101,7 +101,7 @@ contract MovableCollateralRouterTest is Test {
             )
         );
         // Execute
-        router.moveCollateral(
+        router.rebalance(
             destinationDomain,
             bytes32(uint256(uint160(alice))),
             1e18,
@@ -129,11 +129,42 @@ contract MovableCollateralRouterTest is Test {
             )
         );
         // Execute
-        router.moveCollateral(
+        router.rebalance(
             destinationDomain,
             bytes32(uint256(uint160(alice))),
             1e18,
             vtb
         );
+    }
+
+    function testApproveTokenForBridge() public {
+        // Configuration
+        // Grant admin role to test contract
+        router.grantRole(router.DEFAULT_ADMIN_ROLE(), address(this));
+
+        // Execute
+        router.approveTokenForBridge(token, vtb);
+
+        // Assert
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            type(uint256).max
+        );
+    }
+
+    function testApproveTokenForBridge_NotAdmin() public {
+        address notAdmin = address(1);
+        // We don't grant admin role
+        bytes memory revertBytes = abi.encodePacked(
+            "AccessControl: account ",
+            Strings.toHexString(notAdmin),
+            " is missing role ",
+            Strings.toHexString(uint(router.DEFAULT_ADMIN_ROLE()), 32)
+        );
+        vm.expectRevert(revertBytes);
+
+        // Execute
+        vm.prank(notAdmin);
+        router.approveTokenForBridge(token, vtb);
     }
 }

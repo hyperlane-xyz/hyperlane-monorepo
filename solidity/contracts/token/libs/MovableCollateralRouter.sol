@@ -7,8 +7,12 @@ import {ValueTransferBridge} from "./ValueTransferBridge.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract MovableCollateralRouter is AccessControl {
+    using SafeERC20 for IERC20;
+
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -30,12 +34,12 @@ abstract contract MovableCollateralRouter is AccessControl {
     error BadDestination(address rebalancer, uint32 domain);
     error BadBridge(address rebalancer, ValueTransferBridge bridge);
 
-    function moveCollateral(
+    function rebalance(
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
         ValueTransferBridge bridge
-    ) external onlyRole(REBALANCER_ROLE) {
+    ) external payable onlyRole(REBALANCER_ROLE) {
         address rebalancer = _msgSender();
         if (allowedDestinations[domain] != recipient) {
             revert BadDestination({rebalancer: rebalancer, domain: domain});
@@ -45,7 +49,7 @@ abstract contract MovableCollateralRouter is AccessControl {
             revert BadBridge({rebalancer: rebalancer, bridge: bridge});
         }
 
-        _moveCollateral(domain, recipient, amount, bridge);
+        _rebalance(domain, recipient, amount, bridge);
         emit CollateralMoved({
             domain: domain,
             recipient: recipient,
@@ -54,13 +58,13 @@ abstract contract MovableCollateralRouter is AccessControl {
         });
     }
 
-    function _moveCollateral(
+    function _rebalance(
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
         ValueTransferBridge bridge
     ) internal virtual {
-        bridge.transferRemote({
+        bridge.transferRemote{value: msg.value}({
             destinationDomain: domain,
             recipient: recipient,
             amountOut: amount
@@ -79,5 +83,18 @@ abstract contract MovableCollateralRouter is AccessControl {
         uint32 destinationDomain
     ) external onlyRole((DEFAULT_ADMIN_ROLE)) {
         allowedBridges[destinationDomain][bridge] = true;
+    }
+
+    /**
+     * @notice Approves the token for the bridge.
+     * @param token The token to approve.
+     * @param bridge The bridge to approve the token for.
+     * @dev We need this to support bridges that charge fees in ERC20 tokens.
+     */
+    function approveTokenForBridge(
+        IERC20 token,
+        ValueTransferBridge bridge
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        token.safeApprove(address(bridge), type(uint256).max);
     }
 }
