@@ -59,5 +59,5 @@ jobs:
       - name: Run prettier
         run: >-
           cat changed_files.txt |
-          xargs -r yarn exec prettier --check --ignore-unknown .
+          xargs -r yarn exec prettier --check --ignore-unknown
         continue-on-error: true
