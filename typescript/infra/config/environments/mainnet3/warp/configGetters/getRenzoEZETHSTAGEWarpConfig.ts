@@ -1,7 +1,8 @@
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
+
 import {
   ezEthChainsToDeploy,
   ezEthValidators,
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
@@ -58,5 +59,5 @@ export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
   tokenPrices: renzoTokenPrices,
 });
 
-export const getRenzoGnosisSafeBuilderStagingStrategyConfig =
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthStagingSafes);
+export const getEZETHSTAGEGnosisSafeBuilderStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(ezEthStagingSafes);

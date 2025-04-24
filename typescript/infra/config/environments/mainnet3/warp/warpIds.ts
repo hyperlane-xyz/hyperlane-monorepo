@@ -39,12 +39,12 @@ export enum WarpRouteIds {
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
-  EthereumSwellZircuitPZETH = 'PZETH/ethereum-swell-zircuit',
-  // TODO: can be uncommented after merging this warp route into the registry
-  // EthereumSwellZircuitPZETHSTAGE = 'PZETHSTAGE/ethereum-swell-zircuit',
+  BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
+  BerachainEthereumSwellUnichainZircuitPZETHSTAGE = 'PZETHSTAGE/berachain-ethereum-swell-unichain-zircuit',
   EthereumBscLumiaprismLUMIA = 'LUMIA/bsc-ethereum-lumiaprism',
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
+  ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum',
@@ -86,7 +86,7 @@ export enum WarpRouteIds {
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
-  BaseEthereumLumiaprismETH = 'ETH/base-ethereum-lumiaprism',
+  ArbitrumBaseEthereumLumiaprismOptimismPolygonETH = 'ETH/arbitrum-base-ethereum-lumiaprism-optimism-polygon',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
   // Soon Routes
@@ -95,4 +95,12 @@ export enum WarpRouteIds {
   SolanaSoonMEW = 'MEW/solanamainnet-soon',
   SolanaSoonPnut = 'Pnut/solanamainnet-soon',
   SolanaSoonWIF = 'WIF/solanamainnet-soon',
+  SolanaSoonPOPCAT = 'POPCAT/solanamainnet-soon',
+  SolanaSoonGIGA = 'GIGA/solanamainnet-soon',
+  SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
+  SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
+
+  // HYPER routes
+  HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
+  stHYPER = 'stHYPER/bsc-ethereum',
 }

@@ -17,6 +17,7 @@ import {
 import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 export const ezEthChainsToDeploy = [
@@ -388,7 +389,7 @@ export function getRenzoWarpConfigGenerator(params: {
 
     if (tokenPriceDiff.size > 0) {
       throw new Error(
-        `chainsToDeploy !== xERC20Diff, diff is ${Array.from(
+        `chainsToDeploy !== tokenPriceDiff, diff is ${Array.from(
           tokenPriceDiff,
         ).join(', ')}`,
       );
@@ -443,7 +444,9 @@ export function getRenzoWarpConfigGenerator(params: {
                   ],
                 },
                 hook: getRenzoHook(defaultHook, chain, safes[chain]),
-                proxyAdmin: existingProxyAdmins?.[chain] ?? undefined, // when 'undefined' yaml will not include the field
+                ...(existingProxyAdmins?.[chain]
+                  ? { proxyAdmin: existingProxyAdmins?.[chain] }
+                  : {}),
               },
             ];
 
@@ -467,26 +470,5 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   existingProxyAdmins: existingProxyAdmins,
 });
 
-// Create a GnosisSafeBuilder Strategy for each safe address
-export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
-  ezEthSafes: Record<string, string>,
-) {
-  return (): ChainSubmissionStrategy => {
-    return Object.fromEntries(
-      Object.entries(ezEthSafes).map(([chain, safeAddress]) => [
-        chain,
-        {
-          submitter: {
-            type: TxSubmitterType.GNOSIS_TX_BUILDER,
-            version: '1.0',
-            chain,
-            safeAddress,
-          },
-        },
-      ]),
-    );
-  };
-}
-
-export const getRenzoGnosisSafeBuilderStrategyConfig =
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
+export const getEZETHGnosisSafeBuilderStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
