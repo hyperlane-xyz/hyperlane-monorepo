@@ -54,6 +54,13 @@ export class CosmNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   populateApproveTx(
     _transferParams: TransferParams,
   ): Promise<MsgTransferEncodeObject> {

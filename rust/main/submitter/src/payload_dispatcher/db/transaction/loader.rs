@@ -21,10 +21,12 @@ pub struct TransactionDbLoader {
     db: Arc<dyn TransactionDb>,
     inclusion_stage_sender: Sender<Transaction>,
     finality_stage_sender: Sender<Transaction>,
+    domain: String,
 }
 impl TransactionDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
-        DbIterator::new(Arc::new(self), "transaction_db_loader".to_string(), true).await
+        let domain = self.domain.clone();
+        DbIterator::new(Arc::new(self), "Transaction".to_string(), true, domain).await
     }
 }
 
