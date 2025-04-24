@@ -289,17 +289,34 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
     #[instrument(skip_all)]
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
-        let mut stored = 0;
-        for (message, meta) in messages {
-            let stored_message = self.store_message(message.inner(), meta.block_number)?;
-            if stored_message {
-                stored += 1;
+        let mut stored_count = 0;
+        for (indexed_message, meta) in messages {
+            let message = indexed_message.inner();
+            let message_id = message.id();
+
+            // Attempt to store the core message info first.
+            let stored_new_message = self.store_message(message, meta.block_number)?;
+
+            // Then store the metadata.
+            if let Err(e) = self.store_log_metadata_by_message_id(&message_id, meta) {
+                error!(
+                    ?e,
+                    ?message_id,
+                    ?meta,
+                    "Failed to store LogMeta for message"
+                );
+            } else {
+                trace!(?message_id, ?meta, "Stored LogMeta for message");
+            }
+
+            if stored_new_message {
+                stored_count += 1;
             }
         }
-        if stored > 0 {
-            debug!(messages = stored, "Wrote new messages to database");
+        if stored_count > 0 {
+            debug!(messages = stored_count, "Wrote new messages to database");
         }
-        Ok(stored)
+        Ok(stored_count)
     }
 }
 
