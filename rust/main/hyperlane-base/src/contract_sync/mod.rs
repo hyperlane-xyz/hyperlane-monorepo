@@ -222,13 +222,11 @@ where
                 );
 
                 if let Some(tx) = self.broadcast_sender.as_ref() {
-                    // Deduplicate txids in logs to only send unique txids
-                    let mut unique_txids = HashSet::new();
-                    for (_, meta) in &logs {
-                        unique_txids.insert(meta.transaction_id);
-                    }
+                    // If multiple logs occur in the same transaction they'll have the same transaction_id.
+                    // Deduplicate their txids to avoid doing wasteful queries in txid indexer
+                    let unique_txids: HashSet<_> =
+                        logs.iter().map(|(_, meta)| meta.transaction_id).collect();
 
-                    // Send unique txids to the receiver
                     for tx_id in unique_txids {
                         if let Err(err) = tx.send(tx_id).await {
                             trace!(?err, "Error sending txid to receiver");
