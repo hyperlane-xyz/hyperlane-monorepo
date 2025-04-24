@@ -11,6 +11,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { timelocks } from '../../owners.js';
 
 export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig =
   async (
@@ -21,10 +22,10 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
-      ...abacusWorksEnvOwnerConfig.arbitrum,
+      owner: abacusWorksEnvOwnerConfig.arbitrum.owner,
       proxyAdmin: {
-        ...abacusWorksEnvOwnerConfig.arbitrum,
         address: '0x02317D525FA7ceb5ea388244b4618f0c8Ac1CeC2',
+        owner: timelocks.arbitrum,
       },
       type: TokenType.collateral,
       token: tokens.arbitrum.USDC,
@@ -37,9 +38,9 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const base: HypTokenRouterConfig = {
       ...routerConfig.base,
-      ...abacusWorksEnvOwnerConfig.base,
+      owner: abacusWorksEnvOwnerConfig.base.owner,
       proxyAdmin: {
-        ...abacusWorksEnvOwnerConfig.base,
+        owner: abacusWorksEnvOwnerConfig.base.owner,
         address: '0xB6E9331576C5aBF69376AF6989eA61b7C7ea67F1',
       },
       type: TokenType.collateral,
@@ -53,9 +54,9 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const optimism: HypTokenRouterConfig = {
       ...routerConfig.optimism,
-      ...abacusWorksEnvOwnerConfig.optimism,
+      owner: abacusWorksEnvOwnerConfig.optimism.owner,
       proxyAdmin: {
-        ...abacusWorksEnvOwnerConfig.optimism,
+        owner: abacusWorksEnvOwnerConfig.optimism.owner,
         address: '0xca9e64761C97b049901dF4E7a5926464969528b1',
       },
       type: TokenType.collateral,
@@ -69,9 +70,9 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const polygon: HypTokenRouterConfig = {
       ...routerConfig.polygon,
-      ...abacusWorksEnvOwnerConfig.polygon,
+      owner: abacusWorksEnvOwnerConfig.polygon.owner,
       proxyAdmin: {
-        ...abacusWorksEnvOwnerConfig.polygon,
+        owner: abacusWorksEnvOwnerConfig.polygon.owner,
         address: '0x7fd5be37d560626625f395A2e6E30eA89150cc98',
       },
       type: TokenType.collateral,
@@ -85,9 +86,9 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const zeronetwork: HypTokenRouterConfig = {
       ...routerConfig.zeronetwork,
-      ...abacusWorksEnvOwnerConfig.zeronetwork,
+      owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
       proxyAdmin: {
-        ...abacusWorksEnvOwnerConfig.zeronetwork,
+        owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
         address: '0x6E906d8AeEBE9025a410887EAafc58C2561705e0',
       },
       type: TokenType.collateral,
@@ -97,9 +98,9 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
-      ...abacusWorksEnvOwnerConfig.ethereum,
+      owner: abacusWorksEnvOwnerConfig.ethereum.owner,
       proxyAdmin: {
-        ...abacusWorksEnvOwnerConfig.ethereum,
+        owner: abacusWorksEnvOwnerConfig.ethereum.owner,
         address: '0x81063D413Ed6Eac3FCf0521eea14906fD27fEb1A',
       },
       type: TokenType.collateral,
@@ -113,7 +114,7 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
 
     const lisk: HypTokenRouterConfig = {
       ...routerConfig.lisk,
-      ...abacusWorksEnvOwnerConfig.lisk,
+      owner: abacusWorksEnvOwnerConfig.lisk.owner,
       proxyAdmin: {
         ...abacusWorksEnvOwnerConfig.lisk,
         address: '0x81Db8B4Bc6F2e95781eeA2a21D0A453Ac046eFc0',

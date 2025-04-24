@@ -285,7 +285,7 @@ where
     M: Middleware + 'static,
 {
     // Increase the gas price by 25% every 90 seconds
-    const COEFFICIENT: f64 = 1.25;
+    const COEFFICIENT: f64 = 1.125;
 
     // escalating creates a new tx hash, and the submitter tracks each tx hash for at most
     // `PENDING_TX_TIMEOUT_SECS`. So the escalator will send a new tx when the initial
