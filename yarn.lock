@@ -7715,7 +7715,7 @@ __metadata:
     hardhat-gas-reporter: "npm:^1.0.9"
     hardhat-ignore-warnings: "npm:^0.2.11"
     prettier: "npm:^3.5.3"
-    prettier-plugin-solidity: "npm:^1.1.3"
+    prettier-plugin-solidity: "npm:^1.4.2"
     solhint: "npm:^5.0.5"
     solhint-plugin-prettier: "npm:^0.1.0"
     solidity-bytes-utils: "npm:^0.8.0"
@@ -7816,7 +7816,7 @@ __metadata:
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
     prettier: "npm:^3.5.3"
-    prettier-plugin-solidity: "npm:^1.1.3"
+    prettier-plugin-solidity: "npm:^1.4.2"
     solhint: "npm:^5.0.5"
     solhint-plugin-prettier: "npm:^0.1.0"
     solidity-coverage: "npm:^0.8.3"
@@ -14660,15 +14660,6 @@ __metadata:
   dependencies:
     antlr4ts: "npm:^0.5.0-alpha.4"
   checksum: 10/667f3f0fedc1d4fcd1d97f1f49cf369aca05c282de10cc81976a48f7bbba8b8d80bc0e54225af0fbfdf858bd63f5178822cee7304cb3a2c3242fea558c61a718
-  languageName: node
-  linkType: hard
-
-"@solidity-parser/parser@npm:^0.16.2":
-  version: 0.16.2
-  resolution: "@solidity-parser/parser@npm:0.16.2"
-  dependencies:
-    antlr4ts: "npm:^0.5.0-alpha.4"
-  checksum: 10/a95b0c45331623e587e938e69d49832814ab8867371bd58f9946346b99a18705ee47b98a1006c3da6dae33ec8c8c1bf7d203a4acfa1ced0bfd68632acf2cd19c
   languageName: node
   linkType: hard
 
@@ -32081,19 +32072,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier-plugin-solidity@npm:^1.1.3":
-  version: 1.2.0
-  resolution: "prettier-plugin-solidity@npm:1.2.0"
-  dependencies:
-    "@solidity-parser/parser": "npm:^0.16.2"
-    semver: "npm:^7.5.4"
-    solidity-comments-extractor: "npm:^0.0.7"
-  peerDependencies:
-    prettier: ">=2.3.0"
-  checksum: 10/5b9a77ae33292b6093f5dfcbeb9948dbaa0f7f89917a4be5940f0d29a6103238bc7c5d61919e15ab9fa92aeefe7c86fb7870e6421353b984b9ec71ab4c00ebf2
-  languageName: node
-  linkType: hard
-
 "prettier-plugin-solidity@npm:^1.4.2":
   version: 1.4.2
   resolution: "prettier-plugin-solidity@npm:1.4.2"
@@ -34998,13 +34976,6 @@ __metadata:
   version: 0.0.2
   resolution: "solidity-comments-darwin-x64@npm:0.0.2"
   conditions: os=darwin & cpu=x64
-  languageName: node
-  linkType: hard
-
-"solidity-comments-extractor@npm:^0.0.7":
-  version: 0.0.7
-  resolution: "solidity-comments-extractor@npm:0.0.7"
-  checksum: 10/a5cedf2310709969bc1783a6c336171478536f2f0ea96ad88437e0ef1e8844c0b37dd75591b0a824ec9c30640ea7e31b5f03128e871e6235bef3426617ce96c4
   languageName: node
   linkType: hard
 
