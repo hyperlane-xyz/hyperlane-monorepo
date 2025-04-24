@@ -60,6 +60,7 @@ const TransactionDataSchema = z.discriminatedUnion('type', [
 const ForkedChainTransactionConfigSchema = z.object({
   annotation: z.string().optional(),
   from: ZHash,
+  // TODO: change the type here to just a hex string
   data: TransactionDataSchema.optional(),
   value: z.string().optional(),
   to: ZHash.optional(),
@@ -78,7 +79,6 @@ export const ForkedChainConfigSchema = z.object({
 export type ForkedChainConfig = z.infer<typeof ForkedChainConfigSchema>;
 
 export const ForkedChainConfigByChainSchema = z.record(ForkedChainConfigSchema);
-
 export type ForkedChainConfigByChain = z.infer<
   typeof ForkedChainConfigByChainSchema
 >;
@@ -88,26 +88,30 @@ enum TransactionConfigType {
   FILE = 'file',
 }
 
+const RawForkedChainTransactionConfigSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal(TransactionConfigType.RAW_TRANSACTION),
+    transactions: z.array(ForkedChainTransactionConfigSchema),
+  }),
+  z.object({
+    type: z.literal(TransactionConfigType.FILE),
+    path: z.string(),
+    defaultSender: ZHash,
+    overrides: z
+      .record(ForkedChainTransactionConfigSchema.partial())
+      .default({}),
+  }),
+]);
+type RawForkedChainTransactionConfig = z.infer<
+  typeof RawForkedChainTransactionConfigSchema
+>;
+
 export const RawForkedChainConfigSchema = z.object({
   impersonateAccounts: z.array(ZHash).default([]),
-  transactions: z.discriminatedUnion('type', [
-    z.object({
-      type: z.literal(TransactionConfigType.RAW_TRANSACTION),
-      transactions: z.array(ForkedChainTransactionConfigSchema),
-    }),
-    z.object({
-      type: z.literal(TransactionConfigType.FILE),
-      path: z.string(),
-      defaultSender: ZHash,
-      overrides: z
-        .record(ForkedChainTransactionConfigSchema.partial())
-        .default({}),
-    }),
-  ]),
+  transactions: z.array(RawForkedChainTransactionConfigSchema),
 });
 
 export type RawForkedChainConfig = z.infer<typeof RawForkedChainConfigSchema>;
-
 export const RawForkedChainConfigByChainSchema = z.record(
   RawForkedChainConfigSchema,
 );
@@ -115,6 +119,7 @@ export type RawForkedChainConfigByChain = z.infer<
   typeof RawForkedChainConfigByChainSchema
 >;
 
+// TODO: update this type
 type SafeTx = {
   version: string;
   chainId: string;
@@ -123,13 +128,13 @@ type SafeTx = {
 
 type TxFormatter = {
   [Key in TransactionConfigType]: (
-    config: Extract<RawForkedChainConfig['transactions'], { type: Key }>,
-  ) => ForkedChainConfig['transactions'];
+    config: Extract<RawForkedChainTransactionConfig, { type: Key }>,
+  ) => ReadonlyArray<ForkedChainTransactionConfig>;
 };
 
 function forkedChainTransactionsFromRaw(
-  raw: RawForkedChainConfig['transactions'],
-): ForkedChainConfig['transactions'] {
+  raw: RawForkedChainTransactionConfig,
+): ReadonlyArray<ForkedChainTransactionConfig> {
   const formatters: TxFormatter = {
     [TransactionConfigType.FILE]: (config) => {
       const safeTxs: SafeTx = readYamlOrJson(config.path);
@@ -160,6 +165,7 @@ function forkedChainTransactionsFromRaw(
 
   const formatter = formatters[raw.type];
 
+  // TODO: fix the error
   if (!formatter) {
     throw new Error('henlo');
   }
@@ -173,7 +179,7 @@ function forkedChainConfigFromRaw(
 ): ForkedChainConfig {
   const parsedRawConfig = RawForkedChainConfigSchema.parse(raw);
 
-  const transactions = forkedChainTransactionsFromRaw(raw.transactions);
+  const transactions = raw.transactions.flatMap(forkedChainTransactionsFromRaw);
   const transactionSenders = transactions.map((tx) => tx.from);
 
   const impersonateAccounts = Array.from(
@@ -311,7 +317,7 @@ async function handleImpersonations(
 async function handleTransactions(
   provider: JsonRpcProvider,
   chainName: ChainName,
-  transactions: ForkedChainConfig['transactions'],
+  transactions: ReadonlyArray<ForkedChainTransactionConfig>,
 ): Promise<void> {
   if (transactions.length === 0) {
     return;
