@@ -141,5 +141,11 @@
   },
   "weavevmtestnet": {
     "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
+  },
+  "auroratestnet": {
+    "validators": ["0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937"]
+  },
+  "milkywaytestnet": {
+    "validators": ["0x65c7581e14efdf4d9c5320882170f022835bd742"]
   }
 }
