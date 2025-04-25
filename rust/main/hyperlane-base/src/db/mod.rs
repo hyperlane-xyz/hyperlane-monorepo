@@ -165,7 +165,7 @@ pub trait HyperlaneDb: Send + Sync {
     fn store_payload_ids_by_message_id(
         &self,
         message_id: &H256,
-        payloads_id: &Vec<UniqueIdentifier>,
+        payloads_id: Vec<UniqueIdentifier>,
     ) -> DbResult<()>;
 
     /// Retrieve payload id by message id

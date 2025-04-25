@@ -662,9 +662,9 @@ impl HyperlaneDb for HyperlaneRocksDB {
     fn store_payload_ids_by_message_id(
         &self,
         message_id: &H256,
-        payload_ids: &Vec<UniqueIdentifier>,
+        payload_ids: Vec<UniqueIdentifier>,
     ) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, payload_ids)
+        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, &payload_ids)
     }
 
     fn retrieve_payload_ids_by_message_id(

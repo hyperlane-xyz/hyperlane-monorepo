@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
-use itertools::{Either, Itertools};
 use num_traits::Zero;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
@@ -22,7 +21,9 @@ use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason,
 };
-use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
+use submitter::{
+    Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId, PayloadStatus, SubmitterError,
+};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
@@ -516,7 +517,7 @@ async fn submit_via_lander(
         return;
     }
 
-    if let Err(e) = db.store_payload_ids_by_message_id(&message_id, &vec![payload.details.id]) {
+    if let Err(e) = db.store_payload_ids_by_message_id(&message_id, vec![payload.details.id]) {
         let reason = ReprepareReason::ErrorStoringPayloadIdsByMessageId;
         let msg = "Error storing mapping from message id to payload ids";
         prepare_op(op, prepare_queue, e, msg, reason).await;
@@ -682,7 +683,10 @@ async fn confirm_lander_task(
                     Ok(Some(ids)) if !ids.is_empty() => {
                         let op_futures = ids
                             .into_iter()
-                            .map(|id| entrypoint.payload_status(id))
+                            .map(|id| async {
+                                let status = entrypoint.payload_status(id.clone()).await;
+                                (id, status)
+                            })
                             .collect::<Vec<_>>();
                         let op_results = join_all(op_futures).await;
                         Some((op, op_results))
@@ -716,15 +720,10 @@ async fn confirm_lander_task(
         let confirm_futures = payload_status_results
             .into_iter()
             .map(|(op, status_results)| async {
-                let (successes, failures): (Vec<_>, Vec<()>) =
-                    status_results.into_iter().partition_map(|status| {
-                        if let Ok(payload_status) = status {
-                            return Either::Left(payload_status);
-                        }
-                        Either::Right(())
-                    });
+                let status_results_len = status_results.len();
+                let successes = filter_status_results(status_results);
 
-                if !failures.is_empty() {
+                if status_results_len - successes.len() > 0 {
                     warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submission(
                         op,
@@ -736,7 +735,7 @@ async fn confirm_lander_task(
                     return;
                 }
 
-                let finalized = !successes.iter().any(|status| !status.is_finalized());
+                let finalized = !successes.iter().any(|(_, status)| !status.is_finalized());
 
                 if finalized {
                     {
@@ -771,6 +770,15 @@ async fn confirm_lander_task(
             sleep(Duration::from_millis(500)).await;
         }
     }
+}
+
+fn filter_status_results(
+    status_results: Vec<(PayloadId, Result<PayloadStatus, SubmitterError>)>,
+) -> Vec<(PayloadId, PayloadStatus)> {
+    status_results
+        .into_iter()
+        .filter_map(|(id, result)| Some((id, result.ok()?)))
+        .collect::<Vec<_>>()
 }
 
 async fn confirm_operation(
