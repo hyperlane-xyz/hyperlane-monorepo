@@ -17,6 +17,7 @@ chrono.workspace = true
 derive-new.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-client.workspace = true
