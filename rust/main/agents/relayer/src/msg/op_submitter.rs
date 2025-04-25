@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use itertools::{Either, Itertools};
 use num_traits::Zero;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
@@ -677,12 +678,14 @@ async fn confirm_lander_task(
             .map(|(op, result)| async {
                 let message_id = op.id();
                 match result {
-                    Ok(Some(ids)) if !ids.is_empty() => Some((
-                        op,
-                        entrypoint
-                            .payload_status(ids.into_iter().last().unwrap())
-                            .await,
-                    )),
+                    Ok(Some(ids)) if !ids.is_empty() => {
+                        let op_futures = ids
+                            .into_iter()
+                            .map(|id| entrypoint.payload_status(id))
+                            .collect::<Vec<_>>();
+                        let op_results = join_all(op_futures).await;
+                        Some((op, op_results))
+                    }
                     Ok(Some(_)) | Ok(None) | Err(_) => {
                         error!(
                             ?op,
@@ -711,8 +714,16 @@ async fn confirm_lander_task(
         let confirmed_operations = Arc::new(Mutex::new(0));
         let confirm_futures = payload_status_results
             .into_iter()
-            .map(|(op, status_result)| async {
-                let Ok(payload_status) = status_result else {
+            .map(|(op, status_results)| async {
+                let (successes, failures): (Vec<_>, Vec<()>) =
+                    status_results.into_iter().partition_map(|status| {
+                        if let Ok(payload_status) = status {
+                            return Either::Left(payload_status);
+                        }
+                        Either::Right(())
+                    });
+
+                if !failures.is_empty() {
                     warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submission(
                         op,
@@ -722,8 +733,11 @@ async fn confirm_lander_task(
                     )
                     .await;
                     return;
-                };
-                if payload_status.is_finalized() {
+                }
+
+                let finalized = !successes.iter().any(|status| !status.is_finalized());
+
+                if finalized {
                     {
                         let mut lock = confirmed_operations.lock().await;
                         *lock += 1;
@@ -737,7 +751,7 @@ async fn confirm_lander_task(
                     )
                     .await;
                 } else {
-                    info!(?op, ?payload_status, "Operation not finalized yet");
+                    info!(?op, ?successes, "Operation not finalized yet");
                     process_confirm_result(
                         op,
                         prepare_queue.clone(),
