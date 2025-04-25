@@ -76,6 +76,10 @@ export enum WarpRouteIds {
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
   ArbitrumEthereumSolanaTreasureSMOL = 'SMOL/arbitrum-ethereum-solanamainnet-treasure',
+  StagingHyper = 'StagingHYPER/arbitrum-base-bsc-ethereum-optimism',
+  StagingStakedHyper = 'StagingstHYPER/bsc-ethereum',
+  Hyper = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
+  StakedHyper = 'stHYPER/bsc-ethereum',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   // TODO: uncomment after merging the staging route to registry
