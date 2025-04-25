@@ -10,13 +10,13 @@ import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TestCcipReadIsm} from "../../contracts/test/TestCcipReadIsm.sol";
-import {OPValueTransferBridgeNative} from "../../contracts/token/extensions/OPValueTransferBridgeNative.sol";
+import {OPTokenBridgeNative} from "../../contracts/token/extensions/OPTokenBridgeNative.sol";
 
 import {OPL2ToL1CcipReadHook} from "../../contracts/hooks/OPL2ToL1CcipReadHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {OPL2ToL1Withdrawal} from "../../contracts/libs/OPL2ToL1Withdrawal.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
-import {Quote} from "../../contracts/interfaces/IValueTransferBridge.sol";
+import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {MockOptimismMessenger, MockOptimismStandardBridge, MockL2ToL1MessagePasser} from "../../contracts/mock/MockOptimism.sol";
 import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
@@ -26,14 +26,14 @@ import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/St
 import {console} from "forge-std/console.sol";
 
 // Needed to access the withdrawal hash
-contract OPValueTransferBridgeNativeTest is OPValueTransferBridgeNative {
+contract OPTokenBridgeNativeTest is OPTokenBridgeNative {
     using TypeCasts for bytes32;
 
     constructor(
         uint32 _l1Domain,
         address _l2Bridge,
         address _mailbox
-    ) OPValueTransferBridgeNative(_l1Domain, _l2Bridge, _mailbox) {}
+    ) OPTokenBridgeNative(_l1Domain, _l2Bridge, _mailbox) {}
 
     function getWithdrawalMetadata(
         uint256 _amountOrId
@@ -54,7 +54,7 @@ contract OPValueTransferBridgeNativeTest is OPValueTransferBridgeNative {
     }
 }
 
-contract ValueTransferBridgeNativeTest is Test {
+contract TokenBridgeNativeTest is Test {
     using TypeCasts for address;
     using TokenMessage for bytes;
 
@@ -73,8 +73,8 @@ contract ValueTransferBridgeNativeTest is Test {
     TestCcipReadIsm internal ism;
     TestInterchainGasPaymaster internal igp;
     StaticAggregationHook internal hook;
-    OPValueTransferBridgeNativeTest internal vtbOrigin;
-    OPValueTransferBridgeNativeTest internal vtbDestination;
+    OPTokenBridgeNativeTest internal vtbOrigin;
+    OPTokenBridgeNativeTest internal vtbDestination;
     OPL2ToL1CcipReadHook internal ccipReadHook;
 
     MockHyperlaneEnvironment internal environment;
@@ -132,15 +132,15 @@ contract ValueTransferBridgeNativeTest is Test {
     function deployAll() public {
         deployIsm();
         deployHooks();
-        deployValueTransferBridges();
+        deployTokenBridges();
     }
 
-    function deployValueTransferBridges() public {
-        OPValueTransferBridgeNativeTest implementation = new OPValueTransferBridgeNativeTest(
-                destination,
-                L2_BRIDGE_ADDRESS,
-                address(environment.mailboxes(origin))
-            );
+    function deployTokenBridges() public {
+        OPTokenBridgeNativeTest implementation = new OPTokenBridgeNativeTest(
+            destination,
+            L2_BRIDGE_ADDRESS,
+            address(environment.mailboxes(origin))
+        );
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
@@ -153,9 +153,9 @@ contract ValueTransferBridgeNativeTest is Test {
             )
         );
 
-        vtbOrigin = OPValueTransferBridgeNativeTest(payable(proxy));
+        vtbOrigin = OPTokenBridgeNativeTest(payable(proxy));
 
-        implementation = new OPValueTransferBridgeNativeTest(
+        implementation = new OPTokenBridgeNativeTest(
             destination,
             address(0),
             address(environment.mailboxes(destination))
@@ -172,7 +172,7 @@ contract ValueTransferBridgeNativeTest is Test {
             )
         );
 
-        vtbDestination = OPValueTransferBridgeNativeTest(payable(proxy));
+        vtbDestination = OPTokenBridgeNativeTest(payable(proxy));
 
         vtbOrigin.enrollRemoteRouter(
             destination,

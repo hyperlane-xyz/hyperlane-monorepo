@@ -6,7 +6,7 @@ struct Quote {
     uint256 amount;
 }
 
-interface IValueTransferBridge {
+interface ITokenBridge {
     /**
      * @notice Transfer value to another domain
      * @param _destination The destination domain of the message
