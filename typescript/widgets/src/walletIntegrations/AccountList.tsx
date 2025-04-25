@@ -1,7 +1,6 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
 
@@ -14,6 +13,7 @@ import { widgetLogger } from '../logger.js';
 import { tryClipboardSet } from '../utils/clipboard.js';
 import { WalletLogo } from '../walletIntegrations/WalletLogo.js';
 import {
+  getAddressFromAccountAndChain,
   useAccounts,
   useDisconnectFns,
   useWalletDetails,
@@ -102,27 +102,10 @@ export function AccountSummary({
   chainName,
   ...rest
 }: AccountSummaryProps) {
-  const numAddresses = account?.addresses?.length ?? 0;
-  let onlyAddress = account?.addresses[0]?.address ?? 'Unknown';
-
-  if (account?.protocol === ProtocolType.Cosmos) {
-    const onlyCosmosAddress = account?.addresses?.find(
-      (a) => a.chainName === chainName,
-    )?.address;
-
-    if (onlyCosmosAddress) {
-      onlyAddress = onlyCosmosAddress;
-    } else {
-      onlyAddress =
-        account?.addresses?.find((a) => a.chainName === cosmoshub.name)
-          ?.address ?? 'Unknown';
-    }
-  }
+  const address = getAddressFromAccountAndChain(account, chainName);
 
   const onClickCopy = async () => {
-    const copyValue =
-      onlyAddress || account.addresses.map((a) => a.address).join(',');
-    await tryClipboardSet(copyValue);
+    await tryClipboardSet(address);
     onCopySuccess?.();
   };
 
@@ -141,7 +124,7 @@ export function AccountSummary({
             {walletDetails.name || 'Wallet'}
           </div>
           <div className="htw-w-full htw-truncate htw-text-left htw-text-xs">
-            {onlyAddress || `${numAddresses} known addresses`}
+            {address}
           </div>
         </div>
       </Button>

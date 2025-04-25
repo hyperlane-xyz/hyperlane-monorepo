@@ -1,7 +1,6 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
 
@@ -11,7 +10,11 @@ import { WalletIcon } from '../icons/Wallet.js';
 import { useIsSsr } from '../utils/ssr.js';
 
 import { WalletLogo } from './WalletLogo.js';
-import { useAccounts, useWalletDetails } from './multiProtocol.js';
+import {
+  getAddressFromAccountAndChain,
+  useAccounts,
+  useWalletDetails,
+} from './multiProtocol.js';
 
 type Props = {
   multiProvider: MultiProtocolProvider;
@@ -38,23 +41,9 @@ export function ConnectWalletButton({
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];
 
-  let firstAddress = firstAccount?.addresses[0]?.address ?? 'Unknown';
-
-  if (firstAccount?.protocol === ProtocolType.Cosmos) {
-    const onlyCosmosAddress = firstAccount?.addresses?.find(
-      (a) => a.chainName === chainName,
-    )?.address;
-
-    if (onlyCosmosAddress) {
-      firstAddress = onlyCosmosAddress;
-    } else {
-      firstAddress =
-        firstAccount?.addresses?.find((a) => a.chainName === cosmoshub.name)
-          ?.address ?? 'Unknown';
-    }
-  }
-
-  firstAddress = shortenAddress(firstAddress);
+  const firstAddress = shortenAddress(
+    getAddressFromAccountAndChain(firstAccount, chainName),
+  );
 
   const firstWallet =
     walletDetails[firstAccount?.protocol || ProtocolType.Ethereum];
