@@ -22,9 +22,9 @@ use super::{
     aggregation::AggregationIsmMetadataBuilder,
     base::{IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
+    fsr::FSRMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
-    polymer::PolymerMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
     Metadata, MetadataBuilder,
 };
@@ -88,51 +88,6 @@ impl MessageMetadataBuilder {
     pub fn base_builder(&self) -> &Arc<dyn BuildsBaseMetadata> {
         &self.base
     }
-
-    /// Returns the module type of the ISM.
-    /// This method will attempt to get the value from cache first. If it is a cache miss,
-    /// it will request it from the ISM contract. The result will be cached for future use.
-    ///
-    /// Implicit contract in this method: function name `module_type` matches
-    /// the name of the method `module_type`.
-    async fn call_module_type(
-        &self,
-        ism: &dyn InterchainSecurityModule,
-    ) -> Result<ModuleType, MetadataBuildError> {
-        let ism_domain = ism.domain().name();
-        let fn_key = "module_type";
-        let call_params = (ism.address(), NoParams);
-
-        match self
-            .base_builder()
-            .cache()
-            .get_cached_call_result::<ModuleType>(ism_domain, fn_key, &call_params)
-            .await
-            .map_err(|err| {
-                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
-            })
-            .ok()
-            .flatten()
-        {
-            Some(module_type) => Ok(module_type),
-            None => {
-                let module_type = ism
-                    .module_type()
-                    .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-
-                self.base_builder()
-                    .cache()
-                    .cache_call_result(ism_domain, fn_key, &call_params, &module_type)
-                    .await
-                    .map_err(|err| {
-                        warn!(error = %err, "Error when caching call result for {:?}", fn_key);
-                    })
-                    .ok();
-                Ok(module_type)
-            }
-        }
-    }
 }
 
 /// Builds metadata for a message.
@@ -148,7 +103,10 @@ pub async fn build_message_metadata(
         .await
         .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-    let module_type = message_builder.call_module_type(&ism).await?;
+    let module_type = message_builder
+        .base_builder()
+        .call_module_type(&ism)
+        .await?;
 
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {
@@ -191,7 +149,6 @@ pub async fn build_message_metadata(
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
-        ModuleType::Polymer => Box::new(PolymerMetadataBuilder::new(message_builder)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;

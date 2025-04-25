@@ -1,17 +1,18 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use derive_new::new;
 use ethers::utils::hex;
 use reqwest;
 use serde::Deserialize;
 use serde_json::json;
 use tracing::{debug, instrument};
 
-use hyperlane_core::{HyperlaneMessage, H256, ModuleType};
+use hyperlane_core::{HyperlaneMessage, H256};
 
-use super::{
-    base::MessageMetadataBuildParams, utils::fetch_fsr_config, MessageMetadataBuilder, Metadata,
-    MetadataBuildError, MetadataBuilder,
-};
+use crate::msg::metadata::base_builder::BuildsBaseMetadata;
+
+use super::base::MessageBodyBuilder;
+use super::{utils::fetch_fsr_config, Metadata, MetadataBuildError};
 
 /// FSR response schema matching the TypeScript definition from polymer.ts
 #[derive(Debug, Deserialize)]
@@ -20,22 +21,45 @@ struct FSRResponse {
     proof: String,  // The proof from Polymer
 }
 
-#[derive(new, Clone, Debug)]
-pub struct PolymerMetadataBuilder {
-    base: MessageMetadataBuilder,
+#[derive(Clone, Debug)]
+pub struct FSRMetadataBuilder {
+    base: Arc<dyn BuildsBaseMetadata>,
+    app_context: Option<String>,
+}
+
+impl FSRMetadataBuilder {
+    pub async fn new(
+        base: Arc<dyn BuildsBaseMetadata>,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<Self, MetadataBuildError> {
+        let app_context = base
+            .app_context_classifier()
+            .get_app_context(message, ism_address)
+            .await
+            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
+        Ok(Self { base, app_context })
+    }
 }
 
 #[async_trait]
-impl MetadataBuilder for PolymerMetadataBuilder {
+impl MessageBodyBuilder for FSRMetadataBuilder {
     #[instrument(err, skip(self, message), ret)]
     async fn build(
         &self,
-        _ism_address: H256,
+        ism_address: H256,
         message: &HyperlaneMessage,
-        _params: MessageMetadataBuildParams,
-    ) -> Result<Metadata, MetadataBuildError> {
-        // TODO: We probably don't want to fetch the FSR config every time.
-        // The FSR server url is shared across all FSR providers.
+    ) -> Result<(Metadata, Vec<u8>), MetadataBuildError> {
+        // Get the ISM module type
+        let ism = self
+            .base
+            .build_ism(ism_address)
+            .await
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+        let module_type = self.base.call_module_type(&ism).await?;
+
+        // TODO: We may not want to fetch the FSR config every time.
         // Fetch FSR config
         let fsr_config = fetch_fsr_config()
             .await
@@ -43,7 +67,7 @@ impl MetadataBuilder for PolymerMetadataBuilder {
 
         // Create FSR request
         let request = json!({
-            "providerType": ModuleType::Polymer.to_string(),
+            "ismModuleType": module_type.to_string(),
             "directive": hex::encode(&message.body)
         });
 
@@ -69,6 +93,10 @@ impl MetadataBuilder for PolymerMetadataBuilder {
         // Convert the proof to a Vec<u8> and create the Metadata
         let proof_bytes = hex::decode(&fsr_response.proof)
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
-        Ok(Metadata::new(proof_bytes))
+
+        let result_bytes = hex::decode(&fsr_response.result)
+            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
+
+        Ok((Metadata::new(proof_bytes), result_bytes))
     }
 }

@@ -31,7 +31,10 @@ use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{
+        utils::is_directive, BuildsBaseMetadata, FSRMetadataBuilder, MessageBodyBuilder,
+        MessageMetadataBuilder, Metadata, MetadataBuilder,
+    },
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -296,16 +299,34 @@ impl PendingOperation for PendingMessage {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
                 metadata.clone()
             }
-            _ => match self.build_metadata().await {
-                Ok(metadata) => {
-                    let metadata_bytes = metadata.to_vec();
-                    self.metadata = Some(metadata_bytes.clone());
-                    metadata_bytes
+            _ => {
+                if is_directive(&self.message) {
+                    match self.build_fsr_metadata().await {
+                        Ok((metadata, message_body)) => {
+                            // TODO: We should refactor this message body setting logic somewhere more intuitive.
+                            self.message.body = message_body;
+
+                            let metadata_bytes = metadata.to_vec();
+                            self.metadata = Some(metadata_bytes.clone());
+                            metadata_bytes
+                        }
+                        Err(err) => {
+                            return err;
+                        }
+                    }
+                } else {
+                    match self.build_metadata().await {
+                        Ok(metadata) => {
+                            let metadata_bytes = metadata.to_vec();
+                            self.metadata = Some(metadata_bytes.clone());
+                            metadata_bytes
+                        }
+                        Err(err) => {
+                            return err;
+                        }
+                    }
                 }
-                Err(err) => {
-                    return err;
-                }
-            },
+            }
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -1014,23 +1035,33 @@ impl PendingMessage {
                 }
             })?;
 
-        // TODO: Refactor this to avoid creating an ISM object twice.
-        // let ism: Box<dyn InterchainSecurityModule> = message_metadata_builder
-        //     .base_builder()
-        //     .build_ism(ism_address)
-        //     .await
-        //     .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-
-        // let module_type = message_metadata_builder.call_module_type(&ism).await?;
-        // if module_type == ModuleType::Polymer {
-        //     debug!(
-        // 	message_id = ?self.message.id(),
-        // 	"Message recipient is a Polymer ISM"
-        //     );
-        //     // TODO: Replace the Hyperlane message body with the polymer proof response (log).
-        // }
-
         Ok(metadata)
+    }
+
+    async fn build_fsr_metadata(&mut self) -> Result<(Metadata, Vec<u8>), PendingOperationResult> {
+        let ism_address = self.recipient_ism_address().await?;
+
+        let fsr_metadata_builder = match FSRMetadataBuilder::new(
+            self.ctx.metadata_builder.clone(),
+            ism_address,
+            &self.message,
+        )
+        .await
+        {
+            Ok(builder) => builder,
+            Err(err) => {
+                return Err(
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
+                );
+            }
+        };
+
+        let (metadata, message_body) = fsr_metadata_builder
+            .build(ism_address, &self.message)
+            .await
+            .map_err(|err| self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata))?;
+
+        Ok((metadata, message_body))
     }
 
     /// clear metadata cache

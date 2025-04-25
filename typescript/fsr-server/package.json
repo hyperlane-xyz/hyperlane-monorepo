@@ -16,6 +16,7 @@
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "@hono/zod-validator": "^0.4.3",
+    "@hyperlane-xyz/sdk": "workspace:*",
     "hono": "^4.7.7",
     "zod": "^3.24.3"
   },

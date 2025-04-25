@@ -3,11 +3,13 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { POLYMER_PROVIDER_TYPE, PolymerProvider } from './providers/polymer.js';
+import { ModuleType } from '@hyperlane-xyz/sdk';
+
+import { PolymerProvider } from './providers/polymer.js';
 
 // Define the request schema
 const FSRRequestSchema = z.object({
-  providerType: z.string(),
+  ismModuleType: z.string(),
   directive: z.string(),
 });
 
@@ -30,18 +32,18 @@ const polymerProvider = new PolymerProvider(
 
 // FSR request endpoint
 app.post('/fsr_request', zValidator('json', FSRRequestSchema), async (c) => {
-  const { providerType, directive } = c.req.valid('json');
+  const { ismModuleType, directive } = c.req.valid('json');
 
   // Route to appropriate provider
-  switch (providerType) {
-    case POLYMER_PROVIDER_TYPE:
+  switch (ismModuleType) {
+    case ModuleType.POLYMER:
       const response = await polymerProvider.process(directive);
       return c.json(response, 200);
     default:
       return c.json(
         {
           success: false,
-          error: `Unsupported provider type: ${providerType}`,
+          error: `Unsupported provider type: ${ismModuleType}`,
         },
         400,
       );

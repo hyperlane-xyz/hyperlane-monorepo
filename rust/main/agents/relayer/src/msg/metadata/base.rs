@@ -57,6 +57,16 @@ pub trait MetadataBuilder: Send + Sync {
     ) -> Result<Metadata, MetadataBuildError>;
 }
 
+#[async_trait::async_trait]
+pub trait MessageBodyBuilder: Send + Sync {
+    /// Given a message directive, build it's ISM metadata & message body.
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<(Metadata, Vec<u8>), MetadataBuildError>;
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct MessageMetadataBuildParams {
     /// current ISM depth.

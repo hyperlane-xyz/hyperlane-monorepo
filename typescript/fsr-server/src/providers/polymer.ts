@@ -2,9 +2,6 @@ import { z } from 'zod';
 
 import { FSRResponse } from '../index.js';
 
-// Provider type constant
-export const POLYMER_PROVIDER_TYPE = 'Polymer';
-
 // Magic number prefix for directive messages
 const MAGIC_NUMBER =
   '0xFAF09B8DEEC3D47AB5A2F9007ED1C8AD83E602B7FDAA1C47589F370CDA6BF2E1';

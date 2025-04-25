@@ -7,7 +7,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
 use eyre::Context;
 use hyperlane_base::{
-    cache::{LocalCache, MeteredCache},
+    cache::{FunctionCallCache, LocalCache, MeteredCache, NoParams},
     db::{HyperlaneDb, HyperlaneRocksDB},
     settings::CheckpointSyncerBuildError,
 };
@@ -17,14 +17,14 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160,
-    H256,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
 };
 
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use super::IsmAwareAppContextClassifier;
+use super::{base::MetadataBuildError, IsmAwareAppContextClassifier};
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -73,6 +73,17 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>;
+
+    /// Returns the module type of the ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `module_type` matches
+    /// the name of the method `module_type`.
+    async fn call_module_type(
+        &self,
+        ism: &dyn InterchainSecurityModule,
+    ) -> Result<ModuleType, MetadataBuildError>;
 }
 
 #[async_trait::async_trait]
@@ -238,5 +249,42 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             self.metrics.clone(),
             app_context,
         ))
+    }
+
+    async fn call_module_type(
+        &self,
+        ism: &dyn InterchainSecurityModule,
+    ) -> Result<ModuleType, MetadataBuildError> {
+        let ism_domain = ism.domain().name();
+        let fn_key = "module_type";
+        let call_params = (ism.address(), NoParams);
+
+        match self
+            .cache()
+            .get_cached_call_result::<ModuleType>(ism_domain, fn_key, &call_params)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+            })
+            .ok()
+            .flatten()
+        {
+            Some(module_type) => Ok(module_type),
+            None => {
+                let module_type = ism
+                    .module_type()
+                    .await
+                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+
+                self.cache()
+                    .cache_call_result(ism_domain, fn_key, &call_params, &module_type)
+                    .await
+                    .map_err(|err| {
+                        warn!(error = %err, "Error when caching call result for {:?}", fn_key);
+                    })
+                    .ok();
+                Ok(module_type)
+            }
+        }
     }
 }
