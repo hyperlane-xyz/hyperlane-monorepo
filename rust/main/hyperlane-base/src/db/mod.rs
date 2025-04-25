@@ -162,14 +162,14 @@ pub trait HyperlaneDb: Send + Sync {
     fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
 
     /// Store payload id by message id
-    fn store_payload_id_by_message_id(
+    fn store_payload_ids_by_message_id(
         &self,
         message_id: &H256,
-        payload_id: &UniqueIdentifier,
-    ) -> DbResult<Vec<UniqueIdentifier>>;
+        payloads_id: &Vec<UniqueIdentifier>,
+    ) -> DbResult<()>;
 
     /// Retrieve payload id by message id
-    fn retrieve_payload_id_by_message_id(
+    fn retrieve_payload_ids_by_message_id(
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>>;

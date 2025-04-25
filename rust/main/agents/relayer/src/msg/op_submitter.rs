@@ -516,9 +516,9 @@ async fn submit_via_lander(
         return;
     }
 
-    if let Err(e) = db.store_payload_id_by_message_id(&message_id, &payload.details.id) {
-        let reason = ReprepareReason::ErrorStoringPayloadIdByMessageId;
-        let msg = "Error storing mapping from message id to payload id";
+    if let Err(e) = db.store_payload_ids_by_message_id(&message_id, &vec![payload.details.id]) {
+        let reason = ReprepareReason::ErrorStoringPayloadIdsByMessageId;
+        let msg = "Error storing mapping from message id to payload ids";
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
@@ -668,7 +668,7 @@ async fn confirm_lander_task(
             .into_iter()
             .map(|op| {
                 let message_id = op.id();
-                (op, db.retrieve_payload_id_by_message_id(&message_id))
+                (op, db.retrieve_payload_ids_by_message_id(&message_id))
             })
             .collect::<Vec<_>>();
 

@@ -303,7 +303,7 @@ impl<T: Decode> Decode for Indexed<T> {
     }
 }
 
-impl<T: Encode> Encode for Vec<T> {
+impl<T: Encode> Encode for &Vec<T> {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
@@ -335,6 +335,15 @@ impl<T: Decode> Decode for Vec<T> {
             Ok::<Vec<T>, HyperlaneProtocolError>(acc)
         })?;
         Ok(vec)
+    }
+}
+
+impl<T: Encode> Encode for Vec<T> {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        Encode::write_to(&self, writer)
     }
 }
 

@@ -659,20 +659,15 @@ impl HyperlaneDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default())
     }
 
-    fn store_payload_id_by_message_id(
+    fn store_payload_ids_by_message_id(
         &self,
         message_id: &H256,
-        payload_id: &UniqueIdentifier,
-    ) -> DbResult<Vec<UniqueIdentifier>> {
-        let mut ids = self
-            .retrieve_payload_id_by_message_id(message_id)?
-            .unwrap_or_default();
-        ids.push(payload_id.clone());
-        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, &ids)?;
-        Ok(ids)
+        payload_ids: &Vec<UniqueIdentifier>,
+    ) -> DbResult<()> {
+        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, payload_ids)
     }
 
-    fn retrieve_payload_id_by_message_id(
+    fn retrieve_payload_ids_by_message_id(
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
