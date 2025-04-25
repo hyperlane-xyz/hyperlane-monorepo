@@ -11,16 +11,13 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import {
-  getGovernanceIcas,
-  getGovernanceSafes,
-} from '../../config/environments/mainnet3/governance/utils.js';
+import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
 import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
@@ -30,26 +27,17 @@ async function main() {
   ).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
+  // Get the multiprovider for the environment
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
-  const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
-
-  const registry = await config.getRegistry();
-  const warpRoutes = await registry.getWarpRoutes();
 
   // Get the relevant set of governance safes and icas
   const safes = getGovernanceSafes(governanceType);
-  const icas = getGovernanceIcas(governanceType);
 
-  // Initialize the transaction reader with the relevant safes and icas
-  const reader = new GovernTransactionReader(
+  // Initialise the transaction reader for the given governance type
+  const reader = await GovernTransactionReader.create(
     environment,
-    multiProvider,
-    chainAddresses,
-    config.core,
-    warpRoutes,
-    safes,
-    icas,
+    governanceType,
   );
 
   // Get the pending transactions for the relevant chains, for the chosen governance type
