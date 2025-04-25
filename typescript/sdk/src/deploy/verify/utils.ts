@@ -212,6 +212,7 @@ export async function getProxyAndAdminInput({
 }): Promise<{
   proxyAdminInput: ContractVerificationInput;
   transparentUpgradeableProxyInput: ContractVerificationInput;
+  transparentUpgradeableImplementationInput: ContractVerificationInput;
 }> {
   const provider = multiProvider.getProvider(chainName);
 
@@ -242,7 +243,19 @@ export async function getProxyAndAdminInput({
     await proxyImplementation(provider, proxyAddress),
   );
 
-  return { proxyAdminInput, transparentUpgradeableProxyInput };
+  const transparentUpgradeableImplementationInput = buildVerificationInput(
+    'TransparentUpgradeableProxy',
+    proxyAddress,
+    proxyConstructorArgs,
+    false,
+    await proxyImplementation(provider, proxyAddress),
+  );
+
+  return {
+    proxyAdminInput,
+    transparentUpgradeableProxyInput,
+    transparentUpgradeableImplementationInput,
+  };
 }
 
 export async function getImplementationInput({
