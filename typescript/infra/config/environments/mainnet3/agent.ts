@@ -931,7 +931,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     docker: {
       repo,
       // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '4569591-20250421-224434',
+      tag: '24fe342-20250424-164437',
     },
     whitelist: vanguardMatchingList,
     // Not specifying a blacklist for optimization purposes -- all the message IDs
