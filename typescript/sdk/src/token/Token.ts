@@ -42,7 +42,9 @@ import {
   EvmHypCollateralAdapter,
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
+  EvmHypRebaseCollateralAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypSyntheticRebaseAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
@@ -190,10 +192,13 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypOwnerCollateral ||
-      standard === TokenStandard.EvmHypRebaseCollateral
+      standard === TokenStandard.EvmHypOwnerCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypRebaseCollateral) {
+      return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypCollateralFiat) {
@@ -202,10 +207,13 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypSynthetic ||
-      standard === TokenStandard.EvmHypSyntheticRebase ||
       standard === TokenStandard.EvmHyperToken
     ) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypSyntheticRebase) {
+      return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (

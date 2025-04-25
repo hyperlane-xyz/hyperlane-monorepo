@@ -278,7 +278,7 @@ pub enum ReprepareReason {
     ErrorCreatingPayload,
     #[strum(to_string = "Failed to store payload id by message id")]
     /// Failed to store payload id by message id
-    ErrorStoringPayloadIdByMessageId,
+    ErrorStoringPayloadIdsByMessageId,
     #[strum(to_string = "Failed to retrieve payload id by message id")]
     /// Failed to retrieve payload id by message id
     ErrorRetrievingPayloadId,
