@@ -85,6 +85,12 @@ import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
+import {
+  getHyperWarpConfigProduction,
+  getHyperWarpConfigStaging,
+  getStakedHyperWarpConfigProduction,
+  getStakedHyperWarpConfigStaging,
+} from './environments/mainnet3/warp/configGetters/getHyperWarpConfig.js';
 import { getIncentivUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getIncentivUSDCWarpConfig.js';
 import { getLitchainLITKEYWarpConfig } from './environments/mainnet3/warp/configGetters/getLitLitchainWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
@@ -234,6 +240,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpay]: getUSDCCitreaMoonpayWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpay]: getUSDTCitreaMoonpayWarpConfig,
+  [WarpRouteIds.StagingHYPER]: getHyperWarpConfigStaging,
+  [WarpRouteIds.StagingstHYPER]: getStakedHyperWarpConfigStaging,
+  [WarpRouteIds.HYPER]: getHyperWarpConfigProduction,
+  [WarpRouteIds.stHYPER]: getStakedHyperWarpConfigProduction,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
