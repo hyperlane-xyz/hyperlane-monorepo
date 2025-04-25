@@ -1169,7 +1169,7 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<Vec<UniqueIdentifier>>;
             fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
