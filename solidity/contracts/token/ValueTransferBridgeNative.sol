@@ -7,7 +7,7 @@ import {TokenMessage} from "../token/libs/TokenMessage.sol";
 import {Quote, IValueTransferBridge} from "../interfaces/IValueTransferBridge.sol";
 
 abstract contract ValueTransferBridgeNative is IValueTransferBridge, HypNative {
-    constructor(address _mailbox) HypNative(_mailbox) {}
+    constructor(address _mailbox) HypNative(1, _mailbox) {}
 
     /// @dev we have to re-implement HypNative.transferRemote here in order
     /// to pass the necessary metadata (i.e. override the gas limit)
