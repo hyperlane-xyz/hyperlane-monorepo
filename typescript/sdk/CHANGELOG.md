@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 12.2.0
+
+### Minor Changes
+
+- c7934f711: Adds the isRevokeApprovalRequired method on the token adapters to check if the user should revoke any previously set allowances on the token to transfer to avoid approvals failing like in the case of USDT
+- ecbacbdf2: Add EvmHypRebaseCollateralAdapter and EvmHypSyntheticRebaseAdapter
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.2.0
+- @hyperlane-xyz/core@7.1.1
+
 ## 12.1.0
 
 ### Minor Changes
