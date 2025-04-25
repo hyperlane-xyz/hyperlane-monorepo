@@ -28,7 +28,7 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
 contract HypNativeMovable is HypNative, MovableCollateralRouter {
     constructor(uint256 _scale, address _mailbox) HypNative(_scale, _mailbox) {}
 
-    function _moveCollateral(
+    function _rebalance(
         uint32 domain,
         bytes32 recipient,
         uint256 amount,

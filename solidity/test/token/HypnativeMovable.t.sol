@@ -56,7 +56,7 @@ contract HypNativeMovableTest is Test {
         deal(address(router), 1 ether);
 
         // Execute
-        router.moveCollateral(
+        router.rebalance(
             destinationDomain,
             bytes32(uint256(uint160(alice))),
             1 ether,
