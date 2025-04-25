@@ -74,7 +74,7 @@ async function transferTokenOwnership(
 
   if (eqAddress(currentOwner, configuredOwner)) {
     rootLogger.info(
-      chalk.gray(
+      chalk.green(
         `Token ${token.symbol} on chain ${token.chainName} already has correct owner ${currentOwner}, skipping...`,
       ),
     );
@@ -86,9 +86,7 @@ async function transferTokenOwnership(
   );
 
   rootLogger.info(
-    chalk.gray(
-      `Transferring ownership of token ${token.symbol} on chain ${token.chainName} from ${currentOwner} to ${configuredOwner}`,
-    ),
+    `Transferring ownership of token ${token.symbol} on chain ${token.chainName} from ${currentOwner} to ${configuredOwner}`,
   );
 
   if (dryRun) {
