@@ -253,7 +253,7 @@ jobs:
         run: |
           cd typescript/infra
           yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
-          CHANGES=$(git status -s .)
+          CHANGES=$(git status -s . :/rust/main/config)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
             exit 1
