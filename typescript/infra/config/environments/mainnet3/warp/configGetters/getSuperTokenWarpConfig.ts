@@ -14,6 +14,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
 const deploymentChains = [
@@ -317,7 +318,7 @@ const stagingRateLimitByChain: TypedSuperTokenChainMap<string> = {
   metal: stagingDefaultRateLimitPerSecond,
 };
 
-const ownerAddress = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+const ownerAddress = DEPLOYER;
 const stagingOwnerByChain: TypedSuperTokenChainMap<string> = {
   ethereum: ownerAddress,
   celo: ownerAddress,
