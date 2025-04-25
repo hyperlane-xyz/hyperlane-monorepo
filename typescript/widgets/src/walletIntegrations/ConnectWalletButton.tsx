@@ -41,8 +41,9 @@ export function ConnectWalletButton({
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];
 
-  const firstAddress = shortenAddress(
+  const shownAddress = shortenAddress(
     getAddressFromAccountAndChain(firstAccount, chainName),
+    true,
   );
 
   const firstWallet =
@@ -82,7 +83,7 @@ export function ConnectWalletButton({
                 <div className="htw-text-xs htw-text-gray-500">
                   {firstWallet.name || 'Wallet'}
                 </div>
-                <div className="htw-text-xs">{firstAddress}</div>
+                <div className="htw-text-xs">{shownAddress}</div>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>
