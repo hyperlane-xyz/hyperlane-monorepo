@@ -13,7 +13,7 @@ use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info_span, instrument, trace, warn, Instrument};
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
@@ -501,7 +501,7 @@ async fn submit_via_lander(
     };
 
     let message_id = op.id();
-    let metadata = message_id.to_string();
+    let metadata = format!("{message_id:?}");
     let mailbox = op
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")
@@ -708,6 +708,7 @@ async fn confirm_lander_task(
             .into_iter()
             .map(|(op, status_result)| async {
                 let Ok(payload_status) = status_result else {
+                    warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submisison(
                         op,
                         prepare_queue.clone(),
@@ -731,6 +732,7 @@ async fn confirm_lander_task(
                     )
                     .await;
                 } else {
+                    info!(?op, ?payload_status, "Operation not finalized yet");
                     process_confirm_result(
                         op,
                         prepare_queue.clone(),
