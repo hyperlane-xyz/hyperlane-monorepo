@@ -201,6 +201,22 @@ const contextBase = {
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
+    type: GasPaymentEnforcementPolicyType.Minimum,
+    payment: '1',
+    matchingList: [
+      // Temporary workaround for testing milkywaytestnet->bsctestnet.
+      {
+        originDomain: getDomainId('milkywaytestnet'),
+        destinationDomain: getDomainId('bsctestnet'),
+      },
+      // Temporary workaround for testing bsctestnet->milkywaytestnet.
+      {
+        originDomain: getDomainId('bsctestnet'),
+        destinationDomain: getDomainId('milkywaytestnet'),
+      },
+    ],
+  },
+  {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
       // Temporary workaround due to InfinityVM Monza whitelisting.
