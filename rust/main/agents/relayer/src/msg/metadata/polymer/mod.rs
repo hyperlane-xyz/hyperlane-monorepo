@@ -1,21 +1,31 @@
 use async_trait::async_trait;
 use derive_new::new;
+use ethers::utils::hex;
+use reqwest;
+use serde::Deserialize;
+use serde_json::json;
 use tracing::{debug, instrument};
 
 use hyperlane_core::{HyperlaneMessage, H256};
 
 use super::{
-    base::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuildError,
-    MetadataBuilder, utils::parse_directive_to_polymer_request,
+    base::MessageMetadataBuildParams, utils::fetch_fsr_config, MessageMetadataBuilder, Metadata,
+    MetadataBuildError, MetadataBuilder,
 };
 
-pub mod polymer;
-pub use polymer::PolymerProofProvider;
+/// Provider type for Polymer
+const POLYMER_PROVIDER_TYPE: &str = "polymer";
 
-#[derive(Clone, Debug, new)]
+/// FSR response schema matching the TypeScript definition from polymer.ts
+#[derive(Debug, Deserialize)]
+struct FSRResponse {
+    result: String, // The original directive hex string
+    proof: String,  // The proof from Polymer
+}
+
+#[derive(new, Clone, Debug)]
 pub struct PolymerMetadataBuilder {
     base: MessageMetadataBuilder,
-    proof_provider: PolymerProofProvider,
 }
 
 #[async_trait]
@@ -27,24 +37,41 @@ impl MetadataBuilder for PolymerMetadataBuilder {
         message: &HyperlaneMessage,
         _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        // Parse the directive into a PolymerProofRequest
-        let request = parse_directive_to_polymer_request(message)
+        // TODO: We probably don't want to fetch the FSR config every time.
+        // The FSR server url is shared across all FSR providers.
+        // Fetch FSR config
+        let fsr_config = fetch_fsr_config()
+            .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
 
-        // Fetch the proof from the Polymer proof provider
-        let response = self
-            .proof_provider
-            .fetch_proof(&request)
+        // Create FSR request
+        let request = json!({
+            "providerType": POLYMER_PROVIDER_TYPE,
+            "directive": hex::encode(&message.body)
+        });
+
+        // Send request to FSR server
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&fsr_config.fsr_server_url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
+
+        let fsr_response = response
+            .json::<FSRResponse>()
             .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
 
         debug!(
             message_id = ?message.id(),
-            "Successfully fetched proof from Polymer proof service"
+            "Successfully fetched proof from FSR service"
         );
 
         // Convert the proof to a Vec<u8> and create the Metadata
-        let proof_bytes = response.proof.to_vec();
+        let proof_bytes = hex::decode(&fsr_response.proof)
+            .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
         Ok(Metadata::new(proof_bytes))
     }
-} 
+}
