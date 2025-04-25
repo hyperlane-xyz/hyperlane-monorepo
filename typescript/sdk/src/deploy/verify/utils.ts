@@ -235,6 +235,7 @@ export async function getProxyAndAdminInput({
     contractAddress: proxyAddress,
     bytecode: TransparentUpgradeableProxy__factory.bytecode,
   });
+
   const transparentUpgradeableProxyInput = buildVerificationInput(
     'TransparentUpgradeableProxy',
     proxyAddress,
@@ -243,6 +244,8 @@ export async function getProxyAndAdminInput({
     await proxyImplementation(provider, proxyAddress),
   );
 
+  // Input for TUP as an implemetation (isProxy = false).
+  // Strangely this is needed to verify the proxy on etherscan.
   const transparentUpgradeableImplementationInput = buildVerificationInput(
     'TransparentUpgradeableProxy',
     proxyAddress,
