@@ -202,6 +202,9 @@
       "0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3"
     ]
   },
+  "infinityvm": {
+    "validators": ["0xeed503e0bd8fae0ad606361492db8711eaf0b935"]
+  },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
@@ -460,5 +463,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "milkyway": {
+    "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
   }
 }
