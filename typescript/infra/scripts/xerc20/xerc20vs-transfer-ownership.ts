@@ -32,7 +32,7 @@ async function transferTokenOwnership(
   if (chains && !chains.includes(token.chainName)) {
     rootLogger.info(
       chalk.gray(
-        `Skipping token ${token.symbol} on chain ${token.chainName}...`,
+        `Skipping token ${token.symbol} on chain ${token.chainName} due to chain exclusion or correct owner...`,
       ),
     );
     return;
@@ -48,12 +48,6 @@ async function transferTokenOwnership(
     token.standard === TokenStandard.EvmHypXERC20Lockbox ||
     token.standard === TokenStandard.EvmHypVSXERC20Lockbox
   ) {
-    rootLogger.info(
-      chalk.gray(
-        `Skipping token ${token.symbol} on chain ${token.chainName}...`,
-      ),
-    );
-
     const lockbox = new ethers.Contract(
       token.collateralAddressOrDenom,
       ['function XERC20() view returns (address)'],
