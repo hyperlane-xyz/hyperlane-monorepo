@@ -3,14 +3,17 @@ import { Logger } from 'pino';
 import { Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
-import { Address, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   GetEventLogsResponse,
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
-import { ExplorerFamily } from '../metadata/chainMetadataTypes.js';
+import {
+  BlockExplorer,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
@@ -60,6 +63,25 @@ export type GetExtraLockboxesOptions = {
   logger?: Logger;
 };
 
+function isEvmBlockExplorerAndNotEtherscan(
+  blockExplorer: BlockExplorer,
+): boolean {
+  if (!blockExplorer.family) {
+    return false;
+  }
+
+  const byFamily: Record<ExplorerFamily, boolean> = {
+    [ExplorerFamily.Blockscout]: true,
+    [ExplorerFamily.Etherscan]: false,
+    [ExplorerFamily.Other]: false,
+    [ExplorerFamily.Routescan]: true,
+    [ExplorerFamily.Voyager]: false,
+    [ExplorerFamily.ZkSync]: true,
+  };
+
+  return byFamily[blockExplorer.family] ?? false;
+}
+
 export async function getExtraLockBoxConfigs({
   xERC20Address,
   chain,
@@ -72,12 +94,8 @@ export async function getExtraLockBoxConfigs({
 
   const chainMetadata = multiProvider.getChainMetadata(chain);
   const [fallBackExplorer] =
-    chainMetadata.blockExplorers?.filter(
-      (blockExplorer) =>
-        blockExplorer.family &&
-        blockExplorer.family !== ExplorerFamily.Other &&
-        blockExplorer.family !== ExplorerFamily.Etherscan &&
-        blockExplorer.family !== ExplorerFamily.Voyager,
+    chainMetadata.blockExplorers?.filter((blockExplorer) =>
+      isEvmBlockExplorerAndNotEtherscan(blockExplorer),
     ) ?? [];
 
   // Fallback to use other block explorers if the default block explorer is etherscan and an API key is not
@@ -131,11 +149,11 @@ async function getConfigurationChangedLogsFromExplorerApi({
   xERC20Address,
   chain,
   multiProvider,
+  explorerUrl,
+  apiKey,
 }: GetExtraLockboxesOptions): Promise<Array<GetEventLogsResponse>> {
-  const { apiUrl, apiKey } = multiProvider.getExplorerApi(chain);
-
   const contractDeploymentTx = await getContractDeploymentTransaction(
-    { apiUrl, apiKey },
+    { apiUrl: explorerUrl, apiKey },
     { contractAddress: xERC20Address },
   );
 
@@ -146,7 +164,7 @@ async function getConfigurationChangedLogsFromExplorerApi({
   ]);
 
   return getLogsFromEtherscanLikeExplorerAPI(
-    { apiUrl, apiKey },
+    { apiUrl: explorerUrl, apiKey },
     {
       address: xERC20Address,
       fromBlock: deploymentTransactionReceipt.blockNumber,
@@ -154,68 +172,6 @@ async function getConfigurationChangedLogsFromExplorerApi({
       topic0: CONFIGURATION_CHANGED_EVENT_SELECTOR,
     },
   );
-}
-
-export async function getConfigurationChangedLogsFromRpc({
-  xERC20Address,
-  chain,
-  multiProvider,
-}: GetExtraLockboxesOptions): Promise<Array<ethers.providers.Log>> {
-  const provider = multiProvider.getProvider(chain);
-
-  const endBlock = await provider.getBlockNumber();
-  let currentStartBlock = await getContractCreationBlockFromRpc(
-    xERC20Address,
-    provider,
-  );
-
-  const logs = [];
-  const range = 5000;
-  while (currentStartBlock < endBlock) {
-    const currentLogs = await provider.getLogs({
-      address: xERC20Address,
-      fromBlock: currentStartBlock,
-      toBlock: currentStartBlock + range,
-      topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
-    });
-    logs.push(...currentLogs);
-    currentStartBlock += range;
-
-    // Sleep to avoid being rate limited with public RPCs
-    await sleep(350);
-  }
-
-  return logs;
-}
-
-// Retrieves the contract deployment number by performing a binary search
-// calling getCode until the creation block is found
-async function getContractCreationBlockFromRpc(
-  contractAddress: Address,
-  provider: ethers.providers.Provider,
-): Promise<number> {
-  const latestBlock = await provider.getBlockNumber();
-  const latestCode = await provider.getCode(contractAddress, latestBlock);
-  if (latestCode === '0x') {
-    throw new Error('Provided address is not a contract');
-  }
-
-  let low = 0;
-  let high = latestBlock;
-  let creationBlock = latestBlock;
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const code = await provider.getCode(contractAddress, mid);
-
-    if (code !== '0x') {
-      creationBlock = mid;
-      high = mid - 1;
-    } else {
-      low = mid + 1;
-    }
-  }
-
-  return creationBlock;
 }
 
 type ConfigurationChangedLog = Log<
