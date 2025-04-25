@@ -55,6 +55,8 @@ export type GetExtraLockboxesOptions = {
   chain: ChainNameOrId;
   xERC20Address: Address;
   multiProvider: MultiProvider;
+  explorerUrl: string;
+  apiKey?: string;
   logger?: Logger;
 };
 
@@ -63,36 +65,46 @@ export async function getExtraLockBoxConfigs({
   chain,
   multiProvider,
   logger = rootLogger,
-}: GetExtraLockboxesOptions): Promise<XERC20TokenExtraBridgesLimits[]> {
-  const { family, apiKey } = multiProvider.getExplorerApi(chain);
+}: Omit<GetExtraLockboxesOptions, 'explorerUrl' | 'apiKey'>): Promise<
+  XERC20TokenExtraBridgesLimits[]
+> {
+  const defaultExplorer = multiProvider.getExplorerApi(chain);
 
-  // Fallback to use the rpc if the user has not provided an API key and the explorer family is Etherscan
-  // because the endpoint requires it or the explorer family is not known
+  const chainMetadata = multiProvider.getChainMetadata(chain);
+  const [fallBackExplorer] =
+    chainMetadata.blockExplorers?.filter(
+      (blockExplorer) =>
+        blockExplorer.family &&
+        blockExplorer.family !== ExplorerFamily.Other &&
+        blockExplorer.family !== ExplorerFamily.Etherscan &&
+        blockExplorer.family !== ExplorerFamily.Voyager,
+    ) ?? [];
+
+  // Fallback to use other block explorers if the default block explorer is etherscan and an API key is not
+  // configured
   const isExplorerConfiguredCorrectly =
-    family === ExplorerFamily.Etherscan ? !!apiKey : true;
+    defaultExplorer.family === ExplorerFamily.Etherscan
+      ? !!defaultExplorer.apiKey
+      : true;
   const canUseExplorerApi =
-    family !== ExplorerFamily.Other && isExplorerConfiguredCorrectly;
+    defaultExplorer.family !== ExplorerFamily.Other &&
+    isExplorerConfiguredCorrectly;
 
-  const provider = multiProvider.getProvider(chain);
-  let logs: (ethers.providers.Log | GetEventLogsResponse)[];
-  if (canUseExplorerApi) {
-    logs = await getConfigurationChangedLogsFromExplorerApi({
-      chain,
-      multiProvider,
-      xERC20Address,
-    });
-  } else {
-    logger.debug(
-      `Using rpc request to retrieve bridges on on lockbox contract ${xERC20Address} on chain ${chain}`,
+  const explorer = canUseExplorerApi ? defaultExplorer : fallBackExplorer;
+  if (!explorer) {
+    logger.warn(
+      `No block explorer was configured correctly, skipping lockbox derivation on chain ${chain}`,
     );
-
-    // Should be safe to use even with public RPCs as the total number of events in this topic should be low
-    logs = await getConfigurationChangedLogsFromRpc({
-      chain,
-      multiProvider,
-      xERC20Address,
-    });
+    return [];
   }
+
+  const logs = await getConfigurationChangedLogsFromExplorerApi({
+    chain,
+    multiProvider,
+    xERC20Address,
+    explorerUrl: explorer.apiUrl,
+    apiKey: explorer.apiKey,
+  });
 
   const viemLogs = logs.map(
     (log) =>
@@ -107,7 +119,12 @@ export async function getExtraLockBoxConfigs({
       } as Log),
   );
 
-  return getLockboxesFromLogs(viemLogs, provider, chain, logger);
+  return getLockboxesFromLogs(
+    viemLogs,
+    multiProvider.getProvider(chain),
+    chain,
+    logger,
+  );
 }
 
 async function getConfigurationChangedLogsFromExplorerApi({
@@ -139,7 +156,7 @@ async function getConfigurationChangedLogsFromExplorerApi({
   );
 }
 
-async function getConfigurationChangedLogsFromRpc({
+export async function getConfigurationChangedLogsFromRpc({
   xERC20Address,
   chain,
   multiProvider,
