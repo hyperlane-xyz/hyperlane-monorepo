@@ -18,7 +18,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
     address internal constant alice = address(1);
 
     function setUp() public {
-        token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
+        token = new ERC20Test("Foo Token", "FT", 0, 18);
         router = new HypERC20MovableCollateral(
             address(token),
             1e18,
@@ -46,7 +46,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         token.mintTo(address(router), 1e18);
 
         // Execute
-        router.moveCollateral(
+        router.rebalance(
             destinationDomain,
             bytes32(uint256(uint160(alice))),
             1e18,
@@ -55,5 +55,29 @@ contract HypERC20MovableCollateralRouterTest is Test {
         // Assert
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(vtb)), 1e18);
+    }
+
+    function testFuzz_MovingCollateral(
+        uint256 amount,
+        bytes32 recipient
+    ) public {
+        // Configuration
+        // Grant permissions
+        router.grantRole(router.REBALANCER_ROLE(), address(this));
+
+        // Add the destination domain
+        router.addRecipient(destinationDomain, recipient);
+
+        // Add the given bridge
+        router.addBridge(vtb, destinationDomain);
+
+        // Setup - approvals happen automatically
+        token.mintTo(address(router), amount);
+
+        // Execute
+        router.rebalance(destinationDomain, recipient, amount, vtb);
+        // Assert
+        assertEq(token.balanceOf(address(router)), 0);
+        assertEq(token.balanceOf(address(vtb)), amount);
     }
 }

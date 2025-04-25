@@ -33,6 +33,7 @@ contract HypERC20MovableCollateral is
     MovableCollateralRouter
 {
     using SafeERC20 for IERC20;
+
     /**
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
@@ -43,14 +44,14 @@ contract HypERC20MovableCollateral is
         address _mailbox
     ) HypERC20Collateral(erc20, _scale, _mailbox) {}
 
-    function _moveCollateral(
+    function _rebalance(
         uint32 domain,
         bytes32 recipient,
         uint256 amount,
         ValueTransferBridge bridge
     ) internal override {
         wrappedToken.safeApprove({spender: address(bridge), value: amount});
-        MovableCollateralRouter._moveCollateral({
+        MovableCollateralRouter._rebalance({
             domain: domain,
             recipient: recipient,
             amount: amount,
