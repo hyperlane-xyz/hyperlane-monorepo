@@ -9,7 +9,7 @@ pub trait Update {
 
 impl Update for Transaction {
     fn update_after_submission(&mut self, hash: H512, precursor: SealevelTxPrecursor) -> &mut Self {
-        self.hash = Some(hash);
+        self.tx_hashes = Some(hash);
         self.submission_attempts += 1;
 
         // Data is updated since transaction is re-estimated before submission

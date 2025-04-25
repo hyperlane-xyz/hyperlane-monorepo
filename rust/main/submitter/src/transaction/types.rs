@@ -3,6 +3,7 @@
 
 use std::ops::Deref;
 
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
@@ -18,8 +19,10 @@ pub type SignerAddress = H256;
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
     pub id: TransactionId,
-    /// tx identifier obtained by hashing its contents. This may change when gas price is escalated
-    pub hash: Option<H512>,
+    /// all historic tx identifiers this transaction has had, obtained by hashing its contents.
+    /// a `Transaction` may have had more than one hash because this changes
+    /// when gas price is escalated
+    pub tx_hashes: Vec<H512>,
     /// may include nonce, gas price, etc
     pub vm_specific_data: VmSpecificTxData,
     /// this is a vec to accommodate batching
@@ -27,6 +30,10 @@ pub struct Transaction {
     pub status: TransactionStatus,
     /// incremented on submission / gas escalation
     pub submission_attempts: u32,
+    /// the date and time the transaction was created in-memory by the submitter
+    pub creation_timestamp: DateTime<Utc>,
+    /// the date and time the transaction was last submitted
+    pub last_submission_attempt: Option<DateTime<Utc>>,
 }
 
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]

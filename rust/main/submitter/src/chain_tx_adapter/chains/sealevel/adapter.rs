@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use eyre::{bail, eyre, ContextCompat, Report, Result};
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
@@ -50,6 +51,8 @@ use crate::{
     },
     error,
 };
+
+const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
 
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
@@ -259,9 +262,6 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        if tx.hash.is_some() {
-            return Ok(());
-        }
         info!(?tx, "submitting transaction");
         let not_estimated = tx.precursor();
         // TODO: the `estimate` call shouldn't happen here - the `Transaction` argument should already contain the precursor,
@@ -290,7 +290,7 @@ impl AdaptsChain for SealevelTxAdapter {
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
         info!(?tx, "checking status of transaction");
 
-        let Some(h512) = tx.hash else {
+        let Some(h512) = tx.tx_hashes else {
             return Ok(TransactionStatus::PendingInclusion);
         };
         let signature = Signature::new(h512.as_ref());
@@ -350,6 +350,15 @@ impl AdaptsChain for SealevelTxAdapter {
 
     fn max_batch_size(&self) -> u32 {
         self.max_batch_size
+    }
+
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let last_submission_time = tx
+            .last_submission_attempt
+            .unwrap_or_else(|| tx.creation_timestamp);
+        let seconds_since_last_submission =
+            (Utc::now() - last_submission_time).num_seconds() as u64;
+        seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS
     }
 }
 

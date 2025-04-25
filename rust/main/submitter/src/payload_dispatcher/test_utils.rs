@@ -52,7 +52,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
         .collect();
     Transaction {
         id: UniqueIdentifier::random(),
-        hash: None,
+        tx_hashes: None,
         vm_specific_data: VmSpecificTxData::Evm,
         payload_details: details.clone(),
         status,

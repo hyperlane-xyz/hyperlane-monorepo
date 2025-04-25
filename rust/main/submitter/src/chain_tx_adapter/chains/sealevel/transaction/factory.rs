@@ -10,7 +10,7 @@ impl TransactionFactory {
     pub fn build(payload: &FullPayload, precursor: SealevelTxPrecursor) -> Transaction {
         Transaction {
             id: TransactionId::new(Uuid::new_v4()),
-            hash: None,
+            tx_hashes: None,
             vm_specific_data: VmSpecificTxData::Svm(precursor),
             payload_details: vec![payload.details.clone()],
             status: TransactionStatus::PendingInclusion,
