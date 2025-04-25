@@ -24,6 +24,8 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
+const COSMOS_TYPE_URL_SEND = '/cosmos.bank.v1beta1.MsgSend';
+
 class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
   implements ITokenAdapter<MsgSendEncodeObject>
@@ -97,7 +99,7 @@ class CosmosModuleTokenAdapter
   ): Promise<MsgSendEncodeObject> {
     const denom = await this.getDenom();
     return {
-      typeUrl: '/cosmos.bank.v1beta1.MsgSend',
+      typeUrl: COSMOS_TYPE_URL_SEND,
       value: {
         fromAddress: transferParams.fromAccountOwner,
         toAddress: transferParams.recipient,

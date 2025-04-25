@@ -36,30 +36,30 @@ export class CosmNativeCoreAdapter
   extractMessageIds(
     sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
-    if (sourceTx.type !== ProviderType.CosmJsNative) {
-      throw new Error(
-        `Unsupported provider type for CosmNativeCoreAdapter ${sourceTx.type}`,
-      );
-    }
+    assert(
+      sourceTx.type === ProviderType.CosmJsNative,
+      `Unsupported provider type for CosmNativeCoreAdapter ${sourceTx.type}`,
+    );
+
     const dispatchEvents = sourceTx.receipt.events.filter(
       (e) => e.type === MESSAGE_DISPATCH_EVENT_TYPE,
     );
-    const result: Array<{ messageId: string; destination: ChainName }> = [];
-    for (let i = 0; i < dispatchEvents.length; i++) {
-      const messageAttribute = dispatchEvents[i].attributes.find(
-        (a) => a.key === MESSAGE_ATTRIBUTE_KEY,
-      );
-      const destAttribute = dispatchEvents[i].attributes.find(
-        (a) => a.key === MESSAGE_DESTINATION_ATTRIBUTE_KEY,
-      );
+
+    return dispatchEvents.map((event) => {
+      const findAttribute = (key: string) =>
+        event.attributes.find((a) => a.key === key);
+
+      const messageAttribute = findAttribute(MESSAGE_ATTRIBUTE_KEY);
+      const destAttribute = findAttribute(MESSAGE_DESTINATION_ATTRIBUTE_KEY);
+
       assert(messageAttribute, 'No message attribute found in dispatch event');
       assert(destAttribute, 'No destination attribute found in dispatch event');
-      result.push({
+
+      return {
         messageId: ensure0x(messageId(messageAttribute.value)),
         destination: this.multiProvider.getChainName(destAttribute.value),
-      });
-    }
-    return result;
+      };
+    });
   }
 
   async waitForMessageProcessed(
@@ -80,9 +80,7 @@ export class CosmNativeCoreAdapter
           message_id: messageId,
         });
 
-        if (!delivered) {
-          throw new Error(`Message ${messageId} not yet processed`);
-        }
+        assert(delivered, `Message ${messageId} not yet processed`);
 
         this.logger.info(`Message ${messageId} was processed`);
         return delivered;
