@@ -19,9 +19,8 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    ConfirmReason::{self, *},
-    HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult, PendingOperationStatus,
-    QueueOperation, ReprepareReason,
+    ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
+    PendingOperationStatus, QueueOperation, ReprepareReason,
 };
 use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
 
@@ -583,6 +582,8 @@ async fn confirm_op(
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
+    use ConfirmReason::SubmittedBySelf;
+
     let destination = op.destination_domain().clone();
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
