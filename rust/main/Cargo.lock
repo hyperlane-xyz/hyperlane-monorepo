@@ -3485,7 +3485,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -3499,7 +3499,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -3510,7 +3510,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -3528,7 +3528,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -3552,7 +3552,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -3566,7 +3566,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -3596,7 +3596,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -3612,7 +3612,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -3663,7 +3663,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -3699,7 +3699,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-18#bae8199df9d2a02b0393bedfde1e5114d5badb80"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-04-23#6ba6829655aec6aa949529cde70f133c6fbf9954"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -5294,9 +5294,9 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-cosmos-rs"
-version = "0.1.2"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0354da8627e2110442d445e55df8cff1d73c67e6e62e2af401fb53122e92b65e"
+checksum = "dc98aea32657307552b9e58d53d2af8de83cda7f99ce8ea1daa8884221feba46"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",
@@ -10296,6 +10296,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel",
  "mockall",
+ "prometheus",
  "serde",
  "serde_json",
  "solana-client",
