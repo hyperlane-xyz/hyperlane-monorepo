@@ -4,7 +4,7 @@ use derive_new::new;
 use eyre::Context;
 use tracing::{debug, instrument};
 
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, H256, U256};
 
 use super::{
     base::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuildError,
@@ -27,14 +27,25 @@ impl MetadataBuilder for PolymerMetadataBuilder {
         &self,
         _ism_address: H256,
         message: &HyperlaneMessage,
-        _params: MessageMetadataBuildParams,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        // Extract the chain ID, block number, tx index, and log index from the message
-        // These values should be encoded in the message's body or metadata
+        // Get LogMeta from params, required for Polymer proofs
+        let log_meta = params.log_meta.ok_or_else(|| {
+            MetadataBuildError::FailedToBuild(
+                "Missing LogMeta, required for Polymer proof generation".to_string(),
+            )
+        })?;
+
+        // Extract the chain ID from the message and block/tx/log details from the LogMeta
         let chain_id = message.origin as u64;
-        let block_number = 0; // TODO: Get from Log metadata
-        let tx_index = 0; // TODO: Get from Log metadata
-        let log_index = 0; // TODO: Get from Log metadata
+        let block_number = log_meta.block_number;
+        let tx_index = log_meta.transaction_index;
+        let log_index: u64 = log_meta.log_index.try_into().map_err(|_| {
+            MetadataBuildError::FailedToBuild(format!(
+                "Log index {} is too large to fit into u64",
+                log_meta.log_index
+            ))
+        })?;
 
         let request = polymer::PolymerProofRequest {
             chain_id,
