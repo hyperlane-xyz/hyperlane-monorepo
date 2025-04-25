@@ -236,8 +236,9 @@ function getWarpTokenConfigForType({
       };
       break;
     case TokenType.synthetic:
+    case TokenType.hyperToken:
       tokenConfig = {
-        type: TokenType.synthetic,
+        type: tokenType,
         mailbox,
         owner,
       };
