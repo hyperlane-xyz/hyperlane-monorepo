@@ -12,11 +12,13 @@ export enum TokenType {
   native = 'native',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
+  hyperToken = 'hyperToken',
 }
 
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.synthetic:
+    case TokenType.hyperToken:
       return 64_000;
     case TokenType.native:
       return 44_000;

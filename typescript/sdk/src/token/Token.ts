@@ -202,7 +202,8 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypSynthetic ||
-      standard === TokenStandard.EvmHypSyntheticRebase
+      standard === TokenStandard.EvmHypSyntheticRebase ||
+      standard === TokenStandard.EvmHyperToken
     ) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
