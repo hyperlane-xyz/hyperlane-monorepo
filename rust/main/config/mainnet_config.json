@@ -466,7 +466,7 @@
       "interchainAccountIsm": "0x9e22945bE593946618383B108CC5bce09eBA4C26",
       "interchainAccountRouter": "0x32A07c1B7a7fe8D4A0e44B0181873aB9d64C16c1",
       "interchainGasPaymaster": "0x78E25e7f84416e69b9339B0A6336EB6EFfF6b451",
-      "interchainSecurityModule": "0x006654622C311436f41C15cB0f236e7e8f2852d0",
+      "interchainSecurityModule": "0xCc99f457F00D5d7c4284045dA3D9Fb89635A952C",
       "mailbox": "0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4",
       "merkleTreeHook": "0xFDb9Cd5f9daAA2E4474019405A328a88E7484f26",
       "name": "bsc",
@@ -9069,6 +9069,65 @@
       "validatorAnnounce": "0x9fE454AA2B01fc7A2a777AE561bc58Ce560CD5a9",
       "index": {
         "from": 226924
+      }
+    },
+    "milkyway": {
+      "bech32Prefix": "milk",
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 6,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "umilk",
+      "chainId": "milkyway",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "MilkyWay",
+      "domainId": 1835625579,
+      "gasCurrencyCoinGeckoId": "temp-milkyway-milk",
+      "gasPrice": {
+        "denom": "umilk",
+        "amount": "0.03"
+      },
+      "grpcUrls": [
+        {
+          "http": "https://grpc.mainnet.milkyway.zone/"
+        }
+      ],
+      "index": {
+        "chunk": 10,
+        "from": 2454618
+      },
+      "name": "milkyway",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "umilk",
+        "name": "MILK",
+        "symbol": "MILK"
+      },
+      "protocol": "cosmosnative",
+      "restUrls": [
+        {
+          "http": "https://lcd.mainnet.milkyway.zone/"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://rpc.mainnet.milkyway.zone/"
+        }
+      ],
+      "slip44": 118,
+      "technicalStack": "other",
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
+      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000040000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "transactionOverrides": {
+        "gasPrice": "0.03"
       }
     }
   },
