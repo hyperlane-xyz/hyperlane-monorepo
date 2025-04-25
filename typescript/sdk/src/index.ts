@@ -647,6 +647,10 @@ export {
   PausableConfig,
   PausableSchema,
 } from './types.js';
+export {
+  AccessManagerConfig,
+  configureAccess,
+} from './contracts/accessmanaged.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { filterByChains } from './utils/filter.js';
 export {
