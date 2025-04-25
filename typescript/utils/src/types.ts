@@ -123,4 +123,6 @@ export type Annotated<T> = T & {
 
 export type ValidatorMetadata = {
   git_sha: string;
+  rpcs?: string[];
+  allows_public_rpcs?: boolean;
 };
