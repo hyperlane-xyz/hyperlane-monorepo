@@ -21,6 +21,7 @@ export const TokenType = {
   nativeScaled: 'nativeScaled',
   // Canonical value for cross-collateral routing tokens
   crossCollateral: 'crossCollateral',
+  hyperToken: 'hyperToken',
   unknown: 'unknown',
 } as const;
 
@@ -51,6 +52,7 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.collateralDepositAddress]: false,
   [TokenType.collateralOft]: false,
   [TokenType.crossCollateral]: true, // CrossCollateralRouter extends HypERC20Collateral
+  [TokenType.hyperToken]: false,
   [TokenType.unknown]: false,
 } as const;
 
@@ -73,6 +75,7 @@ export const MAX_GAS_OVERHEAD = 68_000;
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.synthetic:
+    case TokenType.hyperToken:
       return 64_000;
     case TokenType.native:
     case TokenType.nativeScaled:

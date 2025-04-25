@@ -186,6 +186,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralOftTokenConfig.bind(this),
       [TokenType.crossCollateral]:
         this.deriveCrossCollateralTokenConfig.bind(this),
+      [TokenType.hyperToken]: this.deriveHypSyntheticTokenConfig.bind(this),
     };
 
     this.contractVerifier =

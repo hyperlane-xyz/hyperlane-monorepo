@@ -339,7 +339,11 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 );
 
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
-  type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
+  type: z.enum([
+    TokenType.synthetic,
+    TokenType.syntheticUri,
+    TokenType.hyperToken,
+  ]),
   initialSupply: z.string().or(z.number()).optional(),
   predicateWrapper: PredicateWrapperConfigSchema.optional(),
   metadataUri: z.string().url().optional(),
