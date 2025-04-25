@@ -27,7 +27,7 @@ export function ConnectWalletButton({
   onClickWhenUnconnected,
   className,
   countClassName,
-  chainName = cosmoshub.name,
+  chainName,
   ...rest
 }: Props) {
   const isSsr = useIsSsr();
@@ -37,14 +37,24 @@ export function ConnectWalletButton({
 
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];
-  const firstAddress = firstAccount
-    ? shortenAddress(
-        firstAccount.addresses.length === 1
-          ? firstAccount.addresses[0].address
-          : firstAccount.addresses.find((a) => a.chainName === chainName)
-              ?.address ?? 'Unknown',
-      )
-    : 'Unkown';
+
+  let firstAddress = firstAccount?.addresses[0]?.address ?? 'Unknown';
+
+  if (firstAccount?.protocol === ProtocolType.Cosmos) {
+    const onlyCosmosAddress = firstAccount?.addresses?.find(
+      (a) => a.chainName === chainName,
+    )?.address;
+
+    if (onlyCosmosAddress) {
+      firstAddress = onlyCosmosAddress;
+    } else {
+      firstAddress =
+        firstAccount?.addresses?.find((a) => a.chainName === cosmoshub.name)
+          ?.address ?? 'Unknown';
+    }
+  }
+
+  firstAddress = shortenAddress(firstAddress);
 
   const firstWallet =
     walletDetails[firstAccount?.protocol || ProtocolType.Ethereum];

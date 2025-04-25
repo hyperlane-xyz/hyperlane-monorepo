@@ -28,11 +28,13 @@ export function AccountList({
   onClickConnectWallet,
   onCopySuccess,
   className,
+  chainName,
 }: {
   multiProvider: MultiProtocolProvider;
   onClickConnectWallet: () => void;
   onCopySuccess?: () => void;
   className?: string;
+  chainName?: string;
 }) {
   const { readyAccounts } = useAccounts(multiProvider);
   const disconnectFns = useDisconnectFns();
@@ -62,6 +64,7 @@ export function AccountList({
           walletDetails={walletDetails[acc.protocol]}
           onCopySuccess={onCopySuccess}
           onClickDisconnect={() => onClickDisconnect(acc.protocol)}
+          chainName={chainName}
         />
       ))}
       <Button
@@ -96,14 +99,25 @@ export function AccountSummary({
   walletDetails,
   onClickDisconnect,
   className,
-  chainName = cosmoshub.name,
+  chainName,
   ...rest
 }: AccountSummaryProps) {
-  const numAddresses = account?.addresses?.length || 0;
-  const onlyAddress =
-    numAddresses === 1
-      ? account.addresses[0].address
-      : account.addresses.find((a) => a.chainName === chainName)?.address;
+  const numAddresses = account?.addresses?.length ?? 0;
+  let onlyAddress = account?.addresses[0]?.address ?? 'Unknown';
+
+  if (account?.protocol === ProtocolType.Cosmos) {
+    const onlyCosmosAddress = account?.addresses?.find(
+      (a) => a.chainName === chainName,
+    )?.address;
+
+    if (onlyCosmosAddress) {
+      onlyAddress = onlyCosmosAddress;
+    } else {
+      onlyAddress =
+        account?.addresses?.find((a) => a.chainName === cosmoshub.name)
+          ?.address ?? 'Unknown';
+    }
+  }
 
   const onClickCopy = async () => {
     const copyValue =

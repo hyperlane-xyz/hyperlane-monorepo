@@ -127,7 +127,10 @@ export function getAccountAddressForChain(
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
   const account = accounts[protocol];
-  if (protocol === ProtocolType.Cosmos) {
+  if (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative
+  ) {
     return account?.addresses.find((a) => a.chainName === chainName)?.address;
   } else {
     // Use first because only cosmos has the notion of per-chain addresses
