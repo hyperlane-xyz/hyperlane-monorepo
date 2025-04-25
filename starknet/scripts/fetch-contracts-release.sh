@@ -5,9 +5,10 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # Constants
-readonly REPO="astraly-labs/hyperlane_starknet"
+readonly REPO="hyperlane-xyz/hyperlane_starknet"
 readonly GITHUB_RELEASES_API="https://api.github.com/repos/${REPO}/releases"
 readonly TARGET_DIR="./release"
+readonly VERSION="v0.3.2"
 
 # Color definitions
 declare -r COLOR_GREEN='\033[0;32m'
@@ -33,13 +34,12 @@ check_dependencies() {
     done
 }
 
-get_package_version() {
-    local package_version
-    if ! package_version=$(jq -r '.version' ./package.json 2>/dev/null); then
-        log_error "Failed to read version from package.json"
-        exit 1
+check_if_contracts_exist() {
+    if [[ -d "$TARGET_DIR" ]] && [[ "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]]; then
+        log_success "Contracts already present in $TARGET_DIR, skipping fetch"
+        return 0
     fi
-    echo "v${package_version}"
+    return 1
 }
 
 verify_version_exists() {
@@ -72,7 +72,7 @@ download_and_extract() {
         exit 1
     fi
 
-    log_success "Downloading version ${version}..."
+    log_success "Downloading version ${version} from ${download_url}"
     
     if ! curl -L "$download_url" -o "${TARGET_DIR}/release.zip"; then
         log_error "Download failed"
@@ -126,13 +126,16 @@ main() {
     
     check_dependencies
     
-    local version
-    version=$(get_package_version)
-    log_success "Using version ${version} from package.json"
-    verify_version_exists "$version"
+    # Skip if contracts already exist
+    if check_if_contracts_exist; then
+        exit 0
+    fi
+
+    log_success "Using version ${VERSION} from package.json"
+    verify_version_exists "$VERSION"
 
     local release_info
-    release_info=$(get_release_info "$version")
+    release_info=$(get_release_info "$VERSION")
     
     local download_url
     download_url=$(echo "$release_info" | jq -r '.assets[] | select(.name | startswith("hyperlane-starknet") and endswith(".zip")) | .browser_download_url')
@@ -143,9 +146,9 @@ main() {
     fi
     
     # Process download and file checksum verification and extraction
-    download_and_extract "$version" "$download_url"
+    download_and_extract "$VERSION" "$download_url"
     
-    log_success "Successfully downloaded and extracted version ${version}"
+    log_success "Successfully downloaded and extracted version ${VERSION}"
 }
 
 main

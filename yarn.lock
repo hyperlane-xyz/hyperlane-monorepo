@@ -7663,6 +7663,7 @@ __metadata:
     "@types/yargs": "npm:^17.0.24"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
+    "@vercel/ncc": "npm:^0.38.3"
     ansi-escapes: "npm:^7.0.0"
     asn1.js: "npm:^5.4.1"
     bignumber.js: "npm:^9.1.1"
@@ -7677,7 +7678,6 @@ __metadata:
     latest-version: "npm:^8.0.0"
     mocha: "npm:^10.2.0"
     prettier: "npm:^2.8.8"
-    starknet: "npm:6.23.1"
     terminal-link: "npm:^3.0.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
@@ -7688,7 +7688,7 @@ __metadata:
     zod-validation-error: "npm:^3.3.0"
     zx: "npm:^8.1.4"
   bin:
-    hyperlane: ./dist/cli.js
+    hyperlane: ./cli-bundle/index.js
   languageName: unknown
   linkType: soft
 
@@ -7999,7 +7999,7 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
     sinon: "npm:^13.0.2"
-    starknet: "npm:^6.23.1"
+    starknet: "npm:^6.24.1"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
@@ -8026,7 +8026,7 @@ __metadata:
     eslint-plugin-import: "npm:^2.31.0"
     globby: "npm:^14.1.0"
     prettier: "npm:^2.8.8"
-    starknet: "npm:6.23.1"
+    starknet: "npm:6.24.1"
     tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
   languageName: unknown
@@ -8072,6 +8072,7 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
     sinon: "npm:^13.0.2"
+    starknet: "npm:^6.24.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
   languageName: unknown
@@ -8127,7 +8128,7 @@ __metadata:
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
     react-tooltip: "npm:^5.28.0"
-    starknetkit: "npm:2.6.1"
+    starknetkit: "npm:2.10.4"
     storybook: "npm:^7.6.14"
     tailwindcss: "npm:^3.4.13"
     ts-node: "npm:^10.8.0"
@@ -14911,28 +14912,28 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@starknet-io/get-starknet-core@npm:4.0.6, @starknet-io/get-starknet-core@npm:^4.0.4":
-  version: 4.0.6
-  resolution: "@starknet-io/get-starknet-core@npm:4.0.6"
+"@starknet-io/get-starknet-core@npm:4.0.7, @starknet-io/get-starknet-core@npm:^4.0.6":
+  version: 4.0.7
+  resolution: "@starknet-io/get-starknet-core@npm:4.0.7"
   dependencies:
     "@module-federation/runtime": "npm:^0.1.2"
     "@starknet-io/types-js": "npm:^0.7.7"
     async-mutex: "npm:^0.5.0"
-  checksum: 10/776a5d159ec1b6bf2e2159f3418f552ece75e448cc4cbf62cbd132c1f76e947f5be550bb7a2a74750d2b6b878e6eb2f0c299b5b36e82b2c3c45d8579d37e7d5b
+  checksum: 10/345b2f2591b2ac61bb4aeefc7377e9aba77ada97b0ffdaebefbb50463ca285456cfd53262c2bd09011d81c8034702cb2f11c557d59ba2a818e8058f4517ac389
   languageName: node
   linkType: hard
 
-"@starknet-io/get-starknet@npm:^4.0.4":
-  version: 4.0.6
-  resolution: "@starknet-io/get-starknet@npm:4.0.6"
+"@starknet-io/get-starknet@npm:^4.0.6":
+  version: 4.0.7
+  resolution: "@starknet-io/get-starknet@npm:4.0.7"
   dependencies:
-    "@starknet-io/get-starknet-core": "npm:4.0.6"
+    "@starknet-io/get-starknet-core": "npm:4.0.7"
     bowser: "npm:^2.11.0"
-  checksum: 10/aff8b4d3f529a0d5245f355f4dc501e020e4fb1fed307cab8b872d4b1769341deec017f49df238d3c7470fc0ae8438818ed718d6b475df64b079338f08f5c7bf
+  checksum: 10/0922676affdd7e4b44d8bd5d4ba65303c48e30fc678d70fd2d19029c7a7dc447e27ba0113f51dd5277cf5351aa41f6bdeda86371d5d5baaa1f5b041708f439af
   languageName: node
   linkType: hard
 
-"@starknet-io/types-js@npm:^0.7.7, starknet-types-07@npm:@starknet-io/types-js@^0.7.10":
+"@starknet-io/types-js@npm:^0.7.10, @starknet-io/types-js@npm:^0.7.7, starknet-types-07@npm:@starknet-io/types-js@^0.7.10":
   version: 0.7.10
   resolution: "@starknet-io/types-js@npm:0.7.10"
   checksum: 10/e7e10878d6d576dcd30c6910a819e8e9cbd72102c71a93be7e0282f229d75c5765d2b5d152f7ae0693987cdb00e3d04f02bad371d91f420ddbbed435aadfbe3e
@@ -17394,6 +17395,17 @@ __metadata:
   peerDependencies:
     "@vanilla-extract/css": ^1.0.0
   checksum: 10/74f8e2b189c0d48e279f1b85b5fedebf1f615ab31839964cf3861f2c5cf574567c0caeddf9c8b11327d81213f81d195efc79f136b725e6013b6d645d238d5c2b
+  languageName: node
+  linkType: hard
+
+"@vercel/ncc@npm:^0.38.3":
+  version: 0.38.3
+  resolution: "@vercel/ncc@npm:0.38.3"
+  dependencies:
+    node-gyp: "npm:latest"
+  bin:
+    ncc: dist/ncc/cli.js
+  checksum: 10/f1a05a58e9c90d6940027b628590715a62bf1611c47bca546ad51bd6a0e8d25ce64c1c39eb27ba0b6747017182cb59ec42088da8d6530a6d561e9e1a4e8c9941
   languageName: node
   linkType: hard
 
@@ -35640,26 +35652,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"starknet@npm:6.23.1":
-  version: 6.23.1
-  resolution: "starknet@npm:6.23.1"
-  dependencies:
-    "@noble/curves": "npm:1.7.0"
-    "@noble/hashes": "npm:1.6.0"
-    "@scure/base": "npm:1.2.1"
-    "@scure/starknet": "npm:1.1.0"
-    abi-wan-kanabi: "npm:^2.2.3"
-    fetch-cookie: "npm:~3.0.0"
-    isomorphic-fetch: "npm:~3.0.0"
-    lossless-json: "npm:^4.0.1"
-    pako: "npm:^2.0.4"
-    starknet-types-07: "npm:@starknet-io/types-js@^0.7.10"
-    ts-mixer: "npm:^6.0.3"
-  checksum: 10/ad02fddad1f24bc9b107ca8ef894264176297a59b65b6db6f1d28c9af3900035373b01f002443295bcd2c70968665f206790e4eadd4a601a3639c5da6bb719a3
-  languageName: node
-  linkType: hard
-
-"starknet@npm:^6.23.1":
+"starknet@npm:6.24.1, starknet@npm:^6.23.1, starknet@npm:^6.24.1":
   version: 6.24.1
   resolution: "starknet@npm:6.24.1"
   dependencies:
@@ -35678,13 +35671,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"starknetkit@npm:2.6.1":
-  version: 2.6.1
-  resolution: "starknetkit@npm:2.6.1"
+"starknetkit@npm:2.10.4":
+  version: 2.10.4
+  resolution: "starknetkit@npm:2.10.4"
   dependencies:
-    "@starknet-io/get-starknet": "npm:^4.0.4"
-    "@starknet-io/get-starknet-core": "npm:^4.0.4"
-    "@starknet-io/types-js": "npm:^0.7.7"
+    "@starknet-io/get-starknet": "npm:^4.0.6"
+    "@starknet-io/get-starknet-core": "npm:^4.0.6"
+    "@starknet-io/types-js": "npm:^0.7.10"
     "@trpc/client": "npm:^10.38.1"
     "@trpc/server": "npm:^10.38.1"
     "@walletconnect/sign-client": "npm:^2.11.0"
@@ -35696,8 +35689,8 @@ __metadata:
     svelte-forms: "npm:^2.3.1"
     trpc-browser: "npm:^1.3.2"
   peerDependencies:
-    starknet: ^6.9.0
-  checksum: 10/fa4302296999604134810f56951d3e016d6425dbbf1d08eea8cb2c16d4c64d62e240f874ea1418df3aa187fab02b32540b8c4b416f5334a711645da2dc59bb12
+    starknet: ^6.21.1
+  checksum: 10/45bb1d2daf3162cfabcde5bb81104a92d776f8e3f74930c84a2e49b00e4f5c581d1ffadac90aa0537d4f4a955fa7be96d41495bdb22aff71bd1fbaf7fcab77a4
   languageName: node
   linkType: hard
 

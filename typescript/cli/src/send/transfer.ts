@@ -9,6 +9,7 @@ import {
   MultiProtocolProvider,
   ProviderType,
   StarknetCore,
+  StarknetCoreAdapter,
   Token,
   TokenAmount,
   WarpCore,
@@ -95,7 +96,7 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { multiProvider, registry } = context;
+  const { multiProvider, registry, multiProtocolProvider } = context;
   const { chainMetadata } = context;
 
   const chainAddresses = await registry.getAddresses();
@@ -181,6 +182,19 @@ async function executeDelivery({
 
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
+
+  if ('transaction_hash' in transferTxReceipt) {
+    const coreAdapter = new StarknetCoreAdapter(
+      origin,
+      multiProtocolProvider!,
+      { mailbox: chainAddresses['starknetsepolia'].mailbox },
+    );
+    const messageIds = coreAdapter.extractMessageIds({
+      receipt: transferTxReceipt,
+      type: ProviderType.Starknet,
+    });
+    logBlue(`Message IDs: ${messageIds}`);
+  }
 
   const message = parseMessageFromReceipt(
     transferTxReceipt,

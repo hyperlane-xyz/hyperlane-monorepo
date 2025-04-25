@@ -205,15 +205,18 @@ export class StarknetERC20WarpModule {
 
       const receipt = await account.waitForTransaction(tx.transaction_hash);
 
-      if (receipt.isSuccess()) {
-        this.logger.info(
-          `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
-        );
-      } else {
-        this.logger.error(
-          `Failed to enroll all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
-        );
-      }
+      receipt.match({
+        success: (tx) => {
+          this.logger.info(
+            `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+          );
+        },
+        _: () => {
+          this.logger.error(
+            `Failed to enroll all remote routers on ${chain}. Transaction: ${tx?.transaction_hash}`,
+          );
+        },
+      });
     }
   }
 }
