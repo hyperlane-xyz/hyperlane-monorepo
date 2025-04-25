@@ -41,11 +41,13 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { getAllSafesForChain } from '../../config/environments/mainnet3/governance/utils.js';
 import {
   icaOwnerChain,
   timelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
+import { determineGovernanceType } from '../governance.js';
 
 interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
@@ -148,6 +150,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's to another Safe
+    if (this.isSafeTransaction(chain, tx)) {
+      return this.readSafeTransaction(chain, tx);
+    }
+
     // If it's to an ICA
     if (this.isIcaTransaction(chain, tx)) {
       return this.readIcaTransaction(chain, tx);
@@ -851,6 +858,137 @@ export class GovernTransactionReader {
     } catch {
       return false;
     }
+  }
+
+  private isSafeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      getAllSafesForChain(chain).some((safe) => eqAddress(tx.to!, safe))
+    );
+  }
+
+  private async readSafeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in Safe transaction');
+    }
+
+    if (!tx.to) {
+      throw new Error('No to address in Safe transaction');
+    }
+
+    const safeInterface = new ethers.utils.Interface([
+      'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+      'function approveHash(bytes32 hashToApprove)',
+      'function addOwnerWithThreshold(address owner, uint256 _threshold)',
+      'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+      'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
+      'function changeThreshold(uint256 _threshold)',
+      'function enableModule(address module)',
+      'function disableModule(address prevModule, address module)',
+      'function setGuard(address guard)',
+      'function setFallbackHandler(address handler)',
+      'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
+      'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
+      'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
+      'function simulateAndRevert(address targetContract, bytes calldataPayload)',
+    ]);
+
+    const decoded = safeInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    let insight = '';
+    switch (decoded.functionFragment.name) {
+      case 'execTransaction': {
+        const innerTx = await this.read(chain, {
+          to: args.to,
+          data: args.data,
+          value: args.value,
+        });
+        insight = `Execute transaction: ${JSON.stringify(innerTx)}`;
+        break;
+      }
+      case 'execTransactionFromModule': {
+        const innerTx = await this.read(chain, {
+          to: args.to,
+          data: args.data,
+          value: args.value,
+        });
+        insight = `Execute transaction from module: ${JSON.stringify(innerTx)}`;
+        break;
+      }
+      case 'execTransactionFromModuleReturnData': {
+        const innerTx = await this.read(chain, {
+          to: args.to,
+          data: args.data,
+          value: args.value,
+        });
+        insight = `Execute transaction from module with return data: ${JSON.stringify(
+          innerTx,
+        )}`;
+        break;
+      }
+      case 'approveHash':
+        insight = `Approve hash: ${args.hashToApprove}`;
+        break;
+      case 'addOwnerWithThreshold':
+        insight = `Add owner ${args.owner} with threshold ${args._threshold}`;
+        break;
+      case 'removeOwner':
+        insight = `Remove owner ${args.owner} with new threshold ${args._threshold}`;
+        break;
+      case 'swapOwner':
+        insight = `Swap owner ${args.oldOwner} with ${args.newOwner}`;
+        break;
+      case 'changeThreshold':
+        insight = `Change threshold to ${args._threshold}`;
+        break;
+      case 'enableModule':
+        insight = `Enable module ${args.module}`;
+        break;
+      case 'disableModule':
+        insight = `Disable module ${args.module}`;
+        break;
+      case 'setGuard':
+        insight = `Set guard to ${args.guard}`;
+        break;
+      case 'setFallbackHandler':
+        insight = `Set fallback handler to ${args.handler}`;
+        break;
+      case 'setup':
+        insight = `Setup Safe with ${args._owners.length} owners, threshold ${args._threshold}, fallback handler ${args.fallbackHandler}`;
+        break;
+      case 'simulateAndRevert':
+        insight = `Simulate and revert transaction to ${args.targetContract}`;
+        break;
+      default:
+        insight = '⚠️ Unknown Safe operation';
+    }
+
+    const { governanceType } = await determineGovernanceType(chain, tx.to);
+    const toInsight = `${governanceType.toUpperCase()} Safe (${chain} ${
+      tx.to
+    })`;
+
+    return {
+      chain,
+      to: toInsight,
+      insight,
+      args,
+      signature: decoded.signature,
+    };
   }
 }
 

@@ -99,7 +99,6 @@ async function main() {
     rootLogger.error('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌');
     rootLogger.info(stringifyObject(reader.errors, 'yaml', 2));
     rootLogger.error('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌');
-    process.exit(1);
   } else {
     rootLogger.info('✅✅✅✅✅ No fatal errors ✅✅✅✅✅');
   }
@@ -108,6 +107,10 @@ async function main() {
   const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
   writeYamlAtPath(resultsPath, chainResults);
   rootLogger.info(`Results written to ${resultsPath}`);
+
+  if (reader.errors.length) {
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
