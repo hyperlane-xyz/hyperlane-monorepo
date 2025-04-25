@@ -24,7 +24,7 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-class CosmNativeTokenAdapter
+class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
   implements ITokenAdapter<MsgSendEncodeObject>
 {
@@ -120,7 +120,7 @@ class CosmNativeTokenAdapter
 }
 
 export class CosmNativeHypCollateralAdapter
-  extends CosmNativeTokenAdapter
+  extends CosmosModuleTokenAdapter
   implements
     IHypTokenAdapter<MsgSendEncodeObject | MsgRemoteTransferEncodeObject>
 {

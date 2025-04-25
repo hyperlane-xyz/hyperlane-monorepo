@@ -27,16 +27,16 @@ import {
   XERC20_STANDARDS,
 } from './TokenStandard.js';
 import {
-  CosmNativeHypCollateralAdapter,
-  CosmNativeHypSyntheticAdapter,
-} from './adapters/CosmNativeTokenAdapter.js';
-import {
   CwHypCollateralAdapter,
   CwHypNativeAdapter,
   CwHypSyntheticAdapter,
   CwNativeTokenAdapter,
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter.js';
+import {
+  CosmNativeHypCollateralAdapter,
+  CosmNativeHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.js';
 import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
