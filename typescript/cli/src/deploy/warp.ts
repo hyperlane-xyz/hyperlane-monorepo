@@ -349,6 +349,7 @@ async function executeDeploy(
   );
 
   const deployedContracts = await deployer.deploy(modifiedConfig);
+  logGreen('✅ Warp contract deployments complete');
 
   return deployedContracts;
 }
@@ -1391,7 +1392,10 @@ async function enrollCrossChainRouters({
   );
 }
 
-export function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
+//TODO: add return type
+export function getRouter(
+  contracts: HyperlaneContracts<HypERC20Factories>,
+): any {
   for (const key of objKeys(hypERC20factories)) {
     if (contracts[key]) return contracts[key];
   }
