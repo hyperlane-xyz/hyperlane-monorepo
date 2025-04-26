@@ -7,8 +7,10 @@
     "react-dom": "^18"
   },
   "dependencies": {
+    "@cosmjs/stargate": "^0.32.4",
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
+    "@hyperlane-xyz/cosmos-sdk": "1.0.0",
     "@hyperlane-xyz/sdk": "12.2.0",
     "@hyperlane-xyz/utils": "12.2.0",
     "@interchain-ui/react": "^1.23.28",
