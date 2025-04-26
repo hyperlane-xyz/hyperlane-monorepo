@@ -2,10 +2,10 @@ import {
   ChainMap,
   HypTokenRouterConfig,
   IsmType,
-  MultisigConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
+import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
@@ -14,15 +14,6 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 const safeOwners: ChainMap<Address> = {
   bsc: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
   milkyway: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-};
-
-const validators: ChainMap<MultisigConfig> = {
-  milkyway: {
-    threshold: 1,
-    validators: [
-      { address: '0x9985e0c6df8e25b655b46a317af422f5e7756875', alias: 'AW' },
-    ],
-  },
 };
 
 export const getBscMilkywayMILKWarpConfig = async (
@@ -48,7 +39,11 @@ export const getBscMilkywayMILKWarpConfig = async (
       interchainSecurityModule: {
         type: IsmType.FALLBACK_ROUTING,
         owner: safeOwners.bsc,
-        domains: buildAggregationIsmConfigs('bsc', ['milkyway'], validators),
+        domains: buildAggregationIsmConfigs(
+          'bsc',
+          ['milkyway'],
+          defaultMultisigConfigs,
+        ),
       },
     },
   };
