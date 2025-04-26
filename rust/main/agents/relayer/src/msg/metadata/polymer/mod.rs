@@ -1,22 +1,16 @@
 use async_trait::async_trait;
-use derive_more::Deref;
 use derive_new::new;
-use eyre::Context;
 use tracing::{debug, instrument};
 
-use hyperlane_core::{HyperlaneMessage, H256, U256};
+use hyperlane_core::{HyperlaneMessage, H256};
 
-use super::{
-    base::MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuildError,
-    MetadataBuilder,
-};
+use super::{base::MessageMetadataBuildParams, Metadata, MetadataBuildError, MetadataBuilder};
 
 mod polymer;
 pub use polymer::PolymerProofProvider;
 
 #[derive(Clone, Debug, new)]
 pub struct PolymerMetadataBuilder {
-    base: MessageMetadataBuilder,
     proof_provider: PolymerProofProvider,
 }
 

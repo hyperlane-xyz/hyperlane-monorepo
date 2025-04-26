@@ -16,7 +16,7 @@ use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
-use crate::msg::metadata::{MessageMetadataBuildParams, Metadata, MetadataBuilder};
+use crate::msg::metadata::{MessageMetadataBuildParams, Metadata};
 
 #[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {

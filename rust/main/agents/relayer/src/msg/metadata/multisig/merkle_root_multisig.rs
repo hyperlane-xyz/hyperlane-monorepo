@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256, H512};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
 use crate::msg::metadata::base::{Metadata, MetadataBuildError, MetadataBuilder};
