@@ -14,7 +14,6 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 const safeOwners: ChainMap<Address> = {
   bsc: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
   milkyway: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  ism: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
 };
 
 const validators: ChainMap<MultisigConfig> = {
@@ -48,7 +47,7 @@ export const getBscMilkywayMILKWarpConfig = async (
       mailbox: '0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4',
       interchainSecurityModule: {
         type: IsmType.ROUTING,
-        owner: safeOwners.ism,
+        owner: safeOwners.bsc,
         domains: buildAggregationIsmConfigs('bsc', ['milkyway'], validators),
       },
     },
