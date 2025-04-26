@@ -16,20 +16,21 @@ const safeOwners: ChainMap<Address> = {
   milkyway: 'milk1326ley07fm6rpeqgxmxevnqevrsjfew2akzupg',
 };
 
+// 0x000000000000000000000000a7b49c0ed293742f6b0640b8b3db068c1e6fbd52;
+
 export const getBscMilkywayMILKWarpConfig = async (
-  _: ChainMap<RouterConfigWithoutOwner>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return {
     milkyway: {
       owner: safeOwners.milkyway,
       type: TokenType.native,
-      mailbox:
-        '0x68797065726c616e650000000000000000000000000000000000000000000000',
       foreignDeployment:
         '0x726f757465725f61707000000000000000000000000000010000000000000000',
-      gas: 200000,
+      ...routerConfig.milkway,
     },
     bsc: {
+      ...routerConfig.bsc,
       type: TokenType.synthetic,
       owner: safeOwners.bsc,
       symbol: 'MILK',
