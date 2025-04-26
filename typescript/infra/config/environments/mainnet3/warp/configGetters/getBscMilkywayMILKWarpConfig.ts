@@ -46,7 +46,7 @@ export const getBscMilkywayMILKWarpConfig = async (
       decimals: 6,
       mailbox: '0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4',
       interchainSecurityModule: {
-        type: IsmType.ROUTING,
+        type: IsmType.FALLBACK_ROUTING,
         owner: safeOwners.bsc,
         domains: buildAggregationIsmConfigs('bsc', ['milkyway'], validators),
       },
