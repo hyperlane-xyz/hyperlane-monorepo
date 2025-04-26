@@ -1,4 +1,5 @@
 export enum WarpRouteIds {
+  MilkywayBscMILK = 'MILK/milkyway-bsc',
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH = 'EZETH/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-zircuit',
   ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE = 'EZETHSTAGE/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-zircuit',

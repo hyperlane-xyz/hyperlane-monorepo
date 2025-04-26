@@ -8,25 +8,20 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import {
-  RouterConfigWithoutOwner,
-  tokens,
-} from '../../../../../src/config/warp.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 // TODO: Confirm ownership
 const safeOwners: ChainMap<Address> = {
-  bsc: '',
-  milkyway: '',
-  ism: '',
+  bsc: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  milkyway: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  ism: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
 };
 
 const validators: ChainMap<MultisigConfig> = {
   milkyway: {
     threshold: 1,
     validators: [
-      { address: '0x242d8a855a8c932dec51f7999ae7d1e48b10c95e', alias: 'AW' },
-      { address: '0xf620f5e3d25a3ae848fec74bccae5de3edcd8796', alias: 'AW' },
-      { address: '0x1f030345963c54ff8229720dd3a711c15c554aeb}', alias: 'AW' },
+      { address: '0x9985e0c6df8e25b655b46a317af422f5e7756875', alias: 'AW' },
     ],
   },
 };
@@ -48,9 +43,9 @@ export const getBscMilkywayMILKWarpConfig = async (
       type: TokenType.synthetic,
       owner: safeOwners.bsc,
       symbol: 'MILK',
-      name: 'Milkyway',
-      decimals: 9,
-      mailbox: '0xF9F6F5646F478d5ab4e20B0F910C92F1CCC9Cc6D',
+      name: 'MilkyWay',
+      decimals: 6,
+      mailbox: '0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4',
       interchainSecurityModule: {
         type: IsmType.ROUTING,
         owner: safeOwners.ism,
