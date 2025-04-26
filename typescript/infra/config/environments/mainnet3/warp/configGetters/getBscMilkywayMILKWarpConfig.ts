@@ -42,7 +42,6 @@ export const getBscMilkywayMILKWarpConfig = async (
       type: TokenType.native,
       foreignDeployment:
         '0x726f757465725f61707000000000000000000000000000010000000000000000',
-      gas: 200000,
     },
     bsc: {
       ...routerConfig.bsc,
