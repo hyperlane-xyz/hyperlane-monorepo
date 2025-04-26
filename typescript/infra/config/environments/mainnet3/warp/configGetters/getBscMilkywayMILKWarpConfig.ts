@@ -13,7 +13,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 // TODO: Confirm ownership
 const safeOwners: ChainMap<Address> = {
   bsc: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
-  milkyway: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+  milkyway: 'milk1326ley07fm6rpeqgxmxevnqevrsjfew2akzupg',
 };
 
 export const getBscMilkywayMILKWarpConfig = async (
