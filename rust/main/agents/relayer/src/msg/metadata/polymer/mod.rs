@@ -39,10 +39,15 @@ impl MetadataBuilder for PolymerMetadataBuilder {
         // Extract the chain ID from the message and block/tx/log details from the LogMeta
         let chain_id = message.origin as u64;
         let block_number = log_meta.block_number;
-        let tx_index = log_meta.transaction_index;
-        let log_index: u64 = log_meta.log_index.try_into().map_err(|_| {
+        let tx_index: u32 = log_meta.transaction_index.try_into().map_err(|_| {
             MetadataBuildError::FailedToBuild(format!(
-                "Log index {} is too large to fit into u64",
+                "Transaction index {} is too large to fit into u32",
+                log_meta.log_index
+            ))
+        })?;
+        let log_index: u32 = log_meta.log_index.try_into().map_err(|_| {
+            MetadataBuildError::FailedToBuild(format!(
+                "Log index {} is too large to fit into u32",
                 log_meta.log_index
             ))
         })?;

@@ -10,7 +10,6 @@ use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::MultisigIsm;
 use hyperlane_core::{HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, H256};
 use strum::Display;
 use tracing::{debug, info, warn};
