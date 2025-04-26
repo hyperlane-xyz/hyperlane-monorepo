@@ -2945,10 +2945,7 @@
         {
           "http": "https://grpc-raw.kaon.kyve.network"
         }
-      ],
-      "transactionOverrides": {
-        "gasPrice": "2.0"
-      }
+      ]
     }
   },
   "defaultRpcConsensusType": "fallback"
