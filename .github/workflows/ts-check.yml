@@ -1,0 +1,63 @@
+name: TypeScript Checks
+
+on:
+  push:
+    branches: [andrey/github-actions-testing]
+  pull_request:
+    branches: [andrey/github-actions-testing]
+
+jobs:
+  typescript-checks:
+    runs-on: ubuntu-latest
+    env:
+      YARN_ENABLE_GLOBAL_CACHE: false
+      YARN_ENABLE_SCRIPTS: false
+      YARN_NODE_LINKER: pnp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 128
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable corepack
+        run: |
+          corepack enable
+
+      - name: Cache Corepack Yarn installation
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/node/corepack
+          key: corepack-yarn-${{ runner.os }}-${{ hashFiles('**/.yarnrc.yml', '**/package.json') }}
+          restore-keys: |
+            corepack-yarn-${{ runner.os }}-
+
+      - name: Cache yarn packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/releases
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Get changed files
+        run: |
+          git diff --name-only ${{ github.event.pull_request.base.sha || 'HEAD~10' }} ${{ github.event.pull_request.head.sha || github.sha }} > changed_files.txt
+          echo Will check the following files:
+          cat changed_files.txt
+
+      - name: Run prettier
+        run: >-
+          cat changed_files.txt |
+          xargs -r yarn exec prettier --check --ignore-unknown
+        continue-on-error: true

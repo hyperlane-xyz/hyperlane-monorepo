@@ -4,10 +4,10 @@ on:
     branches: [main]
     tags:
       - '**'
-  pull_request:
-    paths:
-      - 'rust/**'
-      - '.github/workflows/rust-docker.yml'
+  # pull_request:
+  #   paths:
+  #     - 'rust/**'
+  #     - '.github/workflows/rust-docker.yml'
 concurrency:
   group: build-push-agents-${{ github.ref }}
   cancel-in-progress: true
