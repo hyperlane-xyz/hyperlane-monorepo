@@ -1,9 +1,7 @@
 import {
-  AW_VALIDATOR_ALIAS,
   ChainMap,
   HypTokenRouterConfig,
   IsmType,
-  MultisigConfig,
   TokenType,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -17,19 +15,6 @@ import { DEPLOYER } from '../../owners.js';
 const safeOwners: ChainMap<Address> = {
   bsc: DEPLOYER,
   milkyway: 'milk1326ley07fm6rpeqgxmxevnqevrsjfew2akzupg',
-};
-
-const multisigConfig: ChainMap<MultisigConfig> = {
-  ...defaultMultisigConfigs,
-  milkyway: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
 };
 
 export const getBscMilkywayMILKWarpConfig = async (
@@ -56,7 +41,7 @@ export const getBscMilkywayMILKWarpConfig = async (
         domains: buildAggregationIsmConfigs(
           'bsc',
           ['milkyway'],
-          multisigConfig,
+          defaultMultisigConfigs,
         ),
       },
     },
