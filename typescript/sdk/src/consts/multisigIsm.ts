@@ -1423,6 +1423,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x56fa9ac314ad49836ffb35918043d6b2dec304fb',
         alias: 'DSRV',
       },
+      {
+        address: '0xb69c0d1aacd305edeca88b482b9dd9657f3a8b5c',
+        alias: 'CryptoCrew',
+      },
     ],
   },
 
