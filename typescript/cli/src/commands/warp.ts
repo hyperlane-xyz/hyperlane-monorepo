@@ -432,7 +432,7 @@ export const verify: CommandModuleWithWriteContext<{
 };
 
 export const addresses: CommandModuleWithContext<{
-  warpRouteId?: string;
+  warp?: string;
   symbol?: string;
   chain?: string;
 }> = {
@@ -440,7 +440,7 @@ export const addresses: CommandModuleWithContext<{
   aliases: ['address', 'addy'],
   describe: 'Display the addresses of Warp Route contracts',
   builder: {
-    warpRouteId: warpRouteIdCommandOption,
+    warp: warpCoreConfigCommandOption,
     symbol: {
       ...symbolCommandOption,
       demandOption: false,
@@ -450,13 +450,13 @@ export const addresses: CommandModuleWithContext<{
       demandOption: false,
     },
   },
-  handler: async ({ context, warpRouteId, symbol, chain }) => {
+  handler: async ({ context, warp, symbol, chain }) => {
     logCommandHeader('Hyperlane Warp Addresses');
 
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context,
       symbol,
-      warp: warpRouteId,
+      warp,
     });
 
     const routerAddresses = warpConfigToWarpAddresses(warpCoreConfig);
