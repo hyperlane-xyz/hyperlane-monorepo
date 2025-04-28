@@ -19,8 +19,12 @@
     "amount": "0.000000008",
     "decimals": 9
   },
+  "auroratestnet": {
+    "amount": "0.07",
+    "decimals": 9
+  },
   "basesepolia": {
-    "amount": "0.001000339",
+    "amount": "0.001001198",
     "decimals": 9
   },
   "bsctestnet": {
@@ -88,7 +92,11 @@
     "decimals": 9
   },
   "kyvetestnet": {
-    "amount": "0.03",
+    "amount": "0.001",
+    "decimals": 1
+  },
+  "milkywaytestnet": {
+    "amount": "0.001",
     "decimals": 1
   },
   "modetestnet": {
@@ -100,11 +108,11 @@
     "decimals": 9
   },
   "odysseytestnet": {
-    "amount": "1.000000252",
+    "amount": "1.034000276",
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.001000336",
+    "amount": "0.001000345",
     "decimals": 9
   },
   "plumetestnet2": {
@@ -112,15 +120,15 @@
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "66.61600003",
+    "amount": "100.0",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "0.040772405",
+    "amount": "0.042895139",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "9.024562066",
+    "amount": "21.954276416",
     "decimals": 9
   },
   "solanatestnet": {
@@ -160,11 +168,11 @@
     "decimals": 9
   },
   "unichaintestnet": {
-    "amount": "0.001000254",
+    "amount": "0.001000253",
     "decimals": 9
   },
   "weavevmtestnet": {
-    "amount": "1.000000007",
+    "amount": "1.2",
     "decimals": 9
   }
 }

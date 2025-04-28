@@ -34,7 +34,15 @@ export class S3Wrapper {
   }
 
   constructor(readonly config: S3Config) {
-    this.client = new S3Client(config);
+    this.client = new S3Client({
+      ...config,
+      // explicitly set empty credentials to allow usage without env vars
+      credentials: {
+        accessKeyId: '',
+        secretAccessKey: '',
+      },
+      signer: { sign: async (req) => req },
+    });
     if (config.caching) {
       this.cache = {};
     }

@@ -61,7 +61,7 @@ impl MetadataBuilder for MessageMetadataBuilder {
         message: &HyperlaneMessage,
         params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        build_message_metadata(self.clone(), ism_address, message, params)
+        build_message_metadata(self.clone(), ism_address, message, params, None)
             .await
             .map(|res| res.metadata)
     }
@@ -136,21 +136,31 @@ impl MessageMetadataBuilder {
     }
 }
 
+pub async fn ism_and_module_type(
+    message_builder: MessageMetadataBuilder,
+    ism_address: H256,
+) -> Result<(Box<dyn InterchainSecurityModule>, ModuleType), MetadataBuildError> {
+    let ism = message_builder
+        .base_builder()
+        .build_ism(ism_address)
+        .await
+        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+    let module_type = message_builder.call_module_type(&ism).await?;
+    Ok((ism, module_type))
+}
+
 /// Builds metadata for a message.
 pub async fn build_message_metadata(
     message_builder: MessageMetadataBuilder,
     ism_address: H256,
     message: &HyperlaneMessage,
     mut params: MessageMetadataBuildParams,
+    maybe_ism_and_module_type: Option<(Box<dyn InterchainSecurityModule>, ModuleType)>,
 ) -> Result<IsmWithMetadataAndType, MetadataBuildError> {
-    let ism: Box<dyn InterchainSecurityModule> = message_builder
-        .base_builder()
-        .build_ism(ism_address)
-        .await
-        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-
-    let module_type = message_builder.call_module_type(&ism).await?;
-
+    let (ism, module_type) = match maybe_ism_and_module_type {
+        Some((ism, module_type)) => (ism, module_type),
+        None => ism_and_module_type(message_builder.clone(), ism_address).await?,
+    };
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {
         tracing::error!(
@@ -215,8 +225,7 @@ mod test {
     use crate::{
         msg::metadata::{
             base::MetadataBuildError, message_builder::build_message_metadata, DefaultIsmCache,
-            IsmAwareAppContextClassifier, IsmCacheConfig, IsmCachePolicyClassifier,
-            MessageMetadataBuildParams,
+            IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MessageMetadataBuildParams,
         },
         settings::matching_list::{Filter, ListElement, MatchingList},
         test_utils::{
@@ -279,7 +288,7 @@ mod test {
         base_builder.responses.app_context_classifier = Some(app_context_classifier);
         base_builder.responses.ism_cache_policy_classifier = Some(IsmCachePolicyClassifier::new(
             default_ism_getter,
-            IsmCacheConfig::default(),
+            Default::default(),
         ));
         base_builder
     }
@@ -461,9 +470,10 @@ mod test {
             builder
         };
         let params = MessageMetadataBuildParams::default();
-        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
-            .await
-            .expect_err("Metadata found when it should have failed");
+        let err =
+            build_message_metadata(message_builder, ism_address, &message, params.clone(), None)
+                .await
+                .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::MaxIsmDepthExceeded(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
@@ -489,9 +499,10 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
-            .await
-            .expect_err("Metadata found when it should have failed");
+        let err =
+            build_message_metadata(message_builder, ism_address, &message, params.clone(), None)
+                .await
+                .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::MaxIsmCountReached(0));
         assert_eq!(*(params.ism_count.lock().await), 0);
 
@@ -517,9 +528,10 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
-            .await
-            .expect_err("Metadata found when it should have failed");
+        let err =
+            build_message_metadata(message_builder, ism_address, &message, params.clone(), None)
+                .await
+                .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert!(*(params.ism_count.lock().await) <= 4);
         assert!(logs_contain("Max ISM depth reached ism_depth=2"));
@@ -544,9 +556,10 @@ mod test {
         };
 
         let params = MessageMetadataBuildParams::default();
-        let err = build_message_metadata(message_builder, ism_address, &message, params.clone())
-            .await
-            .expect_err("Metadata found when it should have failed");
+        let err =
+            build_message_metadata(message_builder, ism_address, &message, params.clone(), None)
+                .await
+                .expect_err("Metadata found when it should have failed");
         assert_eq!(err, MetadataBuildError::AggregationThresholdNotMet(2));
         assert_eq!(*(params.ism_count.lock().await), 5);
         assert!(logs_contain("Max ISM count reached ism_count=5"));

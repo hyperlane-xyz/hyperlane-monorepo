@@ -37,9 +37,10 @@ function formatExplorerUrl<TModule extends string, TAction extends string>(
 async function handleEtherscanResponse<T>(response: Response): Promise<T> {
   const body = await response.json();
 
+  const explorerUrl = new URL(response.url);
   if (body.status === '0') {
     throw new Error(
-      `Error while performing request to Etherscan like API: ${body.message} ${body.result}`,
+      `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`,
     );
   }
 
