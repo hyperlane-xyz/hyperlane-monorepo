@@ -34,6 +34,7 @@ impl ChainTxAdapterFactory {
                 metrics,
             )?),
             Cosmos => Arc::new(CosmosTxAdapter::new(conf.clone(), raw_conf.clone())),
+            Starknet => todo!(),
             CosmosNative => todo!(),
         };
 

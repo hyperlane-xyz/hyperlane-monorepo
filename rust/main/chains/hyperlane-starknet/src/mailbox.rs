@@ -251,9 +251,13 @@ impl Mailbox for StarknetMailbox {
         })
     }
 
-    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
         // For Starknet, we don't need to process the calldata as it's handled by the contract
-        Vec::new()
+        Ok(Vec::new())
     }
 }
 
