@@ -178,21 +178,43 @@ export async function getSafeTx(
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
-  // Fetch the transaction details to get the proposer
   const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
-  const txDetailsResponse = await fetch(txDetailsUrl, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+  const maxRetries = 5;
+  let retryCount = 0;
 
-  if (!txDetailsResponse.ok) {
-    rootLogger.error(
-      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
-    );
-    return;
+  while (retryCount < maxRetries) {
+    try {
+      const txDetailsResponse = await fetch(txDetailsUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!txDetailsResponse.ok) {
+        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+      }
+
+      return await txDetailsResponse.json();
+    } catch (error) {
+      retryCount++;
+      if (retryCount === maxRetries) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch transaction details for ${safeTxHash} after ${maxRetries} attempts: ${error}`,
+          ),
+        );
+        return;
+      }
+      rootLogger.warn(
+        chalk.yellow(
+          `Retry ${retryCount}/${maxRetries} for transaction ${safeTxHash}: ${error}`,
+        ),
+      );
+      // Exponential backoff: wait 2^retryCount seconds before retrying
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, retryCount) * 1000),
+      );
+    }
   }
-
-  return txDetailsResponse.json();
 }
 
 export async function deleteSafeTx(
