@@ -120,6 +120,9 @@ impl MultisigIsm for CosmosNativeIsm {
                     .iter()
                     .map(|v| H160::from_str(v).map(H256::from))
                     .collect::<Result<Vec<_>, _>>()?;
+                // on cosmos native, the ISM expects the checkpoints in the metadata to be sorted
+                // in ascending order of the validator address. So we sort the validators here,
+                // which will determine the order of the checkpoints in the metadata.
                 validators.sort();
                 Ok((validators, ism.threshold as u8))
             }
