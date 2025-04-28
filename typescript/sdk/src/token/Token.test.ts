@@ -39,6 +39,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'INJ',
     name: 'Injective Coin',
   },
+  [TokenStandard.EvmHypNativeMovable]: null,
   [TokenStandard.EvmHypCollateral]: {
     chainName: TestChainName.test3,
     standard: TokenStandard.EvmHypCollateral,
@@ -48,6 +49,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmHypCollateralMovable]: null,
   [TokenStandard.EvmHypRebaseCollateral]: {
     chainName: TestChainName.test3,
     standard: TokenStandard.EvmHypRebaseCollateral,

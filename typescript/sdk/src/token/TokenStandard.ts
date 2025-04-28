@@ -13,7 +13,9 @@ export enum TokenStandard {
   ERC721 = 'ERC721',
   EvmNative = 'EvmNative',
   EvmHypNative = 'EvmHypNative',
+  EvmHypNativeMovable = 'EvmHypNativeMovable',
   EvmHypCollateral = 'EvmHypCollateral',
+  EvmHypCollateralMovable = 'EvmHypCollateralMovable',
   EvmHypOwnerCollateral = 'EvmHypOwnerCollateral',
   EvmHypRebaseCollateral = 'EvmHypRebaseCollateral',
   EvmHypCollateralFiat = 'EvmHypCollateralFiat',
@@ -63,7 +65,9 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   ERC721: ProtocolType.Ethereum,
   EvmNative: ProtocolType.Ethereum,
   EvmHypNative: ProtocolType.Ethereum,
+  EvmHypNativeMovable: ProtocolType.Ethereum,
   EvmHypCollateral: ProtocolType.Ethereum,
+  EvmHypCollateralMovable: ProtocolType.Ethereum,
   EvmHypOwnerCollateral: ProtocolType.Ethereum,
   EvmHypRebaseCollateral: ProtocolType.Ethereum,
   EvmHypCollateralFiat: ProtocolType.Ethereum,
@@ -155,7 +159,9 @@ export const MINT_LIMITED_STANDARDS = [
 
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,
+  TokenStandard.EvmHypNativeMovable,
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypCollateralMovable,
   TokenStandard.EvmHypCollateralFiat,
   TokenStandard.EvmHypOwnerCollateral,
   TokenStandard.EvmHypRebaseCollateral,
@@ -196,9 +202,9 @@ export const TOKEN_COSMWASM_STANDARDS = [
 
 export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
-  [TokenType.nativeMovable]: TokenStandard.EvmHypNative,
+  [TokenType.nativeMovable]: TokenStandard.EvmHypNativeMovable,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
-  [TokenType.collateralMovable]: TokenStandard.EvmHypCollateral,
+  [TokenType.collateralMovable]: TokenStandard.EvmHypCollateralMovable,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateralFiat,
   [TokenType.XERC20]: TokenStandard.EvmHypXERC20,
   [TokenType.XERC20Lockbox]: TokenStandard.EvmHypXERC20Lockbox,
