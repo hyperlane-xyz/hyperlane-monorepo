@@ -37,6 +37,8 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
+import { IsmConfig } from '../ism/types.js';
+import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -436,9 +438,62 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
+
+    const newConfig: IsmConfig = {
+      type: IsmType.ROUTING,
+      domains: {
+        starknetsepolia: {
+          type: IsmType.AGGREGATION,
+          modules: [
+            {
+              type: IsmType.MESSAGE_ID_MULTISIG,
+              validators: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
+              threshold: 1,
+            },
+            {
+              type: IsmType.PAUSABLE,
+              owner: expectedConfig.owner,
+              paused: false,
+            },
+          ],
+          threshold: 2,
+        },
+        paradexsepolia: {
+          type: IsmType.AGGREGATION,
+          modules: [
+            {
+              type: IsmType.MESSAGE_ID_MULTISIG,
+              validators: ['0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8'],
+              threshold: 1,
+            },
+            {
+              type: IsmType.PAUSABLE,
+              owner: expectedConfig.owner,
+              paused: false,
+            },
+          ],
+          threshold: 2,
+        },
+        solanatestnet: {
+          type: IsmType.AGGREGATION,
+          modules: [
+            {
+              type: IsmType.MESSAGE_ID_MULTISIG,
+              validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+              threshold: 1,
+            },
+            {
+              type: IsmType.PAUSABLE,
+              owner: expectedConfig.owner,
+              paused: false,
+            },
+          ],
+          threshold: 2,
+        },
+      },
+      owner: expectedConfig.owner,
+    };
+    const updateTransactions = await ismModule.update(newConfig);
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, updateTransactions };

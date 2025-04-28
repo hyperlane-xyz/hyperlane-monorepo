@@ -125,7 +125,7 @@ export class StarknetDeployer {
         ];
 
         break;
-      case IsmType.ROUTING:
+      case IsmType.ROUTING: {
         constructorArgs = [ismConfig.owner];
         const ismAddress = await this.deployContract(
           contractName,
@@ -153,6 +153,7 @@ export class StarknetDeployer {
         }
 
         return ismAddress;
+      }
       case IsmType.PAUSABLE:
         constructorArgs = [ismConfig.owner];
 

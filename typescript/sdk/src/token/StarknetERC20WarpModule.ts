@@ -7,6 +7,7 @@ import {
   getChecksumAddress,
   uint256,
 } from 'starknet';
+import { hexToBigInt } from 'viem';
 
 import {
   StarknetContractName,
@@ -104,20 +105,41 @@ export class StarknetERC20WarpModule {
         }
 
         case TokenType.collateral: {
-          const tokenAddress = await deployer.deployContract(
-            StarknetContractName.HYP_ERC20_COLLATERAL,
-            {
-              mailbox: mailbox!,
-              // @ts-ignore
-              erc20: rest.token,
-              owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
-              hook: getChecksumAddress(0),
-              interchain_security_module: ismAddress,
-            },
-            ContractType.TOKEN,
-          );
-          addresses[chain] = tokenAddress;
-          break;
+          if (chain === 'paradexsepolia') {
+            const dexContract =
+              '0x0286003f7c7bfc3f94e8f0af48b48302e7aee2fb13c23b141479ba00832ef2c6';
+
+            const tokenAddress = await deployer.deployContract(
+              StarknetContractName.HYP_ERC20_DEX_COLLATERAL,
+              {
+                mailbox: mailbox!,
+                dex: dexContract,
+                // @ts-ignore
+                wrapped_token: rest.token,
+                owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+                hook: getChecksumAddress(0),
+                interchain_security_module: ismAddress,
+              },
+              ContractType.TOKEN,
+            );
+            addresses[chain] = tokenAddress;
+            break;
+          } else {
+            const tokenAddress = await deployer.deployContract(
+              StarknetContractName.HYP_ERC20_COLLATERAL,
+              {
+                mailbox: mailbox!,
+                // @ts-ignore
+                erc20: rest.token,
+                owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+                hook: getChecksumAddress(0),
+                interchain_security_module: ismAddress,
+              },
+              ContractType.TOKEN,
+            );
+            addresses[chain] = tokenAddress;
+            break;
+          }
         }
         default:
           throw Error('Token type is not supported on starknet');
@@ -198,6 +220,14 @@ export class StarknetERC20WarpModule {
         `Batch enrolling ${domains.length} remote routers on ${chain}`,
       );
 
+      domains.push(1399811150);
+      routers.push(
+        uint256.bnToUint256(
+          hexToBigInt(
+            '0x119d6b31e756c5f4aa2ca43049511c2c453e4e81ec905b7520e886828efc1ed2',
+          ),
+        ),
+      );
       const tx = await routerContract.invoke('enroll_remote_routers', [
         domains,
         routers,
