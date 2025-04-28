@@ -52,7 +52,7 @@ pub trait AdaptsChain: Send + Sync {
 
     /// Return true if the transaction can be resubmitted (such as by escalating the gas price). Called in the Inclusion Stage (PayloadDispatcher).
     /// Defaults to true, since most chains don't have special rules for tx resubmission.
-    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+    async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool {
         true
     }
 

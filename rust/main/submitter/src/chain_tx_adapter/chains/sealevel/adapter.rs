@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use eyre::{bail, eyre, ContextCompat, Report, Result};
+use eyre::{bail, eyre, ContextCompat, Report};
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
@@ -16,7 +16,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -29,7 +29,7 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{ChainResult, ReorgPeriod, H256};
+use hyperlane_core::{ChainResult, ReorgPeriod, H256, H512};
 use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
@@ -68,7 +68,11 @@ pub struct SealevelTxAdapter {
 }
 
 impl SealevelTxAdapter {
-    pub fn new(conf: ChainConf, raw_conf: RawChainConf, metrics: &CoreMetrics) -> Result<Self> {
+    pub fn new(
+        conf: ChainConf,
+        raw_conf: RawChainConf,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Self> {
         let connection_conf = get_connection_conf(&conf);
         let urls = &connection_conf.urls;
         let chain_info = conf.metrics_conf().chain;
@@ -114,7 +118,7 @@ impl SealevelTxAdapter {
         provider: Box<dyn SealevelProviderForSubmitter>,
         oracle: Box<dyn PriorityFeeOracle>,
         submitter: Box<dyn TransactionSubmitter>,
-    ) -> Result<Self> {
+    ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
         let reorg_period = conf.reorg_period.clone();
         let max_batch_size = Self::batch_size(&conf)?;
@@ -152,7 +156,7 @@ impl SealevelTxAdapter {
         }
     }
 
-    fn batch_size(conf: &ChainConf) -> Result<u32> {
+    fn batch_size(conf: &ChainConf) -> eyre::Result<u32> {
         Ok(conf
             .connection
             .operation_submission_config()
@@ -212,18 +216,15 @@ impl SealevelTxAdapter {
             .await
     }
 
-    async fn get_tx_hash_status(
-        &self,
-        tx_hash: H256,
-        tx: &mut Transaction,
-    ) -> Result<TransactionStatus, SubmitterError> {
+    #[instrument(skip(self))]
+    async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, SubmitterError> {
         let signature = Signature::new(tx_hash.as_ref());
         let transaction_search_result = self.client.get_transaction(signature).await;
 
         let transaction = match transaction_search_result {
             Ok(transaction) => transaction,
             Err(err) => {
-                warn!(?tx, ?err, "Failed to get transaction status by hash");
+                warn!(?err, "Failed to get transaction status by hash");
                 return Err(SubmitterError::TxSubmissionError(
                     "Transaction hash not found".to_string(),
                 ));
@@ -233,7 +234,7 @@ impl SealevelTxAdapter {
         // slot at which transaction was included into blockchain
         let inclusion_slot = transaction.slot;
 
-        info!(?tx, slot = ?inclusion_slot, "found transaction");
+        info!(slot = ?inclusion_slot, "found transaction");
 
         // if block with this slot is added to the chain, transaction is considered to be confirmed
         let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
@@ -241,7 +242,7 @@ impl SealevelTxAdapter {
         let confirming_block = self.client.get_block(confirming_slot).await;
 
         if confirming_block.is_ok() {
-            info!(?tx, "finalized transaction");
+            info!("finalized transaction");
             return Ok(TransactionStatus::Finalized);
         }
 
@@ -250,14 +251,59 @@ impl SealevelTxAdapter {
 
         match including_block {
             Ok(_) => {
-                info!(?tx, "included transaction");
+                info!("included transaction");
                 Ok(TransactionStatus::Included)
             }
             Err(_) => {
-                info!(?tx, "pending transaction");
+                info!("pending transaction");
                 Ok(TransactionStatus::PendingInclusion)
             }
         }
+    }
+
+    fn classify_tx_status_from_hash_statuses(
+        statuses: Vec<Result<TransactionStatus, SubmitterError>>,
+    ) -> TransactionStatus {
+        let mut status_counts = HashMap::<TransactionStatus, usize>::new();
+
+        // if none are finalized or included but there is at least one `PendingInclusion` or `Mempool`, return that
+        for hash_status_result in statuses.iter() {
+            if let Ok(status) = hash_status_result {
+                *status_counts.entry(status.clone()).or_insert(0) += 1;
+            }
+        }
+
+        // if any are finalized, return `Finalized`
+        if let Some(finalized_count) = status_counts.get(&TransactionStatus::Finalized) {
+            if *finalized_count > 0 {
+                return TransactionStatus::Finalized;
+            }
+        }
+        // if any are included, return `Included`
+        if let Some(included_count) = status_counts.get(&TransactionStatus::Included) {
+            if *included_count > 0 {
+                return TransactionStatus::Included;
+            }
+        }
+        // if any are pending, return `PendingInclusion`
+        if let Some(pending_count) = status_counts.get(&TransactionStatus::PendingInclusion) {
+            if *pending_count > 0 {
+                return TransactionStatus::PendingInclusion;
+            }
+        }
+        // if any are in mempool, return `Mempool`
+        if let Some(mempool_count) = status_counts.get(&TransactionStatus::Mempool) {
+            if *mempool_count > 0 {
+                return TransactionStatus::Mempool;
+            }
+        }
+        // if the hashmap is not empty, it must mean that the hashes were dropped
+        if !status_counts.is_empty() {
+            return TransactionStatus::Dropped(TransactionDropReason::DroppedByChain);
+        }
+
+        // otherwise, return `PendingInclusion`, assuming the rpc is down temporarily and returns errors
+        TransactionStatus::PendingInclusion
     }
 }
 
@@ -337,6 +383,7 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
         info!(?tx, "checking status of transaction");
 
@@ -347,52 +394,12 @@ impl AdaptsChain for SealevelTxAdapter {
         let hash_status_futures = tx
             .tx_hashes
             .iter()
-            .map(|tx_hash| self.get_tx_hash_status(*tx_hash, tx))
+            .map(|tx_hash| self.get_tx_hash_status(*tx_hash))
             .collect::<Vec<_>>();
         let hash_status_results = join_all(hash_status_futures).await;
-
-        let mut status_counts = HashMap::<TransactionStatus, usize>::new();
-
-        // if none are finalized or included but there is at least one `PendingInclusion` or `Mempool`, return that
-        for hash_status_result in hash_status_results.iter() {
-            if let Ok(status) = hash_status_result {
-                *status_counts.entry(*status).or_insert(0) += 1;
-            }
-        }
-
-        // if any are finalized, return `Finalized`
-        if let Some(finalized_count) = status_counts.get(&TransactionStatus::Finalized) {
-            if *finalized_count > 0 {
-                return Ok(TransactionStatus::Finalized);
-            }
-        }
-        // if any are included, return `Included`
-        if let Some(included_count) = status_counts.get(&TransactionStatus::Included) {
-            if *included_count > 0 {
-                return Ok(TransactionStatus::Included);
-            }
-        }
-        // if any are pending, return `PendingInclusion`
-        if let Some(pending_count) = status_counts.get(&TransactionStatus::PendingInclusion) {
-            if *pending_count > 0 {
-                return Ok(TransactionStatus::PendingInclusion);
-            }
-        }
-        // if any are in mempool, return `Mempool`
-        if let Some(mempool_count) = status_counts.get(&TransactionStatus::Mempool) {
-            if *mempool_count > 0 {
-                return Ok(TransactionStatus::Mempool);
-            }
-        }
-        // if the hashmap is not empty, it must mean that the hashes were dropped
-        if !status_counts.is_empty() {
-            return Ok(TransactionStatus::Dropped(
-                TransactionDropReason::DroppedByChain,
-            ));
-        }
-
-        // otherwise, return `PendingInclusion`, assuming the rpc is down temporarily and returns errors
-        Ok(TransactionStatus::PendingInclusion)
+        Ok(Self::classify_tx_status_from_hash_statuses(
+            hash_status_results,
+        ))
     }
 
     async fn reverted_payloads(
