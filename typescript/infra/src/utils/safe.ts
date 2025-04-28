@@ -485,34 +485,41 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
+      const maxRetries = 5;
+      let retryCount = 0;
+      let pendingTxs;
 
-      let pendingTxs: SafeMultisigTransactionListResponse;
-      rootLogger.info(
-        chalk.gray.italic(
-          `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
-        ),
-      );
-      try {
-        pendingTxs = await retryAsync(
-          () => safeService.getPendingTransactions(safes[chain]),
-          TX_FETCH_RETRIES,
-          TX_FETCH_RETRY_DELAY,
-        );
-      } catch (error) {
-        rootLogger.error(
-          chalk.red(
-            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
-          ),
-        );
-        return;
-      }
-
-      if (!pendingTxs || pendingTxs.results.length === 0) {
+      while (retryCount < maxRetries) {
         rootLogger.info(
           chalk.gray.italic(
-            `No pending transactions found for safe ${safes[chain]} on ${chain}`,
+            `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
           ),
         );
+        try {
+          pendingTxs = await safeService.getPendingTransactions(safes[chain]);
+          break;
+        } catch (error) {
+          retryCount++;
+          if (retryCount === maxRetries) {
+            rootLogger.error(
+              chalk.red(
+                `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${maxRetries} attempts: ${error}`,
+              ),
+            );
+            return;
+          }
+          rootLogger.warn(
+            chalk.yellow(
+              `Retry ${retryCount}/${maxRetries} for pending transactions on ${chain}: ${error}`,
+            ),
+          );
+          // Exponential backoff: wait 2^retryCount seconds before retrying
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.pow(2, retryCount) * 1000),
+          );
+        }
+      }
+      if (!pendingTxs || pendingTxs.results.length === 0) {
         return;
       }
 
