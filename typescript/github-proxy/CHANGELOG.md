@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 12.3.0
+
 ## 12.2.0
 
 ## 12.1.0

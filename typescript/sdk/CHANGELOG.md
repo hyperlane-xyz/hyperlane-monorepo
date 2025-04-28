@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 12.3.0
+
+### Minor Changes
+
+- 6101959f7: Enhanced the router enrollment check to support non-fully connected warp routes using the `remoteRouters` property from the deployment config.
+- 5db39f493: Fixes to support CosmosNative and warp apply with foreign deployments.
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+### Patch Changes
+
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/core@7.1.2
+  - @hyperlane-xyz/cosmos-sdk@12.3.0
+
 ## 12.2.0
 
 ### Minor Changes

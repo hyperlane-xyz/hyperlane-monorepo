@@ -1,5 +1,21 @@
 # @hyperlane-xyz/widgets
 
+## 12.3.0
+
+### Minor Changes
+
+- 2edb767f2: improve how cosmos addresses are displayed
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+### Patch Changes
+
+- Updated dependencies [6101959f7]
+- Updated dependencies [5db39f493]
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/sdk@12.3.0
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/cosmos-sdk@12.3.0
+
 ## 12.2.0
 
 ### Patch Changes
