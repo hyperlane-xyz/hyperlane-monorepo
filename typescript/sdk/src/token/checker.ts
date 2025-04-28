@@ -41,11 +41,14 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     expectedChains = Object.keys(this.configMap);
     const thisChainConfig = this.configMap[chain];
     if (thisChainConfig?.remoteRouters) {
-      expectedChains = Object.keys(thisChainConfig.remoteRouters).map((chn) =>
-        this.multiProvider.getChainName(chn),
+      expectedChains = Object.keys(thisChainConfig.remoteRouters).map(
+        (remoteRouterChain) =>
+          this.multiProvider.getChainName(remoteRouterChain),
       );
     }
-    expectedChains = expectedChains.filter((chn) => chn !== chain).sort();
+    expectedChains = expectedChains
+      .filter((remoteRouterChain) => remoteRouterChain !== chain)
+      .sort();
 
     await super.checkChain(chain, expectedChains);
     await this.checkToken(chain);
