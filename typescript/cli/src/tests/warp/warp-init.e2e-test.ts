@@ -36,7 +36,7 @@ describe('hyperlane warp init e2e tests', async function () {
     initialOwnerAddress = wallet.address;
   });
 
-  describe.only('hyperlane warp init --yes', () => {
+  describe('hyperlane warp init --yes', () => {
     function assertWarpConfig(
       warpConfig: WarpRouteDeployConfig,
       chainName: ChainName,
