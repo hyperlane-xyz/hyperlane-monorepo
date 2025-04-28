@@ -6,9 +6,9 @@ use crate::{
 use async_trait::async_trait;
 use core::ops::RangeInclusive;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 /// A reference to a `InterchainGasPaymasterIndexer` contract on some Sovereign chain
@@ -38,7 +38,9 @@ impl crate::indexer::SovIndexer<InterchainGasPayment> for SovereignInterchainGas
         Ok(None)
     }
     fn decode_event(&self, _event: &TxEvent) -> ChainResult<InterchainGasPayment> {
-        todo!()
+        Err(ChainCommunicationError::CustomError(
+            "Not yet implemented".into(),
+        ))
     }
 }
 

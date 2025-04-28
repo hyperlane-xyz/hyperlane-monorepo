@@ -1,8 +1,8 @@
 use crate::{ConnectionConf, Signer, SovereignProvider};
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
 
 /// A struct for the Routing ISM on the Sovereign chain.
@@ -49,8 +49,8 @@ impl HyperlaneChain for SovereignRoutingIsm {
 #[async_trait]
 impl RoutingIsm for SovereignRoutingIsm {
     async fn route(&self, _message: &HyperlaneMessage) -> ChainResult<H256> {
-        // let result = self.provider.client().route().await?;
-        // Ok(result)
-        todo!("Not yet implemented")
+        Err(ChainCommunicationError::CustomError(
+            "Not yet implemented".into(),
+        ))
     }
 }

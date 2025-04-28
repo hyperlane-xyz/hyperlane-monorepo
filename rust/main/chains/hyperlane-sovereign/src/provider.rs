@@ -1,8 +1,8 @@
 use crate::{ConnectionConf, Signer};
 use async_trait::async_trait;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
-    H256, H512, U256,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
+    HyperlaneProvider, TxnInfo, H256, H512, U256,
 };
 
 pub mod rest_client;
@@ -67,16 +67,15 @@ impl HyperlaneProvider for SovereignProvider {
         Ok(true)
     }
 
-    // todo: what is this doing?
-    async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let token_id = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7";
-        let balance = self.client.get_balance(token_id, address.as_str())?;
-        Ok(balance)
+    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
+        Err(ChainCommunicationError::CustomError(
+            "Not yet implemented".into(),
+        ))
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        // let metrics = self.client.get_chain_metrics().await?;
-        // Ok(metrics)
-        todo!("Not yet implemented")
+        Err(ChainCommunicationError::CustomError(
+            "Not yet implemented".into(),
+        ))
     }
 }

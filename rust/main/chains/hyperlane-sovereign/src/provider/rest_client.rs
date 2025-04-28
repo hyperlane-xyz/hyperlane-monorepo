@@ -6,7 +6,7 @@ use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::Encode;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, BlockInfo, ChainCommunicationError,
-    ChainInfo, ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType, SignedType,
+    ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType, SignedType,
     TxCostEstimate, TxOutcome, TxnInfo, TxnReceiptInfo, H160, H256, H512, U256,
 };
 use num_traits::FromPrimitive;
@@ -456,11 +456,6 @@ impl SovereignRestClient {
         Ok(U256::default())
     }
 
-    // @Provider
-    pub fn _get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        todo!("Not yet implemented")
-    }
-
     // @Mailbox
     pub async fn get_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
         // /modules/mailbox/state/nonce
@@ -710,11 +705,6 @@ impl SovereignRestClient {
         Ok(res)
     }
 
-    // @Mailbox
-    pub fn _process_calldata(&self) -> Vec<u8> {
-        todo!("Not yet implemented")
-    }
-
     // @ISM
     pub async fn dry_run(&self) -> ChainResult<Option<U256>> {
         #[derive(Clone, Debug, Deserialize)]
@@ -908,11 +898,6 @@ impl SovereignRestClient {
         Ok((validators, response.threshold))
     }
 
-    // @Routing ISM
-    pub fn _route(&self) -> ChainResult<H256> {
-        todo!("Not yet implemented")
-    }
-
     // @Validator Announce
     pub async fn get_announced_storage_locations(
         &self,
@@ -990,11 +975,6 @@ impl SovereignRestClient {
         };
 
         Ok(tx_outcome)
-    }
-
-    // @Validator Announce
-    pub fn _announce_tokens_needed(&self) -> Option<U256> {
-        todo!("Not yet implemented")
     }
 }
 

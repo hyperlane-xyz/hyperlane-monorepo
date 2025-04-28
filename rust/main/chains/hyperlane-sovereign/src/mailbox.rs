@@ -208,8 +208,6 @@ impl Mailbox for SovereignMailbox {
     }
 
     fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
-        // let calldata = self.provider.client().process_calldata();
-        // calldata
         todo!("Not yet implemented")
     }
 }
