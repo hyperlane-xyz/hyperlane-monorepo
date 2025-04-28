@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { Address, HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -127,12 +128,53 @@ export function getAccountAddressForChain(
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
   const account = accounts[protocol];
-  if (protocol === ProtocolType.Cosmos) {
+  if (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative
+  ) {
     return account?.addresses.find((a) => a.chainName === chainName)?.address;
   } else {
     // Use first because only cosmos has the notion of per-chain addresses
     return account?.addresses[0]?.address;
   }
+}
+
+export function getAddressFromAccountAndChain(
+  account?: AccountInfo,
+  chainName?: ChainName,
+) {
+  if (!account || !chainName) {
+    return 'Unknown';
+  }
+
+  // by default display the first address of the account
+  let address = account.addresses[0]?.address ?? 'Unknown';
+
+  // only in cosmos there are multiple addresses per account, in this
+  // case we display the cosmos hub address by default. If the user
+  // selects a cosmos based origin chain in the swap form that cosmos
+  // address is displayed instead
+  if (account?.protocol === ProtocolType.Cosmos) {
+    // chainName can be an EVM chain here, therefore if no
+    // cosmos address was found we search for the cosmos hub
+    // address below
+    const cosmosAddress = account?.addresses?.find(
+      (a) => a.chainName === chainName,
+    )?.address;
+
+    if (cosmosAddress) {
+      // set cosmos address if one has been found for the chain name
+      address = cosmosAddress;
+    } else {
+      // search for the cosmos hub address if no address has been found
+      // for the chain name
+      address =
+        account?.addresses?.find((a) => a.chainName === cosmoshub.name)
+          ?.address ?? 'Unknown';
+    }
+  }
+
+  return address;
 }
 
 export function getAccountAddressAndPubKey(
