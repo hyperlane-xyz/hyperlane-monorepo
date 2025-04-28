@@ -480,8 +480,41 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      const pendingTxs = await safeService.getPendingTransactions(safes[chain]);
-      if (pendingTxs.results.length === 0) {
+      const maxRetries = 5;
+      let retryCount = 0;
+      let pendingTxs;
+
+      while (retryCount < maxRetries) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
+          ),
+        );
+        try {
+          pendingTxs = await safeService.getPendingTransactions(safes[chain]);
+          break;
+        } catch (error) {
+          retryCount++;
+          if (retryCount === maxRetries) {
+            rootLogger.error(
+              chalk.red(
+                `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${maxRetries} attempts: ${error}`,
+              ),
+            );
+            return;
+          }
+          rootLogger.warn(
+            chalk.yellow(
+              `Retry ${retryCount}/${maxRetries} for pending transactions on ${chain}: ${error}`,
+            ),
+          );
+          // Exponential backoff: wait 2^retryCount seconds before retrying
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.pow(2, retryCount) * 1000),
+          );
+        }
+      }
+      if (!pendingTxs || pendingTxs.results.length === 0) {
         return;
       }
 

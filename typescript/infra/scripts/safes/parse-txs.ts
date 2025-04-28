@@ -64,7 +64,9 @@ async function main() {
 
   const chainResultEntries = await Promise.all(
     pendingTxs.map(async ({ chain, nonce, fullTxHash }) => {
-      rootLogger.info(`Reading tx ${fullTxHash} on ${chain}`);
+      rootLogger.info(
+        chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
+      );
       const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
       const tx: AnnotatedEV5Transaction = {
         to: safeTx.to,
@@ -74,21 +76,29 @@ async function main() {
 
       try {
         const results = await reader.read(chain, tx);
-        rootLogger.info(`Finished reading tx ${fullTxHash} on ${chain}`);
+        rootLogger.info(
+          chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
+        );
         return [`${chain}-${nonce}-${fullTxHash}`, results];
       } catch (err) {
-        rootLogger.error('Error reading transaction', err, chain, tx);
+        rootLogger.error(
+          chalk.red('Error reading transaction', err, chain, tx),
+        );
         process.exit(1);
       }
     }),
   );
 
   if (reader.errors.length) {
-    rootLogger.error('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌');
+    rootLogger.error(
+      chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
+    );
     rootLogger.info(stringifyObject(reader.errors, 'yaml', 2));
-    rootLogger.error('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌');
+    rootLogger.error(
+      chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
+    );
   } else {
-    rootLogger.info('✅✅✅✅✅ No fatal errors ✅✅✅✅✅');
+    rootLogger.info(chalk.green('✅✅✅✅✅ No fatal errors ✅✅✅✅✅'));
   }
 
   const chainResults = Object.fromEntries(chainResultEntries);
