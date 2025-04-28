@@ -1,7 +1,7 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -13,6 +13,7 @@ import { widgetLogger } from '../logger.js';
 import { tryClipboardSet } from '../utils/clipboard.js';
 import { WalletLogo } from '../walletIntegrations/WalletLogo.js';
 import {
+  getAddressFromAccountAndChain,
   useAccounts,
   useDisconnectFns,
   useWalletDetails,
@@ -27,11 +28,13 @@ export function AccountList({
   onClickConnectWallet,
   onCopySuccess,
   className,
+  chainName,
 }: {
   multiProvider: MultiProtocolProvider;
   onClickConnectWallet: () => void;
   onCopySuccess?: () => void;
   className?: string;
+  chainName?: string;
 }) {
   const { readyAccounts } = useAccounts(multiProvider);
   const disconnectFns = useDisconnectFns();
@@ -61,6 +64,7 @@ export function AccountList({
           walletDetails={walletDetails[acc.protocol]}
           onCopySuccess={onCopySuccess}
           onClickDisconnect={() => onClickDisconnect(acc.protocol)}
+          chainName={chainName}
         />
       ))}
       <Button
@@ -86,6 +90,7 @@ type AccountSummaryProps = {
   walletDetails: WalletDetails;
   onCopySuccess?: () => void;
   onClickDisconnect: () => Promise<void>;
+  chainName?: ChainName;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function AccountSummary({
@@ -94,15 +99,13 @@ export function AccountSummary({
   walletDetails,
   onClickDisconnect,
   className,
+  chainName,
   ...rest
 }: AccountSummaryProps) {
-  const numAddresses = account?.addresses?.length || 0;
-  const onlyAddress =
-    numAddresses === 1 ? account.addresses[0].address : undefined;
+  const address = getAddressFromAccountAndChain(account, chainName);
 
   const onClickCopy = async () => {
-    const copyValue = account.addresses.map((a) => a.address).join(', ');
-    await tryClipboardSet(copyValue);
+    await tryClipboardSet(address);
     onCopySuccess?.();
   };
 
@@ -121,7 +124,7 @@ export function AccountSummary({
             {walletDetails.name || 'Wallet'}
           </div>
           <div className="htw-w-full htw-truncate htw-text-left htw-text-xs">
-            {onlyAddress || `${numAddresses} known addresses`}
+            {address}
           </div>
         </div>
       </Button>

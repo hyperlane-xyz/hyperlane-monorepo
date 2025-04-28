@@ -1414,6 +1414,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  milkyway: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   milkywaytestnet: {
     threshold: 1,
     validators: [
@@ -1423,6 +1433,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
     ],
   },
+
 
   mint: {
     threshold: 2,

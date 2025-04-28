@@ -2945,10 +2945,7 @@
         {
           "http": "https://grpc-raw.kaon.kyve.network"
         }
-      ],
-      "transactionOverrides": {
-        "gasPrice": "2.0"
-      }
+      ]
     },
     "auroratestnet": {
       "blockExplorers": [
@@ -3071,10 +3068,7 @@
       "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000040000000000000000",
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": "0.0"
-      }
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
     }
   },
   "defaultRpcConsensusType": "fallback"
