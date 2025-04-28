@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check-env:
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     # assign output from step to job output
     outputs:
       gcloud-service-key: ${{ steps.gcloud-service-key.outputs.defined }}
@@ -27,7 +27,7 @@ jobs:
         run: echo "defined=true" >> $GITHUB_OUTPUT
 
   build-and-push-to-gcr:
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
