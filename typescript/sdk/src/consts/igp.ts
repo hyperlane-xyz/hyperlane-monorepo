@@ -35,6 +35,8 @@ export function getProtocolExchangeRateDecimals(
       return TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL;
     case ProtocolType.Cosmos:
       return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
+    case ProtocolType.CosmosNative:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
     default:
       throw new Error(`Unsupported protocol type: ${protocolType}`);
   }

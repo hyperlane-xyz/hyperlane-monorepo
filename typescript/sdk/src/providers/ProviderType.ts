@@ -33,6 +33,7 @@ import {
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
+import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
@@ -40,6 +41,7 @@ export enum ProviderType {
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
+  CosmJsNative = 'cosmjs-native',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
   Starknet = 'starknet',
@@ -53,7 +55,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
-  [ProtocolType.CosmosNative]: ProviderType.CosmJsWasm,
+  [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
   [ProtocolType.Starknet]: ProviderType.Starknet,
 };
 
@@ -79,10 +81,10 @@ type ProtocolTypesMapping = {
     receipt: CosmJsWasmTransactionReceipt;
   };
   [ProtocolType.CosmosNative]: {
-    transaction: CosmJsWasmTransaction;
-    provider: CosmJsWasmProvider;
-    contract: CosmJsWasmContract;
-    receipt: CosmJsWasmTransactionReceipt;
+    transaction: CosmJsNativeTransaction;
+    provider: CosmJsNativeProvider;
+    contract: null;
+    receipt: CosmJsNativeTransactionReceipt;
   };
   [ProtocolType.Starknet]: {
     transaction: StarknetJsTransaction;
@@ -151,6 +153,12 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
+export interface CosmJsNativeProvider
+  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
+  type: ProviderType.CosmJsNative;
+  provider: Promise<HyperlaneModuleClient>;
+}
+
 export interface StarknetJsProvider
   extends TypedProviderBase<StarknetProvider> {
   type: ProviderType.Starknet;
@@ -169,6 +177,7 @@ export type TypedProvider =
   | SolanaWeb3Provider
   | CosmJsProvider
   | CosmJsWasmProvider
+  | CosmJsNativeProvider
   | StarknetJsProvider
   | ZKSyncProvider;
 
@@ -269,6 +278,12 @@ export interface CosmJsWasmTransaction
   transaction: ExecuteInstruction;
 }
 
+export interface CosmJsNativeTransaction
+  extends TypedTransactionBase<CmTransaction> {
+  type: ProviderType.CosmJsNative;
+  transaction: CmTransaction;
+}
+
 export interface StarknetJsTransaction
   extends TypedTransactionBase<StarknetInvocation> {
   type: ProviderType.Starknet;
@@ -288,6 +303,7 @@ export type TypedTransaction =
   | SolanaWeb3Transaction
   | CosmJsTransaction
   | CosmJsWasmTransaction
+  | CosmJsNativeTransaction
   | StarknetJsTransaction
   | ZKSyncTransaction;
 
@@ -330,6 +346,12 @@ export interface CosmJsWasmTransactionReceipt
   receipt: DeliverTxResponse;
 }
 
+export interface CosmJsNativeTransactionReceipt
+  extends TypedTransactionReceiptBase<DeliverTxResponse> {
+  type: ProviderType.CosmJsNative;
+  receipt: DeliverTxResponse;
+}
+
 export interface StarknetJsTransactionReceipt
   extends TypedTransactionReceiptBase<StarknetTxReceipt> {
   type: ProviderType.Starknet;
@@ -348,5 +370,6 @@ export type TypedTransactionReceipt =
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
   | CosmJsWasmTransactionReceipt
+  | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt;
