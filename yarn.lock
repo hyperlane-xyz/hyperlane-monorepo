@@ -7969,7 +7969,7 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
     sinon: "npm:^13.0.2"
-    starknet: "npm:^6.23.1"
+    starknet: "npm:^6.24.1"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
@@ -7996,7 +7996,7 @@ __metadata:
     eslint-plugin-import: "npm:^2.31.0"
     globby: "npm:^14.1.0"
     prettier: "npm:^2.8.8"
-    starknet: "npm:^6.23.1"
+    starknet: "npm:^6.24.1"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
   languageName: unknown
@@ -8027,7 +8027,7 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
     sinon: "npm:^13.0.2"
-    starknet: "npm:^6.23.1"
+    starknet: "npm:^6.24.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
   languageName: unknown
@@ -35609,9 +35609,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"starknet@npm:^6.23.1":
-  version: 6.23.1
-  resolution: "starknet@npm:6.23.1"
+"starknet@npm:^6.24.1":
+  version: 6.24.1
+  resolution: "starknet@npm:6.24.1"
   dependencies:
     "@noble/curves": "npm:1.7.0"
     "@noble/hashes": "npm:1.6.0"
@@ -35624,7 +35624,7 @@ __metadata:
     pako: "npm:^2.0.4"
     starknet-types-07: "npm:@starknet-io/types-js@^0.7.10"
     ts-mixer: "npm:^6.0.3"
-  checksum: 10/ad02fddad1f24bc9b107ca8ef894264176297a59b65b6db6f1d28c9af3900035373b01f002443295bcd2c70968665f206790e4eadd4a601a3639c5da6bb719a3
+  checksum: 10/7feb01cfe9310a6669a7ca2926c525084f8ec137918db87e6087a0e0ca806a3bbaedb7a25da44cf1fddc3d87cf4e05a39e0180166af87a83c156a8f49bf67197
   languageName: node
   linkType: hard
 

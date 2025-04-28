@@ -4,9 +4,8 @@ The Hyperlane Starknet Core package provides TypeScript tooling for interacting 
 
 ## Features
 
-- Pre-compiled Cairo contract artifacts
+- Pre-compiled Cairo contract ABI artifacts
 - TypeScript bindings for Starknet contracts
-- Utilities for working with Hyperlane messaging on Starknet
 
 ## Installation
 
@@ -68,7 +67,7 @@ This command runs:
 
 1. TypeScript compilation (`tsc`)
 2. Fetching contract artifacts from GitHub (`fetch-contracts`)
-3. Generating TypeScript artifacts from Cairo contracts (`generate-artifacts`)
+3. Generating TypeScript ABI artifacts from Cairo contracts (`generate-artifacts`)
 
 All build output is placed in the `dist` directory.
 
