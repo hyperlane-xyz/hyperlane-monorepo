@@ -51,7 +51,8 @@ contract InterchainAccountRouter is Router {
     mapping(uint32 => bytes32) public isms;
     // reverse lookup from the ICA account to the remote owner
     mapping(address => AccountOwner) public accountOwners;
-
+    mapping(OwnableMulticall ICA => bytes32 commitment)
+        public verifiedCommitments;
     // ============ Upgrade Gap ============
 
     uint256[47] private __GAP;
@@ -300,12 +301,11 @@ contract InterchainAccountRouter is Router {
         bytes32 _sender,
         bytes calldata _message
     ) external payable override onlyMailbox {
-        (
-            bytes32 _owner,
-            bytes32 _ism,
-            CallLib.Call[] memory _calls,
-            bytes32 _salt
-        ) = InterchainAccountMessage.decode(_message);
+        InterchainAccountMessage.MessageType _messageType = InterchainAccountMessage
+                .messageType(_message);
+        bytes32 _owner = InterchainAccountMessage.owner(_message);
+        bytes32 _ism = InterchainAccountMessage.ism(_message);
+        bytes32 _salt = InterchainAccountMessage.salt(_message);
 
         OwnableMulticall _interchainAccount = getDeployedInterchainAccount(
             _origin,
@@ -314,7 +314,16 @@ contract InterchainAccountRouter is Router {
             _ism.bytes32ToAddress(),
             _salt
         );
-        _interchainAccount.multicall{value: msg.value}(_calls);
+
+        if (_messageType == InterchainAccountMessage.MessageType.CALLS) {
+            CallLib.Call[] memory _calls = InterchainAccountMessage.calls(
+                _message
+            );
+            _interchainAccount.multicall{value: msg.value}(_calls);
+        } else {
+            bytes32 commitment = InterchainAccountMessage.commitment(_message);
+            verifiedCommitments[_interchainAccount] = commitment;
+        }
     }
 
     /**
