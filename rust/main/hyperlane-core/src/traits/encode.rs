@@ -303,8 +303,45 @@ impl<T: Decode> Decode for Indexed<T> {
     }
 }
 
+impl<T: Encode> Encode for Vec<T> {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut written = 0;
+        // Write the length of the vector as a u32
+        written += (self.len() as u64).write_to(writer)?;
+
+        // Write each `T` in the vector using its `Encode` implementation
+        written += self.iter().try_fold(0, |acc, item| {
+            item.write_to(writer).map(|bytes| acc + bytes)
+        })?;
+        Ok(written)
+    }
+}
+
+impl<T: Decode> Decode for Vec<T> {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+    {
+        // Read the length of the vector
+        let len = u64::read_from(reader)? as usize;
+
+        // Read each `T` using its `Decode` implementation
+        let vec = (0..len).try_fold(vec![], |mut acc, _| {
+            let item = T::read_from(reader)?;
+            acc.push(item);
+            Ok::<Vec<T>, HyperlaneProtocolError>(acc)
+        })?;
+        Ok(vec)
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use std::io::Cursor;
+
     use crate::{Decode, Encode, Indexed, H256};
 
     #[test]
@@ -326,5 +363,15 @@ mod test {
         let encoded = payment.to_vec();
         let decoded = super::InterchainGasPayment::read_from(&mut &encoded[..]).unwrap();
         assert_eq!(payment, decoded);
+    }
+
+    #[test]
+    fn test_encoding_vec_u32() {
+        let vec: Vec<u32> = vec![1, 2, 3, 4, 5];
+        let mut buf = vec![];
+        let encoded_length = vec.write_to(&mut buf).unwrap();
+        let decoded = Vec::<u32>::read_from(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(vec, decoded);
+        assert_eq!(encoded_length, 8 + 4 * vec.len());
     }
 }

@@ -4,6 +4,10 @@ import {
   MetaTransactionData,
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
+import {
+  getMultiSendCallOnlyDeployments,
+  getMultiSendDeployments,
+} from '@safe-global/safe-deployments';
 import assert from 'assert';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
@@ -29,6 +33,7 @@ import {
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   addressToBytes32,
   bytes32ToAddress,
   deepEquals,
@@ -41,7 +46,6 @@ import {
   timelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { getSafeAndService } from '../utils/safe.js';
 
 interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
@@ -94,6 +98,9 @@ export class GovernTransactionReader {
     Record<string, WarpCoreConfig['tokens'][number]>
   > = {};
 
+  readonly multiSendCallOnlyDeployments: Address[] = [];
+  readonly multiSendDeployments: Address[] = [];
+
   constructor(
     readonly environment: DeployEnvironment,
     readonly multiProvider: MultiProvider,
@@ -112,6 +119,28 @@ export class GovernTransactionReader {
         }
         this.warpRouteIndex[token.chainName][address] = token;
       }
+    }
+
+    // Get deployments for each version
+    const versions = ['1.3.0', '1.4.1'];
+    for (const version of versions) {
+      const multiSendCallOnlyDeployments = getMultiSendCallOnlyDeployments({
+        version,
+      });
+      const multiSendDeployments = getMultiSendDeployments({
+        version,
+      });
+      assert(
+        multiSendCallOnlyDeployments && multiSendDeployments,
+        `MultiSend and MultiSendCallOnly deployments not found for version ${version}`,
+      );
+
+      Object.values(multiSendCallOnlyDeployments.deployments).forEach((d) => {
+        this.multiSendCallOnlyDeployments.push(d.address);
+      });
+      Object.values(multiSendDeployments.deployments).forEach((d) => {
+        this.multiSendDeployments.push(d.address);
+      });
     }
   }
 
@@ -139,8 +168,8 @@ export class GovernTransactionReader {
       return this.readTimelockControllerTransaction(chain, tx);
     }
 
-    // If it's a Multisend
-    if (await this.isMultisendTransaction(chain, tx)) {
+    // If it's a Multisend or MultisendCallOnly transaction
+    if (await this.isMultisendTransaction(tx)) {
       return this.readMultisendTransaction(chain, tx);
     }
 
@@ -794,21 +823,17 @@ export class GovernTransactionReader {
     );
   }
 
-  async isMultisendTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
+  async isMultisendTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
     if (tx.to === undefined) {
       return false;
     }
-    const multiSendCallOnlyAddress = await this.getMultiSendCallOnlyAddress(
-      chain,
-    );
-    if (!multiSendCallOnlyAddress) {
-      return false;
-    }
 
-    return eqAddress(multiSendCallOnlyAddress, tx.to);
+    // Check if the transaction is to a MultiSend or MultiSendCallOnly deployment
+    return (
+      this.multiSendCallOnlyDeployments.some((addr) =>
+        eqAddress(addr, tx.to!),
+      ) || this.multiSendDeployments.some((addr) => eqAddress(addr, tx.to!))
+    );
   }
 
   async isOwnableTransaction(
@@ -826,31 +851,6 @@ export class GovernTransactionReader {
     } catch {
       return false;
     }
-  }
-
-  private multiSendCallOnlyAddressCache: ChainMap<string> = {};
-
-  async getMultiSendCallOnlyAddress(
-    chain: ChainName,
-  ): Promise<string | undefined> {
-    if (this.multiSendCallOnlyAddressCache[chain]) {
-      return this.multiSendCallOnlyAddressCache[chain];
-    }
-
-    const safe = this.safes[chain];
-    if (!safe) {
-      return undefined;
-    }
-
-    const { safeSdk } = await getSafeAndService(
-      chain,
-      this.multiProvider,
-      safe,
-    );
-
-    this.multiSendCallOnlyAddressCache[chain] =
-      safeSdk.getMultiSendCallOnlyAddress();
-    return this.multiSendCallOnlyAddressCache[chain];
   }
 }
 
