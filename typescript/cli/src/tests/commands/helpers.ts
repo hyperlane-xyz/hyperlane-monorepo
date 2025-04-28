@@ -20,7 +20,7 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, inCIMode, assert, sleep } from '@hyperlane-xyz/utils';
+import { Address, assert, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { CommandContext } from '../../context/types.js';
