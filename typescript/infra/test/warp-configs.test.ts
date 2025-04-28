@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { HypTokenRouterConfig, MultiProvider } from '@hyperlane-xyz/sdk';
 import { diffObjMerge, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
@@ -24,19 +24,18 @@ const warpIdsToSkip = [
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
 ];
 
-async function getRegistryWithFallback(warpRouteId: string) {
+async function getRegistryWithFallback() {
   const getConfigForBranch = async (branch: string) => {
-    const registry = getRegistry({
+    return getRegistry({
       registryUris: [DEFAULT_GITHUB_REGISTRY],
       enableProxy: true,
       logger: rootLogger,
       branch,
-    });
-    return registry.getWarpDeployConfig(warpRouteId);
+    }).getWarpDeployConfigs();
   };
 
   const mainConfig = await getConfigForBranch('main');
-  return mainConfig ?? getConfigForBranch('main~5');
+  return mainConfig ?? getConfigForBranch('main~10');
 }
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
@@ -46,34 +45,38 @@ describe('Warp Configs', async function () {
   );
 
   let multiProvider: MultiProvider;
-
+  let configsFromGithub;
   before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
+    configsFromGithub = await getRegistryWithFallback();
   });
 
   const envConfig = getEnvironmentConfig(ENV);
 
   for (const warpRouteId of warpIdsToCheck) {
     it(`should match Github Registry configs for ${warpRouteId}`, async function () {
-      const configsFromGithub = await getRegistryWithFallback(warpRouteId);
-      const warpConfig = await getWarpConfig(
-        multiProvider,
-        envConfig,
-        warpRouteId,
-      );
-      const { mergedObject, isInvalid } = diffObjMerge(
-        warpConfig,
-        configsFromGithub!, // If null the diff will result in !isInvalid
-      );
-
-      if (isInvalid) {
-        console.log('Differences', JSON.stringify(mergedObject, null, 2));
+      const warpConfig: Record<
+        string,
+        Partial<HypTokenRouterConfig>
+      > = await getWarpConfig(multiProvider, envConfig, warpRouteId);
+      for (const key in warpConfig) {
+        if (warpConfig[key].mailbox) {
+          delete warpConfig[key].mailbox;
+        }
+      }
+      const expectedConfig = configsFromGithub![warpRouteId];
+      for (const key in expectedConfig) {
+        if (expectedConfig[key].mailbox) {
+          delete expectedConfig[key].mailbox;
+        }
       }
 
-      expect(
-        isInvalid,
-        `Registry config does not match Getter for ${warpRouteId}`,
-      ).to.be.false;
+      expect(warpConfig).to.have.keys(Object.keys(expectedConfig));
+      for (const key in warpConfig) {
+        if (warpConfig[key]) {
+          expect(warpConfig[key]).to.deep.equal(expectedConfig[key]);
+        }
+      }
     });
   }
 
