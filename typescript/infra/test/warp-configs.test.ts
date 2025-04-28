@@ -63,6 +63,8 @@ describe('Warp Configs', async function () {
           delete warpConfig[key].mailbox;
         }
       }
+
+      // Attempt to read the config from main, but fallback to main~10 to decrease test CI failures for old PRs
       const expectedConfig =
         configsFromGithub[warpRouteId] ??
         (await getConfigsForBranch('main~10'))[warpRouteId];
