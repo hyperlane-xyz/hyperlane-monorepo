@@ -652,6 +652,11 @@ async function updateExistingWarpRoute(
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
+      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        logBlue(`Skipping non-EVM chain ${chain}`);
+        return;
+      }
+
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
