@@ -142,7 +142,7 @@ export function hyperlaneWarpSendRelay(
   destination: string,
   warpCorePath: string,
   relay = true,
-  value = 1,
+  value: number | string = 1,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         ${relay ? '--relay' : ''} \
@@ -154,6 +154,18 @@ export function hyperlaneWarpSendRelay(
         --verbosity debug \
         --yes \
         --amount ${value}`;
+}
+
+export function hyperlaneWarpRebalancer(
+  warpRouteId: string,
+  checkFrequency: number,
+  strategyConfigFile: string,
+): ProcessPromise {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
+        --registry ${REGISTRY_PATH} \
+        --warpRouteId ${warpRouteId} \
+        --checkFrequency ${checkFrequency} \
+        --strategyConfigFile ${strategyConfigFile}`;
 }
 
 /**
