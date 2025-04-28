@@ -192,7 +192,6 @@ pub async fn build_message_metadata(
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
         ModuleType::Polymer => Box::new(PolymerMetadataBuilder::new(
-            message_builder,
             // TODO: Get proof provider constructor args from config.
             PolymerProofProvider::default(),
         )),

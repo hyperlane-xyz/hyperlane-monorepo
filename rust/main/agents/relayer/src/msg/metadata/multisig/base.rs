@@ -16,7 +16,7 @@ use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::MetadataBuildError;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
-use crate::msg::metadata::{MessageMetadataBuildParams, Metadata, MetadataBuilder};
+use crate::msg::metadata::{MessageMetadataBuildParams, Metadata};
 
 #[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
@@ -143,70 +143,65 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
     }
 }
 
-#[async_trait]
-impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
-    async fn build(
-        &self,
-        ism_address: H256,
-        message: &HyperlaneMessage,
-        _params: MessageMetadataBuildParams,
-    ) -> Result<Metadata, MetadataBuildError> {
-        const CTX: &str = "When fetching MultisigIsm metadata";
-        let multisig_ism = self
-            .as_ref()
-            .base_builder()
-            .build_multisig_ism(ism_address)
-            .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+pub(super) async fn build_multisig_metadata<T: MultisigIsmMetadataBuilder>(
+    builder: &T,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+    _params: MessageMetadataBuildParams,
+) -> Result<Metadata, MetadataBuildError> {
+    const CTX: &str = "When fetching MultisigIsm metadata";
+    let multisig_ism = builder
+        .as_ref()
+        .base_builder()
+        .build_multisig_ism(ism_address)
+        .await
+        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
-        let (validators, threshold) = self
-            .call_validators_and_threshold(&multisig_ism, message)
-            .await?;
+    let (validators, threshold) = builder
+        .call_validators_and_threshold(&multisig_ism, message)
+        .await?;
 
-        if validators.is_empty() {
-            info!("Could not fetch metadata: No validator set found for ISM");
-            return Err(MetadataBuildError::CouldNotFetch);
+    if validators.is_empty() {
+        info!("Could not fetch metadata: No validator set found for ISM");
+        return Err(MetadataBuildError::CouldNotFetch);
+    }
+
+    info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
+
+    let checkpoint_syncer = match builder
+        .as_ref()
+        .base_builder()
+        .build_checkpoint_syncer(message, &validators, builder.as_ref().app_context.clone())
+        .await
+    {
+        Ok(syncer) => syncer,
+        Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+            let err =
+                MetadataBuildError::Refused(format!("A reorg event occurred {:?}", reorg_event));
+            return Err(err);
         }
-
-        info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
-
-        let checkpoint_syncer = match self
-            .as_ref()
-            .base_builder()
-            .build_checkpoint_syncer(message, &validators, self.as_ref().app_context.clone())
-            .await
-        {
-            Ok(syncer) => syncer,
-            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
-                let err = MetadataBuildError::Refused(format!(
-                    "A reorg event occurred {:?}",
-                    reorg_event
-                ));
-                return Err(err);
-            }
-            Err(e) => {
-                let err = MetadataBuildError::FailedToBuild(e.to_string());
-                return Err(err);
-            }
-        };
-
-        if let Some(metadata) = self
-            .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-            .await
-            .context(CTX)
-            .map_err(|_| MetadataBuildError::CouldNotFetch)?
-        {
-            debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
-            let formatted = self
-                .format_metadata(metadata)
-                .map_err(|_| MetadataBuildError::CouldNotFetch)?;
-            Ok(Metadata::new(formatted))
-        } else {
-            info!(
-                hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
-                "Could not fetch metadata: Unable to reach quorum"
-            );
-            Err(MetadataBuildError::CouldNotFetch)
+        Err(e) => {
+            let err = MetadataBuildError::FailedToBuild(e.to_string());
+            return Err(err);
         }
+    };
+
+    if let Some(metadata) = builder
+        .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
+        .await
+        .context(CTX)
+        .map_err(|_| MetadataBuildError::CouldNotFetch)?
+    {
+        debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
+        let formatted = builder
+            .format_metadata(metadata)
+            .map_err(|_| MetadataBuildError::CouldNotFetch)?;
+        Ok(Metadata::new(formatted))
+    } else {
+        info!(
+            hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
+            "Could not fetch metadata: Unable to reach quorum"
+        );
+        Err(MetadataBuildError::CouldNotFetch)
     }
 }

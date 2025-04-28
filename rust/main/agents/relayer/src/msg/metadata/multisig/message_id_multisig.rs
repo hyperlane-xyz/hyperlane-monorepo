@@ -9,11 +9,28 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::{debug, warn};
 
-use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
-use crate::msg::metadata::MessageMetadataBuilder;
+use super::base::{
+    build_multisig_metadata, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata,
+};
+use crate::msg::metadata::{
+    base::{MessageMetadataBuildParams, Metadata, MetadataBuildError, MetadataBuilder},
+    MessageMetadataBuilder,
+};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
+
+#[async_trait]
+impl MetadataBuilder for MessageIdMultisigMetadataBuilder {
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+    ) -> Result<Metadata, MetadataBuildError> {
+        build_multisig_metadata(self, ism_address, message, params).await
+    }
+}
 
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {

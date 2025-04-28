@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, error, instrument, trace};
 
 use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
@@ -38,6 +38,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_ID_BY_MESSAGE_ID: &str = "payload_id_by_message_id_";
+const LOG_META_BY_MESSAGE_ID: &str = "log_meta_by_message_id_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -288,17 +289,34 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
     #[instrument(skip_all)]
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
-        let mut stored = 0;
-        for (message, meta) in messages {
-            let stored_message = self.store_message(message.inner(), meta.block_number)?;
-            if stored_message {
-                stored += 1;
+        let mut stored_count = 0;
+        for (indexed_message, meta) in messages {
+            let message = indexed_message.inner();
+            let message_id = message.id();
+
+            // Attempt to store the core message info first.
+            let stored_new_message = self.store_message(message, meta.block_number)?;
+
+            // Then store the metadata.
+            if let Err(e) = self.store_log_metadata_by_message_id(&message_id, meta) {
+                error!(
+                    ?e,
+                    ?message_id,
+                    ?meta,
+                    "Failed to store LogMeta for message"
+                );
+            } else {
+                trace!(?message_id, ?meta, "Stored LogMeta for message");
+            }
+
+            if stored_new_message {
+                stored_count += 1;
             }
         }
-        if stored > 0 {
-            debug!(messages = stored, "Wrote new messages to database");
+        if stored_count > 0 {
+            debug!(messages = stored_count, "Wrote new messages to database");
         }
-        Ok(stored)
+        Ok(stored_count)
     }
 }
 
@@ -672,6 +690,14 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<UniqueIdentifier>> {
         self.retrieve_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_log_metadata_by_message_id(&self, message_id: &H256, meta: &LogMeta) -> DbResult<()> {
+        self.store_value_by_key(LOG_META_BY_MESSAGE_ID, message_id, meta)
+    }
+
+    fn retrieve_log_metadata_by_message_id(&self, message_id: &H256) -> DbResult<Option<LogMeta>> {
+        self.retrieve_value_by_key(LOG_META_BY_MESSAGE_ID, message_id)
     }
 }
 

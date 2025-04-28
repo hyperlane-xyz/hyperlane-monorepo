@@ -4,8 +4,8 @@ pub use rocks::*;
 
 use hyperlane_core::{
     identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
-    InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus,
-    H256,
+    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion,
+    PendingOperationStatus, H256,
 };
 
 mod error;
@@ -173,4 +173,10 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<UniqueIdentifier>>;
+
+    /// Store the LogMeta associated with a message ID.
+    fn store_log_metadata_by_message_id(&self, message_id: &H256, meta: &LogMeta) -> DbResult<()>;
+
+    /// Retrieve the LogMeta associated with a message ID.
+    fn retrieve_log_metadata_by_message_id(&self, message_id: &H256) -> DbResult<Option<LogMeta>>;
 }
