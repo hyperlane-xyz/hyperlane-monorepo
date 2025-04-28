@@ -184,31 +184,41 @@ export async function getSafeTx(
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
   const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const maxRetries = 5;
+  let retryCount = 0;
 
-  try {
-    return await retryAsync(
-      async () => {
-        const txDetailsResponse = await fetch(txDetailsUrl, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
+  while (retryCount < maxRetries) {
+    try {
+      const txDetailsResponse = await fetch(txDetailsUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-        if (!txDetailsResponse.ok) {
-          throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
-        }
+      if (!txDetailsResponse.ok) {
+        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+      }
 
-        return txDetailsResponse.json();
-      },
-      TX_FETCH_RETRIES,
-      TX_FETCH_RETRY_DELAY,
-    );
-  } catch (error) {
-    rootLogger.error(
-      chalk.red(
-        `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
-      ),
-    );
-    return;
+      return await txDetailsResponse.json();
+    } catch (error) {
+      retryCount++;
+      if (retryCount === maxRetries) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch transaction details for ${safeTxHash} after ${maxRetries} attempts: ${error}`,
+          ),
+        );
+        return;
+      }
+      rootLogger.warn(
+        chalk.yellow(
+          `Retry ${retryCount}/${maxRetries} for transaction ${safeTxHash}: ${error}`,
+        ),
+      );
+      // Exponential backoff: wait 2^retryCount seconds before retrying
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, retryCount) * 1000),
+      );
+    }
   }
 }
 
