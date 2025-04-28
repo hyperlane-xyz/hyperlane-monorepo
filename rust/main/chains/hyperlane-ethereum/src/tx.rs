@@ -35,10 +35,6 @@ pub const GAS_LIMIT_BUFFER: u32 = 75_000;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
-// A multiplier to apply to the estimated gas price, i.e. 10%.
-pub const DEFAULT_GAS_PRICE_MULTIPLIER_NUMERATOR: u32 = 11;
-pub const DEFAULT_GAS_PRICE_MULTIPLIER_DENOMINATOR: u32 = 10;
-
 pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
@@ -57,29 +53,6 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 
     // Always add a flat buffer
     Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
-}
-
-pub fn apply_gas_price_multiplier(
-    gas_price: EthersU256,
-    transaction_overrides: &TransactionOverrides,
-) -> EthersU256 {
-    let numerator: EthersU256 = transaction_overrides
-        .gas_price_multiplier_numerator
-        .map(Into::into)
-        .unwrap_or(DEFAULT_GAS_PRICE_MULTIPLIER_NUMERATOR.into());
-    let denominator: EthersU256 = transaction_overrides
-        .gas_price_multiplier_denominator
-        .map(Into::into)
-        .unwrap_or(DEFAULT_GAS_PRICE_MULTIPLIER_DENOMINATOR.into());
-    let multiplied = gas_price.saturating_mul(numerator).checked_div(denominator);
-    let Some(multiplied) = multiplied else {
-        warn!(
-            ?gas_price,
-            "Gas price multiplier divide by zero, using original gas price"
-        );
-        return gas_price;
-    };
-    multiplied
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
@@ -217,7 +190,7 @@ where
 
     // Apply overrides for EIP 1559 tx params if they exist.
     let (max_fee, max_priority_fee) =
-        apply_1559_multipliers_and_overrides(max_fee, max_priority_fee, transaction_overrides);
+        apply_1559_overrides(max_fee, max_priority_fee, transaction_overrides);
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
@@ -263,25 +236,23 @@ where
     tx.gas_price(gas_price)
 }
 
-fn apply_1559_multipliers_and_overrides(
+fn apply_1559_overrides(
     max_fee: EthersU256,
     max_priority_fee: EthersU256,
     transaction_overrides: &TransactionOverrides,
 ) -> (EthersU256, EthersU256) {
-    let max_fee = transaction_overrides
+    let mut max_fee = transaction_overrides
         .max_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_fee);
-    let mut max_fee = apply_gas_price_multiplier(max_fee, transaction_overrides);
     if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
         max_fee = max_fee.max(min_fee.into());
     }
 
-    let max_priority_fee = transaction_overrides
+    let mut max_priority_fee = transaction_overrides
         .max_priority_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_priority_fee);
-    let mut max_priority_fee = apply_gas_price_multiplier(max_priority_fee, transaction_overrides);
 
     if let Some(min_priority_fee) = transaction_overrides.min_priority_fee_per_gas {
         max_priority_fee = max_priority_fee.max(min_priority_fee.into());

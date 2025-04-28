@@ -19,11 +19,13 @@ use super::PayloadDb;
 pub struct PayloadDbLoader {
     db: Arc<dyn PayloadDb>,
     building_stage_queue: BuildingStageQueue,
+    domain: String,
 }
 
 impl PayloadDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
-        DbIterator::new(Arc::new(self), "payload_db_loader".to_string(), false).await
+        let domain = self.domain.clone();
+        DbIterator::new(Arc::new(self), "Payload".to_string(), false, domain).await
     }
 }
 

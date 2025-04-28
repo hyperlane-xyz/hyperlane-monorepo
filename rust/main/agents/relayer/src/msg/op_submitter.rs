@@ -13,16 +13,17 @@ use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info_span, instrument, trace, warn, Instrument};
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    ConfirmReason::{self, *},
-    HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult, PendingOperationStatus,
-    QueueOperation, ReprepareReason,
+    ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
+    PendingOperationStatus, QueueOperation, ReprepareReason,
 };
-use submitter::{Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId};
+use submitter::{
+    Entrypoint, FullPayload, PayloadDispatcherEntrypoint, PayloadId, PayloadStatus, SubmitterError,
+};
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
@@ -501,7 +502,7 @@ async fn submit_via_lander(
     };
 
     let message_id = op.id();
-    let metadata = message_id.to_string();
+    let metadata = format!("{message_id:?}");
     let mailbox = op
         .try_get_mailbox()
         .expect("Operation should contain Mailbox address")
@@ -516,9 +517,9 @@ async fn submit_via_lander(
         return;
     }
 
-    if let Err(e) = db.store_payload_id_by_message_id(&message_id, &payload.details.id) {
-        let reason = ReprepareReason::ErrorStoringPayloadIdByMessageId;
-        let msg = "Error storing mapping from message id to payload id";
+    if let Err(e) = db.store_payload_ids_by_message_id(&message_id, vec![payload.details.id]) {
+        let reason = ReprepareReason::ErrorStoringPayloadIdsByMessageId;
+        let msg = "Error storing mapping from message id to payload ids";
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
@@ -582,6 +583,8 @@ async fn confirm_op(
     confirm_queue: &OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
+    use ConfirmReason::SubmittedBySelf;
+
     let destination = op.destination_domain().clone();
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
@@ -668,7 +671,7 @@ async fn confirm_lander_task(
             .into_iter()
             .map(|op| {
                 let message_id = op.id();
-                (op, db.retrieve_payload_id_by_message_id(&message_id))
+                (op, db.retrieve_payload_ids_by_message_id(&message_id))
             })
             .collect::<Vec<_>>();
 
@@ -677,14 +680,24 @@ async fn confirm_lander_task(
             .map(|(op, result)| async {
                 let message_id = op.id();
                 match result {
-                    Ok(Some(payload_id)) => Some((op, entrypoint.payload_status(payload_id).await)),
-                    Ok(None) | Err(_) => {
+                    Ok(Some(ids)) if !ids.is_empty() => {
+                        let op_futures = ids
+                            .into_iter()
+                            .map(|id| async {
+                                let status = entrypoint.payload_status(id.clone()).await;
+                                (id, status)
+                            })
+                            .collect::<Vec<_>>();
+                        let op_results = join_all(op_futures).await;
+                        Some((op, op_results))
+                    }
+                    Ok(Some(_)) | Ok(None) | Err(_) => {
                         error!(
                             ?op,
                             %message_id,
                             "Error retrieving payload id by message id",
                         );
-                        send_back_on_failed_submisison(
+                        send_back_on_failed_submission(
                             op,
                             prepare_queue.clone(),
                             &metrics,
@@ -706,9 +719,13 @@ async fn confirm_lander_task(
         let confirmed_operations = Arc::new(Mutex::new(0));
         let confirm_futures = payload_status_results
             .into_iter()
-            .map(|(op, status_result)| async {
-                let Ok(payload_status) = status_result else {
-                    send_back_on_failed_submisison(
+            .map(|(op, status_results)| async {
+                let status_results_len = status_results.len();
+                let successes = filter_status_results(status_results);
+
+                if status_results_len - successes.len() > 0 {
+                    warn!(?op, "Error retrieving payload status",);
+                    send_back_on_failed_submission(
                         op,
                         prepare_queue.clone(),
                         &metrics,
@@ -716,8 +733,11 @@ async fn confirm_lander_task(
                     )
                     .await;
                     return;
-                };
-                if payload_status.is_finalized() {
+                }
+
+                let finalized = !successes.iter().any(|(_, status)| !status.is_finalized());
+
+                if finalized {
                     {
                         let mut lock = confirmed_operations.lock().await;
                         *lock += 1;
@@ -731,6 +751,7 @@ async fn confirm_lander_task(
                     )
                     .await;
                 } else {
+                    info!(?op, ?successes, "Operation not finalized yet");
                     process_confirm_result(
                         op,
                         prepare_queue.clone(),
@@ -749,6 +770,15 @@ async fn confirm_lander_task(
             sleep(Duration::from_millis(500)).await;
         }
     }
+}
+
+fn filter_status_results(
+    status_results: Vec<(PayloadId, Result<PayloadStatus, SubmitterError>)>,
+) -> Vec<(PayloadId, PayloadStatus)> {
+    status_results
+        .into_iter()
+        .filter_map(|(id, result)| Some((id, result.ok()?)))
+        .collect::<Vec<_>>()
 }
 
 async fn confirm_operation(
@@ -788,7 +818,7 @@ async fn process_confirm_result(
                 .await;
         }
         PendingOperationResult::Reprepare(reason) => {
-            send_back_on_failed_submisison(op, prepare_queue.clone(), &metrics, Some(reason)).await;
+            send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, Some(reason)).await;
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
@@ -798,7 +828,7 @@ async fn process_confirm_result(
     operation_result
 }
 
-async fn send_back_on_failed_submisison(
+async fn send_back_on_failed_submission(
     op: QueueOperation,
     prepare_queue: OpQueue,
     metrics: &SerialSubmitterMetrics,

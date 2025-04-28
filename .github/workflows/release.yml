@@ -10,7 +10,31 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+  cli-install-cross-platform-release-test:
+    strategy:
+      matrix:
+        os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2022]
+        node-version: [18, 19, 20, 21, 22, 23]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Test run the CLI
+        run: hyperlane --version
+
   release:
+    needs:
+      - cli-install-cross-platform-release-test
     permissions:
       id-token: write
       contents: write
@@ -21,9 +45,9 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-            # check out full history
-            fetch-depth: 0
-            submodules: recursive
+          # check out full history
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Node.js 18.x
         uses: actions/setup-node@v4

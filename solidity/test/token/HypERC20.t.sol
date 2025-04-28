@@ -37,6 +37,7 @@ import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
+import {HyperToken} from "../../contracts/token/extensions/HyperToken.sol";
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
@@ -297,7 +298,7 @@ contract HypERC20Test is HypTokenTest {
 
     HypERC20 internal erc20Token;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         HypERC20 implementation = new HypERC20(
@@ -792,5 +793,88 @@ contract HypERC20ScaledTest is HypTokenTest {
         );
 
         _handleLocalTransfer(TRANSFER_AMT);
+    }
+}
+
+contract HyperTokenTest is HypERC20Test {
+    using TypeCasts for address;
+
+    HyperToken internal hyperToken;
+
+    function setUp() public override {
+        super.setUp();
+
+        HyperToken implementation = new HyperToken(
+            DECIMALS,
+            SCALE,
+            address(localMailbox)
+        );
+
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HyperToken.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(noopHook),
+                address(igp),
+                address(this)
+            )
+        );
+
+        localToken = HyperToken(address(proxy));
+        erc20Token = HypERC20(address(proxy));
+        hyperToken = HyperToken(address(proxy));
+
+        hyperToken.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+        hyperToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testInitialize_success() public view {
+        assertEq(hyperToken.name(), NAME);
+        assertEq(hyperToken.symbol(), SYMBOL);
+        assertEq(hyperToken.totalSupply(), TOTAL_SUPPLY);
+        assertEq(hyperToken.balanceOf(address(this)), TOTAL_SUPPLY - 1000e18); // Minus initial transfer to ALICE
+        assertTrue(
+            hyperToken.hasRole(hyperToken.DEFAULT_ADMIN_ROLE(), address(this))
+        );
+    }
+
+    function testMint_success() public {
+        hyperToken.grantRole(hyperToken.MINTER_ROLE(), ALICE);
+        vm.prank(ALICE);
+        hyperToken.mint(BOB, 100e18);
+        assertEq(hyperToken.balanceOf(BOB), 100e18);
+    }
+
+    function testMint_revert_ifNotMinter() public {
+        bytes32 minterRole = hyperToken.MINTER_ROLE();
+        vm.expectRevert();
+        vm.prank(ALICE);
+        hyperToken.mint(BOB, 100e18);
+    }
+
+    function testBurn_success() public {
+        hyperToken.grantRole(hyperToken.BURNER_ROLE(), ALICE);
+        vm.prank(ALICE);
+        hyperToken.burn(address(this), 100e18);
+        assertEq(
+            hyperToken.balanceOf(address(this)),
+            TOTAL_SUPPLY - 1000e18 - 100e18
+        );
+    }
+
+    function testBurn_revert_ifNotBurner() public {
+        bytes32 burnerRole = hyperToken.BURNER_ROLE();
+        vm.expectRevert();
+        vm.prank(ALICE);
+        hyperToken.burn(address(this), 100e18);
     }
 }

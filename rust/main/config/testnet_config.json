@@ -131,10 +131,7 @@
       "gasCurrencyCoinGeckoId": "ethereum",
       "interchainAccountIsm": "0xaec6382e1e16Ee12DBEf0e7EA5ADa51217813Fc3",
       "interchainAccountRouter": "0x20cC3a33C49fa13627303669edf2DcA7F1E76a50",
-      "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPriceCap": 100000000000
-      }
+      "timelockController": "0x0000000000000000000000000000000000000000"
     },
     "basesepolia": {
       "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
@@ -201,10 +198,7 @@
       "gasCurrencyCoinGeckoId": "ethereum",
       "interchainAccountIsm": "0xDa5177080f7fC5d9255eB32cC64B9b4e5136A716",
       "interchainAccountRouter": "0xd876C01aB40e8cE42Db417fBC79c726d45504dE4",
-      "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPriceCap": 100000000000
-      }
+      "timelockController": "0x0000000000000000000000000000000000000000"
     },
     "bsctestnet": {
       "aggregationHook": "0x3d675bB93250Ab7603F40cbb9194bae210784627",
@@ -275,8 +269,7 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1",
       "gasCurrencyCoinGeckoId": "binancecoin",
       "transactionOverrides": {
-        "gasPrice": 1000000000,
-        "gasPriceCap": 100000000000
+        "gasPrice": 1000000000
       }
     },
     "connextsepolia": {
@@ -638,10 +631,7 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x7c5B5bdA7F1d1F70A6678ABb4d894612Fc76498F",
       "interchainAccountIsm": "0xA7FA26ef3Ea88CD696779735AC9591E01146DA38",
       "interchainAccountRouter": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
-      "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPriceCap": 100000000000
-      }
+      "timelockController": "0x0000000000000000000000000000000000000000"
     },
     "plumetestnet": {
       "aggregationHook": "0x31dF0EEE7Dc7565665468698a0da221225619a1B",
@@ -928,10 +918,7 @@
       "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x4afB48e864d308409d0D80E98fB7d5d6aA5b245f",
       "staticMessageIdWeightedMultisigIsmFactory": "0x196Ce28ED1Afdf015849ddEE82F03a903Bee9E94",
-      "gasCurrencyCoinGeckoId": "ethereum",
-      "transactionOverrides": {
-        "gasPriceCap": 100000000000
-      }
+      "gasCurrencyCoinGeckoId": "ethereum"
     },
     "solanatestnet": {
       "blockExplorers": [
@@ -2922,7 +2909,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": "2.0"
+        "amount": "0.001"
       },
       "index": {
         "chunk": 10,

@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/widgets",
   "description": "Common react components for Hyperlane projects",
-  "version": "12.1.0",
+  "version": "12.2.0",
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
@@ -9,8 +9,8 @@
   "dependencies": {
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
-    "@hyperlane-xyz/sdk": "12.1.0",
-    "@hyperlane-xyz/utils": "12.1.0",
+    "@hyperlane-xyz/sdk": "12.2.0",
+    "@hyperlane-xyz/utils": "12.2.0",
     "@interchain-ui/react": "^1.23.28",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@solana/wallet-adapter-react": "^0.15.32",

@@ -15,6 +15,7 @@ import {
 import {
   Address,
   ProtocolType,
+  inCIMode,
   objFilter,
   objMap,
   promiseObjAll,
@@ -51,7 +52,6 @@ import {
   assertRole,
   filterRemoteDomainMetadata,
   getInfraPath,
-  inCIMode,
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';

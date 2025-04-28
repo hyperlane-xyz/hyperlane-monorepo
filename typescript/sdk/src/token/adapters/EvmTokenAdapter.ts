@@ -3,10 +3,15 @@ import { BigNumber, PopulatedTransaction } from 'ethers';
 import {
   ERC20,
   ERC20__factory,
+  ERC4626__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  HypERC4626,
+  HypERC4626Collateral,
+  HypERC4626Collateral__factory,
+  HypERC4626__factory,
   HypXERC20,
   HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
@@ -74,6 +79,13 @@ export class EvmNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx(
     _params: TransferParams,
   ): Promise<PopulatedTransaction> {
@@ -137,6 +149,15 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     return allowance.lt(weiAmountOrId);
   }
 
+  async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
+  ): Promise<boolean> {
+    const allowance = await this.contract.allowance(owner, spender);
+
+    return !allowance.isZero();
+  }
+
   override populateApproveTx({
     weiAmountOrId,
     recipient,
@@ -181,6 +202,13 @@ export class EvmHypSyntheticAdapter
     _owner: Address,
     _spender: Address,
     _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
   ): Promise<boolean> {
     return false;
   }
@@ -293,6 +321,15 @@ export class EvmHypCollateralAdapter
     );
   }
 
+  override async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
+  ): Promise<boolean> {
+    const collateral = await this.getWrappedTokenAdapter();
+
+    return collateral.isRevokeApprovalRequired(owner, spender);
+  }
+
   override populateApproveTx(
     params: TransferParams,
   ): Promise<PopulatedTransaction> {
@@ -322,6 +359,54 @@ export class EvmHypCollateralFiatAdapter
   override async getBridgedSupply(): Promise<bigint> {
     const wrapped = await this.getWrappedTokenAdapter();
     return wrapped.getTotalSupply();
+  }
+}
+
+export class EvmHypRebaseCollateralAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public override collateralContract: HypERC4626Collateral;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypERC4626Collateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  override async getBridgedSupply(): Promise<bigint> {
+    const vault = ERC4626__factory.connect(
+      await this.collateralContract.vault(),
+      this.getProvider(),
+    );
+    const balance = await vault.balanceOf(this.addresses.token);
+    return balance.toBigInt();
+  }
+}
+
+export class EvmHypSyntheticRebaseAdapter
+  extends EvmHypSyntheticAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public declare contract: HypERC4626;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses, HypERC4626__factory);
+  }
+
+  override async getBridgedSupply(): Promise<bigint> {
+    const totalShares = await this.contract.totalShares();
+    return totalShares.toBigInt();
   }
 }
 
@@ -571,6 +656,13 @@ export class EvmHypNativeAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   override async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  override async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 

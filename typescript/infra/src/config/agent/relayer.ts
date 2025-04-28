@@ -18,6 +18,7 @@ import {
   ProtocolType,
   addressToBytes32,
   isValidAddressEvm,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -322,6 +323,16 @@ export function consistentSenderRecipientMatchingList(
       recipientAddress: addressToBytes32(address),
     },
   ];
+}
+
+export function chainMapMatchingList(
+  chainMap: ChainMap<Address>,
+): MatchingList {
+  // Convert to a router matching list
+  const routers = objMap(chainMap, (chain, address) => ({
+    router: address,
+  }));
+  return routerMatchingList(routers);
 }
 
 // Create a matching list for the given contract addresses

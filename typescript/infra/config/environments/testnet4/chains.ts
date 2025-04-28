@@ -16,27 +16,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsctestnet: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 9, // 1 gwei
-      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
     },
   },
-  arbitrumsepolia: {
+  kyvetestnet: {
     transactionOverrides: {
-      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
-    },
-  },
-  basesepolia: {
-    transactionOverrides: {
-      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
-    },
-  },
-  optimismsepolia: {
-    transactionOverrides: {
-      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
-    },
-  },
-  sepolia: {
-    transactionOverrides: {
-      gasPriceCap: 100 * 10 ** 9, // 100 gwei cap
+      gasPrice: '2.0',
     },
   },
 
