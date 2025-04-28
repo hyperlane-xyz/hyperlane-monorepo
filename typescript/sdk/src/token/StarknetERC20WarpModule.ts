@@ -1,6 +1,5 @@
 import {
   Account,
-  Contract,
   MultiType,
   Uint256,
   byteArray,
@@ -8,8 +7,13 @@ import {
   getChecksumAddress,
   uint256,
 } from 'starknet';
+import { hexToBigInt } from 'viem';
 
-import { TokenType } from '@hyperlane-xyz/sdk';
+import {
+  StarknetContractName,
+  TokenType,
+  getStarknetHypERC20Contract,
+} from '@hyperlane-xyz/sdk';
 import { ContractType } from '@hyperlane-xyz/starknet-core';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -32,7 +36,6 @@ export class StarknetERC20WarpModule {
   ) {}
 
   public async deployToken(): Promise<ChainMap<string>> {
-    // TODO: manage this in a multi-protocol way, for now works as we just support native-synthetic pair
     const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       this.multiProvider,
       this.config,
@@ -67,11 +70,11 @@ export class StarknetERC20WarpModule {
       switch (type) {
         case TokenType.synthetic: {
           const tokenAddress = await deployer.deployContract(
-            'HypErc20',
+            StarknetContractName.HYP_ERC20,
             {
               decimals: tokenMetadata.decimals,
               mailbox: mailbox!,
-              total_supply: tokenMetadata.totalSupply,
+              total_supply: 0,
               name: [byteArray.byteArrayFromString(tokenMetadata.name)],
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
               hook: getChecksumAddress(0),
@@ -85,7 +88,7 @@ export class StarknetERC20WarpModule {
         }
         case TokenType.native: {
           const tokenAddress = await deployer.deployContract(
-            'HypNative',
+            StarknetContractName.HYP_NATIVE,
             {
               mailbox: mailbox,
               native_token: PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[
@@ -102,20 +105,41 @@ export class StarknetERC20WarpModule {
         }
 
         case TokenType.collateral: {
-          const tokenAddress = await deployer.deployContract(
-            'HypErc20Collateral',
-            {
-              mailbox: mailbox!,
-              // @ts-ignore
-              erc20: rest.token,
-              owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
-              hook: getChecksumAddress(0),
-              interchain_security_module: ismAddress,
-            },
-            ContractType.TOKEN,
-          );
-          addresses[chain] = tokenAddress;
-          break;
+          if (chain === 'paradexsepolia') {
+            const dexContract =
+              '0x0286003f7c7bfc3f94e8f0af48b48302e7aee2fb13c23b141479ba00832ef2c6';
+
+            const tokenAddress = await deployer.deployContract(
+              StarknetContractName.HYP_ERC20_DEX_COLLATERAL,
+              {
+                mailbox: mailbox!,
+                dex: dexContract,
+                // @ts-ignore
+                wrapped_token: rest.token,
+                owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+                hook: getChecksumAddress(0),
+                interchain_security_module: ismAddress,
+              },
+              ContractType.TOKEN,
+            );
+            addresses[chain] = tokenAddress;
+            break;
+          } else {
+            const tokenAddress = await deployer.deployContract(
+              StarknetContractName.HYP_ERC20_COLLATERAL,
+              {
+                mailbox: mailbox!,
+                // @ts-ignore
+                erc20: rest.token,
+                owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+                hook: getChecksumAddress(0),
+                interchain_security_module: ismAddress,
+              },
+              ContractType.TOKEN,
+            );
+            addresses[chain] = tokenAddress;
+            break;
+          }
         }
         default:
           throw Error('Token type is not supported on starknet');
@@ -165,27 +189,8 @@ export class StarknetERC20WarpModule {
 
       const account = this.account[chain];
 
-      // Updated Router ABI to include batch enrollment
-      const ROUTER_ABI = [
-        {
-          type: 'function',
-          name: 'enroll_remote_routers',
-          inputs: [
-            {
-              name: 'domains',
-              type: 'core::array::Array::<core::integer::u32>',
-            },
-            {
-              name: 'routers',
-              type: 'core::array::Array::<core::integer::u256>',
-            },
-          ],
-          outputs: [],
-          state_mutability: 'external',
-        },
-      ];
-
-      const contract = new Contract(ROUTER_ABI, tokenAddress, account);
+      // HypERC20 inherits RouterComponent
+      const routerContract = getStarknetHypERC20Contract(tokenAddress, account);
 
       // Prepare arrays for batch enrollment
       const domains: number[] = [];
@@ -216,7 +221,15 @@ export class StarknetERC20WarpModule {
         `Batch enrolling ${domains.length} remote routers on ${chain}`,
       );
 
-      const tx = await contract.invoke('enroll_remote_routers', [
+      domains.push(1399811150);
+      routers.push(
+        uint256.bnToUint256(
+          hexToBigInt(
+            '0x119d6b31e756c5f4aa2ca43049511c2c453e4e81ec905b7520e886828efc1ed2',
+          ),
+        ),
+      );
+      const tx = await routerContract.invoke('enroll_remote_routers', [
         domains,
         routers,
       ]);
@@ -226,6 +239,10 @@ export class StarknetERC20WarpModule {
       if (receipt.isSuccess()) {
         this.logger.info(
           `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+        );
+      } else {
+        this.logger.error(
+          `Failed to enroll all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
         );
       }
     }

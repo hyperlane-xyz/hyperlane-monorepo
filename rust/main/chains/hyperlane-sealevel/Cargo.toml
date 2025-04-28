@@ -10,6 +10,8 @@ base64.workspace = true
 bincode.workspace = true
 borsh.workspace = true
 derive-new.workspace = true
+ed25519-dalek.workspace = true
+eyre.workspace = true
 jsonrpc-core.workspace = true
 lazy_static.workspace = true
 maplit.workspace = true
@@ -52,3 +54,6 @@ hyperlane-sealevel-validator-announce = { path = "../../../sealevel/programs/val
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }
+
+[dev-dependencies]
+rstest.workspace = true

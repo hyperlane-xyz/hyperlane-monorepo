@@ -17,6 +17,7 @@ export const tokens = {
     rstETH: '0x7a4EffD87C2f3C55CA251080b1343b605f327E3a',
     WSTETH: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
     FORM: '0xE7deE4823EE18F1347F1Cf7997f70B94eFDe2E1F',
+    Turtle: '0x2BE3be1D8A556954320c2252dF4f891F64699d50',
   },
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
@@ -69,6 +70,12 @@ export const tokens = {
   },
   mint: {
     MINT: '0x8511138208529fe1b9a37b863c7EEE3Fe234b7Ab',
+  },
+  ink: {
+    USDCe: '0xF1815bd50389c46847f0Bda824eC8da914045D14',
+  },
+  solanamainnet: {
+    USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   },
 };
 

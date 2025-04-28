@@ -1,5 +1,5 @@
 import { constants } from 'ethers';
-import { Contract, RpcProvider, shortString } from 'starknet';
+import { Contract, shortString } from 'starknet';
 
 import {
   ERC20__factory,
@@ -8,12 +8,19 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objKeys,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { defaultStarknetJsProviderBuilder } from '../providers/providerBuilders.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
@@ -102,7 +109,12 @@ abstract class TokenDeployer<
     ) {
       return defaultArgs;
     } else if (isSyntheticTokenConfig(config)) {
-      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+      return [
+        config.initialSupply ?? 0,
+        config.name,
+        config.symbol,
+        ...defaultArgs,
+      ];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       return [0, config.name, config.symbol, ...defaultArgs];
     } else {
@@ -114,19 +126,19 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadata | undefined> {
-    // this is used for synthetic token metadata and should always be 0
-    const DERIVED_TOKEN_SUPPLY = 0;
-
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
         return TokenMetadataSchema.parse(config);
+      } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        // If the config didn't specify the token metadata, we can only now
+        // derive it for Ethereum chains. So here we skip non-Ethereum chains.
+        continue;
       }
 
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
           return TokenMetadataSchema.parse({
-            totalSupply: DERIVED_TOKEN_SUPPLY,
             ...nativeToken,
           });
         }
@@ -135,14 +147,14 @@ abstract class TokenDeployer<
       if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
         // Add chain type checking
         const chainMetadata = multiProvider.getChainMetadata(chain);
-        const isStarknet = chainMetadata.protocol === 'starknet';
+        const isStarknet = chainMetadata.protocol === ProtocolType.Starknet;
         let provider;
 
         // Handle different chain types
         if (isStarknet) {
-          provider = new RpcProvider({
-            nodeUrl: chainMetadata.rpcUrls[0].http as any, // Use the actual RPC URL from chain metadata
-          });
+          provider = defaultStarknetJsProviderBuilder(
+            chainMetadata.rpcUrls,
+          ).provider;
         } else {
           provider = multiProvider.getProvider(chain) as any;
         }
@@ -159,7 +171,6 @@ abstract class TokenDeployer<
           return TokenMetadataSchema.parse({
             name,
             symbol,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
           });
         }
 
@@ -182,6 +193,7 @@ abstract class TokenDeployer<
             break;
         }
         if (isStarknet) {
+          // TODO: check if taking ABI from starknet-core might break this
           const erc20Abi = [
             {
               name: 'name',
@@ -221,7 +233,6 @@ abstract class TokenDeployer<
             name,
             symbol,
             decimals,
-            totalSupply: DERIVED_TOKEN_SUPPLY,
           });
         }
 
@@ -236,7 +247,6 @@ abstract class TokenDeployer<
           name,
           symbol,
           decimals,
-          totalSupply: DERIVED_TOKEN_SUPPLY,
         });
       }
     }

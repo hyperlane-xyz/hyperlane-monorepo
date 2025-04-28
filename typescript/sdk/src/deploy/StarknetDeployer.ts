@@ -3,7 +3,6 @@ import {
   Account,
   BigNumberish,
   CallData,
-  Contract,
   ContractFactory,
   ContractFactoryParams,
   RawArgs,
@@ -27,6 +26,7 @@ import {
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
+import { getStarknetIsmContract } from '../utils/starknet.js';
 
 export class StarknetDeployer {
   private readonly logger: Logger;
@@ -79,9 +79,11 @@ export class StarknetDeployer {
     const contractFactory = new ContractFactory(params);
 
     const contract = await contractFactory.deploy(constructorCalldata);
-    await this.account.waitForTransaction(
+    const receipt = await this.account.waitForTransaction(
       contract.deployTransactionHash as BigNumberish,
     );
+
+    assert(receipt.isSuccess(), `Contract ${contractName} deployment failed`);
 
     let address = contract.address;
     // Ensure the address is 66 characters long (including the '0x' prefix)
@@ -145,29 +147,13 @@ export class StarknetDeployer {
 
         break;
       case IsmType.ROUTING: {
-        const ROUTING_ISM_ABI = [
-          {
-            type: 'function',
-            name: 'set',
-            inputs: [
-              { name: '_domain', type: 'core::integer::u32' },
-              {
-                name: '_module',
-                type: 'core::starknet::contract_address::ContractAddress',
-              },
-            ],
-            outputs: [],
-            state_mutability: 'external',
-          },
-        ];
-
         constructorArgs = [ismConfig.owner];
         const ismAddress = await this.deployContract(
           contractName,
           constructorArgs,
         );
-        const contract = new Contract(
-          ROUTING_ISM_ABI,
+        const routingContract = getStarknetIsmContract(
+          IsmType.ROUTING,
           ismAddress,
           this.account,
         );
@@ -179,7 +165,10 @@ export class StarknetDeployer {
             mailbox,
           });
           const domainId = this.multiProvider.getDomainId(domain);
-          const tx = await contract.invoke('set', [BigInt(domainId), route]);
+          const tx = await routingContract.invoke('set', [
+            BigInt(domainId),
+            route,
+          ]);
           await this.account.waitForTransaction(tx.transaction_hash);
           this.logger.info(`ISM ${route} set for domain ${domain}`);
         }

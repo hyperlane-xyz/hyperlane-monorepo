@@ -105,7 +105,6 @@ export function useStarknetActiveChain(
 export function useStarknetTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  const { chain } = useNetwork();
   const { account } = useAccount();
   const { sendAsync } = useSendTransaction({});
   const { switchChainAsync } = useSwitchChain({});
@@ -117,7 +116,7 @@ export function useStarknetTransactionFns(
         chainId: chainId.toString(),
       });
     },
-    [chain, multiProvider, switchChainAsync],
+    [multiProvider, switchChainAsync],
   );
 
   const onSendTx = useCallback(
@@ -145,22 +144,27 @@ export function useStarknetTransactionFns(
       const chainId = multiProvider.getChainMetadata(chainName).chainId;
       const chainIdFromWallet = await account.getChainId();
 
-      assert(
-        chainIdFromWallet === chainId,
-        `Wallet not on chain ${chainName} (ChainMismatchError)`,
-      );
+      try {
+        assert(
+          chainIdFromWallet === chainId,
+          `Wallet not on chain ${chainName} (ChainMismatchError)`,
+        );
 
-      const result = await sendAsync([tx.transaction as Call]);
-      const hash = result.transaction_hash;
-      const confirm = async (): Promise<TypedTransactionReceipt> => {
-        const receipt = await account.waitForTransaction(hash);
-        return {
-          type: ProviderType.Starknet,
-          receipt,
+        const result = await sendAsync([tx.transaction as Call]);
+        const hash = result.transaction_hash;
+        const confirm = async (): Promise<TypedTransactionReceipt> => {
+          const receipt = await account.waitForTransaction(hash);
+          return {
+            type: ProviderType.Starknet,
+            receipt,
+          };
         };
-      };
 
-      return { hash, confirm };
+        return { hash, confirm };
+      } catch (error) {
+        logger.error('Failed to send StarkNet transaction:', error);
+        throw error;
+      }
     },
     [account, multiProvider, onSwitchNetwork, sendAsync],
   );

@@ -68,7 +68,6 @@ export class MessageBus {
    * @param message The base dispatched message to publish
    */
   publish(message: MessageWithStatus): void {
-    // TODO: not all messages have an ID
     // Don't add duplicates based on message ID
     if (this.backlog.some((m) => m.id === message.id)) {
       this.logger.debug(`Message ${message.id} already in backlog, skipping`);

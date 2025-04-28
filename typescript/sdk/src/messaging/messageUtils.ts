@@ -36,7 +36,6 @@ export function formatEthereumMessageForStarknet(message: DispatchedMessage): {
   };
 }
 
-// TODO: Figure out types
 export function formatParsedStarknetMessageForEthereum(message: {
   version: number;
   nonce: number;

@@ -24,12 +24,13 @@ import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } f
 import { getArbitrumEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumSolanaTreasureSMOLWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getBaseEthereumLumiaprismETHWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumLumiaprismETHWarpConfig.js';
+import { getBaseEthereumSuperseedCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumSuperseedCBBTCWarpConfig.js';
 import {
   getTRUMPWarpConfig,
   getTrumpchainTRUMPWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getBaseSolanaTRUMPWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
-import { getBobaBsquaredSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
+import { getBobaBsquaredSoneiumSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
 import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
@@ -40,10 +41,8 @@ import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/conf
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
-import {
-  getEthereumSuperseedCBBTCWarpConfig,
-  getEthereumSuperseedUSDCWarpConfig,
-} from './environments/mainnet3/warp/configGetters/getEthereumSuperseedWarpConfig.js';
+import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
+import { getEthereumSuperseedUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedUSDCWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
@@ -61,10 +60,7 @@ import {
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
-import {
-  getSuperTokenProductionWarpConfig,
-  getSuperTokenStagingWarpConfig,
-} from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
+import { getSuperTokenProductionWarpConfig } from './environments/mainnet3/warp/configGetters/getSuperTokenWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
 
@@ -108,9 +104,11 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
-  [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig,
+  [WarpRouteIds.BobaBsquaredSoneiumSwellUBTC]:
+    getBobaBsquaredSoneiumSwellUBTCWarpConfig,
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
-  [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig,
+  [WarpRouteIds.BaseEthereumSuperseedCBBTC]:
+    getBaseEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
@@ -123,6 +121,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getBaseEthereumLumiaprismETHWarpConfig,
   [WarpRouteIds.BscHyperevmEnzoBTC]: getBscHyperevmEnzoBTCWarpConfig,
   [WarpRouteIds.BscHyperevmSTBTC]: getBscHyperevmSTBTCWarpConfig,
+  [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
