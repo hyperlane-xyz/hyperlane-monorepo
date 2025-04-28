@@ -5,10 +5,6 @@ inputs:
   ref:
     description: "The Git ref to checkout"
     required: true
-  cache-provider:
-    description: "Choose cache provider: buildjet or github"
-    required: false
-    default: "buildjet"
 
 runs:
   using: "composite"
@@ -17,7 +13,6 @@ runs:
       uses: ./.github/actions/yarn-build-with-cache
       with:
         ref: ${{ inputs.ref }}
-        cache-provider: ${{ inputs.cache-provider }}
 
     - name: Pack the CLI
       shell: bash
