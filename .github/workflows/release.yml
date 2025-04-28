@@ -49,10 +49,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Setup Node.js 18.x
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version-file: .nvmrc
 
       - name: Install Dependencies
         run: yarn install --immutable
