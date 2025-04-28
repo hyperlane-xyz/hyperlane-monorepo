@@ -3,8 +3,12 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { HypTokenRouterConfig, MultiProvider } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import {
+  HypTokenRouterConfig,
+  MultiProvider,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
@@ -24,18 +28,13 @@ const warpIdsToSkip = [
   'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
 ];
 
-async function getRegistryWithFallback() {
-  const getConfigForBranch = async (branch: string) => {
-    return getRegistry({
-      registryUris: [DEFAULT_GITHUB_REGISTRY],
-      enableProxy: true,
-      logger: rootLogger,
-      branch,
-    }).getWarpDeployConfigs();
-  };
-
-  const mainConfig = await getConfigForBranch('main');
-  return mainConfig ?? getConfigForBranch('main~10');
+async function getConfigsForBranch(branch: string) {
+  return getRegistry({
+    registryUris: [DEFAULT_GITHUB_REGISTRY],
+    enableProxy: true,
+    logger: rootLogger,
+    branch,
+  }).getWarpDeployConfigs();
 }
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
@@ -45,10 +44,10 @@ describe('Warp Configs', async function () {
   );
 
   let multiProvider: MultiProvider;
-  let configsFromGithub;
+  let configsFromGithub: Record<string, WarpRouteDeployConfig>;
   before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
-    configsFromGithub = await getRegistryWithFallback();
+    configsFromGithub = await getConfigsForBranch('main');
   });
 
   const envConfig = getEnvironmentConfig(ENV);
@@ -64,7 +63,11 @@ describe('Warp Configs', async function () {
           delete warpConfig[key].mailbox;
         }
       }
-      const expectedConfig = configsFromGithub![warpRouteId];
+      const expectedConfig =
+        configsFromGithub[warpRouteId] ??
+        (await getConfigsForBranch('main~10'))[warpRouteId];
+      assert(expectedConfig, `Deploy config not found for ${warpRouteId}`);
+
       for (const key in expectedConfig) {
         if (expectedConfig[key].mailbox) {
           delete expectedConfig[key].mailbox;
