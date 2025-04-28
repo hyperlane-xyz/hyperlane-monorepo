@@ -1434,7 +1434,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-
   mint: {
     threshold: 2,
     validators: [
