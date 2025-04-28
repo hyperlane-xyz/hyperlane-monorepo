@@ -389,7 +389,16 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_key("address")
                 .parse_address_hash()
                 .unwrap_or_default();
-            err.into_result(SignerConf::StarkKey { key, address })
+            let version = signer
+                .chain(&mut err)
+                .get_key("version")
+                .parse_u32()
+                .unwrap_or(3);
+            err.into_result(SignerConf::StarkKey {
+                key,
+                address,
+                version,
+            })
         }};
     }
 

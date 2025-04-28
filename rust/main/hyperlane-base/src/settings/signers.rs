@@ -42,6 +42,8 @@ pub enum SignerConf {
         key: H256,
         /// Starknet address
         address: H256,
+        /// Version of the Starknet signer
+        version: u32,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -175,9 +177,8 @@ impl ChainSigner for hyperlane_cosmos::Signer {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_starknet::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::StarkKey { key, address } = conf {
-            // Version is now used in the Signer::new implementation
-            Ok(hyperlane_starknet::Signer::new(key, address)?)
+        if let SignerConf::StarkKey { key, address, version } = conf {
+            Ok(hyperlane_starknet::Signer::new(key, address, *version)?)    
         } else {
             bail!(format!("{conf:?} key is not supported by starknet"));
         }
