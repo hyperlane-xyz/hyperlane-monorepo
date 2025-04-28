@@ -168,39 +168,47 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  function startRebalancerAndExpectLog(
-    log: string,
-    timeout = 10000,
-  ): Promise<void> {
+  async function startRebalancerAndExpectLog(log: string, timeout = 10000) {
     const process = hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
       REBALANCER_STRATEGY_CONFIG_PATH,
     );
 
+    let timeoutId: NodeJS.Timeout;
+
     // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
-      const timeoutId = setTimeout(async () => {
-        await process.kill();
+      // Use a timeout to prevent waiting for a log that might never happen and fail faster
+      timeoutId = setTimeout(async () => {
         reject(new Error(`Timeout waiting for log: "${log}"`));
       }, timeout);
 
+      // Handle when the process exits due to an error that is not the expected log
       process.catch((e) => {
-        clearTimeout(timeoutId);
-        // TODO: Do a pretty print of the error
-        reject(e.text());
+        const lines = e.lines();
+        const error = lines[lines.length - 1];
+
+        reject(
+          new Error(
+            `Process failed before logging: "${log}" with error: ${error}`,
+          ),
+        );
       });
 
+      // Wait for the process to output the expected log.
       for await (let chunk of process.stdout) {
         chunk = typeof chunk === 'string' ? chunk : chunk.toString();
 
         if (chunk.includes(log)) {
-          clearTimeout(timeoutId);
-          resolve();
-          await process.kill();
+          resolve(void 0);
           break;
         }
       }
+    }).finally(() => {
+      // Perform a cleanup at the end
+      clearTimeout(timeoutId);
+      void process.kill();
     });
   }
 
