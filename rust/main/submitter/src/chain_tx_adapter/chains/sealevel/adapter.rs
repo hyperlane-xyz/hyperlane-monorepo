@@ -267,10 +267,8 @@ impl SealevelTxAdapter {
         let mut status_counts = HashMap::<TransactionStatus, usize>::new();
 
         // count the occurrences of each successfully queried hash status
-        for hash_status_result in statuses.iter() {
-            if let Ok(status) = hash_status_result {
-                *status_counts.entry(status.clone()).or_insert(0) += 1;
-            }
+        for status in statuses.iter().flatten() {
+            *status_counts.entry(status.clone()).or_insert(0) += 1;
         }
 
         let finalized_count = status_counts
@@ -415,9 +413,7 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
-        let last_submission_time = tx
-            .last_submission_attempt
-            .unwrap_or_else(|| tx.creation_timestamp);
+        let last_submission_time = tx.last_submission_attempt.unwrap_or(tx.creation_timestamp);
         let seconds_since_last_submission =
             (Utc::now() - last_submission_time).num_seconds() as u64;
         seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS
