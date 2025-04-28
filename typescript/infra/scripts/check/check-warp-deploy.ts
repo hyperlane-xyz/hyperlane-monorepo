@@ -36,9 +36,8 @@ async function main() {
   ];
 
   const registries = [DEFAULT_GITHUB_REGISTRY, DEFAULT_REGISTRY_URI];
-  const warpCoreConfigMap = await getWarpConfigMapFromMergedRegistry(
-    registries,
-  );
+  const warpCoreConfigMap =
+    await getWarpConfigMapFromMergedRegistry(registries);
 
   console.log(chalk.yellow('Skipping the following warp routes:'));
   routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));

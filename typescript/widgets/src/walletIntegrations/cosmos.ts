@@ -97,7 +97,7 @@ export function useCosmosActiveChain(
   _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
   // Cosmoskit doesn't have the concept of an active chain
-  return useMemo(() => ({} as ActiveChainInfo), []);
+  return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
 export function useCosmosTransactionFns(
