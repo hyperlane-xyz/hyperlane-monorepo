@@ -464,10 +464,13 @@ export const rebalancer: CommandModuleWithContext<{
       await monitor
         // Observe balances events and process rebalancing routes
         .on('collateralbalances', (event) => {
-          const balances = event.balances.reduce((acc, next) => {
-            acc[next.chain] = next.value;
-            return acc;
-          }, {} as Record<ChainName, bigint>);
+          const balances = event.balances.reduce(
+            (acc, next) => {
+              acc[next.chain] = next.value;
+              return acc;
+            },
+            {} as Record<ChainName, bigint>,
+          );
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
 
