@@ -75,6 +75,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -84,6 +85,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -121,6 +123,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -130,6 +133,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -167,6 +171,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: false,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -176,6 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: false,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: false,
@@ -227,7 +233,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
   // Default policy is OnChainFeeQuoting
   {
-    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    type: GasPaymentEnforcementPolicyType.None,
   },
 ];
 

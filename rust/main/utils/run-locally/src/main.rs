@@ -36,8 +36,7 @@ use once_cell::sync::Lazy;
 use program::Program;
 use relayer::msg::pending_message::{INVALIDATE_CACHE_METADATA_LOG, RETRIEVED_MESSAGE_LOG};
 use tempfile::{tempdir, TempDir};
-use utils::get_matching_lines;
-use utils::get_ts_infra_path;
+use utils::{get_matching_lines, get_ts_infra_path};
 
 use crate::{
     config::Config,
@@ -54,6 +53,7 @@ mod logging;
 mod metrics;
 mod program;
 mod server;
+mod starknet;
 mod utils;
 
 #[cfg(feature = "cosmos")]
@@ -386,6 +386,9 @@ fn main() -> ExitCode {
         log!("Failure occurred during E2E");
         return report_test_result(test_passed);
     }
+    // test retry request
+    let resp = server::run_retry_request().expect("Failed to process retry request");
+    assert!(resp.matched > 0);
 
     // Simulate a reorg, which we'll later use
     // to ensure the relayer handles reorgs correctly.

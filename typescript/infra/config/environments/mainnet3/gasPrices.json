@@ -60,7 +60,7 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000252",
+    "amount": "0.001000265",
     "decimals": 9
   },
   "base": {
@@ -447,6 +447,14 @@
     "amount": "0.001000186",
     "decimals": 9
   },
+  "sonicsvm": {
+    "amount": "0.1",
+    "decimals": 1
+  },
+  "soon": {
+    "amount": "0.0000001",
+    "decimals": 1
+  },
   "stride": {
     "amount": "0.005",
     "decimals": 1
@@ -485,6 +493,10 @@
   },
   "treasure": {
     "amount": "1023.72101162",
+    "decimals": 9
+  },
+  "trumpchain": {
+    "amount": "0.1",
     "decimals": 9
   },
   "trumpchain": {
