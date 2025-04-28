@@ -2909,7 +2909,7 @@
       "domainId": 1262571342,
       "gasPrice": {
         "denom": "tkyve",
-        "amount": "2.0"
+        "amount": "0.001"
       },
       "index": {
         "chunk": 10,
@@ -2945,10 +2945,7 @@
         {
           "http": "https://grpc-raw.kaon.kyve.network"
         }
-      ],
-      "transactionOverrides": {
-        "gasPrice": "2.0"
-      }
+      ]
     }
   },
   "defaultRpcConsensusType": "fallback"

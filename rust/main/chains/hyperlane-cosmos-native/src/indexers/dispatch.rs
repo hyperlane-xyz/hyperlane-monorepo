@@ -2,7 +2,7 @@ use std::io::Cursor;
 use std::ops::RangeInclusive;
 
 use hex::ToHex;
-use hyperlane_cosmos_rs::hyperlane::core::v1::Dispatch;
+use hyperlane_cosmos_rs::hyperlane::core::v1::EventDispatch;
 use hyperlane_cosmos_rs::prost::Name;
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
@@ -36,7 +36,7 @@ impl CosmosNativeDispatchIndexer {
 
 impl CosmosEventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     fn target_type() -> String {
-        Dispatch::full_name()
+        EventDispatch::full_name()
     }
 
     fn provider(&self) -> &RpcProvider {

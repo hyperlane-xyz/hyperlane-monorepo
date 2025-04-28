@@ -228,6 +228,7 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
 
   switch (metadata?.protocol) {
     case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative:
       if (metadata.bech32Prefix === undefined) {
         throw new Error(
           `Bech32 prefix for cosmos chain ${chainName} is undefined`,

@@ -34,6 +34,10 @@ import {
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter.js';
 import {
+  CosmNativeHypCollateralAdapter,
+  CosmNativeHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.js';
+import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
@@ -42,7 +46,9 @@ import {
   EvmHypCollateralAdapter,
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
+  EvmHypRebaseCollateralAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypSyntheticRebaseAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
@@ -190,21 +196,25 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypOwnerCollateral ||
-      standard === TokenStandard.EvmHypRebaseCollateral
+      standard === TokenStandard.EvmHypOwnerCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypRebaseCollateral) {
+      return new EvmHypRebaseCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypCollateralFiat) {
       return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (
-      standard === TokenStandard.EvmHypSynthetic ||
-      standard === TokenStandard.EvmHypSyntheticRebase
-    ) {
+    } else if (standard === TokenStandard.EvmHypSynthetic) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypSyntheticRebase) {
+      return new EvmHypSyntheticRebaseAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
@@ -278,6 +288,14 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.CosmNativeHypCollateral) {
+      return new CosmNativeHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
+      return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }

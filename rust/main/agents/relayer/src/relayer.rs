@@ -36,7 +36,8 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use submitter::{
-    DatabaseOrPath, PayloadDispatcher, PayloadDispatcherEntrypoint, PayloadDispatcherSettings,
+    DatabaseOrPath, DispatcherMetrics, PayloadDispatcher, PayloadDispatcherEntrypoint,
+    PayloadDispatcherSettings,
 };
 
 use crate::{
@@ -189,10 +190,13 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+        let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
+            .expect("Creating dispatcher metrics is infallible");
         let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
             &settings,
             core_metrics.clone(),
             &chain_metrics,
+            dispatcher_metrics.clone(),
             db.clone(),
         )
         .await;
@@ -203,6 +207,7 @@ impl BaseAgent for Relayer {
             &settings,
             core_metrics.clone(),
             &chain_metrics,
+            dispatcher_metrics,
             db.clone(),
         )
         .await;
@@ -462,9 +467,13 @@ impl BaseAgent for Relayer {
                 // Default to submitting one message at a time if there is no batch config
                 self.core.settings.chains[dest_domain.name()]
                     .connection
-                    .operation_batch_config()
+                    .operation_submission_config()
                     .map(|c| c.max_batch_size)
                     .unwrap_or(1),
+                self.core.settings.chains[dest_domain.name()]
+                    .connection
+                    .operation_submission_config()
+                    .and_then(|c| c.max_submit_queue_length),
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
@@ -896,6 +905,7 @@ impl Relayer {
         settings: &RelayerSettings,
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
+        dispatcher_metrics: DispatcherMetrics,
         db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
         settings.destination_chains.iter()
@@ -907,7 +917,7 @@ impl Relayer {
                 db: DatabaseOrPath::Database(db.clone()),
                 metrics: core_metrics.clone(),
             }))
-            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s)))
+            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone())))
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
@@ -927,6 +937,7 @@ impl Relayer {
         settings: &RelayerSettings,
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
+        dispatcher_metrics: DispatcherMetrics,
         db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcher> {
         settings
@@ -947,7 +958,10 @@ impl Relayer {
             })
             .map(|(chain, s)| {
                 let chain_name = chain.to_string();
-                (chain, PayloadDispatcher::try_from_settings(s, chain_name))
+                (
+                    chain,
+                    PayloadDispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()),
+                )
             })
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
@@ -1038,8 +1052,8 @@ mod test {
         CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain,
-        ReorgPeriod, H256,
+        config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod,
+        H256,
     };
     use hyperlane_ethereum as h_eth;
 
@@ -1098,7 +1112,7 @@ mod test {
                         max_priority_fee_per_gas: None,
                         ..Default::default()
                     },
-                    operation_batch: OperationBatchConfig {
+                    op_submission_config: OpSubmissionConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
                         ..Default::default()

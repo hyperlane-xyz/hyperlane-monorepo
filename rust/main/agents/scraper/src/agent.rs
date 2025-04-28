@@ -390,7 +390,7 @@ mod test {
         BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
+        config::OpSubmissionConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
     };
     use hyperlane_ethereum as h_eth;
 
@@ -446,7 +446,7 @@ mod test {
                         max_priority_fee_per_gas: None,
                         ..Default::default()
                     },
-                    operation_batch: OperationBatchConfig {
+                    op_submission_config: OpSubmissionConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
                         ..Default::default()

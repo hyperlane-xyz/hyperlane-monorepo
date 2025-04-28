@@ -4,7 +4,7 @@ use derive_new::new;
 use hyperlane_core::{
     rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
-    PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
+    PendingOperation, PendingOperationStatus, QueueOperation, TxOutcome,
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
@@ -44,13 +44,10 @@ impl OperationBatch {
         };
 
         if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-            let reason = ReprepareReason::ErrorSubmitting;
-            let status = Some(PendingOperationStatus::Retry(reason.clone()));
-            for mut op in excluded_ops.into_iter() {
-                op.on_reprepare(None, reason.clone());
-                prepare_queue.push(op, status.clone()).await;
-            }
+            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
+            OperationBatch::new(excluded_ops, self.domain)
+                .submit_serially(prepare_queue, confirm_queue, metrics)
+                .await;
         }
     }
 
@@ -145,7 +142,7 @@ impl OperationBatch {
         }
     }
 
-    async fn _submit_serially(
+    async fn submit_serially(
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
@@ -188,7 +185,7 @@ mod tests {
         CoreMetrics,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
+        config::OpSubmissionConfig, Decode, HyperlaneMessage, KnownHyperlaneDomain,
         MessageSubmissionData, ReorgPeriod, SubmitterType, H160, U256,
     };
     use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
@@ -347,10 +344,11 @@ mod tests {
                     ],
                 },
                 transaction_overrides: Default::default(),
-                operation_batch: OperationBatchConfig {
+                op_submission_config: OpSubmissionConfig {
                     batch_contract_address: None,
                     max_batch_size: 32,
                     bypass_batch_simulation: false,
+                    ..Default::default()
                 },
             }),
             metrics_conf: Default::default(),
