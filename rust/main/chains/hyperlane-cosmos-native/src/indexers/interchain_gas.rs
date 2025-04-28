@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::GasPayment, prost::Name};
+use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventGasPayment, prost::Name};
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
@@ -69,7 +69,7 @@ impl CosmosNativeInterchainGas {
 
 impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     fn target_type() -> String {
-        GasPayment::full_name()
+        EventGasPayment::full_name()
     }
 
     fn provider(&self) -> &RpcProvider {

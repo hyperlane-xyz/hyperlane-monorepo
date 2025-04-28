@@ -48,7 +48,7 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       {
         owner,
         ownerOverrides: {
-          proxyAdmin: owner,
+          proxyAdmin: upgradeTimelocks[local] ?? owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
@@ -83,6 +83,9 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   osmosis: {
     owner: 'n/a - nothing owned here',
+  },
+  milkyway: {
+    owner: 'TODO: configure milkyway owner',
   },
   soon: {
     // Squads vault

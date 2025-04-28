@@ -74,6 +74,9 @@
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   },
+  "kyvetestnet": {
+    "validators": ["0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5"]
+  },
   "modetestnet": {
     "validators": ["0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"]
   },
