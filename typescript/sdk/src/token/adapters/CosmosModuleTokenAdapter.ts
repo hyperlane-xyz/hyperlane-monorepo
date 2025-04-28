@@ -148,7 +148,7 @@ export class CosmNativeHypCollateralAdapter
     const provider = await this.getProvider();
     const { token } = await provider.query.warp.Token({ id: this.tokenId });
 
-    return token?.origin_denom!;
+    return token?.origin_denom ?? '';
   }
 
   async getDomains(): Promise<Domain[]> {
