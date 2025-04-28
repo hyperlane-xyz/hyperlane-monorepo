@@ -221,15 +221,9 @@ function getWarpTokenConfigForType({
       };
       break;
     case TokenType.native:
-      tokenConfig = {
-        type: TokenType.native,
-        mailbox,
-        owner,
-      };
-      break;
     case TokenType.nativeScaled:
       tokenConfig = {
-        type: TokenType.nativeScaled,
+        type: tokenType,
         mailbox,
         owner,
         scale: 1,
