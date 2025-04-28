@@ -138,12 +138,6 @@ impl MultisigCheckpointSyncer {
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.1.cmp(&a.1));
 
-        // create a slice with the sorted validators
-        let validators = latest_indices
-            .iter()
-            .map(|(address, _)| H256::from(*address))
-            .collect::<Vec<_>>();
-
         if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 1) {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
@@ -156,7 +150,7 @@ impl MultisigCheckpointSyncer {
 
             for index in (minimum_index..=start_index).rev() {
                 if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(&validators, threshold, index).await
+                    self.fetch_checkpoint(validators, threshold, index).await
                 {
                     return Ok(Some(checkpoint));
                 }
