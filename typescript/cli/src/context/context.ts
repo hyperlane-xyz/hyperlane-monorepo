@@ -87,6 +87,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
     { key },
   );
 
+  await multiProtocolSigner.initAllSigners();
+
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
