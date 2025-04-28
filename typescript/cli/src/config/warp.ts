@@ -176,6 +176,7 @@ export async function createWarpRouteDeployConfig({
 
     switch (type) {
       case TokenType.collateral:
+      case TokenType.collateralMovable:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
@@ -188,21 +189,6 @@ export async function createWarpRouteDeployConfig({
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
-          }),
-        };
-        break;
-      case TokenType.collateralMovable:
-        result[chain] = {
-          type,
-          owner,
-          proxyAdmin,
-          isNft,
-          interchainSecurityModule,
-          token: await input({
-            message: `Enter the existing token address on chain ${chain}`,
-          }),
-          rebalancer: await input({
-            message: `Enter the rebalancer address on chain ${chain}`,
           }),
         };
         break;
