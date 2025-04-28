@@ -266,39 +266,34 @@ impl SealevelTxAdapter {
     ) -> TransactionStatus {
         let mut status_counts = HashMap::<TransactionStatus, usize>::new();
 
-        // if none are finalized or included but there is at least one `PendingInclusion` or `Mempool`, return that
+        // count the occurrences of each successfully queried hash status
         for hash_status_result in statuses.iter() {
             if let Ok(status) = hash_status_result {
                 *status_counts.entry(status.clone()).or_insert(0) += 1;
             }
         }
 
-        // if any are finalized, return `Finalized`
-        if let Some(finalized_count) = status_counts.get(&TransactionStatus::Finalized) {
-            if *finalized_count > 0 {
-                return TransactionStatus::Finalized;
-            }
-        }
-        // if any are included, return `Included`
-        if let Some(included_count) = status_counts.get(&TransactionStatus::Included) {
-            if *included_count > 0 {
-                return TransactionStatus::Included;
-            }
-        }
-        // if any are pending, return `PendingInclusion`
-        if let Some(pending_count) = status_counts.get(&TransactionStatus::PendingInclusion) {
-            if *pending_count > 0 {
-                return TransactionStatus::PendingInclusion;
-            }
-        }
-        // if any are in mempool, return `Mempool`
-        if let Some(mempool_count) = status_counts.get(&TransactionStatus::Mempool) {
-            if *mempool_count > 0 {
-                return TransactionStatus::Mempool;
-            }
-        }
-        // if the hashmap is not empty, it must mean that the hashes were dropped
-        if !status_counts.is_empty() {
+        let finalized_count = status_counts
+            .get(&TransactionStatus::Finalized)
+            .unwrap_or(&0);
+        let included_count = status_counts
+            .get(&TransactionStatus::Included)
+            .unwrap_or(&0);
+        let pending_count = status_counts
+            .get(&TransactionStatus::PendingInclusion)
+            .unwrap_or(&0);
+        let mempool_count = status_counts.get(&TransactionStatus::Mempool).unwrap_or(&0);
+        if *finalized_count > 0 {
+            return TransactionStatus::Finalized;
+        } else if *included_count > 0 {
+            return TransactionStatus::Included;
+        } else if *pending_count > 0 {
+            return TransactionStatus::PendingInclusion;
+        } else if *mempool_count > 0 {
+            return TransactionStatus::Mempool;
+        } else if !status_counts.is_empty() {
+            // if the hashmap is not empty, it must mean that the hashes were dropped,
+            // because the hashmap is populated only if the status query was successful
             return TransactionStatus::Dropped(TransactionDropReason::DroppedByChain);
         }
 
@@ -396,6 +391,7 @@ impl AdaptsChain for SealevelTxAdapter {
             .iter()
             .map(|tx_hash| self.get_tx_hash_status(*tx_hash))
             .collect::<Vec<_>>();
+        // this may lead to rate limiting if too many hashes build up. Consider querying from most recent to oldest
         let hash_status_results = join_all(hash_status_futures).await;
         Ok(Self::classify_tx_status_from_hash_statuses(
             hash_status_results,
