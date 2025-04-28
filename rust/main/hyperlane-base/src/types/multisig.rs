@@ -150,7 +150,7 @@ impl MultisigCheckpointSyncer {
 
             for index in (minimum_index..=start_index).rev() {
                 if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(&validators, threshold, index).await
+                    self.fetch_checkpoint(validators, threshold, index).await
                 {
                     return Ok(Some(checkpoint));
                 }
