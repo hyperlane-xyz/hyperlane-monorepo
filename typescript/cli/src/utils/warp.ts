@@ -113,9 +113,8 @@ export async function getWarpConfigs({
 
   const warpCoreConfig = await context.registry.getWarpRoute(selectedId);
   assert(warpCoreConfig, `Missing warp config for warp route ${selectedId}.`);
-  const warpDeployConfig = await context.registry.getWarpDeployConfig(
-    selectedId,
-  );
+  const warpDeployConfig =
+    await context.registry.getWarpDeployConfig(selectedId);
   assert(
     warpDeployConfig,
     `Missing warp deploy config for warp route ${selectedId}.`,
