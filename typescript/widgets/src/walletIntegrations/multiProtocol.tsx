@@ -143,7 +143,7 @@ export function getAddressFromAccountAndChain(
   account?: AccountInfo,
   chainName?: ChainName,
 ) {
-  if (!account || !chainName) {
+  if (!account) {
     return 'Unknown';
   }
 
