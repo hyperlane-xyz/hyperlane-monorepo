@@ -3616,5 +3616,91 @@
       "constructorArguments": "",
       "isProxy": true
     }
+  ],
+  "auroratestnet": [
+    {
+      "name": "StaticMerkleRootMultisigIsmFactory",
+      "address": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootMultisigIsm",
+      "address": "0x0033Aa0033189E05c33a9B82ccf857540d0b5C34",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdMultisigIsmFactory",
+      "address": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdMultisigIsm",
+      "address": "0x42aF5c65a035c4daFD15d8Ad5D86f9fCDc8A10F9",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticAggregationIsmFactory",
+      "address": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationIsm",
+      "address": "0x06115B4905a71dc18f9d9489B4e4B3e0A8c59426",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0x8261624701dbAa452c1C874661F9719aE339E4DE",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "DomainRoutingIsmFactory",
+      "address": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomaingRoutingIsm",
+      "address": "0xc2f12d971Bccd2cfAe792E22D06EA63ED6E8A302",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsmFactory",
+      "address": "0xeAEfB1458b032e75de3e9A3a480d005c426FB1c5",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x5D71742EDc03161377eF9cD8F86fb9718f39b37a",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsmFactory",
+      "address": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x5e42B15C8E06E24Cb71fC75943DEd7D869a2c2a4",
+      "constructorArguments": "",
+      "isProxy": true
+    }
   ]
 }
