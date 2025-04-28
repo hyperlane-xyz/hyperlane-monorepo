@@ -24,6 +24,13 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
+
+  // DeepBrainChain gas metering is different to vanilla EVM
+  // https://hyperlaneworkspace.slack.com/archives/C08GR6PBPGT/p1743074511084179?thread_ts=1743073273.793169&cid=C08GR6PBPGT
+  if (remote === 'deepbrainchain') {
+    overhead *= 8;
+  }
+
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
   if (remote === 'moonbeam' || remote === 'torus') {
     overhead *= 4;
@@ -32,6 +39,12 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   // estimates. We double the overhead to help account for this.
   if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
     overhead *= 2;
+
+    // Zero Network gas usage has changed recently and now requires
+    // another 3x multiplier on top of the ZKSync overhead.
+    if (remote === 'zeronetwork') {
+      overhead *= 3;
+    }
   }
   return overhead;
 }

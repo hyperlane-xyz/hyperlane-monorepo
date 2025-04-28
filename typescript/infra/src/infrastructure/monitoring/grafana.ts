@@ -1,5 +1,5 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { inCIMode, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AlertType,
@@ -63,6 +63,16 @@ export async function exportGrafanaAlert(
 
 export async function fetchGrafanaServiceAccountToken(): Promise<string> {
   let saToken: string | undefined;
+
+  if (inCIMode()) {
+    saToken = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN;
+    if (!saToken) {
+      throw new Error(
+        'GRAFANA_SERVICE_ACCOUNT_TOKEN is not set in CI environment',
+      );
+    }
+    return saToken;
+  }
 
   try {
     saToken = (await fetchGCPSecret(

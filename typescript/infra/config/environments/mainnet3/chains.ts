@@ -74,7 +74,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // },
   // zircuit: {
   //   blocks: {
-  //     confirmations: 3,
+  //     confirmations: 5,
   //   },
   // },
   // degenchain: {
@@ -99,6 +99,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // matchain: {
   //   blocks: {
   //     confirmations: 5,
+  //   },
+  // },
+  // cyber: {
+  //   blocks: {
+  //     confirmations: 3,
   //   },
   // },
 };

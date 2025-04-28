@@ -9,6 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hyperlane_core::SubmitterType;
 use tempfile::tempdir;
 
 use crate::SHUTDOWN;
@@ -31,6 +32,7 @@ use crate::{
 // sent before and after the relayer spins up, to avoid rounding errors.
 pub const SOL_MESSAGES_EXPECTED: u32 = 10;
 pub const SOL_MESSAGES_WITH_NON_MATCHING_IGP: u32 = 1;
+pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 
 /// These private keys are from the solana-test-validator network
 const RELAYER_KEYS: &[&str] = &[
@@ -98,6 +100,8 @@ fn run_locally() {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_SEALEVELTEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_SEALEVELTEST2_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
@@ -307,6 +311,7 @@ fn run_locally() {
                 starting_relayer_balance,
                 &solana_programs_path,
                 &solana_config_path,
+                SUBMITTER_TYPE,
             )
         },
         || !SHUTDOWN.load(Ordering::Relaxed),

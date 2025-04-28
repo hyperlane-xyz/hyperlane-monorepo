@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 
 import {
   ChainAddresses,
-  GithubRegistry,
+  IRegistry,
   MergedRegistry,
   PartialRegistry,
   warpConfigToWarpAddresses,
@@ -17,7 +17,6 @@ import {
   ChainMetadata,
   ChainName,
   WarpCoreConfig,
-  WarpRouteDeployConfig,
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
@@ -68,11 +67,12 @@ export function getRegistry(): FileSystemRegistry {
   return registry;
 }
 
-export function getGithubRegistry(): GithubRegistry {
-  return new GithubRegistry({
-    proxyUrl: REGISTRY_PROXY,
-    logger: rootLogger.child({ module: 'infra-registry' }),
-  });
+function getRegistryFromUris(registryUris?: string[]): IRegistry {
+  if (registryUris && registryUris.length > 0) {
+    return getMergedRegistry({ registryUris, enableProxy: true });
+  } else {
+    return getRegistry();
+  }
 }
 
 export function getChains(): ChainName[] {
@@ -125,30 +125,18 @@ export function getWarpAddresses(
   return warpConfigToWarpAddresses(warpCoreConfig);
 }
 
-export async function getWarpCoreConfigFromMergedRegistry(
+export async function getWarpAddressesFrom(
   warpRouteId: string,
-  registryUris: string[],
-): Promise<WarpCoreConfig> {
-  const registry = getMergedRegistry({ registryUris, enableProxy: true });
+  registryUris?: string[],
+): Promise<ChainMap<ChainAddresses>> {
+  const registry = getRegistryFromUris(registryUris);
   const warpRouteConfig = await registry.getWarpRoute(warpRouteId);
-
   if (!warpRouteConfig) {
     throw new Error(
-      `Warp route config for ${warpRouteId} not found in registry`,
+      `Warp route config for ${warpRouteId} not found in ${registry.uri}`,
     );
   }
-  return warpRouteConfig;
-}
-
-export async function getWarpAddressesFromMergedRegistry(
-  warpRouteId: string,
-  registryUris: string[],
-): Promise<ChainMap<ChainAddresses>> {
-  const warpCoreConfig = await getWarpCoreConfigFromMergedRegistry(
-    warpRouteId,
-    registryUris,
-  );
-  return warpConfigToWarpAddresses(warpCoreConfig);
+  return warpConfigToWarpAddresses(warpRouteConfig);
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {

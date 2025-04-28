@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tracing::{debug, warn};
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
@@ -17,6 +17,10 @@ pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
 
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
+    fn module_type(&self) -> ModuleType {
+        ModuleType::MessageIdMultisig
+    }
+
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
             MetadataToken::CheckpointMerkleTreeHook,
@@ -34,7 +38,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         let message_id = message.id();
-
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         let leaf_index = unwrap_or_none_result!(
             self.base_builder()

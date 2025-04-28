@@ -1,5 +1,83 @@
 # @hyperlane-xyz/widgets
 
+## 12.3.0
+
+### Minor Changes
+
+- 2edb767f2: improve how cosmos addresses are displayed
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+### Patch Changes
+
+- Updated dependencies [6101959f7]
+- Updated dependencies [5db39f493]
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/sdk@12.3.0
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/cosmos-sdk@12.3.0
+
+## 12.2.0
+
+### Patch Changes
+
+- Updated dependencies [c7934f711]
+- Updated dependencies [ecbacbdf2]
+  - @hyperlane-xyz/sdk@12.2.0
+  - @hyperlane-xyz/utils@12.2.0
+
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Minor Changes
+
+- 7b0e2fed6: Add BinanceLogo to WalletLogo component
+
+### Patch Changes
+
+- 86685505f: Revert bundler module resolution and update starknetkit imports
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+
+## 10.0.0
+
+### Patch Changes
+
+- Updated dependencies [7dbf7e4fa]
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [28ca87293]
+- Updated dependencies [4fd5623b8]
+  - @hyperlane-xyz/sdk@10.0.0
+  - @hyperlane-xyz/utils@10.0.0
+
 ## 9.2.1
 
 ### Patch Changes

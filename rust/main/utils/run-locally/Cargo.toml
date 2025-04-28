@@ -9,8 +9,9 @@ version.workspace = true
 
 [dependencies]
 hyperlane-base = { path = "../../hyperlane-base" }
-hyperlane-core = { path = "../../hyperlane-core", features = ["float"]}
-hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos"}
+hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-cosmos-native = { path = "../../chains/hyperlane-cosmos-native" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
 toml_edit.workspace = true
 k256.workspace = true
@@ -47,4 +48,5 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 [features]
 cosmos = []
 starknet = []
+cosmosnative = []
 sealevel = []
