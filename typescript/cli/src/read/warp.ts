@@ -31,17 +31,17 @@ export async function runWarpRouteRead({
   address?: string;
   symbol?: string;
 }): Promise<ChainMap<HypTokenRouterConfig>> {
-  const hasWarpConfig = Boolean(symbol);
+  const hasTokenSymbol = Boolean(symbol);
   const hasChainAddress = Boolean(chain && address);
 
-  if (!hasWarpConfig && !hasChainAddress) {
+  if (!hasTokenSymbol && !hasChainAddress) {
     logRed(
       'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
     );
     process.exit(1);
   }
 
-  const warpCoreConfig = hasWarpConfig
+  const warpCoreConfig = hasTokenSymbol
     ? await getWarpCoreConfigOrExit({
         context,
         symbol,
