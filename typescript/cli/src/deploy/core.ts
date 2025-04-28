@@ -10,7 +10,6 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
-  IsmType,
   StarknetCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
