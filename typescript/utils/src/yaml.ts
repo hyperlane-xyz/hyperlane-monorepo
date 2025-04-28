@@ -424,7 +424,7 @@ function isPathMatch(path: string[], patternParts: string[]): boolean {
 /**
  * Sorts arrays nested within objects according to configuration
  */
-export function sortNestedArrays<T = any>(
+export function sortNestedArrays<T>(
   data: T,
   config: ArraySortConfig,
   path: string[] = [],
