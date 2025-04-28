@@ -32,43 +32,55 @@ async function main() {
 
   const results = await Promise.all(
     targetNetworks.map(async (chain) => {
-      const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
-      const announcedValidators =
-        await validatorAnnounce.getAnnouncedValidators();
+      try {
+        const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
+        const announcedValidators =
+          await validatorAnnounce.getAnnouncedValidators();
 
-      const defaultValidatorConfigs =
-        defaultMultisigConfigs[chain].validators || [];
-      const validators = defaultValidatorConfigs.map((v) => v.address);
-      const unannouncedValidators = validators.filter(
-        (validator) =>
-          !announcedValidators.some((x) => eqAddress(x, validator)),
-      );
+        const defaultValidatorConfigs =
+          defaultMultisigConfigs[chain].validators || [];
+        const validators = defaultValidatorConfigs.map((v) => v.address);
+        const unannouncedValidators = validators.filter(
+          (validator) =>
+            !announcedValidators.some((x) => eqAddress(x, validator)),
+        );
 
-      if (unannouncedValidators.length > 0) {
-        chainsWithUnannouncedValidators[chain] = unannouncedValidators;
+        if (unannouncedValidators.length > 0) {
+          chainsWithUnannouncedValidators[chain] = unannouncedValidators;
+        }
+
+        const validatorCount = validators.length;
+        const unannouncedValidatorCount = unannouncedValidators.length;
+
+        const threshold = defaultMultisigConfigs[chain].threshold;
+        const minimumThreshold = getMinimumThreshold(validatorCount);
+
+        return {
+          chain,
+          threshold,
+          [thresholdOK]:
+            threshold < minimumThreshold || threshold > validatorCount
+              ? CheckResult.WARNING
+              : CheckResult.OK,
+          total: validatorCount,
+          [totalOK]:
+            validatorCount < minimumValidatorCount
+              ? CheckResult.WARNING
+              : CheckResult.OK,
+          unannounced:
+            unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
+        };
+      } catch (error) {
+        console.error(`Error processing chain ${chain}:`, error);
+        return {
+          chain,
+          threshold: 'ERROR',
+          [thresholdOK]: CheckResult.WARNING,
+          total: 0,
+          [totalOK]: CheckResult.WARNING,
+          unannounced: 'ERROR',
+        };
       }
-
-      const validatorCount = validators.length;
-      const unannouncedValidatorCount = unannouncedValidators.length;
-
-      const threshold = defaultMultisigConfigs[chain].threshold;
-      const minimumThreshold = getMinimumThreshold(validatorCount);
-
-      return {
-        chain,
-        threshold,
-        [thresholdOK]:
-          threshold < minimumThreshold || threshold > validatorCount
-            ? CheckResult.WARNING
-            : CheckResult.OK,
-        total: validatorCount,
-        [totalOK]:
-          validatorCount < minimumValidatorCount
-            ? CheckResult.WARNING
-            : CheckResult.OK,
-        unannounced:
-          unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
-      };
     }),
   );
 

@@ -758,7 +758,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ethereum: {
-    threshold: 4,
+    threshold: 6,
     validators: [
       {
         address: '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
@@ -776,6 +776,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de',
         alias: 'AVS: Pier Two',
       },
+      {
+        address: '0x5d7442439959af11172bf92d9a8d21cf88d136e3',
+        alias: 'P2P',
+      },
+      DEFAULT_ZKV_VALIDATOR,
     ],
   },
 
@@ -1396,6 +1401,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_BLOCKPI_VALIDATOR,
       DEFAULT_ZKV_VALIDATOR,
       DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+    ],
+  },
+
+  milkyway: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

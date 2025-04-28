@@ -139,6 +139,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     merlin: true,
     metal: true,
     metis: true,
+    milkyway: true,
     mint: true,
     mode: true,
     molten: true,
@@ -279,6 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     merlin: true,
     metal: true,
     metis: true,
+    milkyway: true,
     mint: true,
     mode: true,
     molten: true,
@@ -419,6 +421,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     merlin: true,
     metal: true,
     metis: true,
+    milkyway: true,
     mint: true,
     mode: true,
     molten: true,
@@ -583,6 +586,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('infinityvm') },
       // Temporary workaround due to funky Zeronetwork gas amounts.
       { destinationDomain: getDomainId('zeronetwork') },
+      // Temporary workaround during testing of MilkyWay.
+      { originDomain: getDomainId('milkyway') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -826,7 +831,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b985a4-20250421-152948',
+      tag: '24fe342-20250424-164437',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -840,7 +845,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '62073e3-20250426-080512',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -851,7 +856,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8ab7c80-20250326-191115',
+      tag: '62073e3-20250426-080512',
     },
     resources: scraperResources,
   },
@@ -866,7 +871,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b985a4-20250421-152948',
+      tag: '62073e3-20250426-080512',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -904,7 +909,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8b985a4-20250421-152948',
+      tag: '24fe342-20250424-164437',
     },
     blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement,
@@ -931,7 +936,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     docker: {
       repo,
       // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '8117739-20250420-201559',
+      tag: '24fe342-20250424-164437',
     },
     whitelist: vanguardMatchingList,
     // Not specifying a blacklist for optimization purposes -- all the message IDs
