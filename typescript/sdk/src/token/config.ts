@@ -3,6 +3,7 @@ export enum TokenType {
   syntheticRebase = 'syntheticRebase',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
+  collateralMovable = 'collateralMovable',
   collateralVault = 'collateralVault',
   collateralVaultRebase = 'collateralVaultRebase',
   XERC20 = 'xERC20',
@@ -10,6 +11,7 @@ export enum TokenType {
   collateralFiat = 'collateralFiat',
   collateralUri = 'collateralUri',
   native = 'native',
+  nativeMovable = 'nativeMovable',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
 }
