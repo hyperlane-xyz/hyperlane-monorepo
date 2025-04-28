@@ -57,7 +57,7 @@ impl StarknetValidatorAnnounce {
             &conn.url,
             signer.local_wallet(),
             &signer.address,
-            false,
+            true,
             locator.domain.id(),
         );
 
