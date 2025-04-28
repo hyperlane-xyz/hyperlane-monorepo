@@ -1010,7 +1010,7 @@
       "validatorAnnounce": "0x06587686d7270349bf233976265fa6bd53d73c9f13b5fc916f541ad9b297dce8",
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
       "index": {
-        "from": 719709,
+        "from": 714709,
         "chunk": 999
       }
     },
@@ -2346,7 +2346,7 @@
       "validatorAnnounce": "0x03606e11cfdec0745e8c49cf3179df9b4c37528baf0131ae1ec079055a7cab0b",
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
       "index": {
-        "from": 224346,
+        "from": 214346,
         "chunk": 999
       }
     },
