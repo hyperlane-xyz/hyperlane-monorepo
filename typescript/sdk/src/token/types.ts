@@ -52,6 +52,10 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
+    rebalancer: z
+      .string()
+      .optional()
+      .describe('Address of the rebalancer contract'),
   },
 );
 
