@@ -48,6 +48,7 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
     nativeToken,
     bech32Prefix,
     slip44,
+    gasPrice,
   } = metadata;
 
   if (!nativeToken) throw new Error(`Missing native token for ${name}`);
@@ -68,10 +69,22 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
         : [],
     },
     fees: {
-      fee_tokens: [{ denom: 'token' }],
+      fee_tokens: [
+        {
+          denom: gasPrice?.denom ?? nativeToken.denom!,
+          ...(gasPrice?.amount
+            ? {
+                fixed_min_gas_price: parseInt(gasPrice.amount),
+                low_gas_price: parseInt(gasPrice.amount),
+                average_gas_price: parseInt(gasPrice.amount) * 1.5,
+                high_gas_price: parseInt(gasPrice.amount) * 3,
+              }
+            : {}),
+        },
+      ],
     },
     staking: {
-      staking_tokens: [{ denom: 'stake' }],
+      staking_tokens: [{ denom: nativeToken.denom! }],
     },
   };
 
@@ -80,20 +93,13 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
     assets: [
       {
         description: `The native token of ${displayName || name} chain.`,
-        denom_units: [{ denom: 'token', exponent: nativeToken.decimals }],
-        base: 'token',
-        name: 'token',
-        display: 'token',
-        symbol: 'token',
-        type_asset: 'sdk.coin',
-      },
-      {
-        description: `The native token of ${displayName || name} chain.`,
-        denom_units: [{ denom: 'token', exponent: nativeToken.decimals }],
-        base: 'stake',
-        name: 'stake',
-        display: 'stake',
-        symbol: 'stake',
+        denom_units: [
+          { denom: nativeToken.denom!, exponent: nativeToken.decimals },
+        ],
+        base: nativeToken.denom!,
+        name: nativeToken.name,
+        display: nativeToken.denom!,
+        symbol: nativeToken.symbol,
         type_asset: 'sdk.coin',
       },
     ],
