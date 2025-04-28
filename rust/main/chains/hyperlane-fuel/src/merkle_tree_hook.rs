@@ -188,9 +188,11 @@ impl Indexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+
         self.contract
             .methods()
-            .count_and_block()
+            .count()
             .simulate(Execution::StateReadOnly)
             .await
             .map_err(|e| {
@@ -203,9 +205,6 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
                     .as_str(),
                 )
             })
-            .map(|res| {
-                let (count, tip) = res.value;
-                (Some(count), tip)
-            })
+            .map(|res| (Some(res.value), tip))
     }
 }

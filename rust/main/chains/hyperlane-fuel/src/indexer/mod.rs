@@ -42,6 +42,10 @@ where
     _phantom: PhantomData<E>,
 }
 
+// Since Fuel does not support point in time queries, we add a buffer to the query range
+// This allows the block and tip queries to be inconsistent to a certain degree.
+const INCONSISTENCY_BLOCK_BUFFER: u32 = 10;
+
 impl<E> Debug for FuelIndexer<E>
 where
     E: FuelIndexerEvent,
@@ -94,7 +98,14 @@ where
     where
         T: Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static + From<E>,
     {
-        let block_data = self.graphql_client.query_blocks_in_range(&range).await?;
+        let (start, end) = range.into_inner();
+        let block_data = self
+            .graphql_client
+            .query_blocks_in_range(&RangeInclusive::new(
+                start,
+                end + INCONSISTENCY_BLOCK_BUFFER,
+            ))
+            .await?;
 
         Ok(self.filter_and_parse_transactions::<T>(block_data))
     }

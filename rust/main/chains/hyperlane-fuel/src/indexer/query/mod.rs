@@ -26,7 +26,7 @@ impl FuelGraphQLClient {
     pub fn new(url: &Url) -> Self {
         Self {
             client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(60))
+                .timeout(Duration::from_secs(5))
                 .build()
                 .expect("Failed to create reqwest client"),
             url: url.clone(),
