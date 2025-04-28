@@ -330,3 +330,20 @@ export function generateWarpConfigs(
 
   return configs;
 }
+
+export function hyperlaneWarpAddresses({
+  chain,
+  symbol,
+  warp,
+}: {
+  chain?: string;
+  symbol?: string;
+  warp?: string;
+} = {}): ProcessPromise {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp addresses \
+        --registry ${REGISTRY_PATH} \
+        ${chain ? ['--chain', chain] : ''} \
+        ${symbol ? ['--symbol', symbol] : ''} \
+        ${warp ? ['--warp', warp] : ''} \
+        --verbosity debug`;
+}
