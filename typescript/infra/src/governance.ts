@@ -34,7 +34,7 @@ export function withGovernanceType<T>(args: Argv<T>) {
     type: 'string',
     description: 'Type of governance to use',
     choices: Object.values(GovernanceType),
-    default: GovernanceType.AbacusWorks,
+    default: GovernanceType.Regular,
   });
 }
 
