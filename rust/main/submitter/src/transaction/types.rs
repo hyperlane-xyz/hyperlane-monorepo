@@ -36,7 +36,7 @@ pub struct Transaction {
     pub last_submission_attempt: Option<DateTime<Utc>>,
 }
 
-#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
 pub enum TransactionStatus {
     /// default state. If the tx appears dropped from the mempool, it goes back to this state
     #[default]
@@ -51,7 +51,7 @@ pub enum TransactionStatus {
     Dropped(DropReason),
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
 pub enum DropReason {
     /// currently only assigned when a reorg is detected
     DroppedByChain,
