@@ -42,6 +42,8 @@ pub enum MetadataBuildError {
     MaxValidatorCountReached(u32),
     #[error("Aggregation threshold not met ({0})")]
     AggregationThresholdNotMet(u32),
+    #[error("Fast path error ({0})")]
+    FastPathError(String),
 }
 
 #[derive(Clone, Debug, new)]

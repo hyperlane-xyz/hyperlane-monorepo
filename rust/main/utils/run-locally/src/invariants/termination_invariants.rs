@@ -10,6 +10,7 @@ use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 use crate::logging::log;
 use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
 
+#[derive(Clone)]
 pub struct RelayerTerminationInvariantParams<'a> {
     pub config: &'a Config,
     pub starting_relayer_balance: f64,

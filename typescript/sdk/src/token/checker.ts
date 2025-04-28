@@ -37,7 +37,15 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   HypTokenRouterConfig
 > {
   async checkChain(chain: ChainName): Promise<void> {
-    await super.checkChain(chain);
+    let expectedChains: string[];
+    expectedChains = Object.keys(this.configMap);
+    const thisChainConfig = this.configMap[chain];
+    if (thisChainConfig?.remoteRouters) {
+      expectedChains = Object.keys(thisChainConfig.remoteRouters);
+    }
+    expectedChains = expectedChains.filter((chn) => chn !== chain).sort();
+
+    await super.checkChain(chain, expectedChains);
     await this.checkToken(chain);
   }
 

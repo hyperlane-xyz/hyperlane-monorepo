@@ -39,6 +39,7 @@ export interface ITokenAdapter<Tx> {
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean>;
+  isRevokeApprovalRequired(owner: Address, spender: Address): Promise<boolean>;
   populateApproveTx(params: TransferParams): Promise<Tx>;
   populateTransferTx(params: TransferParams): Promise<Tx>;
 }

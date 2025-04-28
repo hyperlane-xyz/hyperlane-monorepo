@@ -1,0 +1,28 @@
+name: "Install Hyperlane CLI"
+description: "Install the Hyperlane CLI by packaging from a local build"
+
+inputs:
+  ref:
+    description: "The Git ref to checkout"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: yarn-build
+      uses: ./.github/actions/yarn-build-with-cache
+      with:
+        ref: ${{ inputs.ref }}
+
+    - name: Pack the CLI
+      shell: bash
+      id: pack-cli
+      run: |
+        cd typescript/cli
+        yarn pack
+
+    - name: Install the packaged CLI
+      shell: bash
+      run: |
+        cd typescript/cli
+        npm i -g package.tgz
