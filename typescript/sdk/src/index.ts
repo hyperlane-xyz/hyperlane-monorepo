@@ -22,6 +22,8 @@ export { MAILBOX_VERSION } from './consts/mailbox.js';
 export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
 export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
+export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
+export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
 export {
   AW_VALIDATOR_ALIAS,
   defaultMultisigConfigs,

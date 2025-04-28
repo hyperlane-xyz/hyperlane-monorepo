@@ -1,6 +1,7 @@
 import { Signer } from 'ethers';
 import { Logger } from 'pino';
 
+import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainName,
   ChainSubmissionStrategy,
@@ -36,7 +37,7 @@ export class MultiProtocolSignerManager {
     protected readonly submissionStrategy: ChainSubmissionStrategy,
     protected readonly chains: ChainName[],
     protected readonly multiProvider: MultiProvider,
-    protected multiProtocolProvider: MultiProtocolProvider,
+    protected readonly multiProtocolProvider: MultiProtocolProvider,
     protected readonly options: MultiProtocolSignerOptions = {},
   ) {
     this.logger =
@@ -232,5 +233,27 @@ export class MultiProtocolSignerManager {
     const strategy = this.signerStrategies.get(chain);
     assert(strategy, `No signer strategy found for chain ${chain}`);
     return strategy;
+  }
+
+  protected getSpecificSigner<T>(chain: ChainName): T {
+    return this.signers.get(chain) as T;
+  }
+
+  getEVMSigner(chain: ChainName): Signer {
+    const protocolType = this.multiProvider.getChainMetadata(chain).protocol;
+    assert(
+      protocolType === ProtocolType.Ethereum,
+      `Chain ${chain} is not an Ethereum chain`,
+    );
+    return this.getSpecificSigner<Signer>(chain);
+  }
+
+  getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient {
+    const protocolType = this.multiProvider.getProtocol(chain);
+    assert(
+      protocolType === ProtocolType.CosmosNative,
+      `Chain ${chain} is not a Cosmos Native chain`,
+    );
+    return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
   }
 }
