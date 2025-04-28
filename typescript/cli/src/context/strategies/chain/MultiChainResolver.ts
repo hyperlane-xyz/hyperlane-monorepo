@@ -28,7 +28,6 @@ import { ChainResolver } from './types.js';
 enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
-  WARP_READ,
   STRATEGY,
   CORE_APPLY,
   DEFAULT,
@@ -217,10 +216,6 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
-  }
-
-  static forWarpCoreConfig(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.WARP_READ);
   }
 
   static forCoreApply(): MultiChainResolver {
