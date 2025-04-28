@@ -13,6 +13,7 @@ import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  ERC20__factory,
   IXERC20VS__factory,
   IXERC20__factory,
   Ownable__factory,
@@ -58,6 +59,7 @@ import {
   getHyperlaneCore,
 } from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
+import { tokens } from '../config/warp.js';
 import { GovernanceType, determineGovernanceType } from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
@@ -252,6 +254,11 @@ export class GovernTransactionReader {
       return this.readXERC20Transaction(chain, tx, xerc20Type);
     }
 
+    // If it's an ERC20 transaction
+    if (this.isErc20Transaction(chain, tx)) {
+      return this.readErc20Transaction(chain, tx);
+    }
+
     // If it's an Ownable transaction
     if (await this.isOwnableTransaction(chain, tx)) {
       return this.readOwnableTransaction(chain, tx);
@@ -274,6 +281,101 @@ export class GovernTransactionReader {
       chain,
       insight,
       tx,
+    };
+  }
+
+  private isErc20Transaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    if (!tx.to) {
+      return false;
+    }
+
+    const chainTokens = tokens[chain];
+    if (!chainTokens) {
+      return false;
+    }
+
+    for (const address of Object.values(chainTokens)) {
+      if (eqAddress(tx.to, address)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async readErc20Transaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in ERC20 transaction');
+    }
+
+    if (!tx.to) {
+      throw new Error('No to address in ERC20 transaction');
+    }
+
+    const erc20Interface = ERC20__factory.createInterface();
+    const decoded = erc20Interface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const erc20 = ERC20__factory.connect(
+      tx.to,
+      this.multiProvider.getProvider(chain),
+    );
+
+    const decimals = await erc20.decimals();
+    const symbol = await erc20.symbol();
+
+    let insight;
+    switch (decoded.functionFragment.name) {
+      case erc20Interface.functions['transfer(address,uint256)'].name: {
+        const [to, amount] = decoded.args;
+        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        insight = `Transfer ${numTokens} ${symbol} to ${to}`;
+        break;
+      }
+      case erc20Interface.functions['approve(address,uint256)'].name: {
+        const [spender, amount] = decoded.args;
+        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        insight = `Approve ${numTokens} ${symbol} for ${spender}`;
+        break;
+      }
+      case erc20Interface.functions['transferFrom(address,address,uint256)']
+        .name: {
+        const [from, to, amount] = decoded.args;
+        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        insight = `Transfer ${numTokens} ${symbol} from ${from} to ${to}`;
+        break;
+      }
+      case erc20Interface.functions['increaseAllowance(address,uint256)']
+        .name: {
+        const [spender, addedValue] = decoded.args;
+        insight = `Increase allowance for ${spender} by ${addedValue.toString()}`;
+        break;
+      }
+      case erc20Interface.functions['decreaseAllowance(address,uint256)']
+        .name: {
+        const [spender, subtractedValue] = decoded.args;
+        insight = `Decrease allowance for ${spender} by ${subtractedValue.toString()}`;
+        break;
+      }
+    }
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    return {
+      chain,
+      to: `${symbol} (${chain} ${tx.to})`,
+      insight,
+      args,
     };
   }
 
