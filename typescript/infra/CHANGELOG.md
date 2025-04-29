@@ -1,5 +1,14 @@
 # @hyperlane-xyz/infra
 
+## 12.4.0
+
+### Patch Changes
+
+- Updated dependencies [d2babb7]
+  - @hyperlane-xyz/sdk@12.4.0
+  - @hyperlane-xyz/helloworld@12.4.0
+  - @hyperlane-xyz/utils@12.4.0
+
 ## 12.3.0
 
 ### Minor Changes

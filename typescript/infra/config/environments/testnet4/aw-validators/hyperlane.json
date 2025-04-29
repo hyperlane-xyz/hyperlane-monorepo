@@ -18,6 +18,9 @@
   "arcadiatestnet2": {
     "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
+  "auroratestnet": {
+    "validators": ["0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937"]
+  },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
   },
@@ -74,8 +77,8 @@
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   },
-  "kyvetestnet": {
-    "validators": ["0x3c470ad2640bc0bcb6a790e8cf85e54d34ca92f5"]
+  "milkywaytestnet": {
+    "validators": ["0x65c7581e14efdf4d9c5320882170f022835bd742"]
   },
   "modetestnet": {
     "validators": ["0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"]
