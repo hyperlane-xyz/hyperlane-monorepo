@@ -99,6 +99,9 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
         dropped_transactions: 0,
         dropped_payload_reason: "".to_string(),
         dropped_transaction_reason: "".to_string(),
+        // in `mock_adapter_methods`, the tx_status method is mocked to return `PendingInclusion` for the first 2 calls,
+        // which causes the tx to be resubmitted each time
+        transaction_resubmissions: 2,
     };
     assert_metrics(metrics, metrics_assertion);
 }
@@ -156,6 +159,7 @@ async fn test_entrypoint_send_is_dropped_by_dispatcher() {
         dropped_transactions: 1,
         dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
         dropped_transaction_reason: "FailedSimulation".to_string(),
+        transaction_resubmissions: 0,
     };
     assert_metrics(metrics, metrics_assertion);
 }
@@ -198,6 +202,7 @@ async fn test_entrypoint_payload_fails_simulation() {
         dropped_transactions: 0,
         dropped_payload_reason: "FailedSimulation".to_string(),
         dropped_transaction_reason: "".to_string(),
+        transaction_resubmissions: 0,
     };
     assert_metrics(metrics, metrics_assertion);
 }
@@ -300,6 +305,7 @@ struct MetricsAssertion {
     dropped_transactions: u64,
     dropped_payload_reason: String,
     dropped_transaction_reason: String,
+    transaction_resubmissions: u64,
 }
 
 fn assert_metrics(metrics: DispatcherMetrics, assertion: MetricsAssertion) {
@@ -357,6 +363,15 @@ fn assert_metrics(metrics: DispatcherMetrics, assertion: MetricsAssertion) {
     assert_eq!(
         dropped_transactions, assertion.dropped_transactions,
         "Dropped transactions metric is incorrect for domain {}",
+        assertion.domain
+    );
+    let transaction_resubmissions = metrics
+        .transaction_resubmissions
+        .with_label_values(&[&assertion.domain])
+        .get();
+    assert_eq!(
+        transaction_resubmissions, assertion.transaction_resubmissions,
+        "Transaction resubmissions metric is incorrect for domain {}",
         assertion.domain
     );
 }
