@@ -91,12 +91,12 @@ jobs:
         if: github.event_name == 'pull_request'
         run: >-
           cat changed_files.txt |
-          xargs -r yarn exec prettier --check --ignore-unknown
+          xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
 
       - name: Run prettier (all files)
         if: github.event_name != 'pull_request'
         run: >-
-          yarn exec prettier --check --ignore-unknown .
+          yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
         continue-on-error: true
 
       - name: Clean up
