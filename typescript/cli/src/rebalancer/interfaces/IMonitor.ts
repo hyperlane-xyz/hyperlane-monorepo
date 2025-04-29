@@ -1,4 +1,4 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, Token } from '@hyperlane-xyz/sdk';
 
 /**
  * Represents an event emitted by the monitor containing balance information
@@ -27,6 +27,8 @@ export type MonitorEvent = {
      */
     value: bigint;
   }[];
+
+  token: Token | null;
 };
 
 /**

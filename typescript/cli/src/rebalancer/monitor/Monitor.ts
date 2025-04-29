@@ -72,6 +72,7 @@ export class Monitor implements IMonitor {
         try {
           const event: MonitorEvent = {
             balances: [],
+            token: null,
           };
 
           for (const token of warpCore.tokens) {
@@ -91,6 +92,8 @@ export class Monitor implements IMonitor {
               token: token.collateralAddressOrDenom!,
               value: bridgedSupply!,
             });
+
+            event.token = token;
           }
 
           // Emit the event containing the collateral balances
