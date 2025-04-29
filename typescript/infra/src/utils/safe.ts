@@ -184,38 +184,31 @@ export async function getSafeTx(
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
   const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
-  let retryCount = 0;
 
-  while (retryCount < TX_FETCH_RETRIES) {
-    try {
-      const txDetailsResponse = await fetch(txDetailsUrl, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
+  try {
+    return await retryAsync(
+      async () => {
+        const txDetailsResponse = await fetch(txDetailsUrl, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
 
-      if (!txDetailsResponse.ok) {
-        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
-      }
+        if (!txDetailsResponse.ok) {
+          throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+        }
 
-      return await txDetailsResponse.json();
-    } catch (error) {
-      retryCount++;
-      if (retryCount === TX_FETCH_RETRIES) {
-        rootLogger.error(
-          chalk.red(
-            `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
-          ),
-        );
-        return;
-      }
-      rootLogger.warn(
-        chalk.yellow(
-          `Retry ${retryCount}/${TX_FETCH_RETRIES} for transaction ${safeTxHash}: ${error}`,
-        ),
-      );
-      // Exponential backoff: wait 2^retryCount seconds before retrying
-      await new Promise((resolve) => setTimeout(resolve, TX_FETCH_RETRY_DELAY));
-    }
+        return txDetailsResponse.json();
+      },
+      TX_FETCH_RETRIES,
+      TX_FETCH_RETRY_DELAY,
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(
+        `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+      ),
+    );
+    return;
   }
 }
 
@@ -482,40 +475,34 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      let retryCount = 0;
-      let pendingTxs;
 
-      while (retryCount < TX_FETCH_RETRIES) {
-        rootLogger.info(
-          chalk.gray.italic(
-            `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
+      let pendingTxs: SafeMultisigTransactionListResponse;
+      rootLogger.info(
+        chalk.gray.italic(
+          `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
+        ),
+      );
+      try {
+        pendingTxs = await retryAsync(
+          () => safeService.getPendingTransactions(safes[chain]),
+          TX_FETCH_RETRIES,
+          TX_FETCH_RETRY_DELAY,
+        );
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
           ),
         );
-        try {
-          pendingTxs = await safeService.getPendingTransactions(safes[chain]);
-          break;
-        } catch (error) {
-          retryCount++;
-          if (retryCount === TX_FETCH_RETRIES) {
-            rootLogger.error(
-              chalk.red(
-                `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
-              ),
-            );
-            return;
-          }
-          rootLogger.warn(
-            chalk.yellow(
-              `Retry ${retryCount}/${TX_FETCH_RETRIES} for pending transactions on ${chain}: ${error}`,
-            ),
-          );
-          // Exponential backoff: wait 2^retryCount seconds before retrying
-          await new Promise((resolve) =>
-            setTimeout(resolve, TX_FETCH_RETRY_DELAY),
-          );
-        }
+        return;
       }
+
       if (!pendingTxs || pendingTxs.results.length === 0) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `No pending transactions found for safe ${safes[chain]} on ${chain}`,
+          ),
+        );
         return;
       }
 
