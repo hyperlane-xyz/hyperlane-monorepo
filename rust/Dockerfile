@@ -22,6 +22,7 @@ COPY rust/main/hyperlane-metric rust/main/hyperlane-metric
 COPY rust/main/hyperlane-test rust/main/hyperlane-test
 COPY rust/main/ethers-prometheus rust/main/ethers-prometheus
 COPY rust/main/utils rust/main/utils
+COPY rust/main/submitter rust/main/submitter
 COPY rust/sealevel rust/sealevel
 
 COPY rust/main/Cargo.toml rust/main/.
