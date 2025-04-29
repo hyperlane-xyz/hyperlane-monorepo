@@ -37,6 +37,7 @@ import {
   MonitorPollingError,
   Strategy,
 } from '../rebalancer/index.js';
+import { IMetrics, Metrics } from '../rebalancer/metrics/Metrics.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -419,6 +420,7 @@ export const rebalancer: CommandModuleWithContext<{
   warpRouteId: string;
   checkFrequency: number;
   strategyConfigFile: string;
+  withMetrics?: boolean;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -440,12 +442,19 @@ export const rebalancer: CommandModuleWithContext<{
       demandOption: true,
       alias: 's',
     },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics',
+      demandOption: false,
+      alias: 'm',
+    },
   },
   handler: async ({
     context,
     warpRouteId,
     checkFrequency,
     strategyConfigFile,
+    withMetrics = false,
   }) => {
     try {
       // Instantiates the warp route monitor
@@ -461,16 +470,21 @@ export const rebalancer: CommandModuleWithContext<{
       // Instantiates the executor that will process rebalancing routes
       const executor: IExecutor = new Executor();
 
+      // Creates an instance for the metrics that will publish stats for the monitored data
+      const metrics: IMetrics =
+        withMetrics && (await Metrics.create(context.registry, warpRouteId));
+
+      if (!metrics) {
+        // TODO: implement the metrics usage, just leaving this here to follow along
+      }
+
       await monitor
         // Observe balances events and process rebalancing routes
         .on('collateralbalances', (event) => {
-          const balances = event.balances.reduce(
-            (acc, next) => {
-              acc[next.chain] = next.value;
-              return acc;
-            },
-            {} as Record<ChainName, bigint>,
-          );
+          const balances = event.balances.reduce((acc, next) => {
+            acc[next.chain] = next.value;
+            return acc;
+          }, {} as Record<ChainName, bigint>);
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
 
