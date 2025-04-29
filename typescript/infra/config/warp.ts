@@ -86,9 +86,9 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH]:
     getRenzoEZETHWarpConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE]:
     getRenzoEZETHSTAGEWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
@@ -144,9 +144,9 @@ type StrategyConfigGetter = () => ChainSubmissionStrategy;
 export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getLUMIAGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH]:
     getEZETHGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE]:
     getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLumiaprismOptimismPolygonETH]:
     getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig,
