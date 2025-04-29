@@ -159,7 +159,7 @@ jobs:
       - name: Warp Config Tests
         run: |
           if git diff $PR_BASE HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
-            yarn --cwd typescript/infra test:balance
+            yarn --cwd typescript/infra test:warp
           fi
 
   cli-install-test:
