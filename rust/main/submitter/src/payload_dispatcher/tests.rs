@@ -58,12 +58,9 @@ async fn test_entrypoint_send_is_detected_by_loader() {
     );
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn test_entrypoint_send_is_finalized_by_dispatcher() {
-    let _ = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .try_init();
-
     let payload = FullPayload::random();
 
     let adapter = MockAdapter::new();
@@ -103,12 +100,9 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     assert_metrics(metrics, metrics_assertion);
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn test_entrypoint_send_is_dropped_by_dispatcher() {
-    let _ = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .try_init();
-
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
@@ -160,12 +154,9 @@ async fn test_entrypoint_send_is_dropped_by_dispatcher() {
     assert_metrics(metrics, metrics_assertion);
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn test_entrypoint_payload_fails_simulation() {
-    let _ = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .try_init();
-
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
