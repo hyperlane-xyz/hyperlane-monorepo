@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.81.0 as builder
+FROM rust:1.85.0 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
