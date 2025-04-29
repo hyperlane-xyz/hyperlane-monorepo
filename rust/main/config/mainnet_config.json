@@ -9099,7 +9099,7 @@
       ],
       "index": {
         "chunk": 10,
-        "from": 2454618
+        "from": 2249100
       },
       "name": "milkyway",
       "nativeToken": {
@@ -9130,10 +9130,7 @@
       "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": "0.03"
-      }
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
     }
   },
   "defaultRpcConsensusType": "fallback"
