@@ -148,6 +148,14 @@ fn submitter_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
+    let transaction_submissions = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_transaction_submissions",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+
     if finalized_transactions < params.total_messages_expected {
         log!(
             "hyperlane_lander_finalized_transactions {} count, expected {}",
@@ -193,6 +201,18 @@ fn submitter_metrics_invariants_met(
             "hyperlane_lander_dropped_transactions {} count, expected {}",
             dropped_transactions,
             0
+        );
+        return Ok(false);
+    }
+
+    // resubmissions are possible because it takes a while for the local
+    // solana validator to report a tx hash as included once broadcast
+    // but no more than 2 submissions are expected per message
+    if transaction_submissions > 2 * params.total_messages_expected {
+        log!(
+            "hyperlane_lander_transaction_submissions {} count, expected {}",
+            transaction_submissions,
+            params.total_messages_expected
         );
         return Ok(false);
     }
