@@ -253,11 +253,9 @@ mod tests {
         ));
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
@@ -311,13 +309,10 @@ mod tests {
         )
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     #[ignore]
     async fn benchmarking_with_real_rpcs() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-
         let arb_chain_conf = ChainConf {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO
