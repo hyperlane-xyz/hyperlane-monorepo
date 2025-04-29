@@ -55,6 +55,11 @@ class CosmosModuleTokenAdapter
     const provider = await this.getProvider();
     const denom = await this.getDenom();
 
+    // if the address is a cosmos address we can simply read the account balance
+    // of that address. The address can also be an ETH address format indicating
+    // that the balance of a Hyp Token Contract should be returned. In this case
+    // we get the token by it's id and return the bridged supply which equals the
+    // balance the token has.
     if (isAddressCosmos(address)) {
       const coin = await provider.getBalance(address, denom);
       return BigInt(coin.amount);
