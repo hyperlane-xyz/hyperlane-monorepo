@@ -47,9 +47,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Set Changesets
-        run: echo "changesets=$(yarn changeset status --json)" >> $GITHUB_OUTPUT
-
   # The release PR removes individual changesets to prepare for a release.
   # This means that once the release PR is merged, there are no changesets left.
   # When there are no changesets left, we can run the cli-install-cross-platform-release-test
