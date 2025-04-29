@@ -84,7 +84,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .nonce()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map(|r| r.value)
             .map_err(|e| {
@@ -105,7 +105,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .delivered(fuels::types::Bits256::from_h256(&id))
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map(|r| r.value)
             .map_err(|e| {
@@ -125,7 +125,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .default_ism()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map(|r| r.value.into_h256())
             .map_err(|e| {
@@ -148,7 +148,7 @@ impl Mailbox for FuelMailbox {
             .methods()
             .recipient_ism(parsed_recipient.clone())
             .with_contract_ids(&[parsed_recipient])
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map(|r| r.value.into_h256())
             .map_err(|e| {
@@ -198,7 +198,7 @@ impl Mailbox for FuelMailbox {
             )
             .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
             .with_tx_policies(tx_policies)
-            .determine_missing_contracts(None)
+            .determine_missing_contracts()
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -269,7 +269,7 @@ impl Mailbox for FuelMailbox {
                 Bytes(RawHyperlaneMessage::from(message)),
             )
             .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
-            .determine_missing_contracts(None)
+            .determine_missing_contracts()
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -281,7 +281,7 @@ impl Mailbox for FuelMailbox {
                     .as_str(),
                 )
             })?
-            .simulate(Execution::Realistic)
+            .simulate(Execution::realistic())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -358,7 +358,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for FuelDispatchIndexer {
         self.contract
             .methods()
             .nonce()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map(|r| r.value)
             .map_err(|e| {

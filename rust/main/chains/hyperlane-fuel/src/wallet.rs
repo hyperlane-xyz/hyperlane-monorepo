@@ -78,7 +78,7 @@ impl ViewOnlyAccount for FuelWallets {
     async fn get_asset_inputs_for_amount(
         &self,
         asset_id: AssetId,
-        amount: u64,
+        amount: u128,
         excluded_coins: Option<Vec<CoinTypeId>>,
     ) -> fuels::types::errors::Result<Vec<Input>> {
         match self {

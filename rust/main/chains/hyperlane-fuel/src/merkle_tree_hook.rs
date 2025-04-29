@@ -67,7 +67,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
             .contract
             .methods()
             .tree()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -98,7 +98,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
         self.contract
             .methods()
             .count()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -117,7 +117,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
         self.contract
             .methods()
             .latest_checkpoint()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -193,7 +193,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
         self.contract
             .methods()
             .count()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(

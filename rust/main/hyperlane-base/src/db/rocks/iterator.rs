@@ -11,7 +11,7 @@ pub struct PrefixIterator<'a, V> {
     _phantom: PhantomData<*const V>,
 }
 
-impl<'a, V> Iterator for PrefixIterator<'a, V>
+impl<V> Iterator for PrefixIterator<'_, V>
 where
     V: Encode + Decode,
 {

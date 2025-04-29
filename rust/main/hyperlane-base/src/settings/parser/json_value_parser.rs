@@ -386,7 +386,7 @@ impl<'e, T> ParseChain<'e, T> {
     }
 }
 
-impl<'e, T: Default> ParseChain<'e, T> {
+impl<T: Default> ParseChain<'_, T> {
     pub fn unwrap_or_default(self) -> T {
         self.0.unwrap_or_default()
     }

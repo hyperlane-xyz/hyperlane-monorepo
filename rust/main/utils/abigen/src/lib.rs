@@ -139,6 +139,7 @@ fn fmt_file(path: &Path) {
 
 /// Get the rustfmt binary path.
 #[cfg(feature = "fmt")]
+#[allow(static_mut_refs)] // TODO: clippy 1.85.0 issue
 fn rustfmt_path() -> &'static Path {
     use std::path::PathBuf;
 

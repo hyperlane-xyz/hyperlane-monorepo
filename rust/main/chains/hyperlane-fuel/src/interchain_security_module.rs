@@ -67,7 +67,7 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
         self.contract
             .methods()
             .module_type()
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -93,7 +93,7 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
-            .determine_missing_contracts(None)
+            .determine_missing_contracts()
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(
@@ -105,7 +105,7 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
                     .as_str(),
                 )
             })?
-            .simulate(Execution::Realistic)
+            .simulate(Execution::realistic())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(

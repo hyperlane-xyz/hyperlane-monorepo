@@ -45,6 +45,7 @@ construct_uint! {
 mod fixed_hashes {
     // we can't change how they made the macro, so ignore the lint
     #![allow(clippy::non_canonical_clone_impl)]
+    #![allow(unexpected_cfgs)] // TODO: clippy 1.85.0 issue
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use fixed_hash::construct_fixed_hash;

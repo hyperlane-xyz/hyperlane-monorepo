@@ -71,7 +71,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
         self.contract
             .methods()
             .get_announced_storage_locations(validators.iter().map(Bits256::from_h256).collect())
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map(|res| res.value)
             .map_err(|e| {
@@ -135,7 +135,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
                 announcement.value.storage_location,
                 Bytes(announcement.signature.to_vec()),
             )
-            .simulate(Execution::Realistic)
+            .simulate(Execution::realistic())
             .await;
 
         match simulate_call {

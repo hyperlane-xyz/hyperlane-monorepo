@@ -66,7 +66,7 @@ impl MultisigIsm for FuelMultisigIsm {
         self.contract
             .methods()
             .validators_and_threshold(Bytes(message.to_vec()))
-            .simulate(Execution::StateReadOnly)
+            .simulate(Execution::state_read_only())
             .await
             .map_err(|e| {
                 ChainCommunicationError::from_other_str(format!(

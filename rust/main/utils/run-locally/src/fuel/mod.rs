@@ -382,10 +382,10 @@ pub async fn dispatch(nodes: &[FuelNetwork]) -> u32 {
                     Bytes(vec![]),
                     ContractId::default(),
                 )
-                .determine_missing_contracts(None)
+                .determine_missing_contracts()
                 .await
                 .unwrap()
-                .simulate(Execution::Realistic)
+                .simulate(Execution::realistic())
                 .await
                 .unwrap();
 
@@ -403,7 +403,7 @@ pub async fn dispatch(nodes: &[FuelNetwork]) -> u32 {
                 .call_params(CallParameters::new(quote.value, AssetId::BASE, 1_500_000))
                 .unwrap()
                 .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
-                .determine_missing_contracts(None)
+                .determine_missing_contracts()
                 .await
                 .unwrap()
                 .call()
