@@ -27,6 +27,7 @@ export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
   desiredBalancePerChain: Record<SupportedChains[number], string>;
   desiredKathyBalancePerChain: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
+  chainsToSkip: ChainName[];
 }
 
 export interface CheckWarpDeployConfig extends CronJobConfig {

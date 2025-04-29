@@ -1698,5 +1698,16 @@ export const validatorChainConfig = (
         'reactive',
       ),
     },
+
+    milkyway: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('milkyway'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9985e0c6df8e25b655b46a317af422f5e7756875'],
+        },
+        'milkyway',
+      ),
+    },
   };
 };

@@ -15,9 +15,11 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::{state::PayloadDispatcherState, utils::retry_until_success};
+use super::{state::PayloadDispatcherState, utils::call_until_success_or_nonretryable_error};
 
 pub type BuildingStageQueue = Arc<Mutex<VecDeque<FullPayload>>>;
+
+pub const STAGE_NAME: &str = "BuildingStage";
 
 #[derive(new)]
 pub(crate) struct BuildingStage {
@@ -26,12 +28,14 @@ pub(crate) struct BuildingStage {
     /// This channel is the exitpoint of the Building Stage
     inclusion_stage_sender: mpsc::Sender<Transaction>,
     pub(crate) state: PayloadDispatcherState,
+    domain: String,
 }
 
 impl BuildingStage {
     #[instrument(skip(self), name = "BuildingStage::run")]
     pub async fn run(&self) {
         loop {
+            self.update_metrics().await;
             // event-driven by the Building queue
             let payload = match self.queue.lock().await.pop_front() {
                 Some(payload) => payload,
@@ -44,14 +48,23 @@ impl BuildingStage {
 
             let payloads = vec![payload];
             info!(?payloads, "Building transactions from payloads");
-            let tx_building_results = retry_until_success(
-                || self.state.adapter.build_transactions(&payloads),
-                "Simulating transaction",
-            )
-            .await;
+            let tx_building_results = self.state.adapter.build_transactions(&payloads).await;
 
             for tx_building_result in tx_building_results {
-                self.handle_tx_building_result(tx_building_result).await;
+                // push payloads that failed to be processed (but didn't fail simulation)
+                // to the back of the queue
+                if let Err(err) = self
+                    .handle_tx_building_result(tx_building_result.clone())
+                    .await
+                {
+                    error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
+                    let full_payloads =
+                        get_full_payloads_from_details(&payloads, &tx_building_result.payloads);
+                    {
+                        let mut queue = self.queue.lock().await;
+                        queue.extend(full_payloads);
+                    }
+                }
             }
         }
     }
@@ -64,7 +77,10 @@ impl BuildingStage {
             tx_ids = ?tx_building_result.maybe_tx.as_ref().map(|tx| tx.id.to_string()),
         )
     )]
-    async fn handle_tx_building_result(&self, tx_building_result: TxBuildingResult) {
+    async fn handle_tx_building_result(
+        &self,
+        tx_building_result: TxBuildingResult,
+    ) -> Result<(), SubmitterError> {
         let TxBuildingResult { payloads, maybe_tx } = tx_building_result;
         let Some(tx) = maybe_tx else {
             warn!(
@@ -77,14 +93,16 @@ impl BuildingStage {
                     PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
                 )
                 .await;
-            return;
+            return Ok(());
         };
         info!(?tx, "Transaction built successfully");
-        let simulation_success = retry_until_success(
+        let simulation_success = call_until_success_or_nonretryable_error(
             || self.state.adapter.simulate_tx(&tx),
             "Simulating transaction",
+            &self.state,
         )
-        .await;
+        .await
+        .unwrap_or(false);
         if !simulation_success {
             warn!(
                 ?tx,
@@ -92,14 +110,16 @@ impl BuildingStage {
                 "Transaction simulation failed. Dropping transaction"
             );
             self.drop_tx(&tx, DropReason::FailedSimulation).await;
-            return;
+            return Ok(());
         };
-        retry_until_success(
+        call_until_success_or_nonretryable_error(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
+            &self.state,
         )
-        .await;
+        .await?;
         self.state.store_tx(&tx).await;
+        Ok(())
     }
 
     async fn drop_tx(&self, tx: &Transaction, reason: DropReason) {
@@ -122,6 +142,27 @@ impl BuildingStage {
         info!(?tx, "Transaction sent to Inclusion Stage");
         Ok(())
     }
+
+    async fn update_metrics(&self) {
+        self.state
+            .metrics
+            .update_liveness_metric(STAGE_NAME, &self.domain);
+        let length = self.queue.lock().await.len();
+        self.state
+            .metrics
+            .update_queue_length_metric(STAGE_NAME, length as u64, &self.domain);
+    }
+}
+
+fn get_full_payloads_from_details(
+    full_payloads: &[FullPayload],
+    details: &[PayloadDetails],
+) -> Vec<FullPayload> {
+    full_payloads
+        .iter()
+        .filter(|payload| details.iter().any(|d| d.id == payload.details.id))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -133,6 +174,7 @@ mod tests {
         chain_tx_adapter::{AdaptsChain, TxBuildingResult},
         payload::{self, DropReason, FullPayload, PayloadDetails, PayloadStatus},
         payload_dispatcher::{
+            metrics::DispatcherMetrics,
             test_utils::{dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter},
             PayloadDb, PayloadDispatcherState, TransactionDb,
         },
@@ -296,9 +338,7 @@ mod tests {
         mock_adapter
             .expect_build_transactions()
             .times(payloads_to_send)
-            .returning(move |payloads| {
-                Ok(dummy_built_tx(payloads.to_vec(), succesful_build.clone()))
-            });
+            .returning(move |payloads| dummy_built_tx(payloads.to_vec(), succesful_build.clone()));
         mock_adapter
             .expect_simulate_tx()
             // .times(payloads_to_send)
@@ -316,10 +356,17 @@ mod tests {
         BuildingStageQueue,
     ) {
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
-        let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+        let state = PayloadDispatcherState::new(
+            payload_db,
+            tx_db,
+            adapter,
+            DispatcherMetrics::dummy_instance(),
+            "dummy_domain".to_string(),
+        );
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
-        let building_stage = BuildingStage::new(queue.clone(), sender, state);
+        let building_stage =
+            BuildingStage::new(queue.clone(), sender, state, "test_domain".to_string());
         (building_stage, receiver, queue)
     }
 

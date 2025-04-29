@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::cache::FunctionCallCache;
 
-use super::{BaseCache, CacheResult, Expiration, ExpirationType};
+use super::{BaseCache, CacheResult, ExpirationType};
 
 /// Local cache for storing function calls with serializable results in memory
 #[derive(Debug, Clone)]
@@ -27,9 +27,12 @@ impl FunctionCallCache for LocalCache {
         method: &str,
         fn_params: &(impl Serialize + Send + Sync),
         result: &(impl Serialize + Send + Sync),
-    ) -> CacheResult<Expiration> {
+    ) -> CacheResult<()> {
         let key = (domain_name, method, fn_params);
-        self.0.set(&key, result, ExpirationType::Default).await
+        self.0
+            .set(&key, result, ExpirationType::Default)
+            .await
+            .map(|_| ())
     }
 
     /// Get a cached call result with the given parameters

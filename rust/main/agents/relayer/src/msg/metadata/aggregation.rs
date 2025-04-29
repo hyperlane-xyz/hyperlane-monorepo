@@ -4,7 +4,7 @@ use futures_util::future::join_all;
 
 use derive_new::new;
 use itertools::{Either, Itertools};
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
@@ -13,7 +13,9 @@ use hyperlane_core::{
 
 use crate::msg::metadata::{base::MetadataBuildError, message_builder};
 
-use super::{MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder};
+use super::{
+    IsmCachePolicy, MessageMetadataBuildParams, MessageMetadataBuilder, Metadata, MetadataBuilder,
+};
 
 /// Bytes used to store one member of the (start, end) range tuple
 /// Copied from `AggregationIsmMetadata.sol`
@@ -133,13 +135,28 @@ impl AggregationIsmMetadataBuilder {
     ) -> Result<(Vec<H256>, u8), MetadataBuildError> {
         let ism_domain = ism.domain().name();
         let fn_key = "modules_and_threshold";
-        // To have the cache key be more succinct, we use the message id
-        let call_params = (ism.address(), message.id());
+
+        // Depending on the cache policy, make use of the message ID
+        let params_cache_key = match self
+            .base_builder()
+            .ism_cache_policy_classifier()
+            .get_cache_policy(
+                self.root_ism,
+                ism.domain(),
+                ModuleType::Aggregation,
+                self.base.app_context.as_ref(),
+            )
+            .await
+        {
+            // To have the cache key be more succinct, we use the message id
+            IsmCachePolicy::MessageSpecific => (ism.address(), message.id()),
+            IsmCachePolicy::IsmSpecific => (ism.address(), H256::zero()),
+        };
 
         let cache_result = self
             .base_builder()
             .cache()
-            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &call_params)
+            .get_cached_call_result::<(Vec<H256>, u8)>(ism_domain, fn_key, &params_cache_key)
             .await
             .map_err(|err| {
                 warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -157,7 +174,7 @@ impl AggregationIsmMetadataBuilder {
 
                 self.base_builder()
                     .cache()
-                    .cache_call_result(ism_domain, fn_key, &call_params, &result)
+                    .cache_call_result(ism_domain, fn_key, &params_cache_key, &result)
                     .await
                     .map_err(|err| {
                         warn!(error = %err, "Error when caching call result for {:?}", fn_key);
@@ -166,6 +183,106 @@ impl AggregationIsmMetadataBuilder {
                 Ok(result)
             }
         }
+    }
+
+    async fn try_build_fast_path(
+        &self,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+        threshold: usize,
+        ism_addresses: Vec<H256>,
+    ) -> Result<Option<Metadata>, MetadataBuildError> {
+        if threshold > 1 {
+            debug!(
+                ?threshold,
+                reason = "Aggregation ISM threshold > 1",
+                "Fast path is not available"
+            );
+            return Ok(None);
+        }
+        let Some((
+            message_id_multisig_ism_index,
+            message_id_multisig_ism,
+            message_id_multisig_ism_address,
+        )) = self
+            .try_find_message_id_multisig_ism(ism_addresses.clone())
+            .await
+        else {
+            debug!(
+                ?threshold,
+                reason = "Aggregation ISM does not have a MessageIdMultisig submodule",
+                "Fast path is not available"
+            );
+            return Ok(None);
+        };
+        let metadata = self
+            .build_message_id_aggregation_metadata(
+                message,
+                params.clone(),
+                message_id_multisig_ism,
+                message_id_multisig_ism_index,
+                message_id_multisig_ism_address,
+                ism_addresses.len(),
+            )
+            .await?;
+
+        Ok(Some(metadata))
+    }
+
+    async fn try_find_message_id_multisig_ism(
+        &self,
+        ism_addresses: Vec<H256>,
+    ) -> Option<(usize, Box<dyn InterchainSecurityModule>, H256)> {
+        let sub_isms = join_all(ism_addresses.iter().map(|sub_ism_address| async {
+            let ism_and_module_type =
+                message_builder::ism_and_module_type(self.base.clone(), *sub_ism_address).await;
+            (ism_and_module_type, *sub_ism_address)
+        }))
+        .await;
+        sub_isms.into_iter().enumerate().find_map(|(index, ism)| {
+            if let (Ok((ism, ModuleType::MessageIdMultisig)), address) = ism {
+                Some((index, ism, address))
+            } else {
+                None
+            }
+        })
+    }
+
+    async fn build_message_id_aggregation_metadata(
+        &self,
+        message: &HyperlaneMessage,
+        params: MessageMetadataBuildParams,
+        ism: Box<dyn InterchainSecurityModule>,
+        ism_index: usize,
+        ism_address: H256,
+        ism_count: usize,
+    ) -> Result<Metadata, MetadataBuildError> {
+        let sub_module_and_meta = message_builder::build_message_metadata(
+            self.base.clone(),
+            ism_address,
+            message,
+            params.clone(),
+            Some((ism, ModuleType::MessageIdMultisig)),
+        )
+        .await?;
+
+        let metadata = sub_module_and_meta.metadata.to_vec();
+
+        // return an error if delivering with this metadata fails
+        if sub_module_and_meta
+            .ism
+            .dry_run_verify(message, &metadata)
+            .await
+            .map_err(|err| MetadataBuildError::FastPathError(err.to_string()))?
+            .is_none()
+        {
+            return Err(MetadataBuildError::FastPathError(
+                "Fast path metadata failed dry run (returned None)".to_string(),
+            ));
+        }
+        let sub_module_metadata = SubModuleMetadata::new(ism_index, metadata);
+        let metadata = Metadata::new(Self::format_metadata(&mut [sub_module_metadata], ism_count));
+        Ok(metadata)
     }
 }
 
@@ -189,12 +306,32 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         let threshold = threshold as usize;
 
+        match self
+            .try_build_fast_path(message, params.clone(), threshold, ism_addresses.clone())
+            .await
+        {
+            Ok(Some(metadata)) => {
+                info!("Built metadata using fast path");
+                return Ok(metadata);
+            }
+            Err(err) => {
+                warn!(
+                    ?err,
+                    "Fast path failed, falling back to the other submodules in the aggregation ISM"
+                );
+            }
+            _ => {
+                // The fast path is not available, a debug log has already been printed so try the slow path
+            }
+        }
+
         let sub_modules_and_metas = join_all(ism_addresses.iter().map(|sub_ism_address| {
             message_builder::build_message_metadata(
                 self.base.clone(),
                 *sub_ism_address,
                 message,
                 params.clone(),
+                None,
             )
         }))
         .await;
@@ -207,7 +344,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         }
 
         // Partitions things into
-        // 1. ok_sub_modules: ISMs with metadata with valid metadata
+        // 1. ok_sub_modules: ISMs with valid metadata
         // 2. err_sub_modules: ISMs with invalid metadata
         let (ok_sub_modules, err_sub_modules): (Vec<_>, Vec<_>) = sub_modules_and_metas
             .into_iter()

@@ -22,7 +22,7 @@ mockall::mock! {
     #[async_trait]
     impl AdaptsChain for Adapter {
         async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, SubmitterError>;
-        async fn build_transactions(&self, payloads: &[FullPayload]) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+        async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
         async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;

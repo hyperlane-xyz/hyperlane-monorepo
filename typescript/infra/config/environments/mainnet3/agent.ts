@@ -7,7 +7,11 @@ import {
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  IsmCacheSelectorType,
   MatchingList,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -19,6 +23,7 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   MetricAppContext,
+  chainMapMatchingList,
   consistentSenderRecipientMatchingList,
   routerMatchingList,
   senderMatchingList,
@@ -26,10 +31,10 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts } from '../../contexts.js';
+import { Contexts, mustBeValidContext } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
@@ -134,6 +139,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     merlin: true,
     metal: true,
     metis: true,
+    milkyway: true,
     mint: true,
     mode: true,
     molten: true,
@@ -274,6 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     merlin: true,
     metal: true,
     metis: true,
+    milkyway: true,
     mint: true,
     mode: true,
     molten: true,
@@ -414,6 +421,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     merlin: true,
     metal: true,
     metis: true,
+    milkyway: true,
     mint: true,
     mode: true,
     molten: true,
@@ -576,6 +584,10 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
       // outside of Solana are ignored.
       { originDomain: getDomainId('infinityvm') },
+      // Temporary workaround due to funky Zeronetwork gas amounts.
+      { destinationDomain: getDomainId('zeronetwork') },
+      // Temporary workaround during testing of MilkyWay.
+      { originDomain: getDomainId('milkyway') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -583,6 +595,43 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
   },
+];
+
+// HYPER - https://github.com/hyperlane-xyz/hyperlane-registry-private/blob/6f9ef6ca2805480312b75894cf030acde37c5527/deployments/warp_routes/HYPER/arbitrum-base-bsc-ethereum-optimism-config.yaml
+const hyperMatchingList = chainMapMatchingList({
+  arbitrum: '0xC9d23ED2ADB0f551369946BD377f8644cE1ca5c4',
+  base: '0xC9d23ED2ADB0f551369946BD377f8644cE1ca5c4',
+  bsc: '0xC9d23ED2ADB0f551369946BD377f8644cE1ca5c4',
+  ethereum: '0x93A2Db22B7c736B341C32Ff666307F4a9ED910F5',
+  optimism: '0x9923DB8d7FBAcC2E69E87fAd19b886C81cd74979',
+});
+
+// stHYPER - https://github.com/hyperlane-xyz/hyperlane-registry-private/blob/6f9ef6ca2805480312b75894cf030acde37c5527/deployments/warp_routes/stHYPER/bsc-ethereum-config.yaml#L1
+const stHyperMatchingList = chainMapMatchingList({
+  bsc: '0x6E9804a08092D8ba4E69DaCF422Df12459F2599E',
+  ethereum: '0x9F6E6d150977dabc82d5D4EaaBDB1F1Ab0D25F92',
+});
+
+// Staging HYPER - https://github.com/hyperlane-xyz/hyperlane-registry-private/blob/38b91443b960a7887653445ef094c730bf708717/deployments/warp_routes/HYPER/arbitrum-base-bsc-ethereum-optimism-config.yaml
+const stagingHyperMatchingList = chainMapMatchingList({
+  arbitrum: '0xF80dcED2488Add147E60561F8137338F7f3976e1',
+  base: '0x830B15a1986C75EaF8e048442a13715693CBD8bD',
+  bsc: '0x9537c772c6092DB4B93cFBA93659bB5a8c0E133D',
+  ethereum: '0xC10c27afcb915439C27cAe54F5F46Da48cd71190',
+  optimism: '0x31cD131F5F6e1Cc0d6743F695Fc023B70D0aeAd8',
+});
+
+// Staging stHYPER - https://github.com/hyperlane-xyz/hyperlane-registry-private/blob/38b91443b960a7887653445ef094c730bf708717/deployments/warp_routes/stHYPER/bsc-ethereum-config.yaml
+const stagingStHyperMatchingList = chainMapMatchingList({
+  bsc: '0xf0c8c5fc69fCC3fA49C319Fdf422D8279756afE2',
+  ethereum: '0x0C919509663cb273E156B706f065b9F7e6331891',
+});
+
+const vanguardMatchingList = [
+  ...hyperMatchingList,
+  ...stHyperMatchingList,
+  ...stagingHyperMatchingList,
+  ...stagingStHyperMatchingList,
 ];
 
 // Gets metric app contexts, including:
@@ -647,6 +696,23 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // Messages between HubGateway (Everclear hub) <> EverclearSpoke (all other spoke chains)
       name: 'everclear_gateway',
       matchingList: senderMatchingList(everclearSenderAddresses),
+    },
+    // Manually specified for now until things are public
+    {
+      name: 'HYPER/arbitrum-base-bsc-ethereum-optimism',
+      matchingList: hyperMatchingList,
+    },
+    {
+      name: 'stHYPER/bsc-ethereum',
+      matchingList: stHyperMatchingList,
+    },
+    {
+      name: 'HYPER-STAGING/arbitrum-base-bsc-ethereum-optimism',
+      matchingList: stagingHyperMatchingList,
+    },
+    {
+      name: 'stHYPER-STAGING/bsc-ethereum',
+      matchingList: stagingStHyperMatchingList,
     },
   ];
 };
@@ -737,6 +803,25 @@ const blacklist: MatchingList = [
   })),
 ];
 
+const ismCacheConfigs: Array<IsmCacheConfig> = [
+  {
+    selector: {
+      type: IsmCacheSelectorType.DefaultIsm,
+    },
+    moduleTypes: [
+      ModuleType.AGGREGATION,
+      ModuleType.MERKLE_ROOT_MULTISIG,
+      ModuleType.MESSAGE_ID_MULTISIG,
+      // The relayer will cache these per-origin to accommodate DomainRoutingIsms
+      ModuleType.ROUTING,
+    ],
+    // SVM is explicitly not cached as the default ISM is a multisig ISM
+    // that routes internally.
+    chains: ethereumChainNames,
+    cachePolicy: IsmCachePolicy.IsmSpecific,
+  },
+];
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -746,17 +831,21 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '43369ea-20250410-181629',
+      tag: '3a04631-20250428-170554',
     },
-    blacklist,
+    blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '8ab7c80-20250326-191115',
+      tag: '62073e3-20250426-080512',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -767,7 +856,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8ab7c80-20250326-191115',
+      tag: '62073e3-20250426-080512',
     },
     resources: scraperResources,
   },
@@ -782,20 +871,24 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '43369ea-20250410-181629',
+      tag: '3a04631-20250428-170554',
     },
-    blacklist,
+    blacklist: [...blacklist, ...vanguardMatchingList],
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '11a4e95-20250116-145528',
+      tag: '385b307-20250418-150728',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -816,17 +909,92 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fe1f33b-20250408-120728',
+      tag: '3a04631-20250428-170554',
     },
-    blacklist,
+    blacklist: [...blacklist, ...vanguardMatchingList],
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+    },
     resources: relayerResources,
   },
 };
+
+const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
+  ...contextBase,
+  context: mustBeValidContext(`vanguard${index}`),
+  contextChainNames: {
+    validator: [],
+    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
+    scraper: [],
+  },
+  rolesWithKeys: [Role.Relayer],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo,
+      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
+      tag: '24fe342-20250424-164437',
+    },
+    whitelist: vanguardMatchingList,
+    // Not specifying a blacklist for optimization purposes -- all the message IDs
+    // in there are not vanguard-specific.
+    gasPaymentEnforcement: [
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: vanguardMatchingList,
+      },
+    ],
+    metricAppContextsGetter,
+    ismCacheConfigs,
+    cache: {
+      enabled: true,
+      // Cache for 10 minutes
+      defaultExpirationSeconds: 10 * 60,
+    },
+    resources: {
+      requests: {
+        // Big enough to claim a c3-standard-44 each
+        cpu: '35000m',
+        memory: '100Gi',
+      },
+    },
+    dbBootstrap: true,
+    mixing: {
+      enabled: true,
+      // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
+      salt: 69690 + index,
+    },
+    batch: {
+      defaultBatchSize: 32,
+      batchSizeOverrides: {
+        // Slightly lower to ideally fit within 5M
+        ethereum: 26,
+      },
+      bypassBatchSimulation: true,
+      maxSubmitQueueLength: {
+        arbitrum: 350,
+        base: 350,
+        bsc: 350,
+        optimism: 350,
+        ethereum: 75,
+      },
+    },
+    txIdIndexingEnabled: false,
+    igpIndexingEnabled: false,
+  },
+});
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
+  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
+  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
+  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
+  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
+  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
+  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

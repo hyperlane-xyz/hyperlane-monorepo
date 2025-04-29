@@ -1,5 +1,26 @@
 # @hyperlane-xyz/cli
 
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 5db39f493: Fixes to support CosmosNative and warp apply with foreign deployments.
+
+## 12.2.0
+
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
 ## 12.0.0
 
 ### Minor Changes

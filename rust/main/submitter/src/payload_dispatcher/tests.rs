@@ -5,29 +5,39 @@ use tokio::{sync::Mutex, time::sleep};
 use crate::{
     chain_tx_adapter::TxBuildingResult,
     payload_dispatcher::{
+        metrics::DispatcherMetrics,
         test_utils::{dummy_tx, tmp_dbs, MockAdapter},
         BuildingStageQueue, PayloadDbLoader, PayloadDispatcherState,
     },
-    Entrypoint, FullPayload, PayloadDispatcher, PayloadDispatcherEntrypoint, PayloadStatus,
-    TransactionStatus,
+    Entrypoint, FullPayload, PayloadDispatcher, PayloadDispatcherEntrypoint, PayloadId,
+    PayloadStatus, TransactionStatus,
 };
+
+use super::PayloadDb;
 
 #[tokio::test]
 async fn test_entrypoint_send_is_detected_by_loader() {
     let (payload_db, tx_db) = tmp_dbs();
     let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
-    let payload_db_loader = PayloadDbLoader::new(payload_db.clone(), building_stage_queue.clone());
+    let domain = "dummy_domain".to_string();
+    let payload_db_loader = PayloadDbLoader::new(
+        payload_db.clone(),
+        building_stage_queue.clone(),
+        domain.clone(),
+    );
     let mut payload_iterator = payload_db_loader.into_iterator().await;
 
+    let metrics = DispatcherMetrics::dummy_instance();
     let adapter = Arc::new(MockAdapter::new());
-    let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
+    let state =
+        PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
     let dispatcher_entrypoint = PayloadDispatcherEntrypoint {
         inner: state.clone(),
     };
 
     let _payload_db_loader = tokio::spawn(async move {
         payload_iterator
-            .load_from_db()
+            .load_from_db(metrics.clone())
             .await
             .expect("Payload loader crashed");
     });
@@ -54,13 +64,201 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
         .with_max_level(tracing::Level::DEBUG)
         .try_init();
 
-    let (payload_db, tx_db) = tmp_dbs();
-    let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
-    let payload_db_loader = PayloadDbLoader::new(payload_db.clone(), building_stage_queue.clone());
-    let mut payload_iterator = payload_db_loader.into_iterator().await;
+    let payload = FullPayload::random();
+
+    let adapter = MockAdapter::new();
+    let adapter = mock_adapter_methods(adapter, payload.clone());
+    let adapter = Arc::new(adapter);
+    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
+    let metrics = dispatcher.inner.metrics.clone();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    entrypoint.send_payload(&payload).await.unwrap();
+
+    // wait until the payload status is InTransaction(Finalized)
+    wait_until_payload_status(
+        entrypoint.inner.payload_db.clone(),
+        payload.id(),
+        |payload_status| {
+            matches!(
+                payload_status,
+                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+            )
+        },
+    )
+    .await;
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
+
+    let metrics_assertion = MetricsAssertion {
+        domain: entrypoint.inner.domain.clone(),
+        finalized_txs: 1,
+        building_stage_queue_length: 0,
+        inclusion_stage_pool_length: 0,
+        finality_stage_pool_length: 0,
+        dropped_payloads: 0,
+        dropped_transactions: 0,
+        dropped_payload_reason: "".to_string(),
+        dropped_transaction_reason: "".to_string(),
+    };
+    assert_metrics(metrics, metrics_assertion);
+}
+
+#[tokio::test]
+async fn test_entrypoint_send_is_dropped_by_dispatcher() {
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .try_init();
+
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    let mut counter = 0;
+    adapter.expect_simulate_tx().returning(move |_| {
+        counter += 1;
+        if counter == 1 {
+            // simulation is successful the first time around, and the payload makes it into a tx
+            Ok(true)
+        } else {
+            // the second time around, the simulation fails, say due to a network race condition
+            // where the payload was delivered by someone else and now it reverts
+            Ok(false)
+        }
+    });
+    let adapter = mock_adapter_methods(adapter, payload.clone());
+    let adapter = Arc::new(adapter);
+    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
+    let metrics = dispatcher.inner.metrics.clone();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    entrypoint.send_payload(&payload).await.unwrap();
+
+    // wait until the payload status is InTransaction(Finalized)
+    wait_until_payload_status(
+        entrypoint.inner.payload_db.clone(),
+        payload.id(),
+        |payload_status| {
+            matches!(
+                payload_status,
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+            )
+        },
+    )
+    .await;
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
+
+    let metrics_assertion = MetricsAssertion {
+        domain: entrypoint.inner.domain.clone(),
+        finalized_txs: 0,
+        building_stage_queue_length: 0,
+        inclusion_stage_pool_length: 0,
+        finality_stage_pool_length: 0,
+        dropped_payloads: 1,
+        dropped_transactions: 1,
+        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
+        dropped_transaction_reason: "FailedSimulation".to_string(),
+    };
+    assert_metrics(metrics, metrics_assertion);
+}
+
+#[tokio::test]
+async fn test_entrypoint_payload_fails_simulation() {
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .try_init();
+
+    let payload = FullPayload::random();
+
+    let mut adapter = MockAdapter::new();
+    // the payload always fails simulation
+    adapter.expect_simulate_tx().returning(move |_| Ok(false));
+    let adapter = mock_adapter_methods(adapter, payload.clone());
+    let adapter = Arc::new(adapter);
+    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
+    let metrics = dispatcher.inner.metrics.clone();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    entrypoint.send_payload(&payload).await.unwrap();
+
+    // wait until the payload status is InTransaction(Finalized)
+    wait_until_payload_status(
+        entrypoint.inner.payload_db.clone(),
+        payload.id(),
+        |payload_status| matches!(payload_status, PayloadStatus::Dropped(_)),
+    )
+    .await;
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
+
+    let metrics_assertion = MetricsAssertion {
+        domain: entrypoint.inner.domain.clone(),
+        finalized_txs: 0,
+        building_stage_queue_length: 0,
+        inclusion_stage_pool_length: 0,
+        finality_stage_pool_length: 0,
+        dropped_payloads: 1,
+        dropped_transactions: 0,
+        dropped_payload_reason: "FailedSimulation".to_string(),
+        dropped_transaction_reason: "".to_string(),
+    };
+    assert_metrics(metrics, metrics_assertion);
+}
+
+async fn mock_entrypoint_and_dispatcher(
+    adapter: Arc<MockAdapter>,
+) -> (PayloadDispatcherEntrypoint, PayloadDispatcher) {
+    let (payload_db, tx_db) = tmp_dbs();
+    let building_stage_queue = Arc::new(Mutex::new(VecDeque::new()));
+    let domain = "test_domain".to_string();
+    let payload_db_loader = PayloadDbLoader::new(
+        payload_db.clone(),
+        building_stage_queue.clone(),
+        domain.clone(),
+    );
+    let mut payload_iterator = payload_db_loader.into_iterator().await;
+
+    let metrics = DispatcherMetrics::dummy_instance();
+
+    let state =
+        PayloadDispatcherState::new(payload_db, tx_db, adapter, metrics.clone(), domain.clone());
+    let dispatcher_entrypoint = PayloadDispatcherEntrypoint {
+        inner: state.clone(),
+    };
+
+    let metrics_to_move = metrics.clone();
+    let _payload_db_loader = tokio::spawn(async move {
+        payload_iterator
+            .load_from_db(metrics_to_move)
+            .await
+            .expect("Payload loader crashed");
+    });
+
+    let payload_dispatcher = PayloadDispatcher {
+        inner: state.clone(),
+        domain: domain.clone(),
+    };
+    (dispatcher_entrypoint, payload_dispatcher)
+}
+
+async fn wait_until_payload_status<F>(
+    payload_db: Arc<dyn PayloadDb>,
+    payload_id: &PayloadId,
+    status_check: F,
+) where
+    F: Fn(&PayloadStatus) -> bool,
+{
+    loop {
+        let stored_payload = payload_db
+            .retrieve_payload_by_id(payload_id)
+            .await
+            .unwrap()
+            .unwrap();
+        if status_check(&stored_payload.status) {
+            break;
+        }
+        sleep(Duration::from_millis(100)).await;
+    }
+}
+
+fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockAdapter {
     adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(100));
@@ -70,7 +268,7 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     let txs = vec![tx_building_result];
     adapter
         .expect_build_transactions()
-        .returning(move |_| Ok(txs.clone()));
+        .returning(move |_| txs.clone());
     adapter.expect_simulate_tx().returning(move |_| Ok(true));
     let mut counter = 0;
     adapter.expect_tx_status().returning(move |_| {
@@ -89,40 +287,76 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     adapter.expect_simulate_tx().returning(|_| Ok(true));
 
     adapter.expect_submit().returning(|_| Ok(()));
+    adapter
+}
 
-    let adapter = Arc::new(adapter);
+struct MetricsAssertion {
+    domain: String,
+    finalized_txs: u64,
+    building_stage_queue_length: i64,
+    inclusion_stage_pool_length: i64,
+    finality_stage_pool_length: i64,
+    dropped_payloads: u64,
+    dropped_transactions: u64,
+    dropped_payload_reason: String,
+    dropped_transaction_reason: String,
+}
 
-    let state = PayloadDispatcherState::new(payload_db, tx_db, adapter);
-    let dispatcher_entrypoint = PayloadDispatcherEntrypoint {
-        inner: state.clone(),
-    };
+fn assert_metrics(metrics: DispatcherMetrics, assertion: MetricsAssertion) {
+    // check metrics
+    let gathered_metrics = metrics.gather().unwrap();
+    let metrics_str = String::from_utf8(gathered_metrics).unwrap();
+    println!("Metrics: {}", metrics_str);
 
-    let _payload_db_loader = tokio::spawn(async move {
-        payload_iterator
-            .load_from_db()
-            .await
-            .expect("Payload loader crashed");
-    });
-
-    let payload_dispatcher = PayloadDispatcher {
-        inner: state.clone(),
-        domain: "dummy_destination".to_string(),
-    };
-    let _payload_dispatcher = tokio::spawn(async move { payload_dispatcher.spawn().await });
-
-    dispatcher_entrypoint.send_payload(&payload).await.unwrap();
-
-    // wait until the payload status is InTransaction(Finalized)
-    loop {
-        let stored_payload = state
-            .payload_db
-            .retrieve_payload_by_id(payload.id())
-            .await
-            .unwrap()
-            .unwrap();
-        if stored_payload.status == PayloadStatus::InTransaction(TransactionStatus::Finalized) {
-            break;
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
+    let finalized_txs = metrics
+        .finalized_transactions
+        .with_label_values(&[&assertion.domain])
+        .get();
+    assert_eq!(
+        finalized_txs, assertion.finalized_txs,
+        "Finalized transactions metric is incorrect for domain {}",
+        assertion.domain
+    );
+    let building_stage_queue_length = metrics
+        .building_stage_queue_length
+        .with_label_values(&[&assertion.domain])
+        .get();
+    assert_eq!(
+        building_stage_queue_length, assertion.building_stage_queue_length,
+        "Building stage queue length metric is incorrect"
+    );
+    let inclusion_stage_pool_length = metrics
+        .inclusion_stage_pool_length
+        .with_label_values(&[&assertion.domain])
+        .get();
+    assert_eq!(
+        inclusion_stage_pool_length, assertion.inclusion_stage_pool_length,
+        "Inclusion stage pool length metric is incorrect"
+    );
+    let finality_stage_pool_length = metrics
+        .finality_stage_pool_length
+        .with_label_values(&[&assertion.domain])
+        .get();
+    assert_eq!(
+        finality_stage_pool_length, assertion.finality_stage_pool_length,
+        "Finality stage pool length metric is incorrect"
+    );
+    let dropped_payloads = metrics
+        .dropped_payloads
+        .with_label_values(&[&assertion.domain, &assertion.dropped_payload_reason])
+        .get();
+    assert_eq!(
+        dropped_payloads, assertion.dropped_payloads,
+        "Dropped payloads metric is incorrect for domain {}",
+        assertion.domain
+    );
+    let dropped_transactions = metrics
+        .dropped_transactions
+        .with_label_values(&[&assertion.domain, &assertion.dropped_transaction_reason])
+        .get();
+    assert_eq!(
+        dropped_transactions, assertion.dropped_transactions,
+        "Dropped transactions metric is incorrect for domain {}",
+        assertion.domain
+    );
 }

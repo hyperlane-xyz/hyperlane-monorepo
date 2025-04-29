@@ -10,6 +10,7 @@ use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 use crate::logging::log;
 use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
 
+#[derive(Clone)]
 pub struct RelayerTerminationInvariantParams<'a> {
     pub config: &'a Config,
     pub starting_relayer_balance: f64,
@@ -290,7 +291,6 @@ pub fn provider_metrics_invariant_met(
     let request_count = fetch_metric(relayer_port, "hyperlane_request_count", filter_hashmap)?
         .iter()
         .sum::<u32>();
-
     if request_count < expected_request_count {
         log!(
             "hyperlane_request_count {} count, expected {}",
@@ -307,13 +307,29 @@ pub fn provider_metrics_invariant_met(
     )?
     .iter()
     .sum::<u32>();
-
     log!("Provider created count: {}", provider_create_count);
-
     if provider_create_count < expected_request_count {
         log!(
             "hyperlane_provider_create_count only has {} count, expected at least {}",
             provider_create_count,
+            expected_request_count
+        );
+        return Ok(false);
+    }
+
+    let metadata_build_hashmap: HashMap<&str, &str> = HashMap::new();
+
+    let metadata_build_count = fetch_metric(
+        relayer_port,
+        "hyperlane_metadata_build_count",
+        &metadata_build_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+    if metadata_build_count < expected_request_count {
+        log!(
+            "hyperlane_metadata_build_count only has {} count, expected at least {}",
+            metadata_build_count,
             expected_request_count
         );
         return Ok(false);

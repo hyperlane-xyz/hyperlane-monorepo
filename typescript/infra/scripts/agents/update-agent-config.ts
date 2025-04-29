@@ -68,7 +68,11 @@ export async function writeAgentConfig(
   const additionalConfig = Object.fromEntries(
     await Promise.all(
       environmentChains
-        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
+        .filter(
+          (chain) =>
+            chainIsProtocol(chain, ProtocolType.Cosmos) ||
+            chainIsProtocol(chain, ProtocolType.CosmosNative),
+        )
         .map(async (chain) => {
           try {
             const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);

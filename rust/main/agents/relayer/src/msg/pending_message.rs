@@ -9,15 +9,13 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-
-use prometheus::{IntCounter, IntGauge};
+use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
-    cache::{FunctionCallCache, LocalCache, MeteredCache},
+    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::HyperlaneDb,
-    CoreMetrics,
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -27,7 +25,10 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
+use crate::{
+    metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
+    msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
+};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -66,7 +67,7 @@ pub struct MessageContext {
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
     /// Cache to store commonly used data calls.
-    pub cache: MeteredCache<LocalCache>,
+    pub cache: OptionalCache<MeteredCache<LocalCache>>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
@@ -95,7 +96,7 @@ pub struct PendingMessage {
     submitted: bool,
     #[new(default)]
     #[serde(skip_serializing)]
-    submission_data: Option<Box<MessageSubmissionData>>,
+    pub(crate) submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
@@ -960,6 +961,7 @@ impl PendingMessage {
         }
     }
 
+    /// Builds metadata
     async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
         let ism_address = self.recipient_ism_address().await?;
 
@@ -980,11 +982,12 @@ impl PendingMessage {
 
         let params = MessageMetadataBuildParams::default();
 
-        let metadata = message_metadata_builder
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
             .build(ism_address, &self.message, params)
             .await
             .map_err(|err| match &err {
-                MetadataBuildError::FailedToBuild(_) => {
+                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
                     self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
                 }
                 MetadataBuildError::CouldNotFetch => {
@@ -1012,50 +1015,30 @@ impl PendingMessage {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
-            })?;
-        Ok(metadata)
+                MetadataBuildError::MaxValidatorCountReached(count) => {
+                    warn!(count, "Max validator count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+            });
+        let build_metadata_end = Instant::now();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
+        };
+
+        self.ctx
+            .metrics
+            .insert_metadata_build_metric(metrics_params);
+
+        metadata_res
     }
 
     /// clear metadata cache
     fn clear_metadata(&mut self) {
         tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
-    }
-}
-
-#[derive(Debug)]
-pub struct MessageSubmissionMetrics {
-    // Fields are public for testing purposes
-    pub last_known_nonce: IntGauge,
-    pub messages_processed: IntCounter,
-}
-
-impl MessageSubmissionMetrics {
-    pub fn new(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
-    ) -> Self {
-        let origin = origin.name();
-        let destination = destination.name();
-        Self {
-            last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
-                "message_processed",
-                origin,
-                destination,
-            ]),
-            messages_processed: metrics
-                .messages_processed_count()
-                .with_label_values(&[origin, destination]),
-        }
-    }
-
-    fn update_nonce(&self, msg: &HyperlaneMessage) {
-        // this is technically a race condition between `.get` and `.set` but worst case
-        // the gauge should get corrected on the next update and is not an issue
-        // with a ST runtime
-        self.last_known_nonce
-            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
     }
 }
 
@@ -1186,8 +1169,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 

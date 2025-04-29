@@ -60,13 +60,19 @@ impl<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, S, I>
         store: S,
         indexer: I,
         metrics: ContractSyncMetrics,
+        broadcast_sender_enabled: bool,
     ) -> Self {
+        let broadcast_sender = if broadcast_sender_enabled {
+            T::broadcast_channel_size().map(BroadcastMpscSender::new)
+        } else {
+            None
+        };
         Self {
             domain,
             store,
             indexer,
             metrics,
-            broadcast_sender: T::broadcast_channel_size().map(BroadcastMpscSender::new),
+            broadcast_sender,
             _phantom: PhantomData,
         }
     }

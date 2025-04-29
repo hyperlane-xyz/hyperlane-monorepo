@@ -1,5 +1,44 @@
 # @hyperlane-xyz/helloworld
 
+## 12.4.0
+
+### Patch Changes
+
+- Updated dependencies [d2babb7]
+  - @hyperlane-xyz/sdk@12.4.0
+  - @hyperlane-xyz/core@7.1.3
+
+## 12.3.0
+
+### Patch Changes
+
+- Updated dependencies [6101959f7]
+- Updated dependencies [5db39f493]
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/sdk@12.3.0
+  - @hyperlane-xyz/core@7.1.2
+
+## 12.2.0
+
+### Patch Changes
+
+- Updated dependencies [c7934f711]
+- Updated dependencies [ecbacbdf2]
+  - @hyperlane-xyz/sdk@12.2.0
+  - @hyperlane-xyz/core@7.1.1
+
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [e6f6d61a0]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/core@7.1.0
+
 ## 12.0.0
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+## 12.2.0
+
+## 12.1.0
+
 ## 12.0.0
 
 ## 11.0.0
