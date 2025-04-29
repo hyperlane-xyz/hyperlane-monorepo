@@ -1216,35 +1216,34 @@ export class GovernTransactionReader {
     args: Record<string, any>,
     toInsight: string,
   ): Promise<GovernTransaction> {
-    let insight = '';
+    let insight;
+    let innerTx;
     switch (decoded.functionFragment.name) {
       case 'execTransaction': {
-        const innerTx = await this.read(chain, {
+        innerTx = await this.read(chain, {
           to: args.to,
           data: args.data,
           value: args.value,
         });
-        insight = `Execute transaction: ${JSON.stringify(innerTx)}`;
+        insight = `Execute transaction`;
         break;
       }
       case 'execTransactionFromModule': {
-        const innerTx = await this.read(chain, {
+        innerTx = await this.read(chain, {
           to: args.to,
           data: args.data,
           value: args.value,
         });
-        insight = `Execute transaction from module: ${JSON.stringify(innerTx)}`;
+        insight = `Execute transaction from module`;
         break;
       }
       case 'execTransactionFromModuleReturnData': {
-        const innerTx = await this.read(chain, {
+        innerTx = await this.read(chain, {
           to: args.to,
           data: args.data,
           value: args.value,
         });
-        insight = `Execute transaction from module with return data: ${JSON.stringify(
-          innerTx,
-        )}`;
+        insight = `Execute transaction from module with return data`;
         break;
       }
       case 'addOwnerWithThreshold':
@@ -1277,16 +1276,15 @@ export class GovernTransactionReader {
       case 'simulateAndRevert':
         insight = `Simulate and revert transaction to ${args.targetContract}`;
         break;
-      default:
-        insight = '⚠️ Unknown Safe operation';
     }
 
     return {
       chain,
       to: toInsight,
-      insight,
-      args,
+      insight: insight ?? '⚠️ Unknown Safe operation',
       signature: decoded.signature,
+      ...(innerTx ? { nestedTx: innerTx } : {}),
+      ...(insight ? {} : { args }),
     };
   }
 }
