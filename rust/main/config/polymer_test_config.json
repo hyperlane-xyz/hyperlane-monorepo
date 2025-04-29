@@ -1,0 +1,43 @@
+{
+  "chains": {
+    "apechain": {
+      "name": "apechain",
+      "domain": 33139,
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://apechain.calderachain.xyz/http"
+        }
+      ],
+      "contracts": {
+         "mailbox": "TESTNET_A_MAILBOX_ADDRESS",
+      },
+      "index": {
+        "from": 0,
+      }
+    },
+    "b3": {
+      "name": "b3",
+      "domain": 1993,
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://sepolia.b3.fun/http"
+        }
+      ],
+      "contracts": {
+         "mailbox": "TESTNET_B_MAILBOX_ADDRESS",
+      },
+      "index": {
+         "from": 0,
+      }
+    }
+  },
+  // Relayer-specific settings
+  "db": "/tmp/hyperlane_relayer_db", // Path for the relayer's database
+  "relayChains": "apechain,b3",
+  "gasPaymentEnforcement": [
+     { "policy": "none" }
+  ],
+   "maxMessageRetries": 5
+}
