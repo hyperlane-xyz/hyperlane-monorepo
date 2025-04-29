@@ -1,16 +1,9 @@
+import { utils } from 'ethers';
 import { z } from 'zod';
 
+import { EvmLog, encodeEvmLog } from '../directives/evm_log.js';
+import { DirectiveType, MAGIC_NUMBER } from '../directives/types.js';
 import { FSRResponse } from '../index.js';
-
-// Magic number prefix for directive messages
-const MAGIC_NUMBER =
-  '0xFAF09B8DEEC3D47AB5A2F9007ED1C8AD83E602B7FDAA1C47589F370CDA6BF2E1';
-
-// Directive types
-// NB: We may want to make directive types common across all providers.
-enum DirectiveType {
-  EVMLog = 0x01,
-}
 
 /**
  * Schema for Polymer directive
@@ -93,9 +86,11 @@ export class PolymerProvider {
         const { result } = await pollResponse.json();
 
         if (result.status === 'ready' || result.status === 'complete') {
+          // Parse the proof and encode it as an EvmLogDirective
+          const encodedDirective = this.parseProof(result.proof);
+
           return {
-            // TODO: Need to parse the log from the proof.
-            result: directiveHex,
+            result: encodedDirective,
             proof: result.proof,
           };
         }
@@ -113,6 +108,77 @@ export class PolymerProvider {
       }
       throw new Error('Failed to process Polymer directive: Unknown error');
     }
+  }
+
+  /**
+   * Proof byte layout
+   *  *--------------------------------------------------*
+   *  |  state root (32 bytes)                           | 0:32
+   *  *--------------------------------------------------*
+   *  |  signature (65 bytes)                            | 32:97
+   *  *--------------------------------------------------*
+   *  |  source chain ID (big endian, 4 bytes)           | 97:101
+   *  *--------------------------------------------------*
+   *  |  peptide height (big endian, 8 bytes)            | 101:109
+   *  *--------------------------------------------------*
+   *  |  source chain block height (big endian, 8 bytes) | 109:117
+   *  *--------------------------------------------------*
+   *  |  receipt index (big endian, 2 bytes)             | 117:119
+   *  *--------------------------------------------------*
+   *  |  event index (1 byte)                            | 119
+   *  *--------------------------------------------------*
+   *  |  number of topics (1 byte)                       | 120
+   *  *--------------------------------------------------*
+   *  |  event data end (big endian, 2 bytes)            | 121:123
+   *  *--------------------------------------------------*
+   *  |  event emitter (contract address) (20 bytes)     | 123:143
+   *  *--------------------------------------------------*
+   *  |  topics (32 bytes * number of topics)            | 143 + 32 * number of topics: eventDatEnd
+   *  *--------------------------------------------------*
+   *  |  event data (x bytes)                            | eventDataEnd:
+   *  *--------------------------------------------------*
+   *  |  iavl proof (x bytes)                            |
+   *  *--------------------------------------------------*
+   */
+  private parseProof(proofHex: string): string {
+    // Remove '0x' prefix if present
+    const hex = proofHex.startsWith('0x') ? proofHex.slice(2) : proofHex;
+    const bytes = Buffer.from(hex, 'hex');
+
+    // Parse source chain ID (4 bytes, big endian)
+    const sourceChainId = bytes.readUInt32BE(97).toString();
+
+    // Parse event emitter (20 bytes)
+    const eventEmitter = '0x' + bytes.subarray(123, 143).toString('hex');
+
+    // Parse number of topics (1 byte)
+    const numTopics = bytes[120];
+
+    // Parse topics (32 bytes each)
+    const topics: string[] = [];
+    let offset = 143;
+    for (let i = 0; i < numTopics; i++) {
+      const topic = '0x' + bytes.subarray(offset, offset + 32).toString('hex');
+      topics.push(topic);
+      offset += 32;
+    }
+
+    // Parse event data end (2 bytes, big endian)
+    const eventDataEnd = bytes.readUInt16BE(121);
+
+    // Parse event data (from eventDataEnd to the end of the proof)
+    const eventData = '0x' + bytes.subarray(eventDataEnd).toString('hex');
+
+    // Create EvmLog
+    const log: EvmLog = {
+      chainId: sourceChainId,
+      contract: eventEmitter,
+      indexed: topics,
+      unindexed: eventData,
+    };
+
+    // Encode the evm log
+    return encodeEvmLog(log);
   }
 
   private parseDirective(directiveHex: string): PolymerDirective {
