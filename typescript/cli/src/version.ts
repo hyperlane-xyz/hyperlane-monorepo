@@ -1,1 +1,1 @@
-export const VERSION = '12.3.0';
+export const VERSION = '13.0.0-starknet.0';
