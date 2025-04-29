@@ -533,5 +533,26 @@ export const validatorChainConfig = (
         'kyvetestnet',
       ),
     },
+
+    auroratestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('auroratestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937'],
+        },
+        'auroratestnet',
+      ),
+    },
+    milkywaytestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('milkywaytestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x65c7581e14efdf4d9c5320882170f022835bd742'],
+        },
+        'milkywaytestnet',
+      ),
+    },
   };
 };

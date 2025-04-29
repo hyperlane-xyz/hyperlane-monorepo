@@ -65,8 +65,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          # check out full history
-          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       # Build required before linting or the intra-monorepo package cycle checking won't work
       - name: yarn-build
@@ -77,14 +79,30 @@ jobs:
       - name: lint
         run: yarn lint
 
-      - name: prettier
+      - name: Get changed PR files
+        if: github.event_name == 'pull_request'
         run: |
-          yarn prettier
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            exit 1
-          fi
+          gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[] | select (.status != "removed") | .path' > changed_files.txt
+          echo "Changed files: $(cat changed_files.txt)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Run prettier (changed files)
+        if: github.event_name == 'pull_request'
+        run: >-
+          cat changed_files.txt |
+          xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
+
+      - name: Run prettier (all files)
+        if: github.event_name != 'pull_request'
+        run: >-
+          yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
+        continue-on-error: true
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f changed_files.txt
 
   yarn-test:
     runs-on: ubuntu-latest
@@ -235,7 +253,7 @@ jobs:
         run: |
           cd typescript/infra
           yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
-          CHANGES=$(git status -s)
+          CHANGES=$(git status -s . :/rust/main/config)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
             exit 1

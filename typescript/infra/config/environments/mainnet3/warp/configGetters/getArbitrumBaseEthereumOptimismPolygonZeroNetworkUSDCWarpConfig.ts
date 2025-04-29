@@ -31,8 +31,8 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
       token: tokens.arbitrum.USDC,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        lisk: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
-        zeronetwork: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
+        1135: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
+        543210: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
       },
     };
 
@@ -47,8 +47,8 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
       token: tokens.base.USDC,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        lisk: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
-        zeronetwork: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
+        1135: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
+        543210: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
       },
     };
 
@@ -63,8 +63,8 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
       token: tokens.optimism.USDC,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        lisk: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
-        zeronetwork: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
+        1135: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
+        543210: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
       },
     };
 
@@ -79,8 +79,8 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
       token: tokens.polygon.USDC,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        lisk: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
-        zeronetwork: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
+        1135: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
+        543210: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
       },
     };
 
@@ -107,8 +107,8 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
       token: tokens.ethereum.USDC,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        lisk: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
-        zeronetwork: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
+        1135: { address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0' },
+        543210: { address: '0xbb967d98313EDF91751651C0E66ef8A8B7BeD9e1' },
       },
     };
 
