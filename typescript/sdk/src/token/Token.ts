@@ -34,6 +34,10 @@ import {
   CwTokenAdapter,
 } from './adapters/CosmWasmTokenAdapter.js';
 import {
+  CosmNativeHypCollateralAdapter,
+  CosmNativeHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.js';
+import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
@@ -287,6 +291,14 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.CosmNativeHypCollateral) {
+      return new CosmNativeHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
+      return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
