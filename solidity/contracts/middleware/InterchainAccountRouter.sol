@@ -754,6 +754,47 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    function sendCommitment(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        bytes32 _salt,
+        bytes32 _commitment
+    ) public payable returns (bytes32) {
+        bytes memory _body = InterchainAccountMessage.encodeCommitment({
+            _owner: msg.sender.addressToBytes32(),
+            _ism: _ism,
+            _commitment: _commitment,
+            _userSalt: _salt
+        });
+        return
+            _dispatchMessageWithHook(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _hookMetadata,
+                _hook
+            );
+    }
+
+    error InvalidCommitment(OwnableMulticall ICA, bytes32 badCommitment);
+
+    /// @dev The calls represented by the commitment can only be executed once.
+    function executeWithCommitment(
+        OwnableMulticall _ICA,
+        CallLib.Call[] calldata _calls
+    ) public payable {
+        bytes32 _commitment = keccak256(abi.encode(_calls));
+        if (verifiedCommitments[_ICA] != _commitment) {
+            revert InvalidCommitment(_ICA, _commitment);
+        }
+        _ICA.multicall{value: msg.value}(_calls);
+        delete verifiedCommitments[_ICA];
+    }
+
     // ============ Internal Functions ============
 
     /**

@@ -890,4 +890,53 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             customHook
         );
     }
+
+    function testFuzz_sendCommitment(bytes32 commitment) public {
+        // act
+        originIcaRouter.sendCommitment(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // assert
+        // Destination ICA router should have the commitment
+        assertEq(destinationIcaRouter.verifiedCommitments(ica), commitment);
+    }
+
+    function testFuzz_executeWithCommitment(
+        bytes32 data,
+        uint256 value
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = keccak256(abi.encode(calls));
+
+        // Act
+        originIcaRouter.sendCommitment(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // Assert
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+        destinationIcaRouter.executeWithCommitment(ica, calls);
+        // Destination ICA router should have the commitment after execution
+        assertEq(destinationIcaRouter.verifiedCommitments(ica), bytes32(0));
+    }
 }
