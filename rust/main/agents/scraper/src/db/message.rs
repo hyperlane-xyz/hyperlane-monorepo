@@ -277,6 +277,7 @@ impl ScraperDb {
         let latest_id_before = self
             .latest_dispatched_id(domain, origin_mailbox.clone())
             .await?;
+        debug!(?latest_id_before, "Got latest id before");
         // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
@@ -298,7 +299,7 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        trace!(?models, "Writing messages to database");
+        debug!(?models, "Writing messages to database");
 
         if models.is_empty() {
             debug!("Wrote zero new messages to database");
