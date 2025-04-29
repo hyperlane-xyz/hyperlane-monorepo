@@ -219,7 +219,7 @@ impl InclusionStage {
         tx.submission_attempts += 1;
         state
             .metrics
-            .update_transaction_resubmissions_metric(&state.domain);
+            .update_transaction_submissions_metric(&state.domain);
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 
