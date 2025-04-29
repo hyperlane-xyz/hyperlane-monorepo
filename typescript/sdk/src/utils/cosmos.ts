@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 // Generated from https://github.com/cosmos/chain-registry/blob/master/chain.schema.json
 // using https://stefanterdell.github.io/json-schema-to-zod-react/
 export const CosmosChainSchema = z
@@ -768,6 +770,12 @@ export async function getCosmosRegistryChain(chain: string) {
   const json = await fetch(
     `https://raw.githubusercontent.com/cosmos/chain-registry/master/${chain}/chain.json`,
   );
+
+  assert(
+    json.status === 200,
+    `Error getting Cosmos chain ${chain} from Cosmos registry: status code ${json.status}`,
+  );
+
   const data = await json.json();
   const result = CosmosChainSchema.safeParse(data);
   if (!result.success) {
