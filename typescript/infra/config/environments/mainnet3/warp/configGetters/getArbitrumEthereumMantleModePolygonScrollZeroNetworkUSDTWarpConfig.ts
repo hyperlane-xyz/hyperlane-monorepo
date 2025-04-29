@@ -32,7 +32,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       token: tokens.arbitrum.USDT,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        zeronetwork: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
       },
     };
 
@@ -47,7 +47,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       token: tokens.ethereum.USDT,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        zeronetwork: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
       },
     };
 
@@ -62,7 +62,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       token: tokens.mantle.USDT,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        zeronetwork: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
       },
     };
 
@@ -77,7 +77,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       token: tokens.mode.USDT,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        zeronetwork: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
       },
     };
 
@@ -92,7 +92,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       token: tokens.polygon.USDT,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        zeronetwork: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
       },
     };
 
@@ -107,7 +107,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       token: tokens.scroll.USDT,
       interchainSecurityModule: ISM_CONFIG,
       remoteRouters: {
-        zeronetwork: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
       },
     };
 
