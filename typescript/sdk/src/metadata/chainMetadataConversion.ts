@@ -70,6 +70,9 @@ export function chainMetadataToCosmosChain(metadata: ChainMetadata): {
     },
     fees: {
       fee_tokens: [
+        // if there is a gas price object available in the cosmos registry
+        // config we infer the gas denom and prices from it, if not we take
+        // the native token denom and omit the gas prices
         {
           denom: gasPrice?.denom ?? nativeToken.denom!,
           ...(gasPrice?.amount
