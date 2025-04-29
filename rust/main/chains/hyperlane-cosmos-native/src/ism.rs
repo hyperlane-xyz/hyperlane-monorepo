@@ -115,15 +115,11 @@ impl MultisigIsm for CosmosNativeIsm {
             t if t == MerkleRootMultisigIsm::type_url() => {
                 let ism = MerkleRootMultisigIsm::decode(ism.value.as_slice())
                     .map_err(HyperlaneCosmosError::from)?;
-                let mut validators = ism
+                let validators = ism
                     .validators
                     .iter()
                     .map(|v| H160::from_str(v).map(H256::from))
                     .collect::<Result<Vec<_>, _>>()?;
-                // on cosmos native, the ISM expects the checkpoints in the metadata to be sorted
-                // in ascending order of the validator address. So we sort the validators here,
-                // which will determine the order of the checkpoints in the metadata.
-                validators.sort();
                 Ok((validators, ism.threshold as u8))
             }
             _ => Err(ChainCommunicationError::from_other_str(&format!(
