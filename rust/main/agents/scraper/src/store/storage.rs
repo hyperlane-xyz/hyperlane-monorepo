@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use itertools::Itertools;
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
@@ -92,7 +92,7 @@ impl HyperlaneDbStore {
             .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|b| (txn, b.id)))
             .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
         let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
-        debug!(?txns_with_ids, "Ensured transactions");
+        debug!("Ensured transactions");
 
         Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
     }
