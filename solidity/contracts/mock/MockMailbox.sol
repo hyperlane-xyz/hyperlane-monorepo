@@ -78,6 +78,26 @@ contract MockMailbox is Mailbox {
         inboundProcessedNonce++;
     }
 
+    function handleNextInboundMessage() public payable {
+        bytes memory _message = inboundMessages[inboundProcessedNonce];
+        MockMailbox(address(this)).handleMessage(_message);
+        inboundProcessedNonce++;
+    }
+
+    function handleAllInboundMessages() public payable {
+        while (inboundProcessedNonce < inboundUnprocessedNonce) {
+            handleNextInboundMessage();
+        }
+    }
+
+    function handleMessage(bytes calldata message) external {
+        IMessageRecipient(message.recipientAddress()).handle(
+            message.origin(),
+            message.sender(),
+            message.body()
+        );
+    }
+
     function processInboundMessage(uint32 _nonce) public payable {
         bytes memory _message = inboundMessages[_nonce];
         Mailbox(address(this)).process{value: msg.value}("", _message);
