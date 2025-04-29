@@ -373,13 +373,12 @@ async fn prepare_classic_task(
 ) {
     loop {
         if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
+            // The submit queue is too long, so give some time before checking again
+            sleep(Duration::from_millis(150)).await;
             continue;
         }
 
-        let batch = if let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await
-        {
-            batch
-        } else {
+        let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await else {
             continue;
         };
 
@@ -410,19 +409,17 @@ async fn prepare_lander_task(
 ) {
     loop {
         if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
+            // The submit queue is too long, so give some time before checking again
+            sleep(Duration::from_millis(150)).await;
             continue;
         }
 
-        let batch = if let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await
-        {
-            batch
-        } else {
+        let Some(batch) = get_batch_or_wait(&mut prepare_queue, max_batch_size).await else {
             continue;
         };
 
-        let batch_to_process = filter_ops_to_prepare(
+        let batch_to_process = confirm_already_submitted_operations(
             entrypoint.clone(),
-            &prepare_queue,
             &confirm_queue,
             db.clone(),
             batch,
@@ -442,59 +439,44 @@ async fn prepare_lander_task(
 }
 
 /// This function checks the status of the payloads associated with the operations in the batch.
-/// If the payload is dropped or does not exist, the operation will go through prepare logic.
 /// If the payload is not dropped, the operation is pushed to the confirmation queue.
-/// If there are an error on retrieving payload ids or statuses for an operation, the operation
-/// will be returned to prepare queue.
-async fn filter_ops_to_prepare(
+/// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
+async fn confirm_already_submitted_operations(
     entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
+    use ConfirmReason::AlreadySubmitted;
+    use PendingOperationStatus::Confirm;
+
     let mut ops_to_prepare = vec![];
     for op in batch.into_iter() {
-        let maybe_op_to_prepare = filter_single_op_to_prepare(
-            entrypoint.clone(),
-            prepare_queue,
-            confirm_queue,
-            db.clone(),
-            op,
-        )
-        .await;
-
-        if let Some(op_to_prepare) = maybe_op_to_prepare {
-            ops_to_prepare.push(op_to_prepare);
+        if has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
+            let status = Some(Confirm(AlreadySubmitted));
+            confirm_queue.push(op, status).await;
+        } else {
+            ops_to_prepare.push(op);
         }
     }
     ops_to_prepare
 }
 
-async fn filter_single_op_to_prepare(
+async fn has_operation_been_submitted(
     entrypoint: Arc<PayloadDispatcherEntrypoint>,
-    prepare_queue: &OpQueue,
-    confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
-    op: QueueOperation,
-) -> Option<QueueOperation> {
-    use hyperlane_core::ConfirmReason::AlreadySubmitted;
-
+    op: &QueueOperation,
+) -> bool {
     let id = op.id();
 
     let payload_ids = match db.retrieve_payload_ids_by_message_id(&id) {
         Ok(ids) => ids,
-        Err(e) => {
-            let reason = ReprepareReason::ErrorRetrievingPayloadIds;
-            let msg = "Error retrieving payload ids by message id in prepare task";
-            prepare_op(op, prepare_queue, e, msg, reason).await;
-            return None;
-        }
+        Err(_) => return false,
     };
 
     let payload_ids = match payload_ids {
-        None => return Some(op),
-        Some(ids) if ids.is_empty() => return Some(op),
+        None => return false,
+        Some(ids) if ids.is_empty() => return false,
         Some(ids) => ids,
     };
 
@@ -503,19 +485,9 @@ async fn filter_single_op_to_prepare(
     let status = entrypoint.payload_status(payload_id).await;
 
     match status {
-        Ok(PayloadStatus::Dropped(_)) => Some(op),
-        Ok(_) => {
-            confirm_queue
-                .push(op, Some(PendingOperationStatus::Confirm(AlreadySubmitted)))
-                .await;
-            None
-        }
-        Err(e) => {
-            let reason = ReprepareReason::ErrorRetrievingPayloadStatus;
-            let msg = "Error retrieving payload status by payload id in prepare task";
-            prepare_op(op, prepare_queue, e, msg, reason).await;
-            None
-        }
+        Ok(PayloadStatus::Dropped(_)) => false,
+        Ok(_) => true,
+        Err(_) => false,
     }
 }
 
@@ -529,8 +501,6 @@ async fn apply_backpressure(submit_queue: &OpQueue, max_len: &Option<u32>) -> bo
                 max_submit_queue_len=%max_len,
                 "Submit queue is too long, waiting to prepare more ops"
             );
-            // The submit queue is too long, so give some time before checking again
-            sleep(Duration::from_millis(150)).await;
             return true;
         }
     }
