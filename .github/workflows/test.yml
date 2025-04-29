@@ -21,10 +21,14 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   RUSTC_WRAPPER: sccache
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
   yarn-install:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -60,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +79,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: lint
         run: yarn lint
@@ -105,7 +110,7 @@ jobs:
           rm -f changed_files.txt
 
   yarn-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
     needs: [yarn-install]
@@ -124,7 +129,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
+          cache-provider: github
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
@@ -148,7 +153,7 @@ jobs:
         run: hyperlane --version
 
   cli-e2e-matrix:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -186,6 +191,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -230,7 +236,7 @@ jobs:
         run: yarn --cwd typescript/cosmos-sdk test:e2e
 
   agent-configs:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -245,6 +251,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -434,7 +441,7 @@ jobs:
           exit 1
 
   env-test:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
@@ -465,6 +472,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -480,7 +488,7 @@ jobs:
             echo "Test failed, waiting before retry..."
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -491,7 +499,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
+          cache-provider: github
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
