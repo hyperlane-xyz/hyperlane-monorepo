@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cli
 
+## 13.0.0-starknet.0
+
 ## 12.3.0
 
 ### Minor Changes

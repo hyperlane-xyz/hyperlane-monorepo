@@ -1,5 +1,12 @@
 # @hyperlane-xyz/helloworld
 
+## 13.0.0-starknet.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@13.0.0-starknet.0
+- @hyperlane-xyz/core@7.1.3-starknet.0
+
 ## 12.3.0
 
 ### Patch Changes

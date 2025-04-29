@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cosmos-sdk",
-  "version": "12.3.0",
+  "version": "13.0.0-starknet.0",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
   "type": "module",
   "exports": {
@@ -46,6 +46,6 @@
   },
   "dependencies": {
     "@cosmjs/stargate": "^0.32.4",
-    "@hyperlane-xyz/cosmos-types": "12.3.0"
+    "@hyperlane-xyz/cosmos-types": "13.0.0-starknet.0"
   }
 }

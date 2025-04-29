@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 7.1.3-starknet.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@13.0.0-starknet.0
+
 ## 7.1.2
 
 ### Patch Changes
