@@ -184,10 +184,9 @@ export async function getSafeTx(
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
   const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
-  const maxRetries = 5;
   let retryCount = 0;
 
-  while (retryCount < maxRetries) {
+  while (retryCount < TX_FETCH_RETRIES) {
     try {
       const txDetailsResponse = await fetch(txDetailsUrl, {
         method: 'GET',
@@ -201,23 +200,21 @@ export async function getSafeTx(
       return await txDetailsResponse.json();
     } catch (error) {
       retryCount++;
-      if (retryCount === maxRetries) {
+      if (retryCount === TX_FETCH_RETRIES) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch transaction details for ${safeTxHash} after ${maxRetries} attempts: ${error}`,
+            `Failed to fetch transaction details for ${safeTxHash} after ${TX_FETCH_RETRIES} attempts: ${error}`,
           ),
         );
         return;
       }
       rootLogger.warn(
         chalk.yellow(
-          `Retry ${retryCount}/${maxRetries} for transaction ${safeTxHash}: ${error}`,
+          `Retry ${retryCount}/${TX_FETCH_RETRIES} for transaction ${safeTxHash}: ${error}`,
         ),
       );
       // Exponential backoff: wait 2^retryCount seconds before retrying
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.pow(2, retryCount) * 1000),
-      );
+      await new Promise((resolve) => setTimeout(resolve, TX_FETCH_RETRY_DELAY));
     }
   }
 }
@@ -485,11 +482,10 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      const maxRetries = 5;
       let retryCount = 0;
       let pendingTxs;
 
-      while (retryCount < maxRetries) {
+      while (retryCount < TX_FETCH_RETRIES) {
         rootLogger.info(
           chalk.gray.italic(
             `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
@@ -500,22 +496,22 @@ export async function getPendingTxsForChains(
           break;
         } catch (error) {
           retryCount++;
-          if (retryCount === maxRetries) {
+          if (retryCount === TX_FETCH_RETRIES) {
             rootLogger.error(
               chalk.red(
-                `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${maxRetries} attempts: ${error}`,
+                `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
               ),
             );
             return;
           }
           rootLogger.warn(
             chalk.yellow(
-              `Retry ${retryCount}/${maxRetries} for pending transactions on ${chain}: ${error}`,
+              `Retry ${retryCount}/${TX_FETCH_RETRIES} for pending transactions on ${chain}: ${error}`,
             ),
           );
           // Exponential backoff: wait 2^retryCount seconds before retrying
           await new Promise((resolve) =>
-            setTimeout(resolve, Math.pow(2, retryCount) * 1000),
+            setTimeout(resolve, TX_FETCH_RETRY_DELAY),
           );
         }
       }
