@@ -34,6 +34,25 @@ pub enum SubmitterError {
     ChainCommunicationError(#[from] hyperlane_core::ChainCommunicationError),
 }
 
+impl SubmitterError {
+    pub fn to_metrics_label(&self) -> String {
+        match self {
+            SubmitterError::NetworkError(_) => "NetworkError".to_string(),
+            SubmitterError::TxSubmissionError(_) => "TxSubmissionError".to_string(),
+            SubmitterError::TxAlreadyExists => "TxAlreadyExists".to_string(),
+            SubmitterError::TxReverted => "TxReverted".to_string(),
+            SubmitterError::ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
+            SubmitterError::ChannelClosed => "ChannelClosed".to_string(),
+            SubmitterError::EyreError(_) => "EyreError".to_string(),
+            SubmitterError::PayloadNotFound => "PayloadNotFound".to_string(),
+            SubmitterError::SimulationFailed => "SimulationFailed".to_string(),
+            SubmitterError::NonRetryableError(_) => "NonRetryableError".to_string(),
+            SubmitterError::DbError(_) => "DbError".to_string(),
+            SubmitterError::ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
+        }
+    }
+}
+
 pub trait IsRetryable {
     fn is_retryable(&self) -> bool;
 }

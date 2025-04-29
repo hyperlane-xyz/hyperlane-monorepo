@@ -9,7 +9,7 @@ import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
-import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
+import { Modules } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
@@ -20,15 +20,8 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const {
-    environment,
-    asDeployer,
-    chains,
-    fork,
-    context,
-    pushMetrics,
-    interactive,
-  } = await getCheckWarpDeployArgs().argv;
+  const { environment, asDeployer, chains, fork, context, pushMetrics } =
+    await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
   const checkerViolationsGauge = new Gauge(
@@ -47,17 +40,12 @@ async function main() {
     registries,
   );
 
-  let warpIdsToCheck: string[];
-  if (interactive) {
-    warpIdsToCheck = await getWarpRouteIdsInteractive();
-  } else {
-    console.log(chalk.yellow('Skipping the following warp routes:'));
-    routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
+  console.log(chalk.yellow('Skipping the following warp routes:'));
+  routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
 
-    warpIdsToCheck = Object.keys(warpCoreConfigMap).filter(
-      (warpRouteId) => !routesToSkip.includes(warpRouteId),
-    );
-  }
+  const warpIdsToCheck = Object.keys(warpCoreConfigMap).filter(
+    (warpRouteId) => !routesToSkip.includes(warpRouteId),
+  );
 
   // Get all the chains from warpCoreConfigMap. Used to initialize the MultiProvider.
   const warpConfigChains = warpIdsToCheck.reduce((chains, warpRouteId) => {

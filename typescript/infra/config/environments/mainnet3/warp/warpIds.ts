@@ -1,7 +1,7 @@
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
-  ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH = 'EZETH/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-zircuit',
-  ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE = 'EZETHSTAGE/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-zircuit',
+  ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH = 'EZETH/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-worldchain-zircuit',
+  ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE = 'EZETHSTAGE/arbitrum-base-berachain-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-unichain-worldchain-zircuit',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
@@ -41,7 +41,6 @@ export enum WarpRouteIds {
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
   BerachainEthereumSwellUnichainZircuitPZETHSTAGE = 'PZETHSTAGE/berachain-ethereum-swell-unichain-zircuit',
-  EthereumBscLumiaprismLUMIA = 'LUMIA/bsc-ethereum-lumiaprism',
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
