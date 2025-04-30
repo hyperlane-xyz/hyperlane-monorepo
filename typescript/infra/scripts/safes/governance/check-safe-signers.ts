@@ -112,11 +112,14 @@ async function main() {
     // Group other violations by chain
     const violationsByChain = violations
       .filter((v) => v.type !== SafeConfigViolationType.thresholdMismatch)
-      .reduce((acc, v) => {
-        if (!acc[v.chain]) acc[v.chain] = [];
-        acc[v.chain].push(v);
-        return acc;
-      }, {} as Record<string, SafeConfigViolation[]>);
+      .reduce(
+        (acc, v) => {
+          if (!acc[v.chain]) acc[v.chain] = [];
+          acc[v.chain].push(v);
+          return acc;
+        },
+        {} as Record<string, SafeConfigViolation[]>,
+      );
 
     // Display chain-specific violations as bulleted lists
     for (const [chain, chainViolations] of Object.entries(violationsByChain)) {
