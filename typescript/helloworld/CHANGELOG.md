@@ -1,12 +1,12 @@
 # @hyperlane-xyz/helloworld
 
-## 13.0.0-starknet.0
+## 13.0.0-starknet.1
 
 ### Patch Changes
 
 - Updated dependencies [82b44d1]
-  - @hyperlane-xyz/sdk@13.0.0-starknet.0
-  - @hyperlane-xyz/core@7.1.4-starknet.0
+  - @hyperlane-xyz/sdk@13.0.0-starknet.1
+  - @hyperlane-xyz/core@7.1.4-starknet.1
 
 ## 12.4.0
 

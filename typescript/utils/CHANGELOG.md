@@ -1,6 +1,6 @@
 # @hyperlane-xyz/utils
 
-## 13.0.0-starknet.0
+## 13.0.0-starknet.1
 
 ### Minor Changes
 

@@ -1,6 +1,6 @@
 # @hyperlane-xyz/starknet-core
 
-## 13.0.0-starknet.0
+## 13.0.0-starknet.1
 
 ### Major Changes
 

@@ -1,6 +1,6 @@
 # @hyperlane-xyz/cosmos-types
 
-## 13.0.0-starknet.0
+## 13.0.0-starknet.1
 
 ## 12.4.0
 
