@@ -88,12 +88,6 @@ pub(crate) fn normalize_public_key(
 }
 
 pub(crate) fn tx_response_to_outcome(response: Response, gas_price: FixedPointNumber) -> TxOutcome {
-    // TODO: check if gas price is the literal price per gas unit or how much we paid in tokens for gas
-    // rn we assume that the underlying cosmos chain does not have gas refunds
-    // in that case the gas paid will always be:
-    // gas_wanted * gas_price
-    let gas_price = FixedPointNumber::from(response.tx_result.gas_wanted) * gas_price;
-
     TxOutcome {
         transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
         executed: response.check_tx.code.is_ok() && response.tx_result.code.is_ok(),
