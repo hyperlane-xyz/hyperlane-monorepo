@@ -36,12 +36,12 @@ abstract contract MovableCollateralRouter is AccessControl {
 
     function rebalance(
         uint32 domain,
-        bytes32 recipient,
         uint256 amount,
         ValueTransferBridge bridge
     ) external payable onlyRole(REBALANCER_ROLE) {
         address rebalancer = _msgSender();
-        if (allowedDestinations[domain] != recipient) {
+        bytes32 recipient = allowedDestinations[domain];
+        if (recipient == bytes32(0)) {
             revert BadDestination({rebalancer: rebalancer, domain: domain});
         }
 
