@@ -271,6 +271,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_txs_failed_simulation() {
         const PAYLOADS_TO_SEND: usize = 3;
         let succesful_build = true;

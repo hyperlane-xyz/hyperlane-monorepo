@@ -379,10 +379,12 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
-        let last_submission_time = tx.last_submission_attempt.unwrap_or(tx.creation_timestamp);
-        let seconds_since_last_submission =
-            (Utc::now() - last_submission_time).num_seconds() as u64;
-        seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS
+        if let Some(ref last_submission_time) = tx.last_submission_attempt {
+            let seconds_since_last_submission =
+                (Utc::now() - last_submission_time).num_seconds() as u64;
+            return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
+        }
+        true
     }
 }
 
