@@ -316,11 +316,11 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  /**
-   * Returns the recipient as a string representing a bytes32
-   */
-  getAllowedDestination(domain: Domain): Promise<string> {
-    return this.collateralContract.allowedDestinations(domain);
+  async getAllowedDestination(domain: Domain): Promise<Address> {
+    const allowedDestinationBytes32 =
+      await this.collateralContract.allowedDestinations(domain);
+
+    return bytes32ToAddress(allowedDestinationBytes32);
   }
 
   isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
