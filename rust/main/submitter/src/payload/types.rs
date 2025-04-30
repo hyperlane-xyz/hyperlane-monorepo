@@ -1,6 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::fmt::Debug;
 use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
