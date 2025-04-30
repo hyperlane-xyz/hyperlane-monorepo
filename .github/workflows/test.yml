@@ -224,6 +224,8 @@ jobs:
 
   cli-install-test-run:
     runs-on: ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
         with:
