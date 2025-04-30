@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, InterchainGasPayment,
-    LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer,
+    InterchainGasPayment, LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, EventFilter, FieldElement, MaybePendingBlockWithTxHashes,
@@ -102,25 +103,38 @@ impl StarknetMailboxIndexer {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         match self.reorg_period {
-            ReorgPeriod::None => Ok(
-                self.contract
+            ReorgPeriod::None => {
+                // Fetch the block number first
+                let block_number_u64 = self
+                    .contract
                     .provider
                     .block_number()
                     .await
-                    .map_err(Into::<HyperlaneStarknetError>::into)?
-                    .try_into()
-                    .unwrap(), // TODO: check if safe
-            ),
-            ReorgPeriod::Blocks(reorg_period) => Ok(
-                self.contract
+                    .map_err(Into::<HyperlaneStarknetError>::into)?;
+                // Now attempt the conversion u64->u32 and map the error
+                block_number_u64.try_into().map_err(|_| {
+                    ChainCommunicationError::from_other(
+                        HyperlaneStarknetError::BlockNumberOverflow(block_number_u64),
+                    )
+                })
+            }
+            ReorgPeriod::Blocks(reorg_period) => {
+                let block_number_u64 = self
+                    .contract
                     .provider
                     .block_number()
                     .await
-                    .map_err(Into::<HyperlaneStarknetError>::into)?
+                    .map_err(Into::<HyperlaneStarknetError>::into)?;
+                // Now attempt the conversion u64->u32 and map the error
+                block_number_u64
                     .saturating_sub(reorg_period.get() as u64)
                     .try_into()
-                    .unwrap(), // TODO: check if safe
-            ),
+                    .map_err(|_| {
+                        ChainCommunicationError::from_other(
+                            HyperlaneStarknetError::BlockNumberOverflow(block_number_u64),
+                        )
+                    })
+            }
             ReorgPeriod::Tag(_) => {
                 Err(hyperlane_core::ChainCommunicationError::InvalidReorgPeriod(
                     self.reorg_period.clone(),

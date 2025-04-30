@@ -138,11 +138,7 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
     ) -> ChainResult<Option<U256>> {
         let message = &message.into();
 
-        println!("HILL metadata: {:?}, {:?}", metadata.len(), metadata);
-        println!("HILL message: {:?}", message);
-        println!("HILL self.contract: {:?}", self.contract);
-
-        let _tx = self.contract.verify(
+        let tx = self.contract.verify(
             &StarknetBytes {
                 size: metadata.len() as u32,
                 data: to_packed_bytes(metadata),
@@ -150,20 +146,17 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
             message,
         );
 
-        // println!("HILL tx: {:?}", tx);
-
-        // let response = tx
-        //     .call()
-        //     .await
-        //     .map_err(Into::<HyperlaneStarknetError>::into)?;
-        // println!("HILL response: {:?}", response);
+        let response = tx
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         // We can't simulate the `verify` call in Starknet because
         // it's not marked as an entrypoint. So we just use the query interface
         // and hardcode a gas value - this can be inefficient if one ISM is
         // vastly cheaper than another one.
         let dummy_gas_value = U256::one();
-        Ok(Some(dummy_gas_value))
+        Ok(response.then_some(dummy_gas_value))
     }
 }
 

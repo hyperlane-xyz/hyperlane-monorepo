@@ -44,6 +44,9 @@ pub enum HyperlaneStarknetError {
     /// Error during a Starknet RPC call
     #[error(transparent)]
     ProviderError(#[from] starknet::providers::ProviderError),
+    /// block number overflow
+    #[error("Block number {0} overflows u32")]
+    BlockNumberOverflow(u64),
     /// Other error
     #[error("{0}")]
     Other(String),
