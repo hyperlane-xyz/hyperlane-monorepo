@@ -1,5 +1,21 @@
 # @hyperlane-xyz/sdk
 
+## 13.0.0-starknet.0
+
+### Minor Changes
+
+- 82b44d1: feat: Starknet SDK logic integration
+
+### Patch Changes
+
+- Updated dependencies [a82548f]
+- Updated dependencies [6c31782]
+- Updated dependencies [df022cd]
+  - @hyperlane-xyz/utils@13.0.0-starknet.0
+  - @hyperlane-xyz/starknet-core@13.0.0-starknet.0
+  - @hyperlane-xyz/core@7.1.4-starknet.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0-starknet.0
+
 ## 12.4.0
 
 ### Minor Changes

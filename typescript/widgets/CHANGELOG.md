@@ -1,5 +1,15 @@
 # @hyperlane-xyz/widgets
 
+## 13.0.0-starknet.0
+
+### Patch Changes
+
+- Updated dependencies [82b44d1]
+- Updated dependencies [a82548f]
+  - @hyperlane-xyz/sdk@13.0.0-starknet.0
+  - @hyperlane-xyz/utils@13.0.0-starknet.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0-starknet.0
+
 ## 12.4.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 13.0.0-starknet.0
+
+### Minor Changes
+
+- a82548f: Add Starknet address and tx utils
+
 ## 12.4.0
 
 ## 12.3.0
