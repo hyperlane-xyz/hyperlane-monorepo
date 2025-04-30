@@ -28,6 +28,7 @@ import {
   logGreen,
 } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
+import { RebalancerContextFactory } from '../rebalancer/RebalancerContextFactory.js';
 import {
   Executor,
   IExecutor,
@@ -35,7 +36,6 @@ import {
   MonitorPollingError,
   Strategy,
 } from '../rebalancer/index.js';
-import { RebalancerContextFactory } from '../rebalancer/metrics/RebalancerContextFactory.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {

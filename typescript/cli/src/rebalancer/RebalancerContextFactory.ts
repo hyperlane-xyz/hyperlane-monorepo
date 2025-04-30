@@ -6,10 +6,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
-import { Monitor } from '../monitor/Monitor.js';
-
-import { Metrics } from './Metrics.js';
-import { PriceGetter } from './PriceGetter.js';
+import { Metrics } from './metrics/Metrics.js';
+import { PriceGetter } from './metrics/PriceGetter.js';
+import { Monitor } from './monitor/Monitor.js';
 
 export class RebalancerContextFactory {
   /**
