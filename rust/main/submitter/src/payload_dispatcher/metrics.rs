@@ -32,6 +32,8 @@ pub struct DispatcherMetrics {
     pub dropped_payloads: IntCounterVec,
     pub dropped_transactions: IntCounterVec,
 
+    pub transaction_submissions: IntCounterVec,
+
     pub finalized_transactions: IntCounterVec,
 
     // includes a label for the error causing the retry, and a label for the type of call
@@ -91,6 +93,14 @@ impl DispatcherMetrics {
             &["destination", "reason",],
             registry.clone()
         )?;
+        let transaction_submissions = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced("transaction_submissions"),
+                "The number of times transactions were resubmitted",
+            ),
+            &["destination",],
+            registry.clone()
+        )?;
         let finalized_transactions = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced("finalized_transactions"),
@@ -123,6 +133,7 @@ impl DispatcherMetrics {
             finality_stage_pool_length,
             dropped_payloads,
             dropped_transactions,
+            transaction_submissions,
             finalized_transactions,
             call_retries,
             in_flight_transaction_time,
@@ -165,6 +176,12 @@ impl DispatcherMetrics {
     pub fn update_dropped_transactions_metric(&self, reason: &str, domain: &str) {
         self.dropped_transactions
             .with_label_values(&[domain, reason])
+            .inc();
+    }
+
+    pub fn update_transaction_submissions_metric(&self, domain: &str) {
+        self.transaction_submissions
+            .with_label_values(&[domain])
             .inc();
     }
 

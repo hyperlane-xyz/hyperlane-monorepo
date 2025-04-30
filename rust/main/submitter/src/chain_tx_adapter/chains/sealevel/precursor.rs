@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use solana_sdk::instruction::Instruction as SealevelInstruction;
 
 use hyperlane_sealevel::SealevelTxCostEstimate;
@@ -6,10 +8,18 @@ use crate::chain_tx_adapter::chains::sealevel::payload;
 use crate::chain_tx_adapter::chains::sealevel::payload::Instruction;
 use crate::payload::FullPayload;
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct SealevelTxPrecursor {
     pub instruction: SealevelInstruction,
     pub estimate: SealevelTxCostEstimate,
+}
+
+impl Debug for SealevelTxPrecursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SealevelTxPrecursor")
+            .field("cost_estimate", &self.estimate)
+            .finish()
+    }
 }
 
 impl SealevelTxPrecursor {
