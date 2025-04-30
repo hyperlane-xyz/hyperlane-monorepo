@@ -1,4 +1,4 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction, utils } from 'ethers';
 
 import {
   ERC20,
@@ -307,6 +307,21 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
     );
+  }
+
+  isRebalancer(account: Address): Promise<boolean> {
+    return this.collateralContract.hasRole(
+      utils.toUtf8Bytes(utils.keccak256(utils.toUtf8Bytes('REBALANCER_ROLE'))),
+      account,
+    );
+  }
+
+  getAllowedDestination(domain: Domain): Promise<string> {
+    return this.collateralContract.allowedDestinations(domain);
+  }
+
+  isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
+    return this.collateralContract.allowedBridges(domain, bridge);
   }
 
   populateRebalanceTx(params: {
