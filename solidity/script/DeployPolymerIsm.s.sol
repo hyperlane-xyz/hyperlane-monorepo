@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.19; // Use a recent version
 
-import {Script, console} from "forge-std/Script.sol";
+import "forge-std/Script.sol";
+import "forge-std/console.sol";
 
 import {PolymerISM} from "../contracts/isms/PolymerIsm.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -51,16 +52,18 @@ contract DeployPolymerIsm is Script {
         console.log("-----------------------------------------");
         console.log("Deployment Summary:");
         console.log("  PolymerISM Address:", address(polymerIsm));
-        console.log("  Configured Polymer Prover:", polymerIsm.polymerProver());
+        console.log(
+            "  Configured Polymer Prover:",
+            address(polymerIsm.polymerProver())
+        );
         console.log("  Configured Origin Mailbox:", polymerIsm.originMailbox());
         console.log("-----------------------------------------");
         console.log(
-            "Recipient contracts on this chain wishing to use this ISM for messages from",
-            originMailboxAddress,
-            "should return",
-            address(polymerIsm),
-            "from their interchainSecurityModule() function."
+            "Recipient contracts on this chain wishing to use this ISM for messages from:",
+            originMailboxAddress
         );
+        console.log("Should return:", address(polymerIsm));
+        console.log("from their interchainSecurityModule() function.");
 
         polymerIsmAddress = address(polymerIsm);
         return polymerIsmAddress;
