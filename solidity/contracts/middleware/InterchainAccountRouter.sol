@@ -39,8 +39,8 @@ contract InterchainAccountRouter is Router {
 
     // ============ Constants ============
 
-    address internal implementation;
-    bytes32 internal bytecodeHash;
+    address public immutable implementation;
+    bytes32 public immutable bytecodeHash;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
@@ -109,10 +109,9 @@ contract InterchainAccountRouter is Router {
             _owner
         );
 
-        implementation = address(new OwnableMulticall(address(this)));
-        // cannot be stored immutably because it is dynamically sized
-        bytes memory _bytecode = MinimalProxy.bytecode(implementation);
-        bytecodeHash = keccak256(_bytecode);
+        bytes memory bytecode = _implementationBytecode(address(this));
+        implementation = Create2.deploy(0, bytes32(0), bytecode);
+        bytecodeHash = _proxyBytecodeHash(implementation);
     }
 
     /**
@@ -554,24 +553,15 @@ contract InterchainAccountRouter is Router {
         bytes32 _userSalt
     ) public view returns (address) {
         require(_router != address(0), "no router specified for destination");
-        // Derives the address of the first contract deployed by _router using
-        // the CREATE opcode.
-        address _implementation = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xd6),
-                            bytes1(0x94),
-                            _router,
-                            bytes1(0x01)
-                        )
-                    )
-                )
-            )
+
+        // replicate router constructor Create2 derivation
+        address _implementation = Create2.computeAddress(
+            bytes32(0),
+            keccak256(_implementationBytecode(_router)),
+            _router
         );
-        bytes memory _proxyBytecode = MinimalProxy.bytecode(_implementation);
-        bytes32 _bytecodeHash = keccak256(_proxyBytecode);
+
+        bytes32 _bytecodeHash = _proxyBytecodeHash(_implementation);
         bytes32 _salt = _getSalt(
             localDomain,
             _owner.addressToBytes32(),
@@ -738,6 +728,21 @@ contract InterchainAccountRouter is Router {
     }
 
     // ============ Internal Functions ============
+    function _implementationBytecode(
+        address router
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                type(OwnableMulticall).creationCode,
+                abi.encode(router)
+            );
+    }
+
+    function _proxyBytecodeHash(
+        address _implementation
+    ) internal pure returns (bytes32) {
+        return keccak256(MinimalProxy.bytecode(_implementation));
+    }
 
     /**
      * @dev Required for use of Router, compiler will not include this function in the bytecode
