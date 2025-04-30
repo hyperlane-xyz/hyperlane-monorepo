@@ -64,9 +64,8 @@ async function printBalances() {
         async ([type, address]) => {
           try {
             const provider = multiProvider.getProvider(chain);
-            const { decimals, symbol } = await multiProvider.getNativeToken(
-              chain,
-            );
+            const { decimals, symbol } =
+              await multiProvider.getNativeToken(chain);
             const balance = await provider.getBalance(address);
             const formattedBalance = formatUnits(balance, decimals);
             return {
