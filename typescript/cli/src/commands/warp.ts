@@ -4,13 +4,10 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
-  MultiProtocolProvider,
-  Token,
-  WarpCore,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -418,7 +415,7 @@ export const check: CommandModuleWithContext<{
   },
 };
 
-export const rebalancer: CommandModuleWithWriteContext<{
+export const rebalancer: CommandModuleWithContext<{
   warpRouteId: string;
   checkFrequency: number;
   strategyConfigFile: string;
@@ -504,43 +501,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          // Old Executor 👎
-
           executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
             errorRed(`Error processing rebalancing routes: ${e.messages}`);
           });
-
-          // New Executor 👍
-
-          // Map tokens by name for better lookup.
-          // This could be done outside of the event handler.
-          const tokensByChainName = new Map<ChainName, Token>(
-            warpCore.tokens.map((token) => [token.chainName, token]),
-          );
-
-          // Map the chains to the tokens.
-          // I suppose there is one token per chain in a warp route.
-          const simpleExecutorRoutes = rebalancingRoutes.map((route) => {
-            const origin = tokensByChainName.get(route.fromChain);
-            const destination = tokensByChainName.get(route.toChain);
-
-            if (!origin) {
-              throw new Error(`No token found for chain ${route.fromChain}`);
-            }
-
-            if (!destination) {
-              throw new Error(`No token found for chain ${route.toChain}`);
-            }
-
-            return {
-              origin,
-              destination,
-              amount: route.amount,
-            };
-          });
-
-          // Execute the Executor 💣
-          void simpleExecutor.rebalance(simpleExecutorRoutes);
         })
         // Observe monitor errors and exit
         .on('error', (e) => {
