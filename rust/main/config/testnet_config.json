@@ -269,7 +269,8 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1",
       "gasCurrencyCoinGeckoId": "binancecoin",
       "transactionOverrides": {
-        "gasPrice": 1000000000
+        "gasPrice": 1000000000,
+        "diffTest": true
       }
     },
     "connextsepolia": {
