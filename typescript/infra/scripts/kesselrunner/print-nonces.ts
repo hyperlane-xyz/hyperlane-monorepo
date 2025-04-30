@@ -36,11 +36,14 @@ async function printNonces() {
     }),
   );
 
-  const formattedNonces = noncesObject.reduce((acc, { chain, type, nonce }) => {
-    if (!acc[chain]) acc[chain] = {};
-    acc[chain][type] = nonce;
-    return acc;
-  }, {} as Record<string, any>);
+  const formattedNonces = noncesObject.reduce(
+    (acc, { chain, type, nonce }) => {
+      if (!acc[chain]) acc[chain] = {};
+      acc[chain][type] = nonce;
+      return acc;
+    },
+    {} as Record<string, any>,
+  );
 
   // eslint-disable-next-line no-console
   console.table(formattedNonces);
