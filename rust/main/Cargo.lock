@@ -5188,7 +5188,6 @@ dependencies = [
  "backtrace",
  "backtrace-oneline",
  "bs58 0.5.1",
- "cc",
  "chrono",
  "color-eyre",
  "config",
