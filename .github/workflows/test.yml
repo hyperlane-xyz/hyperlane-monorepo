@@ -222,7 +222,7 @@ jobs:
         if: env.WARP_CONFIG_CHANGES == 'true'
         run: yarn --cwd typescript/infra test:warp
 
-  cli-install-test:
+  cli-install-test-run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -237,6 +237,18 @@ jobs:
 
       - name: Test run the CLI
         run: hyperlane --version
+
+  cli-install-test:
+    runs-on: ubuntu-latest
+    needs: [cli-install-test-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cli-install-test status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Install Test'
+          result: ${{ needs.cli-install-test-run.result }}
 
   cli-e2e-matrix:
     runs-on: ubuntu-latest
@@ -306,8 +318,10 @@ jobs:
           job_name: 'CLI E2E'
           result: ${{ needs.cli-e2e-matrix.result }}
 
-  cosmos-sdk-e2e:
+  cosmos-sdk-e2e-run:
     runs-on: ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -322,6 +336,18 @@ jobs:
 
       - name: Cosmos SDK e2e tests
         run: yarn --cwd typescript/cosmos-sdk test:e2e
+
+  cosmos-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [cosmos-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cosmos-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Cosmos SDK E2E'
+          result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
   agent-configs:
     runs-on: ubuntu-latest
