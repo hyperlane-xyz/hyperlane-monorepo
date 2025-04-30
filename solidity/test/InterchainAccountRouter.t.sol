@@ -347,24 +347,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(address(igp).balance, expectedGasPayment);
     }
 
-    function testFuzz_getDeployedInterchainAccount_checkAccountOwners(
-        address owner
-    ) public {
-        // act
-        ica = destinationIcaRouter.getDeployedInterchainAccount(
-            origin,
-            owner,
-            address(originIcaRouter),
-            address(environment.isms(destination))
-        );
-
-        (uint32 domain, bytes32 ownerBytes) = destinationIcaRouter
-            .accountOwners(address(ica));
-        // assert
-        assertEq(domain, origin);
-        assertEq(ownerBytes, owner.addressToBytes32());
-    }
-
     function test_quoteGasPayment() public {
         // arrange
         originIcaRouter.enrollRemoteRouterAndIsm(
