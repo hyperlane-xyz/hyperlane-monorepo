@@ -18,7 +18,7 @@ spec:
           - name: check-warp-deploy
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: Always
-            command:
+            args:
             - ./node_modules/.bin/tsx
             - ./typescript/infra/scripts/check/check-warp-deploy.ts
             - -e
