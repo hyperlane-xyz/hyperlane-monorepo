@@ -57,7 +57,7 @@ contract InterchainGasPaymaster is
     /// @notice Destination domain => gas oracle and overhead gas amount.
     mapping(uint32 => DomainGasConfig) public destinationGasConfigs;
 
-    /// @notice The benficiary that can receive native tokens paid into this contract.
+    /// @notice The beneficiary that can receive native tokens paid into this contract.
     address public beneficiary;
 
     // ============ Events ============

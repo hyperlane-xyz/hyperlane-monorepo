@@ -149,7 +149,7 @@ contract ECDSAStakeRegistry is
      * @param _operator The address of the operator.
      * @return The latest signing key of the operator.
      */
-    function getLastestOperatorSigningKey(
+    function getLatestOperatorSigningKey(
         address _operator
     ) external view returns (address) {
         return address(uint160(_operatorSigningKeyHistory[_operator].latest()));
