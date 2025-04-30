@@ -17,9 +17,11 @@ import {
 import {
   KESSEL_RUN_CONFIG,
   KESSEL_RUN_HOURLY_RATE,
+} from '../../src/kesselrunner/config.js';
+import {
   MULTICALL3_ABI,
   MULTICALL3_ADDRESS,
-} from '../../src/kesselrunner/config.js';
+} from '../../src/kesselrunner/consts.js';
 import {
   Call3Value,
   PreparedMulticall,

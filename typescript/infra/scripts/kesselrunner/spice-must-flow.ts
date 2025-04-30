@@ -16,9 +16,9 @@ import {
   KESSEL_RUN_FUNDER_CONFIG,
   KESSEL_RUN_HOURLY_RATE,
   KESSEL_RUN_SPICE_ROUTE,
-  MILLENNIUM_FALCON_ABI,
   MILLENNIUM_FALCON_ADDRESS,
 } from '../../src/kesselrunner/config.js';
+import { MILLENNIUM_FALCON_ABI } from '../../src/kesselrunner/consts.js';
 import {
   PreparedMulticall,
   QueuedMulticall,
