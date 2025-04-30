@@ -1,11 +1,12 @@
 import EventEmitter from 'events';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { MultiProtocolProvider, WarpCore } from '@hyperlane-xyz/sdk';
+import { MultiProtocolProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
 
 import { WrappedError } from '../../utils/errors.js';
 import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
+import { logger } from '../metrics/utils.js';
 
 export class MonitorStartError extends WrappedError {
   name = 'MonitorStartError';
@@ -76,24 +77,50 @@ export class Monitor implements IMonitor {
           };
 
           for (const token of warpCore.tokens) {
-            // Ignore non-collateralized tokens given that we only care about collateral balances
-            if (!token.isCollateralized()) {
-              continue;
+            const bridgedSupply = await this.getTokenBridgedSupply(
+              token,
+              warpCore,
+            );
+
+            // data required for the rebalancer
+            function rebalancerData(
+              token: Token,
+              bridgedSupply?: bigint,
+            ): MonitorEvent['balances'][number] | undefined {
+              // Ignore non-collateralized tokens given that we only care about collateral balances
+              if (!token.isCollateralized()) {
+                return;
+              }
+
+              // Ignore tokens without bridged supply
+              if (bridgedSupply === undefined) {
+                return;
+              }
+
+              return {
+                chain: token.chainName,
+                owner: token.addressOrDenom,
+                token: token.collateralAddressOrDenom!,
+                value: bridgedSupply,
+              };
             }
 
-            const adapter = token.getHypAdapter(warpCore.multiProvider);
+            // data required for the metrics
+            function metricsData(token: Token, bridgedSupply?: bigint) {
+              return {
+                token,
+                bridgedSupply,
+              };
+            }
 
-            // Get the bridged supply of the collateral token to obtain how much collateral is available
-            const bridgedSupply = await adapter.getBridgedSupply();
+            const balances = rebalancerData(token, bridgedSupply);
+            if (balances) {
+              event.balances.push(balances);
+            }
 
-            event.balances.push({
-              chain: token.chainName,
-              owner: token.addressOrDenom,
-              token: token.collateralAddressOrDenom!,
-              value: bridgedSupply!,
-            });
-
-            event.token = token;
+            const metrics = metricsData(token, bridgedSupply);
+            event.token = metrics.token;
+            event.bridgedSupply = metrics.bridgedSupply;
           }
 
           // Emit the event containing the collateral balances
@@ -120,6 +147,28 @@ export class Monitor implements IMonitor {
         ),
       );
     }
+  }
+
+  private async getTokenBridgedSupply(
+    token: Token,
+    warpCore: WarpCore,
+  ): Promise<bigint | undefined> {
+    if (!token.isHypToken()) {
+      logger.warn(
+        'Cannot get bridged balance for a non-Hyperlane token',
+        token,
+      );
+      return;
+    }
+
+    const adapter = token.getHypAdapter(warpCore.multiProvider);
+    const bridgedSupply = await adapter.getBridgedSupply();
+
+    if (bridgedSupply === undefined) {
+      logger.warn('Bridged supply not found for token', token);
+    }
+
+    return bridgedSupply;
   }
 
   stop() {

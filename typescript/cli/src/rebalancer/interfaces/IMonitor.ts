@@ -29,6 +29,7 @@ export type MonitorEvent = {
   }[];
 
   token: Token | null;
+  bridgedSupply?: bigint;
 };
 
 /**

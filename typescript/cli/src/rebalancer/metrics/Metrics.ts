@@ -47,8 +47,6 @@ export class Metrics implements IMetrics {
   ] as const;
 
   private constructor(
-    private readonly registry: IRegistry,
-    private readonly warpRouteId: string,
     private readonly tokenPriceGetter: PriceGetter,
     private readonly collateralTokenSymbol: string,
     private readonly warpCore: WarpCore,
@@ -71,8 +69,6 @@ export class Metrics implements IMetrics {
     const tokenPriceGetter = await PriceGetter.create(metadata);
 
     return new Metrics(
-      registry,
-      warpRouteId,
       tokenPriceGetter,
       collateralTokenSymbol,
       warpCore,
@@ -91,14 +87,20 @@ export class Metrics implements IMetrics {
   }
 
   // Updates the metrics for a single token in a warp route.
-  private async updateTokenMetrics(token: Token): Promise<void> {
+  private async updateTokenMetrics(
+    token: Token,
+    bridgedSupply?: bigint,
+  ): Promise<void> {
     const promises = [
       tryFn(async () => {
-        const balanceInfo = await this.getTokenBridgedBalance(token);
-
-        if (!balanceInfo) {
+        if (!bridgedSupply) {
           return;
         }
+
+        const balanceInfo = await this.getTokenBridgedBalance(
+          token,
+          bridgedSupply,
+        );
 
         updateTokenBalanceMetrics(
           this.warpCore,
@@ -210,23 +212,24 @@ export class Metrics implements IMetrics {
   // Gets the bridged balance and value of a token in a warp route.
   private async getTokenBridgedBalance(
     token: Token,
-  ): Promise<WarpRouteBalance | undefined> {
-    if (!token.isHypToken()) {
-      logger.warn(
-        'Cannot get bridged balance for a non-Hyperlane token',
-        token,
-      );
-      return undefined;
-    }
+    bridgedSupply: bigint,
+  ): Promise<WarpRouteBalance> {
+    // if (!token.isHypToken()) {
+    //   logger.warn(
+    //     'Cannot get bridged balance for a non-Hyperlane token',
+    //     token,
+    //   );
+    //   return undefined;
+    // }
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
     let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
-    const bridgedSupply = await adapter.getBridgedSupply();
+    // const bridgedSupply = await adapter.getBridgedSupply();
 
-    if (bridgedSupply === undefined) {
-      logger.warn('Bridged supply not found for token', token);
-      return undefined;
-    }
+    // if (bridgedSupply === undefined) {
+    //   logger.warn('Bridged supply not found for token', token);
+    //   return undefined;
+    // }
 
     const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
 
