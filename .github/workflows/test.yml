@@ -109,6 +109,8 @@ jobs:
     outputs:
       only_rust: ${{ steps.check-rust-only.outputs.only_rust }}
     runs-on: ubuntu-latest
+    env:
+      PR_BASE: ${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
