@@ -7991,7 +7991,7 @@ __metadata:
     eslint-plugin-import: "npm:^2.31.0"
     globby: "npm:^14.1.0"
     mocha: "npm:^10.2.0"
-    prettier: "npm:^2.8.8"
+    prettier: "npm:^3.5.3"
     starknet: "npm:^6.24.1"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
@@ -32118,7 +32118,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^2.7.1, prettier@npm:^2.8.0, prettier@npm:^2.8.3, prettier@npm:^2.8.8":
+"prettier@npm:^2.7.1, prettier@npm:^2.8.0, prettier@npm:^2.8.3":
   version: 2.8.8
   resolution: "prettier@npm:2.8.8"
   bin:
