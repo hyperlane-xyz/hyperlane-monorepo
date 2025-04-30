@@ -201,7 +201,9 @@ impl InclusionStage {
             "Simulating transaction",
             state,
         )
-        .await?;
+        .await
+        // if simulation fails or hits a non-retryable error, drop the tx
+        .unwrap_or(false);
         if !simulation_success {
             warn!(?tx, "Transaction simulation failed");
             Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
