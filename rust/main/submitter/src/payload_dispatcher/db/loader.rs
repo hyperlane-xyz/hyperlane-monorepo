@@ -88,19 +88,32 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         // Always prioritize advancing the the high nonce iterator, as
         // we have a preference for higher nonces
         if let Some(high_index_iter) = &mut self.high_index_iter {
-            if let Some(LoadingOutcome::Loaded) = high_index_iter.try_load_item().await? {
-                // If we have a high nonce item, we can process it
-                high_index_iter.iterate();
-                return Ok(LoadingOutcome::Loaded);
+            match high_index_iter.try_load_item().await? {
+                Some(LoadingOutcome::Loaded) => {
+                    high_index_iter.iterate();
+                    // If we have a high nonce item, we can process it
+                    return Ok(LoadingOutcome::Loaded);
+                }
+                Some(LoadingOutcome::Skipped) => {
+                    high_index_iter.iterate();
+                }
+                None => {}
             }
         }
 
         // Low nonce messages are only processed if the high nonce iterator
         // can't make any progress
-        if let Some(LoadingOutcome::Loaded) = self.low_index_iter.try_load_item().await? {
-            // If we have a low nonce item, we can process it
-            self.low_index_iter.iterate();
-            return Ok(LoadingOutcome::Loaded);
+        match self.low_index_iter.try_load_item().await? {
+            Some(LoadingOutcome::Loaded) => {
+                // If we have a low nonce item, we can process it
+                self.low_index_iter.iterate();
+                return Ok(LoadingOutcome::Loaded);
+            }
+            Some(LoadingOutcome::Skipped) => {
+                // If we don't have any items, we can skip
+                self.low_index_iter.iterate();
+            }
+            None => {}
         }
         Ok(LoadingOutcome::Skipped)
     }
