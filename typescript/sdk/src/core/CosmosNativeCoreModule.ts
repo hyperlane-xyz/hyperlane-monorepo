@@ -3,16 +3,18 @@ import {
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
+import { HookConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  ChainId,
   Domain,
   ProtocolType,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { CosmosNativeDeployer } from '../deploy/CosmosNativeDeployer.js';
-import { HookType } from '../hook/types.js';
+import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
+import { DerivedHookConfig, HookType } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
@@ -36,7 +38,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   protected coreReader: CosmosNativeCoreReader;
 
   public readonly chainName: ChainName;
-  public readonly chainId: string;
+  public readonly chainId: ChainId;
   public readonly domainId: Domain;
 
   constructor(
@@ -47,7 +49,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     super(args);
 
     this.chainName = multiProvider.getChainName(args.chain);
-    this.chainId = multiProvider.getChainId(args.chain).toString();
+    this.chainId = multiProvider.getChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
 
     this.coreReader = new CosmosNativeCoreReader(this.multiProvider, signer);
@@ -104,8 +106,6 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const chainName = multiProvider.getChainName(chain);
     const domainId = multiProvider.getDomainId(chain);
 
-    const deployer = new CosmosNativeDeployer(multiProvider, signer);
-
     // 1. Deploy default ISM
     const ismModule = await CosmosNativeIsmModule.create({
       chain: chainName,
@@ -129,18 +129,32 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     });
 
     // 3. Deploy default hook
-    const defaultHook = await deployer.deployHook({
+    const defaultHookModule = await CosmosNativeHookModule.create({
       chain: chainName,
-      hookConfig: config.defaultHook,
-      mailbox: mailbox.id,
+      config: config.defaultHook,
+      addresses: {
+        deployedHook: '',
+        mailbox: mailbox.id,
+      },
+      multiProvider,
+      signer,
     });
 
+    const { deployedHook: defaultHook } = defaultHookModule.serialize();
+
     // 4. Deploy required hook
-    const requiredHook = await deployer.deployHook({
+    const requiredHookModule = await CosmosNativeHookModule.create({
       chain: chainName,
-      hookConfig: config.requiredHook,
-      mailbox: mailbox.id,
+      config: config.requiredHook,
+      addresses: {
+        deployedHook: '',
+        mailbox: mailbox.id,
+      },
+      multiProvider,
+      signer,
     });
+
+    const { deployedHook: requiredHook } = requiredHookModule.serialize();
 
     // 5. Update the configuration with the newly created hooks
     await signer.setMailbox({
@@ -209,10 +223,10 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     let transactions: AnnotatedCosmJsNativeTransaction[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createRequiredHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
     );
-
-    // TODO: what about hook updates?
 
     return transactions;
   }
@@ -313,5 +327,126 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, ismUpdateTxs };
+  }
+
+  /**
+   * Create a transaction to update an existing Hook config, or deploy a new Hook and return a tx to setDefaultHook
+   *
+   * @param actualConfig - The on-chain router configuration, including the Hook configuration, and address.
+   * @param expectedConfig - The expected token router configuration, including the Hook configuration.
+   * @returns Transaction that need to be executed to update the Hook configuration.
+   */
+  async createDefaultHookUpdateTxs(
+    actualConfig: DerivedCoreConfig,
+    expectedConfig: CoreConfig,
+  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
+    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+
+    const actualDefaultHookConfig =
+      actualConfig.defaultHook as DerivedHookConfig;
+
+    // Try to update (may also deploy) Hook with the expected config
+    const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
+      actualDefaultHookConfig,
+      expectedConfig.defaultHook,
+    );
+
+    if (hookUpdateTxs.length) {
+      updateTransactions.push(...hookUpdateTxs);
+    }
+
+    const newHookDeployed = actualDefaultHookConfig.address !== deployedHook;
+    if (newHookDeployed) {
+      const { mailbox } = this.serialize();
+      updateTransactions.push({
+        annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
+        typeUrl: R.MsgSetMailbox.proto.type,
+        value: R.MsgSetMailbox.proto.converter.create({
+          owner: actualConfig.owner,
+          mailbox_id: mailbox,
+          default_hook: deployedHook,
+        }),
+      });
+    }
+
+    return updateTransactions;
+  }
+
+  /**
+   * Create a transaction to update an existing Hook config, or deploy a new Hook and return a tx to setRequiredHook
+   *
+   * @param actualConfig - The on-chain router configuration, including the Hook configuration, and address.
+   * @param expectedConfig - The expected token router configuration, including the Hook configuration.
+   * @returns Transaction that need to be executed to update the Hook configuration.
+   */
+  async createRequiredHookUpdateTxs(
+    actualConfig: DerivedCoreConfig,
+    expectedConfig: CoreConfig,
+  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
+    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+
+    const actualRequiredHookConfig =
+      actualConfig.requiredHook as DerivedHookConfig;
+
+    // Try to update (may also deploy) Hook with the expected config
+    const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
+      actualRequiredHookConfig,
+      expectedConfig.requiredHook,
+    );
+
+    if (hookUpdateTxs.length) {
+      updateTransactions.push(...hookUpdateTxs);
+    }
+
+    const newHookDeployed = actualRequiredHookConfig.address !== deployedHook;
+    if (newHookDeployed) {
+      const { mailbox } = this.serialize();
+      updateTransactions.push({
+        annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
+        typeUrl: R.MsgSetMailbox.proto.type,
+        value: R.MsgSetMailbox.proto.converter.create({
+          owner: actualConfig.owner,
+          mailbox_id: mailbox,
+          required_hook: deployedHook,
+        }),
+      });
+    }
+
+    return updateTransactions;
+  }
+
+  /**
+   * Updates or deploys the Hook using the provided configuration.
+   *
+   * @returns Object with deployedHook address, and update Transactions
+   */
+  public async deployOrUpdateHook(
+    actualHookConfig: DerivedHookConfig,
+    expectHookConfig: HookConfig,
+  ): Promise<{
+    deployedHook: Address;
+    hookUpdateTxs: AnnotatedCosmJsNativeTransaction[];
+  }> {
+    const { mailbox } = this.serialize();
+
+    const hookModule = new CosmosNativeHookModule(
+      this.multiProvider,
+      {
+        addresses: {
+          mailbox: mailbox,
+          deployedHook: actualHookConfig.address,
+        },
+        chain: this.chainName,
+        config: actualHookConfig.address,
+      },
+      this.signer,
+    );
+    this.logger.info(
+      `Comparing target Hook config with ${this.args.chain} chain`,
+    );
+    const hookUpdateTxs = await hookModule.update(expectHookConfig);
+    const { deployedHook } = hookModule.serialize();
+
+    return { deployedHook, hookUpdateTxs };
   }
 }

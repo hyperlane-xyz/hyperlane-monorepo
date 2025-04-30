@@ -1,6 +1,7 @@
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
+  ChainId,
   Domain,
   ProtocolType,
   assert,
@@ -38,7 +39,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
   // Adding these to reduce how often we need to grab from MultiProvider.
   public readonly chain: ChainName;
-  public readonly chainId: string;
+  public readonly chainId: ChainId;
   public readonly domainId: Domain;
 
   constructor(
@@ -51,7 +52,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
     this.mailbox = params.addresses.mailbox;
     this.chain = multiProvider.getChainName(this.args.chain);
-    this.chainId = multiProvider.getChainId(this.chain).toString();
+    this.chainId = multiProvider.getChainId(this.chain);
     this.domainId = multiProvider.getDomainId(this.chain);
 
     this.reader = new CosmosNativeIsmReader(signer);
