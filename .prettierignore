@@ -15,3 +15,4 @@ tools/
 typescript/infra/helm/**/templates/
 typescript/infra/src/infrastructure/external-secrets/helm/templates/
 vectors/
+.changeset/

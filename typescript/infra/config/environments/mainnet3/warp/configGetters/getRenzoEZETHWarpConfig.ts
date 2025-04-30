@@ -4,14 +4,12 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
-  ChainSubmissionStrategy,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmType,
   MultisigConfig,
   TokenType,
-  TxSubmitterType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
@@ -36,6 +34,7 @@ export const ezEthChainsToDeploy = [
   'swell',
   'unichain',
   'berachain',
+  'worldchain',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
@@ -56,6 +55,7 @@ export const renzoTokenPrices: ChainMap<string> = {
   swell: '3157.26',
   unichain: '2602.66',
   berachain: '10',
+  worldchain: '1599.53',
 };
 export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(renzoTokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
@@ -101,6 +101,7 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   swell: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   unichain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   berachain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  worldchain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -254,6 +255,16 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6', alias: 'Renzo' },
     ],
   },
+  worldchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x15c6aaf2d982651ea5ae5f080d0ddfe7d6545f19',
+        alias: 'Luganodes',
+      },
+      { address: '0x650a1bcb489BE2079d82602c10837780ef6dADA8', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
@@ -273,6 +284,7 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
     unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
     berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
+    worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
   };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
