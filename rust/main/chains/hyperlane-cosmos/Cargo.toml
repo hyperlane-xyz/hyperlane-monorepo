@@ -48,7 +48,7 @@ tower.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
-hyperlane-cosmos-rs = "0.1.4"
+hyperlane-cosmos-rs = { workspace = true }
 
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

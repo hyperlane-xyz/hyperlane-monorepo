@@ -39,7 +39,7 @@ pub trait BuildableQueryClient: Sized + std::fmt::Debug + Sync + Send + 'static 
     fn parse_tx_message_recipient(&self, tx: &Tx, hash: &H512) -> ChainResult<H256>;
 }
 
-/// Cosmos Native Provider
+/// Cosmos Provider
 ///
 /// implements the HyperlaneProvider trait
 #[derive(Debug, Clone)]
