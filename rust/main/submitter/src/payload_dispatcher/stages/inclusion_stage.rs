@@ -154,6 +154,10 @@ impl InclusionStage {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_id = ?tx.id, ?tx_status, "Transaction is pending inclusion");
+                if !state.adapter.tx_ready_for_resubmission(&tx).await {
+                    info!(?tx, "Transaction is not ready for resubmission");
+                    return Ok(());
+                }
                 return Self::process_pending_tx(tx, state, pool).await;
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
