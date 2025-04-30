@@ -183,6 +183,8 @@ jobs:
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
       PR_BASE: ${{ github.base_ref }}
+      BALANCE_CHANGES: false
+      WARP_CONFIG_CHANGES: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -190,28 +192,35 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Fetch PR base
+        run: git fetch origin $PR_BASE
+
+      - name: Check for balance/config changes
+        run: |
+          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+            echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
+          fi
+          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+            echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
+          fi
+
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
+        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
+        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         uses: ./.github/actions/checkout-registry
 
-      - name: Fetch PR base
-        run: git fetch origin $PR_BASE
-
       - name: Balance Tests
-        run: |
-          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
-            yarn --cwd typescript/infra test:balance
-          fi
+        if: env.BALANCE_CHANGES == 'true'
+        run: yarn --cwd typescript/infra test:balance
 
       - name: Warp Config Tests
-        run: |
-          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
-            yarn --cwd typescript/infra test:warp
-          fi
+        if: env.WARP_CONFIG_CHANGES == 'true'
+        run: yarn --cwd typescript/infra test:warp
 
   cli-install-test:
     runs-on: ubuntu-latest
