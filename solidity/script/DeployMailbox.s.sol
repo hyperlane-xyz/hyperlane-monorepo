@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.19; // Use a recent version
+pragma solidity ^0.8.19;
 
-import {Script, console} from "forge-std/Script.sol";
+import "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-
-// Import your contracts and interfaces (adjust paths as needed)
 import {Mailbox} from "../contracts/Mailbox.sol";
 import {MockISM} from "../contracts/mock/MockISM.sol";
 import {MockHook} from "../contracts/mock/MockHook.sol";
@@ -12,14 +10,8 @@ import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecu
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 contract DeployMailbox is Script {
-    // Default to B3 testnet domain ID (1993) but can be overridden by env var
-    uint32 immutable TESTNET_DOMAIN_ID = 1993;
-
     function run() external returns (address mailboxProxyAddress) {
-        // Allow override via env var, otherwise use B3 default
-        if (vm.envOr("HYPERLANE_DOMAIN_ID_OVERRIDE", false)) {
-            TESTNET_DOMAIN_ID = uint32(vm.envUint("HYPERLANE_DOMAIN_ID"));
-        }
+        uint256 hyperlaneDomainId = vm.envUint("HYPERLANE_DOMAIN_ID");
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployerAddress = vm.addr(deployerPrivateKey);
 
@@ -46,7 +38,7 @@ contract DeployMailbox is Script {
 
         // --- 2. Deploy Mailbox Implementation ---
         console.log("Deploying Mailbox implementation...");
-        Mailbox mailboxImplementation = new Mailbox(TESTNET_DOMAIN_ID);
+        Mailbox mailboxImplementation = new Mailbox(hyperlaneDomainId);
         console.log(
             "Mailbox implementation deployed at:",
             address(mailboxImplementation)
@@ -75,7 +67,7 @@ contract DeployMailbox is Script {
         // --- Post-Deployment Info ---
         console.log("-----------------------------------------");
         console.log("Deployment Summary:");
-        console.log("  Target Chain Hyperlane Domain ID:", TESTNET_DOMAIN_ID);
+        console.log("  Target Chain Hyperlane Domain ID:", hyperlaneDomainId);
         console.log("  Deployer/Owner:", owner);
         console.log("  MockISM Address:", address(mockIsm));
         console.log("  Mock Default Hook Address:", address(mockDefaultHook));

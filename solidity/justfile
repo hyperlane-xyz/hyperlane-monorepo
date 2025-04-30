@@ -1,0 +1,13 @@
+deploy-mailbox-b3:
+    export HYPERLANE_DOMAIN_ID=1993 && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url https://sepolia.b3.fun/http \
+        --broadcast \
+        -vvvv
+
+deploy-mailbox-ape:
+    export HYPERLANE_DOMAIN_ID=33111 && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url https://curtis.rpc.caldera.xyz/http \
+        --broadcast \
+        -vvvv
