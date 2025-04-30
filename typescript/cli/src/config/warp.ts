@@ -166,10 +166,6 @@ export async function createWarpRouteDeployConfig({
       choices: typeChoices,
     });
 
-    // TODO: restore NFT prompting
-    const isNft =
-      type === TokenType.syntheticUri || type === TokenType.collateralUri;
-
     switch (type) {
       case TokenType.collateral:
       case TokenType.XERC20:
@@ -180,7 +176,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
@@ -191,7 +186,6 @@ export async function createWarpRouteDeployConfig({
         result[chain] = {
           type,
           owner,
-          isNft,
           proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
@@ -206,7 +200,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
@@ -220,7 +213,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
@@ -232,7 +224,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
         };
     }
