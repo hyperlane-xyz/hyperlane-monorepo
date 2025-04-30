@@ -11,7 +11,7 @@ inputs:
     default: 'buildjet'
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     # Depot transparently redirect anything bound for GitHub's Actions cache to their own for extra speed.
     # But this is not available to access for non-depot runners.
