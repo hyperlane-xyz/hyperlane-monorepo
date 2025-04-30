@@ -143,18 +143,15 @@ export function getAddressFromAccountAndChain(
   account?: AccountInfo,
   chainName?: ChainName,
 ) {
-  if (!account || !chainName) {
+  if (!account) {
     return 'Unknown';
   }
-
-  // by default display the first address of the account
-  let address = account.addresses[0]?.address ?? 'Unknown';
 
   // only in cosmos there are multiple addresses per account, in this
   // case we display the cosmos hub address by default. If the user
   // selects a cosmos based origin chain in the swap form that cosmos
   // address is displayed instead
-  if (account?.protocol === ProtocolType.Cosmos) {
+  if (account.protocol === ProtocolType.Cosmos) {
     // chainName can be an EVM chain here, therefore if no
     // cosmos address was found we search for the cosmos hub
     // address below
@@ -162,19 +159,18 @@ export function getAddressFromAccountAndChain(
       (a) => a.chainName === chainName,
     )?.address;
 
-    if (cosmosAddress) {
-      // set cosmos address if one has been found for the chain name
-      address = cosmosAddress;
-    } else {
-      // search for the cosmos hub address if no address has been found
-      // for the chain name
-      address =
-        account?.addresses?.find((a) => a.chainName === cosmoshub.name)
-          ?.address ?? 'Unknown';
-    }
+    // if no cosmos address was found for the chain name we search
+    // for the cosmos hub address as fallback
+    return (
+      cosmosAddress ??
+      account?.addresses?.find((a) => a.chainName === cosmoshub.name)
+        ?.address ??
+      'Unknown'
+    );
   }
 
-  return address;
+  // by default display the first address of the account
+  return account.addresses[0]?.address ?? 'Unknown';
 }
 
 export function getAccountAddressAndPubKey(
