@@ -5,7 +5,7 @@ import { sleep } from '@hyperlane-xyz/utils';
 
 import { WrappedError } from '../../utils/errors.js';
 import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
-import { logger } from '../metrics/utils.js';
+import { logger } from '../metrics/infra/scripts/warp-routes/monitor/utils.js';
 
 export class MonitorStartError extends WrappedError {
   name = 'MonitorStartError';

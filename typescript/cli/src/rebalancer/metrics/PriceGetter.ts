@@ -5,7 +5,7 @@ import {
   Token,
 } from '@hyperlane-xyz/sdk';
 
-import { logger } from './utils.js';
+import { logger } from './infra/scripts/warp-routes/monitor/utils.js';
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
   private constructor({

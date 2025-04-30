@@ -24,9 +24,14 @@ import {
   updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
-} from './helpers.js';
-import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { formatBigInt, logger, tryFn } from './utils.js';
+} from './infra/scripts/warp-routes/monitor/metrics.js';
+import {
+  NativeWalletBalance,
+  WarpRouteBalance,
+  XERC20Limit,
+} from './infra/scripts/warp-routes/monitor/types.js';
+import { logger, tryFn } from './infra/scripts/warp-routes/monitor/utils.js';
+import { formatBigInt } from './utils.js';
 
 interface XERC20Info {
   limits: XERC20Limit;
