@@ -1,4 +1,4 @@
-import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { BigNumber, PopulatedTransaction } from 'ethers';
 
 import {
   ERC20,
