@@ -136,9 +136,7 @@ function getChainConnections(
       });
     });
     return agg;
-  },
-    {} as ChainMap<Set<ChainName>>,
-  );
+  }, {} as ChainMap<Set<ChainName>>);
 }
 
 main().catch((err) => {
