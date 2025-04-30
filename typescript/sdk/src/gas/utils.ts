@@ -7,6 +7,7 @@ import {
   assert,
   convertDecimals,
   objMap,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
@@ -167,6 +168,7 @@ export function getLocalStorageGasOracleConfig({
   gasOracleParams,
   exchangeRateMarginPct,
   gasPriceModifier,
+  getTypicalUsdQuote,
 }: {
   local: ChainName;
   localProtocolType: ProtocolType;
@@ -177,6 +179,11 @@ export function getLocalStorageGasOracleConfig({
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ) => BigNumberJs.Value;
+  getTypicalUsdQuote?: (
+    local: ChainName,
+    remote: ChainName,
+    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+  ) => number;
 }): ChainMap<ProtocolAgnositicGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
@@ -239,6 +246,21 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         BigNumber.from(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
+      );
+    }
+
+    if (getTypicalUsdQuote) {
+      const typicalUsdQuote = getTypicalUsdQuote(
+        local,
+        remote,
+        gasOracleConfig,
+      );
+      rootLogger.trace(
+        {
+          gasOracleConfig,
+          typicalUsdQuote,
+        },
+        `Gas oracle config with typical USD quote: ${local} -> ${remote}`,
       );
     }
 
