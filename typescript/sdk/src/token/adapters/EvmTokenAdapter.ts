@@ -316,6 +316,9 @@ export class EvmHypCollateralAdapter
     );
   }
 
+  /**
+   * Returns the recipient as a string representing a bytes32
+   */
   getAllowedDestination(domain: Domain): Promise<string> {
     return this.collateralContract.allowedDestinations(domain);
   }
