@@ -308,6 +308,18 @@ export class EvmHypCollateralAdapter
       t.populateTransferTx(params),
     );
   }
+
+  populateRebalanceTx(params: {
+    domain: Domain;
+    amount: Numberish;
+    bridge: Address;
+  }): Promise<PopulatedTransaction> {
+    return this.collateralContract.populateTransaction.rebalance(
+      params.domain,
+      params.amount,
+      params.bridge,
+    );
+  }
 }
 
 export class EvmHypCollateralFiatAdapter
