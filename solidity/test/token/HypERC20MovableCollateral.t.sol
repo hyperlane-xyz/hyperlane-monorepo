@@ -46,12 +46,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         token.mintTo(address(router), 1e18);
 
         // Execute
-        router.rebalance(
-            destinationDomain,
-            bytes32(uint256(uint160(alice))),
-            1e18,
-            vtb
-        );
+        router.rebalance(destinationDomain, 1e18, vtb);
         // Assert
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(vtb)), 1e18);
@@ -75,7 +70,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         token.mintTo(address(router), amount);
 
         // Execute
-        router.rebalance(destinationDomain, recipient, amount, vtb);
+        router.rebalance(destinationDomain, amount, vtb);
         // Assert
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(vtb)), amount);
