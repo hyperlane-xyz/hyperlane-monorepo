@@ -1,8 +1,9 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
+  ChainMetadata,
   MultiProtocolProvider,
   WarpCore,
-  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
@@ -20,10 +21,10 @@ export class RebalancerContextFactory {
    * @param warpDeployConfig
    */
   private constructor(
-    private readonly tokenPriceGetter: PriceGetter,
-    private readonly collateralTokenSymbol: string,
+    private readonly registry: IRegistry,
+    private readonly warpRouteId: string,
+    private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
-    private readonly warpDeployConfig: WarpRouteDeployConfig | null,
   ) {}
 
   /**
@@ -43,25 +44,29 @@ export class RebalancerContextFactory {
     const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
     const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-    const warpDeployConfig = await registry.getWarpDeployConfig(warpRouteId);
-    const collateralTokenSymbol =
-      Metrics.getWarpRouteCollateralTokenSymbol(warpCore);
-    const tokenPriceGetter = await PriceGetter.create(metadata);
 
     return new RebalancerContextFactory(
-      tokenPriceGetter,
-      collateralTokenSymbol,
+      registry,
+      warpRouteId,
+      metadata,
       warpCore,
-      warpDeployConfig,
     );
   }
 
-  public createMetrics(): Metrics {
-    return new Metrics(
-      this.tokenPriceGetter,
-      this.collateralTokenSymbol,
+  public async createMetrics(): Promise<Metrics> {
+    const tokenPriceGetter = await PriceGetter.create(this.metadata);
+    const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
-      this.warpDeployConfig,
+    );
+    const warpDeployConfig = await this.registry.getWarpDeployConfig(
+      this.warpRouteId,
+    );
+
+    return new Metrics(
+      tokenPriceGetter,
+      collateralTokenSymbol,
+      warpDeployConfig,
+      this.warpCore,
     );
   }
 

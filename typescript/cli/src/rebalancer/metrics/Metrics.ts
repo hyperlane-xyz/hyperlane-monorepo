@@ -51,8 +51,8 @@ export class Metrics implements IMetrics {
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
     private readonly collateralTokenSymbol: string,
-    private readonly warpCore: WarpCore,
     private readonly warpDeployConfig: WarpRouteDeployConfig | null,
+    private readonly warpCore: WarpCore,
   ) {}
 
   async processEvent({ token }: MonitorEvent) {
