@@ -1,9 +1,7 @@
-import prettier, { Options as PrettierOptions } from 'prettier';
+import prettier from 'prettier';
 
-export const prettierOutputTransformer = (output: string) => {
-  const prettierCfg: PrettierOptions = {
-    parser: 'typescript',
-  };
-
-  return prettier.format(output, prettierCfg);
-};
+export async function prettierOutputTransformer(
+  output: string,
+): Promise<string> {
+  return prettier.format(output, { parser: 'typescript' });
+}

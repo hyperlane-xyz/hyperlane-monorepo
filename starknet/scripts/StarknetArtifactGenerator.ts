@@ -202,7 +202,7 @@ export class StarknetArtifactGenerator {
     );
     await fs.writeFile(
       join(this.rootOutputDir, outputFileName + '.d.ts'),
-      prettierOutputTransformer(dtsContent),
+      await prettierOutputTransformer(dtsContent),
     );
 
     return { name, contractType, contractClass };
@@ -251,11 +251,11 @@ export class StarknetArtifactGenerator {
 
       await fs.writeFile(
         join(this.rootOutputDir, 'index.js'),
-        prettierOutputTransformer(jsContent),
+        await prettierOutputTransformer(jsContent),
       );
       await fs.writeFile(
         join(this.rootOutputDir, 'index.d.ts'),
-        prettierOutputTransformer(dtsContent),
+        await prettierOutputTransformer(dtsContent),
       );
 
       return processedFilesMap;
