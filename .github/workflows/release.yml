@@ -19,7 +19,6 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -85,7 +84,6 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
