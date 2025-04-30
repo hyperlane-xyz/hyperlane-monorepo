@@ -91,8 +91,16 @@ impl InclusionStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
-                pool.lock().await.insert(tx.id.clone(), tx.clone());
+                // the lock is held until the metric is updated, to prevent race conditions
+                let pool_lock = pool.lock().await;
+                let pool_len = pool_lock.len();
+                pool_lock.insert(tx.id.clone(), tx.clone());
                 info!(?tx, "Received transaction");
+                state.metrics.update_queue_length_metric(
+                    STAGE_NAME,
+                    pool_snapshot.len() as u64,
+                    &domain,
+                );
             } else {
                 error!("Building stage channel closed");
                 return Err(SubmitterError::ChannelClosed);
@@ -114,12 +122,15 @@ impl InclusionStage {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
 
-            let pool_snapshot = pool.lock().await.clone();
-            state.metrics.update_queue_length_metric(
-                STAGE_NAME,
-                pool_snapshot.len() as u64,
-                &domain,
-            );
+            let snapshot = {
+                let pool_snapshot = pool.lock().await.clone();
+                state.metrics.update_queue_length_metric(
+                    STAGE_NAME,
+                    pool_snapshot.len() as u64,
+                    &domain,
+                );
+                pool_snapshot
+            };
             info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) =
