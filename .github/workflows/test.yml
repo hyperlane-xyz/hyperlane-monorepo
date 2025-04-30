@@ -127,7 +127,7 @@ jobs:
           # Check for Rust changes
           if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^rust/'; then
             # Check if there are only Rust changes
-            if ! git diff origin/$PR_BASE...HEAD --name-only | grep -qvE '^(rust/|\.github/)'; then
+            if ! git diff origin/$PR_BASE...HEAD --name-only | grep -qvE '^rust/'; then
               echo "only_rust=true" >> $GITHUB_OUTPUT
               echo "Only Rust changes detected."
             else
