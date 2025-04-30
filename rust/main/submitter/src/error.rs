@@ -63,7 +63,13 @@ impl IsRetryable for SubmitterError {
             SubmitterError::NetworkError(_) => true,
             SubmitterError::TxSubmissionError(_) => true,
             SubmitterError::ChannelSendFailure(_) => true,
-            SubmitterError::ChainCommunicationError(_) => true,
+            SubmitterError::ChainCommunicationError(err) => {
+                // on SVM, reverted simulations will return an error containing this
+                if err.to_string().contains("simulation result") {
+                    return false;
+                }
+                true
+            }
             SubmitterError::EyreError(_) => true,
             SubmitterError::NonRetryableError(_) => false,
             SubmitterError::TxReverted => false,
