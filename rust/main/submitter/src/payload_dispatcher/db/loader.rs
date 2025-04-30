@@ -117,6 +117,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                     // If we are only loading backward, we have processed all items
                     return Ok(());
                 }
+                debug!(?self, "No items to process, sleeping for a bit");
                 // sleep to wait for new items to be added
                 sleep(Duration::from_millis(100)).await;
             } else {
