@@ -284,9 +284,13 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let Ok(estimated) = self.estimate(not_estimated).await else {
-                transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
-                continue;
+            let estimated = match self.estimate(not_estimated).await {
+                Ok(estimated) => estimated,
+                Err(err) => {
+                    warn!(?err, ?payload, "failed to estimate payload");
+                    transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
+                    continue;
+                }
             };
             let transaction = TransactionFactory::build(payload, estimated);
             transactions.push(TxBuildingResult::new(
