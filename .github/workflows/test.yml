@@ -141,8 +141,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [rust-only]
     timeout-minutes: 10
-    env:
-      PR_BASE: ${{ github.base_ref }}
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v4
