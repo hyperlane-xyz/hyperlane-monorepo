@@ -209,36 +209,6 @@ contract PolymerISMTest is Test {
         new PolymerISM(address(mockProver), address(0));
     }
 
-    function test_Revert_Constructor_ZeroOriginDomain() public {
-        vm.expectRevert("PolymerISM: Invalid origin domain");
-        new PolymerISM(
-            address(mockProver),
-            TEST_ORIGIN_MAILBOX,
-            0,
-            TEST_LOCAL_DOMAIN
-        );
-    }
-
-    function test_Revert_Constructor_ZeroLocalDomain() public {
-        vm.expectRevert("PolymerISM: Invalid local domain");
-        new PolymerISM(
-            address(mockProver),
-            TEST_ORIGIN_MAILBOX,
-            TEST_ORIGIN_DOMAIN,
-            0
-        );
-    }
-
-    function test_Revert_Constructor_SameDomains() public {
-        vm.expectRevert("PolymerISM: Domains cannot be the same");
-        new PolymerISM(
-            address(mockProver),
-            TEST_ORIGIN_MAILBOX,
-            TEST_ORIGIN_DOMAIN,
-            TEST_ORIGIN_DOMAIN // Same domain
-        );
-    }
-
     // ============ ModuleType Test ============
 
     function test_ModuleType() public {
