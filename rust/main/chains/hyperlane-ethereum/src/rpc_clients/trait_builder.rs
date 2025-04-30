@@ -26,7 +26,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 use hyperlane_metric::prometheus_metric::{
-    NodeInfo, PrometheusClientMetrics, PrometheusClientMetricsBuilder, PrometheusConfig,
+    ClientConnectionType, NodeInfo, PrometheusClientMetrics, PrometheusClientMetricsBuilder,
+    PrometheusConfig,
 };
 use tracing::instrument;
 
@@ -156,6 +157,7 @@ pub trait BuildableWithProvider {
                 .clone()
                 .unwrap_or_else(|| PrometheusClientMetricsBuilder::default().build().unwrap()),
             PrometheusConfig {
+                connection_type: ClientConnectionType::Rpc,
                 node: Some(NodeInfo {
                     host: url_to_host_info(&url),
                 }),

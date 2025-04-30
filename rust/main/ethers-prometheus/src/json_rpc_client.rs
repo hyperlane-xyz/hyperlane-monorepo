@@ -9,7 +9,7 @@ use derive_new::new;
 use ethers::prelude::JsonRpcClient;
 use ethers_core::types::U64;
 use hyperlane_core::rpc_clients::BlockNumberGetter;
-use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::ChainResult;
 use hyperlane_metric::prometheus_metric::{
     PrometheusClientMetrics, PrometheusConfig, PrometheusConfigExt,
 };
@@ -19,20 +19,42 @@ use serde::{de::DeserializeOwned, Serialize};
 /// metrics. To make this as flexible as possible, the metric vecs need to be
 /// created and named externally, they should follow the naming convention here
 /// and must include the described labels.
-#[derive(new)]
 pub struct PrometheusJsonRpcClient<C> {
     inner: C,
     metrics: PrometheusClientMetrics,
     config: PrometheusConfig,
 }
 
+impl<C> PrometheusJsonRpcClient<C> {
+    /// Create new PrometheusJsonRpcClient
+    pub fn new(inner: C, metrics: PrometheusClientMetrics, config: PrometheusConfig) -> Self {
+        // increment provider metric count
+        let chain_name = PrometheusConfig::chain_name(&config.chain);
+        metrics.increment_provider_instance(chain_name);
+
+        Self {
+            inner,
+            metrics,
+            config,
+        }
+    }
+}
+
+impl<C> Drop for PrometheusJsonRpcClient<C> {
+    fn drop(&mut self) {
+        // decrement provider metric count
+        let chain_name = PrometheusConfig::chain_name(&self.config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
+    }
+}
+
 impl<C: Clone> Clone for PrometheusJsonRpcClient<C> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            metrics: self.metrics.clone(),
-            config: self.config.clone(),
-        }
+        Self::new(
+            self.inner.clone(),
+            self.metrics.clone(),
+            self.config.clone(),
+        )
     }
 }
 
@@ -106,7 +128,7 @@ impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
 where
     C: JsonRpcClient,
 {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+    async fn get_block_number(&self) -> ChainResult<u64> {
         let res = self
             .0
             .request(BLOCK_NUMBER_RPC, ())

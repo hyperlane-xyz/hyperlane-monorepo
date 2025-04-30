@@ -60,6 +60,9 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     }
 
     /// Estimate transaction costs to process a message.
+    /// Arguments:
+    /// - `message`: The message to be processed
+    /// - `metadata`: The metadata needed to process the message
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

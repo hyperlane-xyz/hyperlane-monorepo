@@ -1,7 +1,10 @@
 use std::io::{Error, ErrorKind};
 
+use uuid::Uuid;
+
 use crate::{
-    GasPaymentKey, HyperlaneProtocolError, Indexed, InterchainGasPayment, H160, H256, H512, U256,
+    identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneProtocolError, Indexed,
+    InterchainGasPayment, H160, H256, H512, U256,
 };
 
 /// Simple trait for types with a canonical encoding
@@ -179,6 +182,29 @@ impl Decode for bool {
                 "decoded bool invalid",
             ))),
         }
+    }
+}
+
+impl Encode for UniqueIdentifier {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let bytes = self.as_bytes();
+        writer.write_all(bytes.as_slice())?;
+        Ok(bytes.len())
+    }
+}
+
+impl Decode for UniqueIdentifier {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let mut bytes = [0; 16];
+        reader.read_exact(&mut bytes)?;
+        Ok(UniqueIdentifier::new(Uuid::from_bytes(bytes)))
     }
 }
 

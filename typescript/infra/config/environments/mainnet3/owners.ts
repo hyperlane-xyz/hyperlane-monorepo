@@ -234,6 +234,11 @@ export const icas: Partial<
   ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   story: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   subtensor: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
+
+  // Mar 14, 2025 batch
+  // ----------------------------------------------------------
+  infinityvm: '0x35460c519b7C71d49C64F060dF89AbAE463F3b9a',
+  plume: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';

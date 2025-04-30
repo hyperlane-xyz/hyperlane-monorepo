@@ -15,13 +15,17 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
-function getOracleConfigWithOverrides(chain: ChainName) {
-  const oracleConfig = storageGasOracleConfig[chain];
-  if (chain === 'infinityvmmonza') {
+function getOracleConfigWithOverrides(origin: ChainName) {
+  const oracleConfig = storageGasOracleConfig[origin];
+  if (origin === 'infinityvmmonza') {
     // For InfinityVM Monza, override all remote chain gas configs to use 0 gas
     for (const remoteConfig of Object.values(oracleConfig)) {
       remoteConfig.gasPrice = '0';
     }
+  }
+  // Solana Testnet -> InfinityVM Monza, similarly don't charge gas
+  if (origin === 'solanatestnet') {
+    oracleConfig['infinityvmmonza'].gasPrice = '0';
   }
   return oracleConfig;
 }

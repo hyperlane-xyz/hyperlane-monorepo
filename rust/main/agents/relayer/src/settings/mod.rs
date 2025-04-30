@@ -287,7 +287,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .filter_map(|chain| {
                 base.lookup_domain(chain)
                     .context("Missing configuration for a chain in `relayChains`")
-                    .into_config_result(|| cwp + "relayChains")
+                    .into_config_result(|| cwp + "relay_chains")
                     .take_config_err(&mut err)
             })
             .collect();

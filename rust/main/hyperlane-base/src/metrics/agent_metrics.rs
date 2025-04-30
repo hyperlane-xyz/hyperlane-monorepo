@@ -15,7 +15,7 @@ use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tracing::info_span;
-use tracing::{debug, instrument::Instrumented, trace, warn, Instrument};
+use tracing::{debug, trace, warn, Instrument};
 
 use crate::settings::ChainConf;
 use crate::CoreMetrics;
@@ -252,15 +252,17 @@ impl ChainSpecificMetricsUpdater {
     }
 
     /// Spawns a tokio task to update the metrics
-    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
+    pub fn spawn(self) -> JoinHandle<()> {
         let name = format!("metrics::agent::{}", self.conf.domain.name());
         tokio::task::Builder::new()
             .name(&name)
-            .spawn(async move {
-                self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                    .await;
-            })
+            .spawn(
+                async move {
+                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                        .await;
+                }
+                .instrument(info_span!("MetricsUpdater")),
+            )
             .expect("spawning tokio task from Builder is infallible")
-            .instrument(info_span!("MetricsUpdater"))
     }
 }

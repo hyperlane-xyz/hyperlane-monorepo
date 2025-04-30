@@ -114,7 +114,17 @@ pub fn termination_invariants_met(
     if !provider_metrics_invariant_met(
         &relayer_metrics_port.to_string(),
         messages_expected,
-        &hashmap! {"status" => "success"},
+        &hashmap! {"chain" => "cosmostest99990", "connection" => "rpc", "status" => "success"},
+        &hashmap! {"chain" => "cosmostest99990"},
+    )? {
+        return Ok(false);
+    }
+
+    if !provider_metrics_invariant_met(
+        &relayer_metrics_port.to_string(),
+        messages_expected,
+        &hashmap! {"chain" => "cosmostest99990", "connection" => "grpc", "status" => "success"},
+        &hashmap! {"chain" => "cosmostest99990"},
     )? {
         return Ok(false);
     }

@@ -1,10 +1,13 @@
-import { Account, Contract, num } from 'starknet';
+import { num } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetHookReader } from '../hook/StarknetHookReader.js';
 import { StarknetIsmReader } from '../ism/StarknetIsmReader.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { StarknetJsProvider } from '../providers/ProviderType.js';
+import { ChainNameOrId } from '../types.js';
+import { getStarknetMailboxContract } from '../utils/starknet.js';
 
 import { CoreConfig } from './types.js';
 
@@ -12,17 +15,21 @@ export class StarknetCoreReader {
   protected readonly logger = rootLogger.child({
     module: 'StarknetCoreReader',
   });
+  protected provider: StarknetJsProvider['provider'];
   protected ismReader: StarknetIsmReader;
   protected hookReader: StarknetHookReader;
 
-  constructor(protected readonly signer: Account) {
-    this.ismReader = new StarknetIsmReader(this.signer);
-    this.hookReader = new StarknetHookReader(this.signer);
+  constructor(
+    protected readonly multiProvider: MultiProtocolProvider,
+    protected readonly chain: ChainNameOrId,
+  ) {
+    this.provider = this.multiProvider.getStarknetProvider(chain);
+    this.ismReader = new StarknetIsmReader(this.multiProvider, this.chain);
+    this.hookReader = new StarknetHookReader(this.multiProvider, this.chain);
   }
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<CoreConfig> {
-    const { abi } = getCompiledContract('mailbox');
-    const mailbox = new Contract(abi, mailboxAddress, this.signer);
+    const mailbox = getStarknetMailboxContract(mailboxAddress, this.provider);
 
     const [defaultIsm, defaultHook, requiredHook, owner] = (
       await Promise.all([

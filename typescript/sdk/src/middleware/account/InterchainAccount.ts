@@ -3,6 +3,7 @@ import { BigNumber, PopulatedTransaction } from 'ethers';
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
+  addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
   isZeroishAddress,
@@ -129,6 +130,16 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     ) {
       const txOverrides =
         this.multiProvider.getTransactionOverrides(destinationChain);
+
+      // Estimate gas for deployment
+      const gasEstimate = await destinationRouter.estimateGas[
+        'getDeployedInterchainAccount(uint32,address,address,address)'
+      ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+
+      // Add buffer to gas estimate
+      const gasWithBuffer = addBufferToGasLimit(gasEstimate);
+
+      // Execute deployment with buffered gas estimate
       await this.multiProvider.handleTx(
         destinationChain,
         destinationRouter[
@@ -138,7 +149,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           config.owner,
           originRouterAddress,
           destinationIsmAddress,
-          txOverrides,
+          {
+            ...txOverrides,
+            gasLimit: gasWithBuffer,
+          },
         ),
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);

@@ -254,6 +254,27 @@ export function senderMatchingList(
   }));
 }
 
+// A matching list to match messages sent to or from the given address
+// between any chains.
+export function consistentSenderRecipientMatchingList(
+  address: Address,
+): MatchingList {
+  return [
+    {
+      originDomain: '*',
+      senderAddress: addressToBytes32(address),
+      destinationDomain: '*',
+      recipientAddress: '*',
+    },
+    {
+      originDomain: '*',
+      senderAddress: '*',
+      destinationDomain: '*',
+      recipientAddress: addressToBytes32(address),
+    },
+  ];
+}
+
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,

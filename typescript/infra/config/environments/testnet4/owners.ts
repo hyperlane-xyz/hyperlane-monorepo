@@ -23,3 +23,9 @@ export const owners: ChainMap<OwnableConfig> = {
     owner: 'n/a - SVM not supported here',
   },
 };
+
+export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
+  Object.entries(owners).filter(([chain]) =>
+    ethereumChainNames.includes(chain as any),
+  ),
+);

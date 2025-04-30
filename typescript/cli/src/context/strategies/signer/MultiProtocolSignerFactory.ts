@@ -1,6 +1,6 @@
 import { password } from '@inquirer/prompts';
 import { Signer, Wallet } from 'ethers';
-import { Account as StarknetAccount } from 'starknet';
+import { Account as StarknetAccount, constants } from 'starknet';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import {
@@ -11,6 +11,8 @@ import {
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+
+import { ENV } from '../../../utils/env.js';
 
 import {
   BaseMultiProtocolSigner,
@@ -103,6 +105,14 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
     return { privateKey, userAddress: address };
   }
 
+  private getTransactionVersion(
+    versionFromEnv?: string,
+  ): ConstructorParameters<typeof StarknetAccount>[4] {
+    if (versionFromEnv === 'V2') return constants.TRANSACTION_VERSION.V2;
+    if (versionFromEnv === 'V3') return constants.TRANSACTION_VERSION.V3;
+    return undefined;
+  }
+
   getSigner({
     privateKey,
     userAddress,
@@ -112,6 +122,17 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
       userAddress && extraParams?.provider,
       'Missing StarknetAccount arguments',
     );
-    return new StarknetAccount(extraParams.provider, userAddress, privateKey);
+
+    const transactionVersion = this.getTransactionVersion(
+      ENV.STARKNET_TRANSACTION_VERSION,
+    );
+
+    return new StarknetAccount(
+      extraParams.provider,
+      userAddress,
+      privateKey,
+      undefined,
+      transactionVersion,
+    );
   }
 }

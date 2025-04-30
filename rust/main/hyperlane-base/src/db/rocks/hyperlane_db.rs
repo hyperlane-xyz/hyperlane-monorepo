@@ -659,7 +659,8 @@ impl HyperlaneDb for HyperlaneRocksDB {
 }
 
 impl HyperlaneRocksDB {
-    fn store_value_by_key<K: Encode, V: Encode>(
+    /// Store a value by key
+    pub fn store_value_by_key<K: Encode, V: Encode>(
         &self,
         prefix: impl AsRef<[u8]>,
         key: &K,
@@ -668,7 +669,8 @@ impl HyperlaneRocksDB {
         self.store_encodable(prefix, key.to_vec(), value)
     }
 
-    fn retrieve_value_by_key<K: Encode, V: Decode>(
+    /// Retrieve a value by key
+    pub fn retrieve_value_by_key<K: Encode, V: Decode>(
         &self,
         prefix: impl AsRef<[u8]>,
         key: &K,

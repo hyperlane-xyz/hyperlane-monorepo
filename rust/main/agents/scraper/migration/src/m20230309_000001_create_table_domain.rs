@@ -497,6 +497,22 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
+    RawDomain {
+        name: "cosmostestnative1",
+        token: "KYVE",
+        domain: 75898670,
+        chain_id: 75898670,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "cosmostestnative2",
+        token: "KYVE",
+        domain: 75898671,
+        chain_id: 75898671,
+        is_test_net: true,
+        is_deprecated: false,
+    },
     // ---------- End: E2E tests chains ----------------
 ];
 

@@ -60,6 +60,7 @@ export {
 export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter.js';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter.js';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter.js';
+export { StarknetCoreAdapter } from './core/adapters/StarknetCoreAdapter.js';
 export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
@@ -121,7 +122,10 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
-export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter.js';
+export {
+  SealevelOverheadIgpAdapter,
+  SealevelIgpAdapter,
+} from './gas/adapters/SealevelIgpAdapter.js';
 export {
   SealevelInterchainGasPaymasterConfig,
   SealevelInterchainGasPaymasterConfigSchema,
@@ -353,6 +357,10 @@ export {
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   SolanaWeb3TransactionReceipt,
+  StarknetJsContract,
+  StarknetJsProvider,
+  StarknetJsTransaction,
+  StarknetJsTransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
@@ -551,6 +559,8 @@ export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
+  splitWarpCoreAndExtendedConfigs,
+  transformConfigToCheck,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,
@@ -654,7 +664,11 @@ export {
   // @ts-ignore
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
-export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export {
+  multisigIsmVerificationCost,
+  normalizeConfig,
+  extractIsmAndHookFactoryAddresses,
+} from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
 export {
@@ -700,8 +714,16 @@ export {
 } from './messaging/messageUtils.js';
 
 export {
+  StarknetContractName,
+  StarknetIsmType,
+  StarknetHookType,
+  getStarknetContract,
   getStarknetHypERC20Contract,
+  getStarknetHypERC20CollateralContract,
   getStarknetMailboxContract,
+  getStarknetHypNativeContract,
+  getStarknetEtherContract,
+  getStarknetIsmContract,
 } from './utils/starknet.js';
 
 export { MessageBus } from './bus/MessageBus.js';

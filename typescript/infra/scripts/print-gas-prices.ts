@@ -40,14 +40,27 @@ async function main() {
 
   const prices: ChainMap<GasPriceConfig> = Object.fromEntries(
     await Promise.all(
-      supportedChainNames.map(async (chain) => [
-        chain,
-        await getGasPrice(
-          mpp,
-          chain,
-          gasPrices[chain as keyof typeof gasPrices],
-        ),
-      ]),
+      supportedChainNames.map(async (chain) => {
+        try {
+          return [
+            chain,
+            await getGasPrice(
+              mpp,
+              chain,
+              gasPrices[chain as keyof typeof gasPrices],
+            ),
+          ];
+        } catch (error) {
+          console.error(`Error getting gas price for ${chain}:`, error);
+          return [
+            chain,
+            gasPrices[chain as keyof typeof gasPrices] || {
+              amount: '0',
+              decimals: 9,
+            },
+          ];
+        }
+      }),
     ),
   );
 

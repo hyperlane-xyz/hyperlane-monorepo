@@ -7,6 +7,30 @@
         "tokenDecimals": 9
       },
       "overhead": 600000
+    },
+    "connextsepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "100000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "infinityvmmonza": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "0",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "basesepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "1000378",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
     }
   },
   "sonicsvmtestnet": {

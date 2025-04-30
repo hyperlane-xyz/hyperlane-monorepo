@@ -491,5 +491,36 @@ export const validatorChainConfig = (
         'infinityvmmonza',
       ),
     },
+
+    cotitestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('cotitestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5c535dff16237a2cae97c97f9556404cd230c9c0'],
+        },
+        'cotitestnet',
+      ),
+    },
+    modetestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('modetestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402'],
+        },
+        'modetestnet',
+      ),
+    },
+    plumetestnet2: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('plumetestnet2'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x16637c78e1ea169132efcf4df8ebd03de349e740'],
+        },
+        'plumetestnet2',
+      ),
+    },
   };
 };

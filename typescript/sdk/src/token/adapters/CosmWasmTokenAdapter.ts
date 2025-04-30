@@ -141,13 +141,9 @@ export class CwTokenAdapter
   }
 
   async getMetadata(): Promise<CW20Metadata> {
-    const resp = await this.queryToken<TokenInfoResponse>({
+    return this.queryToken<TokenInfoResponse>({
       token_info: {},
     });
-    return {
-      ...resp,
-      totalSupply: resp.total_supply,
-    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {

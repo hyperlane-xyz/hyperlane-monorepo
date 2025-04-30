@@ -9,9 +9,8 @@ use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::{debug, warn};
 
-use crate::msg::metadata::MessageMetadataBuilder;
-
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
+use crate::msg::metadata::MessageMetadataBuilder;
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
@@ -38,7 +37,8 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         let leaf_index = unwrap_or_none_result!(
-            self.get_merkle_leaf_id_by_message_id(message_id)
+            self.base_builder()
+                .get_merkle_leaf_id_by_message_id(message_id)
                 .await
                 .context(CTX)?,
             debug!(
@@ -51,8 +51,8 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         let _ = checkpoint_syncer
             .get_validator_latest_checkpoints_and_update_metrics(
                 validators,
-                self.origin_domain(),
-                self.destination_domain(),
+                self.base_builder().origin_domain(),
+                self.base_builder().destination_domain(),
             )
             .await;
 

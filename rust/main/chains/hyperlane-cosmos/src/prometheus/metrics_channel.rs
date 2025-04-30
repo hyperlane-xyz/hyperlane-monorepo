@@ -13,7 +13,7 @@ use tower::Service;
 
 use super::metrics_future::MetricsChannelFuture;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 /// Wrapper for instrumenting a tonic client channel with gRPC metrics.
 pub struct MetricsChannel<T> {
     metrics: PrometheusClientMetrics,
@@ -29,11 +29,33 @@ impl<T> MetricsChannel<T> {
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> Self {
+        // increment provider metric count
+        let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
+        metrics.increment_provider_instance(chain_name);
+
         Self {
             inner,
             metrics,
             metrics_config,
         }
+    }
+}
+
+impl<T> Drop for MetricsChannel<T> {
+    fn drop(&mut self) {
+        // decrement provider metric count
+        let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
+    }
+}
+
+impl<T: Clone> Clone for MetricsChannel<T> {
+    fn clone(&self) -> Self {
+        Self::new(
+            self.inner.clone(),
+            self.metrics.clone(),
+            self.metrics_config.clone(),
+        )
     }
 }
 

@@ -50,13 +50,12 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
-    const [decimals, symbol, name, totalSupply] = await Promise.all([
+    const [decimals, symbol, name] = await Promise.all([
       this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
-      this.contract.totalSupply() ?? '0',
     ]);
-    return { decimals, symbol, name, totalSupply };
+    return { decimals, symbol, name };
   }
 
   async isApproveRequired(
@@ -91,6 +90,10 @@ export class StarknetHypSyntheticAdapter
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
+    // console.log('quoteTransferRemoteGas: ', _destination);
+    // const quote = await this.contract.quote_gas_payment(_destination);
+    // console.log('quote: ', quote);
+
     return { amount: BigInt(0) };
   }
 

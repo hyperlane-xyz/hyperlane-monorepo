@@ -1,0 +1,8 @@
+{
+  "solanatestnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB",
+    "owner": "A4JYBMixNo3JReSFTfUa4cepyrBsmkbYKzqK7DAcQ54x"
+  }
+}

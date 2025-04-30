@@ -421,6 +421,7 @@ mod test {
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
+    use tracing::info_span;
 
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
@@ -595,7 +596,7 @@ mod test {
             dummy_message_processor(origin_domain, destination_domain, db);
 
         let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
-        let process_fut = processor.spawn();
+        let process_fut = processor.spawn(info_span!("MessageProcessor"));
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {
