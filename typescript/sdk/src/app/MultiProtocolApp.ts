@@ -12,6 +12,7 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
+  CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
@@ -65,6 +66,14 @@ export class BaseCosmosAdapter extends BaseAppAdapter {
 
   public getProvider(): CosmJsProvider['provider'] {
     return this.multiProvider.getCosmJsProvider(this.chainName);
+  }
+}
+
+export class BaseCosmNativeAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.CosmosNative;
+
+  public getProvider(): CosmJsNativeProvider['provider'] {
+    return this.multiProvider.getCosmJsNativeProvider(this.chainName);
   }
 }
 

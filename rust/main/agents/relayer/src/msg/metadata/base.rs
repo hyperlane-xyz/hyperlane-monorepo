@@ -22,7 +22,7 @@ use crate::settings::matching_list::MatchingList;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum MetadataBuildError {
-    #[error("Some external error causing the build to fail")]
+    #[error("An external error causes the build to fail ({0})")]
     FailedToBuild(String),
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.

@@ -291,6 +291,10 @@
     "amount": "3.76552424",
     "decimals": 9
   },
+  "milkyway": {
+    "amount": "0.03",
+    "decimals": 1
+  },
   "mint": {
     "amount": "0.001000252",
     "decimals": 9

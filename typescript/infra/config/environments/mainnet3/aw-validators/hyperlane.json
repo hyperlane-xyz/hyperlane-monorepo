@@ -251,6 +251,9 @@
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
   },
+  "milkyway": {
+    "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
+  },
   "mint": {
     "validators": ["0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9"]
   },

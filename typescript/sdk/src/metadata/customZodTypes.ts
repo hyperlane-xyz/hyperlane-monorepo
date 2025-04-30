@@ -14,7 +14,7 @@ export const ZUWei = z.union([ZUint.safe(), z.string().regex(/^\d+$/)]);
 export const ZHash = z
   .string()
   .regex(
-    /^(0x([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}|[0-9a-fA-F]{128}))|([123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{32})$/,
+    /^(0x([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}|[0-9a-fA-F]{128}))|([123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{32})|([a-z]{1,10}1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{38,58})$/,
   );
 /** Zod ChainName schema */
 export const ZChainName = z.string().regex(/^[a-z][a-z0-9]*$/);

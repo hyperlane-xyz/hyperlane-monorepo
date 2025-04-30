@@ -4,6 +4,7 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
@@ -25,7 +26,8 @@ export async function isRpcHealthy(
     return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
   else if (
     provider.type === ProviderType.CosmJsWasm ||
-    provider.type === ProviderType.CosmJs
+    provider.type === ProviderType.CosmJs ||
+    provider.type === ProviderType.CosmJsNative
   )
     return isCosmJsProviderHealthy(provider.provider, metadata);
   else
@@ -74,7 +76,10 @@ export async function isSolanaWeb3ProviderHealthy(
 }
 
 export async function isCosmJsProviderHealthy(
-  provider: CosmJsProvider['provider'] | CosmJsWasmProvider['provider'],
+  provider:
+    | CosmJsProvider['provider']
+    | CosmJsWasmProvider['provider']
+    | CosmJsNativeProvider['provider'],
   metadata: ChainMetadata,
 ): Promise<boolean> {
   const readyProvider = await provider;

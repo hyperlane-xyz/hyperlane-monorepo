@@ -270,6 +270,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  auroratestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   avalanche: {
     threshold: 2,
     validators: [
@@ -1401,6 +1411,26 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_BLOCKPI_VALIDATOR,
       DEFAULT_ZKV_VALIDATOR,
       DEFAULT_HASHKEY_CLOUD_VALIDATOR,
+    ],
+  },
+
+  milkyway: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  milkywaytestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x65c7581e14efdf4d9c5320882170f022835bd742',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

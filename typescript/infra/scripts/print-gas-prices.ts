@@ -12,10 +12,10 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 // Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
 // to avoid circular dependencies.
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
-import mainnet3GasPrices from '../config/environments/mainnet3/gasPrices.json' assert { type: 'json' };
+import mainnet3GasPrices from '../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
-import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' assert { type: 'json' };
+import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 
 import { getArgs } from './agent-utils.js';

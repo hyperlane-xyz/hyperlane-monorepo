@@ -30,4 +30,6 @@ export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
   chainsToSkip: ChainName[];
 }
 
-export interface CheckWarpDeployConfig extends CronJobConfig {}
+export interface CheckWarpDeployConfig extends CronJobConfig {
+  registryCommit?: string;
+}

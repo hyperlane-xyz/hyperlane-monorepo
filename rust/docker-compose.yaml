@@ -1,0 +1,20 @@
+services:
+  relayer-service:
+    image: gcr.io/abacus-labs-dev/hyperlane-agent:8117739-20250420-201559
+    command: >
+      /bin/sh -c "./relayer
+      --db /relayer/database
+      --relayChains arbitrum,base,bsc,ethereum,optimism
+      --defaultSigner.key $DEFAULT_SIGNER_KEY
+      > /relayer/logs/relayer-$(date +%Y-%m-%d-%H-%M-%S).log 2>&1 && tail -f /dev/null"
+    ports:
+      - "9090:9090"
+    volumes:
+      - /tmp/relayer:/relayer
+    environment:
+      - HYP_CHAINS_ARBITRUM_CUSTOMRPCURLS=${HYP_CHAINS_ARBITRUM_CUSTOMRPCURLS}
+      - HYP_CHAINS_BASE_CUSTOMRPCURLS=${HYP_CHAINS_BASE_CUSTOMRPCURLS}
+      - HYP_CHAINS_BSC_CUSTOMRPCURLS=${HYP_CHAINS_BSC_CUSTOMRPCURLS}
+      - HYP_CHAINS_ETHEREUM_CUSTOMRPCURLS=${HYP_CHAINS_ETHEREUM_CUSTOMRPCURLS}
+      - HYP_CHAINS_OPTIMISM_CUSTOMRPCURLS=${HYP_CHAINS_OPTIMISM_CUSTOMRPCURLS}
+      - DEFAULT_SIGNER_KEY=${DEFAULT_SIGNER_KEY}

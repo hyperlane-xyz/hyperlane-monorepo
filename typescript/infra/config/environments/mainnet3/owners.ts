@@ -84,6 +84,9 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   osmosis: {
     owner: 'n/a - nothing owned here',
   },
+  milkyway: {
+    owner: 'TODO: configure milkyway owner',
+  },
   soon: {
     // Squads vault
     owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',

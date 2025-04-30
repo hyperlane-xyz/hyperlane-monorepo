@@ -235,6 +235,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         break;
 
       case ProtocolType.Cosmos:
+      case ProtocolType.CosmosNative:
         if (![AgentSignerKeyType.Cosmos].includes(signerType)) {
           return false;
         }
@@ -251,7 +252,10 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     }
 
     // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
-    if (metadata.protocol === ProtocolType.Cosmos) {
+    if (
+      metadata.protocol === ProtocolType.Cosmos ||
+      metadata.protocol === ProtocolType.CosmosNative
+    ) {
       if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
         return false;
       }
@@ -548,7 +552,10 @@ export function buildAgentConfig(
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
-    if (metadata?.protocol === ProtocolType.Cosmos) {
+    if (
+      metadata?.protocol === ProtocolType.Cosmos ||
+      metadata?.protocol === ProtocolType.CosmosNative
+    ) {
       // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
       // which is expected by the agents. For now, we intentionally skip this.
       delete metadata.grpcUrls;

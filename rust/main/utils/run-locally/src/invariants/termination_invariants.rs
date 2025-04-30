@@ -22,6 +22,7 @@ pub struct RelayerTerminationInvariantParams<'a> {
     pub submitter_queue_length_expected: u32,
     pub non_matching_igp_message_count: u32,
     pub double_insertion_message_count: u32,
+    pub sealevel_tx_id_indexing: bool,
 }
 
 /// returns false if invariants are not met
@@ -40,6 +41,7 @@ pub fn relayer_termination_invariants_met(
         submitter_queue_length_expected,
         non_matching_igp_message_count,
         double_insertion_message_count,
+        sealevel_tx_id_indexing,
     } = params;
 
     log!("Checking relayer termination invariants");
@@ -127,18 +129,27 @@ pub fn relayer_termination_invariants_met(
     let total_tx_id_log_count = *log_counts
         .get(&tx_id_indexing_line_filter)
         .expect("Failed to get tx id indexing log count");
+
+    // Sealevel relayer does not require tx id indexing.
+    // It performs sequenced indexing, that's why we don't expect any tx_id_logs
+    let expected_tx_id_logs = if sealevel_tx_id_indexing {
+        0
+    } else {
+        config.kathy_messages
+    };
+    // there are 3 txid-indexed events:
+    // - relayer: merkle insertion and gas payment
+    // - scraper: gas payment
+    // some logs are emitted for multiple events, so requiring there to be at least
+    // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
+    // are expected to be logged for each message.
     assert!(
-        // there are 3 txid-indexed events:
-        // - relayer: merkle insertion and gas payment
-        // - scraper: gas payment
-        // some logs are emitted for multiple events, so requiring there to be at least
-        // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
-        // are expected to be logged for each message.
-        total_tx_id_log_count as u64 >= config.kathy_messages,
+        total_tx_id_log_count as u64 >= expected_tx_id_logs,
         "Didn't find as many tx id logs as expected. Found {} and expected {}",
         total_tx_id_log_count,
-        config.kathy_messages
+        expected_tx_id_logs
     );
+
     assert!(
         !log_counts.contains_key(&hyper_incoming_body_line_filter),
         "Verbose logs not expected at the log level set in e2e"

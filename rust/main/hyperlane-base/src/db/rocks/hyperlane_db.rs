@@ -37,7 +37,7 @@ const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_"
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
-const PAYLOAD_ID_BY_MESSAGE_ID: &str = "payload_id_by_message_id_";
+const PAYLOAD_IDS_BY_MESSAGE_ID: &str = "payload_ids_by_message_id_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -659,19 +659,19 @@ impl HyperlaneDb for HyperlaneRocksDB {
         self.retrieve_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default())
     }
 
-    fn store_payload_id_by_message_id(
+    fn store_payload_ids_by_message_id(
         &self,
         message_id: &H256,
-        payload_id: &UniqueIdentifier,
+        payload_ids: Vec<UniqueIdentifier>,
     ) -> DbResult<()> {
-        self.store_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id, payload_id)
+        self.store_value_by_key(PAYLOAD_IDS_BY_MESSAGE_ID, message_id, &payload_ids)
     }
 
-    fn retrieve_payload_id_by_message_id(
+    fn retrieve_payload_ids_by_message_id(
         &self,
         message_id: &H256,
-    ) -> DbResult<Option<UniqueIdentifier>> {
-        self.retrieve_value_by_key(PAYLOAD_ID_BY_MESSAGE_ID, message_id)
+    ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
+        self.retrieve_value_by_key(PAYLOAD_IDS_BY_MESSAGE_ID, message_id)
     }
 }
 

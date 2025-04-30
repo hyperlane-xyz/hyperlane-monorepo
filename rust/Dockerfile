@@ -5,7 +5,7 @@
 
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
-FROM rust:1.80.1 AS base
+FROM rust:1.81.0 AS base
 RUN apt-get update && \
     apt-get install -y musl-tools clang && \
     rustup target add x86_64-unknown-linux-musl && \

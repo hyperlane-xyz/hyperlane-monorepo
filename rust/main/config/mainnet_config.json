@@ -3259,6 +3259,7 @@
       "gasCurrencyCoinGeckoId": "okb",
       "gnosisSafeTransactionServiceUrl": "https://app.safe.global/welcome?chain=xlayer",
       "index": {
+        "chunk": 999,
         "from": 3387690
       },
       "interchainAccountIsm": "0x29B37088724B745C0ABcE591449Cf042772160C2",
@@ -9073,6 +9074,67 @@
       "index": {
         "from": 226924
       }
+    },
+    "milkyway": {
+      "bech32Prefix": "milk",
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 6,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "umilk",
+      "chainId": "milkyway",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "MilkyWay",
+      "domainId": 1835625579,
+      "gasCurrencyCoinGeckoId": "temp-milkyway-milk",
+      "gasPrice": {
+        "denom": "umilk",
+        "amount": "0.03"
+      },
+      "grpcUrls": [
+        {
+          "http": "https://grpc.mainnet.milkyway.zone/"
+        }
+      ],
+      "index": {
+        "chunk": 10,
+        "from": 2249100
+      },
+      "name": "milkyway",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "umilk",
+        "name": "MILK",
+        "symbol": "MILK"
+      },
+      "protocol": "cosmosnative",
+      "restUrls": [
+        {
+          "http": "https://lcd.mainnet.milkyway.zone/"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://rpc.mainnet.milkyway.zone/"
+        }
+      ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "milk",
+        "type": "cosmosKey"
+      },
+      "slip44": 118,
+      "technicalStack": "other",
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
+      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
     }
   },
   "defaultRpcConsensusType": "fallback"
