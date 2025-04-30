@@ -110,20 +110,14 @@ contract PolymerISMTest is Test {
     // --- Events ---
     event PolymerISMConfigured(
         address indexed polymerProver,
-        address indexed originMailbox,
-        uint32 originDomain,
-        uint32 localDomain
+        address indexed originMailbox
     );
 
     // --- Setup ---
     function setUp() public {
+        vm.chainId(TEST_LOCAL_DOMAIN); // Set the chain ID for block.chainid
         mockProver = new MockCrossL2Prover();
-        polymerIsm = new PolymerISM(
-            address(mockProver),
-            TEST_ORIGIN_MAILBOX,
-            TEST_ORIGIN_DOMAIN,
-            TEST_LOCAL_DOMAIN
-        );
+        polymerIsm = new PolymerISM(address(mockProver), TEST_ORIGIN_MAILBOX);
 
         // Initialize bytes32 state variables
         TEST_SENDER_BYTES32 = TEST_SENDER_ADDR.addressToBytes32();
@@ -193,8 +187,6 @@ contract PolymerISMTest is Test {
     function test_Constructor_Success() public {
         assertEq(address(polymerIsm.polymerProver()), address(mockProver));
         assertEq(polymerIsm.originMailbox(), TEST_ORIGIN_MAILBOX);
-        assertEq(polymerIsm.originDomain(), TEST_ORIGIN_DOMAIN);
-        assertEq(polymerIsm.localDomain(), TEST_LOCAL_DOMAIN);
     }
 
     function test_Constructor_EmitEvent() public {
@@ -202,36 +194,19 @@ contract PolymerISMTest is Test {
         vm.expectEmit(true, true, true, true);
         emit PolymerISMConfigured(
             address(mockProver), // Use the mock prover address here
-            TEST_ORIGIN_MAILBOX,
-            TEST_ORIGIN_DOMAIN,
-            TEST_LOCAL_DOMAIN
+            TEST_ORIGIN_MAILBOX
         );
-        new PolymerISM(
-            address(mockProver),
-            TEST_ORIGIN_MAILBOX,
-            TEST_ORIGIN_DOMAIN,
-            TEST_LOCAL_DOMAIN
-        );
+        new PolymerISM(address(mockProver), TEST_ORIGIN_MAILBOX);
     }
 
     function test_Revert_Constructor_ZeroProver() public {
         vm.expectRevert("PolymerISM: Invalid polymer prover address");
-        new PolymerISM(
-            address(0),
-            TEST_ORIGIN_MAILBOX,
-            TEST_ORIGIN_DOMAIN,
-            TEST_LOCAL_DOMAIN
-        );
+        new PolymerISM(address(0), TEST_ORIGIN_MAILBOX);
     }
 
     function test_Revert_Constructor_ZeroMailbox() public {
         vm.expectRevert("PolymerISM: Invalid origin mailbox address");
-        new PolymerISM(
-            address(mockProver),
-            address(0),
-            TEST_ORIGIN_DOMAIN,
-            TEST_LOCAL_DOMAIN
-        );
+        new PolymerISM(address(mockProver), address(0));
     }
 
     function test_Revert_Constructor_ZeroOriginDomain() public {
@@ -281,7 +256,7 @@ contract PolymerISMTest is Test {
     function test_Verify_Success() public {
         // Configure mock prover to return expected values for a valid proof
         mockProver.setExpectedEvent(
-            TEST_ORIGIN_DOMAIN, // Chain ID from proof must match ISM's originDomain
+            TEST_ORIGIN_DOMAIN, // Chain ID from proof must match message's origin
             TEST_ORIGIN_MAILBOX, // Emitter must match ISM's originMailbox
             testEncodedDispatchTopics, // Topics matching the Dispatch event structure
             testEncodedDispatchData // Data matching the abi.encode(testMessage)
@@ -314,7 +289,7 @@ contract PolymerISMTest is Test {
             testEncodedDispatchData
         );
 
-        vm.expectRevert("PolymerISM: Proof from wrong origin chain");
+        vm.expectRevert("PolymerISM: Message origin mismatch");
         polymerIsm.verify(DUMMY_PROOF, testMessage);
     }
 
@@ -404,7 +379,7 @@ contract PolymerISMTest is Test {
 
     function test_Revert_Verify_MessageContentMismatch_Data() public {
         // Proof data contains abi.encode(testMessage)
-        // But we pass a different message to verify()
+        // But we pass a different message body to verify()
         bytes memory differentMessage = abi.encodePacked(testMessage, hex"01");
 
         mockProver.setExpectedEvent(
