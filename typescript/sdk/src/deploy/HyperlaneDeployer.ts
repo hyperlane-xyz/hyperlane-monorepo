@@ -34,7 +34,6 @@ import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 
 import {
@@ -63,6 +62,11 @@ export interface DeployerOptions {
   icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
   concurrentDeploy?: boolean;
+}
+
+interface ClientConfig {
+  hook?: HookConfig;
+  interchainSecurityModule?: IsmConfig;
 }
 
 export abstract class HyperlaneDeployer<
@@ -338,7 +342,7 @@ export abstract class HyperlaneDeployer<
   protected async configureClient(
     local: ChainName,
     client: MailboxClient,
-    config: MailboxClientConfig,
+    config: ClientConfig,
   ): Promise<void> {
     this.logger.debug(
       `Initializing mailbox client (if not already) on ${local}...`,

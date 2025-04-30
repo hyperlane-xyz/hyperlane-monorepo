@@ -1,3 +1,4 @@
+import { constants } from 'ethers';
 import { z } from 'zod';
 
 import { objMap } from '@hyperlane-xyz/utils';
@@ -7,6 +8,7 @@ import { IsmConfig, IsmType } from '../ism/types.js';
 import {
   DerivedMailboxClientFields,
   GasRouterConfigSchema,
+  MailboxAddress,
 } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
@@ -132,21 +134,16 @@ export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
 );
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
-export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
-  Omit<
-    z.infer<typeof GasRouterConfigSchema>,
-    keyof DerivedMailboxClientFields
-  > &
+export type DerivedTokenRouterConfig = HypTokenRouterConfig &
+  MailboxAddress &
   DerivedMailboxClientFields;
 
 export function derivedHookAddress(config: DerivedTokenRouterConfig) {
-  return typeof config.hook === 'string' ? config.hook : config.hook.address;
+  return config.hook?.address || constants.AddressZero;
 }
 
 export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
-  return typeof config.interchainSecurityModule === 'string'
-    ? config.interchainSecurityModule
-    : config.interchainSecurityModule.address;
+  return config.interchainSecurityModule?.address || constants.AddressZero;
 }
 
 const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(

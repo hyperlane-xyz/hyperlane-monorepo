@@ -191,10 +191,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     ]);
 
     const derivedIsm = eqAddress(ism, constants.AddressZero)
-      ? constants.AddressZero
+      ? undefined
       : await this.evmIsmReader.deriveIsmConfig(ism);
     const derivedHook = eqAddress(hook, constants.AddressZero)
-      ? constants.AddressZero
+      ? undefined
       : await this.evmHookReader.deriveHookConfig(hook);
 
     return {

@@ -21,6 +21,7 @@ import {
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainAccountFactories,
+  MailboxAddress,
   MultiProvider,
   OwnableConfig,
   RouterConfig,
@@ -97,7 +98,7 @@ describe('ICA governance', async () => {
   let coreApp: TestCoreApp;
   // let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
-  let routerConfig: ChainMap<RouterConfig>;
+  let routerConfig: ChainMap<RouterConfig & MailboxAddress>;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let icaApp: InterchainAccount;
   let recipient: TestRecipient;

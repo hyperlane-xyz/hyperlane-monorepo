@@ -1,7 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
-import { zeroAddress } from 'viem';
 
 import {
   ERC20Test,
@@ -28,6 +27,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { MailboxAddress } from '../router/types.js';
 import { ChainMap } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -49,8 +49,8 @@ describe('ERC20WarpRouterReader', async () => {
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let routerConfigMap: ChainMap<RouterConfig>;
-  let baseConfig: RouterConfig;
+  let routerConfigMap: ChainMap<RouterConfig & MailboxAddress>;
+  let baseConfig: (typeof routerConfigMap)[typeof chain];
   let mailbox: Mailbox;
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
@@ -430,7 +430,7 @@ describe('ERC20WarpRouterReader', async () => {
       warpRoute[chain].collateral.address,
     );
 
-    expect(derivedConfig.interchainSecurityModule).to.be.equal(zeroAddress);
+    expect(derivedConfig.interchainSecurityModule).to.be.undefined;
   });
 
   it('should return the remote routers', async () => {

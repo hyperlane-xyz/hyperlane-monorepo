@@ -20,18 +20,24 @@ export type RouterAddress = {
   router: Address;
 };
 
-export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
-
-export type DerivedMailboxClientFields = {
-  hook: string | DerivedHookConfig;
-  interchainSecurityModule: string | DerivedIsmConfig;
+export type MailboxAddress = {
+  mailbox: Address;
 };
 
-export type DerivedMailboxClientConfig = Omit<
-  MailboxClientConfig,
-  keyof DerivedMailboxClientFields
-> &
-  DerivedMailboxClientFields;
+export interface MailboxClientConfig
+  extends z.infer<typeof MailboxClientConfigSchema> {
+  mailbox: Address;
+}
+
+export type DerivedMailboxClientFields = {
+  hook?: DerivedHookConfig;
+  interchainSecurityModule?: DerivedIsmConfig;
+};
+
+export interface DerivedMailboxClientConfig extends MailboxClientConfig {
+  hook?: DerivedHookConfig;
+  interchainSecurityModule?: DerivedIsmConfig;
+}
 
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
 export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;
@@ -92,7 +98,7 @@ export type RemoteRouters = z.infer<typeof RemoteRoutersSchema>;
 export type DestinationGas = z.infer<typeof DestinationGasSchema>;
 
 export const MailboxClientConfigSchema = OwnableSchema.extend({
-  mailbox: ZHash,
+  mailbox: ZHash.optional(),
   hook: HookConfigSchema.optional(),
   interchainSecurityModule: IsmConfigSchema.optional(),
 });

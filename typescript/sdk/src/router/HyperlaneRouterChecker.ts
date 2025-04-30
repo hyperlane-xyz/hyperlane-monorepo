@@ -59,7 +59,10 @@ export class HyperlaneRouterChecker<
     const config = this.configMap[chain];
 
     const mailboxAddr = await router.mailbox();
-    if (!eqAddress(mailboxAddr, config.mailbox)) {
+    // TODO for this check to make sense, we need to fetch the mailbox address from the registry
+    if (
+      !eqAddress(mailboxAddr, config.mailbox || ethers.constants.AddressZero)
+    ) {
       this.addViolation({
         chain,
         type: ClientViolationType.Mailbox,

@@ -425,7 +425,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         config: expectedConfig.interchainSecurityModule,
         addresses: {
           ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
+          mailbox: actualConfig.mailbox,
           deployedIsm: derivedIsmAddress(actualConfig),
         },
       },
@@ -457,13 +457,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }> {
     assert(expectedConfig.hook, 'No hook config');
     if (!actualConfig.hook || actualConfig.hook === zeroAddress) {
-      return this.deployNewHook(expectedConfig);
+      return this.deployNewHook(expectedConfig, actualConfig.mailbox);
     }
 
     return this.updateExistingHook(expectedConfig, actualConfig);
   }
 
-  async deployNewHook(expectedConfig: HypTokenRouterConfig): Promise<{
+  async deployNewHook(
+    expectedConfig: HypTokenRouterConfig,
+    mailboxAddress: Address,
+  ): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
@@ -484,7 +487,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         this.args.addresses,
       ),
       coreAddresses: {
-        mailbox: expectedConfig.mailbox,
+        mailbox: mailboxAddress,
         proxyAdmin: expectedConfig.proxyAdmin?.address, // Assume that a proxyAdmin is always deployed with a WarpRoute
       },
       contractVerifier: this.contractVerifier,

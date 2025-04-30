@@ -15,7 +15,7 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  HypTokenRouterConfig,
+  DerivedTokenRouterConfig,
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -218,7 +218,7 @@ export async function updateOwner(
 export async function extendWarpConfig(params: {
   chain: string;
   chainToExtend: string;
-  extendedConfig: HypTokenRouterConfig;
+  extendedConfig: DerivedTokenRouterConfig;
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;
@@ -258,7 +258,7 @@ export async function setupIncompleteWarpRouteExtension(
   chain2DomainId: string;
   chain3DomainId: string;
   warpConfigPath: string;
-  configToExtend: HypTokenRouterConfig;
+  configToExtend: DerivedTokenRouterConfig;
   context: CommandContext;
   combinedWarpCorePath: string;
 }> {
@@ -267,7 +267,7 @@ export async function setupIncompleteWarpRouteExtension(
   const chain2DomainId = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
   const chain3DomainId = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
 
-  const configToExtend: HypTokenRouterConfig = {
+  const configToExtend: DerivedTokenRouterConfig = {
     decimals: 18,
     mailbox: chain2Addresses!.mailbox,
     name: 'Ether',

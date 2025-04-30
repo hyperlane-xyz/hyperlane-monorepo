@@ -30,9 +30,11 @@ export type TokenCaip19Id = `${string}:${string}/${string}:${string}`; // e.g. e
 export type HexString = string;
 export type Numberish = number | string | bigint;
 
-export type WithAddress<T> = T & {
-  address: Address;
-};
+export type WithAddress<T> = T extends object
+  ? T & {
+      address: Address;
+    }
+  : never;
 
 export type MerkleProof = {
   branch: ethers.utils.BytesLike[];

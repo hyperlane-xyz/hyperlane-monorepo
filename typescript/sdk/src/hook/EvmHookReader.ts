@@ -216,7 +216,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config;
   }
 
-  async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
+  async deriveIdAuthIsmConfig(
+    address: Address,
+  ): Promise<WithAddress<CCIPHookConfig | OpStackHookConfig>> {
     // First check if it's a CCIP hook
     try {
       const ccipHook = CCIPHook__factory.connect(address, this.provider);

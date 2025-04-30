@@ -188,7 +188,7 @@ export type AggregationIsmConfig = {
 
 export type IsmConfig = z.infer<typeof IsmConfigSchema>;
 
-export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
+export type DerivedIsmConfig = WithAddress<IsmConfig>;
 
 export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;
