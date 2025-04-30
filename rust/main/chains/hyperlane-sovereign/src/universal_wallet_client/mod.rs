@@ -56,9 +56,11 @@ impl UniversalClient {
     }
 
     async fn wait_for_tx(&self, tx_hash: String) -> Result<()> {
+        const MAX_WAIT_DURATION: u64 = 300;
+
         let mut slot_subscription = self.subscribe_to_tx_status_updates(tx_hash).await?;
 
-        let end_wait_time = Instant::now() + Duration::from_secs(300);
+        let end_wait_time = Instant::now() + Duration::from_secs(MAX_WAIT_DURATION);
         let start_wait = Instant::now();
 
         while Instant::now() < end_wait_time {

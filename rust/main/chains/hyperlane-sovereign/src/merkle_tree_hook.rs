@@ -168,13 +168,9 @@ impl MerkleTreeHook for SovereignMerkleTreeHook {
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let slot = self.provider.client().get_finalized_slot().await?;
         let tree = self.provider.client().tree(Some(slot)).await?;
-
-        match u32::try_from(tree.count) {
-            Ok(x) => Ok(x),
-            Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Tree count error: {e:?}"
-            ))),
-        }
+        Ok(u32::try_from(tree.count).map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Tree count overflowed u32: {e:?}"))
+        })?)
     }
 
     async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
