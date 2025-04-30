@@ -51,6 +51,7 @@ pub fn termination_invariants_met(
         submitter_queue_length_expected: sol_messages_with_non_matching_igp,
         non_matching_igp_message_count: 0,
         double_insertion_message_count: sol_messages_with_non_matching_igp,
+        sealevel_tx_id_indexing: true,
     };
     if !relayer_termination_invariants_met(relayer_invariant_params.clone())? {
         log!("Relayer termination invariants not met");
@@ -148,6 +149,14 @@ fn submitter_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
+    let transaction_submissions = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_transaction_submissions",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+
     if finalized_transactions < params.total_messages_expected {
         log!(
             "hyperlane_lander_finalized_transactions {} count, expected {}",
@@ -197,6 +206,18 @@ fn submitter_metrics_invariants_met(
         return Ok(false);
     }
 
+    // resubmissions are possible because it takes a while for the local
+    // solana validator to report a tx hash as included once broadcast
+    // but no more than 2 submissions are expected per message
+    if transaction_submissions > 2 * params.total_messages_expected {
+        log!(
+            "hyperlane_lander_transaction_submissions {} count, expected {}",
+            transaction_submissions,
+            params.total_messages_expected
+        );
+        return Ok(false);
+    }
+
     Ok(true)
 }
 
@@ -222,6 +243,7 @@ mod tests {
             submitter_queue_length_expected: 0,
             non_matching_igp_message_count: 0,
             double_insertion_message_count: 0,
+            sealevel_tx_id_indexing: true,
         };
         assert_eq!(
             super::submitter_metrics_invariants_met(
