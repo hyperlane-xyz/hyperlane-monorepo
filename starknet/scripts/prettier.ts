@@ -1,11 +1,7 @@
 import prettier, { Options as PrettierOptions } from 'prettier';
 
-export const prettierOutputTransformer = (
-  output: string,
-  config?: { prettier: PrettierOptions },
-) => {
+export const prettierOutputTransformer = (output: string) => {
   const prettierCfg: PrettierOptions = {
-    ...(config?.prettier ?? {}),
     parser: 'typescript',
   };
 

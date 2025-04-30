@@ -11,7 +11,7 @@
     "build": "tsc && yarn fetch-contracts && yarn generate-artifacts",
     "clean": "rm -rf ./dist ./release",
     "lint": "eslint -c ./eslint.config.mjs .",
-    "prettier": "prettier --write ./src ./scripts ./package.json"
+    "prettier": "prettier --write ./src ./package.json"
   },
   "exports": {
     ".": {
