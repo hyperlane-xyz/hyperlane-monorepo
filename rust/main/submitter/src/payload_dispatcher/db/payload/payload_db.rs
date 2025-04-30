@@ -7,9 +7,11 @@ use async_trait::async_trait;
 use eyre::eyre;
 use hyperlane_base::db::{DbError, DbResult, HyperlaneRocksDB};
 use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlaneProtocolError};
+use tracing::debug;
+use tracing_subscriber::field::debug;
 
 use crate::{
-    payload::{FullPayload, PayloadId, PayloadStatus},
+    payload::{self, FullPayload, PayloadId, PayloadStatus},
     transaction::TransactionId,
 };
 
@@ -104,6 +106,16 @@ impl PayloadDb for HyperlaneRocksDB {
                 .await?;
             self.store_payload_id_by_index(payload_index, payload.id())
                 .await?;
+            debug!(
+                ?payload,
+                index = payload_index,
+                "Updated highest index for incoming payload"
+            );
+        } else {
+            debug!(
+                payload_id = ?payload.id(),
+                "Payload with ID already exists, not updating index",
+            );
         }
         self.store_value_by_key(PAYLOAD_BY_ID_STORAGE_PREFIX, payload.id(), payload)
     }
