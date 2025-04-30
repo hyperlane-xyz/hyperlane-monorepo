@@ -309,11 +309,10 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  isRebalancer(account: Address): Promise<boolean> {
-    return this.collateralContract.hasRole(
-      utils.toUtf8Bytes(utils.keccak256(utils.toUtf8Bytes('REBALANCER_ROLE'))),
-      account,
-    );
+  async isRebalancer(account: Address): Promise<boolean> {
+    const role = await this.collateralContract.REBALANCER_ROLE();
+
+    return this.collateralContract.hasRole(role, account);
   }
 
   async getAllowedDestination(domain: Domain): Promise<Address> {
