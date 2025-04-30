@@ -804,7 +804,7 @@ async fn process_confirm_result(
 ) -> PendingOperationResult {
     match &operation_result {
         PendingOperationResult::Success => {
-            debug!(?op, "Operation confirmed");
+            debug!(id=?op.id(), ?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
             op.decrement_metric_if_exists();
         }
