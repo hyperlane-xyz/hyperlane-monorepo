@@ -131,7 +131,7 @@ pub fn relayer_termination_invariants_met(
         .expect("Failed to get tx id indexing log count");
 
     // Sealevel relayer does not require tx id indexing.
-    // It perfroms sequenced indexing, thats why we don't expect any tx_id_logs
+    // It performs sequenced indexing, that's why we don't expect any tx_id_logs
     let expected_tx_id_logs = if sealevel_tx_id_indexing {
         0
     } else {
