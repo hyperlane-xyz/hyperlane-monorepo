@@ -3,7 +3,8 @@ pragma solidity ^0.8.13;
 
 import {ValueTransferBridge} from "contracts/token/libs/ValueTransferBridge.sol";
 import {MockValueTransferBridge} from "./MovableCollateralRouter.t.sol";
-import {HypERC20MovableCollateral} from "contracts/token/HypERC20MovableCollateral.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
+// import {HypERC20MovableCollateral} from "contracts/token/HypERC20MovableCollateral.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
@@ -11,7 +12,7 @@ import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import "forge-std/Test.sol";
 
 contract HypERC20MovableCollateralRouterTest is Test {
-    HypERC20MovableCollateral internal router;
+    HypERC20Collateral internal router;
     MockValueTransferBridge internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
@@ -19,7 +20,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
 
     function setUp() public {
         token = new ERC20Test("Foo Token", "FT", 0, 18);
-        router = new HypERC20MovableCollateral(
+        router = new HypERC20Collateral(
             address(token),
             1e18,
             address(new MockMailbox(uint32(1)))

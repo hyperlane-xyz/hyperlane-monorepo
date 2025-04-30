@@ -16,17 +16,21 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract HypERC20Collateral is FungibleTokenRouter {
+contract HypERC20Collateral is FungibleTokenRouter, MovableCollateralRouter {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable wrappedToken;
@@ -79,5 +83,40 @@ contract HypERC20Collateral is FungibleTokenRouter {
         bytes calldata // no metadata
     ) internal virtual override {
         wrappedToken.safeTransfer(_recipient, _amount);
+    }
+
+    function _rebalance(
+        uint32 domain,
+        bytes32 recipient,
+        uint256 amount,
+        ValueTransferBridge bridge
+    ) internal override {
+        wrappedToken.safeApprove({spender: address(bridge), value: amount});
+        MovableCollateralRouter._rebalance({
+            domain: domain,
+            recipient: recipient,
+            amount: amount,
+            bridge: bridge
+        });
+    }
+
+    function _msgData()
+        internal
+        view
+        virtual
+        override(Context, ContextUpgradeable)
+        returns (bytes calldata)
+    {
+        return ContextUpgradeable._msgData();
+    }
+
+    function _msgSender()
+        internal
+        view
+        virtual
+        override(Context, ContextUpgradeable)
+        returns (address)
+    {
+        return ContextUpgradeable._msgSender();
     }
 }
