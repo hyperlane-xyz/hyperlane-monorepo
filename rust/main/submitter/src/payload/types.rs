@@ -38,7 +38,7 @@ impl PayloadDetails {
 }
 
 /// Full details about a payload. This is instantiated by the caller of PayloadDispatcher
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct FullPayload {
     /// reference to payload used by other components
     pub details: PayloadDetails,
@@ -54,6 +54,19 @@ pub struct FullPayload {
     pub value: Option<U256>,
     /// will be up to the adapter to interpret this. Meant to help enforce the new igp social contract requirement (after 30 mins, stop enforcing any gas price caps)
     pub inclusion_soft_deadline: Option<DateTime<Utc>>,
+}
+
+impl Debug for FullPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FullPayload")
+            .field("id", &self.details.id)
+            .field("metadata", &self.details.metadata)
+            .field("to", &self.to)
+            .field("status", &self.status)
+            .field("value", &self.value)
+            .field("inclusion_soft_deadline", &self.inclusion_soft_deadline)
+            .finish()
+    }
 }
 
 impl FullPayload {
