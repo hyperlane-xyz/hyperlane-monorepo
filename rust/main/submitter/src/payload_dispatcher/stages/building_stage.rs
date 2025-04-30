@@ -96,22 +96,22 @@ impl BuildingStage {
             return Ok(());
         };
         info!(?tx, "Transaction built successfully");
-        let simulation_success = call_until_success_or_nonretryable_error(
-            || self.state.adapter.simulate_tx(&tx),
-            "Simulating transaction",
-            &self.state,
-        )
-        .await
-        .unwrap_or(false);
-        if !simulation_success {
-            warn!(
-                ?tx,
-                payload_details = ?tx.payload_details,
-                "Transaction simulation failed. Dropping transaction"
-            );
-            self.drop_tx(&tx, DropReason::FailedSimulation).await;
-            return Ok(());
-        };
+        // let simulation_success = call_until_success_or_nonretryable_error(
+        //     || self.state.adapter.simulate_tx(&tx),
+        //     "Simulating transaction",
+        //     &self.state,
+        // )
+        // .await
+        // .unwrap_or(false);
+        // if !simulation_success {
+        //     warn!(
+        //         ?tx,
+        //         payload_details = ?tx.payload_details,
+        //         "Transaction simulation failed. Dropping transaction"
+        //     );
+        //     self.drop_tx(&tx, DropReason::FailedSimulation).await;
+        //     return Ok(());
+        // };
         call_until_success_or_nonretryable_error(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",

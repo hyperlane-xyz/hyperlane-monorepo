@@ -209,7 +209,6 @@ impl InclusionStage {
         // .unwrap_or(false);
         // if !simulation_success {
         //     warn!(?tx, "Transaction simulation failed");
-        //     Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
         //     return Err(eyre!("Transaction simulation failed"));
         // }
         // info!(?tx, "Transaction simulation succeeded");
