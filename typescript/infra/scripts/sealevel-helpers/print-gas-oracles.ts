@@ -48,7 +48,8 @@ async function main() {
     if (!connectedChainsSet) {
       return undefined;
     }
-    const connectedChains = [...connectedChainsSet];
+    // Sort for consistently ordered outputs
+    const connectedChains = [...connectedChainsSet].sort();
 
     return connectedChains.reduce((agg, destination) => {
       const oracleConfig = igpConfig.oracleConfig[destination];
