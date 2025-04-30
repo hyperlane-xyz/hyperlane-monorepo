@@ -244,8 +244,8 @@ function generateDiffTable(
           currentThreshold === undefined
             ? 'new'
             : currentThreshold < newThreshold
-            ? 'increase'
-            : 'decrease',
+              ? 'increase'
+              : 'decrease',
       });
     }
   }
