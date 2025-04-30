@@ -2,8 +2,7 @@ import {
   COSMOS_MODULE_MESSAGE_REGISTRY as R,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
-import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
-import { HookConfig } from '@hyperlane-xyz/sdk';
+import { DeployedCoreAddresses, HookConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ChainId,
