@@ -31,13 +31,11 @@ import { runWarpRouteRead } from '../read/warp.js';
 import {
   Executor,
   IExecutor,
-  IMonitor,
   IStrategy,
-  Monitor,
   MonitorPollingError,
   Strategy,
 } from '../rebalancer/index.js';
-import { IMetrics, Metrics } from '../rebalancer/metrics/Metrics.js';
+import { RebalancerContextFactory } from '../rebalancer/metrics/RebalancerContextFactory.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -457,12 +455,13 @@ export const rebalancer: CommandModuleWithContext<{
     withMetrics = false,
   }) => {
     try {
-      // Instantiates the warp route monitor
-      const monitor: IMonitor = new Monitor(
+      const contextFactory = await RebalancerContextFactory.create(
         context.registry,
         warpRouteId,
-        checkFrequency,
       );
+
+      // Instantiates the warp route monitor
+      const monitor = contextFactory.createMonitor(checkFrequency);
 
       // Instantiates the strategy that will get rebalancing routes based on monitor results
       const strategy: IStrategy = Strategy.fromConfigFile(strategyConfigFile);
@@ -471,8 +470,7 @@ export const rebalancer: CommandModuleWithContext<{
       const executor: IExecutor = new Executor();
 
       // Creates an instance for the metrics that will publish stats for the monitored data
-      const metrics: IMetrics =
-        withMetrics && (await Metrics.create(context.registry, warpRouteId));
+      const metrics = withMetrics && contextFactory.createMetrics();
 
       if (!metrics) {
         // TODO: implement the metrics usage, just leaving this here to follow along

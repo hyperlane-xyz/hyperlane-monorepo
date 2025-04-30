@@ -1,16 +1,12 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
-import { IRegistry, createWarpRouteConfigId } from '@hyperlane-xyz/registry';
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
-  CoinGeckoTokenPriceGetter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
   EvmTokenAdapter,
   IHypXERC20Adapter,
-  MultiProtocolProvider,
   SealevelHypTokenAdapter,
   Token,
   TokenStandard,
@@ -18,10 +14,11 @@ import {
   WarpCore,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 
+import { PriceGetter } from './PriceGetter.js';
 import {
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
@@ -29,7 +26,7 @@ import {
   updateXERC20LimitsMetrics,
 } from './helpers.js';
 import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { logger, tryFn } from './utils.js';
+import { formatBigInt, logger, tryFn } from './utils.js';
 
 interface XERC20Info {
   limits: XERC20Limit;
@@ -46,35 +43,12 @@ export class Metrics implements IMetrics {
     'function ERC20() view returns (address)',
   ] as const;
 
-  private constructor(
+  constructor(
     private readonly tokenPriceGetter: PriceGetter,
     private readonly collateralTokenSymbol: string,
     private readonly warpCore: WarpCore,
     private readonly warpDeployConfig: WarpRouteDeployConfig | null,
   ) {}
-
-  public static async create(registry: IRegistry, warpRouteId: string) {
-    const metadata = await registry.getMetadata();
-    const addresses = await registry.getAddresses();
-
-    // The Sealevel warp adapters require the Mailbox address, so we
-    // get mailboxes for all chains and merge them with the chain metadata.
-    const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-    const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
-    const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
-    const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-    const warpDeployConfig = await registry.getWarpDeployConfig(warpRouteId);
-    const collateralTokenSymbol =
-      Metrics.getWarpRouteCollateralTokenSymbol(warpCore);
-    const tokenPriceGetter = await PriceGetter.create(metadata);
-
-    return new Metrics(
-      tokenPriceGetter,
-      collateralTokenSymbol,
-      warpCore,
-      warpDeployConfig,
-    );
-  }
 
   async processEvent({ token }: MonitorEvent) {
     await tryFn(async () => {
@@ -453,7 +427,7 @@ export class Metrics implements IMetrics {
     };
   }
 
-  private static getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
+  static getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
     // We need to have a deterministic way to determine the symbol of the warp route
     // as its used to identify the warp route in metrics. This method should support routes where:
     // - All tokens have the same symbol, token standards can be all collateral, all synthetic or a mix
@@ -487,71 +461,4 @@ export class Metrics implements IMetrics {
 
     return uniqueCollateralSymbols.sort()[0];
   }
-}
-
-class PriceGetter extends CoinGeckoTokenPriceGetter {
-  private constructor({
-    chainMetadata,
-    apiKey,
-    expirySeconds,
-    sleepMsBetweenRequests,
-  }: {
-    chainMetadata: ChainMap<ChainMetadata>;
-    apiKey?: string;
-    expirySeconds?: number;
-    sleepMsBetweenRequests?: number;
-  }) {
-    super({ chainMetadata, apiKey, expirySeconds, sleepMsBetweenRequests });
-  }
-
-  public static async create(chainMetadata: ChainMap<ChainMetadata>) {
-    const apiKey = await PriceGetter.getCoinGeckoApiKey();
-
-    return new PriceGetter({ chainMetadata, apiKey });
-  }
-
-  // Tries to get the price of a token from CoinGecko. Returns undefined if there's no
-  // CoinGecko ID for the token.
-  async tryGetTokenPrice(token: Token): Promise<number | undefined> {
-    // We only get a price if the token defines a CoinGecko ID.
-    // This way we can ignore values of certain types of collateralized warp routes,
-    // e.g. Native warp routes on rollups that have been pre-funded.
-    const coinGeckoId = token.coinGeckoId;
-
-    if (!coinGeckoId) {
-      logger.warn('CoinGecko ID missing for token', token.symbol);
-      return undefined;
-    }
-
-    return this.getCoingeckoPrice(coinGeckoId);
-  }
-
-  async getCoingeckoPrice(coingeckoId: string): Promise<number | undefined> {
-    const prices = await this.getTokenPriceByIds([coingeckoId]);
-    if (!prices) return undefined;
-    return prices[0];
-  }
-
-  static async getCoinGeckoApiKey(): Promise<string | undefined> {
-    // TODO: migrate/replicate gCloud from infra
-    // const environment = 'mainnet3';
-    let apiKey: string | undefined;
-    try {
-      // apiKey = (await fetchGCPSecret(
-      //   `${environment}-coingecko-api-key`,
-      //   false,
-      // )) as string;
-    } catch (e) {
-      logger.error(
-        'Error fetching CoinGecko API key, proceeding with public tier',
-        e,
-      );
-    }
-
-    return apiKey;
-  }
-}
-
-function formatBigInt(warpToken: Token, num: bigint): number {
-  return warpToken.amount(num).getDecimalFormattedAmount();
 }

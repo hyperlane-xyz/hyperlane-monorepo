@@ -1,8 +1,7 @@
 import EventEmitter from 'events';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
-import { MultiProtocolProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
-import { objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
+import { Token, WarpCore } from '@hyperlane-xyz/sdk';
+import { sleep } from '@hyperlane-xyz/utils';
 
 import { WrappedError } from '../../utils/errors.js';
 import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
@@ -24,20 +23,18 @@ export class Monitor implements IMonitor {
   private isMonitorRunning = false;
 
   /**
-   * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
-   * @param warpRouteId - The warp route ID to monitor.
    * @param checkFrequency - The frequency to poll balances in ms.
    */
   constructor(
-    private readonly registry: IRegistry,
-    private readonly warpRouteId: string,
     private readonly checkFrequency: number,
+    private readonly warpCore: WarpCore,
   ) {}
 
-  on(
-    eventName: 'collateralbalances' | 'start' | 'error',
-    fn: (...args: any[]) => void,
-  ) {
+  // overloads from IMonitor
+  on(eventName: 'collateralbalances', fn: (event: MonitorEvent) => void): this;
+  on(eventName: 'error', fn: (event: Error) => void): this;
+  on(eventName: 'start', fn: () => void): this;
+  on(eventName: string, fn: (...args: any[]) => void): this {
     this.emitter.on(eventName, fn);
     return this;
   }
@@ -54,19 +51,6 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
-
-      // Build the WarpCore from the registry
-      const metadata = await this.registry.getMetadata();
-      const addresses = await this.registry.getAddresses();
-
-      // The Sealevel warp adapters require the Mailbox address, so we
-      // get mailboxes for all chains and merge them with the chain metadata.
-      const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-      const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
-      const warpCoreConfig = await this.registry.getWarpRoute(this.warpRouteId);
-      const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-
-      // this can be considered the starting point of the monitor
       this.emitter.emit('start');
 
       while (this.isMonitorRunning) {
@@ -76,11 +60,8 @@ export class Monitor implements IMonitor {
             token: null,
           };
 
-          for (const token of warpCore.tokens) {
-            const bridgedSupply = await this.getTokenBridgedSupply(
-              token,
-              warpCore,
-            );
+          for (const token of this.warpCore.tokens) {
+            const bridgedSupply = await this.getTokenBridgedSupply(token);
 
             // data required for the rebalancer
             function rebalancerData(
@@ -151,7 +132,6 @@ export class Monitor implements IMonitor {
 
   private async getTokenBridgedSupply(
     token: Token,
-    warpCore: WarpCore,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
       logger.warn(
@@ -161,7 +141,7 @@ export class Monitor implements IMonitor {
       return;
     }
 
-    const adapter = token.getHypAdapter(warpCore.multiProvider);
+    const adapter = token.getHypAdapter(this.warpCore.multiProvider);
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
