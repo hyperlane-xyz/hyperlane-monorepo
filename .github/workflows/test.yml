@@ -522,8 +522,10 @@ jobs:
           echo "E2E tests failed"
           exit 1
 
-  env-test:
+  env-test-matrix:
     runs-on: ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
@@ -567,6 +569,21 @@ jobs:
           command: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
           on_retry_command: |
             echo "Test failed, waiting before retry..."
+
+  env-test:
+    runs-on: ubuntu-latest
+    needs: env-test-matrix
+    if: always()
+    steps:
+      - name: Check env-test matrix status
+        if: ${{ needs.env-test-matrix.result != 'success' }}
+        run: |
+          if [[ "${{ needs.env-test-matrix.result }}" == "skipped" ]]; then
+            echo "Env Test Matrix was skipped!"
+          elif [[ "${{ needs.env-test-matrix.result }}" != "success" ]]; then
+            echo "Env Test Matrix failed"
+            exit 1
+          fi
 
   coverage:
     runs-on: ubuntu-latest
