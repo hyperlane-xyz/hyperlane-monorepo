@@ -76,6 +76,7 @@ export const mainnet3SupportedChainNames = [
   'merlin',
   'metal',
   'metis',
+  'milkyway',
   'mint',
   'mode',
   'molten',

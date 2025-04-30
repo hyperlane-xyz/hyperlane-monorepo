@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cosmos-sdk",
-  "version": "12.2.0",
+  "version": "12.4.0",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
   "type": "module",
   "exports": {
@@ -40,12 +40,12 @@
     "eslint-plugin-import": "^2.31.0",
     "mocha": "^10.2.0",
     "mocha-steps": "^1.3.0",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
     "typescript": "5.3.3",
     "typescript-eslint": "^8.23.0"
   },
   "dependencies": {
     "@cosmjs/stargate": "^0.32.4",
-    "@hyperlane-xyz/cosmos-types": "12.2.0"
+    "@hyperlane-xyz/cosmos-types": "12.4.0"
   }
 }
