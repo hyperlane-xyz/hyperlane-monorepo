@@ -44,26 +44,19 @@ pub fn to_bech32(input: H256) -> ChainResult<String> {
     let mut bech32_address = String::new();
     let addr = input.as_ref();
 
-    match addr.len() {
-        28 => {
-            bech32::encode_to_fmt::<Bech32m, String>(&mut bech32_address, hrp, addr).map_err(
-                |e| ChainCommunicationError::CustomError(format!("bech32 encoding error: {e:?}")),
-            )?;
-
-            Ok(bech32_address)
-        }
-        32 if addr[..4] == [0, 0, 0, 0] => {
-            bech32::encode_to_fmt::<Bech32m, String>(&mut bech32_address, hrp, &addr[4..])
-                .map_err(|e| {
-                    ChainCommunicationError::CustomError(format!("bech32 encoding error: {e:?}"))
-                })?;
-
-            Ok(bech32_address)
-        }
-        _ => Err(ChainCommunicationError::CustomError(format!(
+    let addr = if addr.len() == 28 {
+        addr
+    } else if addr.len() == 32 && addr[..4] == [0, 0, 0, 0] {
+        &addr[4..]
+    } else {
+        return Err(ChainCommunicationError::CustomError(format!(
             "bech_32 encoding error: Address must be 28 bytes, received {addr:?}"
-        ))),
-    }
+        )));
+    };
+    bech32::encode_to_fmt::<Bech32m, String>(&mut bech32_address, hrp, addr).map_err(|e| {
+        ChainCommunicationError::CustomError(format!("bech32 encoding error: {e:?}"))
+    })?;
+    Ok(bech32_address)
 }
 
 fn from_bech32(input: &str) -> ChainResult<H256> {
