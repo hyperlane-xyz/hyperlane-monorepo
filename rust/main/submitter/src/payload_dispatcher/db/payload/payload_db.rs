@@ -8,7 +8,6 @@ use eyre::eyre;
 use hyperlane_base::db::{DbError, DbResult, HyperlaneRocksDB};
 use hyperlane_core::{identifiers::UniqueIdentifier, Decode, Encode, HyperlaneProtocolError};
 use tracing::debug;
-use tracing_subscriber::field::debug;
 
 use crate::{
     payload::{self, FullPayload, PayloadId, PayloadStatus},
