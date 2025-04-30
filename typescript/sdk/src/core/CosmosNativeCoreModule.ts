@@ -2,6 +2,7 @@ import {
   COSMOS_MODULE_MESSAGE_REGISTRY as R,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
+import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
@@ -97,7 +98,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
     signer: SigningHyperlaneModuleClient;
-  }): Promise<Record<string, string>> {
+  }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, signer } = params;
 
     const chainName = multiProvider.getChainName(chain);
@@ -150,8 +151,20 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       new_owner: config.owner || '',
     });
 
-    const addresses: Record<string, string> = {
+    const addresses: DeployedCoreAddresses = {
       mailbox: mailbox.id,
+      staticMerkleRootMultisigIsmFactory: '',
+      proxyAdmin: '',
+      staticMerkleRootWeightedMultisigIsmFactory: '',
+      staticAggregationHookFactory: '',
+      staticAggregationIsmFactory: '',
+      staticMessageIdMultisigIsmFactory: '',
+      staticMessageIdWeightedMultisigIsmFactory: '',
+      validatorAnnounce: '',
+      testRecipient: '',
+      interchainAccountIsm: '',
+      interchainAccountRouter: '',
+      domainRoutingIsmFactory: '',
     };
 
     if (typeof config.defaultIsm !== 'string') {
@@ -250,14 +263,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       updateTransactions.push(...ismUpdateTxs);
     }
 
-    const newIsmDeployed = !eqAddress(
-      actualDefaultIsmConfig.address,
-      deployedIsm,
-    );
+    const newIsmDeployed = actualDefaultIsmConfig.address !== deployedIsm;
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating default ISM of Mailbox from ${mailbox} to ${deployedIsm}`,
+        annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
         typeUrl: R.MsgSetMailbox.proto.type,
         value: R.MsgSetMailbox.proto.converter.create({
           owner: actualConfig.owner,

@@ -152,29 +152,72 @@ export async function runCoreDeploy(params: DeployParams) {
 
 export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
-  const { multiProvider } = context;
-  const evmCoreModule = new EvmCoreModule(multiProvider, {
-    chain,
-    config,
-    addresses: deployedCoreAddresses,
-  });
+  const { multiProvider, multiProtocolSigner } = context;
 
-  const transactions = await evmCoreModule.update(config);
+  switch (multiProvider.getProtocol(chain)) {
+    case ProtocolType.Ethereum: {
+      const evmCoreModule = new EvmCoreModule(multiProvider, {
+        chain,
+        config,
+        addresses: deployedCoreAddresses,
+      });
 
-  if (transactions.length) {
-    logGray('Updating deployed core contracts');
-    for (const transaction of transactions) {
-      await multiProvider.sendTransaction(
-        // Using the provided chain id because there might be remote chain transactions included in the batch
-        transaction.chainId ?? chain,
-        transaction,
-      );
+      const transactions = await evmCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        for (const transaction of transactions) {
+          await multiProvider.sendTransaction(
+            // Using the provided chain id because there might be remote chain transactions included in the batch
+            transaction.chainId ?? chain,
+            transaction,
+          );
+        }
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
+      break;
     }
+    case ProtocolType.CosmosNative: {
+      const signer = multiProtocolSigner?.getCosmosNativeSigner(chain)!;
+      assert(signer, 'Cosmos Native signer failed!');
 
-    logGreen(`Core config updated on ${chain}.`);
-  } else {
-    logGreen(
-      `Core config on ${chain} is the same as target. No updates needed.`,
-    );
+      const cosmosNativeCoreModule = new CosmosNativeCoreModule(
+        multiProvider,
+        signer,
+        {
+          chain,
+          config,
+          addresses: deployedCoreAddresses,
+        },
+      );
+
+      const transactions = await cosmosNativeCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        const response = await signer.signAndBroadcast(
+          signer.account.address,
+          transactions,
+          2,
+        );
+
+        assert(
+          response.code === 0,
+          `Transaction failed with status code ${response.code}`,
+        );
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
+      break;
+    }
   }
 }

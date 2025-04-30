@@ -58,9 +58,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   }
 
   public async read(): Promise<IsmConfig> {
-    return typeof this.args.config === 'string'
-      ? this.args.addresses.deployedIsm
-      : this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+    return this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
