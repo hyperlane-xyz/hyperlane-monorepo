@@ -159,13 +159,7 @@ pub struct Slot {
     pub batches: Vec<Batch>,
 }
 
-trait HttpClient {
-    async fn http_get(&self, query: &str) -> Result<Bytes, reqwest::Error>;
-    async fn http_post(&self, query: &str, json: &Value) -> Result<Bytes, reqwest::Error>;
-    async fn parse_response(&self, response: Response) -> Result<Bytes, reqwest::Error>;
-}
-
-impl HttpClient for SovereignRestClient {
+impl SovereignRestClient {
     async fn http_get(&self, query: &str) -> Result<Bytes, reqwest::Error> {
         let mut header_map = HeaderMap::default();
         header_map.insert(
@@ -233,9 +227,7 @@ impl HttpClient for SovereignRestClient {
             }
         }
     }
-}
 
-impl SovereignRestClient {
     /// Create a new Rest client for the Sovereign Hyperlane chain.
     pub async fn new(conf: &ConnectionConf) -> ChainResult<Self> {
         let universal_wallet_client =
