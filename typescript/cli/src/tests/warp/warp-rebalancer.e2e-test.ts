@@ -1,14 +1,16 @@
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { $ } from 'zx';
 
+import { HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { sleep, toWei } from '@hyperlane-xyz/utils';
+import { addressToBytes32, sleep, toWei } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -39,11 +41,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   const CHECK_FREQUENCY = 1000;
 
-  let warpDeploymentPath: string;
   let tokenSymbol: string;
   let warpRouteId: string;
   let snapshots: { rpcUrl: string; snapshotId: string }[] = [];
   let ogVerbose: boolean;
+
+  let chain2Metadata: ChainMetadata;
+  let chain3Metadata: ChainMetadata;
+  let chain4Metadata: ChainMetadata;
 
   before(async () => {
     ogVerbose = $.verbose;
@@ -68,13 +73,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     console.log('Deploying Warp Route...');
 
-    warpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
+    const warpDeploymentPath = getCombinedWarpRoutePath(tokenSymbol, [
       CHAIN_NAME_2,
       CHAIN_NAME_3,
       CHAIN_NAME_4,
     ]);
     const ownerAddress = new Wallet(ANVIL_KEY).address;
-    const warpConfig: WarpRouteDeployConfig = {
+    const warpRouteDeployConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: tokenChain2.address,
@@ -93,14 +98,49 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         owner: ownerAddress,
       },
     };
-    writeYamlOrJson(warpDeploymentPath, warpConfig);
+    writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
     await hyperlaneWarpDeploy(warpDeploymentPath);
 
-    warpRouteId = createWarpRouteConfigId(tokenSymbol.toUpperCase(), [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      CHAIN_NAME_4,
-    ]);
+    console.log('Adding rebalancer roles...');
+
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpDeploymentPath);
+    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    const chain2Provider = new ethers.providers.JsonRpcProvider(
+      chain2Metadata.rpcUrls[0].http,
+    );
+    const chain3Provider = new ethers.providers.JsonRpcProvider(
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain2Signer = new Wallet(ANVIL_KEY, chain2Provider);
+    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain2CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[0].addressOrDenom!,
+      chain2Signer,
+    );
+    const chain3CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[1].addressOrDenom!,
+      chain3Signer,
+    );
+    const rebalancerRole = await chain2CollateralContract.REBALANCER_ROLE();
+    await chain2CollateralContract.grantRole(rebalancerRole, ownerAddress);
+    await chain3CollateralContract.grantRole(rebalancerRole, ownerAddress);
+
+    console.log('Adding recipients...');
+
+    await chain2CollateralContract.addRecipient(
+      chain3Metadata.domainId,
+      addressToBytes32(chain3CollateralContract.address),
+    );
+    await chain3CollateralContract.addRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(chain2CollateralContract.address),
+    );
+
+    console.log('Adding collateral bridges...');
+
+    // TODO: Add ValueTransferBridges to the collateral contracts
 
     console.log('Bridging tokens...');
 
@@ -122,6 +162,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         ),
       ),
     ]);
+
+    warpRouteId = createWarpRouteConfigId(tokenSymbol.toUpperCase(), [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+      CHAIN_NAME_4,
+    ]);
   });
 
   after(() => {
@@ -133,10 +179,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       [CHAIN_NAME_2]: { weight: '100', tolerance: '0' },
       [CHAIN_NAME_3]: { weight: '100', tolerance: '0' },
     });
-
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    const chain4Metadata: ChainMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
 
     const chain2RpcUrl = chain2Metadata.rpcUrls[0].http;
     const chain3RpcUrl = chain3Metadata.rpcUrls[0].http;
