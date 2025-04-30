@@ -108,12 +108,25 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     timeout-minutes: 10
+    env:
+      PR_BASE: ${{ github.base_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
+
+      - name: Check for Rust changes
+        run: |
+          # Check for Rust changes
+          if git diff $PR_BASE...HEAD --name-only | grep -qE '^rust/'; then
+            # Check if there are only Rust changes
+            if ! git diff $PR_BASE...HEAD --name-only | grep -qvE '^rust/'; then
+              echo "Only Rust changes detected. Exiting."
+              exit 0
+            fi
+          fi
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
