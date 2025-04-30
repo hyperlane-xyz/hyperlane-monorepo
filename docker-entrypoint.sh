@@ -4,6 +4,10 @@ set -e
 # Set default registry URI, same as Dockerfile
 REGISTRY_URI="/hyperlane-registry"
 
+echo "REGISTRY_COMMIT: $REGISTRY_COMMIT"
+echo "REGISTRY_URI: $REGISTRY_URI"
+echo "Current commit: $(git -C "$REGISTRY_URI" rev-parse HEAD)"
+
 # Only update registry if REGISTRY_COMMIT is set
 if [ -n "$REGISTRY_COMMIT" ]; then
   echo "Updating Hyperlane registry to: $REGISTRY_COMMIT"
