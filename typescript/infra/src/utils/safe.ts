@@ -1,5 +1,7 @@
 import { JsonRpcSigner } from '@ethersproject/providers';
-import SafeApiKit from '@safe-global/api-kit';
+import SafeApiKit, {
+  SafeMultisigTransactionListResponse,
+} from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
@@ -401,9 +403,8 @@ export async function updateSafeOwner({
         `Threshold change ${currentThreshold} => ${newThreshold}`,
       ),
     );
-    const { data: thresholdTxData } = await safeSdk.createChangeThresholdTx(
-      newThreshold,
-    );
+    const { data: thresholdTxData } =
+      await safeSdk.createChangeThresholdTx(newThreshold);
     transactions.push({
       to: thresholdTxData.to,
       data: thresholdTxData.data,
@@ -456,7 +457,8 @@ export async function getPendingTxsForChains(
         return;
       }
 
-      let safeSdk, safeService;
+      let safeSdk: Safe.default;
+      let safeService: SafeApiKit.default;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,
@@ -473,8 +475,8 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      let pendingTxs;
 
+      let pendingTxs: SafeMultisigTransactionListResponse;
       rootLogger.info(
         chalk.gray.italic(
           `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
@@ -515,10 +517,10 @@ export async function getPendingTxsForChains(
             confs >= threshold
               ? SafeTxStatus.READY_TO_EXECUTE
               : confs === 0
-              ? SafeTxStatus.NO_CONFIRMATIONS
-              : threshold - confs
-              ? SafeTxStatus.ONE_AWAY
-              : SafeTxStatus.PENDING;
+                ? SafeTxStatus.NO_CONFIRMATIONS
+                : threshold - confs
+                  ? SafeTxStatus.ONE_AWAY
+                  : SafeTxStatus.PENDING;
 
           txs.push({
             chain,
