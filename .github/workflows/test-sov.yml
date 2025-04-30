@@ -31,6 +31,8 @@ jobs:
             cd rust/main
             cargo clippy --bin relayer --bin validator -- -D warnings
             cargo fmt --check
+            cd chains/hyperlane-sovereign
+            cargo test
 
         - name: Clone sovereign-sdk-wip
           run: git clone git@github.com:Sovereign-Labs/sovereign-sdk-wip.git
