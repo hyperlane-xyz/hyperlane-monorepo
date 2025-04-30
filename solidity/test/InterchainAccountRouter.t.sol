@@ -70,28 +70,19 @@ contract InterchainAccountRouterTestBase is Test {
 
     Callable internal target;
 
-    function deployProxiedIcaRouter(
+    function deployIcaRouter(
         MockMailbox _mailbox,
         IPostDispatchHook _customHook,
         IInterchainSecurityModule _ism,
         address _owner
     ) public returns (InterchainAccountRouter) {
-        InterchainAccountRouter implementation = new InterchainAccountRouter(
-            address(_mailbox)
-        );
-
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(1), // no proxy owner necessary for testing
-            abi.encodeWithSelector(
-                InterchainAccountRouter.initialize.selector,
+        return
+            new InterchainAccountRouter(
+                address(_mailbox),
                 address(_customHook),
                 address(_ism),
                 _owner
-            )
-        );
-
-        return InterchainAccountRouter(address(proxy));
+            );
     }
 
     function setUp() public virtual {
@@ -108,14 +99,14 @@ contract InterchainAccountRouterTestBase is Test {
         );
 
         address owner = address(this);
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             environment.igps(origin),
             icaIsm,
             owner
         );
 
-        destinationIcaRouter = deployProxiedIcaRouter(
+        destinationIcaRouter = deployIcaRouter(
             environment.mailboxes(destination),
             environment.igps(destination),
             icaIsm,
@@ -381,7 +372,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     function test_quoteDispatch_differentHook() public {
         // arrange
         TestPostDispatchHook testHook = new TestPostDispatchHook();
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
             icaIsm,
@@ -454,7 +445,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // arrange
         TestPostDispatchHook testHook = new TestPostDispatchHook();
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
             icaIsm,
@@ -631,7 +622,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         TestPostDispatchHook testHook = new TestPostDispatchHook();
 
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
             icaIsm,
@@ -842,7 +833,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         TestPostDispatchHook testHook = new TestPostDispatchHook();
         TestPostDispatchHook customHook = new TestPostDispatchHook();
 
-        originIcaRouter = deployProxiedIcaRouter(
+        originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
             icaIsm,

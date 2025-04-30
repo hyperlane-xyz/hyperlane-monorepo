@@ -87,27 +87,15 @@ contract InterchainAccountRouter is Router {
     );
 
     // ============ Constructor ============
-
-    constructor(address _mailbox) Router(_mailbox) {}
-
-    // ============ Initializers ============
-
-    /**
-     * @notice Initializes the contract with HyperlaneConnectionClient contracts
-     * @param _customHook used by the Router to set the hook to override with
-     * @param _interchainSecurityModule The address of the local ISM contract
-     * @param _owner The address with owner privileges
-     */
-    function initialize(
-        address _customHook,
+    constructor(
+        address _mailbox,
+        address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) external initializer {
-        _MailboxClient_initialize(
-            _customHook,
-            _interchainSecurityModule,
-            _owner
-        );
+    ) Router(_mailbox) {
+        setHook(_hook);
+        setInterchainSecurityModule(_interchainSecurityModule);
+        _transferOwnership(_owner);
 
         bytes memory bytecode = _implementationBytecode(address(this));
         implementation = Create2.deploy(0, bytes32(0), bytecode);
@@ -149,12 +137,6 @@ contract InterchainAccountRouter is Router {
         for (uint256 i = 0; i < _destinations.length; i++) {
             _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
         }
-    }
-
-    function setHook(
-        address _hook
-    ) public override onlyContractOrNull(_hook) onlyOwner {
-        hook = IPostDispatchHook(_hook);
     }
 
     // ============ External Functions ============
