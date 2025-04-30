@@ -50,26 +50,6 @@ export class StarknetDeployer {
     const casm = getCompiledContractCasm(contractName, contractType);
     const constructorCalldata = CallData.compile(constructorArgs);
 
-    // const classHash = hash.computeSierraContractClassHash(
-    //   compiledContract as CompiledSierra,
-    // );
-
-    // const feeEstimation = await this.account.estimateDeployFee({
-    //   classHash,
-    //   constructorCalldata,
-    // });
-
-    // const bounds = stark.estimateFeeToBounds(
-    //   {
-    //     gas_consumed: feeEstimation.gas_consumed.toString(),
-    //     gas_price: feeEstimation.gas_price.toString(),
-    //     overall_fee: feeEstimation.overall_fee.toString(),
-    //     unit: 'WEI',
-    //   },
-    //   50,
-    //   20,
-    // );
-    // const
     const params: ContractFactoryParams = {
       compiledContract,
       account: this.account,
@@ -77,7 +57,6 @@ export class StarknetDeployer {
     };
 
     const contractFactory = new ContractFactory(params);
-
     const contract = await contractFactory.deploy(constructorCalldata);
     const receipt = await this.account.waitForTransaction(
       contract.deployTransactionHash as BigNumberish,

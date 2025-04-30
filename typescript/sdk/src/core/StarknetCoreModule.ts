@@ -5,7 +5,6 @@ import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
@@ -149,60 +148,9 @@ export class StarknetCoreModule {
 
     // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
-      const ismConfig = {
-        type: IsmType.ROUTING,
-        domains: {
-          starknetsepolia: {
-            type: IsmType.AGGREGATION,
-            modules: [
-              {
-                type: IsmType.MESSAGE_ID_MULTISIG,
-                validators: ['0xd07272cc3665d6e383a319691dcce5731ecf54a5'],
-                threshold: 1,
-              },
-              {
-                type: IsmType.PAUSABLE,
-                owner: args.owner,
-              },
-            ],
-            threshold: 2,
-          },
-          sepolia: {
-            type: IsmType.AGGREGATION,
-            modules: [
-              {
-                type: IsmType.MESSAGE_ID_MULTISIG,
-                validators: ['0xb22b65f202558adf86a8bb2847b76ae1036686a5'],
-                threshold: 1,
-              },
-              {
-                type: IsmType.PAUSABLE,
-                owner: args.owner,
-              },
-            ],
-            threshold: 2,
-          },
-          solanatestnet: {
-            type: IsmType.AGGREGATION,
-            modules: [
-              {
-                type: IsmType.MESSAGE_ID_MULTISIG,
-                validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
-                threshold: 1,
-              },
-              {
-                type: IsmType.PAUSABLE,
-                owner: args.owner,
-              },
-            ],
-            threshold: 2,
-          },
-        },
-        owner: args.owner,
-      };
       const defaultIsm = await this.deployer.deployIsm({
         chain: args.chain.toString(),
-        ismConfig: ismConfig as IsmConfig,
+        ismConfig: expectedConfig.defaultIsm,
         mailbox: args.mailboxContract.address,
       });
 

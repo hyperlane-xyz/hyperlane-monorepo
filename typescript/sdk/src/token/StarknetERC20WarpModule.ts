@@ -163,7 +163,6 @@ export class StarknetERC20WarpModule {
     deployer: StarknetDeployer;
   }): Promise<string> {
     if (!ismConfig) return getChecksumAddress(0);
-    console.log('ISM CONFIG', ismConfig);
     if (typeof ismConfig === 'string') return ismConfig;
     return deployer.deployIsm({
       chain,
