@@ -3,9 +3,7 @@ pragma solidity ^0.8.19; // Use a recent version
 
 import {Script, console} from "forge-std/Script.sol";
 
-// Import your PolymerISM contract (adjust path as needed)
-import {PolymerISM} from "../src/isms/PolymerIsm.sol";
-// Required for address(0) checks
+import {PolymerISM} from "../contracts/isms/PolymerIsm.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 contract DeployPolymerIsm is Script {

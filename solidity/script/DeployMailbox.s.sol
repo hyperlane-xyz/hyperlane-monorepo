@@ -11,7 +11,7 @@ import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook
 
 contract DeployMailbox is Script {
     function run() external returns (address mailboxProxyAddress) {
-        uint256 hyperlaneDomainId = vm.envUint("HYPERLANE_DOMAIN_ID");
+        uint32 hyperlaneDomainId = uint32(vm.envUint("HYPERLANE_DOMAIN_ID"));
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployerAddress = vm.addr(deployerPrivateKey);
 
