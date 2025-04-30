@@ -25,8 +25,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' assert { type: 'json' };
-import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' assert { type: 'json' };
+import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
+import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,

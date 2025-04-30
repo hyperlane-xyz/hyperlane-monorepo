@@ -71,9 +71,10 @@ export async function tryGetContractDeploymentTransaction(
   const requestUrl = formatExplorerUrl(explorerOptions, options);
   const response = await fetch(requestUrl);
 
-  const [deploymentTx] = await handleEtherscanResponse<
-    Array<GetContractDeploymentTransactionResponse>
-  >(response);
+  const [deploymentTx] =
+    await handleEtherscanResponse<
+      Array<GetContractDeploymentTransactionResponse>
+    >(response);
 
   return deploymentTx;
 }
