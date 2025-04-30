@@ -165,24 +165,19 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  yarn-test-fallback:
-    runs-on: ubuntu-latest
-    needs: [yarn-test-run]
-    if: needs.yarn-test-run.result == 'skipped'
-    steps:
-      - name: Fallback for Yarn Test
-        run: echo "Yarn Test was skipped, running fallback."
-
   yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-test-run, yarn-test-fallback]
+    needs: [yarn-test-run]
     if: always()
     steps:
       - name: Check yarn-test status
-        if: ${{ needs.yarn-test-run.result != 'success' }}
         run: |
-          echo "Yarn Test failed"
-          exit 1
+          if [[ "${{ needs.yarn-test-run.result }}" == "skipped" ]]; then
+            echo "Yarn Test was skipped!"
+          elif [[ "${{ needs.yarn-test-run.result }}" != "success" ]]; then
+            echo "Yarn Test failed"
+            exit 1
+          fi
 
   infra-test:
     runs-on: ubuntu-latest
@@ -292,24 +287,19 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
-  cli-e2e-fallback:
-    runs-on: ubuntu-latest
-    needs: [cli-e2e-matrix]
-    if: needs.cli-e2e-matrix.result == 'skipped'
-    steps:
-      - name: Fallback for CLI E2E
-        run: echo "CLI E2E Matrix was skipped, running fallback."
-
   cli-e2e:
     runs-on: ubuntu-latest
-    needs: [cli-e2e-matrix, cli-e2e-fallback]
+    needs: [cli-e2e-matrix]
     if: always()
     steps:
       - name: Check cli-e2e matrix status
-        if: ${{ needs.cli-e2e-matrix.result != 'success' }}
         run: |
-          echo "CLI E2E tests failed"
-          exit 1
+          if [[ "${{ needs.cli-e2e-matrix.result }}" == "skipped" ]]; then
+            echo "CLI E2E Matrix was skipped!"
+          elif [[ "${{ needs.cli-e2e-matrix.result }}" != "success" ]]; then
+            echo "CLI E2E tests failed"
+            exit 1
+          fi
 
   cosmos-sdk-e2e:
     runs-on: ubuntu-latest
