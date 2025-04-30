@@ -105,12 +105,11 @@ jobs:
           rm -f changed_files.txt
 
   rust-only:
-    if: github.event_name == 'pull_request'
     outputs:
       only_rust: ${{ steps.check-rust-only.outputs.only_rust }}
     runs-on: ubuntu-latest
     env:
-      PR_BASE: ${{ github.base_ref }}
+      PR_BASE: ${{ github.base_ref || 'HEAD^' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,7 +117,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Fetch PR base
+      - name: Fetch PR base or parent commit
         run: git fetch origin $PR_BASE
 
       - name: Check for Rust changes
