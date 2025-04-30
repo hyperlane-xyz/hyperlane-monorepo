@@ -170,6 +170,7 @@ jobs:
     needs: [yarn-test-run]
     if: always()
     steps:
+      - uses: actions/checkout@v4
       - name: Check yarn-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -289,6 +290,7 @@ jobs:
     needs: [cli-e2e-matrix]
     if: always()
     steps:
+      - uses: actions/checkout@v4
       - name: Check cli-e2e matrix status
         uses: ./.github/actions/check-job-status
         with:
@@ -569,6 +571,7 @@ jobs:
     needs: env-test-matrix
     if: always()
     steps:
+      - uses: actions/checkout@v4
       - name: Check env-test matrix status
         uses: ./.github/actions/check-job-status
         with:
