@@ -171,13 +171,10 @@ jobs:
     if: always()
     steps:
       - name: Check yarn-test status
-        run: |
-          if [[ "${{ needs.yarn-test-run.result }}" == "skipped" ]]; then
-            echo "Yarn Test was skipped!"
-          elif [[ "${{ needs.yarn-test-run.result }}" != "success" ]]; then
-            echo "Yarn Test failed"
-            exit 1
-          fi
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Yarn Test'
+          result: ${{ needs.yarn-test-run.result }}
 
   infra-test:
     runs-on: ubuntu-latest
@@ -293,13 +290,10 @@ jobs:
     if: always()
     steps:
       - name: Check cli-e2e matrix status
-        run: |
-          if [[ "${{ needs.cli-e2e-matrix.result }}" == "skipped" ]]; then
-            echo "CLI E2E Matrix was skipped!"
-          elif [[ "${{ needs.cli-e2e-matrix.result }}" != "success" ]]; then
-            echo "CLI E2E tests failed"
-            exit 1
-          fi
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI E2E'
+          result: ${{ needs.cli-e2e-matrix.result }}
 
   cosmos-sdk-e2e:
     runs-on: ubuntu-latest
@@ -576,14 +570,10 @@ jobs:
     if: always()
     steps:
       - name: Check env-test matrix status
-        if: ${{ needs.env-test-matrix.result != 'success' }}
-        run: |
-          if [[ "${{ needs.env-test-matrix.result }}" == "skipped" ]]; then
-            echo "Env Test Matrix was skipped!"
-          elif [[ "${{ needs.env-test-matrix.result }}" != "success" ]]; then
-            echo "Env Test Matrix failed"
-            exit 1
-          fi
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Env Test'
+          result: ${{ needs.env-test-matrix.result }}
 
   coverage:
     runs-on: ubuntu-latest
