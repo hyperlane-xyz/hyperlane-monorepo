@@ -199,21 +199,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return callEncoded;
   }
 
-  async getAccountConfig(
-    chain: ChainName,
-    account: Address,
-  ): Promise<AccountConfig> {
-    const accountOwner = await this.router(
-      this.contractsMap[chain],
-    ).accountOwners(account);
-    const originChain = this.multiProvider.getChainName(accountOwner.origin);
-    return {
-      origin: originChain,
-      owner: accountOwner.owner,
-      localRouter: this.router(this.contractsMap[chain]).address,
-    };
-  }
-
   // general helper for different overloaded callRemote functions
   // can override the gasLimit by StandardHookMetadata.overrideGasLimit for optional hookMetadata here
   async callRemote({

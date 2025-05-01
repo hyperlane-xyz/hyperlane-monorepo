@@ -2,8 +2,7 @@ import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Ownable__factory } from '@hyperlane-xyz/core';
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -26,6 +25,7 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { icas, safes } from '../../config/environments/mainnet3/owners.js';
 import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
 
 import {
@@ -366,14 +366,25 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    // Get the account's config
-    const accountConfig = await this.interchainAccount.getAccountConfig(
-      chain,
-      account.address,
-    );
-    const origin = this.interchainAccount.multiProvider.getChainName(
-      accountConfig.origin,
-    );
+    if (account.address !== icas[chain as keyof typeof icas]) {
+      console.info(
+        chalk.gray(
+          `Account ${account.address} is not a known ICA. Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
+    const origin = 'ethereum';
+    const accountConfig = {
+      origin,
+      owner: safes[origin],
+    };
+
     console.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
