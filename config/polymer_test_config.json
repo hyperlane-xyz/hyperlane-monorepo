@@ -3,38 +3,35 @@
     "apechain": {
       "name": "apechain",
       "domain": 33139,
+      "chainId": 33139,
       "protocol": "ethereum",
       "rpcUrls": [
         {
           "http": "https://apechain.calderachain.xyz/http"
         }
       ],
-      "contracts": {
-         "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
-      },
+      "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
       "index": {
-        "from": 17525341,
+        "from": 17525341
       }
     },
     "b3": {
       "name": "b3",
       "domain": 1993,
+      "chainId": 1993,
       "protocol": "ethereum",
       "rpcUrls": [
         {
           "http": "https://sepolia.b3.fun/http"
         }
       ],
-      "contracts": {
-         "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
-      },
+      "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
       "index": {
-         "from": 31937330,
+         "from": 31937330
       }
     }
   },
-  // Relayer-specific settings
-  "db": "/tmp/hyperlane_relayer_db", // Path for the relayer's database
+  "db": "/tmp/hyperlane_relayer_db",
   "relayChains": "apechain,b3",
   "gasPaymentEnforcement": [
      { "policy": "none" }
