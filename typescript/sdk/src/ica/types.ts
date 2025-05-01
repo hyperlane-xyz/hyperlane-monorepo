@@ -32,7 +32,6 @@ export const DerivedIcaRouterConfigSchema = DerivedOwnableSchema.merge(
     .object({
       owner: ZHash,
       mailbox: ZHash,
-      proxyAdmin: DerivedOwnableSchema,
       remoteIcaRouters: RemoteIcaRouterConfigSchema,
     })
     .strict(),
