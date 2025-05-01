@@ -13,8 +13,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 abstract contract MovableCollateralRouter is AccessControl {
     using SafeERC20 for IERC20;
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    function _MovableCollateralRouter_initialize(address admin) internal {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");

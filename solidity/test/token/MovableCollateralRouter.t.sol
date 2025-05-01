@@ -7,7 +7,11 @@ import {MovableCollateralRouter, ValueTransferBridge} from "contracts/token/libs
 import "forge-std/Test.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-contract MockMovableCollateralRouter is MovableCollateralRouter {}
+contract MockMovableCollateralRouter is MovableCollateralRouter {
+    constructor() {
+        _MovableCollateralRouter_initialize(msg.sender);
+    }
+}
 
 contract MockValueTransferBridge is ValueTransferBridge {
     ERC20Test token;
