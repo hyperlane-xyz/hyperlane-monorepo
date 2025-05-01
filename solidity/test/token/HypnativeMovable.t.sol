@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {ValueTransferBridge} from "contracts/token/libs/ValueTransferBridge.sol";
-import {HypNativeMovable} from "contracts/token/HypNativeMovable.sol";
+import {HypNative} from "contracts/token/HypNative.sol";
 
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
@@ -22,7 +22,7 @@ contract MockValueTransferBridgeEth is ValueTransferBridge {
 }
 
 contract HypNativeMovableTest is Test {
-    HypNativeMovable internal router;
+    HypNative internal router;
     MockValueTransferBridgeEth internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
@@ -30,10 +30,7 @@ contract HypNativeMovableTest is Test {
 
     function setUp() public {
         token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
-        router = new HypNativeMovable(
-            1e18,
-            address(new MockMailbox(uint32(1)))
-        );
+        router = new HypNative(1e18, address(new MockMailbox(uint32(1))));
 
         vtb = new MockValueTransferBridgeEth();
     }
@@ -56,12 +53,7 @@ contract HypNativeMovableTest is Test {
         deal(address(router), 1 ether);
 
         // Execute
-        router.rebalance(
-            destinationDomain,
-            bytes32(uint256(uint160(alice))),
-            1 ether,
-            vtb
-        );
+        router.rebalance(destinationDomain, 1 ether, vtb);
         // Assert
         assertEq(address(router).balance, 0);
         assertEq(address(vtb).balance, 1 ether);

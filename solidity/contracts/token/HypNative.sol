@@ -3,14 +3,22 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
+
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title Hyperlane Native Token Router that extends ERC20 with remote transfer functionality.
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is FungibleTokenRouter {
+contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
+    string internal constant INSUFFICIENT_NATIVE_AMOUNT =
+        "Native: amount exceeds msg.value";
+
     /**
      * @dev Emitted when native tokens are donated to the contract.
      * @param sender The address of the sender.
@@ -46,7 +54,7 @@ contract HypNative is FungibleTokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) external payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+        require(msg.value >= _amount, INSUFFICIENT_NATIVE_AMOUNT);
         uint256 _hookPayment = msg.value - _amount;
         return _transferRemote(_destination, _recipient, _amount, _hookPayment);
     }
@@ -62,7 +70,7 @@ contract HypNative is FungibleTokenRouter {
         bytes calldata _hookMetadata,
         address _hook
     ) external payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+        require(msg.value >= _amount, INSUFFICIENT_NATIVE_AMOUNT);
         uint256 _hookPayment = msg.value - _amount;
         return
             _transferRemote(
@@ -106,5 +114,38 @@ contract HypNative is FungibleTokenRouter {
 
     receive() external payable {
         emit Donation(msg.sender, msg.value);
+    }
+
+    function _rebalance(
+        uint32 domain,
+        bytes32 recipient,
+        uint256 amount,
+        ValueTransferBridge bridge
+    ) internal override {
+        bridge.transferRemote{value: amount}({
+            destinationDomain: domain,
+            recipient: recipient,
+            amountOut: amount
+        });
+    }
+
+    function _msgData()
+        internal
+        view
+        virtual
+        override(Context, ContextUpgradeable)
+        returns (bytes calldata)
+    {
+        return ContextUpgradeable._msgData();
+    }
+
+    function _msgSender()
+        internal
+        view
+        virtual
+        override(Context, ContextUpgradeable)
+        returns (address)
+    {
+        return ContextUpgradeable._msgSender();
     }
 }
