@@ -35,6 +35,7 @@ migration = { path = "migration" }
 
 [dev-dependencies]
 reqwest.workspace = true
+sqlx = { version = "^0", features = ["migrate", "runtime-tokio-rustls", "postgres"] }
 tokio-test = "0.4"
 tracing-test.workspace = true
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }

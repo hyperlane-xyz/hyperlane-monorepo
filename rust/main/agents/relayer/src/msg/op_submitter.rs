@@ -362,7 +362,7 @@ async fn receive_task(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn prepare_classic_task(
+pub async fn prepare_classic_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
     submit_queue: OpQueue,
@@ -583,7 +583,7 @@ async fn process_batch(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn submit_classic_task(
+pub async fn submit_classic_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -765,7 +765,7 @@ async fn confirm_op(
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn confirm_classic_task(
+pub async fn confirm_classic_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,

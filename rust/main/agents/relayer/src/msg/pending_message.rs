@@ -174,6 +174,7 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
+        println!("Writing status to db {:?}", status);
         if let Err(e) = self
             .ctx
             .origin_db
