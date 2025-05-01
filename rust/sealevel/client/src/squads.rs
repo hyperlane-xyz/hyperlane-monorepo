@@ -224,7 +224,7 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
         if *program_id == BPF_LOADER_UPGRADEABLE_PROGRAM_ID {
             println!("\tBPF Loader Upgradeable instruction (how the system manages programs)");
             // Setting the upgrade authority, found here https://explorer.eclipse.xyz/tx/3RQ9V2HSbg4aZwr3LTMMwzrEBHa18KHMVwngXsHF2t5YZJ1Hb4MiBd7hovdPanLJT7Lmy2uuide55WmQvXDPjGx5
-            if instruction.data == &[4, 0, 0, 0] {
+            if instruction.data == [4, 0, 0, 0] {
                 println!("\tSetting the upgrade authority:");
                 let target_program = vault_transaction
                     .message
@@ -260,35 +260,28 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
         }
 
         // Try to parse as a MailboxInstruction
-        match MailboxInstruction::try_from_slice(&instruction.data) {
-            Ok(instruction) => {
-                println!("\tMailbox instruction: {:?}", instruction);
-                if let MailboxInstruction::TransferOwnership(new_owner) = instruction {
-                    println!(
-                        "\tTransfer ownership to {}",
-                        new_owner.map_or("None".into(), |owner| pubkey_classifier.classify(&owner))
-                    );
-                }
-                continue;
+        if let Ok(instruction) = MailboxInstruction::try_from_slice(&instruction.data) {
+            println!("\tMailbox instruction: {:?}", instruction);
+            if let MailboxInstruction::TransferOwnership(new_owner) = instruction {
+                println!(
+                    "\tTransfer ownership to {}",
+                    new_owner.map_or("None".into(), |owner| pubkey_classifier.classify(&owner))
+                );
             }
-            Err(_) => {}
+            continue;
         }
 
         // Else, try to parse as a MultisigIsmInstruction
-        match MultisigIsmInstruction::decode(&instruction.data) {
-            Ok(instruction) => {
-                println!("\tMultisig ISM instruction: {:?}", instruction);
-                if let MultisigIsmInstruction::TransferOwnership(new_owner) = instruction {
-                    println!(
-                        "\tTransfer ownership to {}",
-                        new_owner.map_or("None".into(), |owner| pubkey_classifier.classify(&owner))
-                    );
-                }
-                continue;
+        if let Ok(instruction) = MultisigIsmInstruction::decode(&instruction.data) {
+            println!("\tMultisig ISM instruction: {:?}", instruction);
+            if let MultisigIsmInstruction::TransferOwnership(new_owner) = instruction {
+                println!(
+                    "\tTransfer ownership to {}",
+                    new_owner.map_or("None".into(), |owner| pubkey_classifier.classify(&owner))
+                );
             }
-            Err(_) => {}
+            continue;
         }
-
         println!("\n ⚠️ Unknown instruction! ⚠️");
     }
 }
