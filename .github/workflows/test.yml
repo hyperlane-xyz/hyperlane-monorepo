@@ -208,7 +208,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Fetch PR base
+      - name: Fetch base
         run: git fetch origin ${{ needs.set-base-sha.outputs.base_sha }}
 
       - name: Check for balance/config changes
