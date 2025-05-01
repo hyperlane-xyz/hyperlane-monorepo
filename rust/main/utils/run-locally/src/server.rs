@@ -1,10 +1,11 @@
 use std::{io, time::Duration};
 
+use maplit::hashmap;
 use reqwest::Url;
 
 use relayer::server::MessageRetryResponse;
 
-use crate::RELAYER_METRICS_PORT;
+use crate::{fetch_metric, RELAYER_METRICS_PORT};
 
 /// create tokio runtime to send a retry request to
 /// relayer to retry all existing messages in the queues
@@ -58,4 +59,24 @@ async fn call_retry_request() -> io::Result<MessageRetryResponse> {
         })?;
 
     Ok(response_json)
+}
+
+pub fn fetch_relayer_message_processed_count() -> eyre::Result<u32> {
+    Ok(fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_messages_processed_count",
+        &hashmap! {},
+    )?
+    .iter()
+    .sum::<u32>())
+}
+
+pub fn fetch_relayer_gas_payment_event_count() -> eyre::Result<u32> {
+    Ok(fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payments"},
+    )?
+    .iter()
+    .sum::<u32>())
 }

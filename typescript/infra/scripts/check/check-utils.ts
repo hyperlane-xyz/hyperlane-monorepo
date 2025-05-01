@@ -23,7 +23,7 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
-import { getWarpAddresses } from '../../config/registry.js';
+import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -50,6 +50,7 @@ import {
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { withRegistryUris } from '../github-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
@@ -63,7 +64,7 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withWarpRouteId(withModule(getCheckBaseArgs()));
+  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
 }
 
 export async function getGovernor(
@@ -76,6 +77,7 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
+  registryUris?: string[],
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -196,33 +198,42 @@ export async function getGovernor(
     if (!warpRouteId) {
       warpRouteId = await getWarpRouteIdInteractive();
     }
-    const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    const warpAddresses = getWarpAddresses(warpRouteId);
+    const config = await getWarpConfig(
+      multiProvider,
+      envConfig,
+      warpRouteId,
+      registryUris,
+    );
+    const warpAddresses = await getWarpAddressesFrom(warpRouteId, registryUris);
+
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
-      .reduce((obj, key) => {
-        obj[key] = {
-          ...warpAddresses[key],
-        };
+      .reduce(
+        (obj, key) => {
+          obj[key] = {
+            ...warpAddresses[key],
+          };
 
-        // Use the specified proxyAdmin if it is set in the config
-        let proxyAdmin = config[key].proxyAdmin?.address;
-        // If the owner in the config is an AW account and there is no proxyAdmin in the config,
-        // set the proxyAdmin to the AW singleton proxyAdmin.
-        // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
-        if (
-          !proxyAdmin &&
-          eqAddress(config[key].owner, envConfig.owners[key]?.owner)
-        ) {
-          proxyAdmin = chainAddresses[key]?.proxyAdmin;
-        }
+          // Use the specified proxyAdmin if it is set in the config
+          let proxyAdmin = config[key].proxyAdmin?.address;
+          // If the owner in the config is an AW account and there is no proxyAdmin in the config,
+          // set the proxyAdmin to the AW singleton proxyAdmin.
+          // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
+          if (
+            !proxyAdmin &&
+            eqAddress(config[key].owner, envConfig.owners[key]?.owner)
+          ) {
+            proxyAdmin = chainAddresses[key]?.proxyAdmin;
+          }
 
-        if (proxyAdmin) {
-          obj[key].proxyAdmin = proxyAdmin;
-        }
+          if (proxyAdmin) {
+            obj[key].proxyAdmin = proxyAdmin;
+          }
 
-        return obj;
-      }, {} as typeof warpAddresses);
+          return obj;
+        },
+        {} as typeof warpAddresses,
+      );
 
     const { contractsMap, foreignDeployments } =
       attachContractsMapAndGetForeignDeployments(
@@ -235,8 +246,8 @@ export async function getGovernor(
     const nonEvmChains = chains
       ? chains.filter((c) => foreignDeployments[c])
       : fork && foreignDeployments[fork]
-      ? [fork]
-      : [];
+        ? [fork]
+        : [];
 
     if (nonEvmChains.length > 0) {
       const chainList = nonEvmChains.join(', ');

@@ -11,15 +11,11 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
-  isAddress,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -54,9 +50,7 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.XERC20Lockbox]:
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
   // TODO: describe
-  [TokenType.fastSynthetic]: '',
   [TokenType.syntheticUri]: '',
-  [TokenType.fastCollateral]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
 };
@@ -96,15 +90,16 @@ async function fillDefaults(
 
 export async function readWarpRouteDeployConfig(
   filePath: string,
-  context?: CommandContext,
-): Promise<WarpRouteDeployConfig> {
+  context: CommandContext,
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   let config = readYamlOrJson(filePath);
   if (!config)
     throw new Error(`No warp route deploy config found at ${filePath}`);
-  if (context) {
-    config = await fillDefaults(context, config as any);
-  }
-  return WarpRouteDeployConfigSchema.parse(config);
+
+  config = await fillDefaults(context, config as any);
+
+  //fillDefaults would have added a mailbox to the config if it was missing
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
@@ -142,43 +137,28 @@ export async function createWarpRouteDeployConfig({
       'signer',
     );
 
-    // default to the mailbox from the registry and if not found ask to the user to submit one
-    const chainAddresses = await context.registry.getChainAddresses(chain);
-
-    const mailbox =
-      chainAddresses?.mailbox ??
-      (await input({
-        validate: isAddress,
-        message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
-      }));
-
-    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
-      context,
-      chain,
-      owner,
-    );
+    const proxyAdmin: DeployedOwnableConfig | undefined =
+      await setProxyAdminConfig(context, chain);
 
     /**
      * The logic from the cli is as follows:
+     *  --yes flag is provided: set ism to undefined (default ISM config)
      *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
-     *  --yes flag is provided: the default ISM config will be used (Trusted ISM + Default fallback ISM)
      *  -- no flag is provided: the user must choose if the default ISM config should be used:
      *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
-     *    - no: the default fallback ISM will be used
+     *    - no: keep ism as undefined (default ISM config)
      */
-    let interchainSecurityModule: IsmConfig;
-    if (advanced) {
+    let interchainSecurityModule: IsmConfig | undefined;
+    if (context.skipConfirmation) {
+      interchainSecurityModule = undefined;
+    } else if (advanced) {
       interchainSecurityModule = await createAdvancedIsmConfig(context);
-    } else if (context.skipConfirmation) {
-      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
     } else if (
       await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
       })
     ) {
       interchainSecurityModule = createDefaultWarpIsmConfig(owner);
-    } else {
-      interchainSecurityModule = createFallbackRoutingConfig(owner);
     }
 
     const type = await select({
@@ -196,9 +176,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
       case TokenType.collateralUri:
-      case TokenType.fastCollateral:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -211,7 +189,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.syntheticRebase:
         result[chain] = {
-          mailbox,
           type,
           owner,
           isNft,
@@ -226,7 +203,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.collateralVaultRebase:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -241,7 +217,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.collateralVault:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -254,7 +229,6 @@ export async function createWarpRouteDeployConfig({
         break;
       default:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,

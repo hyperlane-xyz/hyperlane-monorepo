@@ -48,6 +48,7 @@ impl Signer {
 
     fn build_signing_key(private_key: &Vec<u8>) -> ChainResult<SigningKey> {
         Ok(SigningKey::from_slice(private_key.as_slice())
+            .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
 }

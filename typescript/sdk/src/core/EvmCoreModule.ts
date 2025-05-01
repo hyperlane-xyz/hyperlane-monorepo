@@ -38,12 +38,12 @@ import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import {
   HyperlaneModule,
@@ -199,29 +199,14 @@ export class EvmCoreModule extends HyperlaneModule<
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedEV5Transaction[];
   }> {
-    const {
-      mailbox,
-      domainRoutingIsmFactory,
-      staticAggregationIsmFactory,
-      staticAggregationHookFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticMerkleRootMultisigIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
-    } = this.serialize();
+    const { mailbox } = this.serialize();
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
       config: expectDefaultIsmConfig,
       addresses: {
         mailbox,
-        domainRoutingIsmFactory,
-        staticAggregationIsmFactory,
-        staticAggregationHookFactory,
-        staticMessageIdMultisigIsmFactory,
-        staticMerkleRootMultisigIsmFactory,
-        staticMerkleRootWeightedMultisigIsmFactory,
-        staticMessageIdWeightedMultisigIsmFactory,
+        ...extractIsmAndHookFactoryAddresses(this.serialize()),
         deployedIsm: actualDefaultIsmConfig.address,
       },
     });

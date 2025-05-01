@@ -1,10 +1,10 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main branch, ignoring md files
+  # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
-  # Triggers on pull requests, ignoring md files
+  # Triggers on pull requests
   pull_request:
     branches:
       - '*'
@@ -20,6 +20,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  RUSTC_WRAPPER: sccache
 
 jobs:
   yarn-install:
@@ -60,22 +61,14 @@ jobs:
 
   lint-prettier:
     runs-on: ubuntu-latest
-    needs: [yarn-install]
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          # check out full history
-          fetch-depth: 0
 
-      - name: yarn-cache
-        uses: buildjet/cache@v4
+      - uses: actions/setup-node@v4
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          fail-on-cache-miss: true
+          node-version-file: .nvmrc
 
       # Build required before linting or the intra-monorepo package cycle checking won't work
       - name: yarn-build
@@ -86,18 +79,35 @@ jobs:
       - name: lint
         run: yarn lint
 
-      - name: prettier
+      - name: Get changed PR files
+        if: github.event_name == 'pull_request'
         run: |
-          yarn prettier
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            exit 1
-          fi
+          gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[] | select (.status != "removed") | .path' > changed_files.txt
+          echo "Changed files: $(cat changed_files.txt)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Run prettier (changed files)
+        if: github.event_name == 'pull_request'
+        run: >-
+          cat changed_files.txt |
+          xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
+
+      - name: Run prettier (all files)
+        if: github.event_name != 'pull_request'
+        run: >-
+          yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
+        continue-on-error: true
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f changed_files.txt
 
   yarn-test:
     runs-on: ubuntu-latest
     needs: [yarn-install]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,9 +129,57 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  cli-e2e-matrix:
+  infra-test:
     runs-on: ubuntu-latest
     needs: [yarn-install]
+    env:
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
+      PR_BASE: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: Balance Tests
+        run: |
+          if git diff $PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+            yarn --cwd typescript/infra test:balance
+          fi
+
+      - name: Warp Config Tests
+        run: |
+          if git diff $PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+            yarn --cwd typescript/infra test:warp
+          fi
+
+  cli-install-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Test run the CLI
+        run: hyperlane --version
+
+  cli-e2e-matrix:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -136,8 +194,12 @@ jobs:
           - relay
           # Warp Commands
           - warp-apply
+          - warp-bridge-1
+          - warp-bridge-2
           - warp-check
-          - warp-deploy
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
           - warp-init
           - warp-read
           - warp-send
@@ -153,6 +215,12 @@ jobs:
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -175,9 +243,25 @@ jobs:
           echo "CLI E2E tests failed"
           exit 1
 
+  cosmos-sdk-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Cosmos SDK e2e tests
+        run: yarn --cwd typescript/cosmos-sdk test:e2e
+
   agent-configs:
     runs-on: ubuntu-latest
-    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -200,20 +284,19 @@ jobs:
         run: |
           cd typescript/infra
           yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
-          CHANGES=$(git status -s)
+          CHANGES=$(git status -s . :/rust/main/config)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
             exit 1
           fi
 
   e2e-matrix:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -225,24 +308,77 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      # Set rust_changes to true if:
+      # - on the main branch
+      # - PR with changes to ./rust
+      # - PR with changes to this workflow
+      - name: Check for Rust file changes
+        id: check-rust-changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # For main branch, check changes in the current commit
+            PARENT_SHA=$(git rev-parse HEAD^)
+            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml)
+
+            if [[ -n "$CHANGES" ]]; then
+              echo "rust_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected in Rust files or workflow on main branch:"
+              echo "$CHANGES"
+            else
+              echo "rust_changes=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, use GitHub CLI to check changes
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml")')
+
+            if [[ -n "$CHANGES" ]]; then
+              echo "rust_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected in Rust files or workflow in PR:"
+              echo "$CHANGES"
+            else
+              echo "rust_changes=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "rust_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      # If there are no rust changes and the e2e-type is not evm,
+      # then we want to skip this e2e test to save billing time.
+      - name: Check rust and e2e conditions
+        id: check-conditions
+        run: |
+          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" && "${{ matrix.e2e-type }}" != "evm" ]]; then
+            echo "skip-e2e=true" >> $GITHUB_OUTPUT
+            echo "No rust changes detected and e2e-type is not evm. Will skip remaining steps."
+          else
+            echo "skip-e2e=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: foundry-install
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: rust cache
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v2-rust-e2e'
+          prefix-key: 'v3-rust-e2e'
           shared-key: ${{ matrix.e2e-type }}
-          cache-provider: 'buildjet'
+          cache-provider: 'github'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type == 'non-cosmwasm' && './rust/sealevel' || '' }}
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
 
       - name: Free disk space
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
           sudo rm -rf /usr/share/dotnet
@@ -251,51 +387,82 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
       - name: Install mold linker
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: rui314/setup-mold@v1
         with:
           mold-version: 2.0.0
           make-default: true
 
       - name: yarn-build
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
 
       - name: Install system dependencies
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
+      - name: Install OpenSSL 1.1 for Solana toolchain
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        run: |
+          wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+          sudo dpkg -i libssl1.1.deb
+
       - name: Checkout registry
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/checkout-registry
 
+      - name: Run sccache-cache
+        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: mozilla-actions/sccache-action@v0.0.8
+
       - name: agent tests (CosmWasm)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
-        if: matrix.e2e-type == 'cosmwasm'
+        if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
-      - name: Check for Rust file changes
-        id: check-rust-changes
-        run: |
-          if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
-            echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)"
-          else
-            echo "rust_changes=false" >> $GITHUB_OUTPUT
-          fi
+      - name: agent tests (CosmosNative)
+        run: cargo test --release --package run-locally --bin run-locally --features cosmosnative -- cosmosnative::test --nocapture
+        if: ${{ matrix.e2e-type == 'cosmosnative' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
 
-      - name: agent tests (EVM and Sealevel)
+      - name: agent tests (EVM)
+        if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
         run: cargo run --release --bin run-locally --features test-utils
-        if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
+
+      - name: agent tests (Sealevel)
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: e2e-matrix
+    if: always()
+    steps:
+      - name: Check e2e matrix status
+        if: ${{ needs.e2e-matrix.result != 'success' }}
+        run: |
+          echo "E2E tests failed"
+          exit 1
 
   env-test:
     runs-on: ubuntu-latest
@@ -306,7 +473,6 @@ jobs:
       TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
 
     timeout-minutes: 10
-    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -346,7 +512,6 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    needs: [yarn-install]
     steps:
       - uses: actions/checkout@v4
         with:

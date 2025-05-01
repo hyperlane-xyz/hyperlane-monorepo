@@ -139,9 +139,8 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
-      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-        chain,
-      );
+      const signerUrl =
+        await this.multiProvider.tryGetExplorerAddressUrl(chain);
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
@@ -291,10 +290,13 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-        await this.multiProvider.sendTransaction(
-          chain,
-          setIsm(contract, targetIsm),
-        );
+        const populatedTx = await setIsm(contract, targetIsm);
+        const estimatedGas = await this.multiProvider
+          .getSigner(chain)
+          .estimateGas(populatedTx);
+        populatedTx.gasLimit = addBufferToGasLimit(estimatedGas);
+        await this.multiProvider.sendTransaction(chain, populatedTx);
+
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
@@ -775,16 +777,18 @@ export abstract class HyperlaneDeployer<
           { contractName, current, desiredOwner: owner },
           'Current owner and config owner do not match',
         );
-        const receipt = await this.runIfOwner(chain, ownable, () => {
+        const receipt = await this.runIfOwner(chain, ownable, async () => {
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
+          const estimatedGas =
+            await ownable.estimateGas.transferOwnership(owner);
           return this.multiProvider.handleTx(
             chain,
-            ownable.transferOwnership(
-              owner,
-              this.multiProvider.getTransactionOverrides(chain),
-            ),
+            ownable.transferOwnership(owner, {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...this.multiProvider.getTransactionOverrides(chain),
+            }),
           );
         });
         if (receipt) receipts.push(receipt);

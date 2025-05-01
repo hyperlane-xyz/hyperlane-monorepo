@@ -51,6 +51,11 @@ const chainOverrides = {
     multiSend: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
     multiSendCallOnly: '0xf220D3b4DFb23C4ade8C88E526C1353AbAcbC38F',
   },
+  // berachain
+  80094: {
+    multiSend: '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761',
+    multiSendCallOnly: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D',
+  },
 };
 
 export async function getSafe(chain, multiProvider, safeAddress) {
@@ -63,9 +68,8 @@ export async function getSafe(chain, multiProvider, safeAddress) {
 
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
-  const { version: rawSafeVersion } = await safeService.getSafeInfo(
-    safeAddress,
-  );
+  const { version: rawSafeVersion } =
+    await safeService.getSafeInfo(safeAddress);
   // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
   const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
 

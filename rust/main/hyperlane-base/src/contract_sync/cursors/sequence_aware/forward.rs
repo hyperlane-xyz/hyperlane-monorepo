@@ -125,7 +125,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
 
         // for updating metrics even if there's no indexable events available
         let max_sequence = onchain_sequence_count.saturating_sub(1) as i64;
-        self.update_metrics(max_sequence).await;
+        self.update_metrics(max_sequence);
 
         let current_sequence = self.current_indexing_snapshot.sequence;
         let range = match current_sequence.cmp(&onchain_sequence_count) {
@@ -425,7 +425,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     }
 
     // Updates the cursor metrics.
-    async fn update_metrics(&self, max_sequence: i64) {
+    fn update_metrics(&self, max_sequence: i64) {
         let mut labels = hashmap! {
             "event_type" => T::name(),
             "chain" => self.domain.name(),

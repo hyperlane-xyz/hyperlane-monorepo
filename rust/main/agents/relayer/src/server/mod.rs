@@ -1,6 +1,7 @@
 use axum::Router;
 use derive_new::new;
 use std::collections::HashMap;
+use std::env;
 use tokio::sync::broadcast::Sender;
 
 use crate::msg::op_queue::OperationPriorityQueue;
@@ -10,6 +11,9 @@ pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 pub use list_messages::*;
 pub use message_retry::*;
 
+use crate::server::environment_variable::EnvironmentVariableApi;
+
+mod environment_variable;
 mod list_messages;
 mod message_retry;
 
@@ -42,6 +46,13 @@ impl Server {
         }
         if let Some(op_queues) = self.op_queues {
             routes.push(ListOperationsApi::new(op_queues).get_route());
+        }
+
+        let expose_environment_variable_endpoint =
+            env::var("HYPERLANE_RELAYER_ENVIRONMENT_VARIABLE_ENDPOINT_ENABLED")
+                .map_or(false, |v| v == "true");
+        if expose_environment_variable_endpoint {
+            routes.push(EnvironmentVariableApi::new().get_route());
         }
 
         routes

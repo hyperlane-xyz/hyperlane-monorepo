@@ -35,18 +35,7 @@ pub struct CosmosMerkleTreeHook {
 
 impl CosmosMerkleTreeHook {
     /// create new Cosmos MerkleTreeHook agent
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-    ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            locator.clone(),
-            signer,
-        )?;
-
+    pub fn new(provider: CosmosProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
             address: locator.address,
@@ -197,25 +186,17 @@ pub struct CosmosMerkleTreeHookIndexer {
 
 impl CosmosMerkleTreeHookIndexer {
     /// The message dispatch event type from the CW contract.
-    const MERKLE_TREE_INSERTION_EVENT_TYPE: &'static str = "hpl_hook_merkle::post_dispatch";
+    pub const MERKLE_TREE_INSERTION_EVENT_TYPE: &'static str = "hpl_hook_merkle::post_dispatch";
 
     /// create new Cosmos MerkleTreeHookIndexer agent
     pub fn new(
-        conf: ConnectionConf,
+        provider: CosmosProvider,
+        wasm_provider: CosmosWasmRpcProvider,
         locator: ContractLocator,
-        signer: Option<Signer>,
-        reorg_period: u32,
     ) -> ChainResult<Self> {
-        let provider = CosmosWasmRpcProvider::new(
-            conf.clone(),
-            locator.clone(),
-            Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
-            reorg_period,
-        )?;
-
         Ok(Self {
-            merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer)?,
-            provider: Box::new(provider),
+            merkle_tree_hook: CosmosMerkleTreeHook::new(provider, locator)?,
+            provider: Box::new(wasm_provider),
         })
     }
 

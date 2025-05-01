@@ -161,6 +161,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
 
                 self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
 
+                // Update metrics during fast-forward (actually backward in this case) so that
+                // the metrics do not stuck on the last indexed sequence.
+                self.update_metrics();
+
                 debug!(
                     last_indexed_snapshot=?self.last_indexed_snapshot,
                     current_indexing_snapshot=?self.current_indexing_snapshot,
@@ -345,7 +349,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     }
 
     /// Updates the cursor metrics.
-    async fn update_metrics(&self) {
+    fn update_metrics(&self) {
         let labels = hashmap! {
             "event_type" => T::name(),
             "chain" => self.domain.name(),
@@ -403,7 +407,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ContractSyncCursor<T>
         logs: Vec<(Indexed<T>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
-        self.update_metrics().await;
+        self.update_metrics();
         let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() else {
             // We're synced, no need to update at all.
             return Ok(());

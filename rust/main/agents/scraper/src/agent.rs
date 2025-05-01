@@ -5,12 +5,12 @@ use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
-use tracing::{info, info_span, instrument::Instrumented, trace, Instrument};
+use tracing::{info, info_span, trace, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
-    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    MetricsUpdater, SyncOptions,
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, ContractSyncMetrics, ContractSyncer,
+    CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
 use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
@@ -27,6 +27,7 @@ pub struct Scraper {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    runtime_metrics: RuntimeMetrics,
 }
 
 #[derive(Debug)]
@@ -40,13 +41,15 @@ struct ChainScraper {
 impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
+    type Metadata = AgentMetadata;
 
     async fn from_settings(
-        _agent_metadata: AgentMetadata,
+        _agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        runtime_metrics: RuntimeMetrics,
         _tokio_console_server: console_subscriber::Server,
     ) -> eyre::Result<Self>
     where
@@ -71,6 +74,7 @@ impl BaseAgent for Scraper {
             core_metrics: metrics,
             agent_metrics,
             chain_metrics,
+            runtime_metrics,
         })
     }
 
@@ -84,7 +88,12 @@ impl BaseAgent for Scraper {
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
-        let server_task = server.run().instrument(info_span!("Relayer server"));
+        let server_task = tokio::spawn(
+            async move {
+                server.run();
+            }
+            .instrument(info_span!("Scraper server")),
+        );
         tasks.push(server_task);
 
         for scraper in self.scrapers.values() {
@@ -98,7 +107,7 @@ impl BaseAgent for Scraper {
                 }
             };
 
-            let metrics_updater = match MetricsUpdater::new(
+            let metrics_updater = match ChainSpecificMetricsUpdater::new(
                 chain_conf,
                 self.core_metrics.clone(),
                 self.agent_metrics.clone(),
@@ -129,6 +138,7 @@ impl BaseAgent for Scraper {
             }
             tasks.push(metrics_updater.spawn());
         }
+        tasks.push(self.runtime_metrics.spawn());
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(error = ?err, "Scraper task panicked");
         }
@@ -138,7 +148,7 @@ impl BaseAgent for Scraper {
 impl Scraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
-    async fn scrape(&self, scraper: &ChainScraper) -> eyre::Result<Instrumented<JoinHandle<()>>> {
+    async fn scrape(&self, scraper: &ChainScraper) -> eyre::Result<JoinHandle<()>> {
         let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
         let domain = scraper.domain.clone();
@@ -178,11 +188,13 @@ impl Scraper {
             .await?;
         tasks.push(gas_payment_indexer);
 
-        Ok(tokio::spawn(async move {
-            // If any of the tasks panic, we want to propagate it, so we unwrap
-            try_join_all(tasks).await.unwrap();
-        })
-        .instrument(info_span!("Scraper Tasks")))
+        Ok(tokio::spawn(
+            async move {
+                // If any of the tasks panic, we want to propagate it, so we unwrap
+                try_join_all(tasks).await.unwrap();
+            }
+            .instrument(info_span!("Scraper Tasks")),
+        ))
     }
 
     async fn build_chain_scraper(
@@ -251,10 +263,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
-    ) -> eyre::Result<(
-        Instrumented<JoinHandle<()>>,
-        Option<BroadcastMpscSender<H512>>,
-    )> {
+    ) -> eyre::Result<(JoinHandle<()>, Option<BroadcastMpscSender<H512>>)> {
         let sync = self
             .as_ref()
             .settings
@@ -263,6 +272,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 store.into(),
+                true,
                 true,
             )
             .await
@@ -275,10 +285,11 @@ impl Scraper {
             err
         })?;
         let maybe_broadcaser = sync.get_broadcaster();
-        let task = tokio::spawn(async move { sync.sync("message_dispatch", cursor.into()).await })
-            .instrument(
+        let task = tokio::spawn(
+            async move { sync.sync("message_dispatch", cursor.into()).await }.instrument(
                 info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
-            );
+            ),
+        );
         Ok((task, maybe_broadcaser))
     }
 
@@ -289,7 +300,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
-    ) -> eyre::Result<Instrumented<JoinHandle<()>>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let sync = self
             .as_ref()
             .settings
@@ -298,6 +309,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -314,9 +326,9 @@ impl Scraper {
         // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
         // other types of indexed txs / events
         Ok(tokio::spawn(
-            async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await },
-        )
-        .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)))
+            async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await }
+                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
+        ))
     }
 
     async fn build_interchain_gas_payment_indexer(
@@ -327,7 +339,7 @@ impl Scraper {
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
         tx_id_receiver: Option<MpscReceiver<H512>>,
-    ) -> eyre::Result<Instrumented<JoinHandle<()>>> {
+    ) -> eyre::Result<JoinHandle<()>> {
         let sync = self
             .as_ref()
             .settings
@@ -336,6 +348,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
                 true,
             )
             .await
@@ -349,22 +362,26 @@ impl Scraper {
             tracing::error!(?err, ?domain, "Error getting cursor");
             err
         })?;
-        Ok(tokio::spawn(async move {
-            sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                .await
-        })
-        .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)))
+        Ok(tokio::spawn(
+            async move {
+                sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+                    .await
+            }
+            .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
+        ))
     }
 }
 
 #[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
+    use std::time::Duration;
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
     use prometheus::{opts, IntGaugeVec, Registry};
     use reqwest::Url;
+    use sea_orm::{DatabaseBackend, MockDatabase};
 
     use hyperlane_base::{
         settings::{
@@ -373,10 +390,9 @@ mod test {
         BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS,
     };
     use hyperlane_core::{
-        config::OperationBatchConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
+        config::OpSubmissionConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
     };
     use hyperlane_ethereum as h_eth;
-    use sea_orm::{DatabaseBackend, MockDatabase};
 
     use super::*;
 
@@ -386,6 +402,8 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                submitter: Default::default(),
+                estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {
                     mailbox: H256::from_slice(
@@ -426,10 +444,12 @@ mod test {
                         gas_limit: None,
                         max_fee_per_gas: None,
                         max_priority_fee_per_gas: None,
+                        ..Default::default()
                     },
-                    operation_batch: OperationBatchConfig {
+                    op_submission_config: OpSubmissionConfig {
                         batch_contract_address: None,
                         max_batch_size: 1,
+                        ..Default::default()
                     },
                 }),
                 metrics_conf: PrometheusMiddlewareConf {

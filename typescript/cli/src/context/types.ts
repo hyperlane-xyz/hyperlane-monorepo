@@ -10,14 +10,14 @@ import type {
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
-  registryUri: string;
-  registryOverrideUri: string;
+  registryUris: string[];
   key?: string;
   fromAddress?: string;
   requiresKey?: boolean;
   disableProxy?: boolean;
   skipConfirmation?: boolean;
   strategyPath?: string;
+  authToken?: string;
 }
 
 export interface CommandContext {

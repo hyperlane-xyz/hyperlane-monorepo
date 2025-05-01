@@ -26,6 +26,7 @@ tokio = { workspace = true, features = ["time", "sync", "parking_lot"] }
 # enable feature for this crate that is imported by ethers-rs
 primitive-types = { workspace = true, features = ["fp-conversion"] }
 hyperlane-core = { path = "../hyperlane-core", features = ["agent", "float"] }
+hyperlane-metric = { path = "../hyperlane-metric" }
 
 [build-dependencies]
 abigen = { path = "../utils/abigen", features = ["ethers"] }

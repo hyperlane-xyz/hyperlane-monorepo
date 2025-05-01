@@ -100,9 +100,9 @@ function getChainConnections(
     connectedChains = [
       // For the Rivalz team building out their own warp route
       ['solanamainnet', 'rivalz'],
-      // Some branch-fu going on with the SMOL warp route,
-      // ultimately this can be removed once the SMOL PR is merged.
-      ['solanamainnet', 'treasure'],
+      ['solanamainnet', 'everclear'],
+      ['solanamainnet', 'infinityvm'],
+      ['solanamainnet', 'sophon'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
@@ -111,26 +111,32 @@ function getChainConnections(
       // As testnet warp routes are not tracked well, hardcode the connected chains.
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
+      ['solanatestnet', 'connextsepolia'],
+      ['solanatestnet', 'infinityvmmonza'],
+      ['solanatestnet', 'basesepolia'],
     ];
   } else {
     throw new Error(`Unknown environment: ${environment}`);
   }
 
-  return connectedChains.reduce((agg, chains) => {
-    // Make sure each chain is connected to every other chain
-    chains.forEach((chainA) => {
-      chains.forEach((chainB) => {
-        if (chainA === chainB) {
-          return;
-        }
-        if (agg[chainA] === undefined) {
-          agg[chainA] = new Set();
-        }
-        agg[chainA].add(chainB as ChainName);
+  return connectedChains.reduce(
+    (agg, chains) => {
+      // Make sure each chain is connected to every other chain
+      chains.forEach((chainA) => {
+        chains.forEach((chainB) => {
+          if (chainA === chainB) {
+            return;
+          }
+          if (agg[chainA] === undefined) {
+            agg[chainA] = new Set();
+          }
+          agg[chainA].add(chainB as ChainName);
+        });
       });
-    });
-    return agg;
-  }, {} as ChainMap<Set<ChainName>>);
+      return agg;
+    },
+    {} as ChainMap<Set<ChainName>>,
+  );
 }
 
 main().catch((err) => {

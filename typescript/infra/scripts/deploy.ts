@@ -9,6 +9,7 @@ import {
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
+  HyperlaneCCIPDeployer,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -21,7 +22,7 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMap } from '@hyperlane-xyz/utils';
+import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
@@ -36,7 +37,7 @@ import {
 } from '../src/deployment/verify.js';
 import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
-import { inCIMode, writeYamlAtPath } from '../src/utils/utils.js';
+import { writeYamlAtPath } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -48,8 +49,8 @@ import {
   withConcurrentDeploy,
   withContext,
   withFork,
+  withKnownWarpRouteId,
   withModule,
-  withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -66,7 +67,9 @@ async function main() {
   } = await withContext(
     withConcurrentDeploy(
       withChains(
-        withModule(withFork(withWarpRouteId(withBuildArtifactPath(getArgs())))),
+        withModule(
+          withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
+        ),
       ),
     ),
   ).argv;
@@ -77,6 +80,13 @@ async function main() {
     Role.Deployer,
     true,
     chains,
+  );
+
+  const targetNetworks =
+    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
+
+  const filteredTargetNetworks = targetNetworks.filter(
+    (chain) => !chainsToSkip.includes(chain),
   );
 
   if (fork) {
@@ -241,6 +251,21 @@ async function main() {
     config = {
       ethereum: coreConfig.ethereum.defaultHook,
     };
+  } else if (module === Modules.CCIP) {
+    if (environment !== 'mainnet3') {
+      throw new Error('CCIP is only supported on mainnet3');
+    }
+    config = Object.fromEntries(
+      filteredTargetNetworks.map((origin) => [
+        origin,
+        new Set(filteredTargetNetworks.filter((chain) => chain !== origin)),
+      ]),
+    );
+    deployer = new HyperlaneCCIPDeployer(
+      multiProvider,
+      getEnvAddresses(environment),
+      contractVerifier,
+    );
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
@@ -284,12 +309,6 @@ async function main() {
     }
   }
 
-  const targetNetworks =
-    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
-
-  const filteredTargetNetworks = targetNetworks.filter(
-    (chain) => !chainsToSkip.includes(chain),
-  );
   chainsToSkip.forEach((chain) => delete config[chain]);
 
   await deployWithArtifacts({

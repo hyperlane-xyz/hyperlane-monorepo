@@ -9,6 +9,7 @@ import {
   ChainMap,
   ChainName,
   EvmERC20WarpRouteReader,
+  HypTokenRouterConfig,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
 import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -29,7 +30,7 @@ export async function runWarpRouteRead({
   warp?: string;
   address?: string;
   symbol?: string;
-}): Promise<Record<ChainName, any>> {
+}): Promise<Record<ChainName, HypTokenRouterConfig>> {
   const { multiProvider } = context;
 
   let addresses: ChainMap<string>;

@@ -1,10 +1,14 @@
-import { ethers } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
 import {
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+  XERC20LockboxTest,
+  XERC20LockboxTest__factory,
+  XERC20VSTest,
+  XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
@@ -12,12 +16,15 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   HypTokenRouterConfig,
+  TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, sleep } from '@hyperlane-xyz/utils';
+import { Address, inCIMode, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
+import { CommandContext } from '../../context/types.js';
+import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
@@ -230,10 +237,100 @@ export async function extendWarpConfig(params: {
     warpDeployPath,
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
+  // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+  delete warpDeployConfig[chain].remoteRouters;
+  delete warpDeployConfig[chain].destinationGas;
+
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
   await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
 
   return warpDeployPath;
+}
+
+/**
+ * Sets up an incomplete warp route extension for testing purposes.
+ *
+ * This function creates a new warp route configuration for the second chain.
+ */
+export async function setupIncompleteWarpRouteExtension(
+  chain2Addresses: ChainAddresses,
+): Promise<{
+  chain2DomainId: string;
+  chain3DomainId: string;
+  warpConfigPath: string;
+  configToExtend: HypTokenRouterConfig;
+  context: CommandContext;
+  combinedWarpCorePath: string;
+}> {
+  const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+  const chain2DomainId = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+  const chain3DomainId = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+
+  const configToExtend: HypTokenRouterConfig = {
+    decimals: 18,
+    mailbox: chain2Addresses!.mailbox,
+    name: 'Ether',
+    owner: new Wallet(ANVIL_KEY).address,
+    symbol: 'ETH',
+    type: TokenType.native,
+  };
+
+  const context = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: ANVIL_KEY,
+  });
+
+  const warpCoreConfig = readYamlOrJson(
+    WARP_CORE_CONFIG_PATH_2,
+  ) as WarpCoreConfig;
+  const warpDeployConfig = await readWarpConfig(
+    CHAIN_NAME_2,
+    WARP_CORE_CONFIG_PATH_2,
+    warpConfigPath,
+  );
+
+  warpDeployConfig[CHAIN_NAME_3] = configToExtend;
+
+  const signer2 = new Wallet(
+    ANVIL_KEY,
+    context.multiProvider.getProvider(CHAIN_NAME_2),
+  );
+  const signer3 = new Wallet(
+    ANVIL_KEY,
+    context.multiProvider.getProvider(CHAIN_NAME_3),
+  );
+  context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
+  context.multiProvider.setSigner(CHAIN_NAME_3, signer3);
+
+  await extendWarpRouteWithoutApplyTransactions(
+    {
+      context: {
+        ...context,
+        signer: signer3,
+        key: ANVIL_KEY,
+      },
+      warpCoreConfig,
+      warpDeployConfig,
+      receiptsDir: TEMP_PATH,
+    },
+    {},
+    warpCoreConfig,
+  );
+
+  const combinedWarpCorePath = getCombinedWarpRoutePath('ETH', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
+
+  return {
+    chain2DomainId,
+    chain3DomainId,
+    warpConfigPath,
+    configToExtend,
+    context,
+    combinedWarpCorePath,
+  };
 }
 
 /**
@@ -245,8 +342,7 @@ export async function deployOrUseExistingCore(
   key: string,
 ) {
   const { registry } = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key,
   });
   const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
@@ -264,8 +360,7 @@ export async function getDomainId(
   key: string,
 ): Promise<string> {
   const { registry } = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key,
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
@@ -279,8 +374,7 @@ export async function deployToken(
   symbol = 'TOKEN',
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key: privateKey,
   });
 
@@ -306,8 +400,7 @@ export async function deploy4626Vault(
   tokenAddress: string,
 ) {
   const { multiProvider } = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key: privateKey,
   });
 
@@ -320,6 +413,67 @@ export async function deploy4626Vault(
   await vault.deployed();
 
   return vault;
+}
+
+export async function deployXERC20VSToken(
+  privateKey: string,
+  chain: string,
+  decimals = 18,
+  symbol = 'TOKEN',
+): Promise<XERC20VSTest> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  // Future works: make signer compatible with protocol/chain stack
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const token = await new XERC20VSTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(
+    'token',
+    symbol.toLocaleUpperCase(),
+    '100000000000000000000',
+    decimals,
+  );
+  await token.deployed();
+
+  return token;
+}
+
+export async function deployXERC20LockboxToken(
+  privateKey: string,
+  chain: string,
+  token: ERC20Test,
+): Promise<XERC20LockboxTest> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  // Future works: make signer compatible with protocol/chain stack
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
+    await Promise.all([
+      token.symbol(),
+      token.name(),
+      token.decimals(),
+      token.totalSupply(),
+    ]);
+
+  const lockboxToken = await new XERC20LockboxTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(
+    tokenName,
+    tokenSymbol.toLocaleUpperCase(),
+    tokenTotalSupply,
+    tokenDecimals,
+  );
+  await lockboxToken.deployed();
+
+  return lockboxToken;
 }
 
 /**
@@ -339,11 +493,17 @@ export async function sendWarpRouteMessageRoundTrip(
   return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
 }
 
+// Verifies if the IS_CI var is set and generates the correct prefix for running the command
+// in the current env
+export function localTestRunCmdPrefix() {
+  return inCIMode() ? [] : ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run'];
+}
+
 export async function hyperlaneSendMessage(
   origin: string,
   destination: string,
 ) {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane send message \
+  return $`${localTestRunCmdPrefix()} hyperlane send message \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
@@ -353,7 +513,7 @@ export async function hyperlaneSendMessage(
 }
 
 export function hyperlaneRelayer(chains: string[], warp?: string) {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
+  return $`${localTestRunCmdPrefix()} hyperlane relayer \
         --registry ${REGISTRY_PATH} \
         --chains ${chains.join(',')} \
         --warp ${warp ?? ''} \

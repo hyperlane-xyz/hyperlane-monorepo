@@ -13,11 +13,23 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+// ============ Internal Imports ============
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
+import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
+// ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
 contract StaticAggregationHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using TypeCasts for bytes32;
+    using StandardHookMetadata for bytes;
+    using Address for address payable;
+
     // ============ External functions ============
 
     /// @inheritdoc IPostDispatchHook
@@ -32,15 +44,28 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
+        uint256 valueRemaining = msg.value;
         for (uint256 i = 0; i < count; i++) {
             uint256 quote = IPostDispatchHook(_hooks[i]).quoteDispatch(
                 metadata,
                 message
             );
+            require(
+                valueRemaining >= quote,
+                "StaticAggregationHook: insufficient value"
+            );
 
             IPostDispatchHook(_hooks[i]).postDispatch{value: quote}(
                 metadata,
                 message
+            );
+
+            valueRemaining -= quote;
+        }
+
+        if (valueRemaining > 0) {
+            payable(metadata.refundAddress(message.senderAddress())).sendValue(
+                valueRemaining
             );
         }
     }

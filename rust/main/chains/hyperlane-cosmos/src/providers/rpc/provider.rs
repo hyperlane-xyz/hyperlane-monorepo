@@ -5,6 +5,9 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::rpc::client::Client;
 use futures::StreamExt;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
+};
 use sha256::digest;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
@@ -89,15 +92,21 @@ impl CosmosWasmRpcProvider {
 
     /// create new Cosmwasm RPC Provider
     pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
+        conf: &ConnectionConf,
+        locator: &ContractLocator,
         event_type: String,
         reorg_period: u32,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
     ) -> ChainResult<Self> {
         let providers = conf
             .get_rpc_urls()
             .iter()
-            .map(CosmosRpcClient::new)
+            .map(|url| {
+                let metrics_config =
+                    PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
+                CosmosRpcClient::from_url(url, metrics.clone(), metrics_config)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let mut builder = FallbackProvider::builder();
         builder = builder.add_providers(providers);

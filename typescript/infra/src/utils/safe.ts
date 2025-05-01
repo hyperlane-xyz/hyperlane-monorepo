@@ -23,7 +23,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
@@ -32,12 +31,12 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
+  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   const safeSdk: Safe.default = await retryAsync(
     () => getSafe(chain, multiProvider, safeAddress),
     5,
     1000,
   );
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 
@@ -101,12 +100,13 @@ export async function createSafeTransaction(
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
   onlyCalls?: boolean,
+  nonce?: number,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
     onlyCalls,
-    options: { nonce: nextNonce },
+    options: { nonce: nonce ?? nextNonce },
   });
 }
 
@@ -119,7 +119,7 @@ export async function proposeSafeTransaction(
   signer: ethers.Signer,
 ): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-  const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+  const senderSignature = await safeSdk.signTypedData(safeTransaction);
   const senderAddress = await signer.getAddress();
 
   await safeService.proposeTransaction({
@@ -307,17 +307,41 @@ export async function deleteSafeTx(
   }
 }
 
-export async function updateSafeOwner(
-  safeSdk: Safe.default,
-): Promise<AnnotatedCallData[]> {
-  const threshold = await safeSdk.getThreshold();
-  const owners = await safeSdk.getOwners();
-  const newOwners = safeSigners.signers;
-  const ownersToRemove = owners.filter(
-    (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
+export async function getOwnerChanges(
+  currentOwners: Address[],
+  expectedOwners: Address[],
+): Promise<{
+  ownersToRemove: Address[];
+  ownersToAdd: Address[];
+}> {
+  const ownersToRemove = currentOwners.filter(
+    (owner) => !expectedOwners.some((newOwner) => eqAddress(owner, newOwner)),
   );
-  const ownersToAdd = newOwners.filter(
-    (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
+  const ownersToAdd = expectedOwners.filter(
+    (newOwner) => !currentOwners.some((owner) => eqAddress(newOwner, owner)),
+  );
+
+  return { ownersToRemove, ownersToAdd };
+}
+
+export async function updateSafeOwner({
+  safeSdk,
+  owners,
+  threshold,
+}: {
+  safeSdk: Safe.default;
+  owners?: Address[];
+  threshold?: number;
+}): Promise<AnnotatedCallData[]> {
+  const currentThreshold = await safeSdk.getThreshold();
+  const newThreshold = threshold ?? currentThreshold;
+
+  const currentOwners = await safeSdk.getOwners();
+  const expectedOwners = owners ?? currentOwners;
+
+  const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+    currentOwners,
+    expectedOwners,
   );
 
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
@@ -328,7 +352,7 @@ export async function updateSafeOwner(
   for (const ownerToRemove of ownersToRemove) {
     const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
       ownerAddress: ownerToRemove,
-      threshold,
+      threshold: newThreshold,
     });
     transactions.push({
       to: removeTxData.to,
@@ -341,13 +365,33 @@ export async function updateSafeOwner(
   for (const ownerToAdd of ownersToAdd) {
     const { data: addTxData } = await safeSdk.createAddOwnerTx({
       ownerAddress: ownerToAdd,
-      threshold,
+      threshold: newThreshold,
     });
     transactions.push({
       to: addTxData.to,
       data: addTxData.data,
       value: BigNumber.from(addTxData.value),
       description: `Add safe owner ${ownerToAdd}`,
+    });
+  }
+
+  if (
+    ownersToRemove.length === 0 &&
+    ownersToAdd.length === 0 &&
+    currentThreshold !== newThreshold
+  ) {
+    rootLogger.info(
+      chalk.magentaBright(
+        `Threshold change ${currentThreshold} => ${newThreshold}`,
+      ),
+    );
+    const { data: thresholdTxData } =
+      await safeSdk.createChangeThresholdTx(newThreshold);
+    transactions.push({
+      to: thresholdTxData.to,
+      data: thresholdTxData.data,
+      value: BigNumber.from(thresholdTxData.value),
+      description: `Change safe threshold to ${newThreshold}`,
     });
   }
 
@@ -428,10 +472,10 @@ export async function getPendingTxsForChains(
             confs >= threshold
               ? SafeTxStatus.READY_TO_EXECUTE
               : confs === 0
-              ? SafeTxStatus.NO_CONFIRMATIONS
-              : threshold - confs
-              ? SafeTxStatus.ONE_AWAY
-              : SafeTxStatus.PENDING;
+                ? SafeTxStatus.NO_CONFIRMATIONS
+                : threshold - confs
+                  ? SafeTxStatus.ONE_AWAY
+                  : SafeTxStatus.PENDING;
 
           txs.push({
             chain,

@@ -1,5 +1,276 @@
 # @hyperlane-xyz/sdk
 
+## 12.4.0
+
+### Minor Changes
+
+- d2babb7: Remove fallback logic to derive extra lockboxes from rpc
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-sdk@12.4.0
+- @hyperlane-xyz/utils@12.4.0
+- @hyperlane-xyz/core@7.1.3
+
+## 12.3.0
+
+### Minor Changes
+
+- 6101959f7: Enhanced the router enrollment check to support non-fully connected warp routes using the `remoteRouters` property from the deployment config.
+- 5db39f493: Fixes to support CosmosNative and warp apply with foreign deployments.
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+### Patch Changes
+
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/core@7.1.2
+  - @hyperlane-xyz/cosmos-sdk@12.3.0
+
+## 12.2.0
+
+### Minor Changes
+
+- c7934f711: Adds the isRevokeApprovalRequired method on the token adapters to check if the user should revoke any previously set allowances on the token to transfer to avoid approvals failing like in the case of USDT
+- ecbacbdf2: Add EvmHypRebaseCollateralAdapter and EvmHypSyntheticRebaseAdapter
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.2.0
+- @hyperlane-xyz/core@7.1.1
+
+## 12.1.0
+
+### Minor Changes
+
+- acbf5936a: New check: HyperlaneRouterChecker now compares the list of domains
+  the Router is enrolled with against the warp route expectations.
+  It will raise a violation for missing remote domains.
+  `check-deploy` and `check-warp-deploy` scripts use this new check.
+- c757b6a18: Include entire RPC array for chainMetadataToViemChain
+- a646f9ca1: Added ZKSync specific deployment logic and artifact related utils
+- 3b615c892: Adds the proxyAdmin.owner to the Checker ownerOverrides such that it checks proxyAdmin.owner instead of always using the top-level owner
+
+### Patch Changes
+
+- Updated dependencies [e6f6d61a0]
+  - @hyperlane-xyz/core@7.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Major Changes
+
+- 59a087ded: Remove unused FastTokenRouter
+
+### Minor Changes
+
+- 4d3738d14: Update Checker to only check collateralToken and collateralProxyAdmin if provided in ownerOverrides
+- 07321f6f0: ZKSync Provider types with builders
+- 337193305: Add new `public` field to RpcUrlSchema
+
+### Patch Changes
+
+- f7ca32315: fix: correct exported TypeScript types for synthetic tokens
+- 59a087ded: Deploy new scaled warp route bytecode
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+  - @hyperlane-xyz/core@7.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+### Minor Changes
+
+- 888d180b6: Fixes a small bug when initializing a token adapter that caused the wrong adapter to be chosen when interacting with svm chains + add new warp ids for new soon wr deployments
+
+### Patch Changes
+
+- Updated dependencies [cd0424595]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/core@6.1.0
+  - @hyperlane-xyz/utils@11.0.0
+
+## 10.0.0
+
+### Major Changes
+
+- 4fd5623b8: Fixes a bug where `SealevelHypCollateralAdapter` initialization logic erroneously set the `isSpl2022` property to false.
+
+  It updates the `Token.getHypAdapter` and `Token.getAdapter` methods to be async so that before creating an instance of the `SealevelHypCollateralAdapter` class, the collateral account info can be retrieved on chain to set the correct spl standard.
+
+### Minor Changes
+
+- 7dbf7e4fa: Deploy to cotitestnet, plumetestnet2, modetestnet.
+- 28ca87293: Deploy to coti, deepbrainchain, nibiru, opbnb, reactive.
+
+### Patch Changes
+
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [fff9cbf57]
+  - @hyperlane-xyz/utils@10.0.0
+  - @hyperlane-xyz/core@6.0.4
+
+## 9.2.1
+
+### Patch Changes
+
+- e3d09168e: Updated NON_ZERO_SENDER_ADDRESS to 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 to fix reading on zksync chains
+  - @hyperlane-xyz/utils@9.2.1
+  - @hyperlane-xyz/core@6.0.3
+
+## 9.2.0
+
+### Minor Changes
+
+- 7fe739d52: Update default ISMs with new validators for infinityvm, plume, fuse. Add gas buffer when deploying Interchain Accounts. Add gas buffer when transferring ownership of contracts in HyperlaneDeployer. Migrate safe signing from signTransactionHash -> signTypedData.
+- 3e66e8f12: Utils for fetching Starknet chains
+- 4f08670d8: Remove totalSupply from TokenMetadata and introduce initialSupply for synthetic warp routes
+
+### Patch Changes
+
+- 3852a9015: Fix WarpCore collateral check for lockboxes
+  - @hyperlane-xyz/utils@9.2.0
+  - @hyperlane-xyz/core@6.0.2
+
+## 9.1.0
+
+### Minor Changes
+
+- 67d91e489: Constraint Max Mint Limit limit for super XERC20, separate check for limit and destination collateral and new lockbox token in TOKEN_COLLATERALIZED_STANDARDS
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- 351bf0010: Support populateClaimTx on SealevelIgpAdapter
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 97c773476: Skip non-Ethereum chains when deriving token metadata
+  - @hyperlane-xyz/utils@9.1.0
+  - @hyperlane-xyz/core@6.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+- b07e2f2ea: Estimate gas + add buffer on mailbox initialization, setting ISMs, setting IGP configs, setting routing hooks.
+
+### Patch Changes
+
+- 88970a78c: Deploy new scaled warp route bytecode
+- Updated dependencies [88970a78c]
+- Updated dependencies [88970a78c]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/core@6.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- d121c1cb8: Add XERC20 derivation in SDK/CLI Warp Reading
+- 3518f8901: Implement HyperlaneCCIPDeployer and CCIPContractCache, for deploying and initializing CCIP ISMs/Hooks for supported pairs of CCIP chains.
+- d6ddf5b9e: make warp:read and warp:check/warp:verify operations independent of signer requirements
+- 766f50695: Change semantics of ism/hook config from undefined to 0x0 for reading/checking purposes
+- e78060d73: Add CCIP boiler plate for existing ISM and Hook deployers.
+- cb7c157f0: Support DefaultHook in the SDK.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 1955579cf: Expand warpDeployConfig for checking purposes
+- 57137dad4: Add consts and utils for integrating with CCIP.
+- 500249649: Enable usage of CCIP Hooks and ISMs in warp routes.
+- 03266e2c2: add amount routing hook support in the sdk and cli
+- cb93c13a4: Add EvmHypVSXERC20LockboxAdapter and EvmHypVSXERC20Adapter adapters
+- 4147f91cb: Added AmountRoutingIsm support to the IsmReader and Factory
+
+### Patch Changes
+
+- 456407dc7: Adds checking to warp route collateral contracts
+- Updated dependencies [1a0eba65b]
+- Updated dependencies [05f89650b]
+- Updated dependencies [9a010dfc1]
+- Updated dependencies [1a0eba65b]
+- Updated dependencies [f3c67a214]
+- Updated dependencies [3518f8901]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [27eadbfc3]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/core@5.12.0
+  - @hyperlane-xyz/utils@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+- @hyperlane-xyz/core@5.11.6
+
+## 8.8.0
+
+### Minor Changes
+
+- 719d022ec: Add availability field to Chain Metadata
+- c61546cb7: Remove priority fee for sealevel non-solana chains
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+- @hyperlane-xyz/core@5.11.5
+
+## 8.7.0
+
+### Minor Changes
+
+- bd0b8861f: Deploy to hyperevm.
+- 55db270e3: Deploy to chains bouncebit, arcadia, ronin, sophon, story, subtensor.
+- b92eb1b57: Deploy to subtensortestnet.
+- ede0cbc15: Don't derive testnet domains in IGP config derivation on mainnet
+- 12e3c4da0: Enroll new validators for unichain, celo, base, mantle, worldchain, bouncebit, arcadia, ronin, sophon, story, subtensor, hyperevm.
+- d6724c4c3: Fix an issue with HookModule that causes HookModule trigger triggering a new deployment due to unnormalized config despite configs being the same
+- d93a38cab: Add MissingRouterViolation when config misses enrolled routers
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.7.0
+- @hyperlane-xyz/core@5.11.4
+
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
+## 8.6.0
+
+### Minor Changes
+
+- 407d82004: Enroll new validators for glue, matchain, unitzero, abstract, sonicsvm, injective, swell.
+- 276d7ce4e: Deploy to berachain.
+- 1e6ee0b9c: Add new validators for unichain and berachain.
+- 77946bb13: Deploy to chronicleyellowstone testnet.
+
+### Patch Changes
+
+- ac984a17b: Fix contract address filtering to remove undefined factory addresses from the addresses map
+- ba50e62fc: Added ESLint configuration and dependency to enforce Node.js module restrictions
+- Updated dependencies [ba50e62fc]
+  - @hyperlane-xyz/core@5.11.2
+  - @hyperlane-xyz/utils@8.6.0
+
 ## 8.5.0
 
 ### Minor Changes

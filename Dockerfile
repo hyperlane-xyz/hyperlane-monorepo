@@ -19,6 +19,8 @@ COPY typescript/infra/package.json ./typescript/infra/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
+COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
+COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY solidity/package.json ./solidity/
 
 RUN yarn install && yarn cache clean

@@ -3,11 +3,12 @@
     "type": "native",
     "decimals": 9,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "interchainSecurityModule": "NtVfGz6mMXe17Jy8Mt8pvStgwFbGKHkSvxPeWn1FMNu"
+    "owner": "9hixEzn9pBzYG1MVWNq3jAuG7RP3vBT5ijN4UFWDVsfD"
   },
   "sonicsvm": {
     "type": "native",
     "decimals": 9,
-    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief"
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": "G8v8LHQw2pWuJiQbbPRHehsNEneMkCzRHz7vSPP2ttiZ"
   }
 }

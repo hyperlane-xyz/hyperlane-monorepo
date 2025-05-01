@@ -1,24 +1,18 @@
 import { confirm } from '@inquirer/prompts';
 import { Signer, ethers } from 'ethers';
 
-import {
-  DEFAULT_GITHUB_REGISTRY,
-  GithubRegistry,
-  IRegistry,
-  MergedRegistry,
-} from '@hyperlane-xyz/registry';
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -37,14 +31,17 @@ export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
-    registryUri: argv.registry,
-    registryOverrideUri: argv.overrides,
+    registryUris: [
+      ...argv.registry,
+      ...(argv.overrides ? [argv.overrides] : []),
+    ],
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
+    authToken: argv.authToken,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -99,15 +96,20 @@ export async function signerMiddleware(argv: Record<string, any>) {
  * @returns context for the current command
  */
 export async function getContext({
-  registryUri,
-  registryOverrideUri,
+  registryUris,
   key,
   requiresKey,
   skipConfirmation,
   disableProxy = false,
   strategyPath,
+  authToken,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: !disableProxy,
+    logger: rootLogger,
+    authToken,
+  });
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
@@ -137,16 +139,21 @@ export async function getContext({
  */
 export async function getDryRunContext(
   {
-    registryUri,
-    registryOverrideUri,
+    registryUris,
     key,
     fromAddress,
     skipConfirmation,
     disableProxy = false,
+    authToken,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: !disableProxy,
+    logger: rootLogger,
+    authToken,
+  });
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -179,50 +186,6 @@ export async function getDryRunContext(
     isDryRun: true,
     dryRunChain: chain,
   } as WriteCommandContext;
-}
-
-/**
- * Creates a new MergedRegistry using the provided URIs
- * The intention of the MergedRegistry is to join the common data
- * from a primary URI (such as the Hyperlane default Github repo)
- * and an override one (such as a local directory)
- * @returns a new MergedRegistry
- */
-export function getRegistry(
-  primaryRegistryUri: string,
-  overrideRegistryUri: string,
-  enableProxy: boolean,
-): IRegistry {
-  const logger = rootLogger.child({ module: 'MergedRegistry' });
-  const registries = [primaryRegistryUri, overrideRegistryUri]
-    .map((uri) => uri.trim())
-    .filter((uri) => !!uri)
-    .map((uri, index) => {
-      const childLogger = logger.child({ uri, index });
-      if (isHttpsUrl(uri)) {
-        return new GithubRegistry({
-          uri,
-          logger: childLogger,
-          proxyUrl:
-            enableProxy && isCanonicalRepoUrl(uri)
-              ? PROXY_DEPLOYED_URL
-              : undefined,
-        });
-      } else {
-        return new FileSystemRegistry({
-          uri,
-          logger: childLogger,
-        });
-      }
-    });
-  return new MergedRegistry({
-    registries,
-    logger,
-  });
-}
-
-function isCanonicalRepoUrl(url: string) {
-  return url === DEFAULT_GITHUB_REGISTRY;
 }
 
 /**

@@ -17,6 +17,7 @@ use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
 };
 use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
+use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -35,7 +36,6 @@ use crate::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     error::Error,
     instruction::{Init, TransferRemote},
-    message::TokenMessage,
 };
 
 /// Seeds relating to the PDA account with information about this warp route.

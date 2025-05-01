@@ -16,13 +16,18 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  assert,
   objFilter,
   objMap,
   objMerge,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
+import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
+import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
   envNameToAgentEnv,
@@ -55,10 +60,50 @@ export async function writeAgentConfig(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
+  // Get gas prices for Cosmos chains.
+  // Instead of iterating through `addresses`, which only includes EVM chains,
+  // iterate through the environment chain names.
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const environmentChains = envAgentConfig.environmentChainNames;
+  const additionalConfig = Object.fromEntries(
+    await Promise.all(
+      environmentChains
+        .filter(
+          (chain) =>
+            chainIsProtocol(chain, ProtocolType.Cosmos) ||
+            chainIsProtocol(chain, ProtocolType.CosmosNative),
+        )
+        .map(async (chain) => {
+          try {
+            const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);
+            return [chain, { gasPrice }];
+          } catch (error) {
+            rootLogger.error(`Error getting gas price for ${chain}:`, error);
+            const { denom } = await multiProvider.getNativeToken(chain);
+            assert(denom, `No nativeToken.denom found for chain ${chain}`);
+            const amount =
+              environment === 'mainnet3'
+                ? mainnet3GasPrices[chain as keyof typeof mainnet3GasPrices]
+                    .amount
+                : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
+                    .amount;
+            return [chain, { gasPrice: { denom, amount } }];
+          }
+        }),
+    ),
+  );
+
+  // Include scraper-only chains in the generatedagent config
+  const agentConfigChains = getCombinedChainsToScrape(
+    envAgentConfig.environmentChainNames,
+    envAgentConfig.scraper?.scraperOnlyChains || {},
+  );
+
   // Get the addresses for the environment
   const addressesMap = getAddresses(
     environment,
     Modules.CORE,
+    agentConfigChains,
   ) as ChainMap<ChainAddresses>;
 
   const addressesForEnv = filterRemoteDomainMetadata(addressesMap);
@@ -101,7 +146,7 @@ export async function writeAgentConfig(
           const deployedBlock = await mailbox.deployedBlock();
           return deployedBlock.toNumber();
         } catch (err) {
-          console.error(
+          rootLogger.error(
             'Failed to get deployed block, defaulting to 0. Chain:',
             chain,
             'Error:',
@@ -113,31 +158,39 @@ export async function writeAgentConfig(
     ),
   );
 
-  // Get gas prices for Cosmos chains.
-  // Instead of iterating through `addresses`, which only includes EVM chains,
-  // iterate through the environment chain names.
-  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
-  const environmentChains = envAgentConfig.environmentChainNames;
-  const additionalConfig = Object.fromEntries(
-    await Promise.all(
-      environmentChains
-        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
-        .map(async (chain) => [
-          chain,
-          {
-            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
-          },
-        ]),
-    ),
+  // For each chain, ensure the required contract addresses are set
+  let missingArtifactsCount = 0;
+  for (const [chain, artifacts] of Object.entries(addressesForEnv)) {
+    // required fields in HyperlaneDeploymentArtifacts
+    const requiredArtifacts = [
+      'merkleTreeHook',
+      'interchainGasPaymaster',
+      'mailbox',
+      'validatorAnnounce',
+    ];
+
+    for (const artifact of requiredArtifacts) {
+      if (!artifacts[artifact]) {
+        rootLogger.warn(`${artifact} address not found for chain ${chain}`);
+        missingArtifactsCount++;
+      }
+    }
+  }
+
+  // If there are missing addresses, fail the script
+  assert(
+    missingArtifactsCount === 0,
+    `Missing ${missingArtifactsCount} addresses in configuration`,
   );
 
   const agentConfig = buildAgentConfig(
-    environmentChains,
+    agentConfigChains,
     await getEnvironmentConfig(environment).getMultiProvider(
       undefined,
       undefined,
       // Don't use secrets
       false,
+      agentConfigChains,
     ),
     addressesForEnv as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
@@ -172,6 +225,6 @@ export async function writeAgentConfig(
 main()
   .then(() => process.exit(0))
   .catch((e) => {
-    console.error('Failed to update agent config', e);
+    rootLogger.error('Failed to update agent config', e);
     process.exit(1);
   });
