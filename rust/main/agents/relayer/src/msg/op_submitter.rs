@@ -852,11 +852,7 @@ async fn confirm_lander_task(
                         Some((op, op_results))
                     }
                     Ok(Some(_)) | Ok(None) | Err(_) => {
-                        error!(
-                            ?op,
-                            %message_id,
-                            "Error retrieving payload id by message id",
-                        );
+                        debug!(?op, ?message_id, "No payload id found for message id",);
                         send_back_on_failed_submission(
                             op,
                             prepare_queue.clone(),
