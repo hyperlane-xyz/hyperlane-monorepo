@@ -26,7 +26,6 @@ export const getMantapacificNeutronTiaWarpConfig = async (
     name: 'TIA',
     symbol: 'TIA',
     decimals: 6,
-    totalSupply: 0,
     gas: 600_000,
   };
 

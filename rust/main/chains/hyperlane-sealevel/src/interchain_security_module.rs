@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use num_traits::cast::FromPrimitive;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signer::Signer};
 use tracing::warn;
 
 use hyperlane_core::{
@@ -10,20 +12,20 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{SealevelKeypair, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelKeypair, SealevelProvider};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainSecurityModule {
     payer: Option<SealevelKeypair>,
     program_id: Pubkey,
-    provider: SealevelProvider,
+    provider: Arc<SealevelProvider>,
 }
 
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(
-        provider: SealevelProvider,
+        provider: Arc<SealevelProvider>,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
@@ -33,10 +35,6 @@ impl SealevelInterchainSecurityModule {
             program_id,
             provider,
         }
-    }
-
-    fn rpc(&self) -> &SealevelRpcClient {
-        self.provider.rpc()
     }
 }
 
@@ -67,14 +65,14 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
             vec![],
         );
 
+        let pubkey = self
+            .payer
+            .as_ref()
+            .map(|p| p.pubkey())
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         let module = self
-            .rpc()
-            .simulate_instruction::<SimulationReturnData<u32>>(
-                self.payer
-                    .as_ref()
-                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-                instruction,
-            )
+            .provider
+            .simulate_instruction::<SimulationReturnData<u32>>(&pubkey, instruction)
             .await?
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str("No return data was returned from the ISM")

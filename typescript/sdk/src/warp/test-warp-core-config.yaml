@@ -17,6 +17,15 @@ tokens:
       - {
           token: sealevel|testsealevel|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678,
         }
+      - {
+          token: ethereum|testxerc20|0x9876543210987654321098765432109876543211,
+        }
+      - {
+          token: ethereum|testvsxerc20|0x9876543210987654321098765432109876543212,
+        }
+      - {
+          token: ethereum|testxerc20lockbox|0x9876543210987654321098765432109876543218,
+        }
   # test2 HypSynthetic token
   - chainName: test2
     standard: EvmHypSynthetic
@@ -29,6 +38,44 @@ tokens:
       - {
           token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab,
         }
+  # testxerc20 EvmHypXERC20 token
+  - chainName: testxerc20
+    standard: EvmHypXERC20
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543211'
+    connections:
+      - {
+          token: ethereum|testvsxerc20|0x9876543210987654321098765432109876543212,
+        }
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+      - {
+          token: ethereum|testxerc20lockbox|0x9876543210987654321098765432109876543218,
+        }
+  # testvsxerc20 EvmHypVSXERC20
+  - chainName: testvsxerc20
+    standard: EvmHypVSXERC20
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543212'
+    connections:
+      - {
+          token: ethereum|testxerc20|0x9876543210987654321098765432109876543211,
+        }
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+  - chainName: testxerc20lockbox
+    standard: EvmHypXERC20Lockbox
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543218'
+    connections:
+      - {
+          token: ethereum|testxerc20|0x9876543210987654321098765432109876543211,
+        }
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
   # testsealevel HypSynthetic
   - chainName: testsealevel
     standard: SealevelHypSynthetic

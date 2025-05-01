@@ -18,7 +18,13 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress, randomInt } from '../test/testUtils.js';
+import {
+  DEFAULT_TOKEN_DECIMALS,
+  hookTypesToFilter,
+  randomAddress,
+  randomHookConfig,
+  randomInt,
+} from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
@@ -35,141 +41,6 @@ import {
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
-const DEFAULT_TOKEN_DECIMALS = 18;
-
-function randomHookType(): HookType {
-  // OP_STACK filtering is temporary until we have a way to deploy the required contracts
-  // ARB_L2_TO_L1 filtered out until we have a way to deploy the required contracts (arbL2ToL1.hardhat-test.ts has the same test for checking deployment)
-  const filteredHookTypes = hookTypes.filter(
-    (type) =>
-      type !== HookType.OP_STACK &&
-      type !== HookType.ARB_L2_TO_L1 &&
-      type !== HookType.CUSTOM,
-  );
-  return filteredHookTypes[
-    Math.floor(Math.random() * filteredHookTypes.length)
-  ];
-}
-
-function randomProtocolFee(): { maxProtocolFee: string; protocolFee: string } {
-  const maxProtocolFee = Math.random() * 100000000000000;
-  const protocolFee = (Math.random() * maxProtocolFee) / 1000;
-  return {
-    maxProtocolFee: Math.floor(maxProtocolFee).toString(),
-    protocolFee: Math.floor(protocolFee).toString(),
-  };
-}
-
-function randomHookConfig(
-  depth = 0,
-  maxDepth = 2,
-  providedHookType?: HookType,
-): HookConfig {
-  const hookType: HookType = providedHookType ?? randomHookType();
-
-  if (depth >= maxDepth) {
-    if (
-      hookType === HookType.AGGREGATION ||
-      hookType === HookType.ROUTING ||
-      hookType === HookType.FALLBACK_ROUTING
-    ) {
-      return { type: HookType.MERKLE_TREE };
-    }
-  }
-
-  switch (hookType) {
-    case HookType.MERKLE_TREE:
-      return { type: hookType };
-
-    case HookType.AGGREGATION:
-      return {
-        type: hookType,
-        hooks: [
-          randomHookConfig(depth + 1, maxDepth),
-          randomHookConfig(depth + 1, maxDepth),
-        ],
-      };
-
-    case HookType.INTERCHAIN_GAS_PAYMASTER: {
-      const owner = randomAddress();
-      return {
-        owner,
-        type: hookType,
-        beneficiary: randomAddress(),
-        oracleKey: owner,
-        overhead: Object.fromEntries(
-          testChains.map((c) => [c, Math.floor(Math.random() * 100)]),
-        ),
-        oracleConfig: Object.fromEntries(
-          testChains.map((c) => [
-            c,
-            {
-              tokenExchangeRate: randomInt(1234567891234).toString(),
-              gasPrice: randomInt(1234567891234).toString(),
-              tokenDecimals: DEFAULT_TOKEN_DECIMALS,
-            },
-          ]),
-        ),
-      };
-    }
-
-    case HookType.PROTOCOL_FEE: {
-      const { maxProtocolFee, protocolFee } = randomProtocolFee();
-      return {
-        owner: randomAddress(),
-        type: hookType,
-        maxProtocolFee,
-        protocolFee,
-        beneficiary: randomAddress(),
-      };
-    }
-
-    case HookType.OP_STACK:
-      return {
-        owner: randomAddress(),
-        type: hookType,
-        nativeBridge: randomAddress(),
-        destinationChain: 'testChain',
-      };
-
-    case HookType.ARB_L2_TO_L1:
-      return {
-        type: hookType,
-        arbSys: randomAddress(),
-        bridge: randomAddress(),
-        destinationChain: 'testChain',
-      };
-
-    case HookType.ROUTING:
-      return {
-        owner: randomAddress(),
-        type: hookType,
-        domains: Object.fromEntries(
-          testChains.map((c) => [c, randomHookConfig(depth + 1, maxDepth)]),
-        ),
-      };
-
-    case HookType.FALLBACK_ROUTING:
-      return {
-        owner: randomAddress(),
-        type: hookType,
-        fallback: randomHookConfig(depth + 1, maxDepth),
-        domains: Object.fromEntries(
-          testChains.map((c) => [c, randomHookConfig(depth + 1, maxDepth)]),
-        ),
-      };
-
-    case HookType.PAUSABLE:
-      return {
-        owner: randomAddress(),
-        type: hookType,
-        paused: false,
-      };
-
-    default:
-      throw new Error(`Unsupported Hook type: ${hookType}`);
-  }
-}
 
 describe('EvmHookModule', async () => {
   const chain = TestChainName.test4;
@@ -193,11 +64,14 @@ describe('EvmHookModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    proxyFactoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
-      acc[key] =
-        contractsMap[chain][key as keyof ProxyFactoryFactories].address;
-      return acc;
-    }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
+    proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
+      (acc, key) => {
+        acc[key] =
+          contractsMap[chain][key as keyof ProxyFactoryFactories].address;
+        return acc;
+      },
+      {} as Record<string, Address>,
+    ) as HyperlaneAddresses<ProxyFactoryFactories>;
 
     // legacy HyperlaneIsmFactory is required to do a core deploy
     const legacyIsmFactory = new HyperlaneIsmFactory(
@@ -298,12 +172,7 @@ describe('EvmHookModule', async () => {
       randomAddress(),
       ...hookTypes
         // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
-        .filter(
-          (hookType) =>
-            hookType !== HookType.OP_STACK &&
-            hookType !== HookType.ARB_L2_TO_L1 &&
-            hookType !== HookType.CUSTOM,
-        )
+        .filter((hookType) => !hookTypesToFilter.includes(hookType))
         // generate a random config for each hook type
         .map((hookType) => {
           return randomHookConfig(0, 1, hookType);
@@ -643,9 +512,8 @@ describe('EvmHookModule', async () => {
 
       it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
         // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
+        const { hook, initialHookAddress } =
+          await createHook(exampleRoutingConfig);
 
         // expect 0 updates
         await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
@@ -668,9 +536,8 @@ describe('EvmHookModule', async () => {
         };
 
         // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
+        const { hook, initialHookAddress } =
+          await createHook(exampleRoutingConfig);
 
         // add a new domain
         exampleRoutingConfig.domains[TestChainName.test2] = {
@@ -698,9 +565,8 @@ describe('EvmHookModule', async () => {
         };
 
         // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
+        const { hook, initialHookAddress } =
+          await createHook(exampleRoutingConfig);
 
         // add multiple new domains
         exampleRoutingConfig.domains[TestChainName.test2] = {

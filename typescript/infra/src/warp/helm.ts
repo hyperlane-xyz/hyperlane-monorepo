@@ -12,11 +12,7 @@ import {
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
-import {
-  getChainAddresses,
-  getRegistry,
-  getWarpCoreConfig,
-} from '../../config/registry.js';
+import { getRegistry, getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HelmManager, removeHelmRelease } from '../../src/utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../../src/utils/utils.js';
@@ -77,7 +73,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '83d5ea1-20250227-105909',
+        tag: '8b985a4-20250421-152953',
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,

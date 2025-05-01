@@ -55,6 +55,14 @@ mock! {
             message: &HyperlaneMessage,
             metadata: &[u8],
         ) -> Vec<u8> {}
+
+        pub fn process_batch<'a>(
+            &self,
+            ops: Vec<&'a QueueOperation>,
+        ) -> ChainResult<BatchResult> {}
+
+        pub fn supports_batching(&self) -> bool {
+        }
     }
 }
 
@@ -91,13 +99,6 @@ impl Mailbox for MockMailboxContract {
         self.process(message, metadata, tx_gas_limit)
     }
 
-    async fn process_batch(
-        &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<BatchResult> {
-        self.process_batch(messages).await
-    }
-
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -106,8 +107,20 @@ impl Mailbox for MockMailboxContract {
         self.process_estimate_costs(message, metadata)
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        self.process_calldata(message, metadata)
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        Ok(self.process_calldata(message, metadata))
+    }
+
+    async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
+        self.process_batch(ops)
+    }
+
+    fn supports_batching(&self) -> bool {
+        self.supports_batching()
     }
 }
 
@@ -124,5 +137,14 @@ impl HyperlaneChain for MockMailboxContract {
 impl HyperlaneContract for MockMailboxContract {
     fn address(&self) -> H256 {
         self._address()
+    }
+}
+
+impl MockMailboxContract {
+    pub fn new_with_default_ism(default_ism: H256) -> Self {
+        let mut mock = Self::new();
+        mock.expect__default_ism()
+            .returning(move || Ok(default_ism));
+        mock
     }
 }

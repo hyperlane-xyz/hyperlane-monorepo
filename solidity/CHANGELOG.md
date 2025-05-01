@@ -1,5 +1,207 @@
 # @hyperlane-xyz/core
 
+## 7.1.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.4.0
+
+## 7.1.2
+
+### Patch Changes
+
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/utils@12.3.0
+
+## 7.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- e6f6d61a0: Refactor ZKsync artifact generation and validation logic
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.1.0
+
+## 7.0.0
+
+### Major Changes
+
+- 59a087ded: Remove unused FastTokenRouter
+- 59a087ded: ## Changes
+
+  Add immutable `scale` parameter to all warp route variants which scales outbound amounts **down** and inbound amounts **up**. This is useful when different chains of the route have different decimal places to unify semantics of amounts in messages.
+
+  Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
+
+  ## Migration
+
+  If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
+
+  ### `HypNativeScaled` Usage
+
+  ```diff
+  - HypNativeScaled(scale, mailbox)
+  + HypNative(scale, mailbox)
+  ```
+
+  ### `HypERC20` Usage
+
+  ```diff
+  - HypERC20(decimals, mailbox)
+  + HypERC20(decimals, scale, mailbox)
+  ```
+
+  ### `HypERC20Collateral` Usage
+
+  ```diff
+  - HypERC20Collateral(erc20, mailbox)
+  + HypERC20Collateral(erc20, scale, mailbox)
+  ```
+
+### Minor Changes
+
+- 07321f6f0: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+- 59a087ded: Fixed misuse of aggregation hook funds for relaying messages by making sure msg.value is adequate and refunding if excess.
+
+### Patch Changes
+
+- 59a087ded: Refactor TokenRouter internal amount accounting for use in scaling Warp Routes
+- 59a087ded: Fix yield route (`HypERC4626`/`HypERC4626Collateral`) decimal scaling by leveraging `FungibleTokenRouter`
+  - @hyperlane-xyz/utils@12.0.0
+
+## 6.1.0
+
+### Minor Changes
+
+- cd0424595: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+### Patch Changes
+
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/utils@11.0.0
+
+## 6.0.4
+
+### Patch Changes
+
+- fff9cbf57: pin zksync deps from ccip package
+- Updated dependencies [b8d95fc95]
+  - @hyperlane-xyz/utils@10.0.0
+
+## 6.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@9.2.1
+
+## 6.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@9.2.0
+
+## 6.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@9.1.0
+
+## 6.0.0
+
+### Major Changes
+
+- 88970a78c: ## Changes
+
+  Add immutable `scale` parameter to all warp route variants which scales outbound amounts **down** and inbound amounts **up**. This is useful when different chains of the route have different decimal places to unify semantics of amounts in messages.
+
+  Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
+
+  ## Migration
+
+  If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
+
+  ### `HypNativeScaled` Usage
+
+  ```diff
+  - HypNativeScaled(scale, mailbox)
+  + HypNative(scale, mailbox)
+  ```
+
+  ### `HypERC20` Usage
+
+  ```diff
+  - HypERC20(decimals, mailbox)
+  + HypERC20(decimals, scale, mailbox)
+  ```
+
+  ### `HypERC20Collateral` Usage
+
+  ```diff
+  - HypERC20Collateral(erc20, mailbox)
+  + HypERC20Collateral(erc20, scale, mailbox)
+  ```
+
+### Minor Changes
+
+- 88970a78c: Fixed misuse of aggregation hook funds for relaying messages by making sure msg.value is adequate and refunding if excess.
+
+### Patch Changes
+
+- 88970a78c: Refactor TokenRouter internal amount accounting for use in scaling Warp Routes
+- Updated dependencies [4df37393f]
+  - @hyperlane-xyz/utils@9.0.0
+
+## 5.12.0
+
+### Minor Changes
+
+- 1a0eba65b: Implement warp route amount routing ISM
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 9a010dfc1: Implement CCIP hook and ISM with unordered execution
+- 1a0eba65b: Implement warp amount routing hook
+- f3c67a214: Implement mailbox.defaultHook redirect
+- 03266e2c2: add amount routing hook support in the sdk and cli
+- 4147f91cb: Added AmountRoutingIsm support to the IsmReader and Factory
+
+### Patch Changes
+
+- 27eadbfc3: Add internal refund logic to hooks
+- Updated dependencies [05f89650b]
+- Updated dependencies [3518f8901]
+  - @hyperlane-xyz/utils@8.9.0
+
+## 5.11.6
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.1
+
+## 5.11.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.8.0
+
 ## 5.11.4
 
 ### Patch Changes

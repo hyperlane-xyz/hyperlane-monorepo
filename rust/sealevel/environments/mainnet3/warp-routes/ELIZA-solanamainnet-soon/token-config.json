@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "5voS9evDjxF589WuEub5i4ti7FWQmZCsAsyD5ucbuRqM",
+    "owner": "E2vjMXigtkS9xxaTt87MgddnesCoiW87akkg3U5BXvTY"
+  },
+  "soon": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Eliza",
+    "symbol": "ELIZA",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/ELIZA/metadata.json",
+    "interchainGasPaymaster": "GctmRsKQM5VLPrUPpsQ7Kc7RaVKNC2Fev31n1KtLkj8A",
+    "owner": "CvD8JycSHKTXV5ibc3xeq8CojMMJBtL2ZMNDqjk5fLF3"
+  }
+}

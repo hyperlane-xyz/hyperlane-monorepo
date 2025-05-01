@@ -13,6 +13,7 @@ use crate::program::Program;
 use crate::utils::{as_task, get_ts_infra_path, get_workspace_path, AgentHandles, TaskHandle};
 
 mod multicall;
+pub mod termination_invariants;
 
 #[apply(as_task)]
 pub fn start_anvil(config: Arc<Config>) -> AgentHandles {

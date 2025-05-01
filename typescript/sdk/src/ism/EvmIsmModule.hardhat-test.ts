@@ -11,7 +11,11 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress, randomInt } from '../test/testUtils.js';
+import {
+  randomAddress,
+  randomIsmConfig,
+  randomMultisigIsmConfig,
+} from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmModule } from './EvmIsmModule.js';
@@ -21,95 +25,10 @@ import {
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
-  ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
-
-const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => randomAddress());
-  return {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
-    validators,
-    threshold: m,
-  };
-};
-
-const ModuleTypes = [
-  ModuleType.AGGREGATION,
-  ModuleType.MERKLE_ROOT_MULTISIG,
-  ModuleType.ROUTING,
-  ModuleType.NULL,
-];
-
-const NonNestedModuleTypes = [ModuleType.MERKLE_ROOT_MULTISIG, ModuleType.NULL];
-
-function randomModuleType(): ModuleType {
-  return ModuleTypes[randomInt(ModuleTypes.length)];
-}
-
-function randomNonNestedModuleType(): ModuleType {
-  return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
-}
-
-const randomIsmConfig = (
-  depth = 0,
-  maxDepth = 2,
-): Exclude<IsmConfig, string> => {
-  const moduleType =
-    depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
-
-  switch (moduleType) {
-    case ModuleType.MERKLE_ROOT_MULTISIG: {
-      const n = randomInt(5, 1);
-      return randomMultisigIsmConfig(randomInt(n, 1), n);
-    }
-    case ModuleType.ROUTING: {
-      const config: RoutingIsmConfig = {
-        type: IsmType.ROUTING,
-        owner: randomAddress(),
-        domains: Object.fromEntries(
-          testChains.map((c) => [c, randomIsmConfig(depth + 1)]),
-        ),
-      };
-      return config;
-    }
-    case ModuleType.AGGREGATION: {
-      const n = randomInt(2, 1);
-      const moduleTypes = new Set();
-      const modules = new Array<number>(n).fill(0).map(() => {
-        let moduleConfig: Exclude<IsmConfig, string>;
-        let moduleType: IsmType;
-
-        // Ensure that we do not add the same module type more than once per level
-        do {
-          moduleConfig = randomIsmConfig(depth + 1, maxDepth);
-          moduleType = moduleConfig.type;
-        } while (moduleTypes.has(moduleType));
-
-        moduleTypes.add(moduleType);
-        return moduleConfig;
-      });
-      const config: AggregationIsmConfig = {
-        type: IsmType.AGGREGATION,
-        threshold: randomInt(n, 1),
-        modules,
-      };
-      return config;
-    }
-    case ModuleType.NULL: {
-      const config: TrustedRelayerIsmConfig = {
-        type: IsmType.TRUSTED_RELAYER,
-        relayer: randomAddress(),
-      };
-      return config;
-    }
-    default:
-      throw new Error(`Unsupported ISM type: ${moduleType}`);
-  }
-};
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
@@ -132,11 +51,14 @@ describe('EvmIsmModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    factoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
-      acc[key] =
-        contractsMap[chain][key as keyof ProxyFactoryFactories].address;
-      return acc;
-    }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
+    factoryAddresses = Object.keys(factoryContracts).reduce(
+      (acc, key) => {
+        acc[key] =
+          contractsMap[chain][key as keyof ProxyFactoryFactories].address;
+        return acc;
+      },
+      {} as Record<string, Address>,
+    ) as HyperlaneAddresses<ProxyFactoryFactories>;
 
     // legacy HyperlaneIsmFactory is required to do a core deploy
     const legacyIsmFactory = new HyperlaneIsmFactory(
@@ -253,6 +175,15 @@ describe('EvmIsmModule', async () => {
       });
     });
 
+    it(`deploys ${IsmType.AMOUNT_ROUTING}`, async () => {
+      await createIsm({
+        type: IsmType.AMOUNT_ROUTING,
+        lowerIsm: randomMultisigIsmConfig(3, 5),
+        upperIsm: randomMultisigIsmConfig(3, 5),
+        threshold: 2,
+      });
+    });
+
     for (let i = 0; i < 16; i++) {
       it(`deploys a random ism config #${i}`, async () => {
         const config = randomIsmConfig();
@@ -288,9 +219,8 @@ describe('EvmIsmModule', async () => {
 
       it(`update route in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // changing the type of a domain should enroll the domain
         (
@@ -307,9 +237,8 @@ describe('EvmIsmModule', async () => {
 
       it(`deletes route in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // deleting the domain should unenroll the domain
         delete exampleRoutingConfig.domains[TestChainName.test3];
@@ -350,9 +279,8 @@ describe('EvmIsmModule', async () => {
 
       it(`updates owner in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // change the config owner
         exampleRoutingConfig.owner = randomAddress();
@@ -367,9 +295,8 @@ describe('EvmIsmModule', async () => {
 
       it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // expect 0 updates
         await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
@@ -453,9 +380,8 @@ describe('EvmIsmModule', async () => {
         const originalOwner = exampleRoutingConfig.owner;
 
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // update the config owner and impersonate the original owner
         exampleRoutingConfig.owner = randomAddress();
@@ -471,9 +397,8 @@ describe('EvmIsmModule', async () => {
 
       it(`update validators in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // update the validators for a domain
         exampleRoutingConfig.domains[TestChainName.test2] = {
@@ -492,9 +417,8 @@ describe('EvmIsmModule', async () => {
 
       it(`update threshold in an existing ${type}`, async () => {
         // create a new ISM
-        const { ism, initialIsmAddress } = await createIsm(
-          exampleRoutingConfig,
-        );
+        const { ism, initialIsmAddress } =
+          await createIsm(exampleRoutingConfig);
 
         // update the threshold for a domain
         (

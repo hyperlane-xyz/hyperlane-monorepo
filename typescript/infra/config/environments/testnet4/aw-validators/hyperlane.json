@@ -18,11 +18,11 @@
   "arcadiatestnet2": {
     "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
+  "auroratestnet": {
+    "validators": ["0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937"]
+  },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
-  },
-  "berabartio": {
-    "validators": ["0x541dd3cb282cf869d72883557badae245b63e1fd"]
   },
   "bsctestnet": {
     "validators": [
@@ -34,6 +34,9 @@
   "camptestnet": {
     "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
   },
+  "carrchaintestnet": {
+    "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
+  },
   "chronicleyellowstone": {
     "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
   },
@@ -42,6 +45,9 @@
   },
   "connextsepolia": {
     "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
+  },
+  "cotitestnet": {
+    "validators": ["0x5c535dff16237a2cae97c97f9556404cd230c9c0"]
   },
   "ecotestnet": {
     "validators": ["0xb3191420d463c2af8bd9b4a395e100ec5c05915a"]
@@ -65,8 +71,17 @@
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
+  "infinityvmmonza": {
+    "validators": ["0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"]
+  },
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
+  },
+  "milkywaytestnet": {
+    "validators": ["0x65c7581e14efdf4d9c5320882170f022835bd742"]
+  },
+  "modetestnet": {
+    "validators": ["0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"]
   },
   "monadtestnet": {
     "validators": ["0x734628f55694d2a5f4de3e755ccb40ecd72b16d9"]
@@ -76,6 +91,9 @@
   },
   "optimismsepolia": {
     "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
+  },
+  "plumetestnet2": {
+    "validators": ["0x16637c78e1ea169132efcf4df8ebd03de349e740"]
   },
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
@@ -99,6 +117,9 @@
   },
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
+  },
+  "somniatestnet": {
+    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
   },
   "sonicblaze": {
     "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]

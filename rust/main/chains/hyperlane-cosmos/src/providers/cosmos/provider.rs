@@ -25,7 +25,9 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
     H512, U256,
 };
-use hyperlane_metric::prometheus_metric::{NodeInfo, PrometheusClientMetrics, PrometheusConfig};
+use hyperlane_metric::prometheus_metric::{
+    ClientConnectionType, NodeInfo, PrometheusClientMetrics, PrometheusConfig,
+};
 use hyperlane_metric::utils::url_to_host_info;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
@@ -75,8 +77,9 @@ impl CosmosProvider {
             .get_rpc_urls()
             .iter()
             .map(|url| {
-                let metrics_config = PrometheusConfig::from_url(url, chain.clone());
-                CosmosRpcClient::new(url, metrics.clone(), metrics_config)
+                let metrics_config =
+                    PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
+                CosmosRpcClient::from_url(url, metrics.clone(), metrics_config)
             })
             .collect::<Result<Vec<_>, _>>()?;
         let provider = CosmosFallbackProvider::new(
@@ -263,7 +266,7 @@ impl CosmosProvider {
         })?;
         let proto: proto::cosmwasm::wasm::v1::MsgExecuteContract =
             any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
-        let msg = MsgExecuteContract::try_from(proto)?;
+        let msg = MsgExecuteContract::try_from(proto).map_err(Box::new)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
         Ok(contract)
@@ -283,7 +286,7 @@ impl CosmosProvider {
                 HyperlaneCosmosError::ParsingFailed(msg.to_owned())
             })?;
 
-        let account_id = AccountId::from_str(&packet_data.receiver)?;
+        let account_id = AccountId::from_str(&packet_data.receiver).map_err(Box::new)?;
         let address = H256::try_from(CosmosAccountId::new(&account_id))?;
 
         Ok(address)

@@ -11,15 +11,11 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
+  WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
-  isAddress,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -54,9 +50,7 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.XERC20Lockbox]:
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
   // TODO: describe
-  [TokenType.fastSynthetic]: '',
   [TokenType.syntheticUri]: '',
-  [TokenType.fastCollateral]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
 };
@@ -67,7 +61,7 @@ const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
   description: TYPE_DESCRIPTIONS[type],
 }));
 
-async function fillDefaults(
+export async function fillDefaults(
   context: CommandContext,
   config: ChainMap<Partial<MailboxClientConfig>>,
 ): Promise<ChainMap<MailboxClientConfig>> {
@@ -96,15 +90,16 @@ async function fillDefaults(
 
 export async function readWarpRouteDeployConfig(
   filePath: string,
-  context?: CommandContext,
-): Promise<WarpRouteDeployConfig> {
+  context: CommandContext,
+): Promise<WarpRouteDeployConfigMailboxRequired> {
   let config = readYamlOrJson(filePath);
   if (!config)
     throw new Error(`No warp route deploy config found at ${filePath}`);
-  if (context) {
-    config = await fillDefaults(context, config as any);
-  }
-  return WarpRouteDeployConfigSchema.parse(config);
+
+  config = await fillDefaults(context, config as any);
+
+  //fillDefaults would have added a mailbox to the config if it was missing
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
@@ -141,16 +136,6 @@ export async function createWarpRouteDeployConfig({
       'owner address',
       'signer',
     );
-
-    // default to the mailbox from the registry and if not found ask to the user to submit one
-    const chainAddresses = await context.registry.getChainAddresses(chain);
-
-    const mailbox =
-      chainAddresses?.mailbox ??
-      (await input({
-        validate: isAddress,
-        message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
-      }));
 
     const proxyAdmin: DeployedOwnableConfig | undefined =
       await setProxyAdminConfig(context, chain);
@@ -191,9 +176,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
       case TokenType.collateralUri:
-      case TokenType.fastCollateral:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -206,7 +189,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.syntheticRebase:
         result[chain] = {
-          mailbox,
           type,
           owner,
           isNft,
@@ -221,7 +203,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.collateralVaultRebase:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -236,7 +217,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.collateralVault:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -249,7 +229,6 @@ export async function createWarpRouteDeployConfig({
         break;
       default:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,

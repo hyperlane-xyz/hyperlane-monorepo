@@ -22,14 +22,12 @@ import {
   readYamlOrJson,
   runFileSelectionStep,
 } from '../../../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
 
 import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
-  WARP_READ,
   STRATEGY,
   CORE_APPLY,
   DEFAULT,
@@ -48,8 +46,6 @@ export class MultiChainResolver implements ChainResolver {
     switch (this.mode) {
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
-      case ChainSelectionMode.WARP_READ:
-        return this.resolveWarpCoreConfigChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
@@ -71,27 +67,6 @@ export class MultiChainResolver implements ChainResolver {
       argv.context.skipConfirmation,
     );
     return argv.context.chains;
-  }
-
-  private async resolveWarpCoreConfigChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    if (argv.symbol || argv.warp) {
-      const warpCoreConfig = await getWarpCoreConfigOrExit({
-        context: argv.context,
-        warp: argv.warp,
-        symbol: argv.symbol,
-      });
-      argv.context.warpCoreConfig = warpCoreConfig;
-      const chains = extractChainsFromObj(warpCoreConfig);
-      return chains;
-    } else if (argv.chain) {
-      return [argv.chain];
-    } else {
-      throw new Error(
-        `Please specify either a symbol, chain and address or warp file`,
-      );
-    }
   }
 
   private async resolveAgentChains(
@@ -241,10 +216,6 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
-  }
-
-  static forWarpCoreConfig(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.WARP_READ);
   }
 
   static forCoreApply(): MultiChainResolver {

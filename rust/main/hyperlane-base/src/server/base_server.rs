@@ -41,13 +41,16 @@ impl Server {
             app = app.nest(route, router);
         }
 
-        tokio::spawn(async move {
-            let addr = SocketAddr::from(([0, 0, 0, 0], port));
-            axum::Server::bind(&addr)
-                .serve(app.into_make_service())
-                .await
-                .expect("Failed to start server");
-        })
+        tokio::task::Builder::new()
+            .name("agent::server")
+            .spawn(async move {
+                let addr = SocketAddr::from(([0, 0, 0, 0], port));
+                axum::Server::bind(&addr)
+                    .serve(app.into_make_service())
+                    .await
+                    .expect("Failed to start server");
+            })
+            .expect("spawning tokio task from Builder is infallible")
     }
 
     /// Gather available metrics into an encoded (plaintext, OpenMetrics format)

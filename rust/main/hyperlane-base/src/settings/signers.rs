@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
@@ -11,9 +10,8 @@ use hyperlane_core::{AccountAddressType, H256};
 use hyperlane_ethereum::yubi;
 use hyperlane_sealevel::Keypair;
 
-use crate::types::utils;
-
 use super::aws_credentials::AwsChainCredentialsProvider;
+use crate::types::utils;
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -85,7 +83,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
         Ok(match conf {
             SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(LocalWallet::from(
                 ethers::core::k256::ecdsa::SigningKey::from(
-                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                    ethers::core::k256::SecretKey::from_slice(key.as_bytes())
                         .context("Invalid ethereum signer key")?,
                 ),
             )),
@@ -167,21 +165,17 @@ impl ChainSigner for fuels::prelude::WalletUnlocked {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for Keypair {
+impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
-            let secret = SecretKey::from_bytes(key.as_bytes())
-                .context("Invalid sealevel ed25519 secret key")?;
-            let public = ed25519_dalek::PublicKey::from(&secret);
-            let dalek = ed25519_dalek::Keypair { secret, public };
-            Ok(Keypair::from_bytes(&dalek.to_bytes()).context("Unable to create Keypair")?)
+            hyperlane_sealevel::create_keypair(key)
         } else {
             bail!(format!("{conf:?} key is not supported by sealevel"));
         }
     }
 }
 
-impl ChainSigner for Keypair {
+impl ChainSigner for hyperlane_sealevel::Keypair {
     fn address_string(&self) -> String {
         solana_sdk::signer::Signer::pubkey(self).to_string()
     }
@@ -208,6 +202,32 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
 }
 
 impl ChainSigner for hyperlane_cosmos::Signer {
+    fn address_string(&self) -> String {
+        self.address.clone()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::CosmosKey {
+            key,
+            prefix,
+            account_address_type,
+        } = conf
+        {
+            Ok(hyperlane_cosmos_native::Signer::new(
+                key.as_bytes().to_vec(),
+                prefix.clone(),
+                account_address_type,
+            )?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by cosmos"));
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_cosmos_native::Signer {
     fn address_string(&self) -> String {
         self.address.clone()
     }

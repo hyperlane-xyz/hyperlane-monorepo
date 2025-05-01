@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "devDependencies": {
     "@eslint/js": "^9.15.0",
-    "@trivago/prettier-plugin-sort-imports": "^4.2.1",
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "eslint": "^9.15.0",
@@ -14,7 +14,8 @@
     "eslint-plugin-jest": "^28.2.0",
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
+    "prettier-plugin-solidity": "^1.4.2",
     "syncpack": "^13.0.0",
     "tsx": "^4.19.1"
   },
@@ -25,12 +26,12 @@
   "private": true,
   "scripts": {
     "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4 && yarn prettier",
-    "build": "yarn workspaces foreach --all --parallel --topological run build",
+    "build": "yarn workspaces foreach --all --parallel --topological-dev run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
     "prettier": "yarn workspaces foreach --since --parallel run prettier",
     "lint": "yarn workspaces foreach --all --parallel run lint",
     "test": "yarn workspaces foreach --all --parallel run test",
-    "test:ci": "yarn workspaces foreach --all --topological run test:ci",
+    "test:ci": "yarn workspaces foreach --all --topological-dev run test:ci",
     "coverage": "yarn workspaces foreach --all --parallel run coverage",
     "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",

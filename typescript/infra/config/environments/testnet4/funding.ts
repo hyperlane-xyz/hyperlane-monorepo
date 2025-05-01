@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '7f53c0a-20250208-195222',
+    tag: 'd9e0b4b-20250425-145730',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,6 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
+  chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
@@ -31,13 +32,15 @@ export const keyFunderConfig: KeyFunderConfig<
     alfajores: '5',
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
+    auroratestnet: '0.05',
     basesepolia: '0.1',
-    berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
+    carrchaintestnet: '0.1',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
+    cotitestnet: '1',
     ecotestnet: '0.02',
     // no funding for solana
     eclipsetestnet: '0',
@@ -46,17 +49,21 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
+    infinityvmmonza: '0',
     inksepolia: '0.1',
+    kyvetestnet: '0',
+    milkywaytestnet: '0',
+    modetestnet: '0.05',
     monadtestnet: '0.1',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: '0.2',
+    plumetestnet2: '0.1',
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
     // no funding for SVM chains
     solanatestnet: '0',
+    somniatestnet: '10',
     soneiumtestnet: '0.1',
     sonicblaze: '0.1',
     // no funding for SVM chains
@@ -80,8 +87,6 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '0',
     optimismsepolia: '0',
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: '0.05',
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
@@ -92,8 +97,6 @@ export const keyFunderConfig: KeyFunderConfig<
   igpClaimThresholdPerChain: {
     alfajores: '1',
     arbitrumsepolia: '0.05',
-    // never claim on berachain berabartio testnet
-    berabartio: '1000.0',
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',
@@ -103,8 +106,6 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '1',
     optimismsepolia: '0.05',
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: '0.1',
     polygonamoy: '0.1',
     scrollsepolia: '0.1',
     sepolia: '1',

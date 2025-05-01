@@ -49,12 +49,10 @@ export class InfraS3Validator extends S3Validator {
     other: InfraS3Validator,
     count = 5,
   ): Promise<CheckpointMetric[]> {
-    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
-      LATEST_KEY,
-    );
-    const otherLatestCheckpointIndex = await other.s3Bucket.getS3Obj<number>(
-      LATEST_KEY,
-    );
+    const latestCheckpointIndex =
+      await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
+    const otherLatestCheckpointIndex =
+      await other.s3Bucket.getS3Obj<number>(LATEST_KEY);
 
     if (!otherLatestCheckpointIndex || !latestCheckpointIndex) {
       throw new Error('Failed to get latest checkpoints');

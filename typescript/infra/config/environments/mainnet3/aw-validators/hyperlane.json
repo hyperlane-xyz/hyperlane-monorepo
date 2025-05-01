@@ -36,9 +36,6 @@
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
-  "astarzkevm": {
-    "validators": ["0x89ecdd6caf138934bf3a2fb7b323984d72fd66de"]
-  },
   "aurora": {
     "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
   },
@@ -112,8 +109,14 @@
   "corn": {
     "validators": ["0xc80b2e3e38220e02d194a0effa9d5bfe89894c07"]
   },
+  "coti": {
+    "validators": ["0x3c89379537f8beafc54e7e8ab4f8a1cf7974b9f0"]
+  },
   "cyber": {
     "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
+  },
+  "deepbrainchain": {
+    "validators": ["0x3825ea1e0591b58461cc4aa34867668260c0e6a8"]
   },
   "degenchain": {
     "validators": ["0x433e311f19524cd64fb2123ad0aa1579a4e1fc83"]
@@ -248,6 +251,9 @@
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
   },
+  "milkyway": {
+    "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
+  },
   "mint": {
     "validators": ["0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9"]
   },
@@ -277,8 +283,14 @@
       "0x7885fae56dbcf5176657f54adbbd881dc6714132"
     ]
   },
+  "nibiru": {
+    "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
+  },
   "oortmainnet": {
     "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
+  },
+  "opbnb": {
+    "validators": ["0x1bdf52749ef2411ab9c28742dea92f209e96c9c4"]
   },
   "optimism": {
     "validators": [
@@ -292,6 +304,9 @@
   },
   "osmosis": {
     "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
+  },
+  "plume": {
+    "validators": ["0x63c9b5ea28710d956a51f0f746ee8df81215663f"]
   },
   "polygon": {
     "validators": [
@@ -318,6 +333,9 @@
   },
   "rarichain": {
     "validators": ["0xeac012df7530720dd7d6f9b727e4fe39807d1516"]
+  },
+  "reactive": {
+    "validators": ["0x45768525f6c5ca2e4e7cc50d405370eadee2d624"]
   },
   "real": {
     "validators": ["0xaebadd4998c70b05ce8715cf0c3cb8862fe0beec"]

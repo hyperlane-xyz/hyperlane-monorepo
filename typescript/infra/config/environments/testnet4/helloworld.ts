@@ -4,7 +4,7 @@ import {
 } from '../../../src/config/helloworld/types.js';
 import { Contexts } from '../../contexts.js';
 
-import { environment, ethereumChainNames } from './chains.js';
+import { environment } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
@@ -13,7 +13,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '857338e-20240716-165320',
+      tag: '3e27f07-20250415-081849',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -32,7 +32,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '857338e-20240716-165320',
+      tag: '3e27f07-20250415-081849',
     },
     chainsToSkip: [],
     runEnv: environment,

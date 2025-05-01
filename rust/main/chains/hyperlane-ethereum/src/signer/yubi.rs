@@ -1,16 +1,16 @@
+use ecdsa::Signature;
+use ethers_core::{k256::PublicKey, types::Address, utils::keccak256};
+use ethers_signers::Wallet;
+use k256::Secp256k1;
+use signature::hazmat::PrehashSigner;
+use signature::Error;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::{LazyLock, RwLock};
-
-use ::ecdsa::elliptic_curve::consts::U32;
-use ethers_core::{k256::PublicKey, types::Address, utils::keccak256};
-use ethers_signers::Wallet;
-use signature::digest::Digest;
-use signature::digest::FixedOutput;
-use signature::{DigestSigner, Error};
 use yubihsm::ecdsa::sec1::FromEncodedPoint;
 use yubihsm::ecdsa::sec1::ToEncodedPoint;
+use yubihsm::ecdsa::secp256k1::RecoveryId;
 use yubihsm::object;
 use yubihsm::Client;
 use yubihsm::HttpConfig;
@@ -143,12 +143,10 @@ impl YubiHsmSigner {
     }
 }
 
-impl<D> DigestSigner<D, k256::ecdsa::recoverable::Signature> for YubiHsmSigner
-where
-    D: Digest<OutputSize = U32> + Clone + Default + FixedOutput,
-{
-    /// Compute an Ethereum-style ECDSA/secp256k1 signature of the given digest
-    fn try_sign_digest(&self, digest: D) -> Result<k256::ecdsa::recoverable::Signature, Error> {
-        self.wrapped.try_sign_digest(digest)
+impl PrehashSigner<(Signature<Secp256k1>, RecoveryId)> for YubiHsmSigner {
+    /// Compute a fixed-size secp256k1 ECDSA signature of a digest output along with the recovery
+    /// ID.
+    fn sign_prehash(&self, prehash: &[u8]) -> Result<(Signature<Secp256k1>, RecoveryId), Error> {
+        self.wrapped.sign_prehash(prehash)
     }
 }

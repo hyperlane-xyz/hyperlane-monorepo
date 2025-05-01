@@ -34,15 +34,15 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
+use relayer::msg::pending_message::{INVALIDATE_CACHE_METADATA_LOG, RETRIEVED_MESSAGE_LOG};
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
 use utils::get_ts_infra_path;
 
 use crate::{
     config::Config,
-    ethereum::start_anvil,
-    invariants::{post_startup_invariants, termination_invariants_met},
+    ethereum::{start_anvil, termination_invariants::termination_invariants_met},
+    invariants::post_startup_invariants,
     metrics::agent_balance_sum,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };
@@ -61,6 +61,9 @@ mod cosmos;
 
 #[cfg(feature = "sealevel")]
 mod sealevel;
+
+#[cfg(feature = "cosmosnative")]
+mod cosmosnative;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
@@ -89,6 +92,7 @@ const ETH_VALIDATOR_KEYS: &[&str] = &[
 const AGENT_BIN_PATH: &str = "target/debug";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
+const FAILED_MESSAGE_COUNT: u32 = 1;
 
 const RELAYER_METRICS_PORT: &str = "9092";
 const SCRAPER_METRICS_PORT: &str = "9093";
@@ -291,6 +295,17 @@ fn main() -> ExitCode {
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
 
+    // Send a message that's guaranteed to fail
+    // "failMessageBody" hex value is 0x6661696c4d657373616765426f6479
+    let fail_message_body = format!("0x{}", hex::encode("failMessageBody"));
+    let kathy_failed_tx = Program::new("yarn")
+        .working_dir(&ts_infra_path)
+        .cmd("kathy")
+        .arg("messages", FAILED_MESSAGE_COUNT.to_string())
+        .arg("timeout", "1000")
+        .arg("body", fail_message_body.as_str());
+    kathy_failed_tx.clone().run().join();
+
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
         .working_dir(&ts_infra_path)
@@ -401,7 +416,13 @@ fn main() -> ExitCode {
     test_passed = wait_for_condition(
         &config,
         loop_start,
-        || Ok(relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?),
+        || {
+            Ok(
+                relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?,
+                // TODO: fix and uncomment
+                // && relayer_cached_metadata_invariant_met()?
+            )
+        },
         || !SHUTDOWN.load(Ordering::Relaxed),
         || long_running_processes_exited_check(&mut state),
     );
@@ -572,6 +593,33 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     Ok(true)
 }
 
+/// Check relayer reused already built metadata
+/// TODO: fix
+#[allow(dead_code)]
+fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
+    let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+    let relayer_logfile = File::open(log_file_path).unwrap();
+
+    let line_filters = vec![vec![INVALIDATE_CACHE_METADATA_LOG]];
+
+    log!("Checking invalidate metadata cache happened...");
+    let matched_logs = get_matching_lines(&relayer_logfile, line_filters.clone());
+
+    log!("matched_logs: {:?}", matched_logs);
+
+    let invalidate_metadata_cache_count = *matched_logs
+        .get(&line_filters[0])
+        .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
+    if invalidate_metadata_cache_count == 0 {
+        log!(
+            "Invalidate cache metadata reuse count is {}, expected non-zero value",
+            invalidate_metadata_cache_count,
+        );
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 pub fn wait_for_condition<F1, F2, F3>(
     config: &Config,
     start_time: Instant,
@@ -586,13 +634,22 @@ where
 {
     let loop_check_interval = Duration::from_secs(5);
     while loop_invariant_fn() {
+        log!("Checking e2e invariants...");
         sleep(loop_check_interval);
         if !config.ci_mode {
             continue;
         }
-        if condition_fn().unwrap_or(false) {
-            // end condition reached successfully
-            break;
+        match condition_fn() {
+            Ok(true) => {
+                // end condition reached successfully
+                break;
+            }
+            Ok(false) => {
+                log!("E2E invariants not met yet...");
+            }
+            Err(e) => {
+                log!("Error checking e2e invariants: {}", e);
+            }
         }
         if check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
