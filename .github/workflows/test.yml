@@ -168,6 +168,8 @@ jobs:
           if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "only_rust=false" >> $GITHUB_OUTPUT
             echo "Push event to main detected. Setting only_rust to false."
+          else
+            echo "Not a push event to main. Keeping only_rust as ${{ steps.check-rust-only.outputs.only_rust }}."
           fi
 
   yarn-test-run:
