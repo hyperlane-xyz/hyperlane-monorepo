@@ -10,10 +10,10 @@
         }
       ],
       "contracts": {
-         "mailbox": "TESTNET_A_MAILBOX_ADDRESS",
+         "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
       },
       "index": {
-        "from": 0,
+        "from": 17525341,
       }
     },
     "b3": {
@@ -26,10 +26,10 @@
         }
       ],
       "contracts": {
-         "mailbox": "TESTNET_B_MAILBOX_ADDRESS",
+         "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
       },
       "index": {
-         "from": 0,
+         "from": 31937330,
       }
     }
   },
