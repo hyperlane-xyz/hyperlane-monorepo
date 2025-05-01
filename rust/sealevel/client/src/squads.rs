@@ -132,11 +132,11 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
 
             // Chain -> (Label, Owner)
             let chain_owner_lookups: HashMap<String, Vec<(Pubkey, String)>> = CHAIN_CORE_OWNERS
-                .into_iter()
+                .iter()
                 .map(|c| {
                     (
                         c.0.to_owned(),
-                        c.1.into_iter()
+                        c.1.iter()
                             .map(|inner| (inner.1, format!("{} - {}", inner.0, c.0)))
                             .collect(),
                     )
@@ -154,7 +154,7 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
                     "BPF Loader Upgradeable program".into(),
                 ),
             ];
-            classification_accounts.extend(chain_owner_lookup.into_iter());
+            classification_accounts.extend(chain_owner_lookup);
 
             let pubkey_classifier =
                 PubkeyClassifier::new(&client, classification_accounts, core_programs);
@@ -192,7 +192,7 @@ fn parse_tx_account(account: Account, pubkey_classifier: &PubkeyClassifier) {
     }
     data = &data[8..];
 
-    let vault_transaction: VaultTransaction = VaultTransaction::try_from_slice(&mut data).unwrap();
+    let vault_transaction: VaultTransaction = VaultTransaction::try_from_slice(data).unwrap();
 
     println!("Raw vault transaction: {:?}", vault_transaction);
 
