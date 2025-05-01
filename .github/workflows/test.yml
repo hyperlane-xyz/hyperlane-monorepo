@@ -104,27 +104,46 @@ jobs:
         run: |
           rm -f changed_files.txt
 
+  set-base-sha:
+    runs-on: ubuntu-latest
+    outputs:
+      base_sha: ${{ steps.determine-base-sha.outputs.base_sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Determine BASE_SHA
+        id: determine-base-sha
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "base_sha=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "merge_group" ]; then
+            echo "base_sha=${{ github.event.merge_group.base_sha }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            echo "base_sha=$${{ github.event.push.before }}" >> $GITHUB_OUTPUT
+          else
+            echo "base_sha=$(git rev-parse HEAD^)" >> $GITHUB_OUTPUT
+          fi
+
   rust-only:
+    needs: [set-base-sha]
     outputs:
       only_rust: ${{ steps.check-rust-only.outputs.only_rust }}
     runs-on: ubuntu-latest
-    env:
-      PR_BASE: ${{ github.base_ref || 'HEAD^' }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Fetch PR base or parent commit
-        run: git fetch origin $PR_BASE
-
       - name: Check for Rust changes
         id: check-rust-only
         run: |
           # Check for Rust changes
-          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^rust/'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ github.sha }} --name-only | grep -qE '^rust/'; then
             # Check if there are only Rust changes
-            if ! git diff origin/$PR_BASE...HEAD --name-only | grep -qvE '^rust/'; then
+            if ! git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ github.sha }} --name-only | grep -qvE '^rust/'; then
               echo "only_rust=true" >> $GITHUB_OUTPUT
               echo "Only Rust changes detected."
             else
@@ -174,7 +193,7 @@ jobs:
 
   infra-test:
     runs-on: ubuntu-latest
-    needs: [yarn-install]
+    needs: [yarn-install, set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
       PR_BASE: ${{ github.base_ref }}
@@ -192,10 +211,10 @@ jobs:
 
       - name: Check for balance/config changes
         run: |
-          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ github.sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
             echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
           fi
-          if git diff origin/$PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ github.sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
             echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
           fi
 
