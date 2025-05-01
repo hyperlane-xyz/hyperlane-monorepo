@@ -11,3 +11,19 @@ deploy-mailbox-ape:
         --rpc-url https://curtis.rpc.caldera.xyz/http \
         --broadcast \
         -vvvv
+
+deploy-polymer-ism-b3:
+    export ORIGIN_MAILBOX_ADDRESS="0xf1989fcad86f040b2bbfced6a0ce359e1247a611" && \
+    export POLYMER_PROVER_ADDRESS="0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url https://sepolia.b3.fun/http \
+        --broadcast \
+        -vvvv
+
+deploy-polymer-ism-ape:
+    export ORIGIN_MAILBOX_ADDRESS="0xf1989fcad86f040b2bbfced6a0ce359e1247a611" && \
+    export POLYMER_PROVER_ADDRESS="0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url https://curtis.rpc.caldera.xyz/http \
+        --broadcast \
+        -vvvv

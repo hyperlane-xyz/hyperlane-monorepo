@@ -25,12 +25,11 @@ contract DeployPolymerIsm is Script {
             "DeployPolymerIsm: Set ORIGIN_MAILBOX_ADDRESS env var"
         );
 
-        // Deployer's private key (for this destination chain)
+        // Deployer's private key
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployerAddress = vm.addr(deployerPrivateKey);
 
         console.log("--- Deploying PolymerISM ---");
-        console.log("Destination Chain RPC:", vm.envString("RPC_URL"));
         console.log("Deployer Address:", deployerAddress);
         console.log("Using Polymer Prover Address:", polymerProverAddress);
         console.log("Using Origin Mailbox Address:", originMailboxAddress);
