@@ -1,8 +1,10 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use eyre::{bail, eyre, ContextCompat, Report, Result};
+use chrono::Utc;
+use eyre::{bail, eyre, ContextCompat, Report};
+use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
 use solana_sdk::{
@@ -14,7 +16,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -27,7 +29,7 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{ChainResult, ReorgPeriod, H256};
+use hyperlane_core::{ChainResult, ReorgPeriod, H256, H512};
 use hyperlane_sealevel::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForSubmitter, SealevelTxCostEstimate,
@@ -38,6 +40,7 @@ use crate::payload::FullPayload;
 use crate::transaction::{
     SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData,
 };
+use crate::TransactionDropReason;
 use crate::{
     chain_tx_adapter::chains::sealevel::transaction::{Precursor, TransactionFactory, Update},
     error::SubmitterError,
@@ -51,6 +54,8 @@ use crate::{
     error,
 };
 
+const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
+
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
@@ -63,7 +68,11 @@ pub struct SealevelTxAdapter {
 }
 
 impl SealevelTxAdapter {
-    pub fn new(conf: ChainConf, raw_conf: RawChainConf, metrics: &CoreMetrics) -> Result<Self> {
+    pub fn new(
+        conf: ChainConf,
+        raw_conf: RawChainConf,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Self> {
         let connection_conf = get_connection_conf(&conf);
         let urls = &connection_conf.urls;
         let chain_info = conf.metrics_conf().chain;
@@ -109,7 +118,7 @@ impl SealevelTxAdapter {
         provider: Box<dyn SealevelProviderForSubmitter>,
         oracle: Box<dyn PriorityFeeOracle>,
         submitter: Box<dyn TransactionSubmitter>,
-    ) -> Result<Self> {
+    ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
         let reorg_period = conf.reorg_period.clone();
         let max_batch_size = Self::batch_size(&conf)?;
@@ -147,7 +156,7 @@ impl SealevelTxAdapter {
         }
     }
 
-    fn batch_size(conf: &ChainConf) -> Result<u32> {
+    fn batch_size(conf: &ChainConf) -> eyre::Result<u32> {
         Ok(conf
             .connection
             .operation_submission_config()
@@ -206,6 +215,51 @@ impl SealevelTxAdapter {
             )
             .await
     }
+
+    #[instrument(skip(self))]
+    async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, SubmitterError> {
+        let signature = Signature::new(tx_hash.as_ref());
+        let transaction_search_result = self.client.get_transaction(signature).await;
+
+        let transaction = match transaction_search_result {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                warn!(?err, "Failed to get transaction status by hash");
+                return Err(SubmitterError::TxSubmissionError(
+                    "Transaction hash not found".to_string(),
+                ));
+            }
+        };
+
+        // slot at which transaction was included into blockchain
+        let inclusion_slot = transaction.slot;
+
+        info!(slot = ?inclusion_slot, "found transaction");
+
+        // if block with this slot is added to the chain, transaction is considered to be confirmed
+        let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
+
+        let confirming_block = self.client.get_block(confirming_slot).await;
+
+        if confirming_block.is_ok() {
+            info!("finalized transaction");
+            return Ok(TransactionStatus::Finalized);
+        }
+
+        // block which includes transaction into blockchain
+        let including_block = self.client.get_block(inclusion_slot).await;
+
+        match including_block {
+            Ok(_) => {
+                info!("included transaction");
+                Ok(TransactionStatus::Included)
+            }
+            Err(_) => {
+                info!("pending transaction");
+                Ok(TransactionStatus::PendingInclusion)
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -230,9 +284,13 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let Ok(estimated) = self.estimate(not_estimated).await else {
-                transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
-                continue;
+            let estimated = match self.estimate(not_estimated).await {
+                Ok(estimated) => estimated,
+                Err(err) => {
+                    warn!(?err, ?payload, "failed to estimate payload");
+                    transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
+                    continue;
+                }
             };
             let transaction = TransactionFactory::build(payload, estimated);
             transactions.push(TxBuildingResult::new(
@@ -259,9 +317,6 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        if tx.hash.is_some() {
-            return Ok(());
-        }
         info!(?tx, "submitting transaction");
         let not_estimated = tx.precursor();
         // TODO: the `estimate` call shouldn't happen here - the `Transaction` argument should already contain the precursor,
@@ -287,53 +342,24 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
         info!(?tx, "checking status of transaction");
 
-        let Some(h512) = tx.hash else {
+        if tx.tx_hashes.is_empty() {
             return Ok(TransactionStatus::PendingInclusion);
-        };
-        let signature = Signature::new(h512.as_ref());
-        let transaction_search_result = self.client.get_transaction(signature).await;
-
-        let transaction = match transaction_search_result {
-            Ok(transaction) => transaction,
-            Err(err) => {
-                warn!(?tx, ?err, "Failed to get transaction status by hash");
-                return Err(SubmitterError::TxSubmissionError(
-                    "Transaction hash not found".to_string(),
-                ));
-            }
-        };
-
-        // slot at which transaction was included into blockchain
-        let inclusion_slot = transaction.slot;
-
-        info!(?tx, slot = ?inclusion_slot, "found transaction");
-
-        // if block with this slot is added to the chain, transaction is considered to be confirmed
-        let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
-
-        let confirming_block = self.client.get_block(confirming_slot).await;
-
-        if confirming_block.is_ok() {
-            info!(?tx, "finalized transaction");
-            return Ok(TransactionStatus::Finalized);
         }
 
-        // block which includes transaction into blockchain
-        let including_block = self.client.get_block(inclusion_slot).await;
-
-        match including_block {
-            Ok(_) => {
-                info!(?tx, "included transaction");
-                Ok(TransactionStatus::Included)
-            }
-            Err(_) => {
-                info!(?tx, "pending transaction");
-                Ok(TransactionStatus::PendingInclusion)
-            }
-        }
+        let hash_status_futures = tx
+            .tx_hashes
+            .iter()
+            .map(|tx_hash| self.get_tx_hash_status(*tx_hash))
+            .collect::<Vec<_>>();
+        // this may lead to rate limiting if too many hashes build up. Consider querying from most recent to oldest
+        let hash_status_results = join_all(hash_status_futures).await;
+        Ok(TransactionStatus::classify_tx_status_from_hash_statuses(
+            hash_status_results,
+        ))
     }
 
     async fn reverted_payloads(
@@ -350,6 +376,15 @@ impl AdaptsChain for SealevelTxAdapter {
 
     fn max_batch_size(&self) -> u32 {
         self.max_batch_size
+    }
+
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        if let Some(ref last_submission_time) = tx.last_submission_attempt {
+            let seconds_since_last_submission =
+                (Utc::now() - last_submission_time).num_seconds() as u64;
+            return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
+        }
+        true
     }
 }
 

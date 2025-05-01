@@ -11,6 +11,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { regularSafes } from '../../governance/safe/regular.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 export const getEclipseEthereumSolanaUSDTWarpConfig = async (
@@ -25,12 +26,15 @@ export const getEclipseEthereumSolanaUSDTWarpConfig = async (
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
-  let ethereum: HypTokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
     interchainSecurityModule: ethers.constants.AddressZero,
+    proxyAdmin: {
+      owner: regularSafes.ethereum,
+    },
   };
 
   // Intentionally don't enroll Solana to avoid transferring

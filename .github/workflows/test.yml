@@ -26,14 +26,14 @@ jobs:
   yarn-install:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       - name: yarn-cache
         uses: buildjet/cache@v4
@@ -91,12 +91,12 @@ jobs:
         if: github.event_name == 'pull_request'
         run: >-
           cat changed_files.txt |
-          xargs -r yarn exec prettier --check --ignore-unknown
+          xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
 
       - name: Run prettier (all files)
         if: github.event_name != 'pull_request'
         run: >-
-          yarn exec prettier --check --ignore-unknown .
+          yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
         continue-on-error: true
 
       - name: Clean up
@@ -106,8 +106,6 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
-    env:
-      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
     needs: [yarn-install]
     timeout-minutes: 10
     steps:
@@ -130,6 +128,39 @@ jobs:
 
       - name: Unit Tests
         run: yarn test:ci
+
+  infra-test:
+    runs-on: ubuntu-latest
+    needs: [yarn-install]
+    env:
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
+      PR_BASE: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: Balance Tests
+        run: |
+          if git diff $PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+            yarn --cwd typescript/infra test:balance
+          fi
+
+      - name: Warp Config Tests
+        run: |
+          if git diff $PR_BASE...HEAD --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+            yarn --cwd typescript/infra test:warp
+          fi
 
   cli-install-test:
     runs-on: ubuntu-latest
@@ -267,15 +298,15 @@ jobs:
       matrix:
         e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       # Set rust_changes to true if:
       # - on the main branch

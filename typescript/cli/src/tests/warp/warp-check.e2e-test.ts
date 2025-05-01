@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { randomInt } from 'crypto';
 import { Wallet } from 'ethers';
 import { zeroAddress } from 'viem';
 
@@ -21,7 +22,7 @@ import {
   randomHookConfig,
   randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, deepCopy, randomInt } from '@hyperlane-xyz/utils';
+import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -43,7 +44,7 @@ import {
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
 
-describe('hyperlane warp check e2e tests', async function () {
+describe.only('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Addresses: ChainAddresses = {};

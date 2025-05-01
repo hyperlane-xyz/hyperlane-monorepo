@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 12.4.0
+
+### Minor Changes
+
+- d2babb7: Remove fallback logic to derive extra lockboxes from rpc
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-sdk@12.4.0
+- @hyperlane-xyz/utils@12.4.0
+- @hyperlane-xyz/core@7.1.3
+
 ## 12.3.0
 
 ### Minor Changes
