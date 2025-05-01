@@ -199,7 +199,6 @@ jobs:
     needs: [yarn-install, set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
-      PR_BASE: ${{ github.base_ref }}
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
     steps:
@@ -210,7 +209,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch PR base
-        run: git fetch origin $PR_BASE
+        run: git fetch origin ${{ needs.set-base-sha.outputs.base_sha }}
 
       - name: Check for balance/config changes
         run: |
