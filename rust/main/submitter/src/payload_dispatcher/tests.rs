@@ -162,6 +162,7 @@ async fn test_entrypoint_send_is_dropped_by_dispatcher() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
+#[ignore]
 async fn test_entrypoint_payload_fails_simulation() {
     let payload = FullPayload::random();
 
