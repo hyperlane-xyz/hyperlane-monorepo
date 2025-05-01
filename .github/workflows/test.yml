@@ -168,7 +168,6 @@ jobs:
           echo "only_rust=false" >> $GITHUB_OUTPUT
           echo "Push event to main detected. Setting only_rust to false."
 
-
   yarn-test-run:
     runs-on: ubuntu-latest
     needs: [rust-only]
