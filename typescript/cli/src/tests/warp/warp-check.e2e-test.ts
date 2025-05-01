@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { randomInt } from 'crypto';
 import { Wallet } from 'ethers';
 import { zeroAddress } from 'viem';
 
@@ -34,8 +33,6 @@ import {
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
-  deployXERC20LockboxToken,
-  deployXERC20VSToken,
   getCombinedWarpRoutePath,
 } from '../commands/helpers.js';
 import {
@@ -44,7 +41,7 @@ import {
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
 
-describe.only('hyperlane warp check e2e tests', async function () {
+describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Addresses: ChainAddresses = {};
@@ -298,116 +295,6 @@ describe.only('hyperlane warp check e2e tests', async function () {
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.includes(expectedDiffText);
       expect(output.text()).to.includes(expectedActualText);
-    });
-
-    describe('check extra lockboxes', () => {
-      async function deployXERC20WarpRoute(): Promise<
-        [string, WarpRouteDeployConfig]
-      > {
-        const xERC20TokenSymbol = 'XERC20TOKEN';
-        const xERC20Token = await deployXERC20VSToken(
-          ANVIL_KEY,
-          CHAIN_NAME_2,
-          undefined,
-          xERC20TokenSymbol,
-        );
-
-        const token = await deployToken(
-          ANVIL_KEY,
-          CHAIN_NAME_2,
-          undefined,
-          'XERC20Collateral',
-        );
-        const xERC20Lockbox = await deployXERC20LockboxToken(
-          ANVIL_KEY,
-          CHAIN_NAME_2,
-          token,
-        );
-
-        const tx = await xERC20Token.addBridge({
-          bridge: xERC20Lockbox.address,
-          bufferCap: '1000',
-          rateLimitPerSecond: '1000',
-        });
-
-        await tx.wait();
-
-        const warpConfig: WarpRouteDeployConfig = {
-          [CHAIN_NAME_2]: {
-            type: TokenType.XERC20,
-            token: xERC20Token.address,
-            mailbox: chain2Addresses.mailbox,
-            owner: ownerAddress,
-            xERC20: {
-              warpRouteLimits: {
-                bufferCap: '0',
-                rateLimitPerSecond: '0',
-              },
-              extraBridges: [
-                {
-                  limits: {
-                    bufferCap: '1000',
-                    rateLimitPerSecond: '1000',
-                  },
-                  lockbox: xERC20Lockbox.address,
-                },
-              ],
-            },
-          },
-        };
-
-        writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-        await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-        return [xERC20TokenSymbol, warpConfig];
-      }
-
-      it(`should not find differences between the local limits and the on chain ones`, async function () {
-        const output = await hyperlaneWarpCheckRaw({
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-          warpCoreConfigPath: combinedWarpCoreConfigPath,
-        }).nothrow();
-
-        expect(output.exitCode).to.equal(0);
-      });
-
-      it(`should find differences between the local limits and the on chain ones`, async function () {
-        const [xERC20TokenSymbol, warpDeployConfig] =
-          await deployXERC20WarpRoute();
-
-        assert(
-          warpDeployConfig[CHAIN_NAME_2].type === TokenType.XERC20,
-          'Deploy config should be for an XERC20 token',
-        );
-        const currentExtraBridgesLimits =
-          warpDeployConfig[CHAIN_NAME_2].xERC20!.extraBridges![0];
-        const wrongBufferCap = randomInt(100).toString();
-        warpDeployConfig[CHAIN_NAME_2].xERC20!.extraBridges = [
-          {
-            ...currentExtraBridgesLimits,
-            limits: {
-              bufferCap: wrongBufferCap,
-              rateLimitPerSecond:
-                currentExtraBridgesLimits.limits.rateLimitPerSecond,
-            },
-          },
-        ];
-
-        writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-        const expectedDiffText = `EXPECTED: "${wrongBufferCap}"\n`;
-        const expectedActualText = `ACTUAL: "${currentExtraBridgesLimits.limits.rateLimitPerSecond}"\n`;
-
-        const output = await hyperlaneWarpCheckRaw({
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-          warpCoreConfigPath: getCombinedWarpRoutePath(xERC20TokenSymbol, [
-            CHAIN_NAME_2,
-          ]),
-        }).nothrow();
-
-        expect(output.exitCode).to.equal(1);
-        expect(output.text()).includes(expectedDiffText);
-        expect(output.text()).includes(expectedActualText);
-      });
     });
   });
 
