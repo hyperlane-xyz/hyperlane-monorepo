@@ -59,7 +59,6 @@ const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
-    reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
     client: Box<dyn SubmitSealevelRpc>,
     provider: Box<dyn SealevelProviderForSubmitter>,
@@ -120,14 +119,12 @@ impl SealevelTxAdapter {
         submitter: Box<dyn TransactionSubmitter>,
     ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
-        let reorg_period = conf.reorg_period.clone();
         let max_batch_size = Self::batch_size(&conf)?;
         let keypair = create_keypair(&conf)?;
 
         Ok(Self {
             estimated_block_time,
             max_batch_size,
-            reorg_period,
             keypair,
             provider,
             client,
@@ -147,7 +144,6 @@ impl SealevelTxAdapter {
         Self {
             estimated_block_time: Duration::from_secs(1),
             max_batch_size: 1,
-            reorg_period: ReorgPeriod::default(),
             keypair: SealevelKeypair::default(),
             provider,
             client,
@@ -219,7 +215,10 @@ impl SealevelTxAdapter {
     #[instrument(skip(self))]
     async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, SubmitterError> {
         let signature = Signature::new(tx_hash.as_ref());
-        let transaction_search_result = self.client.get_transaction(signature).await;
+        let transaction_search_result = self
+            .client
+            .get_transaction_with_commitment(signature, CommitmentConfig::processed())
+            .await;
 
         let transaction = match transaction_search_result {
             Ok(transaction) => transaction,
@@ -231,23 +230,24 @@ impl SealevelTxAdapter {
             }
         };
 
-        // slot at which transaction was included into blockchain
-        let inclusion_slot = transaction.slot;
+        info!(slot = ?transaction.slot, "found transaction");
 
-        info!(slot = ?inclusion_slot, "found transaction");
-
-        // if block with this slot is added to the chain, transaction is considered to be confirmed
-        let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
-
-        let confirming_block = self.client.get_block(confirming_slot).await;
+        // try querying the tx's slot at finalized commitment
+        let confirming_block = self
+            .client
+            .get_block_with_commitment(transaction.slot, CommitmentConfig::finalized())
+            .await;
 
         if confirming_block.is_ok() {
             info!("finalized transaction");
             return Ok(TransactionStatus::Finalized);
         }
 
-        // block which includes transaction into blockchain
-        let including_block = self.client.get_block(inclusion_slot).await;
+        // try querying the tx's slot at confirmed commitment (equivalent to being "included" in a block on evm)
+        let including_block = self
+            .client
+            .get_block_with_commitment(transaction.slot, CommitmentConfig::confirmed())
+            .await;
 
         match including_block {
             Ok(_) => {
