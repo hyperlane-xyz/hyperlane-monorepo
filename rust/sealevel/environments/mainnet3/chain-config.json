@@ -233,13 +233,13 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://arbitrum.llamarpc.com"
-      },
-      {
-        "http": "https://rpc.ankr.com/arbitrum"
-      },
-      {
         "http": "https://arb1.arbitrum.io/rpc"
+      },
+      {
+        "http": "https://arbitrum.rpc.subquery.network/public"
+      },
+      {
+        "http": "https://arbitrum.drpc.org"
       }
     ],
     "technicalStack": "arbitrumnitro"
@@ -433,45 +433,6 @@
     ],
     "technicalStack": "polkadotsubstrate"
   },
-  "astarzkevm": {
-    "blockExplorers": [
-      {
-        "apiUrl": "https://astar-zkevm.explorer.startale.com/api",
-        "family": "blockscout",
-        "name": "Astar zkEVM Explorer",
-        "url": "https://astar-zkevm.explorer.startale.com"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "estimateBlockTime": 3,
-      "reorgPeriod": 5
-    },
-    "chainId": 3776,
-    "deployer": {
-      "name": "Abacus Works",
-      "url": "https://www.hyperlane.xyz"
-    },
-    "displayName": "Astar zkEVM",
-    "domainId": 3776,
-    "gasCurrencyCoinGeckoId": "ethereum",
-    "name": "astarzkevm",
-    "nativeToken": {
-      "decimals": 18,
-      "name": "Ethereum",
-      "symbol": "ETH"
-    },
-    "protocol": "ethereum",
-    "rpcUrls": [
-      {
-        "http": "https://rpc.startale.com/astar-zkevm"
-      },
-      {
-        "http": "https://astar-zkevm-rpc.dwellir.com"
-      }
-    ],
-    "technicalStack": "polygoncdk"
-  },
   "aurora": {
     "blockExplorers": [
       {
@@ -615,7 +576,13 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://rpc.ankr.com/avalanche"
+        "http": "https://avalanche.drpc.org"
+      },
+      {
+        "http": "https://1rpc.io/avax/c"
+      },
+      {
+        "http": "https://avalanche-c-chain-rpc.publicnode.com"
       },
       {
         "http": "https://api.avax.network/ext/bc/C/rpc",
@@ -702,6 +669,18 @@
       },
       {
         "http": "https://base.blockpi.network/v1/rpc/public"
+      },
+      {
+        "http": "https://base.drpc.org"
+      },
+      {
+        "http": "https://base.llamarpc.com"
+      },
+      {
+        "http": "https://1rpc.io/base"
+      },
+      {
+        "http": "https://base-pokt.nodies.app"
       }
     ],
     "technicalStack": "opstack"
@@ -931,13 +910,19 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://rpc.ankr.com/bsc"
-      },
-      {
         "http": "https://bsc.drpc.org"
       },
       {
-        "http": "https://bscrpc.com"
+        "http": "https://bnb.rpc.subquery.network/public"
+      },
+      {
+        "http": "https://binance.llamarpc.com"
+      },
+      {
+        "http": "https://bsc.blockrazor.xyz"
+      },
+      {
+        "http": "https://bsc-pokt.nodies.app"
       }
     ],
     "technicalStack": "other",
@@ -1230,13 +1215,7 @@
         "http": "https://rpc.coredao.org"
       },
       {
-        "http": "https://core.public.infstones.com"
-      },
-      {
         "http": "https://rpc.ankr.com/core"
-      },
-      {
-        "http": "https://core.drpc.org"
       },
       {
         "http": "https://rpc-core.icecreamswap.com"
@@ -1289,6 +1268,42 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
+  "coti": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://mainnet.cotiscan.io/api",
+        "family": "blockscout",
+        "name": "Cotiscan",
+        "url": "https://mainnet.cotiscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 5,
+      "reorgPeriod": 5
+    },
+    "chainId": 2632500,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Coti",
+    "domainId": 2632500,
+    "gasCurrencyCoinGeckoId": "coti",
+    "name": "coti",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "COTI",
+      "symbol": "COTI"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.coti.io/rpc"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "cyber": {
     "blockExplorers": [
       {
@@ -1327,6 +1342,42 @@
       }
     ],
     "technicalStack": "opstack"
+  },
+  "deepbrainchain": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.dbcscan.io/api",
+        "family": "blockscout",
+        "name": "dbcscan",
+        "url": "https://www.dbcscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 6,
+      "reorgPeriod": "finalized"
+    },
+    "chainId": 19880818,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Deep Brain Chain",
+    "domainId": 19880818,
+    "gasCurrencyCoinGeckoId": "deepbrain-chain",
+    "name": "deepbrainchain",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "DBC",
+      "symbol": "DBC"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.dbcwallet.io"
+      }
+    ],
+    "technicalStack": "polkadotsubstrate"
   },
   "degenchain": {
     "blockExplorers": [
@@ -1556,16 +1607,22 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://rpc.ankr.com/eth"
+        "http": "https://eth.llamarpc.com"
       },
       {
         "http": "https://ethereum.publicnode.com"
       },
       {
-        "http": "https://cloudflare-eth.com"
+        "http": "https://eth.drpc.org"
       },
       {
-        "http": "https://eth.drpc.org"
+        "http": "https://rpc.flashbots.net"
+      },
+      {
+        "http": "https://eth.blockrazor.xyz"
+      },
+      {
+        "http": "https://eth-pokt.nodies.app"
       }
     ],
     "technicalStack": "other"
@@ -1736,7 +1793,10 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://flare-api.flare.network/ext/C/rpc"
+        "http": "https://flare-api.flare.network/ext/C/rpc",
+        "pagination": {
+          "maxBlockRange": 30
+        }
       },
       {
         "http": "https://flare.solidifi.app/ext/C/rpc"
@@ -2104,9 +2164,6 @@
       },
       {
         "http": "https://1rpc.io/one"
-      },
-      {
-        "http": "https://rpc.ankr.com/harmony"
       }
     ],
     "technicalStack": "other"
@@ -2513,9 +2570,6 @@
         "http": "https://rpc.linea.build"
       },
       {
-        "http": "https://linea.blockpi.network/v1/rpc/public"
-      },
-      {
         "http": "https://1rpc.io/linea"
       },
       {
@@ -2908,6 +2962,60 @@
     ],
     "technicalStack": "opstack"
   },
+  "milkyway": {
+    "bech32Prefix": "milk",
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 6,
+      "reorgPeriod": 1
+    },
+    "canonicalAsset": "umilk",
+    "chainId": "milkyway",
+    "contractAddressBytes": 32,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "MilkyWay",
+    "domainId": 1835625579,
+    "gasCurrencyCoinGeckoId": "milkyway-2",
+    "gasPrice": {
+      "amount": "0.03",
+      "denom": "umilk"
+    },
+    "grpcUrls": [
+      {
+        "http": "https://grpc.mainnet.milkyway.zone/"
+      }
+    ],
+    "index": {
+      "chunk": 10,
+      "from": 2249100
+    },
+    "name": "milkyway",
+    "nativeToken": {
+      "decimals": 6,
+      "denom": "umilk",
+      "name": "MILK",
+      "symbol": "MILK"
+    },
+    "protocol": "cosmosnative",
+    "restUrls": [
+      {
+        "http": "https://lcd.mainnet.milkyway.zone/"
+      }
+    ],
+    "rpcUrls": [
+      {
+        "http": "https://rpc.mainnet.milkyway.zone/"
+      }
+    ],
+    "slip44": 118,
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "gasPrice": "0.03"
+    }
+  },
   "mint": {
     "blockExplorers": [
       {
@@ -3210,6 +3318,42 @@
       "gasPrice": "0.0075"
     }
   },
+  "nibiru": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan/api",
+        "family": "routescan",
+        "name": "nibiscan",
+        "url": "https://nibiscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 7,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 5
+    },
+    "chainId": 6900,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Nibiru",
+    "domainId": 6900,
+    "gasCurrencyCoinGeckoId": "nibiru",
+    "name": "nibiru",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "NIBI",
+      "symbol": "NIBI"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://evm-rpc.nibiru.fi"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "oortmainnet": {
     "blockExplorers": [
       {
@@ -3246,6 +3390,51 @@
     ],
     "technicalStack": "other"
   },
+  "opbnb": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-opbnb.bscscan.com/api",
+        "family": "etherscan",
+        "name": "opBNB Scan",
+        "url": "https://opbnb.bscscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 5
+    },
+    "chainId": 204,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "opBNB",
+    "domainId": 204,
+    "gasCurrencyCoinGeckoId": "binancecoin",
+    "name": "opbnb",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BNB",
+      "symbol": "BNB"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://opbnb-mainnet-rpc.bnbchain.org"
+      },
+      {
+        "http": "https://opbnb-mainnet.nodereal.io/v1/64a9df0874fb4a93b9d0a3849de012d3"
+      },
+      {
+        "http": "https://opbnb-mainnet.nodereal.io/v1/e9a36765eb8a40b9bd12e680a1fd2bc5"
+      },
+      {
+        "http": "https://opbnb.publicnode.com"
+      }
+    ],
+    "technicalStack": "opstack"
+  },
   "optimism": {
     "blockExplorers": [
       {
@@ -3279,6 +3468,15 @@
     "rpcUrls": [
       {
         "http": "https://mainnet.optimism.io"
+      },
+      {
+        "http": "https://optimism.drpc.org"
+      },
+      {
+        "http": "https://optimism-rpc.publicnode.com"
+      },
+      {
+        "http": "https://op-pokt.nodies.app"
       }
     ],
     "technicalStack": "opstack"
@@ -3315,9 +3513,6 @@
     "rpcUrls": [
       {
         "http": "https://rpc.orderly.network"
-      },
-      {
-        "http": "https://l2-orderly-mainnet-0.t.conduit.xyz"
       }
     ],
     "technicalStack": "opstack"
@@ -3462,7 +3657,10 @@
         "http": "https://polygon-rpc.com"
       },
       {
-        "http": "https://rpc.ankr.com/polygon"
+        "http": "https://polygon.drpc.org"
+      },
+      {
+        "http": "https://polygon-pokt.nodies.app"
       }
     ],
     "technicalStack": "other"
@@ -3661,6 +3859,42 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
+  "reactive": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://reactscan.net/api",
+        "family": "other",
+        "name": "Reactscan",
+        "url": "https://reactscan.net"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 7,
+      "reorgPeriod": 5
+    },
+    "chainId": 1597,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Reactive Mainnet",
+    "domainId": 1597,
+    "gasCurrencyCoinGeckoId": "reactive-network",
+    "name": "reactive",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "REACT",
+      "symbol": "REACT"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet-rpc.rnk.dev"
+      }
+    ],
+    "technicalStack": "other"
+  },
   "real": {
     "blockExplorers": [
       {
@@ -3695,7 +3929,10 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://real.drpc.org"
+        "http": "https://rpc.realforreal.gelato.digital"
+      },
+      {
+        "http": "https://tangible-real.gateway.tenderly.co"
       }
     ],
     "technicalStack": "arbitrumnitro"
@@ -3847,12 +4084,6 @@
     "rpcUrls": [
       {
         "http": "https://rpc.mainnet.rootstock.io/kXhXHf6TnnfW1POvr4UT0YUvujmuju-M"
-      },
-      {
-        "http": "https://public-node.rsk.co"
-      },
-      {
-        "http": "https://mycrypto.rsk.co"
       }
     ],
     "technicalStack": "other",
@@ -4901,7 +5132,10 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://rpc.tomochain.com"
+        "http": "https://rpc.viction.xyz"
+      },
+      {
+        "http": "https://viction.drpc.org"
       },
       {
         "http": "https://viction.blockpi.network/v1/rpc/public"
@@ -4940,6 +5174,12 @@
     },
     "protocol": "ethereum",
     "rpcUrls": [
+      {
+        "http": "https://worldchain.drpc.org"
+      },
+      {
+        "http": "https://worldchain-mainnet.gateway.tenderly.co"
+      },
       {
         "http": "https://worldchain-mainnet.g.alchemy.com/public"
       }
@@ -5216,9 +5456,6 @@
     "rpcUrls": [
       {
         "http": "https://rpc.zklink.io"
-      },
-      {
-        "http": "https://rpc.zklink.network"
       }
     ],
     "technicalStack": "zksync"

@@ -61,12 +61,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
 export const chainOwners: ChainMap<OwnableConfig> = {
   ...ethereumChainOwners,
   solanamainnet: {
-    // Squads multisig
-    owner: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
+    // Multisig A
+    owner: '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa',
   },
   eclipsemainnet: {
-    // Squads multisig
-    owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
+    // Multisig A
+    owner: 'D742EWw9wpV47jRAvEenG1oWHfMmpiQNJLjHTBfXhuRm',
   },
   injective: {
     // Native multisig
@@ -88,11 +88,11 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     owner: 'TODO: configure milkyway owner',
   },
   soon: {
-    // Squads vault
-    owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
+    // Multisig A
+    owner: '7Y6WDpMfNeb1b4YYbyUkF41z1DuPhvDDuWWJCHPRNa9Y',
   },
   sonicsvm: {
-    // Will move to a Squads once it's live
-    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+    // Multisig A
+    owner: '8ECSwp5yo2EeZkozSrpPnMj5Rmcwa4VBYCETE9LHmc9y',
   },
 };
