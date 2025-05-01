@@ -171,11 +171,22 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
       case TokenType.collateralUri:
         result[chain] = {
           type,
           owner,
           proxyAdmin,
+          isNft: true,
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
@@ -217,6 +228,15 @@ export async function createWarpRouteDeployConfig({
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
+        };
+        break;
+      case TokenType.syntheticUri:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          isNft: true,
         };
         break;
       default:
