@@ -146,7 +146,6 @@ jobs:
       # Check if changes are ONLY rust
       - name: Check if changes are ONLY rust
         id: check-rust-only
-        if: github.event_name == 'push'
         run: |
           # Check for Rust changes
           if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^rust/'; then
@@ -164,13 +163,11 @@ jobs:
       # If the push event is to main, fallback to rust_only as false.
       - name: Check if push event to main
         id: check-push-main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "only_rust=false" >> $GITHUB_OUTPUT
-            echo "Push event to main detected. Setting only_rust to false."
-          else
-            echo "Not a push event to main. Keeping only_rust as ${{ steps.check-rust-only.outputs.only_rust }}."
-          fi
+          echo "only_rust=false" >> $GITHUB_OUTPUT
+          echo "Push event to main detected. Setting only_rust to false."
+
 
   yarn-test-run:
     runs-on: ubuntu-latest
