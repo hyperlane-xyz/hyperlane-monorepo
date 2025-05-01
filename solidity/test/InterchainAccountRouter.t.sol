@@ -48,6 +48,7 @@ contract InterchainAccountRouterTestBase is Test {
     event InterchainAccountCreated(
         address indexed account,
         uint32 origin,
+        bytes32 router,
         bytes32 owner,
         address ism,
         bytes32 salt
@@ -318,6 +319,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         emit InterchainAccountCreated(
             address(ica),
             origin,
+            address(originIcaRouter).addressToBytes32(),
             address(this).addressToBytes32(),
             TypeCasts.bytes32ToAddress(ismOverride),
             bytes32(0)

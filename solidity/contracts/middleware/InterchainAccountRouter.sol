@@ -76,6 +76,7 @@ contract InterchainAccountRouter is Router {
      * @notice Emitted when an interchain account contract is deployed
      * @param account The address of the proxy account that was created
      * @param origin The domain of the chain where the message was sent from
+     * @param router The router on the origin domain
      * @param owner The address of the account that sent the message
      * @param ism The address of the local ISM
      * @param salt The salt used to derive the interchain account
@@ -83,6 +84,7 @@ contract InterchainAccountRouter is Router {
     event InterchainAccountCreated(
         address indexed account,
         uint32 origin,
+        bytes32 router,
         bytes32 owner,
         address ism,
         bytes32 salt
@@ -437,6 +439,7 @@ contract InterchainAccountRouter is Router {
             emit InterchainAccountCreated(
                 _account,
                 _origin,
+                _router,
                 _owner,
                 _ism,
                 _userSalt
