@@ -11,6 +11,7 @@
     "name": "Eclipse",
     "symbol": "ES",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/ES/metadata.json",
-    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": "3KK8L7UYd7NV575w9vWR2o1kNqdSFvEPUwcTA5353cax"
   }
 }
