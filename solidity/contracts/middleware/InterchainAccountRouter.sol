@@ -74,16 +74,18 @@ contract InterchainAccountRouter is Router {
 
     /**
      * @notice Emitted when an interchain account contract is deployed
+     * @param account The address of the proxy account that was created
      * @param origin The domain of the chain where the message was sent from
      * @param owner The address of the account that sent the message
      * @param ism The address of the local ISM
-     * @param account The address of the proxy account that was created
+     * @param salt The salt used to derive the interchain account
      */
     event InterchainAccountCreated(
-        uint32 indexed origin,
-        bytes32 indexed owner,
+        address indexed account,
+        uint32 origin,
+        bytes32 owner,
         address ism,
-        address account
+        bytes32 salt
     );
 
     // ============ Constructor ============
@@ -432,7 +434,13 @@ contract InterchainAccountRouter is Router {
         if (!Address.isContract(_account)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
-            emit InterchainAccountCreated(_origin, _owner, _ism, _account);
+            emit InterchainAccountCreated(
+                _account,
+                _origin,
+                _owner,
+                _ism,
+                _userSalt
+            );
         }
         return OwnableMulticall(_account);
     }

@@ -46,10 +46,11 @@ contract InterchainAccountRouterTestBase is Test {
     using TypeCasts for address;
 
     event InterchainAccountCreated(
-        uint32 indexed origin,
-        bytes32 indexed owner,
+        address indexed account,
+        uint32 origin,
+        bytes32 owner,
         address ism,
-        address account
+        bytes32 salt
     );
 
     MockHyperlaneEnvironment internal environment;
@@ -315,10 +316,11 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         vm.expectEmit(true, true, false, true, address(destinationIcaRouter));
         emit InterchainAccountCreated(
+            address(ica),
             origin,
             address(this).addressToBytes32(),
             TypeCasts.bytes32ToAddress(ismOverride),
-            address(ica)
+            bytes32(0)
         );
 
         vm.deal(address(this), value);
