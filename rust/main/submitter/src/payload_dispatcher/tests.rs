@@ -285,6 +285,8 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
 
     adapter.expect_simulate_tx().returning(|_| Ok(true));
 
+    adapter.expect_estimate_tx().returning(|_| Ok(()));
+
     adapter.expect_submit().returning(|_| Ok(()));
     adapter
 }

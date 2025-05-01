@@ -213,6 +213,23 @@ impl InclusionStage {
         // }
         // info!(?tx, "Transaction simulation succeeded");
 
+        // Estimating transaction just before we submit it
+        // TODO we will need to re-classify `ChainCommunicationError` into `SubmitterError::EstimateError` in the future.
+        // At the moment, both errors are non-retryable, so we can keep them as is.
+        tx = call_until_success_or_nonretryable_error(
+            || {
+                let tx_clone = tx.clone();
+                async move {
+                    let mut tx_clone_inner = tx_clone.clone();
+                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
+                    Ok(tx_clone_inner)
+                }
+            },
+            "Simulating and estimating transaction",
+            state,
+        )
+        .await?;
+
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
