@@ -26,14 +26,14 @@ jobs:
   yarn-install:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       - name: yarn-cache
         uses: buildjet/cache@v4
@@ -298,15 +298,15 @@ jobs:
       matrix:
         e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       # Set rust_changes to true if:
       # - on the main branch
