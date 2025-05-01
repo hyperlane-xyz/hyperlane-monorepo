@@ -60,17 +60,21 @@ pub trait IsRetryable {
 impl IsRetryable for SubmitterError {
     fn is_retryable(&self) -> bool {
         match self {
-            SubmitterError::NetworkError(_) => true,
             SubmitterError::TxSubmissionError(_) => true,
-            SubmitterError::ChannelSendFailure(_) => true,
-            SubmitterError::ChainCommunicationError(err) => {
-                // on SVM, reverted simulations will return an error containing this
-                if err.to_string().contains("simulation result") {
-                    return false;
-                }
-                true
+            SubmitterError::NetworkError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
             }
-            SubmitterError::EyreError(_) => true,
+            // tx submission errors are not retryable so gas gets escalated
+            SubmitterError::ChainCommunicationError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::EyreError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::ChannelSendFailure(_) => false,
             SubmitterError::NonRetryableError(_) => false,
             SubmitterError::TxReverted => false,
             SubmitterError::SimulationFailed => false,
