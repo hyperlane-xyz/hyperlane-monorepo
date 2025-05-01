@@ -59,12 +59,7 @@ contract MovableCollateralRouterTest is Test {
         token.approve(address(vtb), 1e18);
 
         // Execute
-        router.rebalance(
-            destinationDomain,
-            bytes32(uint256(uint160(alice))),
-            1e18,
-            vtb
-        );
+        router.rebalance(destinationDomain, 1e18, vtb);
         // Assert
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(vtb)), 1e18);
@@ -79,12 +74,7 @@ contract MovableCollateralRouterTest is Test {
         );
         vm.expectRevert(revertBytes);
         // Execute
-        router.rebalance(
-            destinationDomain,
-            bytes32(uint256(uint160(alice))),
-            1e18,
-            vtb
-        );
+        router.rebalance(destinationDomain, 1e18, vtb);
     }
 
     function testBadRecipient() public {
@@ -101,12 +91,7 @@ contract MovableCollateralRouterTest is Test {
             )
         );
         // Execute
-        router.rebalance(
-            destinationDomain,
-            bytes32(uint256(uint160(alice))),
-            1e18,
-            vtb
-        );
+        router.rebalance(destinationDomain, 1e18, vtb);
     }
 
     function testBadBridge() public {
@@ -129,12 +114,7 @@ contract MovableCollateralRouterTest is Test {
             )
         );
         // Execute
-        router.rebalance(
-            destinationDomain,
-            bytes32(uint256(uint160(alice))),
-            1e18,
-            vtb
-        );
+        router.rebalance(destinationDomain, 1e18, vtb);
     }
 
     function testApproveTokenForBridge() public {
