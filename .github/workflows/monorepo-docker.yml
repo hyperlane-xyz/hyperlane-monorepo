@@ -10,6 +10,7 @@ on:
       - 'typescript/infra/**'
       - '.registryrc'
       - 'Dockerfile'
+      - 'docker-entrypoint.sh'
       - '.dockerignore'
       - '.github/workflows/monorepo-docker.yml'
 

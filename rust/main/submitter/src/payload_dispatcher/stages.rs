@@ -1,6 +1,6 @@
-mod building_stage;
-mod finality_stage;
-mod inclusion_stage;
+pub(crate) mod building_stage;
+pub(crate) mod finality_stage;
+pub(crate) mod inclusion_stage;
 mod state;
 mod utils;
 

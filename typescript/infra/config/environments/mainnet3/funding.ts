@@ -2,7 +2,7 @@ import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
-import desiredRelayerBalances from './balances/desiredRelayerBalances.json' assert { type: 'json' };
+import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
 import { environment } from './chains.js';
 import { mainnet3SupportedChainNames } from './supportedChainNames.js';
 
@@ -19,7 +19,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '4fd2990-20250414-150005',
+    tag: '2d0234b-20250422-165314',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -32,6 +32,7 @@ export const keyFunderConfig: KeyFunderConfig<
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
+    [Contexts.Vanguard0]: [Role.Relayer],
   },
   chainsToSkip: [],
   // desired balance config, must be set for each chain
