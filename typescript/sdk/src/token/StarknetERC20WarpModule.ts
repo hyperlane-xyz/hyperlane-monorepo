@@ -7,7 +7,6 @@ import {
   getChecksumAddress,
   uint256,
 } from 'starknet';
-import { hexToBigInt } from 'viem';
 
 import {
   StarknetContractName,
@@ -220,14 +219,6 @@ export class StarknetERC20WarpModule {
         `Batch enrolling ${domains.length} remote routers on ${chain}`,
       );
 
-      domains.push(1399811150);
-      routers.push(
-        uint256.bnToUint256(
-          hexToBigInt(
-            '0x119d6b31e756c5f4aa2ca43049511c2c453e4e81ec905b7520e886828efc1ed2',
-          ),
-        ),
-      );
       const tx = await routerContract.invoke('enroll_remote_routers', [
         domains,
         routers,
