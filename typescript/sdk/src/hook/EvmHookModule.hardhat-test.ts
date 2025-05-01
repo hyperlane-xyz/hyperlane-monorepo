@@ -30,6 +30,8 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmHookModule } from './EvmHookModule.js';
 import {
   AggregationHookConfig,
+  AmountRoutingHookConfig,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -348,6 +350,104 @@ describe('EvmHookModule', async () => {
       // expect the hook address to be different
       expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
         .false;
+    });
+
+    it('should not update if aggregation hook includes an address of an existing hook', async () => {
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [randomHookConfig(0, 2), randomHookConfig(0, 2)],
+      };
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      const [firstHook, secondHook] = (
+        (await hook.read()) as AggregationHookConfig
+      ).hooks as DerivedHookConfig[];
+      const expectedConfig = {
+        ...config,
+        domains: [firstHook.address, secondHook],
+      };
+
+      await expectTxsAndUpdate(hook, expectedConfig, 0);
+    });
+
+    it('should not update if a domain routing hook includes an address of an existing hook', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: DomainRoutingHookConfig = {
+        type: HookType.ROUTING,
+        owner,
+        domains: {
+          9913371: randomHookConfig(0, 2),
+          9913372: randomHookConfig(0, 2),
+        },
+      };
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      const { test1: firstHook, test2: secondHook } = (
+        (await hook.read()) as DomainRoutingHookConfig
+      ).domains;
+      const expectedConfig = {
+        ...config,
+        domains: {
+          test1: (firstHook as DerivedHookConfig).address,
+          test2: secondHook,
+        },
+      };
+
+      await expectTxsAndUpdate(hook, expectedConfig, 0);
+    });
+
+    it('should not update if a fallback routing hook includes an address of an existing hook', async () => {
+      const owner = await multiProvider.getSignerAddress(chain);
+      const config: FallbackRoutingHookConfig = {
+        type: HookType.FALLBACK_ROUTING,
+        owner,
+        domains: {
+          9913371: randomHookConfig(0, 2),
+          9913372: randomHookConfig(0, 2),
+        },
+        fallback: randomHookConfig(0, 2),
+      };
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      const derivedHook = (await hook.read()) as FallbackRoutingHookConfig;
+      const { test1: firstHook, test2: secondHook } = derivedHook.domains;
+
+      const expectedConfig = {
+        ...config,
+        domains: {
+          test1: (firstHook as DerivedHookConfig).address,
+          test2: secondHook,
+        },
+        fallback: (derivedHook.fallback as DerivedHookConfig).address,
+      };
+
+      await expectTxsAndUpdate(hook, expectedConfig, 0);
+    });
+
+    it('should not update if a amount routing hook includes an address of an existing hook', async () => {
+      const config: AmountRoutingHookConfig = {
+        type: HookType.AMOUNT_ROUTING,
+        threshold: 1,
+        lowerHook: randomHookConfig(0, 2),
+        upperHook: randomHookConfig(0, 2),
+      };
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      const derivedHook = (await hook.read()) as AmountRoutingHookConfig;
+      const { lowerHook, upperHook } = derivedHook;
+
+      const expectedConfig = {
+        ...config,
+        lowerHook: (lowerHook as DerivedHookConfig).address,
+        upperHook: upperHook,
+      };
+
+      await expectTxsAndUpdate(hook, expectedConfig, 0);
     });
 
     const createDeployerOwnedIgpHookConfig =

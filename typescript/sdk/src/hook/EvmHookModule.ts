@@ -35,8 +35,11 @@ import {
   ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
+  assert,
   deepEquals,
   eqAddress,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -154,6 +157,7 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
+    targetConfig = await this.expandInnerHookAddresses(targetConfig);
 
     // Do not support updating to a custom Hook address
     if (typeof targetConfig === 'string') {
@@ -249,6 +253,37 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return updateTxs;
+  }
+
+  //  Derives the configs in some HookConfigs that has inner hooks (e.g. domains in routing hook),
+  private async expandInnerHookAddresses(
+    config: HookConfig,
+  ): Promise<HookConfig> {
+    assert(typeof config !== 'string', 'Cannot expand string configs');
+    const deriveOrReturnHook = async (hook: HookConfig) =>
+      typeof hook === 'string' ? this.reader.deriveHookConfig(hook) : hook;
+
+    switch (config.type) {
+      case HookType.FALLBACK_ROUTING:
+      case HookType.ROUTING:
+        config.domains = await promiseObjAll(
+          objMap(config.domains, async (_, hook) => deriveOrReturnHook(hook)),
+        );
+
+        if (config.type === HookType.FALLBACK_ROUTING)
+          config.fallback = await deriveOrReturnHook(config.fallback);
+        break;
+      case HookType.AGGREGATION:
+        config.hooks = await Promise.all(
+          config.hooks.map(async (hook) => deriveOrReturnHook(hook)),
+        );
+        break;
+      case HookType.AMOUNT_ROUTING:
+        config.lowerHook = await deriveOrReturnHook(config.lowerHook);
+        config.upperHook = await deriveOrReturnHook(config.upperHook);
+        break;
+    }
+    return config;
   }
 
   // manually write static create function
@@ -1148,7 +1183,7 @@ export class EvmHookModule extends HyperlaneModule<
    * - If updating a proper hook config whose types are different.
    * - If it is not a mutable Hook.
    */
-  private shouldDeployNewHook(
+  shouldDeployNewHook(
     currentConfig: HookConfig,
     targetConfig: Exclude<HookConfig, string>,
   ): boolean {
