@@ -143,8 +143,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Check for Rust changes
+      # Check if changes are ONLY rust
+      - name: Check if changes are ONLY rust
         id: check-rust-only
+        if: github.event_name == 'push'
         run: |
           # Check for Rust changes
           if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^rust/'; then
@@ -157,6 +159,15 @@ jobs:
             fi
           else
             echo "only_rust=false" >> $GITHUB_OUTPUT
+          fi
+
+      # If the push event is to main, fallback to rust_only as false.
+      - name: Check if push event to main
+        id: check-push-main
+        run: |
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "only_rust=false" >> $GITHUB_OUTPUT
+            echo "Push event to main detected. Setting only_rust to false."
           fi
 
   yarn-test-run:
