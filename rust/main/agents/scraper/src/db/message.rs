@@ -2,7 +2,9 @@
 
 use eyre::Result;
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect};
+use sea_orm::{
+    prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect, TransactionTrait,
+};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -313,27 +315,37 @@ impl ScraperDb {
             return Ok(0);
         }
 
-        for chunk in models.chunks(Self::STORE_MESSAGE_CHUNK_SIZE) {
-            Insert::many(chunk.to_vec())
-                .on_conflict(
-                    OnConflict::columns([
-                        message::Column::OriginMailbox,
-                        message::Column::Origin,
-                        message::Column::Nonce,
-                    ])
-                    .update_columns([
-                        message::Column::TimeCreated,
-                        message::Column::Destination,
-                        message::Column::Sender,
-                        message::Column::Recipient,
-                        message::Column::MsgBody,
-                        message::Column::OriginTxId,
-                    ])
-                    .to_owned(),
-                )
-                .exec(&self.0)
-                .await?;
-        }
+        // ensure all chunks are inserted or none at all
+        self.0
+            .transaction::<_, (), DbErr>(|txn| {
+                Box::pin(async move {
+                    // insert messages in chunks, to not run into
+                    // "Too many arguments" error
+                    for chunk in models.chunks(Self::STORE_MESSAGE_CHUNK_SIZE) {
+                        Insert::many(chunk.to_vec())
+                            .on_conflict(
+                                OnConflict::columns([
+                                    message::Column::OriginMailbox,
+                                    message::Column::Origin,
+                                    message::Column::Nonce,
+                                ])
+                                .update_columns([
+                                    message::Column::TimeCreated,
+                                    message::Column::Destination,
+                                    message::Column::Sender,
+                                    message::Column::Recipient,
+                                    message::Column::MsgBody,
+                                    message::Column::OriginTxId,
+                                ])
+                                .to_owned(),
+                            )
+                            .exec(txn)
+                            .await?;
+                    }
+                    Ok(())
+                })
+            })
+            .await?;
 
         let new_dispatch_count = self
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
