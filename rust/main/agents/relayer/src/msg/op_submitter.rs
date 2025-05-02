@@ -852,11 +852,7 @@ async fn confirm_lander_task(
                         Some((op, op_results))
                     }
                     Ok(Some(_)) | Ok(None) | Err(_) => {
-                        error!(
-                            ?op,
-                            %message_id,
-                            "Error retrieving payload id by message id",
-                        );
+                        debug!(?op, ?message_id, "No payload id found for message id",);
                         send_back_on_failed_submission(
                             op,
                             prepare_queue.clone(),
@@ -964,7 +960,7 @@ async fn process_confirm_result(
 ) -> PendingOperationResult {
     match &operation_result {
         PendingOperationResult::Success => {
-            debug!(?op, "Operation confirmed");
+            debug!(id=?op.id(), ?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
             op.decrement_metric_if_exists();
         }

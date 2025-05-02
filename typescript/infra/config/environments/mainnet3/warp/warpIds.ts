@@ -81,8 +81,8 @@ export enum WarpRouteIds {
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   // TODO: uncomment after merging the staging route to registry
   // this has been commented out as it leads to check-warp-deploy cron job failing
-  // SuperTokenStaging = 'USDTSTAGING/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
-  SuperUSDT = 'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
+  // SuperTokenStaging = 'USDTSTAGING/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
+  SuperUSDT = 'USDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
