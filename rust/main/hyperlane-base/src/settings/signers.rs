@@ -216,7 +216,7 @@ mod tests {
     fn address_h256_ethereum() {
         const PRIVATE_KEY: &str =
             "2bcd4cb33dc9b879d74aebb847b0fdd27868ade2b3a999988debcaae763283c6";
-        const PUBLIC_KEY: &str = "0000000000000000000000000bec35c9af305b1b8849d652f4b542d19ef7e8f9";
+        const ADDRESS: &str = "0000000000000000000000000bec35c9af305b1b8849d652f4b542d19ef7e8f9";
 
         let wallet = PRIVATE_KEY
             .parse::<LocalWallet>()
@@ -225,7 +225,7 @@ mod tests {
         let chain_signer = hyperlane_ethereum::Signers::Local(wallet);
 
         let address_h256 = H256::from_slice(
-            hex::decode(PUBLIC_KEY)
+            hex::decode(ADDRESS)
                 .expect("Failed to decode public key")
                 .as_slice(),
         );
@@ -236,7 +236,7 @@ mod tests {
     fn address_h256_sealevel() {
         const PRIVATE_KEY: &str =
             "0d861aa9ee7b09fe0305a649ec9aa0dfede421817dbe995b48964e5a79fc89e50f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
-        const PUBLIC_KEY: &str = "0f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
+        const ADDRESS: &str = "0f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
 
         let chain_signer = hyperlane_sealevel::Keypair::from_bytes(
             hex::decode(PRIVATE_KEY)
@@ -246,7 +246,7 @@ mod tests {
         .expect("Failed to decode keypair");
 
         let address_h256 = H256::from_slice(
-            hex::decode(PUBLIC_KEY)
+            hex::decode(ADDRESS)
                 .expect("Failed to decode public key")
                 .as_slice(),
         );
@@ -280,7 +280,7 @@ mod tests {
     fn address_h256_cosmos() {
         const PRIVATE_KEY: &str =
             "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
-        const PUBLIC_KEY: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
+        const ADDRESS: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
 
         let key = H256::from_slice(
             hex::decode(PRIVATE_KEY)
@@ -295,7 +295,7 @@ mod tests {
         .expect("Failed to create cosmos signer");
 
         let address_h256 = H256::from_slice(
-            hex::decode(PUBLIC_KEY)
+            hex::decode(ADDRESS)
                 .expect("Failed to decode public key")
                 .as_slice(),
         );
@@ -306,7 +306,7 @@ mod tests {
     fn address_h256_cosmosnative() {
         const PRIVATE_KEY: &str =
             "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
-        const PUBLIC_KEY: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
+        const ADDRESS: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
 
         let key = H256::from_slice(
             hex::decode(PRIVATE_KEY)
@@ -321,7 +321,7 @@ mod tests {
         .expect("Failed to create cosmos signer");
 
         let address_h256 = H256::from_slice(
-            hex::decode(PUBLIC_KEY)
+            hex::decode(ADDRESS)
                 .expect("Failed to decode public key")
                 .as_slice(),
         );

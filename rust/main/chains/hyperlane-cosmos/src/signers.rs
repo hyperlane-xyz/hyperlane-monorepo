@@ -15,8 +15,6 @@ pub struct Signer {
     pub address_string: String,
     /// address prefix
     pub prefix: String,
-    /// address type
-    pub account_address_type: AccountAddressType,
     /// private key
     private_key: Vec<u8>,
 }
@@ -42,7 +40,6 @@ impl Signer {
             private_key,
             address,
             address_string,
-            account_address_type: account_address_type.clone(),
             prefix,
         })
     }
