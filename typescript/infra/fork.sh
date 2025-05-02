@@ -11,7 +11,7 @@ if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
 fi
 
 # kill all child processes on exit
-trap 'jobs -p | xargs -r kill' EXIT
+trap 'jobs -p | xargs -r kill 2>/dev/null || true' EXIT
 
 # exit 1 on any subsequent failures
 set -e

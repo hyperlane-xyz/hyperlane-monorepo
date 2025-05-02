@@ -155,9 +155,8 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
-      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-        chain,
-      );
+      const signerUrl =
+        await this.multiProvider.tryGetExplorerAddressUrl(chain);
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
@@ -828,9 +827,8 @@ export abstract class HyperlaneDeployer<
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
-          const estimatedGas = await ownable.estimateGas.transferOwnership(
-            owner,
-          );
+          const estimatedGas =
+            await ownable.estimateGas.transferOwnership(owner);
           return this.multiProvider.handleTx(
             chain,
             ownable.transferOwnership(owner, {
