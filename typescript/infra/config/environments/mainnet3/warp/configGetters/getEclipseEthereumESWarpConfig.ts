@@ -16,14 +16,14 @@ export const getEclipseEthereumESWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return {
     eclipsemainnet: {
-      ...routerConfig.eclipsemainnet,
+      mailbox: routerConfig.eclipsemainnet.mailbox,
       owner: eclipseTeamMultiSigs.eclipsemainnet,
       type: TokenType.synthetic,
       foreignDeployment: '2JvSu7PzquY2b8NDZbnupFZ1jezqMBtNUhi7TuU3GQJD',
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     },
     ethereum: {
-      ...routerConfig.ethereum,
+      mailbox: routerConfig.ethereum.mailbox,
       type: TokenType.collateral,
       owner: eclipseTeamMultiSigs.ethereum,
       token: tokens.ethereum.ES,
