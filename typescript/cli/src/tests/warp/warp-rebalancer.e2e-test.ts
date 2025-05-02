@@ -2,7 +2,10 @@ import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { $ } from 'zx';
 
-import { HypERC20Collateral__factory } from '@hyperlane-xyz/core';
+import {
+  HypERC20Collateral__factory,
+  MockValueTransferBridge__factory,
+} from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -435,8 +438,55 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       chain2Metadata.domainId,
     );
 
-    await startRebalancerAndExpectLog(
-      'cannot estimate gas; transaction may fail or may require manual gas limit',
+    await startRebalancerAndExpectLog('❌ Some rebalance transaction failed');
+  });
+
+  it('should successfully send rebalance transaction', async () => {
+    // Assign rebalancer role
+    const chain3Provider = new ethers.providers.JsonRpcProvider(
+      chain3Metadata.rpcUrls[0].http,
     );
+    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[1].addressOrDenom!,
+      chain3Signer,
+    );
+    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
+    await chain3CollateralContract.grantRole(
+      rebalancerRole,
+      chain3Signer.address,
+    );
+
+    // Allow destination
+    await chain3CollateralContract.addRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
+    );
+
+    // Deploy the bridge
+    const bridgeContract = await new MockValueTransferBridge__factory(
+      chain3Signer,
+    ).deploy();
+
+    // Allow bridge
+    await chain3CollateralContract.addBridge(
+      bridgeContract.address,
+      chain2Metadata.domainId,
+    );
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: bridgeContract.address,
+      },
+    });
+
+    await startRebalancerAndExpectLog('✅ Rebalance successful');
   });
 });

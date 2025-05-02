@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap, objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logDebug, logGreen, logRed } from '../../logger.js';
+import { log } from '../../logger.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -87,11 +87,11 @@ export class Executor implements IExecutor {
         throw new Error('Adapter is not an EvmHypCollateralAdapter');
       }
 
-      const provider = warpCore.multiProvider.getEthersV5Provider(toChain);
+      const provider = warpCore.multiProvider.getEthersV5Provider(fromChain);
       const signer = new ethers.Wallet(this.rebalancerKey, provider);
       const signerAddress = await signer.getAddress();
       const domain = chainMetadata[toChain].domainId;
-      const bridge = this.bridges[toChain];
+      const bridge = this.bridges[fromChain];
 
       if (!(await originHypAdapter.isRebalancer(signerAddress))) {
         throw new Error(`Signer ${signerAddress} is not a rebalancer`);
@@ -121,6 +121,7 @@ export class Executor implements IExecutor {
 
     const results = await Promise.allSettled(
       transactions.map(async ({ signer, populatedTx }) => {
+        console.log('populatedTx', populatedTx);
         const tx = await signer.sendTransaction(populatedTx);
         const receipt = await tx.wait();
 
@@ -132,21 +133,25 @@ export class Executor implements IExecutor {
       const result = results[i];
       const route = routes[i];
 
-      logDebug(
-        `origin: ${route.fromChain}, destination: ${route.toChain}, amount: ${route.amount}`,
+      log(
+        `Origin: ${route.fromChain}, Destination: ${route.toChain}, Amount: ${route.amount}`,
       );
 
       if (result.status === 'fulfilled') {
-        logGreen(`✅ Rebalance successful`);
         log(JSON.stringify(result.value, null, 2));
       } else {
-        logRed(`❌ Rebalance failed`);
         log(
           result.reason instanceof Error
             ? result.reason.message
             : result.reason,
         );
       }
+    }
+
+    if (results.every((result) => result.status === 'fulfilled')) {
+      log('✅ Rebalance successful');
+    } else {
+      log('❌ Some rebalance transaction failed');
     }
   }
 }
