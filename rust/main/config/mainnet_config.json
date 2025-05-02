@@ -1449,9 +1449,6 @@
           "http": "https://rpc.linea.build"
         },
         {
-          "http": "https://linea.blockpi.network/v1/rpc/public"
-        },
-        {
           "http": "https://1rpc.io/linea"
         },
         {
@@ -2558,7 +2555,10 @@
       "proxyAdmin": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "rpcUrls": [
         {
-          "http": "https://real.drpc.org"
+          "http": "https://rpc.realforreal.gelato.digital"
+        },
+        {
+          "http": "https://tangible-real.gateway.tenderly.co"
         }
       ],
       "staticAggregationHookFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -3081,7 +3081,10 @@
       "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "rpcUrls": [
         {
-          "http": "https://rpc.tomochain.com"
+          "http": "https://rpc.viction.xyz"
+        },
+        {
+          "http": "https://viction.drpc.org"
         },
         {
           "http": "https://viction.blockpi.network/v1/rpc/public"
@@ -3148,6 +3151,12 @@
       "protocolFee": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
       "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "rpcUrls": [
+        {
+          "http": "https://worldchain.drpc.org"
+        },
+        {
+          "http": "https://worldchain-mainnet.gateway.tenderly.co"
+        },
         {
           "http": "https://worldchain-mainnet.g.alchemy.com/public"
         }
@@ -3672,13 +3681,7 @@
           "http": "https://rpc.coredao.org"
         },
         {
-          "http": "https://core.public.infstones.com"
-        },
-        {
           "http": "https://rpc.ankr.com/core"
-        },
-        {
-          "http": "https://core.drpc.org"
         },
         {
           "http": "https://rpc-core.icecreamswap.com"
@@ -3809,7 +3812,10 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://flare-api.flare.network/ext/C/rpc"
+          "http": "https://flare-api.flare.network/ext/C/rpc",
+          "pagination": {
+            "maxBlockRange": 30
+          }
         },
         {
           "http": "https://flare.solidifi.app/ext/C/rpc"
@@ -4548,9 +4554,6 @@
         },
         {
           "http": "https://1rpc.io/one"
-        },
-        {
-          "http": "https://rpc.ankr.com/harmony"
         }
       ],
       "technicalStack": "other",
@@ -4747,9 +4750,6 @@
       "rpcUrls": [
         {
           "http": "https://rpc.orderly.network"
-        },
-        {
-          "http": "https://l2-orderly-mainnet-0.t.conduit.xyz"
         }
       ],
       "technicalStack": "opstack",
@@ -5636,12 +5636,6 @@
       "rpcUrls": [
         {
           "http": "https://rpc.mainnet.rootstock.io/kXhXHf6TnnfW1POvr4UT0YUvujmuju-M"
-        },
-        {
-          "http": "https://public-node.rsk.co"
-        },
-        {
-          "http": "https://mycrypto.rsk.co"
         }
       ],
       "technicalStack": "other",
@@ -6425,9 +6419,6 @@
       "rpcUrls": [
         {
           "http": "https://rpc.zklink.io"
-        },
-        {
-          "http": "https://rpc.zklink.network"
         }
       ],
       "technicalStack": "zksync",
@@ -9031,7 +9022,7 @@
       },
       "displayName": "MilkyWay",
       "domainId": 1835625579,
-      "gasCurrencyCoinGeckoId": "temp-milkyway-milk",
+      "gasCurrencyCoinGeckoId": "milkyway-2",
       "gasPrice": {
         "denom": "umilk",
         "amount": "0.03"
