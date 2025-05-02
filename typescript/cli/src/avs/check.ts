@@ -116,9 +116,8 @@ const getAvsOperators = async (
 
   if (operatorKey) {
     // If operator key is provided, only fetch the operator's validator info
-    const signingKey = await ecdsaStakeRegistry.getLastestOperatorSigningKey(
-      operatorKey,
-    );
+    const signingKey =
+      await ecdsaStakeRegistry.getLastestOperatorSigningKey(operatorKey);
     avsOperators[signingKey] = {
       operatorAddress: operatorKey,
       chains: {},
@@ -434,9 +433,7 @@ const getEcdsaStakeRegistryAddress = (
   try {
     return avsAddresses[chain]['ecdsaStakeRegistry'];
   } catch {
-    topLevelErrors.push(
-      `❗️ EcdsaStakeRegistry address not found for ${chain}`,
-    );
+    topLevelErrors.push(`❗️ EcdsaStakeRegistry address not found for ${chain}`);
     return undefined;
   }
 };
