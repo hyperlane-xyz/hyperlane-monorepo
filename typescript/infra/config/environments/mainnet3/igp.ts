@@ -32,6 +32,7 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   }
 
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
+  // [2025-05-02] fluence gas usage has been observed to be ~3x higher, using 4x as a additional buffer
   if (remote === 'moonbeam' || remote === 'torus' || remote === 'fluence') {
     overhead *= 4;
   }
