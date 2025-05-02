@@ -215,48 +215,45 @@ impl SealevelTxAdapter {
     #[instrument(skip(self))]
     async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, SubmitterError> {
         let signature = Signature::new(tx_hash.as_ref());
-        let transaction_search_result = self
+
+        // query the tx hash from most to least finalized to learn what level of finality it has
+        // the calls below can be parallelized if needed, but for now avoid rate limiting
+
+        if self
+            .client
+            .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
+            .is_ok()
+        {
+            info!("transaction finalized");
+            return Ok(TransactionStatus::Finalized);
+        }
+
+        // the "confirmed" commitment is equivalent to being "included" in a block on evm
+        if self
+            .client
+            .get_transaction_with_commitment(signature, CommitmentConfig::confirmed())
+            .await
+            .is_ok()
+        {
+            info!("transaction included");
+            return Ok(TransactionStatus::Included);
+        }
+
+        match self
             .client
             .get_transaction_with_commitment(signature, CommitmentConfig::processed())
-            .await;
-
-        let transaction = match transaction_search_result {
-            Ok(transaction) => transaction,
+            .await
+        {
+            Ok(_) => {
+                info!("transaction pending inclusion");
+                return Ok(TransactionStatus::PendingInclusion);
+            }
             Err(err) => {
                 warn!(?err, "Failed to get transaction status by hash");
                 return Err(SubmitterError::TxSubmissionError(
                     "Transaction hash not found".to_string(),
                 ));
-            }
-        };
-
-        info!(slot = ?transaction.slot, "found transaction");
-
-        // try querying the tx's slot at finalized commitment
-        let confirming_block = self
-            .client
-            .get_block_with_commitment(transaction.slot, CommitmentConfig::finalized())
-            .await;
-
-        if confirming_block.is_ok() {
-            info!("finalized transaction");
-            return Ok(TransactionStatus::Finalized);
-        }
-
-        // try querying the tx's slot at confirmed commitment (equivalent to being "included" in a block on evm)
-        let including_block = self
-            .client
-            .get_block_with_commitment(transaction.slot, CommitmentConfig::confirmed())
-            .await;
-
-        match including_block {
-            Ok(_) => {
-                info!("included transaction");
-                Ok(TransactionStatus::Included)
-            }
-            Err(_) => {
-                info!("pending transaction");
-                Ok(TransactionStatus::PendingInclusion)
             }
         }
     }
