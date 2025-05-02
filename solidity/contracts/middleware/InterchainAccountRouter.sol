@@ -37,22 +37,16 @@ contract InterchainAccountRouter is Router {
     using TypeCasts for address;
     using TypeCasts for bytes32;
 
-    struct AccountOwner {
-        uint32 origin;
-        bytes32 owner; // remote owner
-    }
-
     // ============ Constants ============
 
-    address internal implementation;
-    bytes32 internal bytecodeHash;
+    address public immutable implementation;
+    bytes32 public immutable bytecodeHash;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
-    // reverse lookup from the ICA account to the remote owner
-    mapping(address => AccountOwner) public accountOwners;
     mapping(OwnableMulticall ICA => bytes32 commitment)
         public verifiedCommitments;
+
     // ============ Upgrade Gap ============
 
     uint256[47] private __GAP;
@@ -82,45 +76,36 @@ contract InterchainAccountRouter is Router {
 
     /**
      * @notice Emitted when an interchain account contract is deployed
+     * @param account The address of the proxy account that was created
      * @param origin The domain of the chain where the message was sent from
+     * @param router The router on the origin domain
      * @param owner The address of the account that sent the message
      * @param ism The address of the local ISM
-     * @param account The address of the proxy account that was created
+     * @param salt The salt used to derive the interchain account
      */
     event InterchainAccountCreated(
-        uint32 indexed origin,
-        bytes32 indexed owner,
+        address indexed account,
+        uint32 origin,
+        bytes32 router,
+        bytes32 owner,
         address ism,
-        address account
+        bytes32 salt
     );
 
     // ============ Constructor ============
-
-    constructor(address _mailbox) Router(_mailbox) {}
-
-    // ============ Initializers ============
-
-    /**
-     * @notice Initializes the contract with HyperlaneConnectionClient contracts
-     * @param _customHook used by the Router to set the hook to override with
-     * @param _interchainSecurityModule The address of the local ISM contract
-     * @param _owner The address with owner privileges
-     */
-    function initialize(
-        address _customHook,
+    constructor(
+        address _mailbox,
+        address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) external initializer {
-        _MailboxClient_initialize(
-            _customHook,
-            _interchainSecurityModule,
-            _owner
-        );
+    ) Router(_mailbox) {
+        setHook(_hook);
+        setInterchainSecurityModule(_interchainSecurityModule);
+        _transferOwnership(_owner);
 
-        implementation = address(new OwnableMulticall(address(this)));
-        // cannot be stored immutably because it is dynamically sized
-        bytes memory _bytecode = MinimalProxy.bytecode(implementation);
-        bytecodeHash = keccak256(_bytecode);
+        bytes memory bytecode = _implementationBytecode(address(this));
+        implementation = Create2.deploy(0, bytes32(0), bytecode);
+        bytecodeHash = _proxyBytecodeHash(implementation);
     }
 
     /**
@@ -158,12 +143,6 @@ contract InterchainAccountRouter is Router {
         for (uint256 i = 0; i < _destinations.length; i++) {
             _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
         }
-    }
-
-    function setHook(
-        address _hook
-    ) public override onlyContractOrNull(_hook) onlyOwner {
-        hook = IPostDispatchHook(_hook);
     }
 
     // ============ External Functions ============
@@ -467,8 +446,14 @@ contract InterchainAccountRouter is Router {
         if (!Address.isContract(_account)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
-            accountOwners[_account] = AccountOwner(_origin, _owner);
-            emit InterchainAccountCreated(_origin, _owner, _ism, _account);
+            emit InterchainAccountCreated(
+                _account,
+                _origin,
+                _router,
+                _owner,
+                _ism,
+                _userSalt
+            );
         }
         return OwnableMulticall(_account);
     }
@@ -571,24 +556,15 @@ contract InterchainAccountRouter is Router {
         bytes32 _userSalt
     ) public view returns (address) {
         require(_router != address(0), "no router specified for destination");
-        // Derives the address of the first contract deployed by _router using
-        // the CREATE opcode.
-        address _implementation = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xd6),
-                            bytes1(0x94),
-                            _router,
-                            bytes1(0x01)
-                        )
-                    )
-                )
-            )
+
+        // replicate router constructor Create2 derivation
+        address _implementation = Create2.computeAddress(
+            bytes32(0),
+            keccak256(_implementationBytecode(_router)),
+            _router
         );
-        bytes memory _proxyBytecode = MinimalProxy.bytecode(_implementation);
-        bytes32 _bytecodeHash = keccak256(_proxyBytecode);
+
+        bytes32 _bytecodeHash = _proxyBytecodeHash(_implementation);
         bytes32 _salt = _getSalt(
             localDomain,
             _owner.addressToBytes32(),
@@ -796,6 +772,21 @@ contract InterchainAccountRouter is Router {
     }
 
     // ============ Internal Functions ============
+    function _implementationBytecode(
+        address router
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                type(OwnableMulticall).creationCode,
+                abi.encode(router)
+            );
+    }
+
+    function _proxyBytecodeHash(
+        address _implementation
+    ) internal pure returns (bytes32) {
+        return keccak256(MinimalProxy.bytecode(_implementation));
+    }
 
     /**
      * @dev Required for use of Router, compiler will not include this function in the bytecode
