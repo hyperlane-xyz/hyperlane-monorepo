@@ -5,7 +5,8 @@ import { any, isQuery, isTypes, pagination } from '@hyperlane-xyz/cosmos-types';
 type ISM =
   | isTypes.NoopISM
   | isTypes.MerkleRootMultisigISM
-  | isTypes.MessageIdMultisigISM;
+  | isTypes.MessageIdMultisigISM
+  | isTypes.RoutingISM;
 
 type QueryDecodedIsmResponse = {
   ism: ISM;
@@ -24,6 +25,8 @@ export const decodeIsm = (ism: any.Any | undefined): ISM => {
       return isTypes.MerkleRootMultisigISM.decode(ism.value);
     case '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM':
       return isTypes.MessageIdMultisigISM.decode(ism.value);
+    case '/hyperlane.core.interchain_security.v1.RoutingISM':
+      return isTypes.RoutingISM.decode(ism.value);
     default:
       throw new Error(`can not decode ISM with type url ${ism?.type_url}`);
   }

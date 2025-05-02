@@ -4,6 +4,7 @@ import { step } from 'mocha-steps';
 import {
   MerkleRootMultisigISM,
   MessageIdMultisigISM,
+  RoutingISM,
 } from '../../../cosmos-types/dist/types/hyperlane/core/interchain_security/v1/types.js';
 import {
   bytes32ToAddress,
@@ -162,5 +163,134 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     expect((decodedIsm.ism as MerkleRootMultisigISM).validators).deep.equal(
       validators,
     );
+  });
+
+  step('create new Routing ISM', async () => {
+    // ARRANGE
+    let isms = await signer.query.interchainSecurity.Isms({});
+    expect(isms.isms).to.have.lengthOf(3);
+
+    // ACT
+    const txResponse = await signer.createRoutingIsm({
+      routes: [],
+    });
+
+    // ASSERT
+    expect(txResponse.code).to.equal(0);
+
+    const routingIsm = txResponse.response;
+
+    expect(routingIsm.id).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(routingIsm.id))).to.be.true;
+
+    isms = await signer.query.interchainSecurity.Isms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    let ism = await signer.query.interchainSecurity.Ism({
+      id: routingIsm.id,
+    });
+    expect(ism.ism?.type_url).to.equal(
+      '/hyperlane.core.interchain_security.v1.RoutingISM',
+    );
+
+    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
+      id: routingIsm.id,
+    });
+
+    expect(decodedIsm.ism.id).to.equal(routingIsm.id);
+    expect(decodedIsm.ism.owner).to.equal(signer.account.address);
+
+    expect((decodedIsm.ism as RoutingISM).routes).to.be.empty;
+  });
+
+  step('set Routing Ism domain', async () => {
+    // ARRANGE
+    let isms = await signer.query.interchainSecurity.DecodedIsms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    const ism = isms.isms[isms.isms.length - 1];
+    expect((ism as RoutingISM).routes).to.be.empty;
+
+    // ACT
+    const txResponse = await signer.setRoutingIsmDomain({
+      ism_id: ism.id,
+      route: {
+        ism: isms.isms[0].id,
+        domain: 1234,
+      },
+    });
+
+    // ASSERT
+    expect(txResponse.code).to.equal(0);
+
+    isms = await signer.query.interchainSecurity.DecodedIsms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
+      id: ism.id,
+    });
+
+    expect((decodedIsm.ism as RoutingISM).routes).to.have.lengthOf(1);
+    expect((decodedIsm.ism as RoutingISM).routes[0]).to.deep.equal({
+      ism: isms.isms[0].id,
+      domain: 1234,
+    });
+  });
+
+  step('remove Routing Ism domain', async () => {
+    // ARRANGE
+    let isms = await signer.query.interchainSecurity.DecodedIsms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    const ism = isms.isms[isms.isms.length - 1];
+    expect((ism as RoutingISM).routes).to.have.lengthOf(1);
+
+    // ACT
+    const txResponse = await signer.removeRoutingIsmDomain({
+      ism_id: ism.id,
+      domain: 1234,
+    });
+
+    // ASSERT
+    expect(txResponse.code).to.equal(0);
+
+    isms = await signer.query.interchainSecurity.DecodedIsms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
+      id: ism.id,
+    });
+
+    expect((decodedIsm.ism as RoutingISM).routes).to.be.empty;
+  });
+
+  step('update Routing Ism owner', async () => {
+    // ARRANGE
+    let isms = await signer.query.interchainSecurity.DecodedIsms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    const ism = isms.isms[isms.isms.length - 1];
+    expect(ism.owner).to.equal(signer.account.address);
+
+    const bobSigner = await createSigner('bob');
+
+    // ACT
+    const txResponse = await signer.updateRoutingIsmOwner({
+      ism_id: ism.id,
+      new_owner: bobSigner.account.address,
+      renounce_ownership: false,
+    });
+
+    // ASSERT
+    expect(txResponse.code).to.equal(0);
+
+    isms = await signer.query.interchainSecurity.DecodedIsms({});
+    expect(isms.isms).to.have.lengthOf(4);
+
+    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
+      id: ism.id,
+    });
+
+    expect(decodedIsm.ism.owner).to.equal(bobSigner.account.address);
   });
 });
