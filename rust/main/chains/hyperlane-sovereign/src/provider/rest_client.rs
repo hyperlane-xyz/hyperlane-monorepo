@@ -323,7 +323,6 @@ impl SovereignRestClient {
 
     // @Mailbox
     pub async fn get_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
-        // /modules/mailbox/state/nonce
         let query = match at_height {
             None => "/modules/mailbox/nonce",
             Some(slot) => &format!("/modules/mailbox/nonce?slot_number={slot}"),
@@ -353,7 +352,6 @@ impl SovereignRestClient {
             _block_number: Option<u32>,
         }
 
-        // /modules/mailbox/state/deliveries/items/{key}
         let query = format!("/modules/mailbox/state/deliveries/items/{message_id:?}");
 
         let response = self
@@ -399,7 +397,6 @@ impl SovereignRestClient {
             .await?
             .gas_price;
 
-        // /sequencer/txs
         let call_message = json!({
             "mailbox": {
                 "process": {
@@ -476,7 +473,6 @@ impl SovereignRestClient {
             _remaining_funds: Option<u32>,
         }
 
-        // /rollup/simulate
         let query = "/rollup/simulate";
 
         let json = utils::get_simulate_json_query(message, metadata, &self.universal_wallet_client)
@@ -567,7 +563,6 @@ impl SovereignRestClient {
             _data: Option<Value>,
         }
 
-        // /rollup/simulate
         let query = "/rollup/simulate";
 
         let json = json!(
@@ -624,7 +619,6 @@ impl SovereignRestClient {
             value: Option<Inner>,
         }
 
-        // /modules/merkle-tree-hook/state/tree
         let query = match slot {
             None => "modules/merkle-tree-hook/state/tree".into(),
             Some(slot) => {
@@ -666,7 +660,6 @@ impl SovereignRestClient {
 
     // @Merkle Tree Hook
     pub async fn tree_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
-        // /modules/merkle-tree-hook/count
         let query = match at_height {
             None => "modules/merkle-tree-hook/count",
             Some(slot) => &format!("modules/merkle-tree-hook/count?slot_number={slot}"),
@@ -693,7 +686,6 @@ impl SovereignRestClient {
             root: String,
         }
 
-        // /modules/merkle-tree-hook/checkpoint
         let query = match at_height {
             None => "modules/merkle-tree-hook/checkpoint",
             Some(slot) => &format!("modules/merkle-tree-hook/checkpoint?slot_number={slot}"),
@@ -729,7 +721,6 @@ impl SovereignRestClient {
             threshold: u8,
         }
 
-        // /modules/mailbox/recipient-ism/{recipient:?}/validators_and_threshold
         let query =
             format!("/modules/mailbox/recipient-ism/{recipient:?}/validators_and_threshold");
 
@@ -764,7 +755,6 @@ impl SovereignRestClient {
             value: Option<Vec<String>>,
         }
 
-        // /modules/mailbox/state/validators/items/{key}
         let mut res = Vec::new();
 
         for (i, v) in validators.iter().enumerate() {
@@ -802,7 +792,6 @@ impl SovereignRestClient {
             _value: Option<Vec<String>>,
         }
 
-        // /modules/mailbox/state/validators/items/{key}
         // check if already registered
         let query = format!(
             "/modules/mailbox/state/validators/items/{:?}",
