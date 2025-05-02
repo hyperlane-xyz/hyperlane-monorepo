@@ -32,6 +32,14 @@ pub struct StorableMessage<'a> {
 }
 
 impl ScraperDb {
+    /// Used for store_dispatched_messages()
+    /// message::ActiveModel has 11 fields, on conflict has 3,
+    /// update has 6. So there should be about a maximum of 20 sql
+    /// parameters per ActiveModel
+    /// u16::MAX (65_535u16) is the maximum amount of parameters we can
+    /// have for Postgres. So 65000 / 20 = 3250
+    const STORE_MESSAGE_CHUNK_SIZE: usize = 3250;
+
     /// Get the delivered message associated with a sequence.
     #[instrument(skip(self))]
     pub async fn retrieve_delivery_by_sequence(
@@ -305,25 +313,27 @@ impl ScraperDb {
             return Ok(0);
         }
 
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::columns([
-                    message::Column::OriginMailbox,
-                    message::Column::Origin,
-                    message::Column::Nonce,
-                ])
-                .update_columns([
-                    message::Column::TimeCreated,
-                    message::Column::Destination,
-                    message::Column::Sender,
-                    message::Column::Recipient,
-                    message::Column::MsgBody,
-                    message::Column::OriginTxId,
-                ])
-                .to_owned(),
-            )
-            .exec(&self.0)
-            .await?;
+        for chunk in models.chunks(Self::STORE_MESSAGE_CHUNK_SIZE) {
+            Insert::many(chunk.to_vec())
+                .on_conflict(
+                    OnConflict::columns([
+                        message::Column::OriginMailbox,
+                        message::Column::Origin,
+                        message::Column::Nonce,
+                    ])
+                    .update_columns([
+                        message::Column::TimeCreated,
+                        message::Column::Destination,
+                        message::Column::Sender,
+                        message::Column::Recipient,
+                        message::Column::MsgBody,
+                        message::Column::OriginTxId,
+                    ])
+                    .to_owned(),
+                )
+                .exec(&self.0)
+                .await?;
+        }
 
         let new_dispatch_count = self
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
