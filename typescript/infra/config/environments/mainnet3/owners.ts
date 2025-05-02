@@ -62,11 +62,11 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   ...ethereumChainOwners,
   solanamainnet: {
     // Multisig A
-    owner: '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa',
+    owner: regularSafes.solanamainnet,
   },
   eclipsemainnet: {
     // Multisig A
-    owner: 'D742EWw9wpV47jRAvEenG1oWHfMmpiQNJLjHTBfXhuRm',
+    owner: regularSafes.eclipsemainnet,
   },
   injective: {
     // Native multisig
@@ -89,10 +89,10 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   soon: {
     // Multisig A
-    owner: '7Y6WDpMfNeb1b4YYbyUkF41z1DuPhvDDuWWJCHPRNa9Y',
+    owner: regularSafes.soon,
   },
   sonicsvm: {
     // Multisig A
-    owner: '8ECSwp5yo2EeZkozSrpPnMj5Rmcwa4VBYCETE9LHmc9y',
+    owner: regularSafes.sonicsvm,
   },
 };

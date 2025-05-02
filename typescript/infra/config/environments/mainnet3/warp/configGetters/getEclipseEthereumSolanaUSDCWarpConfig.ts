@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { tokens } from '../../../../../src/config/warp.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 export const getEclipseEthereumSolanaUSDCWarpConfig = async (
@@ -15,6 +16,7 @@ export const getEclipseEthereumSolanaUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
+    owner: awSafes.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'D6k6T3G74ij6atCtBiWBs5TbFa1hFVcrFUSGZHuV7q3Z',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,

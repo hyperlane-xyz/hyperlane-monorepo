@@ -7,6 +7,7 @@ import {
 
 import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awSafes } from '../../governance/safe/aw.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 // Stride team
@@ -19,6 +20,7 @@ export const getEclipseStrideTiaWarpConfig = async (
   const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...abacusWorksEnvOwnerConfig.eclipsemainnet,
+    owner: awSafes.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'BpXHAiktwjx7fN6M9ST9wr6qKAsH27wZFhdHEhReJsR6',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,

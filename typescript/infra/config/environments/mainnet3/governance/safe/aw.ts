@@ -48,4 +48,10 @@ export const awSafes: ChainMap<Address> = {
   zklink: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   treasure: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   sophon: '0x3D1baf8cA4935f416671640B1Aa9E17E005986eE',
+
+  // SVM chains
+  solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
+  eclipsemainnet: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
+  soon: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
+  sonicsvm: 'FeJQJrHNEeg9TNMpTmTg6h1JoKqSqctJbMj4H8CksPdD',
 };
