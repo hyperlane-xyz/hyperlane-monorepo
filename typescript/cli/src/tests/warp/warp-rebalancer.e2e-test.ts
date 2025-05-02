@@ -393,4 +393,50 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       'Bridge 0x0000000000000000000000000000000000000000 for domain 31338 is not allowed',
     );
   });
+
+  it('should throw if the bridge does not have a valid transferRemote function', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    // Assign rebalancer role
+    const chain3Provider = new ethers.providers.JsonRpcProvider(
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[1].addressOrDenom!,
+      chain3Signer,
+    );
+    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
+    await chain3CollateralContract.grantRole(
+      rebalancerRole,
+      chain3Signer.address,
+    );
+
+    // Allow destination
+    await chain3CollateralContract.addRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
+    );
+
+    // Allow bridge
+    await chain3CollateralContract.addBridge(
+      ethers.constants.AddressZero,
+      chain2Metadata.domainId,
+    );
+
+    await startRebalancerAndExpectLog(
+      'cannot estimate gas; transaction may fail or may require manual gas limit',
+    );
+  });
 });
