@@ -5,9 +5,9 @@ use bytes::Bytes;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::Encode;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Announcement, BlockInfo, ChainCommunicationError,
+    accumulator::incremental::IncrementalMerkle, Announcement, ChainCommunicationError,
     ChainResult, Checkpoint, FixedPointNumber, HyperlaneMessage, ModuleType, SignedType,
-    TxCostEstimate, TxOutcome, TxnInfo, TxnReceiptInfo, H160, H256, H512, U256,
+    TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
 use num_traits::FromPrimitive;
 use reqwest::StatusCode;
@@ -84,17 +84,6 @@ fn try_h256_to_string(input: H256) -> ChainResult<String> {
     }
 
     Ok(format!("{:?}", H160::from(input)))
-}
-
-fn try_h512_to_h256(input: H512) -> ChainResult<H256> {
-    if input[..32] != [0; 32] {
-        return Err(ChainCommunicationError::CustomError(String::from(
-            "Invalid input length",
-        )));
-    }
-
-    let bytes = &input[32..];
-    Ok(H256::from_slice(bytes))
 }
 
 #[derive(Clone, Debug)]
@@ -247,108 +236,6 @@ impl SovereignRestClient {
         })
     }
 
-    // @Provider
-    pub async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        #[derive(Clone, Debug, Deserialize)]
-        struct Data {
-            #[serde(rename = "type")]
-            _sovereign_type: Option<String>,
-            number: Option<u64>,
-            hash: Option<String>,
-            _event_range: Option<EventRange>,
-            _receipt: Option<Value>,
-            _body: Option<String>,
-            _events: Option<Value>,
-            _batch_number: Option<u32>,
-            timestamp: Option<u64>,
-        }
-
-        #[derive(Clone, Debug, Deserialize)]
-        struct EventRange {
-            _start: Option<u32>,
-            _end: Option<u32>,
-        }
-
-        // /ledger/slots/{slotId}
-        let children = 0;
-        let query = format!("/ledger/slots/{height:?}?children={children}");
-
-        let response = self
-            .http_get(&query)
-            .await
-            .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
-        let response: Schema<Data> = serde_json::from_slice(&response)?;
-
-        if let Some(response_data) = response.data {
-            if let (Some(hash), Some(number), Some(timestamp)) = (
-                response_data.hash,
-                response_data.number,
-                response_data.timestamp,
-            ) {
-                Ok(BlockInfo {
-                    hash: H256::from_str(hash.as_str())?,
-                    timestamp,
-                    number,
-                })
-            } else {
-                Err(ChainCommunicationError::CustomError(String::from(
-                    "Bad response",
-                )))
-            }
-        } else {
-            Err(ChainCommunicationError::CustomError(String::from(
-                "Bad response",
-            )))
-        }
-    }
-
-    // @Provider
-    pub async fn get_txn_by_hash(&self, height: &H512) -> ChainResult<TxnInfo> {
-        #[derive(Clone, Debug, Deserialize)]
-        struct Data {
-            id: Option<String>,
-            _status: Option<String>,
-        }
-
-        let height = try_h512_to_h256(*height)?;
-
-        // /sequencer/txs/{txHash}
-        let query = format!("/sequencer/txs/{height:?}");
-
-        let response = self
-            .http_get(&query)
-            .await
-            .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
-        let response: Schema<Data> = serde_json::from_slice(&response)?;
-
-        let res = TxnInfo {
-            // TODO: This is all dummy info! What are we doing here?
-            hash: H512::from_str(
-                response
-                    .data
-                    .and_then(|d| d.id)
-                    .ok_or(ChainCommunicationError::CustomError(
-                        "Invalid response".to_string(),
-                    ))?
-                    .as_str(),
-            )?,
-            gas_limit: U256::default(),
-            max_priority_fee_per_gas: Some(U256::default()),
-            max_fee_per_gas: Some(U256::default()),
-            gas_price: Some(U256::default()),
-            nonce: u64::default(),
-            sender: H256::default(),
-            recipient: Some(H256::default()),
-            receipt: Some(TxnReceiptInfo {
-                gas_used: U256::default(),
-                cumulative_gas_used: U256::default(),
-                effective_gas_price: Some(U256::default()),
-            }),
-            raw_input_data: None,
-        };
-        Ok(res)
-    }
-
     pub async fn get_batch(&self, batch: u64) -> ChainResult<Batch> {
         let query = format!("/ledger/batches/{batch}?children=1");
 
@@ -432,27 +319,6 @@ impl SovereignRestClient {
         ))?;
 
         Ok(data.number)
-    }
-
-    // @Provider
-    pub fn get_balance(&self, _token_id: &str, _address: &str) -> ChainResult<U256> {
-        // // /modules/bank/tokens/{token_id}/balances/{address}
-        // let query = format!("/modules/bank/tokens/{}/balances/{}", token_id, address);
-
-        // #[derive(Clone, Debug, Deserialize)]
-        // struct Data {
-        //     _amount: Option<u128>,
-        //     _token_id: Option<String>,
-        // }
-
-        // let response = self
-        //     .http_get(&query)
-        //     .await
-        //     .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {}", e)))?;
-        // let response: Schema<Data> = serde_json::from_slice(&response)?;
-
-        // let response = U256::from(response);
-        Ok(U256::default())
     }
 
     // @Mailbox

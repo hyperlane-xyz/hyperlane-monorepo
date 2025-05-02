@@ -48,34 +48,26 @@ impl HyperlaneChain for SovereignProvider {
     }
 }
 
+// Initial implementation of the Sovereign chain does not include the Scraper as it is not a necessary component for cross chain relaying.
 #[async_trait]
 impl HyperlaneProvider for SovereignProvider {
-    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let block = self.client.get_block_by_height(height).await?;
-        Ok(block)
+    async fn get_block_by_height(&self, _height: u64) -> ChainResult<BlockInfo> {
+        Err(ChainCommunicationError::CustomError("Not supported".into()))
     }
 
-    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let txn = self.client.get_txn_by_hash(hash).await?;
-        Ok(txn)
+    async fn get_txn_by_hash(&self, _hash: &H512) -> ChainResult<TxnInfo> {
+        Err(ChainCommunicationError::CustomError("Not supported".into()))
     }
 
-    /// Check if recipient is contract address. Sovereign design deviates from
-    /// hyperlane spec in that matter, as hyperlane impl is contract-less, so
-    /// we allow any destination here.
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         Ok(true)
     }
 
     async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        Err(ChainCommunicationError::CustomError(
-            "Not yet implemented".into(),
-        ))
+        Err(ChainCommunicationError::CustomError("Not supported".into()))
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Err(ChainCommunicationError::CustomError(
-            "Not yet implemented".into(),
-        ))
+        Err(ChainCommunicationError::CustomError("Not supported".into()))
     }
 }
