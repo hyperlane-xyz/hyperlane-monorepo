@@ -2,27 +2,20 @@ import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { $ } from 'zx';
 
-// import { HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
-  TokenType, // WarpCoreConfig,
+  TokenType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  // addressToBytes32,
-  sleep,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { sleep, toWei } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
-  // readYamlOrJson,
-  writeYamlOrJson,
-} from '../../utils/files.js';
-import {
-  ANVIL_KEY, // CHAIN_2_METADATA_PATH,
-  // CHAIN_3_METADATA_PATH,
-  // CHAIN_4_METADATA_PATH,
+  ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
+  CHAIN_4_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CHAIN_NAME_4,
@@ -109,9 +102,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // console.log('Adding rebalancer roles...');
 
     // const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpDeploymentPath);
-    // chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    // chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    // chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
     // const chain2Provider = new ethers.providers.JsonRpcProvider(
     //   chain2Metadata.rpcUrls[0].http,
     // );
