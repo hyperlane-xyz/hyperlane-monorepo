@@ -23,9 +23,8 @@ const LOG_AMOUNT = 5;
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteIdRequired(
-    getArgs(),
-  ).parse();
+  const { environment, warpRouteId } =
+    await withWarpRouteIdRequired(getArgs()).parse();
 
   const config = getEnvironmentConfig(environment);
   await assertCorrectKubeContext(config);

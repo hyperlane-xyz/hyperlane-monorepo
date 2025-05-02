@@ -172,9 +172,8 @@ export class SealevelTokenAdapter
       new PublicKey(owner),
     );
     try {
-      const response = await this.getProvider().getTokenAccountBalance(
-        tokenPubKey,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(tokenPubKey);
       return BigInt(response.value.amount);
     } catch (error: any) {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
@@ -747,9 +746,8 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     // the escrow account.
     if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveEscrowAccount();
-      const response = await this.getProvider().getTokenAccountBalance(
-        collateralAccount,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(collateralAccount);
       return BigInt(response.value.amount);
     }
 
@@ -821,9 +819,8 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       new PublicKey(owner),
     );
     try {
-      const response = await this.getProvider().getTokenAccountBalance(
-        tokenPubKey,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(tokenPubKey);
       return BigInt(response.value.amount);
     } catch (error: any) {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;

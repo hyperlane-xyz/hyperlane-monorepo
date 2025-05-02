@@ -19,7 +19,6 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -29,10 +28,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Setup Node.js 18.x
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version-file: .nvmrc
 
       - name: Install Dependencies
         run: yarn install --immutable
@@ -85,7 +84,6 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    name: Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo

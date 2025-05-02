@@ -60,11 +60,20 @@ pub trait IsRetryable {
 impl IsRetryable for SubmitterError {
     fn is_retryable(&self) -> bool {
         match self {
-            SubmitterError::NetworkError(_) => true,
             SubmitterError::TxSubmissionError(_) => true,
-            SubmitterError::ChannelSendFailure(_) => true,
-            SubmitterError::ChainCommunicationError(_) => true,
-            SubmitterError::EyreError(_) => true,
+            SubmitterError::NetworkError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::ChainCommunicationError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::EyreError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::ChannelSendFailure(_) => false,
             SubmitterError::NonRetryableError(_) => false,
             SubmitterError::TxReverted => false,
             SubmitterError::SimulationFailed => false,

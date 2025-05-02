@@ -26,9 +26,8 @@ async function main() {
     .demandOption('validator')
     .alias('v', 'validator').argv;
 
-  const { core, multiProvider, chainAddresses } = await getHyperlaneCore(
-    environment,
-  );
+  const { core, multiProvider, chainAddresses } =
+    await getHyperlaneCore(environment);
 
   const provider = multiProvider.getProvider(chain);
   const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
@@ -41,9 +40,8 @@ async function main() {
     [validator],
   );
   const storageLocation = storageLocations[0][0];
-  const validatorInstance = await getValidatorFromStorageLocation(
-    storageLocation,
-  );
+  const validatorInstance =
+    await getValidatorFromStorageLocation(storageLocation);
   const latestCheckpointIndex =
     await validatorInstance.getLatestCheckpointIndex();
 

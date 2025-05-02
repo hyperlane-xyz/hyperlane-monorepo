@@ -54,9 +54,8 @@ export class GcpValidator extends BaseValidator {
           caching: true,
         };
         const storage = new GcpStorageWrapper(storageConfig);
-        const announcement = await storage.getObject<S3Announcement>(
-          ANNOUNCEMENT_KEY,
-        );
+        const announcement =
+          await storage.getObject<S3Announcement>(ANNOUNCEMENT_KEY);
         if (!announcement) {
           throw new Error('No announcement found');
         }
@@ -111,9 +110,8 @@ export class GcpValidator extends BaseValidator {
   }
 
   async getLatestCheckpointIndex(): Promise<number> {
-    const latestCheckpointIndex = await this.storage.getObject<number>(
-      LATEST_KEY,
-    );
+    const latestCheckpointIndex =
+      await this.storage.getObject<number>(LATEST_KEY);
 
     if (!latestCheckpointIndex) return -1;
 

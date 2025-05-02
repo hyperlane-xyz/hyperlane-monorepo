@@ -166,9 +166,8 @@ export class ZKSyncDeployer {
       ) {
         const dependencyContract = artifact.factoryDeps[dependencyHash];
         if (!visited.has(dependencyContract)) {
-          const dependencyArtifact = await this.loadArtifact(
-            dependencyContract,
-          );
+          const dependencyArtifact =
+            await this.loadArtifact(dependencyContract);
           factoryDeps.push(dependencyArtifact.bytecode);
           visited.add(dependencyContract);
           const transitiveDeps = await this.extractFactoryDepsRecursive(

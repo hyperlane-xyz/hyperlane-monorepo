@@ -180,9 +180,8 @@ describe('EvmHookReader', () => {
     expect(hookConfig).to.deep.equal(expectedConfig);
 
     // should get same result if we call the specific method for the hook type
-    const config = await evmHookReader.deriveMailboxDefaultHookConfig(
-      mockAddress,
-    );
+    const config =
+      await evmHookReader.deriveMailboxDefaultHookConfig(mockAddress);
     expect(config).to.deep.equal(hookConfig);
   });
 

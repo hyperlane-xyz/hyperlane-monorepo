@@ -25,12 +25,32 @@ use crate::client_builder::SealevelRpcClientBuilder;
 #[async_trait]
 pub trait SubmitSealevelRpc: Send + Sync {
     /// Requests block from node
-    async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock>;
+    async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.get_block_with_commitment(slot, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// Requests block from node, with a specific commitment
+    async fn get_block_with_commitment(
+        &self,
+        slot: u64,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<UiConfirmedBlock>;
 
     /// Requests transaction from node
     async fn get_transaction(
         &self,
         signature: Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// Requests transaction from node, with a specific commitment
+    async fn get_transaction_with_commitment(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
 
     /// Simulates Sealevel transaction
@@ -49,24 +69,34 @@ pub struct SealevelFallbackRpcClient {
 #[async_trait]
 impl SubmitSealevelRpc for SealevelFallbackRpcClient {
     /// get block
-    async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+    async fn get_block_with_commitment(
+        &self,
+        slot: u64,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<UiConfirmedBlock> {
         self.fallback_provider
             .call(move |client| {
-                let future = async move { client.get_block(slot).await };
+                let future =
+                    async move { client.get_block_with_commitment(slot, commitment).await };
                 Box::pin(future)
             })
             .await
     }
 
     /// get transaction
-    async fn get_transaction(
+    async fn get_transaction_with_commitment(
         &self,
         signature: Signature,
+        commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
         self.fallback_provider
             .call(move |client| {
                 let signature = signature;
-                let future = async move { client.get_transaction(&signature).await };
+                let future = async move {
+                    client
+                        .get_transaction_with_commitment(&signature, commitment)
+                        .await
+                };
                 Box::pin(future)
             })
             .await

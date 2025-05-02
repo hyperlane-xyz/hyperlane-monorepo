@@ -1,0 +1,21 @@
+name: 'Check Job Status'
+description: 'Check the result of a job and print a message'
+inputs:
+  job_name:
+    description: 'The name of the job'
+    required: true
+  result:
+    description: 'The result of the job'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Check job status
+      shell: bash
+      run: |
+        if [[ "${{ inputs.result }}" == "skipped" ]]; then
+          echo "${{ inputs.job_name }} was skipped!"
+        elif [[ "${{ inputs.result }}" != "success" ]]; then
+          echo "${{ inputs.job_name }} failed"
+          exit 1
+        fi

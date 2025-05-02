@@ -1,5 +1,7 @@
 use eyre::Result;
 
+use hyperlane_sealevel::SealevelTxCostEstimate;
+
 use crate::chain_tx_adapter::chains::sealevel::adapter::tests::common::{
     adapter, estimate, instruction, payload,
 };
@@ -13,7 +15,10 @@ async fn test_build_transactions() {
     // given
     let adapter = adapter();
     let payload = payload();
-    let data = VmSpecificTxData::Svm(SealevelTxPrecursor::new(instruction(), estimate()));
+    let data = VmSpecificTxData::Svm(SealevelTxPrecursor::new(
+        instruction(),
+        SealevelTxCostEstimate::default(),
+    ));
     let expected = (payload.details.clone(), data);
 
     // when

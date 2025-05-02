@@ -44,6 +44,9 @@ pub trait AdaptsChain: Send + Sync {
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
 
+    /// Estimates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
+
     /// Sets / escalates gas price, sets nonce / blockhash and broadcasts the Transaction. Even if broadcasting fails, the Transaction struct remains mutated with the new estimates. Called in the Inclusion Stage (PayloadDispatcher)
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
 

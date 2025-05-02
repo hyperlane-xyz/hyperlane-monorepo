@@ -295,8 +295,8 @@ export const randomIsmConfig = (
   const moduleType = providedIsmType
     ? ismTypeToModuleType(providedIsmType)
     : depth === maxDepth
-    ? randomNonNestedModuleType()
-    : randomModuleType();
+      ? randomNonNestedModuleType()
+      : randomModuleType();
 
   switch (moduleType) {
     case ModuleType.MERKLE_ROOT_MULTISIG: {

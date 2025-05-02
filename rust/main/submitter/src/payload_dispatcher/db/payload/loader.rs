@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use tracing::trace;
+use tracing::{debug, trace};
 
 use crate::{
     error::SubmitterError,
@@ -54,7 +54,7 @@ impl LoadableFromDb for PayloadDbLoader {
                 Ok(LoadingOutcome::Loaded)
             }
             PayloadStatus::Dropped(_) | PayloadStatus::InTransaction(_) => {
-                trace!(?item, "Payload already processed");
+                debug!(?item, "Payload already processed");
                 Ok(LoadingOutcome::Skipped)
             }
         }

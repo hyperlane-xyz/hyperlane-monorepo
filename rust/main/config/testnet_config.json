@@ -111,7 +111,10 @@
       "proxyAdmin": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8",
       "rpcUrls": [
         {
-          "http": "https://arbitrum-sepolia.blockpi.network/v1/rpc/public"
+          "http": "https://arbitrum-sepolia.drpc.org"
+        },
+        {
+          "http": "https://arbitrum-sepolia.gateway.tenderly.co"
         },
         {
           "http": "https://sepolia-rollup.arbitrum.io/rpc"
@@ -252,7 +255,7 @@
           "http": "https://bsc-testnet.publicnode.com"
         },
         {
-          "http": "https://bsc-testnet.blockpi.network/v1/rpc/public"
+          "http": "https://bsc-testnet.drpc.org"
         }
       ],
       "staticAggregationHookFactory": "0xa1145B39F1c7Ef9aA593BC1DB1634b00CC020942",
@@ -750,10 +753,10 @@
           "http": "https://polygon-amoy-bor-rpc.publicnode.com"
         },
         {
-          "http": "https://polygon-amoy.blockpi.network/v1/rpc/public"
+          "http": "https://polygon-amoy.drpc.org"
         },
         {
-          "http": "https://rpc.ankr.com/polygon_amoy"
+          "http": "https://polygon-amoy.gateway.tenderly.co"
         }
       ],
       "staticAggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
@@ -823,9 +826,6 @@
         },
         {
           "http": "https://rpc.ankr.com/scroll_sepolia_testnet"
-        },
-        {
-          "http": "https://scroll-sepolia.blockpi.network/v1/rpc/public"
         },
         {
           "http": "https://scroll-sepolia.chainstacklabs.com"
@@ -900,10 +900,13 @@
           "http": "https://ethereum-sepolia.publicnode.com"
         },
         {
-          "http": "https://ethereum-sepolia.blockpi.network/v1/rpc/public"
+          "http": "https://gateway.tenderly.co/public/sepolia"
         },
         {
-          "http": "https://rpc.sepolia.org"
+          "http": "https://sepolia.drpc.org"
+        },
+        {
+          "http": "https://1rpc.io/sepolia"
         }
       ],
       "staticAggregationHookFactory": "0x160C28C92cA453570aD7C031972b58d5Dd128F72",
@@ -1256,7 +1259,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://api.hyperliquid-testnet.xyz/evm"
+          "http": "https://rpc.hyperliquid-testnet.xyz/evm"
         }
       ],
       "aggregationHook": "0x5689Ad17c798d5114dc60Ba3c98e4853dF70403D",
@@ -2599,7 +2602,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://vsf-rpc.somnia.network"
+          "http": "https://dream-rpc.somnia.network"
         }
       ],
       "technicalStack": "other",

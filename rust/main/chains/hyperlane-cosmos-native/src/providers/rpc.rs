@@ -333,7 +333,7 @@ impl RpcProvider {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
-        let account_info = self.get_account(signer.address.clone()).await?;
+        let account_info = self.get_account(signer.address_string.clone()).await?;
 
         // timeout height of zero means that we do not have a timeout height TODO: double check
         let tx_body = tx::Body::new(msgs, String::default(), 0u32);

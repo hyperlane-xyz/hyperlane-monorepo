@@ -172,18 +172,21 @@ async function fundVanguards() {
     rootLogger.info('\nTop ups needed for the following:');
     // eslint-disable-next-line no-console
     console.table(
-      Object.entries(topUpsNeeded).reduce((acc, [chain, topUps]) => {
-        const chainEntries: Record<VanguardName, string> = {} as Record<
-          VanguardName,
-          string
-        >;
-        VANGUARDS.forEach((vanguard) => {
-          const match = topUps.find((t) => t.vanguard === vanguard);
-          chainEntries[vanguard] = match ? match.balance : '-';
-        });
-        acc[chain] = chainEntries;
-        return acc;
-      }, {} as Record<string, Record<VanguardName, string>>),
+      Object.entries(topUpsNeeded).reduce(
+        (acc, [chain, topUps]) => {
+          const chainEntries: Record<VanguardName, string> = {} as Record<
+            VanguardName,
+            string
+          >;
+          VANGUARDS.forEach((vanguard) => {
+            const match = topUps.find((t) => t.vanguard === vanguard);
+            chainEntries[vanguard] = match ? match.balance : '-';
+          });
+          acc[chain] = chainEntries;
+          return acc;
+        },
+        {} as Record<string, Record<VanguardName, string>>,
+      ),
     );
 
     if (fund) {

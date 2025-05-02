@@ -24,6 +24,7 @@ mockall::mock! {
         async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, SubmitterError>;
         async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
         async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
+        async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;

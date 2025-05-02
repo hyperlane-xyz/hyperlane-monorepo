@@ -250,9 +250,8 @@ export async function collateralizeWarpTokens(
           !warpDeployConfig[chainName].type.match(/.*synthetic/i) &&
           warpDeployConfig[chainName].type.match(/.*collateral/i)
         ) {
-          const decimals = await walletAndCollateralByChain[
-            chainName
-          ].collateral.decimals();
+          const decimals =
+            await walletAndCollateralByChain[chainName].collateral.decimals();
           const tx = await walletAndCollateralByChain[
             chainName
           ].collateral.transfer(

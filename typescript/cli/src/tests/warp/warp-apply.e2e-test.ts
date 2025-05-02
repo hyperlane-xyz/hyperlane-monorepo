@@ -13,6 +13,7 @@ import {
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -94,6 +95,85 @@ describe('hyperlane warp apply owner update tests', async function () {
     );
     expect(stdout).to.include(
       'Warp config is the same as target. No updates needed.',
+    );
+  });
+
+  it('should update the owner of both the warp token and the proxy admin', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+
+    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+      WARP_CONFIG_PATH_EXAMPLE,
+    );
+
+    // Set to undefined if it was defined in the config
+    warpConfig.anvil1.proxyAdmin = undefined;
+    warpConfig.anvil1.owner = E2E_TEST_BURN_ADDRESS;
+    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
+    writeYamlOrJson(warpConfigPath, anvil2Config);
+
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    const updatedWarpDeployConfig1 = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
+    expect(updatedWarpDeployConfig1.anvil2.proxyAdmin?.owner).to.eq(
+      E2E_TEST_BURN_ADDRESS,
+    );
+  });
+
+  it('should update only the owner of the warp token if the proxy admin config is specified', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+
+    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+      WARP_CONFIG_PATH_EXAMPLE,
+    );
+
+    // Explicitly set it to the deployer address if it was not defined
+    warpConfig.anvil1.proxyAdmin = { owner: ANVIL_DEPLOYER_ADDRESS };
+    warpConfig.anvil1.owner = E2E_TEST_BURN_ADDRESS;
+    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
+    writeYamlOrJson(warpConfigPath, anvil2Config);
+
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    const updatedWarpDeployConfig1 = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(E2E_TEST_BURN_ADDRESS);
+    expect(updatedWarpDeployConfig1.anvil2.proxyAdmin?.owner).to.eq(
+      ANVIL_DEPLOYER_ADDRESS,
+    );
+  });
+
+  it('should update only the owner of the proxy admin if the proxy admin config is specified', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deploy-config-2.yaml`;
+
+    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+      WARP_CONFIG_PATH_EXAMPLE,
+    );
+
+    warpConfig.anvil1.proxyAdmin = { owner: E2E_TEST_BURN_ADDRESS };
+    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
+    writeYamlOrJson(warpConfigPath, anvil2Config);
+
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    const updatedWarpDeployConfig1 = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    expect(updatedWarpDeployConfig1.anvil2.owner).to.eq(ANVIL_DEPLOYER_ADDRESS);
+    expect(updatedWarpDeployConfig1.anvil2.proxyAdmin?.owner).to.eq(
+      E2E_TEST_BURN_ADDRESS,
     );
   });
 

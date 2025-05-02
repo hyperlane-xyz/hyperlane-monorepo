@@ -94,9 +94,8 @@ class ProofsService {
    * @returns the proofId
    */
   async requestProofFromSuccinct(messageId: string) {
-    const { timestamp } = await this.hyperlaneService.getOriginBlockByMessageId(
-      messageId,
-    );
+    const { timestamp } =
+      await this.hyperlaneService.getOriginBlockByMessageId(messageId);
     const slot = await this.lightClientService.calculateSlot(BigInt(timestamp));
     const syncCommitteePoseidon = ''; // TODO get from LC
     return this.lightClientService.requestProof(syncCommitteePoseidon, slot);

@@ -63,9 +63,7 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
     const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
         async (tx: AnnotatedEV5Transaction) =>
-          (
-            await this.createSafeTransaction(tx)
-          ).data,
+          (await this.createSafeTransaction(tx)).data,
       ),
     );
     return {

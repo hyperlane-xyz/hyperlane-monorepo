@@ -287,9 +287,8 @@ async function calculateDailyRelayerBurn(
 
   if (lowProposedDailyBurn.length > 0) {
     console.table(lowProposedDailyBurn);
-    const userAdjustments = await handleLowProposedDailyBurn(
-      lowProposedDailyBurn,
-    );
+    const userAdjustments =
+      await handleLowProposedDailyBurn(lowProposedDailyBurn);
     updatedBurnData = { ...updatedBurnData, ...userAdjustments };
   }
 

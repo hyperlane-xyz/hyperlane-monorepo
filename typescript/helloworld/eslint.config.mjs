@@ -6,7 +6,7 @@ export default [
     files: ['./src/**/*.ts'],
   },
   {
-    ignores: ["**/src/types/*"],
+    ignores: ['**/src/types/*'],
   },
   {
     ignores: ['./src/scripts'],

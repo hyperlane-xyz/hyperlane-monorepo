@@ -198,8 +198,9 @@ export class LiquidityLayerApp extends HyperlaneApp<
   async attemptPortalTransferCompletion(
     message: PortalBridgeMessage,
   ): Promise<void> {
-    const destinationPortalAdapter = this.getContracts(message.destination)
-      .portalAdapter!;
+    const destinationPortalAdapter = this.getContracts(
+      message.destination,
+    ).portalAdapter!;
 
     const transferId = await destinationPortalAdapter.transferId(
       this.multiProvider.getDomainId(message.origin),

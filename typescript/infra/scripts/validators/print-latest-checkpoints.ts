@@ -97,9 +97,8 @@ async function main() {
 
         // Get metadata from each storage location
         try {
-          const validatorInstance = await getValidatorFromStorageLocation(
-            location,
-          );
+          const validatorInstance =
+            await getValidatorFromStorageLocation(location);
 
           const latestCheckpoint =
             await validatorInstance.getLatestCheckpointIndex();

@@ -38,9 +38,8 @@ async function main() {
           const address = prospectiveValidator.address;
           const bucket = prospectiveValidator.s3Bucket;
           try {
-            const metrics = await prospectiveValidator.compare(
-              controlValidator,
-            );
+            const metrics =
+              await prospectiveValidator.compare(controlValidator);
             console.log(
               `${chain} ${bucket} validators against control ${controlValidator.s3Bucket}`,
             );

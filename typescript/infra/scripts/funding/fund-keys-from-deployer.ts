@@ -341,10 +341,13 @@ class ContextFunder {
 
     // Indexed by the identifier for quicker lookup
     const idsAndAddresses: Record<string, KeyAsAddress> =
-      allIdsAndAddresses.reduce((agg, idAndAddress) => {
-        agg[idAndAddress.identifier] = idAndAddress;
-        return agg;
-      }, {} as Record<string, KeyAsAddress>);
+      allIdsAndAddresses.reduce(
+        (agg, idAndAddress) => {
+          agg[idAndAddress.identifier] = idAndAddress;
+          return agg;
+        },
+        {} as Record<string, KeyAsAddress>,
+      );
 
     const agentConfig = getAgentConfig(context, environment);
     // Unfetched keys per chain and role, so we know which keys
@@ -868,9 +871,8 @@ class ContextFunder {
       L1MessageQueue.abi,
       l1ChainSigner,
     );
-    const gasQuote = await l1MessageQueue.estimateCrossDomainMessageFee(
-      l2GasLimit,
-    );
+    const gasQuote =
+      await l1MessageQueue.estimateCrossDomainMessageFee(l2GasLimit);
     const totalAmount = amount.add(gasQuote);
     return l1EthGateway['depositETH(address,uint256,uint256)'](
       to,

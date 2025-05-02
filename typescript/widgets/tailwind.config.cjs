@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 
-const defaultTheme = require('tailwindcss/defaultTheme')
+const defaultTheme = require('tailwindcss/defaultTheme');
 
 module.exports = {
   content: ['./src/**/*.{js,ts,jsx,tsx}'],
@@ -77,7 +77,7 @@ module.exports = {
           700: '#952281',
           800: '#6B185C',
           900: '#400E37',
-        }
+        },
       },
       fontSize: {
         md: '0.95rem',
@@ -102,7 +102,7 @@ module.exports = {
       },
       animation: {
         'pulse-slow': 'pulse 3s infinite cubic-bezier(.4,0,.6,1)',
-      }
+      },
     },
   },
   plugins: [],

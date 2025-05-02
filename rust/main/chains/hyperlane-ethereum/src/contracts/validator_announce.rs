@@ -150,16 +150,18 @@ where
     }
 
     #[instrument(ret, skip(self))]
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        let validator = announcement.value.validator;
-        let eth_h160: ethers::types::H160 = validator.into();
-
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        chain_signer: H256,
+    ) -> Option<U256> {
         let Ok(contract_call) = self.announce_contract_call(announcement).await else {
             trace!("Unable to get announce contract call");
             return None;
         };
 
-        let Ok(balance) = self.provider.get_balance(eth_h160, None).await else {
+        let chain_signer_h160 = ethers::types::H160::from(chain_signer);
+        let Ok(balance) = self.provider.get_balance(chain_signer_h160, None).await else {
             trace!("Unable to query balance");
             return None;
         };

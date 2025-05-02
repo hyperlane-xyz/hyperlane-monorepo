@@ -54,23 +54,23 @@ describe('no-restricted-imports-from-exports rule', () => {
       );
 
     // Stub path.resolve to simplify path resolution in tests
-    sinon
-      .stub(path, 'resolve')
-      .callsFake(function (...args: unknown[]): string {
-        const lastArg = args[args.length - 1];
+    sinon.stub(path, 'resolve').callsFake(function (
+      ...args: unknown[]
+    ): string {
+      const lastArg = args[args.length - 1];
 
-        if (typeof lastArg !== 'string') {
-          return String(lastArg);
+      if (typeof lastArg !== 'string') {
+        return String(lastArg);
+      }
+
+      for (const [pattern, mapping] of Object.entries(pathMappings)) {
+        if (lastArg.includes(pattern)) {
+          return mapping;
         }
+      }
 
-        for (const [pattern, mapping] of Object.entries(pathMappings)) {
-          if (lastArg.includes(pattern)) {
-            return mapping;
-          }
-        }
-
-        return lastArg;
-      });
+      return lastArg;
+    });
 
     sinon
       .stub(path, 'dirname')

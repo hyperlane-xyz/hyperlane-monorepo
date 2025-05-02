@@ -8,11 +8,20 @@
 *.Dockerfile
 Dockerfile
 
-typescript/*/dist/
+**/dist/
 
+.changeset/
+.yarn/
 rust/
+solidity/artifacts/
+solidity/cache/
+solidity/core-utils/typechain/
+solidity/lib/
 tools/
+typescript/cli/configs/
+typescript/helloworld/artifacts/
+typescript/helloworld/cache/
+typescript/helloworld/src/types/
 typescript/infra/helm/**/templates/
 typescript/infra/src/infrastructure/external-secrets/helm/templates/
 vectors/
-.changeset/

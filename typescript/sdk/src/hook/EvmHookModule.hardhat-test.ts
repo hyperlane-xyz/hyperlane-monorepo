@@ -64,11 +64,14 @@ describe('EvmHookModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    proxyFactoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
-      acc[key] =
-        contractsMap[chain][key as keyof ProxyFactoryFactories].address;
-      return acc;
-    }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
+    proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
+      (acc, key) => {
+        acc[key] =
+          contractsMap[chain][key as keyof ProxyFactoryFactories].address;
+        return acc;
+      },
+      {} as Record<string, Address>,
+    ) as HyperlaneAddresses<ProxyFactoryFactories>;
 
     // legacy HyperlaneIsmFactory is required to do a core deploy
     const legacyIsmFactory = new HyperlaneIsmFactory(
@@ -509,9 +512,8 @@ describe('EvmHookModule', async () => {
 
       it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
         // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
+        const { hook, initialHookAddress } =
+          await createHook(exampleRoutingConfig);
 
         // expect 0 updates
         await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
@@ -534,9 +536,8 @@ describe('EvmHookModule', async () => {
         };
 
         // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
+        const { hook, initialHookAddress } =
+          await createHook(exampleRoutingConfig);
 
         // add a new domain
         exampleRoutingConfig.domains[TestChainName.test2] = {
@@ -564,9 +565,8 @@ describe('EvmHookModule', async () => {
         };
 
         // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
+        const { hook, initialHookAddress } =
+          await createHook(exampleRoutingConfig);
 
         // add multiple new domains
         exampleRoutingConfig.domains[TestChainName.test2] = {

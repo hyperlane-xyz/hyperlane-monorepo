@@ -68,9 +68,8 @@ export class CosmNativeCoreAdapter
     delayMs?: number,
     maxAttempts?: number,
   ): Promise<boolean> {
-    const provider = await this.multiProvider.getCosmJsNativeProvider(
-      destination,
-    );
+    const provider =
+      await this.multiProvider.getCosmJsNativeProvider(destination);
 
     await pollAsync(
       async () => {

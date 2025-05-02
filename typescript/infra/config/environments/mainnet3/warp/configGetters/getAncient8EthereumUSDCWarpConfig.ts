@@ -13,6 +13,8 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { regularIcas } from '../../governance/ica/regular.js';
+import { regularSafes } from '../../governance/safe/regular.js';
 
 export const getAncient8EthereumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -34,6 +36,9 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     // for the hook module. The hook configuration is the Ethereum
     // default hook for the Ancient8 remote (no routing).
     hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
+    proxyAdmin: {
+      owner: regularSafes.ethereum,
+    },
   };
 
   const ancient8: HypTokenRouterConfig = {
@@ -42,6 +47,9 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     type: TokenType.synthetic,
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,
+    proxyAdmin: {
+      owner: regularIcas.ancient8,
+    },
   };
 
   return {

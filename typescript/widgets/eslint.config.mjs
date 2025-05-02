@@ -1,11 +1,14 @@
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
-import MonorepoDefaults, {compat} from '../../eslint.config.mjs';
+import MonorepoDefaults, { compat } from '../../eslint.config.mjs';
 
 export default [
   ...MonorepoDefaults,
-  ...compat.extends("plugin:react/recommended", "plugin:react-hooks/recommended"),
+  ...compat.extends(
+    'plugin:react/recommended',
+    'plugin:react-hooks/recommended',
+  ),
   {
     settings: {
       react: {
@@ -20,7 +23,6 @@ export default [
       react,
       'react-hooks': reactHooks,
     },
-
 
     rules: {
       'react/react-in-jsx-scope': 'off',

@@ -72,8 +72,8 @@ export function deepFind<I extends object, O extends I>(
   const entries = isObject(obj)
     ? Object.values(obj)
     : Array.isArray(obj)
-    ? obj
-    : [];
+      ? obj
+      : [];
   return entries.map((e) => deepFind(e as any, func, depth - 1)).find((v) => v);
 }
 

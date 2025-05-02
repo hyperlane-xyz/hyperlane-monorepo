@@ -24,7 +24,7 @@ mock! {
 
         async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome>;
 
-        async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256>;
+        async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>, chain_signer: H256) -> Option<U256>;
     }
 
     impl HyperlaneContract for ValidatorAnnounceMock {

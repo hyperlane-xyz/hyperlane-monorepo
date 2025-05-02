@@ -156,7 +156,6 @@ export const awIcas: ChainMap<Address> = {
 
   // Mar 14, 2025 batch
   // ----------------------------------------------------------
-  infinityvm: '0x35460c519b7C71d49C64F060dF89AbAE463F3b9a',
   plume: '0x61BFbb5FEC57f5470388A80946F0415138630b9c',
 
   // Mar 31, 2025 batch

@@ -88,9 +88,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () => {
-        const estimatedGas = await igp.estimateGas.setDestinationGasConfigs(
-          gasParamsToSet,
-        );
+        const estimatedGas =
+          await igp.estimateGas.setDestinationGasConfigs(gasParamsToSet);
         return this.multiProvider.handleTx(
           chain,
           igp.setDestinationGasConfigs(gasParamsToSet, {

@@ -1,5 +1,5 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
-use hyperlane_core::{AccountAddressType, ChainResult};
+use hyperlane_core::{AccountAddressType, ChainResult, H256};
 
 use crate::{CosmosAddress, HyperlaneCosmosError};
 
@@ -8,11 +8,14 @@ use crate::{CosmosAddress, HyperlaneCosmosError};
 pub struct Signer {
     /// public key
     pub public_key: PublicKey,
+    /// cosmos address
+    pub address: CosmosAddress,
     /// precomputed address, because computing it is a fallible operation
     /// and we want to avoid returning `Result`
-    pub address: String,
+    pub address_string: String,
     /// address prefix
     pub prefix: String,
+    /// private key
     private_key: Vec<u8>,
 }
 
@@ -28,14 +31,15 @@ impl Signer {
         prefix: String,
         account_address_type: &AccountAddressType,
     ) -> ChainResult<Self> {
-        let address =
-            CosmosAddress::from_privkey(&private_key, &prefix, account_address_type)?.address();
+        let address = CosmosAddress::from_privkey(&private_key, &prefix, account_address_type)?;
+        let address_string = address.address();
         let signing_key = Self::build_signing_key(&private_key)?;
         let public_key = signing_key.public_key();
         Ok(Self {
             public_key,
             private_key,
             address,
+            address_string,
             prefix,
         })
     }
@@ -50,5 +54,10 @@ impl Signer {
         Ok(SigningKey::from_slice(private_key.as_slice())
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?)
+    }
+
+    /// gets digest of the cosmos account
+    pub fn address_h256(&self) -> H256 {
+        self.address.digest()
     }
 }
