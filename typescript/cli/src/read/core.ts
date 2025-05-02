@@ -45,6 +45,7 @@ export async function executeCoreRead({
         );
         process.exit(1);
       }
+      break;
     }
     case ProtocolType.CosmosNative: {
       const cosmosProvider =
@@ -62,6 +63,7 @@ export async function executeCoreRead({
         );
         process.exit(1);
       }
+      break;
     }
     default: {
       errorRed(`❌ Core Read not supported for protocol type ${protocolType}:`);

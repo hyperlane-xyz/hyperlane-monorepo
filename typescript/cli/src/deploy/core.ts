@@ -119,7 +119,8 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.CosmosNative:
       {
-        const signer = multiProtocolSigner?.getCosmosNativeSigner(chain)!;
+        const signer =
+          multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
         assert(signer, 'Cosmos Native signer failed!');
 
         logBlue('🚀 All systems ready, captain! Beginning deployment...');
@@ -183,7 +184,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     case ProtocolType.CosmosNative: {
-      const signer = multiProtocolSigner?.getCosmosNativeSigner(chain)!;
+      const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
       assert(signer, 'Cosmos Native signer failed!');
 
       const cosmosNativeCoreModule = new CosmosNativeCoreModule(

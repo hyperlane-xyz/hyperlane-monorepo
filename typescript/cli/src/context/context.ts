@@ -178,7 +178,7 @@ export async function getDryRunContext(
   await verifyAnvil();
 
   let multiProvider = await getMultiProvider(registry);
-  let multiProtocolProvider = await getMultiProtocolProvider(registry);
+  const multiProtocolProvider = await getMultiProtocolProvider(registry);
   multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
