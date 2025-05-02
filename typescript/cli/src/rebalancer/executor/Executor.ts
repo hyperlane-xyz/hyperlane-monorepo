@@ -28,7 +28,7 @@ export class Executor implements IExecutor {
     private readonly rebalancerKey: string,
   ) {}
 
-  async init(registry: IRegistry, warpRouteId: string) {
+  async init(registry: IRegistry, warpRouteId: string): Promise<Executor> {
     if (this.initData) {
       throw new Error('Executor already initialized');
     }
@@ -45,6 +45,8 @@ export class Executor implements IExecutor {
       chainMetadata: metadata,
       tokensByChainName: new Map(warpCore.tokens.map((t) => [t.chainName, t])),
     };
+
+    return this;
   }
 
   async rebalance(routes: RebalancingRoute[]) {

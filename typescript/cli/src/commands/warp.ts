@@ -7,7 +7,7 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import { assert, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -30,6 +30,7 @@ import {
 import { runWarpRouteRead } from '../read/warp.js';
 import { RebalancerContextFactory } from '../rebalancer/factories/RebalancerContextFactory.js';
 import {
+  Config,
   Executor,
   IExecutor,
   IStrategy,
@@ -415,10 +416,10 @@ export const check: CommandModuleWithContext<{
   },
 };
 
-export const rebalancer: CommandModuleWithContext<{
+export const rebalancer: CommandModuleWithWriteContext<{
   warpRouteId: string;
   checkFrequency: number;
-  strategyConfigFile: string;
+  rebalancerConfigFile: string;
   withMetrics?: boolean;
 }> = {
   command: 'rebalancer',
@@ -435,9 +436,10 @@ export const rebalancer: CommandModuleWithContext<{
       demandOption: true,
       alias: 'v',
     },
-    strategyConfigFile: {
+    rebalancerConfigFile: {
       type: 'string',
-      description: 'The path to a strategy configuration file (.json or .yaml)',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: 's',
     },
@@ -452,7 +454,7 @@ export const rebalancer: CommandModuleWithContext<{
     context,
     warpRouteId,
     checkFrequency,
-    strategyConfigFile,
+    rebalancerConfigFile,
     withMetrics = false,
   }) => {
     try {
@@ -461,14 +463,23 @@ export const rebalancer: CommandModuleWithContext<{
         warpRouteId,
       );
 
+      const config = Config.fromFile(rebalancerConfigFile);
+
       // Instantiates the warp route monitor
       const monitor = contextFactory.createMonitor(checkFrequency);
 
       // Instantiates the strategy that will get rebalancing routes based on monitor results
-      const strategy: IStrategy = Strategy.fromConfigFile(strategyConfigFile);
+      const strategy: IStrategy = new Strategy(
+        objMap(config, (_, v) => ({
+          weight: v.weight,
+          tolerance: v.tolerance,
+        })),
+      );
 
-      // Instantiates the executor that will process rebalancing routes
-      const executor: IExecutor = new Executor();
+      const executor: IExecutor = await new Executor(
+        objMap(config, (_, v) => v.bridge),
+        context.key,
+      ).init(context.registry, warpRouteId);
 
       // Creates an instance for the metrics that will publish stats for the monitored data
       const metrics = withMetrics
@@ -501,9 +512,7 @@ export const rebalancer: CommandModuleWithContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
-            errorRed(`Error processing rebalancing routes: ${e.messages}`);
-          });
+          void executor.rebalance(rebalancingRoutes);
         })
         // Observe monitor errors and exit
         .on('error', (e) => {
