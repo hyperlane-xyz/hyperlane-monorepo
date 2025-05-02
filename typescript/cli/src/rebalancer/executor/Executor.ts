@@ -4,6 +4,7 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
+  ChainName,
   EvmHypCollateralAdapter,
   MultiProtocolProvider,
   Token,
@@ -11,16 +12,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap, objMerge } from '@hyperlane-xyz/utils';
 
-export type RebalanceArgs = {
-  origin: Token;
-  destination: Token;
-  amount: bigint;
-}[];
+import { logDebug, logGreen, logRed } from '../../logger.js';
+import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 export class Executor {
   private initData?: {
     warpCore: WarpCore;
     chainMetadata: ChainMap<ChainMetadata>;
+    tokensByChainName: Map<ChainName, Token>;
   };
 
   constructor(
@@ -40,40 +39,80 @@ export class Executor {
     const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
 
-    this.initData = { warpCore, chainMetadata: metadata };
+    this.initData = {
+      warpCore,
+      chainMetadata: metadata,
+      tokensByChainName: new Map(warpCore.tokens.map((t) => [t.chainName, t])),
+    };
   }
 
-  async rebalance(args: RebalanceArgs) {
+  async rebalance(routes: RebalancingRoute[]) {
     if (!this.initData) {
       throw new Error('Executor not initialized');
     }
 
-    const { warpCore, chainMetadata } = this.initData;
+    const { warpCore, chainMetadata, tokensByChainName } = this.initData;
 
-    for (const { origin, destination, amount } of args) {
-      const hypAdapter = origin.getHypAdapter(warpCore.multiProvider);
+    const transactions: {
+      provider: ethers.providers.Provider;
+      populatedTx: ethers.PopulatedTransaction;
+    }[] = [];
+
+    for (const { fromChain, toChain, amount } of routes) {
+      const originToken = tokensByChainName.get(fromChain);
+
+      if (!originToken) {
+        throw new Error(`Token not found for chain ${fromChain}`);
+      }
+
+      const hypAdapter = originToken.getHypAdapter(warpCore.multiProvider);
 
       if (!(hypAdapter instanceof EvmHypCollateralAdapter)) {
         throw new Error('Adapter is not an EvmHypCollateralAdapter');
       }
 
-      const collateralAdapter = hypAdapter as EvmHypCollateralAdapter;
+      const hypCollateralAdapter = hypAdapter as EvmHypCollateralAdapter;
 
-      const populatedTx = await collateralAdapter.populateRebalanceTx({
-        domain: chainMetadata[destination.chainName].domainId,
+      const provider = warpCore.multiProvider.getEthersV5Provider(toChain);
+
+      const populatedTx = await hypCollateralAdapter.populateRebalanceTx({
+        domain: chainMetadata[toChain].domainId,
         amount,
-        bridge: this.bridges[destination.chainName],
+        bridge: this.bridges[toChain],
       });
 
-      const provider = warpCore.multiProvider.getEthersV5Provider(
-        destination.chainName,
+      transactions.push({ provider, populatedTx });
+    }
+
+    const results = await Promise.allSettled(
+      transactions.map(async ({ provider, populatedTx }) => {
+        const signer = new ethers.Wallet(this.rebalancerKey, provider);
+        const tx = await signer.sendTransaction(populatedTx);
+        const receipt = await tx.wait();
+
+        return receipt;
+      }),
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const route = routes[i];
+
+      logDebug(
+        `origin: ${route.fromChain}, destination: ${route.toChain}, amount: ${route.amount}`,
       );
 
-      const signer = new ethers.Wallet(this.rebalancerKey, provider);
-
-      const tx = await signer.sendTransaction(populatedTx);
-
-      await tx.wait();
+      if (result.status === 'fulfilled') {
+        logGreen(`✅ Rebalance successful`);
+        logDebug(JSON.stringify(result.value, null, 2));
+      } else {
+        logRed(`❌ Rebalance failed`);
+        logDebug(
+          result.reason instanceof Error
+            ? result.reason.message
+            : result.reason,
+        );
+      }
     }
   }
 }
