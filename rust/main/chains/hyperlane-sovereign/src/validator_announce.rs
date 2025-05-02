@@ -66,9 +66,7 @@ impl ValidatorAnnounce for SovereignValidatorAnnounce {
         &self,
         _announcement: SignedType<Announcement>,
     ) -> Option<U256> {
-        // Possibly required in the future, for now, just return 0
-        // let tokens = self.provider.client().announce_tokens_needed().await?;
-
-        Some(U256::zero())
+        // Caller performs `unwrap_or_default()` on the response. Modify return type if Sovereign changes upstream.
+        None
     }
 }

@@ -30,7 +30,7 @@ where
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         let logs = range
             .map(|slot_num| async move {
-                let slot = self.client().get_slot(slot_num.into()).await?;
+                let slot = self.client().get_specified_slot(slot_num.into()).await?;
                 let slot_hash = parse_hex_to_h256(&slot.hash, "invalid block hash")?;
                 ChainResult::Ok(stream::iter(
                     slot.batches

@@ -252,7 +252,7 @@ impl SovereignRestClient {
         })
     }
 
-    pub async fn get_slot(&self, slot: u64) -> ChainResult<Slot> {
+    pub async fn get_specified_slot(&self, slot: u64) -> ChainResult<Slot> {
         let query = format!("/ledger/slots/{slot}?children=1");
 
         let response = self
