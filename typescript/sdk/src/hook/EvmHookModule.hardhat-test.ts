@@ -359,17 +359,19 @@ describe('EvmHookModule', async () => {
       };
 
       // create a new hook
-      const { hook } = await createHook(config);
+      const { hook, initialHookAddress } = await createHook(config);
 
-      const [firstHook, secondHook] = (
+      const [firstChildHook, secondSecondHook] = (
         (await hook.read()) as AggregationHookConfig
       ).hooks as DerivedHookConfig[];
       const expectedConfig = {
         ...config,
-        domains: [firstHook.address, secondHook],
+        hooks: [firstChildHook.address, secondSecondHook],
       };
 
       await expectTxsAndUpdate(hook, expectedConfig, 0);
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
     });
 
     it('should not update if a domain routing hook includes an address of an existing hook', async () => {
@@ -383,7 +385,7 @@ describe('EvmHookModule', async () => {
         },
       };
       // create a new hook
-      const { hook } = await createHook(config);
+      const { hook, initialHookAddress } = await createHook(config);
 
       const { test1: firstHook, test2: secondHook } = (
         (await hook.read()) as DomainRoutingHookConfig
@@ -397,6 +399,8 @@ describe('EvmHookModule', async () => {
       };
 
       await expectTxsAndUpdate(hook, expectedConfig, 0);
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
     });
 
     it('should not update if a fallback routing hook includes an address of an existing hook', async () => {
@@ -411,7 +415,7 @@ describe('EvmHookModule', async () => {
         fallback: randomHookConfig(0, 2),
       };
       // create a new hook
-      const { hook } = await createHook(config);
+      const { hook, initialHookAddress } = await createHook(config);
 
       const derivedHook = (await hook.read()) as FallbackRoutingHookConfig;
       const { test1: firstHook, test2: secondHook } = derivedHook.domains;
@@ -426,6 +430,8 @@ describe('EvmHookModule', async () => {
       };
 
       await expectTxsAndUpdate(hook, expectedConfig, 0);
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
     });
 
     it('should not update if a amount routing hook includes an address of an existing hook', async () => {
@@ -436,7 +442,7 @@ describe('EvmHookModule', async () => {
         upperHook: randomHookConfig(0, 2),
       };
       // create a new hook
-      const { hook } = await createHook(config);
+      const { hook, initialHookAddress } = await createHook(config);
 
       const derivedHook = (await hook.read()) as AmountRoutingHookConfig;
       const { lowerHook, upperHook } = derivedHook;
@@ -448,6 +454,8 @@ describe('EvmHookModule', async () => {
       };
 
       await expectTxsAndUpdate(hook, expectedConfig, 0);
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .true;
     });
 
     const createDeployerOwnedIgpHookConfig =
