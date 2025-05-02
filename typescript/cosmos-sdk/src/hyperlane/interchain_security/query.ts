@@ -16,13 +16,19 @@ type QueryDecodedIsmsResponse = {
   pagination: pagination.PageResponse | undefined;
 };
 
+export const NoopIsmTypeUrl = '/hyperlane.core.interchain_security.v1.NoopISM';
+export const MerkleRootMultisigIsmTypeUrl =
+  '/hyperlane.core.interchain_security.v1.NoopISM';
+export const MessageIdMultisigTypeUrl =
+  '/hyperlane.core.interchain_security.v1.NoopISM';
+
 export const decodeIsm = (ism: any.Any | undefined): ISM => {
   switch (ism?.type_url) {
-    case '/hyperlane.core.interchain_security.v1.NoopISM':
+    case NoopIsmTypeUrl:
       return isTypes.NoopISM.decode(ism.value);
-    case '/hyperlane.core.interchain_security.v1.MerkleRootMultisigISM':
+    case MerkleRootMultisigIsmTypeUrl:
       return isTypes.MerkleRootMultisigISM.decode(ism.value);
-    case '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM':
+    case MessageIdMultisigTypeUrl:
       return isTypes.MessageIdMultisigISM.decode(ism.value);
     default:
       throw new Error(`can not decode ISM with type url ${ism?.type_url}`);
