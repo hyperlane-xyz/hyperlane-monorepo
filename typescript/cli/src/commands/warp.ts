@@ -512,7 +512,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          void executor.rebalance(rebalancingRoutes);
+          executor.rebalance(rebalancingRoutes).catch((e) => {
+            errorRed('Error while rebalancing:', (e as Error).message);
+          });
         })
         // Observe monitor errors and exit
         .on('error', (e) => {
