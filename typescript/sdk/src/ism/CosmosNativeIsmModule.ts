@@ -135,24 +135,27 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     this.logger.info(`Deploying ${ismType} to ${this.chain}`);
 
     switch (ismType) {
-      case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.MERKLE_ROOT_MULTISIG: {
         const { response: merkleRootResponse } =
           await this.signer.createMerkleRootMultisigIsm({
             validators: config.validators,
             threshold: config.threshold,
           });
         return merkleRootResponse.id;
+      }
 
-      case IsmType.MESSAGE_ID_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG: {
         const { response: messageIdResponse } =
           await this.signer.createMessageIdMultisigIsm({
             validators: config.validators,
             threshold: config.threshold,
           });
         return messageIdResponse.id;
-      case IsmType.TEST_ISM:
+      }
+      case IsmType.TEST_ISM: {
         const { response: noopResponse } = await this.signer.createNoopIsm({});
         return noopResponse.id;
+      }
       default:
         throw new Error(`ISM type ${ismType} is not supported on Cosmos`);
     }

@@ -15,8 +15,7 @@ import {
 import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
 import { DerivedHookConfig, HookType } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
-import { DerivedIsmConfig } from '../ism/types.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
+import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';

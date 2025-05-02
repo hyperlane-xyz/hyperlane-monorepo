@@ -4,8 +4,7 @@ import {
 } from '@hyperlane-xyz/cosmos-sdk';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DerivedIsmConfig } from './types.js';
-import { IsmType, MultisigIsmConfig } from './types.js';
+import { DerivedIsmConfig, IsmType, MultisigIsmConfig } from './types.js';
 
 export class CosmosNativeIsmReader {
   protected readonly logger = rootLogger.child({
