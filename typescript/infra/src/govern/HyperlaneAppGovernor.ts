@@ -440,7 +440,7 @@ export abstract class HyperlaneAppGovernor<
         // Require the submitter to be the owner of the ICA on the origin chain.
         return (
           chain === origin &&
-          eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
+          eqAddress(bytes32ToAddress(accountConfig!.owner), submitterAddress)
         );
       },
       true, // Flag this as an ICA call
