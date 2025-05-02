@@ -57,17 +57,3 @@ jobs:
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
           category: "slither"
-
-      - name: Olympix Integrated Security
-        uses: olympix/integrated-security@main
-        env:
-          OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
-          OLYMPIX_CLI_LOG_LEVEL: 0
-        with:
-          args: -p ./solidity/contracts --output-format sarif --output-path ./
-
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: olympix.sarif
-          category: "olympix"
