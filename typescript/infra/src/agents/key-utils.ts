@@ -4,6 +4,7 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
+  deepEquals,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -18,6 +19,7 @@ import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
 import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
+import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
 import {
   execCmd,
   getInfraPath,
@@ -360,6 +362,12 @@ export async function createAgentKeysIfNotExists(
 
   // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
   await persistAddressesLocally(agentConfig, nonStarknetKeys);
+  // Key funder expects the serialized addresses in GCP
+  await persistAddressesInGcp(
+    agentConfig.runEnv,
+    agentConfig.context,
+    keys.map((key) => key.serializeAsAddress()),
+  );
   return;
 }
 
@@ -391,6 +399,42 @@ export async function rotateKey(
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
   await persistAddressesLocally(agentConfig, [key]);
+}
+
+async function persistAddressesInGcp(
+  environment: DeployEnvironment,
+  context: Contexts,
+  keys: KeyAsAddress[],
+) {
+  try {
+    const existingSecret = (await fetchGCPSecret(
+      addressesIdentifier(environment, context),
+      true,
+    )) as KeyAsAddress[];
+    if (deepEquals(keys, existingSecret)) {
+      debugLog(
+        `Addresses already persisted to GCP for ${context} context in ${environment} environment`,
+      );
+      return;
+    }
+  } catch (e) {
+    // If the secret doesn't exist, we'll create it below.
+    debugLog(
+      `No existing secret found for ${context} context in ${environment} environment`,
+    );
+  }
+
+  debugLog(
+    `Persisting addresses to GCP for ${context} context in ${environment} environment`,
+  );
+  await setGCPSecretUsingClient(
+    addressesIdentifier(environment, context),
+    JSON.stringify(keys),
+    {
+      environment,
+      context,
+    },
+  );
 }
 
 async function persistAddressesLocally(
