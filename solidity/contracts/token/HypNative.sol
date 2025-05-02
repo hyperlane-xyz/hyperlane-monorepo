@@ -41,8 +41,9 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public initializer {
+    ) public virtual reinitializer(2) {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _MovableCollateralRouter_initialize(_owner);
     }
 
     /**
@@ -127,25 +128,5 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
             recipient: recipient,
             amountOut: amount
         });
-    }
-
-    function _msgData()
-        internal
-        view
-        virtual
-        override(Context, ContextUpgradeable)
-        returns (bytes calldata)
-    {
-        return ContextUpgradeable._msgData();
-    }
-
-    function _msgSender()
-        internal
-        view
-        virtual
-        override(Context, ContextUpgradeable)
-        returns (address)
-    {
-        return ContextUpgradeable._msgSender();
     }
 }
