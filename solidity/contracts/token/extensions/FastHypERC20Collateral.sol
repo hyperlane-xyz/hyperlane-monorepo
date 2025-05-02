@@ -59,24 +59,4 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
     ) internal override {
         wrappedToken.safeTransferFrom(_sender, address(this), _amount);
     }
-
-    function _msgData()
-        internal
-        view
-        virtual
-        override(HypERC20Collateral, ContextUpgradeable)
-        returns (bytes calldata)
-    {
-        return ContextUpgradeable._msgData();
-    }
-
-    function _msgSender()
-        internal
-        view
-        virtual
-        override(HypERC20Collateral, ContextUpgradeable)
-        returns (address)
-    {
-        return ContextUpgradeable._msgSender();
-    }
 }
