@@ -36,23 +36,18 @@ contract InterchainAccountRouter is Router {
 
     using TypeCasts for address;
     using TypeCasts for bytes32;
-
-    struct AccountOwner {
-        uint32 origin;
-        bytes32 owner; // remote owner
-    }
+    using InterchainAccountMessage for bytes;
 
     // ============ Constants ============
 
-    address internal implementation;
-    bytes32 internal bytecodeHash;
+    address public immutable implementation;
+    bytes32 public immutable bytecodeHash;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
-    // reverse lookup from the ICA account to the remote owner
-    mapping(address => AccountOwner) public accountOwners;
-    mapping(OwnableMulticall ICA => bytes32 commitment)
+    mapping(bytes32 commitment => OwnableMulticall ICA)
         public verifiedCommitments;
+
     // ============ Upgrade Gap ============
 
     uint256[47] private __GAP;
@@ -82,45 +77,36 @@ contract InterchainAccountRouter is Router {
 
     /**
      * @notice Emitted when an interchain account contract is deployed
+     * @param account The address of the proxy account that was created
      * @param origin The domain of the chain where the message was sent from
+     * @param router The router on the origin domain
      * @param owner The address of the account that sent the message
      * @param ism The address of the local ISM
-     * @param account The address of the proxy account that was created
+     * @param salt The salt used to derive the interchain account
      */
     event InterchainAccountCreated(
-        uint32 indexed origin,
-        bytes32 indexed owner,
+        address indexed account,
+        uint32 origin,
+        bytes32 router,
+        bytes32 owner,
         address ism,
-        address account
+        bytes32 salt
     );
 
     // ============ Constructor ============
-
-    constructor(address _mailbox) Router(_mailbox) {}
-
-    // ============ Initializers ============
-
-    /**
-     * @notice Initializes the contract with HyperlaneConnectionClient contracts
-     * @param _customHook used by the Router to set the hook to override with
-     * @param _interchainSecurityModule The address of the local ISM contract
-     * @param _owner The address with owner privileges
-     */
-    function initialize(
-        address _customHook,
+    constructor(
+        address _mailbox,
+        address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) external initializer {
-        _MailboxClient_initialize(
-            _customHook,
-            _interchainSecurityModule,
-            _owner
-        );
+    ) Router(_mailbox) {
+        setHook(_hook);
+        setInterchainSecurityModule(_interchainSecurityModule);
+        _transferOwnership(_owner);
 
-        implementation = address(new OwnableMulticall(address(this)));
-        // cannot be stored immutably because it is dynamically sized
-        bytes memory _bytecode = MinimalProxy.bytecode(implementation);
-        bytecodeHash = keccak256(_bytecode);
+        bytes memory bytecode = _implementationBytecode(address(this));
+        implementation = Create2.deploy(0, bytes32(0), bytecode);
+        bytecodeHash = _proxyBytecodeHash(implementation);
     }
 
     /**
@@ -158,12 +144,6 @@ contract InterchainAccountRouter is Router {
         for (uint256 i = 0; i < _destinations.length; i++) {
             _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
         }
-    }
-
-    function setHook(
-        address _hook
-    ) public override onlyContractOrNull(_hook) onlyOwner {
-        hook = IPostDispatchHook(_hook);
     }
 
     // ============ External Functions ============
@@ -301,13 +281,27 @@ contract InterchainAccountRouter is Router {
         bytes32 _sender,
         bytes calldata _message
     ) external payable override onlyMailbox {
-        InterchainAccountMessage.MessageType _messageType = InterchainAccountMessage
-                .messageType(_message);
-        bytes32 _owner = InterchainAccountMessage.owner(_message);
-        bytes32 _ism = InterchainAccountMessage.ism(_message);
-        bytes32 _salt = InterchainAccountMessage.salt(_message);
+        InterchainAccountMessage.MessageType _messageType = _message
+            .messageType();
 
-        OwnableMulticall _interchainAccount = getDeployedInterchainAccount(
+        // If the message is a reveal, we don't do any derivation of the ica address
+        // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
+        // so here we just check that commitment -> ICA association has been cleared
+        if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
+            // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
+            require(
+                verifiedCommitments[_message.commitment()] !=
+                    OwnableMulticall(payable(address(0))),
+                "Commitment was not executed"
+            );
+            return;
+        }
+
+        bytes32 _owner = _message.owner();
+        bytes32 _ism = _message.ism();
+        bytes32 _salt = _message.salt();
+
+        OwnableMulticall ica = getDeployedInterchainAccount(
             _origin,
             _owner,
             _sender,
@@ -316,13 +310,11 @@ contract InterchainAccountRouter is Router {
         );
 
         if (_messageType == InterchainAccountMessage.MessageType.CALLS) {
-            CallLib.Call[] memory _calls = InterchainAccountMessage.calls(
-                _message
-            );
-            _interchainAccount.multicall{value: msg.value}(_calls);
+            CallLib.Call[] memory calls = _message.calls();
+            ica.multicall{value: msg.value}(calls);
         } else {
-            bytes32 commitment = InterchainAccountMessage.commitment(_message);
-            verifiedCommitments[_interchainAccount] = commitment;
+            bytes32 commitment = _message.commitment();
+            verifiedCommitments[commitment] = ica;
         }
     }
 
@@ -467,8 +459,14 @@ contract InterchainAccountRouter is Router {
         if (!Address.isContract(_account)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
-            accountOwners[_account] = AccountOwner(_origin, _owner);
-            emit InterchainAccountCreated(_origin, _owner, _ism, _account);
+            emit InterchainAccountCreated(
+                _account,
+                _origin,
+                _router,
+                _owner,
+                _ism,
+                _userSalt
+            );
         }
         return OwnableMulticall(_account);
     }
@@ -571,24 +569,15 @@ contract InterchainAccountRouter is Router {
         bytes32 _userSalt
     ) public view returns (address) {
         require(_router != address(0), "no router specified for destination");
-        // Derives the address of the first contract deployed by _router using
-        // the CREATE opcode.
-        address _implementation = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xd6),
-                            bytes1(0x94),
-                            _router,
-                            bytes1(0x01)
-                        )
-                    )
-                )
-            )
+
+        // replicate router constructor Create2 derivation
+        address _implementation = Create2.computeAddress(
+            bytes32(0),
+            keccak256(_implementationBytecode(_router)),
+            _router
         );
-        bytes memory _proxyBytecode = MinimalProxy.bytecode(_implementation);
-        bytes32 _bytecodeHash = keccak256(_proxyBytecode);
+
+        bytes32 _bytecodeHash = _proxyBytecodeHash(_implementation);
         bytes32 _salt = _getSalt(
             localDomain,
             _owner.addressToBytes32(),
@@ -754,7 +743,7 @@ contract InterchainAccountRouter is Router {
             );
     }
 
-    function sendCommitment(
+    function callRemoteCommitReveal(
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
@@ -762,40 +751,67 @@ contract InterchainAccountRouter is Router {
         IPostDispatchHook _hook,
         bytes32 _salt,
         bytes32 _commitment
-    ) public payable returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.encodeCommitment({
-            _owner: msg.sender.addressToBytes32(),
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        bytes memory _commitmentMsg = InterchainAccountMessage
+            .encodeCommitment({
+                _owner: msg.sender.addressToBytes32(),
+                _ism: _ism,
+                _commitment: _commitment,
+                _userSalt: _salt
+            });
+        bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
             _ism: _ism,
-            _commitment: _commitment,
-            _userSalt: _salt
+            _commitment: _commitment
         });
-        return
-            _dispatchMessageWithHook(
-                _destination,
-                _router,
-                _ism,
-                _body,
-                _hookMetadata,
-                _hook
-            );
+
+        _commitmentMsgId = _dispatchMessageWithHook(
+            _destination,
+            _router,
+            _ism,
+            _commitmentMsg,
+            _hookMetadata,
+            _hook
+        );
+        _revealMsgId = _dispatchMessageWithHook(
+            _destination,
+            _router,
+            _ism,
+            _revealMsg,
+            _hookMetadata,
+            _hook
+        );
     }
 
-    error InvalidCommitment(OwnableMulticall ICA, bytes32 badCommitment);
-
     /// @dev The calls represented by the commitment can only be executed once.
-    function executeWithCommitment(
-        OwnableMulticall _ICA,
-        CallLib.Call[] calldata _calls
-    ) public payable {
-        bytes32 _commitment = keccak256(abi.encode(_calls));
-        if (verifiedCommitments[_ICA] != _commitment) {
-            revert InvalidCommitment(_ICA, _commitment);
-        }
-        _ICA.multicall{value: msg.value}(_calls);
-        delete verifiedCommitments[_ICA];
+    function revealAndExecute(
+        CallLib.Call[] calldata _calls,
+        bytes32 _salt
+    ) external payable {
+        bytes32 _givenCommitment = keccak256(abi.encode(_salt, _calls));
+        OwnableMulticall ica = verifiedCommitments[_givenCommitment];
+
+        require(address(payable(ica)) != address(0), "Invalid Reveal");
+
+        delete verifiedCommitments[_givenCommitment];
+        ica.multicall{value: msg.value}(_calls);
     }
 
     // ============ Internal Functions ============
+    function _implementationBytecode(
+        address router
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                type(OwnableMulticall).creationCode,
+                abi.encode(router)
+            );
+    }
+
+    function _proxyBytecodeHash(
+        address _implementation
+    ) internal pure returns (bytes32) {
+        return keccak256(MinimalProxy.bytecode(_implementation));
+    }
 
     /**
      * @dev Required for use of Router, compiler will not include this function in the bytecode

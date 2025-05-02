@@ -7,6 +7,7 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
