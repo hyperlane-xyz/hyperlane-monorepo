@@ -18,9 +18,9 @@ type QueryDecodedIsmsResponse = {
 
 export const NoopIsmTypeUrl = '/hyperlane.core.interchain_security.v1.NoopISM';
 export const MerkleRootMultisigIsmTypeUrl =
-  '/hyperlane.core.interchain_security.v1.NoopISM';
+  '/hyperlane.core.interchain_security.v1.MerkleRootMultisigISM';
 export const MessageIdMultisigTypeUrl =
-  '/hyperlane.core.interchain_security.v1.NoopISM';
+  '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM';
 
 export const decodeIsm = (ism: any.Any | undefined): ISM => {
   switch (ism?.type_url) {
