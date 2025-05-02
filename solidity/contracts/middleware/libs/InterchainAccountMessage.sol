@@ -16,7 +16,8 @@ library InterchainAccountMessage {
 
     enum MessageType {
         CALLS,
-        COMMITMENT
+        COMMITMENT,
+        REVEAL
     }
 
     bytes32 internal constant EMPTY_SALT = bytes32(0);
@@ -149,14 +150,11 @@ library InterchainAccountMessage {
             );
     }
 
-    function decodeCommitment(
-        bytes calldata _message
-    ) internal pure returns (MessageType, bytes32, bytes32, bytes32, bytes32) {
-        return
-            abi.decode(
-                _message,
-                (MessageType, bytes32, bytes32, bytes32, bytes32)
-            );
+    function encodeReveal(
+        bytes32 _ism,
+        bytes32 _commitment
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(MessageType.REVEAL, _ism, _commitment);
     }
 
     function messageType(
@@ -175,6 +173,9 @@ library InterchainAccountMessage {
      * @return The ISM encoded in the message
      */
     function ism(bytes calldata _message) internal pure returns (bytes32) {
+        if (messageType(_message) == MessageType.REVEAL) {
+            return bytes32(_message[1:33]);
+        }
         return bytes32(_message[33:65]);
     }
 
@@ -191,6 +192,9 @@ library InterchainAccountMessage {
     function commitment(
         bytes calldata _message
     ) internal pure returns (bytes32) {
+        if (messageType(_message) == MessageType.REVEAL) {
+            return bytes32(_message[33:65]);
+        }
         return bytes32(_message[97:]);
     }
 }

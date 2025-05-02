@@ -868,9 +868,9 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
     }
 
-    function testFuzz_sendCommitment(bytes32 commitment) public {
+    function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
         // act
-        originIcaRouter.sendCommitment(
+        originIcaRouter.callRemoteCommitReveal(
             destination,
             routerOverride,
             ismOverride,
@@ -885,19 +885,24 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // assert
         // Destination ICA router should have the commitment
-        assertEq(destinationIcaRouter.verifiedCommitments(ica), commitment);
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(ica)
+        );
     }
 
-    function testFuzz_executeWithCommitment(
+    function testFuzz_revealAndExecute(
         bytes32 data,
-        uint256 value
+        uint256 value,
+        bytes32 salt
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(calls));
+        bytes32 commitment = keccak256(abi.encode(salt, calls));
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
 
         // Act
-        originIcaRouter.sendCommitment(
+        originIcaRouter.callRemoteCommitReveal(
             destination,
             routerOverride,
             ismOverride,
@@ -906,14 +911,21 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             bytes32(0),
             commitment
         );
-
-        // Process message
+        // Process commit message
         environment.processNextPendingMessage();
 
-        // Assert
-        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
-        destinationIcaRouter.executeWithCommitment(ica, calls);
-        // Destination ICA router should have the commitment after execution
-        assertEq(destinationIcaRouter.verifiedCommitments(ica), bytes32(0));
+        // Destination ICA router should have the commitment after commit message
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(ica)
+        );
+
+        // Process reveal message
+        environment.processNextPendingMessage();
+        destinationIcaRouter.revealAndExecute(calls, salt);
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(0)
+        );
     }
 }
