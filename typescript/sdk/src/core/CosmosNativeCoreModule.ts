@@ -218,7 +218,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    let transactions: AnnotatedCosmJsNativeTransaction[] = [];
+    const transactions: AnnotatedCosmJsNativeTransaction[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
