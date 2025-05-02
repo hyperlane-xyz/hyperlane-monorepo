@@ -124,7 +124,16 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadata | undefined> {
-    for (const [chain, config] of Object.entries(configMap)) {
+    // Use priority list to determine which token metadata should be used primarily
+    const priorityGetter = (type: string) => {
+      return ['collateral', 'native'].indexOf(type);
+    };
+
+    const sortedEntries = Object.entries(configMap).sort(
+      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
+    );
+
+    for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
         return TokenMetadataSchema.parse(config);
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {

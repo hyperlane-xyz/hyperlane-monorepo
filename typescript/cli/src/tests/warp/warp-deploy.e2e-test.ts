@@ -203,6 +203,101 @@ describe('hyperlane warp deploy e2e tests', async function () {
         );
       }
     });
+
+    it(`should successfully deploy a ${TokenType.collateralFiat} -> ${TokenType.collateral} warp route`, async function () {
+      const tokenFiat = await deployToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        9,
+        'USDC.e',
+        'USD Coin Fiat',
+      );
+      const token = await deployToken(
+        ANVIL_KEY,
+        CHAIN_NAME_3,
+        9,
+        'USDC',
+        'USD Coin',
+      );
+
+      const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
+        token.symbol(),
+        token.decimals(),
+      ]);
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        expectedTokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateralFiat,
+          token: tokenFiat.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      // Deploy
+      const output = hyperlaneWarpDeployRaw({
+        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions
+      // TODO:
+      //  - Check that collateral name and symbol was used
+      //  - Check type, decimals, mailbox
+
+      const expectedMetadata = {
+        decimals: expectedTokenDecimals,
+        symbol: expectedTokenSymbol,
+      };
+
+      const currentWarpDeployConfig = await readWarpConfig(
+        CHAIN_NAME_2,
+        COMBINED_WARP_CORE_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      expect(finalOutput.exitCode).to.equal(0);
+
+      expect(currentWarpDeployConfig[CHAIN_NAME_2].symbol).to.equal(
+        expectedMetadata.symbol,
+      );
+      expect(currentWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
+        expectedMetadata.symbol,
+      );
+    });
   });
 
   describe('hyperlane warp deploy --config ... --yes', () => {
