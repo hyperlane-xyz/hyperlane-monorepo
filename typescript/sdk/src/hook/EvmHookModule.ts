@@ -1186,7 +1186,7 @@ export class EvmHookModule extends HyperlaneModule<
    * - If updating a proper hook config whose types are different.
    * - If it is not a mutable Hook.
    */
-  shouldDeployNewHook(
+  private shouldDeployNewHook(
     currentConfig: HookConfig,
     targetConfig: Exclude<HookConfig, string>,
   ): boolean {
