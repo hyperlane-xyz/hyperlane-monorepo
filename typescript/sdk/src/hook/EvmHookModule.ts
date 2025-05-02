@@ -255,7 +255,18 @@ export class EvmHookModule extends HyperlaneModule<
     return updateTxs;
   }
 
-  // Recursively derives the some inner HookConfigs (e.g. domains in routing hook)
+  /**
+   *  Recursively derives the some inner HookConfigs, e.g.
+   *  hook:
+   *     type: aggregationHook
+   *     hooks:
+   *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+   *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         maxProtocolFee: "100000000000000000000"
+   *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         protocolFee: "50000000000000000"
+   *         type: protocolFee
+   */
   private async resolveHookAddresses(
     config: Exclude<HookConfig, string>,
   ): Promise<Exclude<HookConfig, string>> {
