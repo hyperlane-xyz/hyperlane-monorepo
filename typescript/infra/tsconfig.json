@@ -7,7 +7,7 @@
     "rootDir": "./",
     "noUnusedLocals": false,
     "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "moduleResolution": "nodenext"
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "include": [

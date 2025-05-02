@@ -70,9 +70,8 @@ async function main() {
         const location = storageLocations[i][storageLocations[i].length - 1];
 
         try {
-          const validatorInstance = await getValidatorFromStorageLocation(
-            location,
-          );
+          const validatorInstance =
+            await getValidatorFromStorageLocation(location);
           const metadata = await validatorInstance.getMetadata();
 
           const matchCount = publicRpcs.filter((rpc) =>
