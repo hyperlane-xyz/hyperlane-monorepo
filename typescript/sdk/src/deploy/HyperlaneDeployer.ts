@@ -663,9 +663,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
-    const TimelockZkArtifact = await getZKSyncArtifactByContractName(
-      'TimelockController',
-    );
+    const TimelockZkArtifact =
+      await getZKSyncArtifactByContractName('TimelockController');
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
