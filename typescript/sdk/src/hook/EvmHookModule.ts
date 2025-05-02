@@ -155,6 +155,8 @@ export class EvmHookModule extends HyperlaneModule<
       return Promise.resolve([]);
     }
 
+    targetConfig = HookConfigSchema.parse(targetConfig);
+
     // Do not support updating to a custom Hook address
     if (typeof targetConfig === 'string') {
       throw new Error(
@@ -162,7 +164,6 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
-    HookConfigSchema.parse(targetConfig);
     targetConfig = await this.resolveHookAddresses(targetConfig);
 
     // Update the config
