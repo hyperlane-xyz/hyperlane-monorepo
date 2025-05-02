@@ -2,8 +2,8 @@
   "chains": {
     "apechain": {
       "name": "apechain",
-      "domain": 33139,
-      "chainId": 33139,
+      "domain": 33111,
+      "chainId": 33111,
       "protocol": "ethereum",
       "rpcUrls": [
         {
@@ -11,6 +11,7 @@
         }
       ],
       "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
+      "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
         "from": 17525341
       }
@@ -26,6 +27,7 @@
         }
       ],
       "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
+      "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
          "from": 31937330
       }
