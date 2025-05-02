@@ -57,10 +57,11 @@ use crate::{
 
 const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
-pub enum EstimateType {
-    Estimation,
-    Simulation,
+#[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum EstimateFreshnessCache {
+    #[default]
+    Stale,
+    Fresh,
 }
 
 pub struct SealevelTxAdapter {
@@ -71,7 +72,7 @@ pub struct SealevelTxAdapter {
     provider: Box<dyn SealevelProviderForSubmitter>,
     oracle: Box<dyn PriorityFeeOracle>,
     submitter: Box<dyn TransactionSubmitter>,
-    estimate_type_cache: Arc<Mutex<HashMap<TransactionId, EstimateType>>>,
+    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionId, EstimateFreshnessCache>>>,
 }
 
 impl SealevelTxAdapter {
@@ -129,7 +130,7 @@ impl SealevelTxAdapter {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
         let keypair = create_keypair(&conf)?;
-        let estimate_type_cache = Arc::new(Mutex::new(HashMap::new()));
+        let estimate_freshness_cache = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(Self {
             estimated_block_time,
@@ -139,7 +140,7 @@ impl SealevelTxAdapter {
             client,
             oracle,
             submitter,
-            estimate_type_cache,
+            estimate_freshness_cache,
         })
     }
 
@@ -159,7 +160,7 @@ impl SealevelTxAdapter {
             client,
             oracle,
             submitter,
-            estimate_type_cache: Arc::new(Mutex::new(HashMap::new())),
+            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -321,15 +322,17 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        use EstimateFreshnessCache::{Fresh, Stale};
+
         info!(?tx, "estimating transaction");
         let not_estimated = tx.precursor();
         let estimated = self.estimate(not_estimated).await?;
 
         // If cache does not contain estimate type, insert Simulation type so that it can be used on the first submission
         {
-            let mut guard = self.estimate_type_cache.lock().await;
-            if guard.get(&tx.id).is_none() {
-                guard.insert(tx.id.clone(), EstimateType::Simulation);
+            let mut guard = self.estimate_freshness_cache.lock().await;
+            if guard.get(&tx.id).copied().unwrap_or_default() == Stale {
+                guard.insert(tx.id.clone(), Fresh);
             }
         };
 
@@ -339,15 +342,17 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        use EstimateFreshnessCache::{Fresh, Stale};
+
         info!(?tx, "submitting transaction");
 
         let previous = tx.precursor();
         let estimated = {
-            let mut guard = self.estimate_type_cache.lock().await;
-            match guard.get(&tx.id) {
-                Some(EstimateType::Estimation) | None => self.estimate(previous).await?,
-                Some(EstimateType::Simulation) => {
-                    guard.insert(tx.id.clone(), EstimateType::Estimation);
+            let mut guard = self.estimate_freshness_cache.lock().await;
+            match guard.get(&tx.id).copied().unwrap_or_default() {
+                Stale => self.estimate(previous).await?,
+                Fresh => {
+                    guard.insert(tx.id.clone(), Stale);
                     previous.clone()
                 }
             }
