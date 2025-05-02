@@ -50,6 +50,12 @@ pub trait AdaptsChain: Send + Sync {
     /// Queries the chain by txhash to get the tx status. Called in the Inclusion Stage and Finality Stage of the PayloadDispatcher
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
 
+    /// Return true if the transaction can be resubmitted (such as by escalating the gas price). Called in the Inclusion Stage (PayloadDispatcher).
+    /// Defaults to true, since most chains don't have special rules for tx resubmission.
+    async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool {
+        true
+    }
+
     /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
     async fn reverted_payloads(
         &self,
