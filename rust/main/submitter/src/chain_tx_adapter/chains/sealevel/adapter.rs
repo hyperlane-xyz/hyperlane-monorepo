@@ -16,6 +16,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
+use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
@@ -56,6 +57,13 @@ use crate::{
 
 const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
 
+#[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum EstimateFreshnessCache {
+    #[default]
+    Stale,
+    Fresh,
+}
+
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
@@ -64,6 +72,7 @@ pub struct SealevelTxAdapter {
     provider: Box<dyn SealevelProviderForSubmitter>,
     oracle: Box<dyn PriorityFeeOracle>,
     submitter: Box<dyn TransactionSubmitter>,
+    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionId, EstimateFreshnessCache>>>,
 }
 
 impl SealevelTxAdapter {
@@ -121,6 +130,7 @@ impl SealevelTxAdapter {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
         let keypair = create_keypair(&conf)?;
+        let estimate_freshness_cache = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(Self {
             estimated_block_time,
@@ -130,6 +140,7 @@ impl SealevelTxAdapter {
             client,
             oracle,
             submitter,
+            estimate_freshness_cache,
         })
     }
 
@@ -149,6 +160,7 @@ impl SealevelTxAdapter {
             client,
             oracle,
             submitter,
+            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -162,7 +174,7 @@ impl SealevelTxAdapter {
 
     async fn estimate(
         &self,
-        precursor: SealevelTxPrecursor,
+        precursor: &SealevelTxPrecursor,
     ) -> Result<SealevelTxPrecursor, SubmitterError> {
         let estimate = self
             .provider
@@ -173,7 +185,10 @@ impl SealevelTxAdapter {
                 &*self.oracle,
             )
             .await?;
-        Ok(SealevelTxPrecursor::new(precursor.instruction, estimate))
+        Ok(SealevelTxPrecursor::new(
+            precursor.instruction.clone(),
+            estimate,
+        ))
     }
 
     async fn create_unsigned_transaction(
@@ -267,7 +282,7 @@ impl AdaptsChain for SealevelTxAdapter {
     ) -> Result<Option<GasLimit>, SubmitterError> {
         info!(?payload, "estimating payload");
         let not_estimated = SealevelTxPrecursor::from_payload(payload);
-        let estimated = self.estimate(not_estimated).await?;
+        let estimated = self.estimate(&not_estimated).await?;
         info!(?payload, ?estimated, "estimated payload");
         Ok(Some(estimated.estimate.compute_units.into()))
     }
@@ -281,15 +296,8 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let estimated = match self.estimate(not_estimated).await {
-                Ok(estimated) => estimated,
-                Err(err) => {
-                    warn!(?err, ?payload, "failed to estimate payload");
-                    transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
-                    continue;
-                }
-            };
-            let transaction = TransactionFactory::build(payload, estimated);
+            // We are not estimating transaction here since we will estimate it just before submission
+            let transaction = TransactionFactory::build(payload, not_estimated);
             transactions.push(TxBuildingResult::new(
                 vec![payload.details.clone()],
                 Some(transaction),
@@ -313,12 +321,43 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(success)
     }
 
-    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        info!(?tx, "submitting transaction");
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        use EstimateFreshnessCache::{Fresh, Stale};
+
+        info!(?tx, "estimating transaction");
         let not_estimated = tx.precursor();
-        // TODO: the `estimate` call shouldn't happen here - the `Transaction` argument should already contain the precursor,
-        // set in the `build_transactions` method
-        let estimated = self.estimate(not_estimated.clone()).await?;
+        let estimated = self.estimate(not_estimated).await?;
+
+        // If cache does not contain estimate type, insert Simulation type so that it can be used on the first submission
+        {
+            let mut guard = self.estimate_freshness_cache.lock().await;
+            if guard.get(&tx.id).copied().unwrap_or_default() == Stale {
+                guard.insert(tx.id.clone(), Fresh);
+            }
+        };
+
+        tx.vm_specific_data = VmSpecificTxData::Svm(estimated);
+        info!(?tx, "estimated transaction");
+        Ok(())
+    }
+
+    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        use EstimateFreshnessCache::{Fresh, Stale};
+
+        info!(?tx, "submitting transaction");
+
+        let previous = tx.precursor();
+        let estimated = {
+            let mut guard = self.estimate_freshness_cache.lock().await;
+            match guard.get(&tx.id).copied().unwrap_or_default() {
+                Stale => self.estimate(previous).await?,
+                Fresh => {
+                    guard.insert(tx.id.clone(), Stale);
+                    previous.clone()
+                }
+            }
+        };
+
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
         let signature = self
             .submitter
