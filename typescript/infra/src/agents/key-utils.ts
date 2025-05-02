@@ -390,7 +390,10 @@ async function persistAddressesInGcp(
       return;
     }
   } catch (e) {
-    // If the secret doesn't exist, just ignore the error.
+    // If the secret doesn't exist, we'll create it below.
+    debugLog(
+      `No existing secret found for ${context} context in ${environment} environment`,
+    );
   }
 
   debugLog(
