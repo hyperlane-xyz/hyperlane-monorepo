@@ -1,8 +1,6 @@
 import {
   HyperlaneModuleClient,
-  MerkleRootMultisigIsmTypeUrl,
-  MessageIdMultisigTypeUrl,
-  NoopIsmTypeUrl,
+  IsmTypes,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
@@ -28,11 +26,11 @@ export class CosmosNativeIsmReader {
         });
 
       switch (ism?.type_url) {
-        case MerkleRootMultisigIsmTypeUrl:
+        case IsmTypes.MerkleRootMultisigISM:
           return this.deriveMerkleRootMultisigConfig(address);
-        case MessageIdMultisigTypeUrl:
+        case IsmTypes.MessageIdMultisigISM:
           return this.deriveMessageIdMultisigConfig(address);
-        case NoopIsmTypeUrl:
+        case IsmTypes.NoopISM:
           return this.deriveTestConfig(address);
         default:
           throw new Error(`Unknown ISM ModuleType: ${ism?.type_url}`);
