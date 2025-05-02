@@ -202,7 +202,7 @@ async function getConstructorArgsFromExplorer({
     url.searchParams.append('apikey', blockExplorerApiKey);
 
   const explorerResp = await fetch(url);
-  const creationTx = (await explorerResp.json()).result[0].txHash;
+  const creationTx = (await explorerResp.json()).result[0];
 
   // Fetch deployment bytecode (includes constructor args)
   assert(creationTx, 'Contract creation transaction not found!');
