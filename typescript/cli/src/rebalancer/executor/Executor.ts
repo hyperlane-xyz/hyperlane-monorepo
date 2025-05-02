@@ -63,39 +63,64 @@ export class Executor implements IExecutor {
     const { warpCore, chainMetadata, tokensByChainName } = this.initData;
 
     const transactions: {
-      provider: ethers.providers.Provider;
+      signer: ethers.Signer;
       populatedTx: ethers.PopulatedTransaction;
     }[] = [];
 
     for (const { fromChain, toChain, amount } of routes) {
       const originToken = tokensByChainName.get(fromChain);
+      const destinationToken = tokensByChainName.get(toChain);
 
       if (!originToken) {
         throw new Error(`Token not found for chain ${fromChain}`);
       }
 
-      const hypAdapter = originToken.getHypAdapter(warpCore.multiProvider);
+      if (!destinationToken) {
+        throw new Error(`Token not found for chain ${toChain}`);
+      }
 
-      if (!(hypAdapter instanceof EvmHypCollateralAdapter)) {
+      const originHypAdapter = originToken.getHypAdapter(
+        warpCore.multiProvider,
+      );
+
+      if (!(originHypAdapter instanceof EvmHypCollateralAdapter)) {
         throw new Error('Adapter is not an EvmHypCollateralAdapter');
       }
 
-      const hypCollateralAdapter = hypAdapter as EvmHypCollateralAdapter;
-
       const provider = warpCore.multiProvider.getEthersV5Provider(toChain);
+      const signer = new ethers.Wallet(this.rebalancerKey, provider);
+      const signerAddress = await signer.getAddress();
+      const domain = chainMetadata[toChain].domainId;
+      const bridge = this.bridges[toChain];
 
-      const populatedTx = await hypCollateralAdapter.populateRebalanceTx({
-        domain: chainMetadata[toChain].domainId,
+      if (!(await originHypAdapter.isRebalancer(signerAddress))) {
+        throw new Error(`Signer ${signerAddress} is not a rebalancer`);
+      }
+
+      if (
+        (await originHypAdapter.getAllowedDestination(domain)) !==
+        destinationToken.addressOrDenom
+      ) {
+        throw new Error(
+          `Destination ${destinationToken.addressOrDenom} for domain ${domain} is not allowed`,
+        );
+      }
+
+      if (!(await originHypAdapter.isBridgeAllowed(domain, bridge))) {
+        throw new Error(`Bridge ${bridge} for domain ${domain} is not allowed`);
+      }
+
+      const populatedTx = await originHypAdapter.populateRebalanceTx({
+        domain,
         amount,
-        bridge: this.bridges[toChain],
+        bridge,
       });
 
-      transactions.push({ provider, populatedTx });
+      transactions.push({ signer, populatedTx });
     }
 
     const results = await Promise.allSettled(
-      transactions.map(async ({ provider, populatedTx }) => {
-        const signer = new ethers.Wallet(this.rebalancerKey, provider);
+      transactions.map(async ({ signer, populatedTx }) => {
         const tx = await signer.sendTransaction(populatedTx);
         const receipt = await tx.wait();
 
