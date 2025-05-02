@@ -3645,7 +3645,8 @@
       "interchainAccountIsm": "0xa97ec3E58cBd60199dcFDd6396431BE85c2E363e",
       "interchainAccountRouter": "0xA0a44cB8Bc0f7EDe788b0Cd29524A5b14fED7b45",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "gnosisSafeTransactionServiceUrl": "https://multisign.bitlayer.org/txs/"
     },
     "coredao": {
       "blockExplorers": [
@@ -5410,7 +5411,8 @@
       "validatorAnnounce": "0xc6835e52C1b976F1ebC71Bc8919738E02849FdA9",
       "index": {
         "from": 9688791
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://txs.safe.metall2.com/"
     },
     "polynomialfi": {
       "blockExplorers": [
@@ -7114,7 +7116,7 @@
       "index": {
         "from": 612005
       },
-      "gnosisSafeTransactionServiceUrl": "https://trx-soneium-stg.safe.protofire.io"
+      "gnosisSafeTransactionServiceUrl": "https://trx-soneium.safe.protofire.io"
     },
     "sonic": {
       "blockExplorers": [
@@ -7178,7 +7180,8 @@
       "validatorAnnounce": "0x84444cE490233CFa76E3F1029bc166aa8c266907",
       "index": {
         "from": 482156
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-sonic.safe.global/"
     },
     "telos": {
       "blockExplorers": [
@@ -8303,7 +8306,8 @@
       "validatorAnnounce": "0xB2b0A80b2fa3fC9aB1564A4FaF013d4D6084B325",
       "index": {
         "from": 42656210
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ronin.safe.onchainden.com"
     },
     "sophon": {
       "blockExplorers": [
