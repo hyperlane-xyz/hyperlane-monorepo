@@ -262,32 +262,28 @@ export class EvmHookModule extends HyperlaneModule<
    * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
    */
   private async resolveHookAddresses(config: HookConfig) {
-    if (typeof config === 'string') {
-      return this.reader.deriveHookConfig(config);
-    }
+    if (typeof config === 'string') return this.reader.deriveHookConfig(config);
 
-    const deriveOrReturnHook = async (hook: HookConfig): Promise<HookConfig> =>
-      typeof hook === 'string'
-        ? this.reader.deriveHookConfig(hook)
-        : this.resolveHookAddresses(hook);
     switch (config.type) {
       case HookType.FALLBACK_ROUTING:
       case HookType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) => deriveOrReturnHook(hook)),
+          objMap(config.domains, async (_, hook) =>
+            this.resolveHookAddresses(hook),
+          ),
         );
 
         if (config.type === HookType.FALLBACK_ROUTING)
-          config.fallback = await deriveOrReturnHook(config.fallback);
+          config.fallback = await this.resolveHookAddresses(config.fallback);
         break;
       case HookType.AGGREGATION:
         config.hooks = await Promise.all(
-          config.hooks.map(async (hook) => deriveOrReturnHook(hook)),
+          config.hooks.map(async (hook) => this.resolveHookAddresses(hook)),
         );
         break;
       case HookType.AMOUNT_ROUTING:
-        config.lowerHook = await deriveOrReturnHook(config.lowerHook);
-        config.upperHook = await deriveOrReturnHook(config.upperHook);
+        config.lowerHook = await this.resolveHookAddresses(config.lowerHook);
+        config.upperHook = await this.resolveHookAddresses(config.upperHook);
         break;
     }
     return config;
