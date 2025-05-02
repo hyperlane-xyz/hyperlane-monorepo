@@ -13,9 +13,10 @@ import {
 import { Address, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { logDebug, logGreen, logRed } from '../../logger.js';
+import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
-export class Executor {
+export class Executor implements IExecutor {
   private initData?: {
     warpCore: WarpCore;
     chainMetadata: ChainMap<ChainMetadata>;
