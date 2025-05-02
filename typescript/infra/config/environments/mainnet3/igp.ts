@@ -51,7 +51,7 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = storageGasOracleConfig[origin];
-  if (origin === 'infinityvm') {
+  if (origin === 'infinityvmmainnet') {
     // For InfinityVM origin, override all remote chain gas configs to use 0 gas
     for (const remoteConfig of Object.values(oracleConfig)) {
       remoteConfig.gasPrice = '0';
@@ -59,7 +59,7 @@ function getOracleConfigWithOverrides(origin: ChainName) {
   }
   // Solana -> InfinityVM, similarly don't charge gas
   if (origin === 'solanamainnet') {
-    oracleConfig['infinityvm'].gasPrice = '0';
+    oracleConfig['infinityvmmainnet'].gasPrice = '0';
   }
 
   return oracleConfig;
