@@ -124,6 +124,14 @@ tokens:
     symbol: atom
     name: atom
     addressOrDenom: atom
+  - chainName: starknetdevnet
+    standard: StarknetHypSynthetic
+    decimals: 18
+    symbol: ETH
+    name: Ether on starknet
+    addressOrDenom: '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
 
 options:
   interchainFeeConstants:
