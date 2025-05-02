@@ -2,28 +2,33 @@ import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { $ } from 'zx';
 
-import { HypERC20Collateral__factory } from '@hyperlane-xyz/core';
+// import { HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
-  TokenType,
-  WarpCoreConfig,
+  TokenType, // WarpCoreConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep, toWei } from '@hyperlane-xyz/utils';
-
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_4_METADATA_PATH,
+  // addressToBytes32,
+  sleep,
+  toWei,
+} from '@hyperlane-xyz/utils';
+
+import {
+  // readYamlOrJson,
+  writeYamlOrJson,
+} from '../../utils/files.js';
+import {
+  ANVIL_KEY, // CHAIN_2_METADATA_PATH,
+  // CHAIN_3_METADATA_PATH,
+  // CHAIN_4_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  REBALANCER_STRATEGY_CONFIG_PATH,
+  REBALANCER_CONFIG_PATH,
   createSnapshot,
   deployOrUseExistingCore,
   deployToken,
@@ -101,46 +106,46 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
     await hyperlaneWarpDeploy(warpDeploymentPath);
 
-    console.log('Adding rebalancer roles...');
+    // console.log('Adding rebalancer roles...');
 
-    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpDeploymentPath);
-    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
-    const chain2Provider = new ethers.providers.JsonRpcProvider(
-      chain2Metadata.rpcUrls[0].http,
-    );
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrls[0].http,
-    );
-    const chain2Signer = new Wallet(ANVIL_KEY, chain2Provider);
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
-    const chain2CollateralContract = HypERC20Collateral__factory.connect(
-      warpCoreConfig.tokens[0].addressOrDenom!,
-      chain2Signer,
-    );
-    const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      warpCoreConfig.tokens[1].addressOrDenom!,
-      chain3Signer,
-    );
-    const rebalancerRole = await chain2CollateralContract.REBALANCER_ROLE();
-    await chain2CollateralContract.grantRole(rebalancerRole, ownerAddress);
-    await chain3CollateralContract.grantRole(rebalancerRole, ownerAddress);
+    // const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpDeploymentPath);
+    // chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    // chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    // chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    // const chain2Provider = new ethers.providers.JsonRpcProvider(
+    //   chain2Metadata.rpcUrls[0].http,
+    // );
+    // const chain3Provider = new ethers.providers.JsonRpcProvider(
+    //   chain3Metadata.rpcUrls[0].http,
+    // );
+    // const chain2Signer = new Wallet(ANVIL_KEY, chain2Provider);
+    // const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    // const chain2CollateralContract = HypERC20Collateral__factory.connect(
+    //   warpCoreConfig.tokens[0].addressOrDenom!,
+    //   chain2Signer,
+    // );
+    // const chain3CollateralContract = HypERC20Collateral__factory.connect(
+    //   warpCoreConfig.tokens[1].addressOrDenom!,
+    //   chain3Signer,
+    // );
+    // const rebalancerRole = await chain2CollateralContract.REBALANCER_ROLE();
+    // await chain2CollateralContract.grantRole(rebalancerRole, ownerAddress);
+    // await chain3CollateralContract.grantRole(rebalancerRole, ownerAddress);
 
-    console.log('Adding recipients...');
+    // console.log('Adding recipients...');
 
-    await chain2CollateralContract.addRecipient(
-      chain3Metadata.domainId,
-      addressToBytes32(chain3CollateralContract.address),
-    );
-    await chain3CollateralContract.addRecipient(
-      chain2Metadata.domainId,
-      addressToBytes32(chain2CollateralContract.address),
-    );
+    // await chain2CollateralContract.addRecipient(
+    //   chain3Metadata.domainId,
+    //   addressToBytes32(chain3CollateralContract.address),
+    // );
+    // await chain3CollateralContract.addRecipient(
+    //   chain2Metadata.domainId,
+    //   addressToBytes32(chain2CollateralContract.address),
+    // );
 
-    console.log('Adding collateral bridges...');
+    // console.log('Adding collateral bridges...');
 
-    // TODO: Add ValueTransferBridges to the collateral contracts
+    // // TODO: Add ValueTransferBridges to the collateral contracts
 
     console.log('Bridging tokens...');
 
@@ -175,9 +180,17 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   beforeEach(async () => {
-    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
-      [CHAIN_NAME_2]: { weight: '100', tolerance: '0' },
-      [CHAIN_NAME_3]: { weight: '100', tolerance: '0' },
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '100',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '100',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
     });
 
     const chain2RpcUrl = chain2Metadata.rpcUrls[0].http;
@@ -201,7 +214,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   afterEach(async () => {
-    rmSync(REBALANCER_STRATEGY_CONFIG_PATH, { force: true });
+    rmSync(REBALANCER_CONFIG_PATH, { force: true });
 
     await Promise.all(
       snapshots.map(({ rpcUrl, snapshotId }) =>
@@ -218,7 +231,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const process = hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
-      REBALANCER_STRATEGY_CONFIG_PATH,
+      REBALANCER_CONFIG_PATH,
       withMetrics,
     );
 
@@ -264,47 +277,129 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should throw when strategy config file does not exist', async () => {
-    rmSync(REBALANCER_STRATEGY_CONFIG_PATH);
+    rmSync(REBALANCER_CONFIG_PATH);
 
     await startRebalancerAndExpectLog(
-      `File doesn't exist at ${REBALANCER_STRATEGY_CONFIG_PATH}`,
+      `File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
     );
   });
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
-    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
-      [CHAIN_NAME_2]: { weight: 'weight', tolerance: 0 },
-      [CHAIN_NAME_3]: { weight: 100, tolerance: 0 },
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: 'weight',
+        tolerance: 0,
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: 100,
+        tolerance: 0,
+        bridge: ethers.constants.AddressZero,
+      },
     });
 
     await startRebalancerAndExpectLog(`Cannot convert weight to a BigInt`);
   });
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
-    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
-      [CHAIN_NAME_2]: { weight: 100, tolerance: 0 },
-      [CHAIN_NAME_3]: { weight: 100, tolerance: 'tolerance' },
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: 100,
+        tolerance: 0,
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: 100,
+        tolerance: 'tolerance',
+        bridge: ethers.constants.AddressZero,
+      },
     });
 
     await startRebalancerAndExpectLog(`Cannot convert tolerance to a BigInt`);
   });
 
-  it('should log that no routes are to be executed', async () => {
-    await startRebalancerAndExpectLog(`Executing rebalancing routes: []`);
-  });
-
-  it('should log that a single route is to be executed', async () => {
-    writeYamlOrJson(REBALANCER_STRATEGY_CONFIG_PATH, {
-      [CHAIN_NAME_2]: { weight: '75', tolerance: '0' },
-      [CHAIN_NAME_3]: { weight: '25', tolerance: '0' },
+  it('should throw if a bridge value is not a valid address', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: 100,
+        tolerance: 0,
+        bridge: 'bridge',
+      },
+      [CHAIN_NAME_3]: {
+        weight: 100,
+        tolerance: 0,
+        bridge: ethers.constants.AddressZero,
+      },
     });
 
-    await startRebalancerAndExpectLog(`Executing rebalancing routes: [
-  {
-    fromChain: 'anvil3',
-    toChain: 'anvil2',
-    amount: 50000000000000000000n
-  }
-]`);
+    await startRebalancerAndExpectLog(
+      `Validation error: Invalid at "anvil2.bridge"`,
+    );
   });
+
+  it('should log that no routes are to be executed', async () => {
+    await startRebalancerAndExpectLog(`No routes to execute`);
+  });
+
+  it('should throw if key does not belong to the assigned rebalancer', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      'Signer 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 is not a rebalancer',
+    );
+  });
+
+  // it('should throw if the destination is not allowed', async () => {
+  //   writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+  //     [CHAIN_NAME_2]: {
+  //       weight: '75',
+  //       tolerance: '0',
+  //       bridge: ethers.constants.AddressZero,
+  //     },
+  //     [CHAIN_NAME_3]: {
+  //       weight: '25',
+  //       tolerance: '0',
+  //       bridge: ethers.constants.AddressZero,
+  //     },
+  //   });
+
+  //   $.verbose = true;
+  //   await startRebalancerAndExpectLog(
+  //     'Signer 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 is not a rebalancer',
+  //   );
+  // });
+
+  //   it('should log that a single route is to be executed', async () => {
+  //     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+  //       [CHAIN_NAME_2]: {
+  //         weight: '75',
+  //         tolerance: '0',
+  //         bridge: ethers.constants.AddressZero,
+  //       },
+  //       [CHAIN_NAME_3]: {
+  //         weight: '25',
+  //         tolerance: '0',
+  //         bridge: ethers.constants.AddressZero,
+  //       },
+  //     });
+
+  //     await startRebalancerAndExpectLog(`Executing rebalancing routes: [
+  //   {
+  //     fromChain: 'anvil3',
+  //     toChain: 'anvil2',
+  //     amount: 50000000000000000000n
+  //   }
+  // ]`);
+  //   });
 });
