@@ -366,7 +366,16 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    if (account.address !== icas[chain as keyof typeof icas]) {
+    let accountConfig = this.interchainAccount.knownAccounts[account.address];
+    if (account.address === icas[chain as keyof typeof icas]) {
+      const origin = 'ethereum';
+      accountConfig = {
+        origin,
+        owner: safes[origin],
+      };
+    }
+
+    if (!accountConfig) {
       console.info(
         chalk.gray(
           `Account ${account.address} is not a known ICA. Defaulting to manual submission.`,
@@ -379,11 +388,8 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    const origin = 'ethereum';
-    const accountConfig = {
-      origin,
-      owner: safes[origin],
-    };
+    // WARNING: origin is a reserved word in TypeScript
+    const origin = accountConfig.origin;
 
     console.info(
       chalk.gray(

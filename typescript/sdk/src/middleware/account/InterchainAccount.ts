@@ -26,11 +26,14 @@ import {
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
+  knownAccounts: Record<Address, AccountConfig | undefined>;
+
   constructor(
     contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+    this.knownAccounts = {};
   }
 
   override async remoteChains(chainName: string): Promise<ChainName[]> {
@@ -161,6 +164,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Interchain account recovered at ${destinationAccount}`,
       );
     }
+
+    this.knownAccounts[destinationAccount] = config;
+
     return destinationAccount;
   }
 
