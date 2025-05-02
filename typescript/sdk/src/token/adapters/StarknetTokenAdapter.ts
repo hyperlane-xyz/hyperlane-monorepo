@@ -231,10 +231,12 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     );
     const nativeAddress =
       multiProvider.getChainMetadata(chainName)?.nativeToken?.denom;
-    assert(nativeAddress, `Native address not found for chain ${chainName}`);
-    this.nativeContract = getStarknetEtherContract(
+    const tokenAddress =
       nativeAddress ??
-        PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!.denom,
+      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!.denom;
+    assert(tokenAddress, `Native address not found for chain ${chainName}`);
+    this.nativeContract = getStarknetEtherContract(
+      tokenAddress,
       multiProvider.getStarknetProvider(chainName),
     );
   }
