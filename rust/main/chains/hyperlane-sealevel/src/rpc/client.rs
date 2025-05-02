@@ -96,10 +96,14 @@ impl SealevelRpcClient {
         Ok(balance.into())
     }
 
-    /// get block
-    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+    /// get block with commitment
+    pub async fn get_block_with_commitment(
+        &self,
+        slot: u64,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<UiConfirmedBlock> {
         let config = RpcBlockConfig {
-            commitment: Some(CommitmentConfig::finalized()),
+            commitment: Some(commitment),
             max_supported_transaction_version: Some(0),
             ..Default::default()
         };
@@ -109,6 +113,12 @@ impl SealevelRpcClient {
             .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
+    }
+
+    /// get block
+    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.get_block_with_commitment(slot, CommitmentConfig::finalized())
+            .await
     }
 
     /// get block_height
@@ -199,13 +209,14 @@ impl SealevelRpcClient {
     }
 
     /// get transaction
-    pub async fn get_transaction(
+    pub async fn get_transaction_with_commitment(
         &self,
         signature: &Signature,
+        commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::JsonParsed),
-            commitment: Some(CommitmentConfig::finalized()),
+            commitment: Some(commitment),
             max_supported_transaction_version: Some(0),
         };
         self.0
@@ -214,6 +225,15 @@ impl SealevelRpcClient {
             .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
+    }
+
+    /// get transaction
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
     }
 
     /// check if block hash is valid
