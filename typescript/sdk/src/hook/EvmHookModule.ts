@@ -35,7 +35,6 @@ import {
   ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
-  assert,
   deepEquals,
   eqAddress,
   objMap,
@@ -156,15 +155,15 @@ export class EvmHookModule extends HyperlaneModule<
       return Promise.resolve([]);
     }
 
-    targetConfig = HookConfigSchema.parse(targetConfig);
-    targetConfig = await this.expandInnerHookAddresses(targetConfig);
-
     // Do not support updating to a custom Hook address
     if (typeof targetConfig === 'string') {
       throw new Error(
         'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
       );
     }
+
+    HookConfigSchema.parse(targetConfig);
+    targetConfig = await this.resolveHookAddresses(targetConfig);
 
     // Update the config
     this.args.config = targetConfig;
@@ -255,13 +254,14 @@ export class EvmHookModule extends HyperlaneModule<
     return updateTxs;
   }
 
-  //  Derives the configs in some HookConfigs that has inner hooks (e.g. domains in routing hook),
-  private async expandInnerHookAddresses(
-    config: HookConfig,
-  ): Promise<HookConfig> {
-    assert(typeof config !== 'string', 'Cannot expand string configs');
+  // Recursively derives the some inner HookConfigs (e.g. domains in routing hook)
+  private async resolveHookAddresses(
+    config: Exclude<HookConfig, string>,
+  ): Promise<Exclude<HookConfig, string>> {
     const deriveOrReturnHook = async (hook: HookConfig) =>
-      typeof hook === 'string' ? this.reader.deriveHookConfig(hook) : hook;
+      typeof hook === 'string'
+        ? this.reader.deriveHookConfig(hook)
+        : this.resolveHookAddresses(hook);
 
     switch (config.type) {
       case HookType.FALLBACK_ROUTING:
