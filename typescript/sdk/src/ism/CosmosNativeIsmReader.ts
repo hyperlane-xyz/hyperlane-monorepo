@@ -3,6 +3,7 @@ import {
   IsmTypes,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
+import { isTypes } from '@hyperlane-xyz/cosmos-types';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DerivedIsmConfig, IsmType, MultisigIsmConfig } from './types.js';
@@ -45,46 +46,36 @@ export class CosmosNativeIsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
     const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm({
-        id: address,
-      });
+      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
+        {
+          id: address,
+        },
+      );
 
-    // perform type narrowing
-    if ('validators' in ism && 'threshold' in ism) {
-      return {
-        type: IsmType.MERKLE_ROOT_MULTISIG,
-        address,
-        validators: ism.validators,
-        threshold: ism.threshold,
-      };
-    }
-
-    throw new Error(
-      `found no validators and threshold in MERKLE_ROOT_MULTISIG ISM: ${address}`,
-    );
+    return {
+      type: IsmType.MERKLE_ROOT_MULTISIG,
+      address,
+      validators: ism.validators,
+      threshold: ism.threshold,
+    };
   }
 
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<DerivedIsmConfig> {
     const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm({
-        id: address,
-      });
+      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
+        {
+          id: address,
+        },
+      );
 
-    // perform type narrowing
-    if ('validators' in ism && 'threshold' in ism) {
-      return {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        address,
-        validators: ism.validators,
-        threshold: ism.threshold,
-      };
-    }
-
-    throw new Error(
-      `found no validators and threshold in MESSAGE_ID_MULTISIG ISM: ${address}`,
-    );
+    return {
+      type: IsmType.MESSAGE_ID_MULTISIG,
+      address,
+      validators: ism.validators,
+      threshold: ism.threshold,
+    };
   }
 
   private async deriveTestConfig(address: Address): Promise<DerivedIsmConfig> {

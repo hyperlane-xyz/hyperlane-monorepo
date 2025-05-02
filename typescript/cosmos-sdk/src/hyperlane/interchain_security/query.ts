@@ -7,12 +7,12 @@ type ISM =
   | isTypes.MerkleRootMultisigISM
   | isTypes.MessageIdMultisigISM;
 
-type QueryDecodedIsmResponse = {
-  ism: ISM;
+type QueryDecodedIsmResponse<T> = {
+  ism: T;
 };
 
-type QueryDecodedIsmsResponse = {
-  isms: ISM[];
+type QueryDecodedIsmsResponse<T> = {
+  isms: T[];
   pagination: pagination.PageResponse | undefined;
 };
 
@@ -54,13 +54,13 @@ export interface InterchainSecurityExtension {
       req: isQuery.QueryIsmRequest,
     ) => Promise<isQuery.QueryIsmResponse>;
     /** DecodedIsms ... */
-    readonly DecodedIsms: (
+    readonly DecodedIsms: <T = ISM>(
       req: isQuery.QueryIsmsRequest,
-    ) => Promise<QueryDecodedIsmsResponse>;
+    ) => Promise<QueryDecodedIsmsResponse<T>>;
     /** DecodedIsm ... */
-    readonly DecodedIsm: (
+    readonly DecodedIsm: <T = ISM>(
       req: isQuery.QueryIsmRequest,
-    ) => Promise<QueryDecodedIsmResponse>;
+    ) => Promise<QueryDecodedIsmResponse<T>>;
   };
 }
 
@@ -82,16 +82,16 @@ export function setupInterchainSecurityExtension(
       ) => queryService.LatestAnnouncedStorageLocation(req),
       Isms: async (req: isQuery.QueryIsmsRequest) => queryService.Isms(req),
       Ism: async (req: isQuery.QueryIsmRequest) => queryService.Ism(req),
-      DecodedIsms: async (req: isQuery.QueryIsmsRequest) => {
+      DecodedIsms: async <T>(req: isQuery.QueryIsmsRequest) => {
         const { isms, pagination } = await queryService.Isms(req);
         return {
-          isms: isms.map((ism) => decodeIsm(ism)),
+          isms: isms.map((ism) => decodeIsm(ism) as T),
           pagination,
         };
       },
-      DecodedIsm: async (req: isQuery.QueryIsmRequest) => {
+      DecodedIsm: async <T>(req: isQuery.QueryIsmRequest) => {
         const { ism } = await queryService.Ism(req);
-        return { ism: decodeIsm(ism) };
+        return { ism: decodeIsm(ism) as T };
       },
     },
   };
