@@ -52,26 +52,6 @@ class CCTPService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPNonceFromMessage(message: any): Promise<bigint> {
-    const NONCE_INDEX = 12;
-    const nonceByteArray = ethers.utils.hexDataSlice(
-      message,
-      NONCE_INDEX,
-      NONCE_INDEX + 8,
-    );
-    return ethers.BigNumber.from(nonceByteArray).toBigInt();
-  }
-
-  async getSourceDomainFromMessage(message: string): Promise<number> {
-    const SOURCE_DOMAIN_INDEX = 4;
-    const sourceDomainByteArray = ethers.utils.hexDataSlice(
-      message,
-      SOURCE_DOMAIN_INDEX,
-      SOURCE_DOMAIN_INDEX + 4,
-    );
-    return ethers.BigNumber.from(sourceDomainByteArray).toNumber();
-  }
-
   async getCCTPAttestation([message]: ethers.utils.Result): Promise<
     Array<any>
   > {
@@ -85,25 +65,20 @@ class CCTPService {
       throw new Error(`Invalid transaction hash: ${txHash}`);
     }
 
-    // const txHash = message as string;
-
     console.info('Found tx @', txHash);
 
     const receipt = await this.rpcService.provider.getTransactionReceipt(
       txHash,
     );
 
-    const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
+    let cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 
-    const messageHash = ethers.utils.keccak256(cctpMessage);
-    const attestation = await this.cctpAttestationService.getAttestationV1(
-      messageHash,
-    );
+    const [relayedCctpMessage, attestation] =
+      await this.cctpAttestationService.getAttestation(cctpMessage, txHash);
 
-    console.log('messageHash', messageHash);
-    console.log('cctpMessage', cctpMessage);
+    console.log('cctpMessage', relayedCctpMessage);
     console.log('attestation', attestation);
-    return [cctpMessage, attestation];
+    return [relayedCctpMessage, attestation];
   }
 }
 

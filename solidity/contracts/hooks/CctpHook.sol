@@ -6,6 +6,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {TokenMessage} from "../token/libs/TokenRouter.sol";
 import {TokenMessage} from "../token/libs/TokenMessage.sol";
 import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
+import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractPostDispatchHook.sol";
@@ -14,6 +15,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract CctpHook is AbstractPostDispatchHook, Ownable {
     using Message for bytes;
+
+    uint256 internal constant CCTP_V2_DEFAULT_MAX_FEE = 0;
+    // @dev the minimum to consider it a Standard CCTP transfer
+    // see https://developers.circle.com/stablecoins/transfer-usdc-on-testnet-from-ethereum-to-avalanche
+    uint32 internal constant CCTP_V2_DEFAULT_MIN_FINALITY_THRESHOLD = 2000;
 
     // we keep the token messenger here in order to
     // provide the right quote
@@ -96,7 +102,27 @@ contract CctpHook is AbstractPostDispatchHook, Ownable {
         ];
 
         bytes32 recipient = message.recipient();
-        tokenMessenger.depositForBurn(amount, circleDomain, recipient, token);
+
+        if (tokenMessenger.messageBodyVersion() == 0) {
+            // CCTP v1
+            tokenMessenger.depositForBurn(
+                amount,
+                circleDomain,
+                recipient,
+                token
+            );
+        } else if (tokenMessenger.messageBodyVersion() == 1) {
+            // CCTP v2
+            ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
+                amount,
+                circleDomain,
+                recipient,
+                token,
+                bytes32(0),
+                CCTP_V2_DEFAULT_MAX_FEE,
+                CCTP_V2_DEFAULT_MIN_FINALITY_THRESHOLD
+            );
+        }
 
         uint256 fees = igp.quoteDispatch(metadata, message);
         igp.postDispatch{value: fees}(metadata, message);
