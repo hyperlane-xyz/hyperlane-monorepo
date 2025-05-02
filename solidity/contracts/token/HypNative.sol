@@ -7,8 +7,6 @@ import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title Hyperlane Native Token Router that extends ERC20 with remote transfer functionality.
@@ -123,7 +121,8 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         uint256 amount,
         ValueTransferBridge bridge
     ) internal override {
-        bridge.transferRemote{value: amount}({
+        uint fee = msg.value;
+        bridge.transferRemote{value: fee + amount}({
             destinationDomain: domain,
             recipient: recipient,
             amountOut: amount
