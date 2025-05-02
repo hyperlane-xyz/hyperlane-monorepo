@@ -199,9 +199,9 @@ pub struct CoreContractAddresses {
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: H256,
     /// Address of the ValidatorAnnounce contract
-    pub validator_announce: H256,
+    pub validator_announce: Option<H256>,
     /// Address of the MerkleTreeHook contract
-    pub merkle_tree_hook: H256,
+    pub merkle_tree_hook: Option<H256>,
 }
 
 /// Indexing settings
