@@ -292,7 +292,7 @@ contract InterchainAccountRouter is Router {
             require(
                 verifiedCommitments[_message.commitment()] !=
                     OwnableMulticall(payable(address(0))),
-                "Commitment ewas not executed"
+                "Commitment was not executed"
             );
             return;
         }
