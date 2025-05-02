@@ -156,14 +156,6 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
-
-    // Do not support updating to a custom Hook address
-    if (typeof targetConfig === 'string') {
-      throw new Error(
-        'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
-      );
-    }
-
     targetConfig = await this.resolveHookAddresses(targetConfig);
 
     // Update the config
@@ -256,7 +248,7 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   /**
-   *  Recursively derives the some inner HookConfigs, e.g.
+   *  Recursively resolves the HookConfigs as addresses, e.g.
    *  hook:
    *     type: aggregationHook
    *     hooks:
@@ -266,15 +258,18 @@ export class EvmHookModule extends HyperlaneModule<
    *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
    *         protocolFee: "50000000000000000"
    *         type: protocolFee
+   *
+   * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
    */
-  private async resolveHookAddresses(
-    config: Exclude<HookConfig, string>,
-  ): Promise<Exclude<HookConfig, string>> {
-    const deriveOrReturnHook = async (hook: HookConfig) =>
+  private async resolveHookAddresses(config: HookConfig) {
+    if (typeof config === 'string') {
+      return this.reader.deriveHookConfig(config);
+    }
+
+    const deriveOrReturnHook = async (hook: HookConfig): Promise<HookConfig> =>
       typeof hook === 'string'
         ? this.reader.deriveHookConfig(hook)
         : this.resolveHookAddresses(hook);
-
     switch (config.type) {
       case HookType.FALLBACK_ROUTING:
       case HookType.ROUTING:
