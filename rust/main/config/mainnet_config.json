@@ -188,7 +188,13 @@
       "proxyAdmin": "0xd7CF8c05fd81b8cA7CfF8E6C49B08a9D63265c9B",
       "rpcUrls": [
         {
-          "http": "https://rpc.ankr.com/avalanche"
+          "http": "https://avalanche.drpc.org"
+        },
+        {
+          "http": "https://1rpc.io/avax/c"
+        },
+        {
+          "http": "https://avalanche-c-chain-rpc.publicnode.com"
         },
         {
           "http": "https://api.avax.network/ext/bc/C/rpc",
