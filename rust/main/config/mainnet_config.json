@@ -9111,7 +9111,7 @@
           "http": "https://rpc.mainnet.fluence.dev"
         }
       ],
-      "technicalStack": "other",
+      "technicalStack": "arbitrumnitro",
       "aggregationHook": "0xc9f884BE8748eEbB7Fe8b54EbA3866fF831CF0D4",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -9138,7 +9138,7 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x7B8AA8f23Ab6B0757eC6FC71894211376D9335b0",
       "index": {
-        "from": 22389971
+        "from": 10997212
       }
     },
     "game7": {
