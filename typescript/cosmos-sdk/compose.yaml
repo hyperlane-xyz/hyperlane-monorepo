@@ -1,6 +1,7 @@
 services:
   hyperlane-cosmos-simapp:
-    image: gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:v1.0.0
+    # image: gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:v1.0.0
+    build: .
     ports:
       - 26657:26657
       - 1317:1317
