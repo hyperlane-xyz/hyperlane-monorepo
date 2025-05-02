@@ -115,6 +115,12 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
+    /// get block
+    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        self.get_block_with_commitment(slot, CommitmentConfig::finalized())
+            .await
+    }
+
     /// get block_height
     pub async fn get_block_height(&self) -> ChainResult<u64> {
         self.0
@@ -219,6 +225,15 @@ impl SealevelRpcClient {
             .map_err(Box::new)
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
+    }
+
+    /// get transaction
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        self.get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
     }
 
     /// check if block hash is valid
