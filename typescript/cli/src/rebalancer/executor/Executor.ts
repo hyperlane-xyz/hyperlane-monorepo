@@ -93,8 +93,6 @@ export class Executor implements IExecutor {
       transactions.push({ provider, populatedTx });
     }
 
-    console.log('bar');
-
     const results = await Promise.allSettled(
       transactions.map(async ({ provider, populatedTx }) => {
         const signer = new ethers.Wallet(this.rebalancerKey, provider);
@@ -104,8 +102,6 @@ export class Executor implements IExecutor {
         return receipt;
       }),
     );
-
-    console.log('foo');
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
