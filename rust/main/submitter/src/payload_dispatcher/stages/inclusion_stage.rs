@@ -337,6 +337,8 @@ mod tests {
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
 
+        mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
+
         mock_adapter.expect_submit().returning(|_| Ok(()));
 
         let (txs_created, txs_received, tx_db, payload_db, pool) =
@@ -354,7 +356,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_failed_simulation() {
         const TXS_TO_PROCESS: usize = 3;
 
@@ -368,6 +369,10 @@ mod tests {
             .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
+
+        mock_adapter
+            .expect_estimate_tx()
+            .returning(|_| Err(SubmitterError::SimulationFailed));
 
         let (txs_created, txs_received, tx_db, payload_db, pool) =
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
