@@ -7846,7 +7846,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:12.4.0"
-    "@hyperlane-xyz/registry": "npm:13.12.0"
+    "@hyperlane-xyz/registry": "npm:11.1.0"
     "@hyperlane-xyz/sdk": "npm:13.0.0-starknet-1"
     "@hyperlane-xyz/utils": "npm:13.0.0-starknet-1"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7909,6 +7909,16 @@ __metadata:
     tsx: "npm:^4.19.1"
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/registry@npm:11.1.0":
+  version: 11.1.0
+  resolution: "@hyperlane-xyz/registry@npm:11.1.0"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 10/4acb717a1f2d5b2c93237be6cd24406ae6f52eb86a4e5246eee919d5f95866ebdb7d4ce0fff2b193f6f4e29da2bcbe48e525ac958afaaa523e8260863069295d
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/registry@npm:13.12.0":
   version: 13.12.0
