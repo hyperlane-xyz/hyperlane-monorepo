@@ -73,7 +73,7 @@ async function main() {
       Object.entries(agentConfig.validators.chains)
         .filter(([validatorChain, _]) => {
           // Ensure we skip lumia, as we don't have the addresses in registry.
-          if (validatorChain === 'lumia') {
+          if (validatorChain === 'lumia' || validatorChain === 'ontology') {
             return false;
           }
 

@@ -32,7 +32,7 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   }
 
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
-  if (remote === 'moonbeam' || remote === 'torus') {
+  if (remote === 'moonbeam' || remote === 'torus' || remote === 'fluence') {
     overhead *= 4;
   }
   // ZkSync gas usage is different from the EVM and tends to give high
@@ -46,6 +46,7 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
       overhead *= 3;
     }
   }
+
   return overhead;
 }
 
