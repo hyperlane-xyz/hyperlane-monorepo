@@ -156,7 +156,7 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         // and hardcode a gas value - this can be inefficient if one ISM is
         // vastly cheaper than another one.
         let dummy_gas_value = U256::one();
-        Ok(dummy_gas_value)
+        Ok(Some(dummy_gas_value))
     }
 }
 
