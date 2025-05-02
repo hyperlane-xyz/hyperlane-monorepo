@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap, objMerge } from '@hyperlane-xyz/utils';
 
-import { logDebug, logGreen, logRed } from '../../logger.js';
+import { log, logDebug, logGreen, logRed } from '../../logger.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -54,6 +54,12 @@ export class Executor implements IExecutor {
       throw new Error('Executor not initialized');
     }
 
+    if (routes.length === 0) {
+      log('No routes to execute');
+
+      return;
+    }
+
     const { warpCore, chainMetadata, tokensByChainName } = this.initData;
 
     const transactions: {
@@ -87,6 +93,8 @@ export class Executor implements IExecutor {
       transactions.push({ provider, populatedTx });
     }
 
+    console.log('bar');
+
     const results = await Promise.allSettled(
       transactions.map(async ({ provider, populatedTx }) => {
         const signer = new ethers.Wallet(this.rebalancerKey, provider);
@@ -96,6 +104,8 @@ export class Executor implements IExecutor {
         return receipt;
       }),
     );
+
+    console.log('foo');
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
@@ -107,10 +117,10 @@ export class Executor implements IExecutor {
 
       if (result.status === 'fulfilled') {
         logGreen(`✅ Rebalance successful`);
-        logDebug(JSON.stringify(result.value, null, 2));
+        log(JSON.stringify(result.value, null, 2));
       } else {
         logRed(`❌ Rebalance failed`);
-        logDebug(
+        log(
           result.reason instanceof Error
             ? result.reason.message
             : result.reason,
