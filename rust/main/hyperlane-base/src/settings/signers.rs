@@ -173,7 +173,7 @@ impl BuildableWithSignerConf for hyperlane_sovereign::Signer {
         if let SignerConf::HexKey { key } = conf {
             Ok(hyperlane_sovereign::Signer::new(key)?)
         } else {
-            bail!(format!("{conf:?} key is not supported by Sovereign"));
+            bail!("{conf:?} key is not supported by Sovereign");
         }
     }
 }
