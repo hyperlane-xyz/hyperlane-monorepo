@@ -10,7 +10,7 @@ import {
   WarpCoreConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { sleep, toWei } from '@hyperlane-xyz/utils';
+import { addressToBytes32, sleep, toWei } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -106,21 +106,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
-
-    // console.log('Adding recipients...');
-
-    // await chain2CollateralContract.addRecipient(
-    //   chain3Metadata.domainId,
-    //   addressToBytes32(chain3CollateralContract.address),
-    // );
-    // await chain3CollateralContract.addRecipient(
-    //   chain2Metadata.domainId,
-    //   addressToBytes32(chain2CollateralContract.address),
-    // );
-
-    // console.log('Adding collateral bridges...');
-
-    // // TODO: Add ValueTransferBridges to the collateral contracts
 
     console.log('Bridging tokens...');
 
@@ -366,6 +351,46 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     await startRebalancerAndExpectLog(
       'Destination 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 for domain 31338 is not allowed',
+    );
+  });
+
+  it('should throw if the bridge is not allowed', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    // Assign rebalancer role
+    const chain3Provider = new ethers.providers.JsonRpcProvider(
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3CollateralContract = HypERC20Collateral__factory.connect(
+      warpCoreConfig.tokens[1].addressOrDenom!,
+      chain3Signer,
+    );
+    const rebalancerRole = await chain3CollateralContract.REBALANCER_ROLE();
+    await chain3CollateralContract.grantRole(
+      rebalancerRole,
+      chain3Signer.address,
+    );
+
+    // Allow destination
+    await chain3CollateralContract.addRecipient(
+      chain2Metadata.domainId,
+      addressToBytes32(warpCoreConfig.tokens[0].addressOrDenom!),
+    );
+
+    await startRebalancerAndExpectLog(
+      'Bridge 0x0000000000000000000000000000000000000000 for domain 31338 is not allowed',
     );
   });
 });
