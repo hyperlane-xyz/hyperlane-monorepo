@@ -180,6 +180,13 @@ abstract contract TokenRouter is GasRouter {
     function quoteGasPayment(
         uint32 _destinationDomain
     ) external view override returns (uint256) {
+        return _quoteGasPayment(_destinationDomain);
+    }
+
+    /// @dev Lets derived contracts access the quote
+    function _quoteGasPayment(
+        uint32 _destinationDomain
+    ) internal view virtual override returns (uint256) {
         return
             _GasRouter_quoteDispatch(
                 _destinationDomain,
