@@ -70,24 +70,31 @@ contract CctpIsm is AbstractCcipReadIsm {
         return true;
     }
 
+    function _getNonceByCctpMessageVersion(
+        bytes29 cctpMessage,
+        uint32 cctpVersion
+    ) internal pure returns (bytes32 nonce) {
+        if (cctpVersion > 1) revert UnsupportedCCTPVersion(cctpVersion);
+
+        if (cctpVersion == 0) {
+            // CCTP v1
+            uint64 nonceV1 = cctpMessage._getNonceV1();
+            uint32 sourceDomain = cctpMessage._getSourceDomain();
+            nonce = keccak256(abi.encodePacked(sourceDomain, nonceV1));
+        } else {
+            // CCTP v2
+            nonce = cctpMessage._getNonce();
+        }
+    }
+
     function _isMessageReceived(
         bytes memory cctpMessage
-    ) internal returns (bool isNonceUsed) {
+    ) internal returns (bool) {
         bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
         uint32 version = originalMsg._getVersion();
-        if (version == 0) {
-            // CCTP v1 message
-            uint64 nonce = originalMsg._getNonceV1();
-            uint32 source = originalMsg._getSourceDomain();
-            bytes32 hash = keccak256(abi.encodePacked(source, nonce));
 
-            isNonceUsed = messageTransmitter.usedNonces(hash) != 0;
-        } else if (version == 1) {
-            // CCTP v2 message
-            bytes32 nonce = originalMsg._getNonce();
-            isNonceUsed = messageTransmitter.usedNonces(nonce) != 0;
-        } else {
-            revert UnsupportedCCTPVersion(version);
-        }
+        bytes32 nonce = _getNonceByCctpMessageVersion(originalMsg, version);
+
+        return messageTransmitter.usedNonces(nonce) != 0;
     }
 }
