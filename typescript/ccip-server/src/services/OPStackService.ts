@@ -1,3 +1,4 @@
+import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
 import {
   CoreCrossChainMessage,
   CrossChainMessenger,
@@ -57,7 +58,9 @@ class OPStackService {
     return this.crossChainMessenger.toLowLevelMessage(resolved);
   }
 
-  async getWithdrawalAndProofFromMessage(message: BytesLike): Promise<any> {
+  async getWithdrawalAndProofFromMessage(
+    message: BytesLike,
+  ): Promise<[CoreCrossChainMessage, BedrockCrossChainMessageProof]> {
     const messageId: string = ethers.utils.keccak256(message);
     console.log(`Getting withdrawal and proof for ${messageId}`);
 
@@ -87,9 +90,7 @@ class OPStackService {
    * @param transactionHash Transaction containing the MessagePassed event
    * @returns The encoded
    */
-  async getWithdrawalProof([message]: ethers.utils.Result): Promise<
-    Array<any>
-  > {
+  async getWithdrawalProof([message]: ethers.utils.Result) {
     console.log('getWithdrawalProof');
     const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
       message,
@@ -122,9 +123,7 @@ class OPStackService {
    * @param transactionHash Transaction containing the MessagePassed event
    * @returns The encoded
    */
-  async getFinalizeWithdrawalTx([message]: ethers.utils.Result): Promise<
-    Array<any>
-  > {
+  async getFinalizeWithdrawalTx([message]: ethers.utils.Result) {
     console.log('getFinalizeWithdrawalTx');
     const [withdrawal] = await this.getWithdrawalAndProofFromMessage(message);
 
