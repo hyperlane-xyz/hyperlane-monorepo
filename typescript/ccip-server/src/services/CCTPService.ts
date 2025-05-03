@@ -72,7 +72,7 @@ class CCTPService {
       txHash,
     );
 
-    let cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
+    const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 
     const [relayedCctpMessage, attestation] =
       await this.cctpAttestationService.getAttestation(cctpMessage, txHash);
