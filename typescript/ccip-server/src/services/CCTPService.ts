@@ -34,6 +34,7 @@ class CCTPService {
   }
 
   async getCCTPMessageFromReceipt(receipt: any): Promise<any> {
+    // Event from interfaces/cctp/IMessageTransmitter.sol
     const abi = ['event MessageSent(bytes message)'];
     const iface = new ethers.utils.Interface(abi);
     for (const log of receipt.logs) {

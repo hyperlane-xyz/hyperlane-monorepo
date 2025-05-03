@@ -46,5 +46,7 @@ interface IReceiver {
 }
 
 interface IMessageTransmitter is IRelayer, IReceiver {
+    event MessageSent(bytes message);
+
     function usedNonces(bytes32 sourceAndNonceHash) external returns (uint256);
 }
