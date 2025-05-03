@@ -22,7 +22,10 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Router} from "../client/Router.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
+import {Mailbox} from "../Mailbox.sol";
+import {Message} from "../libs/Message.sol";
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -31,12 +34,13 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
  */
-contract InterchainAccountRouter is Router {
+contract InterchainAccountRouter is Router, IInterchainSecurityModule {
     // ============ Libraries ============
 
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using InterchainAccountMessage for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
@@ -97,16 +101,17 @@ contract InterchainAccountRouter is Router {
     constructor(
         address _mailbox,
         address _hook,
-        address _interchainSecurityModule,
         address _owner
     ) Router(_mailbox) {
         setHook(_hook);
-        setInterchainSecurityModule(_interchainSecurityModule);
         _transferOwnership(_owner);
 
         bytes memory bytecode = _implementationBytecode(address(this));
         implementation = Create2.deploy(0, bytes32(0), bytecode);
         bytecodeHash = _proxyBytecodeHash(implementation);
+
+        CCIP_READ_ISM = new CommitmentReadIsm(Mailbox(_mailbox));
+        interchainSecurityModule = IInterchainSecurityModule(address(this));
     }
 
     /**
@@ -290,7 +295,7 @@ contract InterchainAccountRouter is Router {
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
             // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
             require(
-                verifiedCommitments[_message.commitment()] !=
+                verifiedCommitments[_message.commitment()] ==
                     OwnableMulticall(payable(address(0))),
                 "Commitment was not executed"
             );
@@ -316,6 +321,37 @@ contract InterchainAccountRouter is Router {
             bytes32 commitment = _message.commitment();
             verifiedCommitments[commitment] = ica;
         }
+    }
+
+    function moduleType() external pure returns (uint8) {
+        return uint8(IInterchainSecurityModule.Types.ROUTING);
+    }
+
+    CommitmentReadIsm public immutable CCIP_READ_ISM;
+
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external returns (bool) {
+        bytes calldata _body = _message.body();
+        IInterchainSecurityModule _ism = IInterchainSecurityModule(
+            _body.ism().bytes32ToAddress()
+        );
+
+        // If the ISM is not set, we need to check if the message is a reveal
+        // If it is, we need to set the ISM to the CCIP read ISM
+        // Otherwise, we need to set the ISM to the default ISM
+        if (address(_ism) == address(0)) {
+            if (
+                _body.messageType() ==
+                InterchainAccountMessage.MessageType.REVEAL
+            ) {
+                _ism = CCIP_READ_ISM;
+            } else {
+                _ism = mailbox.defaultIsm();
+            }
+        }
+        return _ism.verify(_metadata, _message);
     }
 
     /**
@@ -747,6 +783,7 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
+        bytes32 _ccipReadIsm,
         bytes memory _hookMetadata,
         IPostDispatchHook _hook,
         bytes32 _salt,
@@ -760,7 +797,7 @@ contract InterchainAccountRouter is Router {
                 _userSalt: _salt
             });
         bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
-            _ism: _ism,
+            _ism: _ccipReadIsm,
             _commitment: _commitment
         });
 
@@ -782,6 +819,28 @@ contract InterchainAccountRouter is Router {
         );
     }
 
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        bytes32 _salt,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        return
+            callRemoteCommitReveal(
+                _destination,
+                _router,
+                _ism,
+                bytes32(0),
+                _hookMetadata,
+                _hook,
+                _salt,
+                _commitment
+            );
+    }
+
     /// @dev The calls represented by the commitment can only be executed once.
     function revealAndExecute(
         CallLib.Call[] calldata _calls,
@@ -789,7 +848,6 @@ contract InterchainAccountRouter is Router {
     ) external payable {
         bytes32 _givenCommitment = keccak256(abi.encode(_salt, _calls));
         OwnableMulticall ica = verifiedCommitments[_givenCommitment];
-
         require(address(payable(ica)) != address(0), "Invalid Reveal");
 
         delete verifiedCommitments[_givenCommitment];

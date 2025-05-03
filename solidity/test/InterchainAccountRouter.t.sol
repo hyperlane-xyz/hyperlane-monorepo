@@ -11,11 +11,11 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
-
+import {Message} from "../contracts/libs/Message.sol";
 contract Callable {
     mapping(address => bytes32) public data;
     mapping(address => uint256) public value;
@@ -82,7 +82,6 @@ contract InterchainAccountRouterTestBase is Test {
             new InterchainAccountRouter(
                 address(_mailbox),
                 address(_customHook),
-                address(_ism),
                 _owner
             );
     }
@@ -138,6 +137,7 @@ contract InterchainAccountRouterTestBase is Test {
 
 contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     using TypeCasts for address;
+    using Message for bytes;
 
     function testFuzz_constructor(address _localOwner) public {
         OwnableMulticall _account = destinationIcaRouter
@@ -921,8 +921,17 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
 
         // Process reveal message
-        environment.processNextPendingMessage();
-        destinationIcaRouter.revealAndExecute(calls, salt);
+        //  InterchainAccountMessage.encodeReveal({
+        //     _ism: address(0).addressToBytes32(),
+        //     _commitment: commitment
+        // })
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = abi.encode(salt, calls);
+        _mailbox.addInboundMetadata(1, metadata);
+        destinationIcaRouter.CCIP_READ_ISM().process(metadata, message);
         assertEq(
             address(destinationIcaRouter.verifiedCommitments(commitment)),
             address(0)

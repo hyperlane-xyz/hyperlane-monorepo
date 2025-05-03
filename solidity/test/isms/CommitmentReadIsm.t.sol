@@ -32,20 +32,17 @@ contract CommitmentReadIsmTest is Test {
         environment = new MockHyperlaneEnvironment(origin, destination);
         mailboxOrigin = environment.mailboxes(origin);
         mailboxDestination = environment.mailboxes(destination);
-        ism = new CommitmentReadIsm(urls, mailboxDestination);
+        ism = new CommitmentReadIsm(mailboxDestination);
+        ism.setUrls(urls);
     }
 
-    function testVerify() public {
-        bytes memory data = abi.encodeCall(
-            IERC20.transfer,
-            (address(this), 1e18)
-        );
-        CallLib.Call memory call = CallLib.build(address(this), 0, data);
-        CallLib.Call[] memory calls = new CallLib.Call[](1);
-        calls[0] = call;
-
-        bytes32 commitment = keccak256(abi.encode(calls));
-        bool verified = ism.verify(abi.encode(calls), abi.encode(commitment));
-        assertTrue(verified);
+    function testUrls() public {
+        assertEq(urls.length, 1);
+        assertEq(urls[0], "https://ccip-server-gateway.io");
     }
+
+    /**
+     * We don't need to test `verify` since it's well tested in InterchainAccountRouter.t.sol
+     * when we test the message processing flow for commit/reveal messages.
+     */
 }
