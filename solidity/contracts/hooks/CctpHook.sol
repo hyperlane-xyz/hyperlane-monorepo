@@ -16,8 +16,9 @@ contract CctpHook is AbstractPostDispatchHook, Ownable {
     using Message for bytes;
 
     uint256 internal constant CCTP_V2_DEFAULT_MAX_FEE = 0;
-    // @dev the minimum to consider it a Standard CCTP transfer
-    // see https://developers.circle.com/stablecoins/transfer-usdc-on-testnet-from-ethereum-to-avalanche
+    // @dev the minimum to consider it a Standard CCTP transfer (it applies to every network)
+    // see https://github.com/circlefin/evm-cctp-contracts/blob/release-2025-03-11T143015/src/v2/MessageTransmitterV2.sol#L224-L244
+    // and https://github.com/circlefin/evm-cctp-contracts/blob/release-2025-03-11T143015/src/v2/FinalityThresholds.sol#L21
     uint32 internal constant CCTP_V2_DEFAULT_MIN_FINALITY_THRESHOLD = 2000;
 
     // we keep the token messenger here in order to
