@@ -13,7 +13,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  bytes32ToAddress,
   eqAddress,
   getLogLevel,
   rootLogger,
@@ -360,10 +359,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const routers = Object.fromEntries(
       await Promise.all(
         domains.map(async (domain) => {
-          return [
-            domain,
-            { address: bytes32ToAddress(await warpRoute.routers(domain)) },
-          ];
+          return [domain, { address: await warpRoute.routers(domain) }];
         }),
       ),
     );
