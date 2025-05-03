@@ -32,21 +32,21 @@ class CCTPAttestationService {
     );
   }
 
+  // Index and offset values retrieved from CctpMessageV2.sol
   _getCCTPVersionFromMessage(message: any): bigint {
+    const versionIndex = 0;
+    const versionOffset = 4;
     return ethers.BigNumber.from(
-      this._getFieldFromMessage(message, 0, 4),
+      this._getFieldFromMessage(message, versionIndex, versionOffset),
     ).toBigInt();
   }
 
-  _getCCTPNonceFromMessage(message: any): bigint {
-    return ethers.BigNumber.from(
-      this._getFieldFromMessage(message, 12, 8),
-    ).toBigInt();
-  }
-
+  // Index and offset values retrieved from CctpMessageV2.sol
   _getSourceDomainFromMessage(message: string): number {
+    const sourceDomainIndex = 4;
+    const sourceDomainOffset = 4;
     return ethers.BigNumber.from(
-      this._getFieldFromMessage(message, 4, 4),
+      this._getFieldFromMessage(message, sourceDomainIndex, sourceDomainOffset),
     ).toNumber();
   }
 
