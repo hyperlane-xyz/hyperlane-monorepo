@@ -21,7 +21,7 @@ class CCTPAttestationService {
   }
 
   _getFieldFromMessage(
-    message: any,
+    message: string,
     fieldIndex: number,
     fieldOffset: number,
   ): BytesLike {
@@ -33,7 +33,7 @@ class CCTPAttestationService {
   }
 
   // Index and offset values retrieved from CctpMessageV2.sol
-  _getCCTPVersionFromMessage(message: any): bigint {
+  _getCCTPVersionFromMessage(message: string): bigint {
     const versionIndex = 0;
     const versionOffset = 4;
     return ethers.BigNumber.from(
@@ -66,10 +66,7 @@ class CCTPAttestationService {
    * @param transaction hash containing the MessageSent event
    * @returns the attestation byte array
    */
-  async getAttestation(
-    cctpMessage: string,
-    transactionHash: string,
-  ): Promise<any> {
+  async getAttestation(cctpMessage: string, transactionHash: string) {
     const version = this._getCCTPVersionFromMessage(cctpMessage);
 
     let url;
