@@ -332,12 +332,25 @@ contract TokenBridgeNativeTest is Test {
         assembly {
             let resultPtr := add(result, 0x20)
             let dataPtr := add(add(data, 0x20), offset)
+
+            // Copy full 32-byte chunks
             for {
                 let i := 0
-            } lt(i, length) {
+            } lt(i, sub(length, mod(length, 0x20))) {
                 i := add(i, 0x20)
             } {
                 mstore(add(resultPtr, i), mload(add(dataPtr, i)))
+            }
+
+            // Copy remaining bytes if length is not a multiple of 32
+            let remainder := mod(length, 0x20)
+            if gt(remainder, 0) {
+                let mask := sub(shl(mul(remainder, 8), 1), 1)
+                let value := and(
+                    mload(add(dataPtr, sub(length, remainder))),
+                    mask
+                )
+                mstore(add(resultPtr, sub(length, remainder)), value)
             }
         }
 
