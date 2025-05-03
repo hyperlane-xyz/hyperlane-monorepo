@@ -3,7 +3,6 @@ pragma solidity >=0.8.0;
 
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {TokenMessage} from "../token/libs/TokenRouter.sol";
 import {TokenMessage} from "../token/libs/TokenMessage.sol";
 import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
