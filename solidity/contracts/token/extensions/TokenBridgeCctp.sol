@@ -51,9 +51,10 @@ contract TokenBridgeCctp is ITokenBridge, HypERC20Collateral {
 
     constructor(
         address _erc20,
+        uint256 _scale,
         address _mailbox,
         ITokenMessenger _tokenMessenger
-    ) HypERC20Collateral(_erc20, 1, _mailbox) {
+    ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         tokenMessenger = _tokenMessenger;
     }
 
