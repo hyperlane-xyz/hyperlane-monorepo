@@ -29,11 +29,13 @@ import {console} from "forge-std/console.sol";
 contract OPTokenBridgeNativeTest is OPTokenBridgeNative {
     using TypeCasts for bytes32;
 
+    uint256 internal constant SCALE = 1;
+
     constructor(
         uint32 _l1Domain,
         address _l2Bridge,
         address _mailbox
-    ) OPTokenBridgeNative(_l1Domain, _l2Bridge, _mailbox) {}
+    ) OPTokenBridgeNative(SCALE, _mailbox, _l1Domain, _l2Bridge) {}
 
     function getWithdrawalMetadata(
         uint256 _amountOrId
