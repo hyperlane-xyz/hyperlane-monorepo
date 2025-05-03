@@ -26,10 +26,11 @@ contract OPTokenBridgeNative is TokenBridgeNative {
     uint32 public immutable l1Domain;
 
     constructor(
+        uint256 _scale,
+        address _mailbox,
         uint32 _l1Domain,
-        address _l2Bridge,
-        address _mailbox
-    ) TokenBridgeNative(_mailbox) {
+        address _l2Bridge
+    ) TokenBridgeNative(_scale, _mailbox) {
         l1Domain = _l1Domain;
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
