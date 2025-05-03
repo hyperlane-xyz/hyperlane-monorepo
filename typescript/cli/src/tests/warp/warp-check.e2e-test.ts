@@ -21,7 +21,12 @@ import {
   randomHookConfig,
   randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  assert,
+  deepCopy,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -285,7 +290,7 @@ describe('hyperlane warp check e2e tests', async function () {
       );
       const expectedActualText = `ACTUAL: ""\n`;
       const expectedDiffText = `      EXPECTED:
-        address: "${warpCore.tokens[0].addressOrDenom!.toLowerCase()}"`;
+        address: "${addressToBytes32(warpCore.tokens[0].addressOrDenom!)}"`;
 
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,

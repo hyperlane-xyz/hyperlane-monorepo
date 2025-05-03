@@ -3,6 +3,9 @@ import { zeroAddress } from 'viem';
 import {
   Address,
   TransformObjectTransformer,
+  addressToBytes32,
+  base58ToBuffer,
+  isValidAddressSealevel,
   objMap,
   transformObj,
 } from '@hyperlane-xyz/utils';
@@ -92,10 +95,23 @@ export async function expandWarpDeployConfig(
         warpDeployConfig,
       );
 
+    const formattedRemoteRouters = objMap(
+      remoteRouters,
+      (_domainId, { address }) => {
+        // SVM addresses are hex encoded on EVM chains
+        // TODO: update this to support also cosmos chains
+        const formattedAddress = isValidAddressSealevel(address)
+          ? `0x${base58ToBuffer(address).toString('hex')}`
+          : addressToBytes32(address);
+
+        return { address: formattedAddress };
+      },
+    );
+
     return {
       // Default Expansion
       ...derivedTokenMetadata,
-      remoteRouters,
+      remoteRouters: formattedRemoteRouters,
       destinationGas,
       hook: zeroAddress,
       interchainSecurityModule: zeroAddress,

@@ -7,7 +7,7 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -386,17 +386,30 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     ));
 
+    let expandedWarpDeployConfig = await expandWarpDeployConfig(
+      context.multiProvider,
+      warpDeployConfig,
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+    );
+
+    // Remove any non EVM chain config to avoid the checker crashing
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
+      (config) =>
+        context.multiProvider.getProtocol(config.chainName) ===
+        ProtocolType.Ethereum,
+    );
+
+    expandedWarpDeployConfig = objFilter(
+      expandedWarpDeployConfig,
+      (chain, _config): _config is any =>
+        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+
     // Get on-chain config
     const onChainWarpConfig = await getWarpRouteConfigsByCore({
       context,
       warpCoreConfig,
     });
-
-    const expandedWarpDeployConfig = await expandWarpDeployConfig(
-      context.multiProvider,
-      warpDeployConfig,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
-    );
 
     await runWarpRouteCheck({
       onChainWarpConfig,
