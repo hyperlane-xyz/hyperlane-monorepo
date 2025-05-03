@@ -33,7 +33,9 @@ class CCTPService {
     this.rpcService = new RPCService(rpcConfig.url);
   }
 
-  async getCCTPMessageFromReceipt(receipt: any): Promise<any> {
+  async getCCTPMessageFromReceipt(
+    receipt: ethers.providers.TransactionReceipt,
+  ) {
     // Event from interfaces/cctp/IMessageTransmitter.sol
     const abi = ['event MessageSent(bytes message)'];
     const iface = new ethers.utils.Interface(abi);
@@ -53,9 +55,7 @@ class CCTPService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPAttestation([message]: ethers.utils.Result): Promise<
-    Array<any>
-  > {
+  async getCCTPAttestation([message]: ethers.utils.Result) {
     const messageId: string = ethers.utils.keccak256(message);
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
