@@ -32,9 +32,8 @@ export const keyFunderConfig: KeyFunderConfig<
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
-    [Contexts.Vanguard0]: [Role.Relayer],
   },
-  chainsToSkip: [],
+  chainsToSkip: ['ontology'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
