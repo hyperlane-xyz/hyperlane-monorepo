@@ -2,12 +2,15 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
+  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
   objMap,
+  promiseObjAll,
   transformObj,
 } from '@hyperlane-xyz/utils';
 
+import { isProxy } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
@@ -84,6 +87,19 @@ export async function expandWarpDeployConfig(
     multiProvider,
     warpDeployConfig,
   );
+
+  // If the token is on an EVM chain check if it is deployed as a proxy
+  // to expand the proxy config too
+  const isDeployedAsProxyByChain = await promiseObjAll(
+    objMap(deployedRoutersAddresses, async (chain, address) => {
+      if (!(multiProvider.getProtocol(chain) === ProtocolType.Ethereum)) {
+        return false;
+      }
+
+      return isProxy(multiProvider.getProvider(chain), address);
+    }),
+  );
+
   return objMap(warpDeployConfig, (chain, config) => {
     const [remoteRouters, destinationGas] =
       getDefaultRemoteRouterAndDestinationGasConfig(
@@ -109,7 +125,9 @@ export async function expandWarpDeployConfig(
       destinationGas,
       hook: zeroAddress,
       interchainSecurityModule: zeroAddress,
-      proxyAdmin: { owner: config.owner },
+      proxyAdmin: isDeployedAsProxyByChain[chain]
+        ? { owner: config.owner }
+        : undefined,
 
       // User-specified config takes precedence
       ...config,
