@@ -162,7 +162,6 @@ library InterchainAccountMessage {
     ) internal pure returns (MessageType) {
         return MessageType(uint8(_message[0]));
     }
-    }
 
     function owner(bytes calldata _message) internal pure returns (bytes32) {
         return bytes32(_message[1:33]);

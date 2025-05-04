@@ -45,6 +45,8 @@ contract InterchainAccountRouter is Router {
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
+    /// @notice A mapping of commitments to the ICA that should execute the revealed calldata
+    /// @dev The commitment is only stored if a `COMMITMENT` message was processed for it
     mapping(bytes32 commitment => OwnableMulticall ICA)
         public verifiedCommitments;
 
@@ -290,7 +292,7 @@ contract InterchainAccountRouter is Router {
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
             // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
             require(
-                verifiedCommitments[_message.commitment()] !=
+                verifiedCommitments[_message.commitment()] ==
                     OwnableMulticall(payable(address(0))),
                 "Commitment was not executed"
             );
@@ -747,6 +749,7 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
+        bytes32 _ccipReadIsm,
         bytes memory _hookMetadata,
         IPostDispatchHook _hook,
         bytes32 _salt,
@@ -760,7 +763,7 @@ contract InterchainAccountRouter is Router {
                 _userSalt: _salt
             });
         bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
-            _ism: _ism,
+            _ism: _ccipReadIsm,
             _commitment: _commitment
         });
 
@@ -780,6 +783,28 @@ contract InterchainAccountRouter is Router {
             _hookMetadata,
             _hook
         );
+    }
+
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        bytes32 _salt,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        return
+            callRemoteCommitReveal(
+                _destination,
+                _router,
+                _ism,
+                bytes32(0),
+                _hookMetadata,
+                _hook,
+                _salt,
+                _commitment
+            );
     }
 
     /// @dev The calls represented by the commitment can only be executed once.

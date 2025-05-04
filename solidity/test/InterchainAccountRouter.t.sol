@@ -920,12 +920,18 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(ica)
         );
 
-        // Process reveal message
-        environment.processNextPendingMessage();
+        // Manually process the reveal. In reality, the CCIP read ISM will call `revealAndExecute`
+        // but here we do it manually since we're not using the CCIP read ISM yet
         destinationIcaRouter.revealAndExecute(calls, salt);
+
+        // Commitment should be cleared
         assertEq(
             address(destinationIcaRouter.verifiedCommitments(commitment)),
             address(0)
         );
+
+        // Cannot reveal twice
+        vm.expectRevert("Invalid Reveal");
+        destinationIcaRouter.revealAndExecute(calls, salt);
     }
 }
