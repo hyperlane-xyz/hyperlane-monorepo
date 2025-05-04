@@ -386,13 +386,15 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     ));
 
+    // Expand the config before removing non-EVM chain configs to correctly expand
+    // the remote routers
     let expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
       warpDeployConfig,
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
     );
 
-    // Remove any non EVM chain config to avoid the checker crashing
+    // Remove any non EVM chain configs to avoid the checker crashing
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
       (config) =>
         context.multiProvider.getProtocol(config.chainName) ===

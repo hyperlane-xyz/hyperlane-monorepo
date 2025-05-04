@@ -93,6 +93,8 @@ export async function expandWarpDeployConfig(
         warpDeployConfig,
       );
 
+    // Properly set the remote routers addresses to their 32 bytes representation
+    // as that is how they are set on chain
     const formattedRemoteRouters = objMap(
       remoteRouters,
       (_domainId, { address }) => ({
