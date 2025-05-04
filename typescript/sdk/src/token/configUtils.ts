@@ -93,19 +93,10 @@ export async function expandWarpDeployConfig(
         warpDeployConfig,
       );
 
-    // Properly set the remote routers addresses to their 32 bytes representation
-    // as that is how they are set on chain
-    const formattedRemoteRouters = objMap(
-      remoteRouters,
-      (_domainId, { address }) => ({
-        address: addressToBytes32(address),
-      }),
-    );
-
-    return {
+    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] = {
       // Default Expansion
       ...derivedTokenMetadata,
-      remoteRouters: formattedRemoteRouters,
+      remoteRouters,
       destinationGas,
       hook: zeroAddress,
       interchainSecurityModule: zeroAddress,
@@ -114,6 +105,19 @@ export async function expandWarpDeployConfig(
       // User-specified config takes precedence
       ...config,
     };
+
+    // Properly set the remote routers addresses to their 32 bytes representation
+    // as that is how they are set on chain
+    const formattedRemoteRouters = objMap(
+      chainConfig.remoteRouters ?? {},
+      (_domainId, { address }) => ({
+        address: addressToBytes32(address),
+      }),
+    );
+
+    chainConfig.remoteRouters = formattedRemoteRouters;
+
+    return chainConfig;
   });
 }
 
