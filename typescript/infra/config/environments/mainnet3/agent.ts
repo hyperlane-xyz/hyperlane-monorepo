@@ -848,7 +848,7 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: 'f05ebc4-20250502-225226',
     },
-    blacklist: [...blacklist, ...vanguardMatchingList],
+    blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -888,7 +888,7 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: 'f05ebc4-20250502-225226',
     },
-    blacklist: [...blacklist, ...vanguardMatchingList],
+    blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
@@ -926,7 +926,7 @@ const neutron: RootAgentConfig = {
       repo,
       tag: 'f05ebc4-20250502-225226',
     },
-    blacklist: [...blacklist, ...vanguardMatchingList],
+    blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
