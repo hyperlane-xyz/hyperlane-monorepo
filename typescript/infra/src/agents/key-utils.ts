@@ -1,7 +1,13 @@
 import { join } from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { Address, deepEquals, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  deepEquals,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
@@ -41,7 +47,7 @@ export interface KeyAsAddress {
   address: string;
 }
 
-const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config');
+const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config/funding');
 
 // ==================
 // Functions for getting keys
@@ -209,6 +215,7 @@ export function getCloudAgentKey(
   role: Role,
   chainName?: ChainName,
   index?: number,
+  protocol?: ProtocolType,
 ): CloudAgentKey {
   debugLog(`Retrieving cloud agent key for ${role} on ${chainName}`);
   switch (role) {
@@ -229,7 +236,7 @@ export function getCloudAgentKey(
       }
       return getKathyKeyForChain(agentConfig, chainName);
     case Role.Deployer:
-      return getDeployerKey(agentConfig);
+      return getDeployerKey(agentConfig, protocol);
     default:
       throw Error(`Unsupported role ${role}`);
   }
@@ -274,9 +281,19 @@ export function getKathyKeyForChain(
 
 // Returns the deployer key. This is always a GCP key, not chain specific,
 // and in the Hyperlane context.
-export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
-  debugLog('Retrieving deployer key');
-  return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+export function getDeployerKey(
+  agentConfig: AgentContextConfig,
+  protocol?: ProtocolType,
+): CloudAgentKey {
+  debugLog(`Retrieving deployer key ${protocol ? `for ${protocol}` : ''}`);
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.Deployer,
+    undefined,
+    undefined,
+    protocol,
+  );
 }
 
 // Returns the validator signer key and the chain signer key for the given validator for
@@ -509,14 +526,15 @@ export async function persistValidatorAddressesToLocalArtifacts(
   );
 }
 
-export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
+export function fetchLocalKeyAddresses(
+  role: Role,
+  protocol: ProtocolType,
+): LocalRoleAddresses {
   try {
     const addresses: LocalRoleAddresses = readJSON(
-      CONFIG_DIRECTORY_PATH,
+      `${CONFIG_DIRECTORY_PATH}/${protocol}`,
       `${role}.json`,
     );
-
-    debugLog(`Fetching addresses from GCP for ${role} role ...`);
     return addresses;
   } catch (e) {
     throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
