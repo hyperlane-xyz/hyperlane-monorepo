@@ -8,11 +8,13 @@ import {
 import {
   ChainMap,
   ChainName,
+  CosmosNativeWarpRouteReader,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
+  TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
-import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
@@ -24,16 +26,22 @@ export async function runWarpRouteRead({
   address,
   warp,
   symbol,
+  standard,
 }: {
   context: CommandContext;
   chain?: ChainName;
   warp?: string;
   address?: string;
   symbol?: string;
+  standard?: TokenStandard;
 }): Promise<Record<ChainName, HypTokenRouterConfig>> {
   const { multiProvider } = context;
 
-  let addresses: ChainMap<string>;
+  let addresses: ChainMap<{
+    address: string;
+    standard: TokenStandard;
+  }>;
+
   if (symbol || warp) {
     const warpCoreConfig =
       context.warpCoreConfig ?? // this case is be handled by MultiChainHandler.forWarpCoreConfig() interceptor
@@ -83,37 +91,49 @@ export async function runWarpRouteRead({
     }
 
     addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+      warpCoreConfig.tokens.map((t) => [
+        t.chainName,
+        {
+          address: t.addressOrDenom!,
+          standard: t.standard,
+        },
+      ]),
     );
-  } else if (chain && address) {
+  } else if (chain && address && standard) {
     addresses = {
-      [chain]: address,
+      [chain]: {
+        address,
+        standard,
+      },
     };
   } else {
     logRed(`Please specify either a symbol, chain and address or warp file`);
     process.exit(1);
   }
 
-  // Check if there any non-EVM chains in the config and exit
-  const nonEvmChains = Object.entries(addresses)
-    .filter(([_, address]) => !isAddressEvm(address))
-    .map(([chain]) => chain);
-  if (nonEvmChains.length > 0) {
-    const chainList = nonEvmChains.join(', ');
-    logRed(
-      `${chainList} ${
-        nonEvmChains.length > 1 ? 'are' : 'is'
-      } non-EVM and not compatible with the cli`,
-    );
-    process.exit(1);
-  }
-
   const config = await promiseObjAll(
-    objMap(addresses, async (chain, address) =>
-      new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
-        address,
-      ),
-    ),
+    objMap(addresses, async (chain, { address, standard }) => {
+      switch (TOKEN_STANDARD_TO_PROTOCOL[standard]) {
+        case ProtocolType.Ethereum: {
+          return new EvmERC20WarpRouteReader(
+            multiProvider,
+            chain,
+          ).deriveWarpRouteConfig(address);
+        }
+        case ProtocolType.CosmosNative: {
+          const cosmosProvider =
+            await context.multiProtocolProvider!.getCosmJsNativeProvider(chain);
+          return new CosmosNativeWarpRouteReader(
+            multiProvider,
+            chain,
+            cosmosProvider,
+          ).deriveWarpRouteConfig(address);
+        }
+        default:
+          logRed(`token standard ${standard} not supported`);
+          process.exit(1);
+      }
+    }),
   );
 
   return config;

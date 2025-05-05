@@ -138,18 +138,20 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
-  // Some of the below functions throw if passed non-EVM chains
-  const ethereumChains = chains.filter(
-    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
+  // Some of the below functions throw if passed non-EVM or Cosmos Native chains
+  const deploymentChains = chains.filter(
+    (chain) =>
+      chainMetadata[chain].protocol === ProtocolType.Ethereum ||
+      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
   );
 
   await runPreflightChecksForChains({
     context,
-    chains: ethereumChains,
+    chains: deploymentChains,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const initialBalances = await prepareDeploy(context, null, ethereumChains);
+  const initialBalances = await prepareDeploy(context, null, deploymentChains);
 
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
@@ -160,7 +162,13 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context, addWarpRouteOptions);
 
-  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
+  await completeDeploy(
+    context,
+    'warp',
+    initialBalances,
+    null,
+    deploymentChains!,
+  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
