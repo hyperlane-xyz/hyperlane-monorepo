@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Contract, utils } from 'ethers';
 
+import { ICcipReadIsm__factory } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
@@ -15,10 +16,7 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
 
   constructor(core: HyperlaneCore) {
     this.core = core;
-    this.iface = new utils.Interface([
-      'function getOffchainVerifyInfo(bytes) view',
-      'error OffchainLookup(address sender, string[] urls, bytes callData, bytes4 callbackFunction, bytes extraData)',
-    ]);
+    this.iface = ICcipReadIsm__factory.createInterface();
   }
 
   async build(
@@ -59,8 +57,9 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
           : await axios.post(url, { sender, data: callDataHex });
         const rawHex = response.data.data as string;
         return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
-      } catch {
-        continue;
+      } catch (error: any) {
+        console.warn(`CCIP-read metadata fetch failed for ${url}: ${error}`);
+        // try next URL
       }
     }
 
