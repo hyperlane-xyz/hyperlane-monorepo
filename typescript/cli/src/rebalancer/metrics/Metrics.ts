@@ -18,6 +18,8 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { errorRed, warnYellow } from '../../logger.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
+import { formatBigInt } from '../utils/formatBigInt.js';
+import { tryFn } from '../utils/tryFn.js';
 
 import { PriceGetter } from './PriceGetter.js';
 import {
@@ -28,9 +30,7 @@ import {
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
 import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { formatBigInt } from './utils/formatBigInt.js';
 import { startMetricsServer } from './utils/metrics.js';
-import { tryFn } from './utils/tryFn.js';
 
 interface XERC20Info {
   limits: XERC20Limit;

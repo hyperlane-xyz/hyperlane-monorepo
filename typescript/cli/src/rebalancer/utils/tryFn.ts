@@ -1,4 +1,4 @@
-import { errorRed } from '../../../logger.js';
+import { errorRed } from '../../logger.js';
 
 export async function tryFn(fn: () => Promise<void>, context: string) {
   try {
