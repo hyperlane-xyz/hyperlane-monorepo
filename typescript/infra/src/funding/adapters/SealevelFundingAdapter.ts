@@ -28,6 +28,7 @@ import { IFundingAdapter } from './IFundingAdapter.js';
 
 /**
  * Sealevel-specific implementation of the funding adapter
+ * Extends BaseSealevelAdapter to leverage Sealevel-specific functionality
  */
 export class SealevelFundingAdapter
   extends BaseSealevelAdapter
@@ -91,7 +92,7 @@ export class SealevelFundingAdapter
     // Determine if funding is needed
     const fundingAmount = delta > minDelta ? delta : 0n;
 
-    this.logger.info(
+    this.logger.debug(
       {
         chain: this.chainName,
         currentBalance: currentBalanceLamports.toString(),

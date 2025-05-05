@@ -95,12 +95,11 @@ export class EVMFundingAdapter
     );
 
     const delta = desiredBalanceBigNumber.sub(currentBalance);
-    // TODO: check if this is correct
     const minDelta = desiredBalanceBigNumber
       .mul(Math.floor(fundingThresholdFactor * 100))
       .div(100);
 
-    this.logger.info(
+    this.logger.debug(
       {
         chain: this.chainName,
         currentBalance: ethers.utils.formatEther(currentBalance),
