@@ -5,7 +5,8 @@ import { sleep } from '@hyperlane-xyz/utils';
 
 import { WrappedError } from '../../utils/errors.js';
 import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
-import { logger } from '../metrics/infra/scripts/warp-routes/monitor/utils.js';
+// TODO: update logger location or create a new instance for each section of the rebalancer
+import { logger } from '../metrics/scripts/utils.js';
 
 export class MonitorStartError extends WrappedError {
   name = 'MonitorStartError';
