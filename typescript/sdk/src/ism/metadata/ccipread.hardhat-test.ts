@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
@@ -25,7 +24,7 @@ describe('CCIP-Read ISM Integration', () => {
   let ccipReadIsm: any;
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
-  let axiosStub: sinon.SinonStub;
+  let fetchStub: sinon.SinonStub;
 
   before(async () => {
     // Set up a local test multi-provider and Hyperlane core
@@ -61,11 +60,12 @@ describe('CCIP-Read ISM Integration', () => {
     // Prepare the metadata builder
     metadataBuilder = new BaseMetadataBuilder(core);
 
-    axiosStub = sinon.stub(axios, 'get').resolves({
-      data: {
+    fetchStub = sinon.stub(global, 'fetch').resolves({
+      ok: true,
+      json: async () => ({
         data: '0x0000000000000000000000000000000000000000000000000000000000000001',
-      },
-    });
+      }),
+    } as Response);
   });
 
   it('should process a message protected by CCIP-Read ISM', async () => {
@@ -98,6 +98,6 @@ describe('CCIP-Read ISM Integration', () => {
   });
 
   after(() => {
-    axiosStub.restore();
+    fetchStub.restore();
   });
 });

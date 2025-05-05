@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { Contract, utils } from 'ethers';
+import { utils } from 'ethers';
 
 import { ICcipReadIsm__factory } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
@@ -50,10 +49,19 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
       try {
-        const response = urlTemplate.includes('{data}')
-          ? await axios.get(url)
-          : await axios.post(url, { sender, data: callDataHex });
-        const rawHex = response.data.data as string;
+        let responseJson: any;
+        if (urlTemplate.includes('{data}')) {
+          const res = await fetch(url);
+          responseJson = await res.json();
+        } else {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sender, data: callDataHex }),
+          });
+          responseJson = await res.json();
+        }
+        const rawHex = responseJson.data as string;
         return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
       } catch (error: any) {
         console.warn(`CCIP-read metadata fetch failed for ${url}: ${error}`);
