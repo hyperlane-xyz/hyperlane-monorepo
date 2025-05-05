@@ -23,7 +23,6 @@ use tracing::instrument;
 use crate::contracts::mailbox::{Mailbox as StarknetMailboxInternal, Message as StarknetMessage};
 use crate::error::HyperlaneStarknetError;
 use crate::types::{HyH256, HyU256};
-use crate::utils::to_mailbox_bytes;
 use crate::{
     build_single_owner_account, get_block_height_for_reorg_period, send_and_confirm,
     ConnectionConf, Signer, StarknetProvider,
@@ -48,7 +47,7 @@ impl From<&HyperlaneMessage> for StarknetMessage {
             sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
             destination: message.destination,
             recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
-            body: to_mailbox_bytes(&message.body),
+            body: message.body.as_slice().into(),
         }
     }
 }
@@ -65,9 +64,9 @@ pub struct StarknetMailbox {
 impl StarknetMailbox {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
-    pub fn new(
+    pub async fn new(
         conn: &ConnectionConf,
-        locator: &ContractLocator,
+        locator: &ContractLocator<'_>,
         signer: Signer,
     ) -> ChainResult<Self> {
         let mut is_legacy = signer.version == 3;
@@ -79,8 +78,8 @@ impl StarknetMailbox {
             signer.local_wallet(),
             &signer.address,
             is_legacy,
-            locator.domain.id(),
-        );
+        )
+        .await?;
 
         let mailbox_address: FieldElement = HyH256(locator.address)
             .try_into()
@@ -103,9 +102,7 @@ impl StarknetMailbox {
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
-        let tx = self
-            .contract
-            .process(&to_mailbox_bytes(metadata), &message.into());
+        let tx = self.contract.process(&metadata.into(), &message.into());
 
         let gas_estimate = match tx_gas_estimate {
             Some(estimate) => HyU256(estimate)

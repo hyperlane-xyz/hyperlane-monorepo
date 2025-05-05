@@ -44,18 +44,14 @@ pub struct StarknetMultisigIsm {
 impl StarknetMultisigIsm {
     /// Create a reference to a MultisigISM at a specific Starknet address on some
     /// chain
-    pub fn new(
+    pub async fn new(
         conn: &ConnectionConf,
-        locator: &ContractLocator,
+        locator: &ContractLocator<'_>,
         signer: Signer,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(
-            &conn.url,
-            signer.local_wallet(),
-            &signer.address,
-            false,
-            locator.domain.id(),
-        );
+        let account =
+            build_single_owner_account(&conn.url, signer.local_wallet(), &signer.address, false)
+                .await?;
 
         let ism_address: FieldElement = HyH256(locator.address)
             .try_into()

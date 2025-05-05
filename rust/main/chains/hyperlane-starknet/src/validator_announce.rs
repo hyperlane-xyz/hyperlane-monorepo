@@ -19,8 +19,8 @@ use crate::error::HyperlaneStarknetError;
 use crate::types::{HyH256, HyU256};
 use crate::utils::send_and_confirm;
 use crate::{
-    build_single_owner_account, string_to_cairo_long_string, to_strk_message_bytes, ConnectionConf,
-    Signer, StarknetProvider,
+    build_single_owner_account, string_to_cairo_long_string, ConnectionConf, Signer,
+    StarknetProvider,
 };
 use cainome::cairo_serde::EthAddress;
 
@@ -45,9 +45,9 @@ pub struct StarknetValidatorAnnounce {
 impl StarknetValidatorAnnounce {
     /// Create a reference to a ValidatorAnnounce at a specific Starknet address on some
     /// chain
-    pub fn new(
+    pub async fn new(
         conn: &ConnectionConf,
-        locator: &ContractLocator,
+        locator: &ContractLocator<'_>,
         signer: Signer,
     ) -> ChainResult<Self> {
         let is_legacy = signer.version == 3;
@@ -56,8 +56,8 @@ impl StarknetValidatorAnnounce {
             signer.local_wallet(),
             &signer.address,
             is_legacy,
-            locator.domain.id(),
-        );
+        )
+        .await?;
 
         let va_address: FieldElement = HyH256(locator.address)
             .try_into()
@@ -85,11 +85,11 @@ impl StarknetValidatorAnnounce {
         let storage_location = string_to_cairo_long_string(&announcement.value.storage_location)
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signature_bytes = announcement.signature.to_vec();
-        let signature = &to_strk_message_bytes(&signature_bytes);
+        let signature = signature_bytes.as_slice().into();
 
         let tx = self
             .contract
-            .announce(&EthAddress(validator), &storage_location, signature);
+            .announce(&EthAddress(validator), &storage_location, &signature);
         let gas_estimate = tx
             .estimate_fee()
             .await

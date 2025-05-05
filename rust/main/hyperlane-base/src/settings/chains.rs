@@ -354,6 +354,7 @@ impl ChainConf {
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
                 h_starknet::StarknetMailbox::new(conf, &locator, signer)
+                    .await
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -403,7 +404,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator, signer)?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator, signer).await?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -808,11 +809,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                let va = Box::new(h_starknet::StarknetValidatorAnnounce::new(
-                    conf,
-                    &locator.clone(),
-                    signer,
-                )?);
+                let va = Box::new(
+                    h_starknet::StarknetValidatorAnnounce::new(conf, &locator.clone(), signer)
+                        .await?,
+                );
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -872,9 +872,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
-                    conf, &locator, signer,
-                )?);
+                let ism = Box::new(
+                    h_starknet::StarknetInterchainSecurityModule::new(conf, &locator, signer)
+                        .await?,
+                );
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -922,9 +923,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
-                    conf, &locator, signer,
-                )?);
+                let ism =
+                    Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator, signer).await?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -967,7 +967,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator, signer)?);
+                let ism =
+                    Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator, signer).await?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1013,9 +1014,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
-                    conf, &locator, signer,
-                )?);
+                let ism = Box::new(
+                    h_starknet::StarknetAggregationIsm::new(conf, &locator, signer).await?,
+                );
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }

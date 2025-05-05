@@ -11,7 +11,6 @@ use starknet::accounts::Execution;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
-        chain_id::{MAINNET, SEPOLIA},
         types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
@@ -58,34 +57,6 @@ pub async fn get_transaction_receipt(
     .await
 }
 
-const KATANA: FieldElement = FieldElement::from_mont([
-    18444096267036800993,
-    18446744073709551615,
-    18446744073709551615,
-    531448038866662896,
-]);
-
-const MADARA_DEVNET: FieldElement = FieldElement::from_mont([
-    15288591172878020318,
-    18446733455870383543,
-    18446744073709551615,
-    498711402385775805,
-]);
-
-/// Returns the starknet chain id from the hyperlane domain id.
-pub fn get_chain_id_from_domain_id(domain_id: u32) -> FieldElement {
-    match domain_id {
-        23448591 => SEPOLIA,
-        23448592 => MAINNET,
-        23448593 => KATANA,
-        23448594 => KATANA,
-        6363709 => MADARA_DEVNET,
-        12263410 => FieldElement::from_hex_be("0x505249564154455f534e5f504f54435f5345504f4c4941")
-            .expect("Invalid PARADEX_SEPOLIA hex value"),
-        _ => panic!("Unsupported domain id"),
-    }
-}
-
 /// Creates a single owner account for a given signer and account address.
 ///
 /// # Arguments
@@ -94,14 +65,12 @@ pub fn get_chain_id_from_domain_id(domain_id: u32) -> FieldElement {
 /// * `signer` - The signer of the account.
 /// * `account_address` - The address of the account.
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
-/// * `domain_id` - The hyperlane domain id of the chain.
-pub fn build_single_owner_account(
+pub async fn build_single_owner_account(
     rpc_url: &Url,
     signer: LocalWallet,
     account_address: &FieldElement,
     is_legacy: bool,
-    domain_id: u32,
-) -> SingleOwnerAccount<AnyProvider, LocalWallet> {
+) -> ChainResult<SingleOwnerAccount<AnyProvider, LocalWallet>> {
     let rpc_client =
         AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
 
@@ -111,15 +80,17 @@ pub fn build_single_owner_account(
         starknet::accounts::ExecutionEncoding::New
     };
 
-    let chain_id = get_chain_id_from_domain_id(domain_id);
+    let chain_id = rpc_client.chain_id().await.map_err(|_| {
+        ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
+    })?;
 
-    SingleOwnerAccount::new(
+    Ok(SingleOwnerAccount::new(
         rpc_client,
         signer,
         *account_address,
         chain_id,
         execution_encoding,
-    )
+    ))
 }
 
 /// Converts a starknet module type to a hyperlane module type.
@@ -179,25 +150,22 @@ fn u128_vec_to_u8_vec(input: Vec<u128>, size: u32) -> Vec<u8> {
     }
     output
 }
-/// Convert a byte slice to a starknet bytes
-/// We have to pad the bytes to 16 bytes chunks
-/// see here for more info https://github.com/keep-starknet-strange/alexandria/blob/main/src/bytes/src/bytes.cairo#L16
-pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
-    let result = to_packed_bytes(bytes);
 
-    ValidatorAnnounceBytes {
-        size: bytes.len() as u32,
-        data: result,
+impl From<&[u8]> for ValidatorAnnounceBytes {
+    fn from(bytes: &[u8]) -> Self {
+        ValidatorAnnounceBytes {
+            size: bytes.len() as u32,
+            data: to_packed_bytes(bytes),
+        }
     }
 }
 
-/// Convert a byte slice to a starknet bytes
-pub fn to_mailbox_bytes(bytes: &[u8]) -> MailboxBytes {
-    let result = to_packed_bytes(bytes);
-
-    MailboxBytes {
-        size: bytes.len() as u32,
-        data: result,
+impl From<&[u8]> for MailboxBytes {
+    fn from(bytes: &[u8]) -> Self {
+        MailboxBytes {
+            size: bytes.len() as u32,
+            data: to_packed_bytes(bytes),
+        }
     }
 }
 
@@ -287,10 +255,10 @@ pub async fn send_and_confirm(
     rpc_client: &Arc<AnyProvider>,
     contract_call: Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
 ) -> ChainResult<TxOutcome> {
-    let tx = contract_call.send().await.map_err(|e| {
-        tracing::error!("Failed to send transaction in send_and_confirm: {:?}", e);
-        HyperlaneStarknetError::AccountError(e.to_string())
-    })?;
+    let tx = contract_call
+        .send()
+        .await
+        .map_err(HyperlaneStarknetError::from)?;
 
     let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
 
