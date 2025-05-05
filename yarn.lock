@@ -7641,9 +7641,11 @@ __metadata:
   dependencies:
     "@aws-sdk/client-kms": "npm:^3.577.0"
     "@aws-sdk/client-s3": "npm:^3.577.0"
+    "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/cosmos-sdk": "npm:12.4.0"
     "@hyperlane-xyz/registry": "npm:11.1.0"
     "@hyperlane-xyz/sdk": "npm:12.5.0"
     "@hyperlane-xyz/utils": "npm:12.5.0"
@@ -7733,6 +7735,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/cosmos-sdk@npm:12.4.0":
+  version: 12.4.0
+  resolution: "@hyperlane-xyz/cosmos-sdk@npm:12.4.0"
+  dependencies:
+    "@cosmjs/stargate": "npm:^0.32.4"
+    "@hyperlane-xyz/cosmos-types": "npm:12.4.0"
+  checksum: 10/93347940c1c77bf9f995c1ae0378760d399e26674c547c5b1b4953b1666bc579c98d9d7a630c5f2b8f95e67a6100d2b8fd093eeef389735ac9d2eea6c79e1b3e
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/cosmos-sdk@npm:12.5.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
@@ -7754,6 +7766,16 @@ __metadata:
     typescript-eslint: "npm:^8.23.0"
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/cosmos-types@npm:12.4.0":
+  version: 12.4.0
+  resolution: "@hyperlane-xyz/cosmos-types@npm:12.4.0"
+  dependencies:
+    long: "npm:^5.2.4"
+    protobufjs: "npm:^7.4.0"
+  checksum: 10/343ff6c6f7b4b4c3a804a5976096baa62c2cee03f4ff6e140a0ce5f047978f9b8a581f6a1193f25bd553e86c231558546c87bab81f35ae466c992e7b08923274
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/cosmos-types@npm:12.5.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local

@@ -5,8 +5,11 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
   ChainMetadata,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
+
+import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
 export interface ContextSettings {
   registryUris: string[];
@@ -28,6 +31,8 @@ export interface CommandContext {
   // just for evm chains backward compatibility
   signerAddress?: string;
   strategyPath?: string;
+  multiProtocolProvider?: MultiProtocolProvider;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export interface WriteCommandContext extends CommandContext {
