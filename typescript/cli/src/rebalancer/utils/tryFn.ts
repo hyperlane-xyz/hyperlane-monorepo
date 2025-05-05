@@ -1,9 +1,9 @@
-import { errorRed } from '../../logger.js';
+import { logger } from './logger.js';
 
 export async function tryFn(fn: () => Promise<void>, context: string) {
   try {
     await fn();
   } catch (e) {
-    errorRed(`Error in ${context}`, e);
+    logger.error(`Error in ${context}`, e);
   }
 }

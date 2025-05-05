@@ -4,7 +4,7 @@ import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { logBlue } from '../../../logger.js';
+import { logger } from '../../utils/logger.js';
 import {
   NativeWalletBalance,
   WarpRouteBalance,
@@ -128,7 +128,7 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logBlue(
+  logger.info(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -139,7 +139,7 @@ export function updateTokenBalanceMetrics(
   if (balanceInfo.valueUSD) {
     // TODO: consider deprecating this metric in favor of the value at risk metric
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logBlue(
+    logger.info(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -158,7 +158,7 @@ export function updateTokenBalanceMetrics(
       };
 
       warpRouteValueAtRisk.labels(labels).set(balanceInfo.valueUSD);
-      logBlue(
+      logger.info(
         {
           labels,
           valueUSD: balanceInfo.valueUSD,
@@ -197,7 +197,7 @@ export function updateManagedLockboxBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logBlue(
+  logger.info(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -207,7 +207,7 @@ export function updateManagedLockboxBalanceMetrics(
 
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logBlue(
+    logger.info(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -227,7 +227,7 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
       token_name: 'Native',
     })
     .set(balance.balance);
-  logBlue('Native wallet balance updated', {
+  logger.info('Native wallet balance updated', {
     balanceInfo: balance,
   });
 }
@@ -256,7 +256,7 @@ export function updateXERC20LimitsMetrics(
       .set(limit);
   }
 
-  logBlue(
+  logger.info(
     {
       ...labels,
       limits,
