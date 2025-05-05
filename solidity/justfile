@@ -27,3 +27,19 @@ deploy-polymer-ism-ape:
         --rpc-url https://curtis.rpc.caldera.xyz/http \
         --broadcast \
         -vvvv
+
+deploy-simple-app-b3:
+    export MAILBOX_ADDRESS="0xf1989fcad86f040b2bbfced6a0ce359e1247a611" && \
+    export POLYMER_ISM_ADDRESS="0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url https://sepolia.b3.fun/http \
+        --broadcast \
+        -vvvv
+
+deploy-simple-app-ape:
+    export MAILBOX_ADDRESS="0xf1989fcad86f040b2bbfced6a0ce359e1247a611" && \
+    export POLYMER_ISM_ADDRESS="0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url https://curtis.rpc.caldera.xyz/http \
+        --broadcast \
+        -vvvv
