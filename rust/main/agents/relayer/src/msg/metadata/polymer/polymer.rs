@@ -25,7 +25,7 @@ pub struct PolymerProofResponse {
 }
 
 /// Fetches proofs for messages using Polymer's proof service
-#[derive(Debug, new, Default, Clone)]
+#[derive(Debug, new, Clone)]
 pub struct PolymerProofProvider {
     #[new(default)]
     /// The API token for Polymer
@@ -38,10 +38,20 @@ pub struct PolymerProofProvider {
     max_retries: u32,
 }
 
+impl Default for PolymerProofProvider {
+    fn default() -> Self {
+        Self {
+            api_token: "944738c1-7692-4da0-99c8-adbf878b3413".to_string(),
+            api_endpoint: "https://proof.testnet.polymer.zone".to_string(),
+            max_retries: 5,
+        }
+    }
+}
+
 impl PolymerProofProvider {
     /// Fetch a proof for a message
     pub async fn fetch_proof(&self, request: &PolymerProofRequest) -> Result<PolymerProofResponse> {
-        debug!(
+        info!(
             chain_id = request.chain_id,
             block_number = request.block_number,
             tx_index = request.tx_index,

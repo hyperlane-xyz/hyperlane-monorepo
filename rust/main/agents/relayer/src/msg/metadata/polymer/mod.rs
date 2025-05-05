@@ -60,7 +60,7 @@ impl MetadataBuilder for PolymerMetadataBuilder {
             .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
 
-        debug!(
+        info!(
             message_id = ?message.id(),
             "Successfully fetched proof from Polymer proof service"
         );
