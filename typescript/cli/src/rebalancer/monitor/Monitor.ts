@@ -31,7 +31,7 @@ export class Monitor implements IMonitor {
   ) {}
 
   // overloads from IMonitor
-  on(eventName: 'collateralbalances', fn: (event: MonitorEvent) => void): this;
+  on(eventName: 'tokeninfo', fn: (event: MonitorEvent) => void): this;
   on(eventName: 'error', fn: (event: Error) => void): this;
   on(eventName: 'start', fn: () => void): this;
   on(eventName: string, fn: (...args: any[]) => void): this {
@@ -56,56 +56,20 @@ export class Monitor implements IMonitor {
       while (this.isMonitorRunning) {
         try {
           const event: MonitorEvent = {
-            balances: [],
-            token: null,
+            tokensInfo: [],
           };
 
           for (const token of this.warpCore.tokens) {
             const bridgedSupply = await this.getTokenBridgedSupply(token);
 
-            // data required for the rebalancer
-            function rebalancerData(
-              token: Token,
-              bridgedSupply?: bigint,
-            ): MonitorEvent['balances'][number] | undefined {
-              // Ignore non-collateralized tokens given that we only care about collateral balances
-              if (!token.isCollateralized()) {
-                return;
-              }
-
-              // Ignore tokens without bridged supply
-              if (bridgedSupply === undefined) {
-                return;
-              }
-
-              return {
-                chain: token.chainName,
-                owner: token.addressOrDenom,
-                token: token.collateralAddressOrDenom!,
-                value: bridgedSupply,
-              };
-            }
-
-            // data required for the metrics
-            function metricsData(token: Token, bridgedSupply?: bigint) {
-              return {
-                token,
-                bridgedSupply,
-              };
-            }
-
-            const balances = rebalancerData(token, bridgedSupply);
-            if (balances) {
-              event.balances.push(balances);
-            }
-
-            const metrics = metricsData(token, bridgedSupply);
-            event.token = metrics.token;
-            event.bridgedSupply = metrics.bridgedSupply;
+            event.tokensInfo.push({
+              token,
+              bridgedSupply,
+            });
           }
 
-          // Emit the event containing the collateral balances
-          this.emitter.emit('collateralbalances', event);
+          // Emit the event warp routes info
+          this.emitter.emit('tokeninfo', event);
         } catch (e) {
           this.emitter.emit(
             'error',

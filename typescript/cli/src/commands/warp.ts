@@ -34,6 +34,7 @@ import {
   IExecutor,
   IStrategy,
   MonitorPollingError,
+  RawBalances,
   Strategy,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -474,13 +475,19 @@ export const rebalancer: CommandModuleWithContext<{
 
       await monitor
         // Observe balances events and process rebalancing routes
-        .on('collateralbalances', (event) => {
-          const balances = event.balances.reduce((acc, next) => {
-            acc[next.chain] = next.value;
+        .on('tokeninfo', (event) => {
+          const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
+            if (
+              !tokenInfo.token.isCollateralized() ||
+              !tokenInfo.bridgedSupply
+            ) {
+              return acc;
+            }
+            acc[tokenInfo.token.chainName] = tokenInfo.bridgedSupply;
             return acc;
-          }, {} as Record<ChainName, bigint>);
+          }, {} as RawBalances);
 
-          const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
+          const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
           executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
             throw new Error(
@@ -489,16 +496,13 @@ export const rebalancer: CommandModuleWithContext<{
           });
 
           if (metrics) {
-            metrics
-              .processEvent({
-                token: event.token,
-                bridgedSupply: event.bridgedSupply,
-              })
-              .catch((e) => {
+            for (const tokenInfo of event.tokensInfo) {
+              metrics.processToken(tokenInfo).catch((e) => {
                 throw new Error(
-                  `Error building metrics for ${event.token?.addressOrDenom}: ${e.message}`,
+                  `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
                 );
               });
+            }
           }
         })
         // Observe monitor errors and exit

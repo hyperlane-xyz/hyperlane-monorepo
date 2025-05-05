@@ -8,6 +8,11 @@ export interface XERC20Limit {
   burnMax: number;
 }
 
+export interface XERC20Info {
+  limits: XERC20Limit;
+  xERC20Address: Address;
+}
+
 export interface WarpRouteBalance {
   balance: number;
   valueUSD?: number;

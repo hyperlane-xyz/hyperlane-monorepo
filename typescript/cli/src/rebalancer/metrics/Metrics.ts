@@ -17,6 +17,7 @@ import {
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { errorRed, warnYellow } from '../../logger.js';
+import { IMetrics } from '../interfaces/IMetrics.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 import { formatBigInt } from '../utils/formatBigInt.js';
 import { tryFn } from '../utils/tryFn.js';
@@ -29,17 +30,13 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
-import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
+import {
+  NativeWalletBalance,
+  WarpRouteBalance,
+  XERC20Info,
+  XERC20Limit,
+} from './types.js';
 import { startMetricsServer } from './utils/metrics.js';
-
-interface XERC20Info {
-  limits: XERC20Limit;
-  xERC20Address: Address;
-}
-
-export interface IMetrics {
-  processEvent(event: MonitorEvent): Promise<void>;
-}
 
 export class Metrics implements IMetrics {
   private readonly managedLockBoxMinimalABI = [
@@ -56,12 +53,11 @@ export class Metrics implements IMetrics {
     startMetricsServer(metricsRegister);
   }
 
-  async processEvent({ token, bridgedSupply }: Omit<MonitorEvent, 'balances'>) {
+  async processToken({
+    token,
+    bridgedSupply,
+  }: MonitorEvent['tokensInfo'][number]) {
     await tryFn(async () => {
-      if (!token) {
-        return;
-      }
-
       await this.updateTokenMetrics(token, bridgedSupply);
     }, 'Updating warp route metrics');
   }
