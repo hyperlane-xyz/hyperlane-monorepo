@@ -5,6 +5,7 @@ use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256};
 /// Message contents sent or received by a Hyperlane Interchain Account program
 #[derive(Debug)]
 pub struct InterchainAccountMessage {
+    kind: u8,
     pub owner: H256,
     pub ism: H256,
     pub salt: H256,
@@ -16,6 +17,9 @@ impl Encode for InterchainAccountMessage {
     where
         W: std::io::Write,
     {
+        let n = writer.write([self.kind].as_ref())?;
+        assert_eq!(n, 1, "Wrote {} bytes, expected 1", n);
+
         writer.write_all(self.owner.as_ref())?;
         writer.write_all(self.ism.as_ref())?;
         writer.write_all(self.salt.as_ref())?;
@@ -31,6 +35,9 @@ impl Decode for InterchainAccountMessage {
     where
         R: std::io::Read,
     {
+        let mut kind = [0_u8; 1];
+        reader.read_exact(&mut kind)?;
+
         let mut owner = H256::zero();
         reader.read_exact(owner.as_mut())?;
 
@@ -44,6 +51,7 @@ impl Decode for InterchainAccountMessage {
         reader.read_to_end(&mut calls)?;
 
         Ok(Self {
+            kind: kind[0],
             owner,
             ism,
             salt,
@@ -54,11 +62,12 @@ impl Decode for InterchainAccountMessage {
 
 impl InterchainAccountMessage {
     /// Creates a new token message.
-    pub fn new(owner: H256, ism: H256, salt: H256, calls: Vec<u8>) -> Self {
+    pub fn new(owner: H256, ism: Option<H256>, salt: Option<H256>, calls: Vec<u8>) -> Self {
         Self {
+            kind: 0,
             owner,
-            ism,
-            salt,
+            ism: ism.unwrap_or_default(),
+            salt: salt.unwrap_or_default(),
             calls,
         }
     }

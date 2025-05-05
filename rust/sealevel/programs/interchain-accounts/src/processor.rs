@@ -310,12 +310,8 @@ fn send_call_remote(
     // encode the message body
     let owner = H256(remote_call.sender.to_bytes());
 
-    let message = InterchainAccountMessage {
-        owner,
-        ism: remote_call.ism.unwrap_or_default(),
-        salt: remote_call.salt.unwrap_or_default(),
-        calls: remote_call.calls,
-    };
+    let message =
+        InterchainAccountMessage::new(owner, remote_call.ism, remote_call.salt, remote_call.calls);
     let mut encoded_message = vec![];
     message
         .write_to(&mut encoded_message)
