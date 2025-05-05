@@ -12,11 +12,9 @@ import type { MetadataBuilder, MetadataContext } from './types.js';
 export class CcipReadMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.CCIP;
   private core: HyperlaneCore;
-  private iface: utils.Interface;
 
   constructor(core: HyperlaneCore) {
     this.core = core;
-    this.iface = ICcipReadIsm__factory.createInterface();
   }
 
   async build(
@@ -24,7 +22,7 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
   ): Promise<string> {
     const { ism, message } = context;
     const provider = this.core.multiProvider.getProvider(message.parsed.origin);
-    const contract = new Contract(ism.address, this.iface, provider);
+    const contract = ICcipReadIsm__factory.connect(ism.address, provider);
 
     let revertData: string;
     try {
@@ -36,7 +34,7 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
       if (!revertData) throw err;
     }
 
-    const parsed = this.iface.parseError(revertData);
+    const parsed = contract.interface.parseError(revertData);
     if (parsed.name !== 'OffchainLookup') {
       throw new Error(`Unexpected error ${parsed.name}`);
     }
