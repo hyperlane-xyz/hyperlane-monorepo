@@ -181,7 +181,11 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
     }
 
     #[instrument(ret, skip(self))]
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        _chain_signer: H256, // TODO: use chain signer instead of contract address
+    ) -> Option<U256> {
         let Ok((_, max_cost)) = self.announce_contract_call(announcement).await else {
             warn!("Unable to get announce contract call");
             return None;

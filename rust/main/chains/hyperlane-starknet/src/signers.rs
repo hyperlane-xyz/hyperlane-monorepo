@@ -15,6 +15,9 @@ pub struct Signer {
     pub address: FieldElement,
     /// version of the signer
     pub version: u32,
+
+    /// H256 address of the signer
+    pub address_h256: H256,
 }
 
 impl Signer {
@@ -32,6 +35,7 @@ impl Signer {
         Ok(Self {
             signing_key,
             address: contract_address,
+            address_h256: *address,
             version,
         })
     }
