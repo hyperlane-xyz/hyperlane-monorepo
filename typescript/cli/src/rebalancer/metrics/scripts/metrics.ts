@@ -4,10 +4,13 @@ import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
+import { logBlue } from '../../../logger.js';
+import {
+  NativeWalletBalance,
+  WarpRouteBalance,
+  XERC20Limit,
+} from '../types.js';
 import { getWalletBalanceGauge } from '../utils/metrics.js';
-
-import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { logger } from './utils.js';
 
 export const metricsRegister = new Registry();
 
@@ -125,7 +128,7 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logger.info(
+  logBlue(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -136,7 +139,7 @@ export function updateTokenBalanceMetrics(
   if (balanceInfo.valueUSD) {
     // TODO: consider deprecating this metric in favor of the value at risk metric
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logger.info(
+    logBlue(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -155,7 +158,7 @@ export function updateTokenBalanceMetrics(
       };
 
       warpRouteValueAtRisk.labels(labels).set(balanceInfo.valueUSD);
-      logger.info(
+      logBlue(
         {
           labels,
           valueUSD: balanceInfo.valueUSD,
@@ -194,7 +197,7 @@ export function updateManagedLockboxBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logger.info(
+  logBlue(
     {
       labels: metrics,
       balance: balanceInfo.balance,
@@ -204,7 +207,7 @@ export function updateManagedLockboxBalanceMetrics(
 
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logger.info(
+    logBlue(
       {
         labels: metrics,
         valueUSD: balanceInfo.valueUSD,
@@ -224,7 +227,7 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
       token_name: 'Native',
     })
     .set(balance.balance);
-  logger.info('Native wallet balance updated', {
+  logBlue('Native wallet balance updated', {
     balanceInfo: balance,
   });
 }
@@ -253,7 +256,7 @@ export function updateXERC20LimitsMetrics(
       .set(limit);
   }
 
-  logger.info(
+  logBlue(
     {
       ...labels,
       limits,

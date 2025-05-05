@@ -3,10 +3,9 @@ import EventEmitter from 'events';
 import { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
+import { warnYellow } from '../../logger.js';
 import { WrappedError } from '../../utils/errors.js';
 import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
-// TODO: update logger location or create a new instance for each section of the rebalancer
-import { logger } from '../metrics/scripts/utils.js';
 
 export class MonitorStartError extends WrappedError {
   name = 'MonitorStartError';
@@ -135,10 +134,7 @@ export class Monitor implements IMonitor {
     token: Token,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
-      logger.warn(
-        'Cannot get bridged balance for a non-Hyperlane token',
-        token,
-      );
+      warnYellow('Cannot get bridged balance for a non-Hyperlane token', token);
       return;
     }
 
@@ -146,7 +142,7 @@ export class Monitor implements IMonitor {
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      logger.warn('Bridged supply not found for token', token);
+      warnYellow('Bridged supply not found for token', token);
     }
 
     return bridgedSupply;

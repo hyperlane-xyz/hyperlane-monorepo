@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
+import { errorRed, warnYellow } from '../../logger.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 
 import { PriceGetter } from './PriceGetter.js';
@@ -26,14 +27,10 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
-import {
-  NativeWalletBalance,
-  WarpRouteBalance,
-  XERC20Limit,
-} from './scripts/types.js';
-import { logger, tryFn } from './scripts/utils.js';
+import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
 import { formatBigInt } from './utils/formatBigInt.js';
 import { startMetricsServer } from './utils/metrics.js';
+import { tryFn } from './utils/tryFn.js';
 
 interface XERC20Info {
   limits: XERC20Limit;
@@ -125,7 +122,7 @@ export class Metrics implements IMetrics {
       );
 
       if (!this.warpDeployConfig) {
-        logger.warn(
+        warnYellow(
           `Can't read warp deploy config for token ${token.symbol} on chain ${token.chainName} skipping extra lockboxes`,
         );
         return;
@@ -138,7 +135,7 @@ export class Metrics implements IMetrics {
         currentTokenDeployConfig.type !== TokenType.XERC20 &&
         currentTokenDeployConfig.type !== TokenType.XERC20Lockbox
       ) {
-        logger.error('Token is xERC20 but token deploy config is not');
+        errorRed('Token is xERC20 but token deploy config is not');
         return;
       }
 
@@ -198,10 +195,7 @@ export class Metrics implements IMetrics {
     bridgedSupply?: bigint,
   ): Promise<WarpRouteBalance | undefined> {
     if (!token.isHypToken()) {
-      logger.warn(
-        'Cannot get bridged balance for a non-Hyperlane token',
-        token,
-      );
+      warnYellow('Cannot get bridged balance for a non-Hyperlane token', token);
       return undefined;
     }
 
@@ -210,7 +204,7 @@ export class Metrics implements IMetrics {
     // const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      logger.warn('Bridged supply not found for token', token);
+      warnYellow('Bridged supply not found for token', token);
       return undefined;
     }
 
@@ -392,7 +386,7 @@ export class Metrics implements IMetrics {
     try {
       balance = await erc20tokenAdapter.getBalance(lockboxAddress);
     } catch (e) {
-      logger.error(
+      errorRed(
         `Error getting balance for contract at "${lockboxAddress}" on chain ${warpToken.chainName} on token ${erc20TokenAddress}`,
         e,
       );

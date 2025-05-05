@@ -5,7 +5,9 @@ import {
   Token,
 } from '@hyperlane-xyz/sdk';
 
-import { logger } from './scripts/utils.js';
+import { errorRed, warnYellow } from '../../logger.js';
+
+import { tryGCPSecretFromEnvVariable } from './scripts/tryGCPSecretFromEnvVariable.js';
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
   private constructor({
@@ -46,7 +48,7 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     const coinGeckoId = token.coinGeckoId;
 
     if (!coinGeckoId) {
-      logger.warn('CoinGecko ID missing for token', token.symbol);
+      warnYellow('CoinGecko ID missing for token', token.symbol);
       return undefined;
     }
 
@@ -65,7 +67,7 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     try {
       apiKey = tryGCPSecretFromEnvVariable(`${environment}-coingecko-api-key`);
     } catch (e) {
-      logger.error(
+      errorRed(
         'Error fetching CoinGecko API key, proceeding with public tier',
         e,
       );
@@ -73,26 +75,4 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
 
     return apiKey;
   }
-}
-
-// If the environment variable GCP_SECRET_OVERRIDES_ENABLED is `true`,
-// this will attempt to find an environment variable of the form:
-//  `GCP_SECRET_OVERRIDE_${gcpSecretName.replaceAll('-', '_').toUpperCase()}`
-// If found, it's returned, otherwise, undefined is returned.
-function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
-  const overridingEnabled =
-    process.env.GCP_SECRET_OVERRIDES_ENABLED &&
-    process.env.GCP_SECRET_OVERRIDES_ENABLED.length > 0;
-
-  if (!overridingEnabled) {
-    logger.debug('GCP secret overrides disabled');
-    return undefined;
-  }
-
-  logger.debug('GCP secret overrides enabled');
-  const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
-    .replaceAll('-', '_')
-    .toUpperCase()}`;
-
-  return process.env[overrideEnvVarName];
 }
