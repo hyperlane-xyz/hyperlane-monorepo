@@ -63,6 +63,12 @@ await signer.signAndBroadcast(signer.getAccounts()[0], [txs...]);
 
 Node 18 or newer is required.
 
+## Testing
+
+We have a `cosmos-sdk-e2e` job in CI that first runs a local node and then runs a suite of end-to-end tests. The `hyperlane-cosmos-simapp` image is created ad-hoc by the `hypd-docker` workflow, intended to be triggered manually by a developer when a new hyperlane-cosmos release is made.
+
+> Note: When updating the `cosmos-sdk` and `cosmos-types` package to a new `hyperlane-cosmos` version, it's important to release a new `hyperlane-cosmos-simapp` image and update the tag used in the `cosmos-sdk-e2e` job. This ensures that the end-to-end tests run against the correct version of the `hyperlane-cosmos` module.
+
 ## Contribute
 
 First you need to install the dependencies by running `yarn install`.

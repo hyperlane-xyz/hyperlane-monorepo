@@ -4,9 +4,11 @@ import type {
   ExecuteResult,
   IndexedTx,
 } from '@cosmjs/cosmwasm-stargate';
+import { GasPrice } from '@cosmjs/stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
+import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -95,7 +97,7 @@ export function useCosmosActiveChain(
   _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
   // Cosmoskit doesn't have the concept of an active chain
-  return useMemo(() => ({} as ActiveChainInfo), []);
+  return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
 export function useCosmosTransactionFns(
@@ -134,8 +136,12 @@ export function useCosmosTransactionFns(
         await onSwitchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
-      const { getSigningCosmWasmClient, getSigningStargateClient } =
-        chainContext;
+      const {
+        getSigningCosmWasmClient,
+        getSigningStargateClient,
+        getOfflineSigner,
+        chain,
+      } = chainContext;
       let result: ExecuteResult | DeliverTxResponse;
       let txDetails: IndexedTx | null;
       if (tx.type === ProviderType.CosmJsWasm) {
@@ -152,6 +158,24 @@ export function useCosmosTransactionFns(
         // It seems the signAndBroadcast method uses a default fee multiplier of 1.4
         // https://github.com/cosmos/cosmjs/blob/e819a1fc0e99a3e5320d8d6667a08d3b92e5e836/packages/stargate/src/signingstargateclient.ts#L115
         // A multiplier of 1.6 was insufficient for Celestia -> Neutron|Cosmos -> XXX transfers, but 2 worked.
+        result = await client.signAndBroadcast(
+          chainContext.address,
+          [tx.transaction],
+          2,
+        );
+        txDetails = await client.getTx(result.transactionHash);
+      } else if (tx.type === ProviderType.CosmJsNative) {
+        const signer = getOfflineSigner();
+        const client = await SigningHyperlaneModuleClient.connectWithSigner(
+          chain.apis!.rpc![0].address,
+          signer,
+          {
+            // set zero gas price here so it does not error. actual gas price
+            // will be injected from the wallet registry like Keplr or Leap
+            gasPrice: GasPrice.fromString('0token'),
+          },
+        );
+
         result = await client.signAndBroadcast(
           chainContext.address,
           [tx.transaction],
@@ -182,6 +206,7 @@ function getCosmosChains(
 ): ChainMetadata[] {
   return [
     ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
+    ...getChainsForProtocol(multiProvider, ProtocolType.CosmosNative),
     cosmoshub,
   ];
 }

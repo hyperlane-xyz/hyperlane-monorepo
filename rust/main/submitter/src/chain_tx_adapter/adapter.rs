@@ -39,19 +39,25 @@ pub trait AdaptsChain: Send + Sync {
     ) -> Result<Option<GasLimit>, SubmitterError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
-    async fn build_transactions(
-        &self,
-        payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError>;
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
     async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
+
+    /// Estimates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
 
     /// Sets / escalates gas price, sets nonce / blockhash and broadcasts the Transaction. Even if broadcasting fails, the Transaction struct remains mutated with the new estimates. Called in the Inclusion Stage (PayloadDispatcher)
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
 
     /// Queries the chain by txhash to get the tx status. Called in the Inclusion Stage and Finality Stage of the PayloadDispatcher
     async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+
+    /// Return true if the transaction can be resubmitted (such as by escalating the gas price). Called in the Inclusion Stage (PayloadDispatcher).
+    /// Defaults to true, since most chains don't have special rules for tx resubmission.
+    async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool {
+        true
+    }
 
     /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
     async fn reverted_payloads(

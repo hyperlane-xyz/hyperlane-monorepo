@@ -17,6 +17,7 @@ chrono.workspace = true
 derive-new.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-client.workspace = true
@@ -29,5 +30,6 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
+tracing-test.workspace = true
 mockall.workspace = true
 tempfile.workspace = true

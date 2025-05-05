@@ -14,6 +14,7 @@ members = [
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
+  "hyperlane-metric",
   "hyperlane-test",
   "submitter",
   "utils/abigen",
@@ -22,6 +23,7 @@ members = [
   "utils/hex",
   "utils/run-locally",
 ]
+resolver = "2"
 
 [workspace.package]
 documentation = "https://docs.hyperlane.xyz"
@@ -37,8 +39,15 @@ anyhow = "1.0"
 async-trait = "0.1"
 async-rwlock = "1.3"
 auto_impl = "1.0"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+# AWS deps are pinned to be compatible with rustc 1.80.1
+aws-sdk-s3 = "=1.65.0"
+aws-sdk-sso = "=1.50.0"
+aws-sdk-ssooidc = "=1.50.0"
+aws-sdk-sts = "=1.50.0"
 axum = "0.6.1"
 backtrace = "0.3"
+cc = "1.2.2"
 base64 = "0.21.2"
 bigdecimal = "0.4.2"
 bincode = "1.3"
@@ -61,6 +70,7 @@ cosmwasm-std = "*"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
+dashmap = "5"
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
@@ -87,7 +97,7 @@ injective-protobuf = "0.2.2"
 moka = "0.12.8"
 injective-std = "1.13.6"
 itertools = "*"
-jobserver = "=0.1.26"
+jobserver = "0.1.32"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
 lazy_static = "1.5.0"
@@ -115,14 +125,14 @@ ripemd = "0.1.3"
 rlp = "=0.5.2"
 rocksdb = "0.21.0"
 rstest = "0.25.0"
-sea-orm = { version = "0.11.1", features = [
+sea-orm = { version = "1.1.10", features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls",
   "with-bigdecimal",
   "with-time",
   "macros",
 ] }
-sea-orm-migration = { version = "0.11.1", features = [
+sea-orm-migration = { version = "1.1.10", features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls",
 ] }
@@ -209,27 +219,27 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-04-23"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-04-23"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-04-23"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-04-23"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2025-02-03"
+tag = "2025-04-23"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
