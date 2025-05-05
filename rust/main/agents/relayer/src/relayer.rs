@@ -233,13 +233,27 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized IGP syncs", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+        // Filter origin chains to only include those with a configured Merkle Tree Hook.
+        // Polymer ISM chains will not have this configured and should be excluded.
+        let origins_with_merkle_hook: Vec<&HyperlaneDomain> = settings
+            .origin_chains
+            .iter()
+            .filter(|domain| {
+                core.settings
+                    .chain_setup(domain)
+                    .map_or(false, |conf| conf.addresses.merkle_tree_hook.is_some())
+            })
+            .collect();
+
         let merkle_tree_hook_syncs = settings
             .contract_syncs::<MerkleTreeInsertion, _>(
-                settings.origin_chains.iter(),
+                origins_with_merkle_hook.clone().into_iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                // Provide DBs only for the filtered origins
+                origins_with_merkle_hook
+                    .iter()
+                    .map(|d| ((*d).clone(), Arc::new(dbs[*d].clone())))
                     .collect(),
                 false,
             )
@@ -487,20 +501,26 @@ impl BaseAgent for Relayer {
                 )
                 .await,
             );
-            tasks.push(
-                self.run_merkle_tree_hook_sync(
-                    origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                    task_monitor.clone(),
-                )
-                .await,
-            );
             tasks.push(self.run_message_processor(
                 origin,
                 send_channels.clone(),
                 task_monitor.clone(),
             ));
-            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
+
+            // Only run merkle tree hook sync and processor if the hook is configured for this origin
+            if self.merkle_tree_hook_syncs.contains_key(origin) {
+                tasks.push(
+                    self.run_merkle_tree_hook_sync(
+                        origin,
+                        BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                        task_monitor.clone(),
+                    )
+                    .await,
+                );
+                tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
+            } else {
+                debug!(origin=%origin.name(), "Skipping MerkleTreeHook sync and processor tasks as hook is not configured");
+            }
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree processors", "Relayer startup duration measurement");
 
