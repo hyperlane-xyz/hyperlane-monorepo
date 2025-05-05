@@ -7,10 +7,10 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://apechain.calderachain.xyz/http"
+          "http": "https://curtis.rpc.caldera.xyz/http"
         }
       ],
-      "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
+      "mailbox": "0x633695f0e73d773932076c5ca40f2d0749988f4d",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
         "from": 17525341
@@ -26,7 +26,7 @@
           "http": "https://sepolia.b3.fun/http"
         }
       ],
-      "mailbox": "0xf1989fcad86f040b2bbfced6a0ce359e1247a611",
+      "mailbox": "0x8abcae02b22a5267a94689f417824eff177da0df",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
          "from": 31937330
