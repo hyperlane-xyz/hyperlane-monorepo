@@ -20,6 +20,7 @@ import { MonitorEvent } from '../interfaces/IMonitor.js';
 
 import { PriceGetter } from './PriceGetter.js';
 import {
+  metricsRegister,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
@@ -31,6 +32,7 @@ import {
   XERC20Limit,
 } from './infra/scripts/warp-routes/monitor/types.js';
 import { logger, tryFn } from './infra/scripts/warp-routes/monitor/utils.js';
+import { startMetricsServer } from './infra/src/utils/metrics.js';
 import { formatBigInt } from './utils.js';
 
 interface XERC20Info {
@@ -53,7 +55,9 @@ export class Metrics implements IMetrics {
     private readonly collateralTokenSymbol: string,
     private readonly warpDeployConfig: WarpRouteDeployConfig | null,
     private readonly warpCore: WarpCore,
-  ) {}
+  ) {
+    startMetricsServer(metricsRegister);
+  }
 
   async processEvent({ token, bridgedSupply }: Omit<MonitorEvent, 'balances'>) {
     await tryFn(async () => {
