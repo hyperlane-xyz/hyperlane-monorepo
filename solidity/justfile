@@ -43,3 +43,31 @@ deploy-simple-app-ape:
         --rpc-url https://curtis.rpc.caldera.xyz/http \
         --broadcast \
         -vvvv
+
+send-message-b3-to-ape:
+    # Set the address of the SimpleMessageSenderReceiver deployed on B3 
+    export SENDER_CONTRACT_ADDRESS="0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
+    # Set the Hyperlane Domain ID of the destination (Ape Curtis = 33111)
+    export DESTINATION_DOMAIN=33111
+    # Set the address of the SimpleMessageSenderReceiver deployed on Ape
+    export RECIPIENT_CONTRACT_ADDRESS="0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
+    # Set the message content
+    export MESSAGE_CONTENT="Hello from B3 to Ape!"
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url https://sepolia.b3.fun/http \
+        --broadcast \
+        -vvvv
+
+send-message-ape-to-b3:
+    # Set the address of the SimpleMessageSenderReceiver deployed on Ape (curtis)
+    export SENDER_CONTRACT_ADDRESS="0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
+    # Set the Hyperlane Domain ID of the destination (B3 Sepolia = 1993)
+    export DESTINATION_DOMAIN=1993
+    # Set the address of the SimpleMessageSenderReceiver deployed on B3 (sepolia)
+    export RECIPIENT_CONTRACT_ADDRESS="0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
+    # Set the message content
+    export MESSAGE_CONTENT="Hello from Ape Curtis to B3 Sepolia!"
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url https://curtis.rpc.caldera.xyz/http \
+        --broadcast \
+        -vvvv
