@@ -28,7 +28,7 @@ import {
   logGreen,
 } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
-import { RebalancerContextFactory } from '../rebalancer/RebalancerContextFactory.js';
+import { RebalancerContextFactory } from '../rebalancer/factories/RebalancerContextFactory.js';
 import {
   Executor,
   IExecutor,
