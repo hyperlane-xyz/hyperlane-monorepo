@@ -80,7 +80,7 @@ contract HyperToken is
         _burn(_from, _amount);
     }
 
-    // /// @inheritdoc ERC20Upgradeable
+    /// @inheritdoc ERC20Upgradeable
     function decimals()
         public
         view
@@ -91,7 +91,7 @@ contract HyperToken is
         return HypERC20.decimals();
     }
 
-    // /// @inheritdoc ERC20Upgradeable
+    /// @inheritdoc ERC20Upgradeable
     function balanceOf(
         address _account
     )
