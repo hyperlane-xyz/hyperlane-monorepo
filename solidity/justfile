@@ -76,6 +76,8 @@ send-message-ape-to-b3:
 
 test-mailbox-contract-deployment-b3:
     cast call "{{ mailbox_contract_addr_b3 }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_b3 }}"
+    cast call "{{ mailbox_contract_addr_b3 }}" "nonce()" --rpc-url "{{ rpc_endpoint_b3 }}"
 
 test-mailbox-contract-deployment-ape:
     cast call "{{ mailbox_contract_addr_ape }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_ape }}"
+    cast call "{{ mailbox_contract_addr_ape }}" "nonce()" --rpc-url "{{ rpc_endpoint_ape }}"
