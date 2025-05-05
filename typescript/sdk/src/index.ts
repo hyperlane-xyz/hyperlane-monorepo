@@ -458,6 +458,8 @@ export {
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
+export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
+export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
