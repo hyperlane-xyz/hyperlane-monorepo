@@ -160,12 +160,14 @@ export function hyperlaneWarpRebalancer(
   warpRouteId: string,
   checkFrequency: number,
   strategyConfigFile: string,
+  withMetrics: boolean,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --warpRouteId ${warpRouteId} \
         --checkFrequency ${checkFrequency} \
-        --strategyConfigFile ${strategyConfigFile}`;
+        --strategyConfigFile ${strategyConfigFile} \
+        --withMetrics ${withMetrics}`;
 }
 
 /**
