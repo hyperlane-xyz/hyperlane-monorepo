@@ -103,21 +103,10 @@ impl StarknetMailbox {
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
-        println!("MAILBOX address: {:?}", self.contract.address);
-
-        println!(
-            "SAQUON process call: metadata {:?} and message {:?} and id {:?}",
-            metadata,
-            StarknetMessage::from(message),
-            message.id()
-        );
-
-        // self.contract.
         let tx = self
             .contract
             .process(&to_mailbox_bytes(metadata), &message.into());
 
-        println!("SAQUON tx {:?}", tx);
         let gas_estimate = match tx_gas_estimate {
             Some(estimate) => HyU256(estimate)
                 .try_into()
@@ -125,14 +114,10 @@ impl StarknetMailbox {
             None => {
                 tx.estimate_fee()
                     .await
-                    .map_err(|e| {
-                        tracing::error!("Failed to estimate fee in process_contract_call: {:?}", e);
-                        HyperlaneStarknetError::AccountError(e.to_string())
-                    })?
+                    .map_err(HyperlaneStarknetError::from)?
                     .overall_fee
             }
         };
-        println!("SAQUON gas estimate {:?}", gas_estimate);
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
 
@@ -236,16 +221,16 @@ impl Mailbox for StarknetMailbox {
         let contract_call = self.process_contract_call(message, metadata, None).await?;
 
         // Get fee estimate from the provider
-        let fee_estimate = contract_call.estimate_fee().await.map_err(|e| {
-            tracing::error!("Failed to estimate fee in process_estimate_costs: {:?}", e);
-            HyperlaneStarknetError::AccountError(e.to_string())
-        })?;
+        let fee_estimate = contract_call
+            .estimate_fee()
+            .await
+            .map_err(HyperlaneStarknetError::from)?;
 
         Ok(TxCostEstimate {
             gas_limit: HyU256::from(fee_estimate.overall_fee).0,
             gas_price: FixedPointNumber::try_from(HyU256::from(fee_estimate.gas_price).0).map_err(
                 |e| {
-                    HyperlaneStarknetError::AccountError(format!(
+                    HyperlaneStarknetError::from_other(format!(
                         "Failed to convert gas price to FixedPointNumber: {e}"
                     ))
                 },
@@ -259,7 +244,8 @@ impl Mailbox for StarknetMailbox {
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        // For Starknet, we don't need to process the calldata as it's handled by the contract
+        // This function is only relevant for the new submitter
+        // TODO: Revisit with new submitter changes
         Ok(Vec::new())
     }
 }

@@ -1,7 +1,10 @@
 use hyperlane_core::ChainCommunicationError;
-use starknet::core::{
-    types::{FromByteArrayError, FromByteSliceError, FromStrError, ValueOutOfRangeError},
-    utils::{CairoShortStringToFeltError, ParseCairoShortStringError},
+use starknet::{
+    accounts::AccountError,
+    core::{
+        types::{FromByteArrayError, FromByteSliceError, FromStrError, ValueOutOfRangeError},
+        utils::{CairoShortStringToFeltError, ParseCairoShortStringError},
+    },
 };
 use std::fmt::Debug;
 
@@ -62,5 +65,11 @@ impl HyperlaneStarknetError {
     /// Convert any error into a `HyperlaneStarknetError::Other`
     pub fn from_other<T: Debug>(err: T) -> Self {
         HyperlaneStarknetError::Other(format!("{:?}", err))
+    }
+}
+
+impl<T: Debug> From<AccountError<T>> for HyperlaneStarknetError {
+    fn from(value: AccountError<T>) -> Self {
+        HyperlaneStarknetError::AccountError(format!("{:?}", value))
     }
 }
