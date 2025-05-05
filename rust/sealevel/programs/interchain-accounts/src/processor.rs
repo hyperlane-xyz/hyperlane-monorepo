@@ -17,6 +17,7 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     instruction::AccountMeta,
+    msg,
     program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -49,6 +50,27 @@ macro_rules! program_storage_pda_seeds {
             b"handle",
             b"-",
             b"storage",
+            &[$bump_seed],
+        ]
+    }};
+}
+
+/// The PDA seeds relating to a program's call remote authority
+#[macro_export]
+macro_rules! call_remote_authority_pda_seeds {
+    () => {{
+        &[
+            b"hyperlane_interchain_account",
+            b"-",
+            b"call_remote_authority",
+        ]
+    }};
+
+    ($bump_seed:expr) => {{
+        &[
+            b"hyperlane_interchain_account",
+            b"-",
+            b"call_remote_authority",
             &[$bump_seed],
         ]
     }};
@@ -151,22 +173,23 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
 /// Dispatches a message using the dispatch authority.
 ///
 /// Accounts:
-/// 0.  `[writeable]` Program storage.
-/// 1.  `[executable]` The Mailbox program.
-/// 2.  `[writeable]` Outbox PDA.
-/// 3.  `[]` This program's dispatch authority.
-/// 4.  `[executable]` System program.
-/// 5.  `[executable]` SPL Noop program.
-/// 6.  `[signer]` Payer.
-/// 7.  `[signer]` Unique message account.
-/// 8.  `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
-///     `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
-///     ---- if an IGP is configured ----
-/// 9.  `[executable]` The IGP program.
-/// 10. `[writeable]` The IGP program data.
-/// 11. `[writeable]` The gas payment PDA.
-/// 12. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-/// 13. `[writeable]` The IGP account.
+/// 0.  `[]` Program storage (read-only)
+/// 1.  `[signer]` Call remote sender signer.
+/// 2.  `[executable]` The Mailbox program.
+/// 3.  `[writeable]` Outbox PDA.
+/// 4.  `[]` This program's dispatch authority.
+/// 5.  `[executable]` System program.
+/// 6.  `[executable]` SPL Noop program.
+/// 7.  `[signer]` Payer.
+/// 8.  `[signer]` Unique message account.
+/// 9.  `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
+///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
+///    ---- if an IGP is configured ----
+/// 10.  `[executable]` The IGP program.
+/// 11. `[writeable]` The IGP program data.
+/// 12. `[writeable]` The gas payment PDA.
+/// 13. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+/// 14. `[writeable]` The IGP account.
 ///     ---- end if an IGP is configured ----
 fn send_call_remote(
     program_id: &Pubkey,
@@ -185,13 +208,20 @@ fn send_call_remote(
     let storage =
         InterchainAccountStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
-    // Account 1: Mailbox program.
+    // Account 1: Message sender signer.
+    let sender_signer_info = next_account_info(accounts_iter)?;
+    if !sender_signer_info.is_signer || *sender_signer_info.key != remote_call.sender {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    let owner = H256(remote_call.sender.to_bytes());
+
+    // Account 2: Mailbox program.
     let _mailbox_info = next_account_info(accounts_iter)?;
 
-    // Account 2: Outbox PDA.
+    // Account 3: Outbox PDA.
     let mailbox_outbox_info = next_account_info(accounts_iter)?;
 
-    // Account 3: Dispatch authority.
+    // Account 4: Dispatch authority.
     let dispatch_authority_info = next_account_info(accounts_iter)?;
     let (expected_dispatch_authority_key, expected_dispatch_authority_bump) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), program_id);
@@ -199,19 +229,19 @@ fn send_call_remote(
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Account 4: System program.
+    // Account 5: System program.
     let system_program_info = next_account_info(accounts_iter)?;
 
-    // Account 5: SPL Noop program.
+    // Account 6: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
 
-    // Account 6: Payer.
+    // Account 7: Payer.
     let payer_info = next_account_info(accounts_iter)?;
 
-    // Account 7: Unique message account.
+    // Account 8: Unique message account.
     let unique_message_account_info = next_account_info(accounts_iter)?;
 
-    // Account 8: Dispatched message PDA.
+    // Account 9: Dispatched message PDA.
     let dispatched_message_info = next_account_info(accounts_iter)?;
 
     let dispatch_account_metas = vec![
@@ -235,21 +265,21 @@ fn send_call_remote(
 
     let igp_payment_accounts =
         if let Some((igp_program_id, igp_account_type)) = storage.interchain_gas_paymaster() {
-            // Account 9: The IGP program
+            // Account 10: The IGP program
             let igp_program_account_info = next_account_info(accounts_iter)?;
             if igp_program_account_info.key != igp_program_id {
                 return Err(ProgramError::InvalidArgument);
             }
 
-            // Account 10: The IGP program data.
+            // Account 11: The IGP program data.
             // No verification is performed here, the IGP will do that.
             let igp_program_data_account_info = next_account_info(accounts_iter)?;
 
-            // Account 11: The gas payment PDA.
+            // Account 12: The gas payment PDA.
             // No verification is performed here, the IGP will do that.
             let igp_payment_pda_account_info = next_account_info(accounts_iter)?;
 
-            // Account 12: The configured IGP account.
+            // Account 13: The configured IGP account.
             let configured_igp_account_info = next_account_info(accounts_iter)?;
             if configured_igp_account_info.key != igp_account_type.key() {
                 return Err(ProgramError::InvalidArgument);
@@ -307,9 +337,6 @@ fn send_call_remote(
             None
         };
 
-    // encode the message body
-    let owner = H256(remote_call.sender.to_bytes());
-
     let message =
         InterchainAccountMessage::new(owner, remote_call.ism, remote_call.salt, remote_call.calls);
     let mut encoded_message = vec![];
@@ -345,8 +372,13 @@ fn send_call_remote(
         )?;
     }
 
-    // Store it
-    InterchainAccountStorageAccount::from(storage).store(storage_info, false)?;
+    msg!(
+        "Remote call requested, owner: {}, destination: {}, ism: {:?}, salt: {:?}",
+        owner,
+        remote_call.destination,
+        remote_call.ism,
+        remote_call.salt
+    );
 
     Ok(())
 }

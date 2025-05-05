@@ -5,7 +5,7 @@ use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256};
 /// Message contents sent or received by a Hyperlane Interchain Account program
 #[derive(Debug)]
 pub struct InterchainAccountMessage {
-    /// The kind of message (currently only supports 0). See solidity `InterchainAccountRouter.MessageType`
+    /// The kind of message. See solidity InterchainAccountMessage.sol
     kind: u8,
     pub owner: H256,
     pub ism: H256,
@@ -18,8 +18,7 @@ impl Encode for InterchainAccountMessage {
     where
         W: std::io::Write,
     {
-        let n = writer.write([self.kind].as_ref())?;
-        assert_eq!(n, 1, "Wrote {} bytes, expected 1", n);
+        writer.write([self.kind].as_ref())?;
 
         writer.write_all(self.owner.as_ref())?;
         writer.write_all(self.ism.as_ref())?;
