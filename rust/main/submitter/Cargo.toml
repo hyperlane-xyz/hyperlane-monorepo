@@ -16,6 +16,7 @@ async-trait.workspace = true
 chrono.workspace = true
 derive-new.workspace = true
 eyre.workspace = true
+ethers.workspace = true
 futures-util.workspace = true
 prometheus.workspace = true
 serde.workspace = true

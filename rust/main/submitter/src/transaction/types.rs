@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
+use ethers::types::transaction::eip2718::TypedTransaction;
 use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
@@ -104,7 +105,7 @@ pub enum DropReason {
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    Evm,
+    Evm(TypedTransaction),
     Svm(SealevelTxPrecursor),
     CosmWasm,
 }

@@ -10622,6 +10622,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "derive-new",
+ "ethers",
  "eyre",
  "futures-util",
  "hyperlane-base",
