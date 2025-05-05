@@ -65,7 +65,6 @@ impl IsRetryable for SubmitterError {
                 // TODO: add logic to classify based on the error message
                 false
             }
-            // tx submission errors are not retryable so gas gets escalated
             SubmitterError::ChainCommunicationError(_) => {
                 // TODO: add logic to classify based on the error message
                 false

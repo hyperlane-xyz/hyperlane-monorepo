@@ -105,6 +105,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         _announcement: SignedType<Announcement>,
+        _chain_signer: H256,
     ) -> Option<U256> {
         Some(U256::zero())
     }
