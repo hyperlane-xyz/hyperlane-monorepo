@@ -21,28 +21,6 @@ use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTr
 use crate::types::HyH256;
 use crate::{try_parse_hyperlane_message_from_event, ConnectionConf, HyperlaneStarknetError};
 
-#[derive(Debug, Eq, PartialEq)]
-/// An event parsed from the RPC response.
-pub struct ParsedEvent<T: PartialEq> {
-    contract_address: String,
-    event: T,
-}
-
-impl<T: PartialEq> ParsedEvent<T> {
-    /// Create a new ParsedEvent.
-    pub fn new(contract_address: String, event: T) -> Self {
-        Self {
-            contract_address,
-            event,
-        }
-    }
-
-    /// Get the inner event
-    pub fn inner(self) -> T {
-        self.event
-    }
-}
-
 #[derive(Debug)]
 /// Starknet RPC Provider
 pub struct StarknetMailboxIndexer {
