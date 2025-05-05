@@ -13,8 +13,10 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  assert,
   eqAddress,
   getLogLevel,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -31,7 +33,7 @@ import {
 import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { proxyAdmin } from './../deploy/proxy.js';
+import { isProxy, proxyAdmin } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   DerivedTokenRouterConfig,
@@ -74,7 +76,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
-    const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
+    // if the token has not been deployed as a proxy do not derive the config
+    // inevm warp routes are an example
+    const proxyAdmin = (await isProxy(this.provider, warpRouteAddress))
+      ? await this.fetchProxyAdminConfig(warpRouteAddress)
+      : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
@@ -371,6 +377,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     tokenAddress: Address,
   ): Promise<DeployedOwnableConfig> {
     const proxyAdminAddress = await proxyAdmin(this.provider, tokenAddress);
+    assert(
+      !isZeroishAddress(proxyAdminAddress),
+      `ProxyAdmin config for warp token at address "${tokenAddress}" can't be derived because it is not a proxy.`,
+    );
+
     const proxyAdminInstance = ProxyAdmin__factory.connect(
       proxyAdminAddress,
       this.provider,
