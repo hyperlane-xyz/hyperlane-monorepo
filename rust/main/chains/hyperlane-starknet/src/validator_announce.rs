@@ -1,13 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use hyperlane_core::{Announcement, Encode, SignedType, ValidatorAnnounce};
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, TxOutcome, H256, U256,
 };
 use starknet::accounts::{Account, Execution, SingleOwnerAccount};
@@ -40,7 +37,7 @@ where
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetValidatorAnnounce {
-    contract: Arc<StarknetValidatorAnnounceInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+    contract: StarknetValidatorAnnounceInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -69,7 +66,7 @@ impl StarknetValidatorAnnounce {
         let contract = StarknetValidatorAnnounceInternal::new(va_address, account);
 
         Ok(Self {
-            contract: Arc::new(contract),
+            contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
@@ -98,7 +95,7 @@ impl StarknetValidatorAnnounce {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to estimate gas in announce_contract_call: {:?}", e);
-                HyperlaneStarknetError::AccountError(e.to_string())
+                HyperlaneStarknetError::from(e)
             })?
             .overall_fee;
 
@@ -185,8 +182,6 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
     #[instrument(ret, skip(self))]
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        // let validator = bytes_to_hex(&announcement.value.validator.to_vec());
-
         let Ok((_, max_cost)) = self.announce_contract_call(announcement).await else {
             warn!("Unable to get announce contract call");
             return None;
@@ -200,7 +195,6 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             warn!("Unable to query balance");
             return None;
         };
-        println!("STARKNET announcebalance: {:?}", balance);
 
         let max_cost_u256: HyU256 = max_cost.into();
 
@@ -210,15 +204,5 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let (contract_call, _) = self.announce_contract_call(announcement).await?;
         send_and_confirm(&self.provider.rpc_client(), contract_call).await
-    }
-}
-
-pub struct StarknetValidatorAnnounceAbi;
-
-impl HyperlaneAbi for StarknetValidatorAnnounceAbi {
-    const SELECTOR_SIZE_BYTES: usize = 4;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        HashMap::default()
     }
 }
