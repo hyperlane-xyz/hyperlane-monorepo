@@ -7,12 +7,14 @@ import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
 import type {
   Connection,
+  Signer as SWeb3Signer,
   Transaction as SolTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
 } from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
   providers as EV5Providers,
+  Signer as EV5Signer,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
 import {
@@ -375,3 +377,20 @@ export type TypedTransactionReceipt =
   | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt;
+
+interface TypedSignerBase<T> {
+  type: ProviderType;
+  signer: T;
+}
+
+export interface EthersV5Signer extends TypedSignerBase<EV5Signer> {
+  type: ProviderType.EthersV5;
+  signer: EV5Signer;
+}
+
+export interface SolanaWeb3Signer extends TypedSignerBase<SWeb3Signer> {
+  type: ProviderType.SolanaWeb3;
+  signer: SWeb3Signer;
+}
+
+export type TypedSigner = EthersV5Signer | SolanaWeb3Signer;
