@@ -80,10 +80,10 @@ export async function getWarpConfigs({
         'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
       );
     }
-    const warpDeployConfig = await readWarpRouteDeployConfig(
-      warpDeployConfigPath,
+    const warpDeployConfig = await readWarpRouteDeployConfig({
+      filePath: warpDeployConfigPath,
       context,
-    );
+    });
     const warpCoreConfig = readWarpCoreConfig(warpCoreConfigPath);
     return { warpDeployConfig, warpCoreConfig };
   }

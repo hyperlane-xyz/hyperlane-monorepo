@@ -89,13 +89,26 @@ export async function fillDefaults(
   );
 }
 
-export async function readWarpRouteDeployConfig(
-  filePath: string,
-  context: CommandContext,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config = readYamlOrJson(filePath);
-  if (!config)
-    throw new Error(`No warp route deploy config found at ${filePath}`);
+export async function readWarpRouteDeployConfig({
+  context,
+  ...args
+}:
+  | {
+      context: CommandContext;
+      warpRouteId: string;
+    }
+  | {
+      context: CommandContext;
+      filePath: string;
+    }): Promise<WarpRouteDeployConfigMailboxRequired> {
+  let config;
+  if ('filePath' in args) {
+    config = readYamlOrJson(args.filePath);
+  } else {
+    config = await context.registry.getWarpDeployConfig(args.warpRouteId);
+  }
+
+  if (!config) throw new Error(`No warp route deploy config found!`);
 
   config = await fillDefaults(context, config as any);
 

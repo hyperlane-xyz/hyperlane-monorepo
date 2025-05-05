@@ -98,7 +98,7 @@ const validateWarpCommand: CommandModuleWithContext<{ path: string }> = {
     path: inputFileCommandOption(),
   },
   handler: async ({ path, context }) => {
-    await readWarpRouteDeployConfig(path, context);
+    await readWarpRouteDeployConfig({ filePath: path, context });
     logGreen('Config is valid');
     process.exit(0);
   },

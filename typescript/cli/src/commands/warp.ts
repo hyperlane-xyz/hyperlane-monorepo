@@ -2,6 +2,10 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
+  warpRouteConfigPathToId,
+  warpRouteConfigToId,
+} from '@hyperlane-xyz/registry';
+import {
   ChainName,
   ChainSubmissionStrategySchema,
   expandWarpDeployConfig,
@@ -118,9 +122,17 @@ export const apply: CommandModuleWithWriteContext<{
       context,
     });
 
+    const warpRouteId = warp
+      ? warpRouteConfigPathToId(warp)
+      : warpRouteConfigToId(warpCoreConfig, symbol);
+
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig(config, context);
+    const warpDeployConfig = await readWarpRouteDeployConfig({
+      context,
+      warpRouteId,
+      filePath: config,
+    });
 
     await runWarpRouteApply({
       context,
