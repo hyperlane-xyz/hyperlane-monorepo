@@ -61,24 +61,23 @@ impl EthereumTxAdapter {
             return TransactionStatus::PendingInclusion;
         };
         let block_number = block_number.as_u64();
-        let sts = match self
+        match self
             .provider
             .get_finalized_block_number(&self.reorg_period)
             .await
         {
             Ok(finalized_block) => {
                 if finalized_block as u64 >= block_number {
-                    return TransactionStatus::Finalized;
+                    TransactionStatus::Finalized
                 } else {
-                    return TransactionStatus::Included;
+                    TransactionStatus::Included
                 }
             }
             Err(err) => {
                 warn!(?err, "Error checking block finality");
                 TransactionStatus::PendingInclusion
             }
-        };
-        sts
+        }
     }
 }
 
