@@ -777,6 +777,23 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
+    /**
+     * @notice Dispatches a commitment and reveal message to the destination domain.
+     *  Useful for when we want to keep calldata secret (e.g. when executing a swap
+     * @dev The commitment message is dispatched first, followed by the reveal message.
+     * To find the calladata, the user must fetch the calldata from the url provided by the OffChainLookupIsm
+     * specified in the _ccipReadIsm parameter.
+     * The revealed calladata is executed by the `revealAndExecute` function, which will be called the OffChainLookupIsm in its `verify` function.
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @param _salt Salt which allows control over account derivation.
+     * @param _hook The hook to use after sending our message to the mailbox
+     * @param _commitment The commitment to dispatch
+     * @return _commitmentMsgId The Hyperlane message ID of the commitment message
+     * @return _revealMsgId The Hyperlane message ID of the reveal message
+     */
     function callRemoteCommitReveal(
         uint32 _destination,
         bytes32 _router,
@@ -839,7 +856,28 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
-    /// @dev The calls represented by the commitment can only be executed once.
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
+
+        return
+            callRemoteCommitReveal(
+                _destination,
+                _router,
+                _ism,
+                bytes32(0),
+                bytes(""),
+                hook,
+                InterchainAccountMessage.EMPTY_SALT,
+                _commitment
+            );
+    }
+
+    /// @dev The calls represented by the commitment can only be executed once per commitment,
+    /// though you can submit the same commitment again after the calls have been executed.
     function revealAndExecute(
         CallLib.Call[] calldata _calls,
         bytes32 _salt
