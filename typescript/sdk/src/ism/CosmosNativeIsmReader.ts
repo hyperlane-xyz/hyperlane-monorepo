@@ -4,7 +4,7 @@ import {
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { isTypes } from '@hyperlane-xyz/cosmos-types';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DerivedIsmConfig, IsmType, MultisigIsmConfig } from './types.js';
 
@@ -26,7 +26,9 @@ export class CosmosNativeIsmReader {
           id: address,
         });
 
-      switch (ism?.type_url) {
+      assert(ism, `ISM with id ${address} not found`);
+
+      switch (ism.type_url) {
         case IsmTypes.MerkleRootMultisigISM:
           return this.deriveMerkleRootMultisigConfig(address);
         case IsmTypes.MessageIdMultisigISM:
@@ -34,7 +36,7 @@ export class CosmosNativeIsmReader {
         case IsmTypes.NoopISM:
           return this.deriveTestConfig(address);
         default:
-          throw new Error(`Unknown ISM ModuleType: ${ism?.type_url}`);
+          throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
       }
     } catch (error) {
       this.logger.error(`Failed to derive ISM config for ${address}`, error);

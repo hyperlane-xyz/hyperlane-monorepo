@@ -85,8 +85,6 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       'normalized expectedConfig should be an object',
     );
 
-    // if it's a fallback routing ISM, do a mailbox diff check
-
     // If configs match, no updates needed
     if (deepEquals(actualConfig, expectedConfig)) {
       return [];
@@ -143,7 +141,6 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
           });
         return merkleRootResponse.id;
       }
-
       case IsmType.MESSAGE_ID_MULTISIG: {
         const { response: messageIdResponse } =
           await this.signer.createMessageIdMultisigIsm({
