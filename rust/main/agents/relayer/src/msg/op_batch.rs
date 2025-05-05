@@ -4,11 +4,11 @@ use derive_new::new;
 use hyperlane_core::{
     rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
-    PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason, TxOutcome,
+    PendingOperation, PendingOperationStatus, QueueOperation, TxOutcome,
 };
 use itertools::{Either, Itertools};
 use tokio::time::sleep;
-use tracing::{error, info, instrument, warn};
+use tracing::{info, instrument, warn};
 
 use super::{
     op_queue::OpQueue,
@@ -43,26 +43,11 @@ impl OperationBatch {
             }
         };
 
-        if let Some(first_item) = excluded_ops.first() {
-            let Some(mailbox) = first_item.try_get_mailbox() else {
-                error!(excluded_ops=?excluded_ops, "Excluded ops don't have mailbox while they should have");
-                return; // we expect that excluded ops have mailbox
-            };
-
-            if mailbox.supports_batching() {
-                warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Sending them back to prepare queue.");
-                let reason = ReprepareReason::ErrorEstimatingGas;
-                let status = Some(PendingOperationStatus::Retry(reason.clone()));
-                for mut op in excluded_ops.into_iter() {
-                    op.on_reprepare(None, reason.clone());
-                    prepare_queue.push(op, status.clone()).await;
-                }
-            } else {
-                info!(excluded_ops=?excluded_ops, "Chain does not support batching. Submitting serially.");
-                OperationBatch::new(excluded_ops, self.domain)
-                    .submit_serially(prepare_queue, confirm_queue, metrics)
-                    .await;
-            }
+        if !excluded_ops.is_empty() {
+            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
+            OperationBatch::new(excluded_ops, self.domain)
+                .submit_serially(prepare_queue, confirm_queue, metrics)
+                .await;
         }
     }
 
@@ -268,11 +253,9 @@ mod tests {
         ));
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
         let mut mock_mailbox = MockMailboxContract::new();
         let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
 
@@ -326,13 +309,10 @@ mod tests {
         )
     }
 
+    #[tracing_test::traced_test]
     #[tokio::test]
     #[ignore]
     async fn benchmarking_with_real_rpcs() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .try_init();
-
         let arb_chain_conf = ChainConf {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO

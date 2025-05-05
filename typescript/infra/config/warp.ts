@@ -23,11 +23,14 @@ import {
   getLUMIAGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig.js';
 import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
-import { getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
-import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBscEthereumMantleModePolygonScrollZeronetworkUSDTWarpConfig.js';
+import {
+  getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig,
+  getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig.js';
+import { getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
+import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig.js';
 import { getArbitrumEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumSolanaTreasureSMOLWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
-import { getBaseEthereumLumiaprismETHWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumLumiaprismETHWarpConfig.js';
 import { getBaseEthereumSuperseedCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumSuperseedCBBTCWarpConfig.js';
 import {
   getTRUMPWarpConfig,
@@ -37,6 +40,7 @@ import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/
 import { getBobaBsquaredSoneiumSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
 import { getBscHyperevmEnzoBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmEnzoBTCWarpConfig.js';
 import { getBscHyperevmSTBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBscHyperevmSTBTCWarpConfig.js';
+import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
@@ -83,9 +87,9 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH]:
     getRenzoEZETHWarpConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE]:
     getRenzoEZETHSTAGEWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
@@ -109,7 +113,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
     getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC]:
-    getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC,
+    getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
     getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
@@ -123,13 +127,14 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
+  [WarpRouteIds.EclipseEthereumES]: getEclipseEthereumESWarpConfig,
   // TODO: uncomment after merging the staging route to registry
   // this has been commented out as it leads to check-warp-deploy cron job failing
   // [WarpRouteIds.SuperTokenStaging]: getSuperTokenStagingWarpConfig,
   [WarpRouteIds.SuperUSDT]: getSuperTokenProductionWarpConfig,
   [WarpRouteIds.MintSolanaMINT]: getMintSolanaMintWarpConfig,
-  [WarpRouteIds.BaseEthereumLumiaprismETH]:
-    getBaseEthereumLumiaprismETHWarpConfig,
+  [WarpRouteIds.ArbitrumBaseEthereumLumiaprismOptimismPolygonETH]:
+    getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,
   [WarpRouteIds.BscHyperevmEnzoBTC]: getBscHyperevmEnzoBTCWarpConfig,
   [WarpRouteIds.BscHyperevmSTBTC]: getBscHyperevmSTBTCWarpConfig,
   [WarpRouteIds.EthereumLineaTURTLE]: getEthereumLineaTurtleWarpConfig,
@@ -141,10 +146,12 @@ type StrategyConfigGetter = () => ChainSubmissionStrategy;
 export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA]:
     getLUMIAGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETH]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETH]:
     getEZETHGnosisSafeBuilderStrategyConfig,
-  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainZircuitEZETHSTAGE]:
+  [WarpRouteIds.ArbitrumBaseBerachainBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoUnichainWorldchainZircuitEZETHSTAGE]:
     getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
+  [WarpRouteIds.ArbitrumBaseEthereumLumiaprismOptimismPolygonETH]:
+    getArbitrumBaseEthereumLumiaprismOptimismPolygonETHGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
     getEZETHGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETHSTAGE]:

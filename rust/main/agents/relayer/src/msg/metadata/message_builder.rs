@@ -224,10 +224,8 @@ mod test {
 
     use crate::{
         msg::metadata::{
-            base::MetadataBuildError,
-            message_builder::{build_message_metadata, ism_and_module_type},
-            DefaultIsmCache, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
-            MessageMetadataBuildParams,
+            base::MetadataBuildError, message_builder::build_message_metadata, DefaultIsmCache,
+            IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MessageMetadataBuildParams,
         },
         settings::matching_list::{Filter, ListElement, MatchingList},
         test_utils::{

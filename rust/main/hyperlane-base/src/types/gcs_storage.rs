@@ -206,16 +206,6 @@ impl CheckpointSyncer for GcsStorageClient {
         self.upload_and_log(LATEST_INDEX_KEY, data).await
     }
 
-    /// Update the latest index of this syncer if necessary
-    #[instrument(skip(self, index))]
-    async fn update_latest_index(&self, index: u32) -> Result<()> {
-        let curr = self.latest_index().await?.unwrap_or(0);
-        if index > curr {
-            self.write_latest_index(index).await?;
-        }
-        Ok(())
-    }
-
     /// Attempt to fetch the signed (checkpoint, messageId) tuple at this index
     #[instrument(skip(self, index))]
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {

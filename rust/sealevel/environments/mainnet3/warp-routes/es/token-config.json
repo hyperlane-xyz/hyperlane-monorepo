@@ -1,0 +1,17 @@
+{
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x6055Dc6Ff1077eebe5e6D2BA1a1f53d7Ef8430dE",
+    "foreignDeployment": "0x3eE1BEA3A10f7508b76219f109eBe19419b3dd85"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Eclipse",
+    "symbol": "ES",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/refs/heads/main/deployments/warp_routes/ES/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": "3KK8L7UYd7NV575w9vWR2o1kNqdSFvEPUwcTA5353cax"
+  }
+}

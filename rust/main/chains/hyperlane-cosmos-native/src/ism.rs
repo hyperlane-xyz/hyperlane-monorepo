@@ -3,7 +3,9 @@ use std::str::FromStr;
 use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::{
-    hyperlane::core::interchain_security::v1::{MerkleRootMultisigIsm, NoopIsm},
+    hyperlane::core::interchain_security::v1::{
+        MerkleRootMultisigIsm, NoopIsm, RoutingIsm as CosmosRoutingIsm,
+    },
     prost::{Message, Name},
 };
 use tonic::async_trait;
@@ -11,7 +13,7 @@ use tonic::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    MultisigIsm, H160, H256, U256,
+    MultisigIsm, RoutingIsm, H160, H256, U256,
 };
 
 use crate::{CosmosNativeProvider, HyperlaneCosmosError};
@@ -78,6 +80,7 @@ impl InterchainSecurityModule for CosmosNativeIsm {
         let ism = self.get_ism().await?;
         match ism.type_url.as_str() {
             t if t == MerkleRootMultisigIsm::type_url() => Ok(ModuleType::MerkleRootMultisig),
+            t if t == CosmosRoutingIsm::type_url() => Ok(ModuleType::Routing),
             t if t == NoopIsm::type_url() => Ok(ModuleType::Null),
             other => Err(ChainCommunicationError::from_other_str(&format!(
                 "Unknown ISM type: {}",
@@ -121,6 +124,37 @@ impl MultisigIsm for CosmosNativeIsm {
             }
             _ => Err(ChainCommunicationError::from_other_str(&format!(
                 "ISM {:?} not a multi sig ism",
+                self.address
+            ))),
+        }
+    }
+}
+
+/// Interface for the RoutingIsm chain contract. Allows abstraction over
+/// different chains
+#[async_trait]
+impl RoutingIsm for CosmosNativeIsm {
+    /// Returns the ISM needed to verify message
+    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
+        let ism = self.get_ism().await?;
+        match ism.type_url.as_str() {
+            t if t == CosmosRoutingIsm::type_url() => {
+                let ism = CosmosRoutingIsm::decode(ism.value.as_slice())
+                    .map_err(HyperlaneCosmosError::from)?;
+                let route = ism
+                    .routes
+                    .iter()
+                    .find(|r| r.domain == message.origin)
+                    .ok_or_else(|| {
+                        ChainCommunicationError::from_other_str(&format!(
+                            "Route not found for message with origin domain: {}",
+                            message.origin
+                        ))
+                    })?;
+                Ok(H256::from_str(&route.ism)?)
+            }
+            _ => Err(ChainCommunicationError::from_other_str(&format!(
+                "ISM {:?} not a routing ism",
                 self.address
             ))),
         }
