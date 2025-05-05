@@ -2439,6 +2439,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-interchain-accounts"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-core",
+]
+
+[[package]]
 name = "hyperlane-sealevel-client"
 version = "0.1.0"
 dependencies = [
@@ -2453,6 +2460,7 @@ dependencies = [
  "hyperlane-sealevel-connection-client",
  "hyperlane-sealevel-hello-world",
  "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-accounts",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-token",
@@ -2534,6 +2542,27 @@ dependencies = [
  "solana-program",
  "solana-program-test",
  "solana-sdk",
+]
+
+[[package]]
+name = "hyperlane-sealevel-interchain-accounts"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-interchain-accounts",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-test-utils",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-noop",
 ]
 
 [[package]]

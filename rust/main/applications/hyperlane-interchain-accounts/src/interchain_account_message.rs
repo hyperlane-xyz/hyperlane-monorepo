@@ -5,10 +5,10 @@ use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256};
 /// Message contents sent or received by a Hyperlane Interchain Account program
 #[derive(Debug)]
 pub struct InterchainAccountMessage {
-    owner: H256,
-    ism: H256,
-    salt: H256,
-    calls: Vec<u8>,
+    pub owner: H256,
+    pub ism: H256,
+    pub salt: H256,
+    pub calls: Vec<u8>,
 }
 
 impl Encode for InterchainAccountMessage {
