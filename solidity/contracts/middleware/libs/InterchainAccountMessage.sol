@@ -159,7 +159,7 @@ library InterchainAccountMessage {
 
     function messageType(
         bytes calldata _message
-    ) internal view returns (MessageType) {
+    ) internal pure returns (MessageType) {
         return MessageType(uint8(_message[0]));
     }
 
