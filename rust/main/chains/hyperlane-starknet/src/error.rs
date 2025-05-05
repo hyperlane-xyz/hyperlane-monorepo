@@ -57,3 +57,10 @@ impl From<HyperlaneStarknetError> for ChainCommunicationError {
         ChainCommunicationError::from_other(value)
     }
 }
+
+impl HyperlaneStarknetError {
+    /// Convert any error into a `HyperlaneStarknetError::Other`
+    pub fn from_other<T: Debug>(err: T) -> Self {
+        HyperlaneStarknetError::Other(format!("{:?}", err))
+    }
+}

@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::Indexed;
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
     ModuleType, ReorgPeriod, TxOutcome,
@@ -139,7 +140,7 @@ pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
 /// We use the CairoSerde trait to deserialize the message.
 pub fn try_parse_hyperlane_message_from_event(
     event: &EmittedEvent,
-) -> ChainResult<HyperlaneMessage> {
+) -> ChainResult<Indexed<HyperlaneMessage>> {
     let sender: HyH256 = (event.data[0], event.data[1])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -160,7 +161,8 @@ pub fn try_parse_hyperlane_message_from_event(
         destination,
         recipient: recipient.0,
         body: u128_vec_to_u8_vec(message.body.data, message.body.size),
-    })
+    }
+    .into())
 }
 
 /// Converts a Vec<u128> to a Vec<u8>, respecting the given size and removing trailing zeros.
@@ -244,7 +246,7 @@ pub fn string_to_cairo_long_string(
 /// If the `reorg_period` is None, a block height of None is given,
 /// indicating that the tip directly can be used.
 pub(crate) async fn get_block_height_for_reorg_period(
-    provider: &Arc<AnyProvider>,
+    provider: &AnyProvider,
     reorg_period: &ReorgPeriod,
 ) -> ChainResult<u64> {
     let block_height = match reorg_period {
@@ -267,6 +269,16 @@ pub(crate) async fn get_block_height_for_reorg_period(
     };
 
     Ok(block_height)
+}
+
+pub(crate) async fn get_block_height_u32(
+    provider: &AnyProvider,
+    reorg_period: &ReorgPeriod,
+) -> ChainResult<u32> {
+    let height = get_block_height_for_reorg_period(provider, reorg_period).await?;
+    height
+        .try_into()
+        .map_err(ChainCommunicationError::from_other)
 }
 
 /// Sends a transaction and gets the transaction receipt.
