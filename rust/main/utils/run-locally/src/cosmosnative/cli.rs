@@ -12,6 +12,18 @@ use super::{
 };
 
 const GENESIS_FUND: u128 = 1000000000000;
+const IGP_ADDRESS: &str = "0x726f757465725f706f73745f6469737061746368000000040000000000000000";
+const MERKLE_ISM_ADDRESS: &str =
+    "0x726f757465725f69736d00000000000000000000000000040000000000000000";
+const ROUTING_ISM_ADDRESS: &str =
+    "0x726f757465725f69736d00000000000000000000000000010000000000000001";
+const MAILBOX_ADDRESS: &str = "0x68797065726c616e650000000000000000000000000000000000000000000000";
+const MERKLE_TREE_HOOK_ADDRESS: &str =
+    "0x726f757465725f706f73745f6469737061746368000000030000000000000001";
+const COLLATERAL_TOKEN_ADDRESS: &str =
+    "0x726f757465725f61707000000000000000000000000000010000000000000000";
+const SYNTHETIC_TOKEN_ADDRESS: &str =
+    "0x726f757465725f61707000000000000000000000000000020000000000000001";
 
 #[derive(Debug)]
 pub struct SimApp {
@@ -102,7 +114,7 @@ impl SimApp {
             .filter_logs(|_| false)
             .run()
             .join();
-        sleep(Duration::from_secs(1)); // wait for the block to mined
+        sleep(Duration::from_secs(5)); // wait for the block to mined
     }
 
     pub fn remote_transfer(
@@ -134,7 +146,7 @@ impl SimApp {
             .filter_logs(|_| false)
             .run()
             .join();
-        sleep(Duration::from_secs(1)); // wait for the block to mined
+        sleep(Duration::from_secs(5)); // wait for the block to mined
     }
 
     pub fn deploy_and_configure_contracts(
@@ -159,7 +171,7 @@ impl SimApp {
             "hooks",
             "igp",
             "set-destination-gas-config",
-            "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
+            IGP_ADDRESS,
             destination_domain,
             "10000000000", //1e10
             "1",
@@ -178,6 +190,22 @@ impl SimApp {
             "1",
         ]);
 
+        // create routing ism and configure it to use the merkle tree ism just created
+        // cmd is following: create-routing
+        // expected ism address: 0x726f757465725f69736d00000000000000000000000000010000000000000001
+        self.tx(vec!["hyperlane", "ism", "create-routing"]);
+
+        // configure the routing ism to use the merkle tree ism
+        // cmd is following: set-routing-ism-domain [routing-ism-id] [domain] [ism-id]
+        self.tx(vec![
+            "hyperlane",
+            "ism",
+            "set-routing-ism-domain",
+            ROUTING_ISM_ADDRESS,
+            destination_domain,
+            MERKLE_ISM_ADDRESS,
+        ]);
+
         // create mailbox
         // cmd is following: default-ism local-domain
         // expected mailbox address: 0x68797065726c616e650000000000000000000000000000000000000000000000
@@ -185,7 +213,7 @@ impl SimApp {
             "hyperlane",
             "mailbox",
             "create",
-            "0x726f757465725f69736d00000000000000000000000000040000000000000000",
+            ROUTING_ISM_ADDRESS,
             local_domain,
         ]);
 
@@ -197,7 +225,7 @@ impl SimApp {
             "hooks",
             "merkle",
             "create",
-            "0x68797065726c616e650000000000000000000000000000000000000000000000",
+            MAILBOX_ADDRESS,
         ]);
 
         // set mailbox to use the hooks
@@ -207,15 +235,9 @@ impl SimApp {
             .cmd("hyperlane")
             .cmd("mailbox")
             .cmd("set")
-            .cmd("0x68797065726c616e650000000000000000000000000000000000000000000000")
-            .arg(
-                "required-hook",
-                "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-            )
-            .arg(
-                "default-hook",
-                "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
-            )
+            .cmd(MAILBOX_ADDRESS)
+            .arg("required-hook", MERKLE_TREE_HOOK_ADDRESS)
+            .arg("default-hook", IGP_ADDRESS)
             .arg("from", KEY_CHAIN_VALIDATOR.0)
             .arg("chain-id", CHAIN_ID)
             .arg("fees", format!("80000{}", DENOM))
@@ -226,14 +248,14 @@ impl SimApp {
             .flag("yes")
             .run()
             .join();
-        sleep(Duration::from_secs(1)); // wait for the block to mined
+        sleep(Duration::from_secs(5)); // wait for the block to mined
 
         // create warp route
         // expected address: 0x726f757465725f61707000000000000000000000000000010000000000000000
         self.tx(vec![
             "hyperlane-transfer",
             "create-collateral-token",
-            "0x68797065726c616e650000000000000000000000000000000000000000000000",
+            MAILBOX_ADDRESS,
             DENOM,
         ]);
 
@@ -242,9 +264,9 @@ impl SimApp {
         self.tx(vec![
             "hyperlane-transfer",
             "enroll-remote-router",
-            "0x726f757465725f61707000000000000000000000000000010000000000000000",
+            COLLATERAL_TOKEN_ADDRESS,
             destination_domain,
-            "0x726f757465725f61707000000000000000000000000000020000000000000001",
+            SYNTHETIC_TOKEN_ADDRESS,
             "50000",
         ]);
 
@@ -253,7 +275,7 @@ impl SimApp {
         self.tx(vec![
             "hyperlane-transfer",
             "create-synthetic-token",
-            "0x68797065726c616e650000000000000000000000000000000000000000000000",
+            MAILBOX_ADDRESS,
         ]);
 
         // enroll the remote domain to this token
@@ -261,21 +283,19 @@ impl SimApp {
         self.tx(vec![
             "hyperlane-transfer",
             "enroll-remote-router",
-            "0x726f757465725f61707000000000000000000000000000020000000000000001",
+            SYNTHETIC_TOKEN_ADDRESS,
             destination_domain,
-            "0x726f757465725f61707000000000000000000000000000010000000000000000",
+            COLLATERAL_TOKEN_ADDRESS,
             "50000",
         ]);
 
         Contracts {
-            mailbox: "0x68797065726c616e650000000000000000000000000000000000000000000000"
-                .to_owned(),
-            merkle_tree_hook: "0x726f757465725f706f73745f6469737061746368000000030000000000000001"
-                .to_owned(),
-            igp: "0x726f757465725f706f73745f6469737061746368000000040000000000000000".to_owned(),
+            mailbox: MAILBOX_ADDRESS.to_owned(),
+            merkle_tree_hook: MERKLE_TREE_HOOK_ADDRESS.to_owned(),
+            igp: IGP_ADDRESS.to_owned(),
             tokens: vec![
-                "0x726f757465725f61707000000000000000000000000000010000000000000000".to_owned(),
-                "0x726f757465725f61707000000000000000000000000000020000000000000001".to_owned(),
+                COLLATERAL_TOKEN_ADDRESS.to_owned(),
+                SYNTHETIC_TOKEN_ADDRESS.to_owned(),
             ],
         }
     }

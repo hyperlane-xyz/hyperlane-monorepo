@@ -1,4 +1,6 @@
-use std::{fmt::Debug, future::Future, time::Instant};
+use std::fmt::Debug;
+use std::future::Future;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use cosmrs::{
@@ -61,6 +63,8 @@ const GAS_ESTIMATE_MULTIPLIER: f64 = 1.25;
 /// The number of blocks in the future in which a transaction will
 /// be valid for.
 const TIMEOUT_BLOCKS: u64 = 1000;
+/// gRPC request timeout
+const REQUEST_TIMEOUT: u64 = 30;
 
 #[derive(Debug, Clone, new)]
 struct CosmosChannel {
@@ -73,7 +77,8 @@ struct CosmosChannel {
 impl CosmosChannel {
     async fn latest_block_height(&self) -> ChainResult<GetLatestBlockResponse> {
         let mut client = ServiceClient::new(self.channel.clone());
-        let request = tonic::Request::new(GetLatestBlockRequest {});
+        let mut request = tonic::Request::new(GetLatestBlockRequest {});
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         let response = client
             .get_latest_block(request)
             .await
@@ -86,7 +91,8 @@ impl CosmosChannel {
         let tx_bytes = payload.to_vec();
         let mut client = TxServiceClient::new(self.channel.clone());
         #[allow(deprecated)]
-        let sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
+        let mut sim_req = tonic::Request::new(SimulateRequest { tx: None, tx_bytes });
+        sim_req.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         let response = client
             .simulate(sim_req)
             .await
@@ -100,7 +106,8 @@ impl CosmosChannel {
     async fn account_query(&self, account: String) -> ChainResult<QueryAccountResponse> {
         let address = account.clone();
         let mut client = QueryAccountClient::new(self.channel.clone());
-        let request = tonic::Request::new(QueryAccountRequest { address });
+        let mut request = tonic::Request::new(QueryAccountRequest { address });
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         let response = client
             .account(request)
             .await
@@ -114,9 +121,10 @@ impl CosmosChannel {
         account: String,
     ) -> ChainResult<injective_std::types::cosmos::auth::v1beta1::QueryAccountResponse> {
         let address = account.clone();
-        let request = tonic::Request::new(
+        let mut request = tonic::Request::new(
             injective_std::types::cosmos::auth::v1beta1::QueryAccountRequest { address },
         );
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
 
         // Borrowed from the logic of `QueryAccountClient` in `cosmrs`, but using injective types.
         let mut grpc_client = tonic::client::Grpc::new(self.channel.clone());
@@ -152,7 +160,8 @@ impl CosmosChannel {
         let denom = denom.clone();
 
         let mut client = QueryBalanceClient::new(self.channel.clone());
-        let balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });
+        let mut balance_request = tonic::Request::new(QueryBalanceRequest { address, denom });
+        balance_request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         let response = client
             .balance(balance_request)
             .await
@@ -173,6 +182,7 @@ impl CosmosChannel {
             address: to,
             query_data: payload.clone(),
         });
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
         if let Some(block_height) = block_height {
             request
                 .metadata_mut()
@@ -189,7 +199,8 @@ impl CosmosChannel {
         let to = contract_address.clone();
         let mut client = WasmQueryClient::new(self.channel.clone());
 
-        let request = tonic::Request::new(QueryContractInfoRequest { address: to });
+        let mut request = tonic::Request::new(QueryContractInfoRequest { address: to });
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
 
         let response = client
             .contract_info(request)
@@ -228,7 +239,8 @@ impl CosmosChannel {
 impl BlockNumberGetter for CosmosChannel {
     async fn get_block_number(&self) -> ChainResult<u64> {
         let mut client = ServiceClient::new(self.channel.clone());
-        let request = tonic::Request::new(GetLatestBlockRequest {});
+        let mut request = tonic::Request::new(GetLatestBlockRequest {});
+        request.set_timeout(Duration::from_secs(REQUEST_TIMEOUT));
 
         let response = client
             .get_latest_block(request)
@@ -317,11 +329,10 @@ impl WasmGrpcProvider {
                 let metrics_config =
                     PrometheusConfig::from_url(&url, ClientConnectionType::Grpc, chain.clone());
                 Endpoint::new(url.to_string())
-                    .map(|e| {
-                        let metrics_channel =
-                            MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config);
-                        CosmosChannel::new(metrics_channel, url)
-                    })
+                    .map(|e| e.timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| e.connect_timeout(Duration::from_secs(REQUEST_TIMEOUT)))
+                    .map(|e| MetricsChannel::new(e.connect_lazy(), metrics.clone(), metrics_config))
+                    .map(|m| CosmosChannel::new(m, url))
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
             .collect();
@@ -368,7 +379,7 @@ impl WasmGrpcProvider {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
-        let account_info = self.account_query(signer.address.clone()).await?;
+        let account_info = self.account_query(signer.address_string.clone()).await?;
         let current_height = self.latest_block_height().await?;
         let timeout_height = current_height + TIMEOUT_BLOCKS;
 
@@ -617,7 +628,7 @@ impl WasmProvider for WasmGrpcProvider {
         let signer = self.get_signer()?;
         let contract_address = self.get_contract_address();
         let msg = MsgExecuteContract {
-            sender: signer.address.clone(),
+            sender: signer.address_string.clone(),
             contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],
@@ -638,7 +649,7 @@ impl WasmProvider for WasmGrpcProvider {
         // Check if the signer has enough funds to pay for the fee so we can get
         // a more informative error.
         let signer_balance = self
-            .get_balance(signer.address.clone(), fee.denom.to_string())
+            .get_balance(signer.address_string.clone(), fee.denom.to_string())
             .await?;
         let fee_amount: U256 = fee.amount.into();
         if signer_balance < fee_amount {
@@ -669,7 +680,7 @@ impl WasmProvider for WasmGrpcProvider {
         let signer = self.get_signer()?;
         let contract_address = self.get_contract_address();
         let msg = MsgExecuteContract {
-            sender: signer.address.clone(),
+            sender: signer.address_string.clone(),
             contract: contract_address.address(),
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],

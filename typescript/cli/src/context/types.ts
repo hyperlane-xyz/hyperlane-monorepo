@@ -6,7 +6,6 @@ import type {
   ChainMap,
   ChainMetadata,
   MultiProvider,
-  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
@@ -17,6 +16,7 @@ export interface ContextSettings {
   disableProxy?: boolean;
   skipConfirmation?: boolean;
   strategyPath?: string;
+  authToken?: string;
 }
 
 export interface CommandContext {
@@ -27,7 +27,6 @@ export interface CommandContext {
   key?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
-  warpCoreConfig?: WarpCoreConfig;
   strategyPath?: string;
 }
 

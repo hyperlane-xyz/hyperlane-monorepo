@@ -20,7 +20,7 @@ abstract contract TokenRouter is GasRouter {
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
      * @param recipient The address of the recipient on the destination chain.
-     * @param amount The amount of tokens burnt on the origin chain.
+     * @param amount The amount of tokens sent in to the remote recipient.
      */
     event SentTransferRemote(
         uint32 indexed destination,
@@ -32,7 +32,7 @@ abstract contract TokenRouter is GasRouter {
      * @dev Emitted on `_handle` when a transfer message is processed.
      * @param origin The identifier of the origin chain.
      * @param recipient The address of the recipient on the destination chain.
-     * @param amount The amount of tokens minted on the destination chain.
+     * @param amount The amount of tokens received from the remote sender.
      */
     event ReceivedTransferRemote(
         uint32 indexed origin,

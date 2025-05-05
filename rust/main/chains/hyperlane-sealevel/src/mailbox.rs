@@ -544,7 +544,12 @@ impl Mailbox for SealevelMailbox {
         })
     }
 
-    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
-        todo!()
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        let process_instruction = self.get_process_instruction(message, metadata).await?;
+        serde_json::to_vec(&process_instruction).map_err(Into::into)
     }
 }

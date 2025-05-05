@@ -607,12 +607,26 @@ impl HyperlaneDomain {
     }
 }
 
+/// Hyperlane domain protocol types.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(
+    feature = "strum",
+    derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
+)]
+pub enum SubmitterType {
+    /// Classic
+    #[default]
+    Classic,
+    /// Lander
+    Lander,
+}
+
 #[cfg(test)]
 #[cfg(feature = "strum")]
 mod tests {
     use std::{num::NonZeroU32, str::FromStr};
 
-    use crate::{KnownHyperlaneDomain, ReorgPeriod};
+    use crate::{KnownHyperlaneDomain, ReorgPeriod, SubmitterType};
 
     #[test]
     fn domain_strings() {
@@ -691,6 +705,19 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<ReorgPeriod>("finalized".into()).unwrap(),
             ReorgPeriod::Tag("finalized".into())
+        );
+    }
+
+    #[test]
+    fn parse_submitter_type() {
+        assert_eq!(
+            serde_json::from_value::<SubmitterType>("Classic".into()).unwrap(),
+            SubmitterType::Classic
+        );
+
+        assert_eq!(
+            serde_json::from_value::<SubmitterType>("Lander".into()).unwrap(),
+            SubmitterType::Lander
         );
     }
 }

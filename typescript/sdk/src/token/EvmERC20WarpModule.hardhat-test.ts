@@ -33,7 +33,6 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -44,7 +43,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
-import { HypTokenRouterConfig } from './types.js';
+import { HypTokenRouterConfig, derivedHookAddress } from './types.js';
 
 const randomRemoteRouters = (n: number) => {
   const routers: RemoteRouters = {};
@@ -387,9 +386,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         };
         await sendTxs(await evmERC20WarpModule.update(expectedConfig));
 
-        const updatedConfig = (await evmERC20WarpModule.read())
-          .hook as DerivedHookConfig;
-        expect(normalizeConfig(updatedConfig)).to.deep.equal(hook);
+        const updatedConfig = await evmERC20WarpModule.read();
+        expect(normalizeConfig(updatedConfig.hook)).to.deep.equal(hook);
       }
     });
 
@@ -415,11 +413,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
       await sendTxs(await evmERC20WarpModule.update(expectedConfig));
 
-      const updatedConfig = (await evmERC20WarpModule.read())
-        .hook as DerivedHookConfig;
+      const updatedConfig = await evmERC20WarpModule.read();
 
       const hook = MailboxClient__factory.connect(
-        updatedConfig.address,
+        derivedHookAddress(updatedConfig),
         multiProvider.getProvider(chain),
       );
       expect(await hook.mailbox()).to.equal(expectedConfig.mailbox);
@@ -447,13 +444,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
       await sendTxs(await evmERC20WarpModule.update(expectedConfig));
 
-      const updatedConfig = (await evmERC20WarpModule.read())
-        .hook as DerivedHookConfig;
+      const updatedConfig = await evmERC20WarpModule.read();
 
       expect(
         await proxyAdmin(
           multiProvider.getProvider(chain),
-          updatedConfig.address,
+          derivedHookAddress(updatedConfig),
         ),
       ).to.equal(expectedConfig.proxyAdmin?.address);
     });

@@ -9,11 +9,14 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use prometheus::{IntCounter, IntGauge};
-use serde::Serialize;
+use prometheus::IntGauge;
+use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
-use hyperlane_base::{db::HyperlaneDb, CoreMetrics};
+use hyperlane_base::{
+    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
+    db::HyperlaneDb,
+};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
@@ -22,11 +25,14 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
+use crate::{
+    metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
+    msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
+};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -42,6 +48,8 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
 };
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
+pub const USE_CACHE_METADATA_LOG: &str = "Reusing cached metadata";
+pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
@@ -58,6 +66,8 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
+    /// Cache to store commonly used data calls.
+    pub cache: OptionalCache<MeteredCache<LocalCache>>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
@@ -86,7 +96,7 @@ pub struct PendingMessage {
     submitted: bool,
     #[new(default)]
     #[serde(skip_serializing)]
-    submission_data: Option<Box<MessageSubmissionData>>,
+    pub(crate) submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
@@ -236,17 +246,10 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
         }
 
-        let provider = self.ctx.destination_mailbox.provider();
-
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract = match provider.is_contract(&self.message.recipient).await {
+        let is_contract = match self.is_recipient_contract().await {
             Ok(is_contract) => is_contract,
-            Err(err) => {
-                return self.on_reprepare(
-                    Some(err),
-                    ReprepareReason::ErrorCheckingIfRecipientIsContract,
-                );
-            }
+            Err(reprepare_reason) => return reprepare_reason,
         };
         if !is_contract {
             info!(
@@ -266,101 +269,69 @@ impl PendingOperation for PendingMessage {
             return op_result;
         }
 
-        let ism_address = match self
-            .ctx
-            .destination_mailbox
-            .recipient_ism(self.message.recipient)
-            .await
-        {
-            Ok(ism_address) => ism_address,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress);
-            }
-        };
-
-        let message_metadata_builder = match MessageMetadataBuilder::new(
-            self.ctx.metadata_builder.clone(),
-            ism_address,
-            &self.message,
-        )
-        .await
-        {
-            Ok(message_metadata_builder) => message_metadata_builder,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder);
-            }
-        };
-
-        let params = MessageMetadataBuildParams::default();
-
-        let metadata_bytes = match message_metadata_builder
-            .build(ism_address, &self.message, params)
-            .await
-        {
-            Ok(metadata) => {
-                let metadata_bytes = metadata.to_vec();
-                self.metadata = Some(metadata_bytes.clone());
-                metadata_bytes
-            }
-            Err(err) => {
-                match &err {
-                    MetadataBuildError::FailedToBuild(_) => {
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
+        // If metadata is already built, check gas estimation works.
+        // If gas estimation fails, invalidate cache and rebuild it again.
+        let tx_cost_estimate = match self.metadata.as_ref() {
+            Some(metadata) => {
+                match self
+                    .ctx
+                    .destination_mailbox
+                    .process_estimate_costs(&self.message, metadata)
+                    .await
+                {
+                    Ok(s) => {
+                        tracing::debug!(USE_CACHE_METADATA_LOG);
+                        Some(s)
                     }
-                    MetadataBuildError::CouldNotFetch => {
-                        return self
-                            .on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
-                    }
-                    // If the metadata building is refused, we still allow it to be retried later.
-                    MetadataBuildError::Refused(reason) => {
-                        warn!(?reason, "Metadata building refused");
-                        return self
-                            .on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
-                    }
-                    // These errors cannot be recovered from, so we drop them
-                    MetadataBuildError::UnsupportedModuleType(reason) => {
-                        warn!(?reason, "Unsupported module type");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::MaxIsmDepthExceeded(depth) => {
-                        warn!(depth, "Max ISM depth reached");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::MaxIsmCountReached(count) => {
-                        warn!(count, "Max ISM count reached");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
-                    }
-                    MetadataBuildError::AggregationThresholdNotMet(threshold) => {
-                        warn!(threshold, "Aggregation threshold not met");
-                        return self
-                            .on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata);
+                    Err(_) => {
+                        self.clear_metadata();
+                        None
                     }
                 }
             }
+            None => None,
+        };
+
+        let metadata_bytes = match self.metadata.as_ref() {
+            Some(metadata) => {
+                tracing::debug!(USE_CACHE_METADATA_LOG);
+                metadata.clone()
+            }
+            _ => match self.build_metadata().await {
+                Ok(metadata) => {
+                    let metadata_bytes = metadata.to_vec();
+                    self.metadata = Some(metadata_bytes.clone());
+                    metadata_bytes
+                }
+                Err(err) => {
+                    return err;
+                }
+            },
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
         // move onto the next tick.
-        let tx_cost_estimate = match self
-            .ctx
-            .destination_mailbox
-            .process_estimate_costs(&self.message, &metadata_bytes)
-            .await
-        {
-            Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(err) => {
-                let reason = self
-                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                    .await
-                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                return self.on_reprepare(Some(err), reason);
-            }
+        let tx_cost_estimate = match tx_cost_estimate {
+            // reuse old gas cost estimate if it succeeded
+            Some(cost) => cost,
+            None => match self
+                .ctx
+                .destination_mailbox
+                .process_estimate_costs(&self.message, &metadata_bytes)
+                .await
+            {
+                Ok(cost) => cost,
+                Err(err) => {
+                    let reason = self
+                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                        .await
+                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                    self.clear_metadata();
+                    return self.on_reprepare(Some(err), reason);
+                }
+            },
         };
 
         // Get the gas_limit if the gas payment requirement has been met,
@@ -383,6 +354,7 @@ impl PendingOperation for PendingMessage {
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 // TODO: consider dropping instead of repreparing in this case
+                self.clear_metadata();
                 return self.on_reprepare::<String>(None, ReprepareReason::ExceedsMaxGasLimit);
             }
         }
@@ -419,6 +391,7 @@ impl PendingOperation for PendingMessage {
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
                     .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                self.clear_metadata();
                 return self.on_reprepare::<String>(None, reason);
             }
         }
@@ -437,6 +410,7 @@ impl PendingOperation for PendingMessage {
             }
             Err(e) => {
                 error!(error=?e, "Error when processing message");
+                self.clear_metadata();
                 return PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting);
             }
         }
@@ -565,6 +539,26 @@ impl PendingOperation for PendingMessage {
     fn set_metric(&mut self, metric: Arc<IntGauge>) {
         self.metric = Some(metric);
     }
+
+    async fn payload(&self) -> ChainResult<Vec<u8>> {
+        let mailbox = &self.ctx.destination_mailbox;
+        let message = &self.message;
+        let submission_data = self
+            .submission_data
+            .as_ref()
+            .expect("Pending message must be prepared before we can create payload for it");
+        let metadata = &submission_data.metadata;
+        let payload = mailbox.process_calldata(message, metadata).await?;
+        Ok(payload)
+    }
+
+    fn on_reprepare(
+        &mut self,
+        err: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult {
+        self.on_reprepare(err, reason)
+    }
 }
 
 impl PendingMessage {
@@ -651,6 +645,115 @@ impl PendingMessage {
         PendingOperationStatus::FirstPrepareAttempt
     }
 
+    /// Checks if the recipient is a contract.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the provider. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `is_contract` matches
+    /// the name of the method `is_contract`.
+    async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
+        let mailbox = self.ctx.destination_mailbox.clone();
+        let domain_name = mailbox.domain().name();
+        let fn_key = "is_contract";
+        let fn_params = self.message.recipient;
+        let provider = self.ctx.destination_mailbox.provider();
+
+        // Check cache for recipient contract status
+        if let Some(is_contract) = self
+            .get_from_cache::<bool>(domain_name, fn_key, &fn_params)
+            .await
+        {
+            return Ok(is_contract);
+        }
+
+        // Check if the recipient is a contract
+        let is_contract = provider.is_contract(&fn_params).await.map_err(|err| {
+            self.on_reprepare(
+                Some(err),
+                ReprepareReason::ErrorCheckingIfRecipientIsContract,
+            )
+        })?;
+
+        // Cache the recipient contract status
+        self.store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
+            .await;
+
+        Ok(is_contract)
+    }
+
+    /// Fetches the recipient ISM address.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the Mailbox contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `recipient_ism` matches
+    /// the name of the method `recipient_ism`.
+    async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
+        let domain = self.ctx.destination_mailbox.domain().name();
+        let fn_key = "recipient_ism";
+        let fn_params = self.message.recipient;
+
+        // Check cache for recipient ISM address
+        if let Some(ism_address) = self
+            .get_from_cache::<H256>(domain, fn_key, &fn_params)
+            .await
+        {
+            return Ok(ism_address);
+        }
+
+        // Fetch the recipient ISM address
+        let ism_address = match self
+            .ctx
+            .destination_mailbox
+            .recipient_ism(self.message.recipient)
+            .await
+        {
+            Ok(ism_address) => ism_address,
+            Err(err) => {
+                return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
+            }
+        };
+
+        // Cache the recipient ISM address
+        self.store_to_cache(domain, fn_key, &fn_params, &ism_address)
+            .await;
+
+        Ok(ism_address)
+    }
+
+    async fn get_from_cache<U: DeserializeOwned>(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+    ) -> Option<U> {
+        self.ctx
+            .cache
+            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
+            .await
+            .map_err(|err| {
+                warn!(error=?err, ?fn_key, "Error checking cache stored result");
+                err
+            })
+            .ok()
+            .flatten()
+    }
+
+    async fn store_to_cache(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        if let Err(err) = self
+            .ctx
+            .cache
+            .cache_call_result(domain_name, fn_key, fn_params, result)
+            .await
+        {
+            warn!(error=?err, ?fn_key, "Error caching result");
+        }
+    }
     /// A preflight check to see if a message could possibly meet
     /// a gas payment requirement prior to undertaking expensive operations
     /// like metadata building or gas estimation.
@@ -857,41 +960,85 @@ impl PendingMessage {
             None => None,
         }
     }
-}
 
-#[derive(Debug)]
-pub struct MessageSubmissionMetrics {
-    // Fields are public for testing purposes
-    pub last_known_nonce: IntGauge,
-    pub messages_processed: IntCounter,
-}
+    /// Builds metadata
+    async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
+        let ism_address = self.recipient_ism_address().await?;
 
-impl MessageSubmissionMetrics {
-    pub fn new(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
-    ) -> Self {
-        let origin = origin.name();
-        let destination = destination.name();
-        Self {
-            last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
-                "message_processed",
-                origin,
-                destination,
-            ]),
-            messages_processed: metrics
-                .messages_processed_count()
-                .with_label_values(&[origin, destination]),
-        }
+        let message_metadata_builder = match MessageMetadataBuilder::new(
+            self.ctx.metadata_builder.clone(),
+            ism_address,
+            &self.message,
+        )
+        .await
+        {
+            Ok(message_metadata_builder) => message_metadata_builder,
+            Err(err) => {
+                return Err(
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
+                );
+            }
+        };
+
+        let params = MessageMetadataBuildParams::default();
+
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
+            .build(ism_address, &self.message, params)
+            .await
+            .map_err(|err| match &err {
+                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::CouldNotFetch => {
+                    self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+                }
+                // If the metadata building is refused, we still allow it to be retried later.
+                MetadataBuildError::Refused(reason) => {
+                    warn!(?reason, "Metadata building refused");
+                    self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
+                }
+                // These errors cannot be recovered from, so we drop them
+                MetadataBuildError::UnsupportedModuleType(reason) => {
+                    warn!(?reason, "Unsupported module type");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                    warn!(depth, "Max ISM depth reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::MaxIsmCountReached(count) => {
+                    warn!(count, "Max ISM count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+                MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                    warn!(threshold, "Aggregation threshold not met");
+                    self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+                }
+                MetadataBuildError::MaxValidatorCountReached(count) => {
+                    warn!(count, "Max validator count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+            });
+        let build_metadata_end = Instant::now();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
+        };
+
+        self.ctx
+            .metrics
+            .insert_metadata_build_metric(metrics_params);
+
+        metadata_res
     }
 
-    fn update_nonce(&self, msg: &HyperlaneMessage) {
-        // this is technically a race condition between `.get` and `.set` but worst case
-        // the gauge should get corrected on the next update and is not an issue
-        // with a ST runtime
-        self.last_known_nonce
-            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
+    /// clear metadata cache
+    fn clear_metadata(&mut self) {
+        tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
+        self.metadata = None;
     }
 }
 
@@ -905,7 +1052,7 @@ mod test {
 
     use chrono::TimeDelta;
     use hyperlane_base::db::*;
-    use hyperlane_core::*;
+    use hyperlane_core::{identifiers::UniqueIdentifier, *};
 
     use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
 
@@ -1022,7 +1169,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 

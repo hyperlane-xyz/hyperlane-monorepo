@@ -39,6 +39,7 @@ import {
   AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
   CCIPHookConfig,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -52,8 +53,6 @@ import {
   ProtocolFeeHookConfig,
   RoutingHookConfig,
 } from './types.js';
-
-export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
@@ -169,9 +168,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = await this.deriveAmountRoutingHookConfig(address);
           break;
         case OnchainHookType.MAILBOX_DEFAULT_HOOK:
-          derivedHookConfig = await this.deriveMailboxDefaultHookConfig(
-            address,
-          );
+          derivedHookConfig =
+            await this.deriveMailboxDefaultHookConfig(address);
           break;
         default:
           throw new Error(

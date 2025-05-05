@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import { ChildProcess } from 'child_process';
+import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -30,6 +31,7 @@ import {
   portForwardPrometheusServer,
 } from '../../src/infrastructure/monitoring/prometheus.js';
 import { readJSONAtPath } from '../../src/utils/utils.js';
+import { withDryRun } from '../agent-utils.js';
 
 interface AlertUpdateInfo {
   alertType: AlertType;
@@ -44,6 +46,8 @@ interface RegressionError {
 }
 
 async function main() {
+  const { dryRun } = await withDryRun(yargs(process.argv.slice(2))).argv;
+
   // runs a validation check to ensure the threshold configs are valid relative to each other
   await validateBalanceThresholdConfigs();
 
@@ -89,12 +93,6 @@ async function main() {
           alertType: alert,
           missingChains,
         });
-        rootLogger.error(
-          `Missing thresholds for chains: ${missingChains.join(
-            ', ',
-          )} for ${alert} config, skipping updating this alert`,
-        );
-        continue;
       }
 
       // generate a table of the differences in the thresholds, prompt the user to confirm the changes
@@ -141,10 +139,14 @@ async function main() {
     }
 
     // abort if there are any missing thresholds in the config to avoid introducing a regression
-    handleMissingChainErrors(missingChainErrors);
+    await handleMissingChainErrors(missingChainErrors);
 
-    // update the alerts with the new thresholds via the Grafana API
-    await updateAlerts(alertUpdateInfo, saToken, portForwardProcess);
+    if (!dryRun) {
+      // update the alerts with the new thresholds via the Grafana API
+      await updateAlerts(alertUpdateInfo, saToken, portForwardProcess);
+    } else {
+      rootLogger.info('Dry run, not updating alerts');
+    }
   } finally {
     portForwardProcess.kill();
   }
@@ -228,49 +230,63 @@ function generateDiffTable(
   currentThresholds: ChainMap<number>,
   proposedThresholds: ChainMap<number>,
 ) {
-  const diffTable = Object.entries(proposedThresholds).reduce(
-    (acc, [chain, newThreshold]) => {
-      const currentThreshold = currentThresholds[chain];
-      if (currentThreshold !== proposedThresholds[chain]) {
-        acc.push({
-          chain,
-          current: currentThreshold,
-          new: newThreshold,
-          change:
-            currentThreshold === undefined
-              ? 'new'
-              : currentThreshold < newThreshold
+  const diffTable = [];
+
+  // Check for changes and additions
+  for (const [chain, newThreshold] of Object.entries(proposedThresholds)) {
+    const currentThreshold = currentThresholds[chain];
+    if (currentThreshold !== newThreshold) {
+      diffTable.push({
+        chain,
+        current: currentThreshold,
+        new: newThreshold,
+        change:
+          currentThreshold === undefined
+            ? 'new'
+            : currentThreshold < newThreshold
               ? 'increase'
               : 'decrease',
-        });
-      }
-      return acc;
-    },
-    [] as {
-      chain: string;
-      current: number;
-      new: number;
-      change: 'increase' | 'decrease' | 'new';
-    }[],
-  );
+      });
+    }
+  }
+
+  // Check for removals
+  for (const chain of Object.keys(currentThresholds)) {
+    if (!(chain in proposedThresholds)) {
+      diffTable.push({
+        chain,
+        current: currentThresholds[chain],
+        new: undefined,
+        change: 'removed',
+      });
+    }
+  }
 
   return diffTable;
 }
 
-function handleMissingChainErrors(missingChainErrors: RegressionError[]) {
+async function handleMissingChainErrors(missingChainErrors: RegressionError[]) {
   if (missingChainErrors.length === 0) return;
 
   for (const error of missingChainErrors) {
-    rootLogger.error(
-      `Missing thresholds for chains: ${error.missingChains.join(', ')} for ${
-        error.alertType
-      } config`,
-    );
+    for (const chain of error.missingChains) {
+      const confirmed = await confirm({
+        message: `Is the missing chain "${chain}" for ${error.alertType} expected?`,
+        default: false,
+      });
+
+      if (!confirmed) {
+        rootLogger.error(
+          `Aborting updating alerts due to unexpected missing chain: ${chain} for ${error.alertType}`,
+        );
+        process.exit(1);
+      }
+    }
   }
-  rootLogger.error(
-    `Aborting updating alerts due to missing thresholds in config`,
+
+  rootLogger.info(
+    'Proceeding with alert updates - all missing chains confirmed as expected',
   );
-  process.exit(1);
 }
 
 async function confirmFiringAlerts(

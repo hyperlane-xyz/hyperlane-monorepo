@@ -1,14 +1,15 @@
 {
+  "artela": 2200,
   "arthera": 0.5,
-  "astarzkevm": 0,
   "coti": 0.1,
   "deepbrainchain": 100,
-  "infinityvm": 0,
+  "infinityvmmainnet": 0,
   "nibiru": 10,
+  "ontology": 0,
   "osmosis": 0,
   "plume": 0.05,
   "reactive": 0.1,
-  "sophon": 20,
+  "sophon": 50,
   "tangle": 6,
   "vana": 0.001
 }

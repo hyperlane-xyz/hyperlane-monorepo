@@ -34,14 +34,15 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
-    async fn build_transactions(
-        &self,
-        _payloads: &[FullPayload],
-    ) -> Result<Vec<TxBuildingResult>, SubmitterError> {
+    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         todo!()
     }
 
     async fn simulate_tx(&self, _tx: &Transaction) -> Result<bool, SubmitterError> {
+        todo!()
+    }
+
+    async fn estimate_tx(&self, _tx: &mut Transaction) -> std::result::Result<(), SubmitterError> {
         todo!()
     }
 
