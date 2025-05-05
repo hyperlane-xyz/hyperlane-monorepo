@@ -920,18 +920,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(ica)
         );
 
-        // Process reveal message
-        //  InterchainAccountMessage.encodeReveal({
-        //     _ism: address(0).addressToBytes32(),
-        //     _commitment: commitment
-        // })
-        MockMailbox _mailbox = MockMailbox(
-            address(destinationIcaRouter.mailbox())
-        );
-        bytes memory message = _mailbox.inboundMessages(1);
-        bytes memory metadata = abi.encode(salt, calls);
-        _mailbox.addInboundMetadata(1, metadata);
-        destinationIcaRouter.CCIP_READ_ISM().process(metadata, message);
         // Manually process the reveal. In reality, the CCIP read ISM will call `revealAndExecute`
         // but here we do it manually since we're not using the CCIP read ISM yet
         destinationIcaRouter.revealAndExecute(calls, salt);
@@ -945,5 +933,50 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // Cannot reveal twice
         vm.expectRevert("Invalid Reveal");
         destinationIcaRouter.revealAndExecute(calls, salt);
+    }
+
+    function testFuzz_readIsm_verify(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = keccak256(abi.encode(salt, calls));
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+        // Process commit message
+        environment.processNextPendingMessage();
+
+        // Destination ICA router should have the commitment after commit message
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(ica)
+        );
+
+        // Process reveal message
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = abi.encode(salt, calls);
+        _mailbox.addInboundMetadata(1, metadata);
+        destinationIcaRouter.CCIP_READ_ISM().process(metadata, message);
+
+        // Commitment should be cleared
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(0)
+        );
     }
 }

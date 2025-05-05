@@ -337,7 +337,7 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
     ) external returns (bool) {
         bytes calldata _body = _message.body();
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
-            _body.ism().bytes32ToAddress()
+            _body.ism(_body.messageType()).bytes32ToAddress()
         );
 
         // If the ISM is not set, we need to check if the message is a reveal

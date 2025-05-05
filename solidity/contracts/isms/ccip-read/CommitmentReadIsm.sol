@@ -63,7 +63,9 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         );
         bytes32 actualHash = keccak256(_metadata);
 
-        if (actualHash != _message.body().commitment()) {
+        bytes calldata body = _message.body();
+
+        if (actualHash != body.commitment(body.messageType())) {
             return false;
         }
 
