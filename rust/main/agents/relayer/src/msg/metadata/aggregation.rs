@@ -358,6 +358,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 )),
                 Err(_) => Either::Right((*ism_address, None)),
             });
+
         let mut valid_metas =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules).await?;
 

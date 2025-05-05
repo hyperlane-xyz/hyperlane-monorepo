@@ -47,6 +47,66 @@ impl<P: starknet::providers::Provider + Sync> MailboxReader<P> {
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct DefaultIsmSet {
+    pub module: cainome::cairo_serde::ContractAddress,
+}
+impl cainome::cairo_serde::CairoSerde for DefaultIsmSet {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.module);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.module,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let module = cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&module);
+        Ok(DefaultIsmSet { module })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct DefaultHookSet {
+    pub hook: cainome::cairo_serde::ContractAddress,
+}
+impl cainome::cairo_serde::CairoSerde for DefaultHookSet {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.hook);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.hook,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let hook = cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&hook);
+        Ok(DefaultHookSet { hook })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct ProcessId {
     pub id: cainome::cairo_serde::U256,
 }
@@ -108,32 +168,29 @@ impl cainome::cairo_serde::CairoSerde for Bytes {
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct Dispatch {
-    pub sender: cainome::cairo_serde::U256,
-    pub destination_domain: u32,
-    pub recipient_address: cainome::cairo_serde::U256,
-    pub message: Message,
+pub struct OwnershipTransferred {
+    pub previous_owner: cainome::cairo_serde::ContractAddress,
+    pub new_owner: cainome::cairo_serde::ContractAddress,
 }
-impl cainome::cairo_serde::CairoSerde for Dispatch {
+impl cainome::cairo_serde::CairoSerde for OwnershipTransferred {
     type RustType = Self;
     const SERIALIZED_SIZE: std::option::Option<usize> = None;
     #[inline]
     fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
         let mut __size = 0;
-        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.sender);
-        __size += u32::cairo_serialized_size(&__rust.destination_domain);
-        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.recipient_address);
-        __size += Message::cairo_serialized_size(&__rust.message);
+        __size +=
+            cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.previous_owner);
+        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.new_owner);
         __size
     }
     fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
         let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::U256::cairo_serialize(&__rust.sender));
-        __out.extend(u32::cairo_serialize(&__rust.destination_domain));
-        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
-            &__rust.recipient_address,
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.previous_owner,
         ));
-        __out.extend(Message::cairo_serialize(&__rust.message));
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.new_owner,
+        ));
         __out
     }
     fn cairo_deserialize(
@@ -141,184 +198,16 @@ impl cainome::cairo_serde::CairoSerde for Dispatch {
         __offset: usize,
     ) -> cainome::cairo_serde::Result<Self::RustType> {
         let mut __offset = __offset;
-        let sender = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&sender);
-        let destination_domain = u32::cairo_deserialize(__felts, __offset)?;
-        __offset += u32::cairo_serialized_size(&destination_domain);
-        let recipient_address = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&recipient_address);
-        let message = Message::cairo_deserialize(__felts, __offset)?;
-        __offset += Message::cairo_serialized_size(&message);
-        Ok(Dispatch {
-            sender,
-            destination_domain,
-            recipient_address,
-            message,
+        let previous_owner =
+            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&previous_owner);
+        let new_owner =
+            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&new_owner);
+        Ok(OwnershipTransferred {
+            previous_owner,
+            new_owner,
         })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct RequiredHookSet {
-    pub hook: cainome::cairo_serde::ContractAddress,
-}
-impl cainome::cairo_serde::CairoSerde for RequiredHookSet {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.hook);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.hook,
-        ));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let hook = cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&hook);
-        Ok(RequiredHookSet { hook })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct DefaultHookSet {
-    pub hook: cainome::cairo_serde::ContractAddress,
-}
-impl cainome::cairo_serde::CairoSerde for DefaultHookSet {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.hook);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.hook,
-        ));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let hook = cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&hook);
-        Ok(DefaultHookSet { hook })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct Process {
-    pub origin: u32,
-    pub sender: cainome::cairo_serde::U256,
-    pub recipient: cainome::cairo_serde::U256,
-}
-impl cainome::cairo_serde::CairoSerde for Process {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size += u32::cairo_serialized_size(&__rust.origin);
-        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.sender);
-        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.recipient);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(u32::cairo_serialize(&__rust.origin));
-        __out.extend(cainome::cairo_serde::U256::cairo_serialize(&__rust.sender));
-        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
-            &__rust.recipient,
-        ));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let origin = u32::cairo_deserialize(__felts, __offset)?;
-        __offset += u32::cairo_serialized_size(&origin);
-        let sender = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&sender);
-        let recipient = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&recipient);
-        Ok(Process {
-            origin,
-            sender,
-            recipient,
-        })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct Upgraded {
-    pub class_hash: cainome::cairo_serde::ClassHash,
-}
-impl cainome::cairo_serde::CairoSerde for Upgraded {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size += cainome::cairo_serde::ClassHash::cairo_serialized_size(&__rust.class_hash);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
-            &__rust.class_hash,
-        ));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let class_hash = cainome::cairo_serde::ClassHash::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
-        Ok(Upgraded { class_hash })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct DefaultIsmSet {
-    pub module: cainome::cairo_serde::ContractAddress,
-}
-impl cainome::cairo_serde::CairoSerde for DefaultIsmSet {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.module);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.module,
-        ));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let module = cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&module);
-        Ok(DefaultIsmSet { module })
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -362,6 +251,66 @@ impl cainome::cairo_serde::CairoSerde for OwnershipTransferStarted {
             previous_owner,
             new_owner,
         })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct RequiredHookSet {
+    pub hook: cainome::cairo_serde::ContractAddress,
+}
+impl cainome::cairo_serde::CairoSerde for RequiredHookSet {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.hook);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.hook,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let hook = cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&hook);
+        Ok(RequiredHookSet { hook })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct Upgraded {
+    pub class_hash: cainome::cairo_serde::ClassHash,
+}
+impl cainome::cairo_serde::CairoSerde for Upgraded {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::ClassHash::cairo_serialized_size(&__rust.class_hash);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
+            &__rust.class_hash,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let class_hash = cainome::cairo_serde::ClassHash::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
+        Ok(Upgraded { class_hash })
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -461,28 +410,28 @@ impl cainome::cairo_serde::CairoSerde for Message {
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct OwnershipTransferred {
-    pub previous_owner: cainome::cairo_serde::ContractAddress,
-    pub new_owner: cainome::cairo_serde::ContractAddress,
+pub struct Process {
+    pub origin: u32,
+    pub sender: cainome::cairo_serde::U256,
+    pub recipient: cainome::cairo_serde::U256,
 }
-impl cainome::cairo_serde::CairoSerde for OwnershipTransferred {
+impl cainome::cairo_serde::CairoSerde for Process {
     type RustType = Self;
     const SERIALIZED_SIZE: std::option::Option<usize> = None;
     #[inline]
     fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
         let mut __size = 0;
-        __size +=
-            cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.previous_owner);
-        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.new_owner);
+        __size += u32::cairo_serialized_size(&__rust.origin);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.sender);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.recipient);
         __size
     }
     fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
         let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.previous_owner,
-        ));
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.new_owner,
+        __out.extend(u32::cairo_serialize(&__rust.origin));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(&__rust.sender));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
+            &__rust.recipient,
         ));
         __out
     }
@@ -491,16 +440,146 @@ impl cainome::cairo_serde::CairoSerde for OwnershipTransferred {
         __offset: usize,
     ) -> cainome::cairo_serde::Result<Self::RustType> {
         let mut __offset = __offset;
-        let previous_owner =
-            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&previous_owner);
-        let new_owner =
-            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&new_owner);
-        Ok(OwnershipTransferred {
-            previous_owner,
-            new_owner,
+        let origin = u32::cairo_deserialize(__felts, __offset)?;
+        __offset += u32::cairo_serialized_size(&origin);
+        let sender = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&sender);
+        let recipient = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&recipient);
+        Ok(Process {
+            origin,
+            sender,
+            recipient,
         })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct Dispatch {
+    pub sender: cainome::cairo_serde::U256,
+    pub destination_domain: u32,
+    pub recipient_address: cainome::cairo_serde::U256,
+    pub message: Message,
+}
+impl cainome::cairo_serde::CairoSerde for Dispatch {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.sender);
+        __size += u32::cairo_serialized_size(&__rust.destination_domain);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.recipient_address);
+        __size += Message::cairo_serialized_size(&__rust.message);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(&__rust.sender));
+        __out.extend(u32::cairo_serialize(&__rust.destination_domain));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
+            &__rust.recipient_address,
+        ));
+        __out.extend(Message::cairo_serialize(&__rust.message));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let sender = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&sender);
+        let destination_domain = u32::cairo_deserialize(__felts, __offset)?;
+        __offset += u32::cairo_serialized_size(&destination_domain);
+        let recipient_address = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&recipient_address);
+        let message = Message::cairo_deserialize(__felts, __offset)?;
+        __offset += Message::cairo_serialized_size(&message);
+        Ok(Dispatch {
+            sender,
+            destination_domain,
+            recipient_address,
+            message,
+        })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum UpgradeableCptEvent {
+    Upgraded(Upgraded),
+}
+impl cainome::cairo_serde::CairoSerde for UpgradeableCptEvent {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = std::option::Option::None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        match __rust {
+            UpgradeableCptEvent::Upgraded(val) => Upgraded::cairo_serialized_size(val) + 1,
+            _ => 0,
+        }
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        match __rust {
+            UpgradeableCptEvent::Upgraded(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&0usize));
+                temp.extend(Upgraded::cairo_serialize(val));
+                temp
+            }
+            _ => vec![],
+        }
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let __index: u128 = __felts[__offset].try_into().unwrap();
+        match __index as usize {
+            0usize => Ok(UpgradeableCptEvent::Upgraded(Upgraded::cairo_deserialize(
+                __felts,
+                __offset + 1,
+            )?)),
+            _ => {
+                return Err(cainome::cairo_serde::Error::Deserialize(format!(
+                    "Index not handle for enum {}",
+                    "UpgradeableCptEvent"
+                )));
+            }
+        }
+    }
+}
+impl TryFrom<starknet::core::types::EmittedEvent> for UpgradeableCptEvent {
+    type Error = String;
+    fn try_from(event: starknet::core::types::EmittedEvent) -> Result<Self, Self::Error> {
+        use cainome::cairo_serde::CairoSerde;
+        if event.keys.is_empty() {
+            return Err("Event has no key".to_string());
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("Upgraded")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "Upgraded"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let class_hash = match cainome::cairo_serde::ClassHash::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "class_hash", "Upgraded", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
+            return Ok(UpgradeableCptEvent::Upgraded(Upgraded { class_hash }));
+        }
+        Err(format!(
+            "Could not match any event from keys {:?}",
+            event.keys
+        ))
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -1119,86 +1198,21 @@ impl TryFrom<starknet::core::types::EmittedEvent> for Event {
         ))
     }
 }
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum UpgradeableCptEvent {
-    Upgraded(Upgraded),
-}
-impl cainome::cairo_serde::CairoSerde for UpgradeableCptEvent {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = std::option::Option::None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        match __rust {
-            UpgradeableCptEvent::Upgraded(val) => Upgraded::cairo_serialized_size(val) + 1,
-            _ => 0,
-        }
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        match __rust {
-            UpgradeableCptEvent::Upgraded(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&0usize));
-                temp.extend(Upgraded::cairo_serialize(val));
-                temp
-            }
-            _ => vec![],
-        }
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let __index: u128 = __felts[__offset].try_into().unwrap();
-        match __index as usize {
-            0usize => Ok(UpgradeableCptEvent::Upgraded(Upgraded::cairo_deserialize(
-                __felts,
-                __offset + 1,
-            )?)),
-            _ => {
-                return Err(cainome::cairo_serde::Error::Deserialize(format!(
-                    "Index not handle for enum {}",
-                    "UpgradeableCptEvent"
-                )));
-            }
-        }
-    }
-}
-impl TryFrom<starknet::core::types::EmittedEvent> for UpgradeableCptEvent {
-    type Error = String;
-    fn try_from(event: starknet::core::types::EmittedEvent) -> Result<Self, Self::Error> {
-        use cainome::cairo_serde::CairoSerde;
-        if event.keys.is_empty() {
-            return Err("Event has no key".to_string());
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("Upgraded")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "Upgraded"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let class_hash = match cainome::cairo_serde::ClassHash::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "class_hash", "Upgraded", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
-            return Ok(UpgradeableCptEvent::Upgraded(Upgraded { class_hash }));
-        }
-        Err(format!(
-            "Could not match any event from keys {:?}",
-            event.keys
-        ))
-    }
-}
 impl<A: starknet::accounts::ConnectedAccount + Sync> Mailbox<A> {
+    #[allow(clippy::ptr_arg)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn owner(
+        &self,
+    ) -> cainome::cairo_serde::call::FCall<A::Provider, cainome::cairo_serde::ContractAddress> {
+        use cainome::cairo_serde::CairoSerde;
+        let mut __calldata = vec![];
+        let __call = starknet::core::types::FunctionCall {
+            contract_address: self.address,
+            entry_point_selector: starknet::macros::selector!("owner"),
+            calldata: __calldata,
+        };
+        cainome::cairo_serde::call::FCall::new(__call, self.provider())
+    }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
     pub fn get_local_domain(&self) -> cainome::cairo_serde::call::FCall<A::Provider, u32> {
@@ -1371,48 +1385,56 @@ impl<A: starknet::accounts::ConnectedAccount + Sync> Mailbox<A> {
     }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
-    pub fn owner(
+    pub fn transfer_ownership_getcall(
         &self,
-    ) -> cainome::cairo_serde::call::FCall<A::Provider, cainome::cairo_serde::ContractAddress> {
-        use cainome::cairo_serde::CairoSerde;
-        let mut __calldata = vec![];
-        let __call = starknet::core::types::FunctionCall {
-            contract_address: self.address,
-            entry_point_selector: starknet::macros::selector!("owner"),
-            calldata: __calldata,
-        };
-        cainome::cairo_serde::call::FCall::new(__call, self.provider())
-    }
-    #[allow(clippy::ptr_arg)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn upgrade_getcall(
-        &self,
-        new_class_hash: &cainome::cairo_serde::ClassHash,
+        new_owner: &cainome::cairo_serde::ContractAddress,
     ) -> starknet::accounts::Call {
         use cainome::cairo_serde::CairoSerde;
         let mut __calldata = vec![];
-        __calldata.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
-            new_class_hash,
+        __calldata.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            new_owner,
         ));
         starknet::accounts::Call {
             to: self.address,
-            selector: starknet::macros::selector!("upgrade"),
+            selector: starknet::macros::selector!("transfer_ownership"),
             calldata: __calldata,
         }
     }
     #[allow(clippy::ptr_arg)]
-    pub fn upgrade(
+    pub fn transfer_ownership(
         &self,
-        new_class_hash: &cainome::cairo_serde::ClassHash,
+        new_owner: &cainome::cairo_serde::ContractAddress,
     ) -> starknet::accounts::Execution<A> {
         use cainome::cairo_serde::CairoSerde;
         let mut __calldata = vec![];
-        __calldata.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
-            new_class_hash,
+        __calldata.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            new_owner,
         ));
         let __call = starknet::accounts::Call {
             to: self.address,
-            selector: starknet::macros::selector!("upgrade"),
+            selector: starknet::macros::selector!("transfer_ownership"),
+            calldata: __calldata,
+        };
+        self.account.execute(vec![__call])
+    }
+    #[allow(clippy::ptr_arg)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn renounce_ownership_getcall(&self) -> starknet::accounts::Call {
+        use cainome::cairo_serde::CairoSerde;
+        let mut __calldata = vec![];
+        starknet::accounts::Call {
+            to: self.address,
+            selector: starknet::macros::selector!("renounce_ownership"),
+            calldata: __calldata,
+        }
+    }
+    #[allow(clippy::ptr_arg)]
+    pub fn renounce_ownership(&self) -> starknet::accounts::Execution<A> {
+        use cainome::cairo_serde::CairoSerde;
+        let mut __calldata = vec![];
+        let __call = starknet::accounts::Call {
+            to: self.address,
+            selector: starknet::macros::selector!("renounce_ownership"),
             calldata: __calldata,
         };
         self.account.execute(vec![__call])
@@ -1609,62 +1631,54 @@ impl<A: starknet::accounts::ConnectedAccount + Sync> Mailbox<A> {
     }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
-    pub fn transfer_ownership_getcall(
+    pub fn upgrade_getcall(
         &self,
-        new_owner: &cainome::cairo_serde::ContractAddress,
+        new_class_hash: &cainome::cairo_serde::ClassHash,
     ) -> starknet::accounts::Call {
         use cainome::cairo_serde::CairoSerde;
         let mut __calldata = vec![];
-        __calldata.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            new_owner,
+        __calldata.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
+            new_class_hash,
         ));
         starknet::accounts::Call {
             to: self.address,
-            selector: starknet::macros::selector!("transfer_ownership"),
+            selector: starknet::macros::selector!("upgrade"),
             calldata: __calldata,
         }
     }
     #[allow(clippy::ptr_arg)]
-    pub fn transfer_ownership(
+    pub fn upgrade(
         &self,
-        new_owner: &cainome::cairo_serde::ContractAddress,
+        new_class_hash: &cainome::cairo_serde::ClassHash,
     ) -> starknet::accounts::Execution<A> {
         use cainome::cairo_serde::CairoSerde;
         let mut __calldata = vec![];
-        __calldata.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            new_owner,
+        __calldata.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
+            new_class_hash,
         ));
         let __call = starknet::accounts::Call {
             to: self.address,
-            selector: starknet::macros::selector!("transfer_ownership"),
-            calldata: __calldata,
-        };
-        self.account.execute(vec![__call])
-    }
-    #[allow(clippy::ptr_arg)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn renounce_ownership_getcall(&self) -> starknet::accounts::Call {
-        use cainome::cairo_serde::CairoSerde;
-        let mut __calldata = vec![];
-        starknet::accounts::Call {
-            to: self.address,
-            selector: starknet::macros::selector!("renounce_ownership"),
-            calldata: __calldata,
-        }
-    }
-    #[allow(clippy::ptr_arg)]
-    pub fn renounce_ownership(&self) -> starknet::accounts::Execution<A> {
-        use cainome::cairo_serde::CairoSerde;
-        let mut __calldata = vec![];
-        let __call = starknet::accounts::Call {
-            to: self.address,
-            selector: starknet::macros::selector!("renounce_ownership"),
+            selector: starknet::macros::selector!("upgrade"),
             calldata: __calldata,
         };
         self.account.execute(vec![__call])
     }
 }
 impl<P: starknet::providers::Provider + Sync> MailboxReader<P> {
+    #[allow(clippy::ptr_arg)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn owner(
+        &self,
+    ) -> cainome::cairo_serde::call::FCall<P, cainome::cairo_serde::ContractAddress> {
+        use cainome::cairo_serde::CairoSerde;
+        let mut __calldata = vec![];
+        let __call = starknet::core::types::FunctionCall {
+            contract_address: self.address,
+            entry_point_selector: starknet::macros::selector!("owner"),
+            calldata: __calldata,
+        };
+        cainome::cairo_serde::call::FCall::new(__call, self.provider())
+    }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
     pub fn get_local_domain(&self) -> cainome::cairo_serde::call::FCall<P, u32> {
@@ -1831,20 +1845,6 @@ impl<P: starknet::providers::Provider + Sync> MailboxReader<P> {
         let __call = starknet::core::types::FunctionCall {
             contract_address: self.address,
             entry_point_selector: starknet::macros::selector!("processed_at"),
-            calldata: __calldata,
-        };
-        cainome::cairo_serde::call::FCall::new(__call, self.provider())
-    }
-    #[allow(clippy::ptr_arg)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn owner(
-        &self,
-    ) -> cainome::cairo_serde::call::FCall<P, cainome::cairo_serde::ContractAddress> {
-        use cainome::cairo_serde::CairoSerde;
-        let mut __calldata = vec![];
-        let __call = starknet::core::types::FunctionCall {
-            contract_address: self.address,
-            entry_point_selector: starknet::macros::selector!("owner"),
             calldata: __calldata,
         };
         cainome::cairo_serde::call::FCall::new(__call, self.provider())

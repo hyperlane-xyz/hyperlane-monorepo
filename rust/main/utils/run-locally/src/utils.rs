@@ -19,11 +19,11 @@ macro_rules! as_task {
     (
         $(#[$fn_meta:meta])*
         $fn_vis:vis fn $fn_name:ident(
-            $($params:tt)*
+            $($arg_name:ident$(: $arg_type:ty)?),*$(,)?
         ) $(-> $ret_type:ty)? $body:block
     ) => {
         $(#[$fn_meta])*
-        $fn_vis fn $fn_name($($params)*) -> impl $crate::utils::TaskHandle<Output=as_task!(@handle $($ret_type)?)> {
+        $fn_vis fn $fn_name($($arg_name$(: $arg_type)*),*) -> impl $crate::utils::TaskHandle<Output=as_task!(@handle $($ret_type)?)> {
             $crate::utils::SimpleTaskHandle(::std::thread::spawn(move || $body))
         }
     };

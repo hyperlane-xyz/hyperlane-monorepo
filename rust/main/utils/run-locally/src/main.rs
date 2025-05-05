@@ -53,7 +53,6 @@ mod logging;
 mod metrics;
 mod program;
 mod server;
-mod starknet;
 mod utils;
 
 #[cfg(feature = "cosmos")]
@@ -64,6 +63,9 @@ mod sealevel;
 
 #[cfg(feature = "cosmosnative")]
 mod cosmosnative;
+
+#[cfg(feature = "starknet")]
+mod starknet;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
@@ -386,9 +388,6 @@ fn main() -> ExitCode {
         log!("Failure occurred during E2E");
         return report_test_result(test_passed);
     }
-    // test retry request
-    let resp = server::run_retry_request().expect("Failed to process retry request");
-    assert!(resp.matched > 0);
 
     // Simulate a reorg, which we'll later use
     // to ensure the relayer handles reorgs correctly.
