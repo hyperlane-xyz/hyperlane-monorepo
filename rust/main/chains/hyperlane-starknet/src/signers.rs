@@ -6,8 +6,8 @@ use starknet::{
 
 use crate::error::HyperlaneStarknetError;
 
+#[derive(Clone)]
 /// A signer for Starknet accounts
-#[derive(Clone, Debug)]
 pub struct Signer {
     /// signing key
     pub signing_key: SigningKey,
@@ -15,9 +15,18 @@ pub struct Signer {
     pub address: FieldElement,
     /// version of the signer
     pub version: u32,
-
     /// H256 address of the signer
     pub address_h256: H256,
+}
+
+impl std::fmt::Debug for Signer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Signer")
+            .field("address", &self.address)
+            .field("version", &self.version)
+            .field("address_h256", &self.address_h256)
+            .finish()
+    }
 }
 
 impl Signer {
