@@ -18,7 +18,7 @@ import { CCIPReadIsmConfig } from '../types.js';
 import { BaseMetadataBuilder } from './builder.js';
 import type { MetadataContext } from './types.js';
 
-describe.only('CCIP-Read ISM Integration', () => {
+describe('CCIP-Read ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
   let testRecipient: any;
@@ -42,9 +42,9 @@ describe.only('CCIP-Read ISM Integration', () => {
 
     // Deploy a TestRecipient on test1
     const deployments = await new TestRecipientDeployer(multiProvider).deploy({
-      test1: {},
+      test2: {},
     });
-    testRecipient = (deployments.test1 as any).testRecipient;
+    testRecipient = (deployments.test2 as any).testRecipient;
 
     // Deploy the TestCcipReadIsm on test1 domain
     const domain = multiProvider.getDomainId('test1');
@@ -61,13 +61,11 @@ describe.only('CCIP-Read ISM Integration', () => {
     // Prepare the metadata builder
     metadataBuilder = new BaseMetadataBuilder(core);
 
-    axiosStub = sinon
-      .stub(axios, 'get')
-      .resolves({
-        data: {
-          data: '0x0000000000000000000000000000000000000000000000000000000000000001',
-        },
-      });
+    axiosStub = sinon.stub(axios, 'get').resolves({
+      data: {
+        data: '0x0000000000000000000000000000000000000000000000000000000000000001',
+      },
+    });
   });
 
   it('should process a message protected by CCIP-Read ISM', async () => {
