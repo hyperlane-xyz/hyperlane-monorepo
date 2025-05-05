@@ -470,11 +470,7 @@ export const rebalancer: CommandModuleWithContext<{
       const executor: IExecutor = new Executor();
 
       // Creates an instance for the metrics that will publish stats for the monitored data
-      const metrics = withMetrics && contextFactory.createMetrics();
-
-      if (!metrics) {
-        // TODO: implement the metrics usage, just leaving this here to follow along
-      }
+      const metrics = await (withMetrics && contextFactory.createMetrics());
 
       await monitor
         // Observe balances events and process rebalancing routes
@@ -491,6 +487,19 @@ export const rebalancer: CommandModuleWithContext<{
               `Error processing rebalancing routes: ${e.messages}`,
             );
           });
+
+          if (metrics) {
+            metrics
+              .processEvent({
+                token: event.token,
+                bridgedSupply: event.bridgedSupply,
+              })
+              .catch((e) => {
+                throw new Error(
+                  `Error building metrics for ${event.token?.addressOrDenom}: ${e.message}`,
+                );
+              });
+          }
         })
         // Observe monitor errors and exit
         .on('error', (e) => {

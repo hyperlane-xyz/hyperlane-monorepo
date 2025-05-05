@@ -43,6 +43,11 @@ export class RebalancerContextFactory {
     const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
     const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
     const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
+    if (!warpCoreConfig) {
+      throw new Error(
+        `Warp route config for ${warpRouteId} not found in registry`,
+      );
+    }
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
 
     return new RebalancerContextFactory(
