@@ -312,35 +312,54 @@ impl BaseAgent for Relayer {
             .collect();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
+        // Build MessageContexts for all origin-destination pairs.
+        // It's crucial to iterate through all configured origins, not just those with ValidatorAnnounce.
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
 
-        // only iterate through destination chains that were successfully instantiated
-        start_entity_init = Instant::now();
-        for (destination, dest_mailbox) in mailboxes.iter() {
+        // First collect all destination chain setups
+        for (destination, _) in mailboxes.iter() {
             let destination_chain_setup = core.settings.chain_setup(destination).unwrap().clone();
-            destination_chains.insert(destination.clone(), destination_chain_setup.clone());
-            let transaction_gas_limit: Option<U256> =
-                if skip_transaction_gas_limit_for.contains(&destination.id()) {
-                    None
-                } else {
-                    transaction_gas_limit
-                };
+            destination_chains.insert(destination.clone(), destination_chain_setup);
+        }
 
-            let application_operation_verifier = application_operation_verifiers.get(destination);
+        start_entity_init = Instant::now();
+        // Iterate through ALL configured origin chains.
+        for origin in &settings.origin_chains {
+            // Only proceed if the origin chain setup exists
+            if core.settings.chain_setup(origin).is_err() {
+                warn!(origin=%origin, "Skipping context creation for origin chain as its configuration is missing in the core settings.");
+                continue;
+            }
 
-            // only iterate through origin chains that were successfully instantiated
-            for (origin, validator_announce) in validator_announces.iter() {
-                let db = dbs.get(origin).unwrap().clone();
+            // Get origin-specific components
+            let origin_db = dbs.get(origin).expect("DB should exist for origin").clone();
+            let origin_gas_payment_enforcer = gas_payment_enforcers[origin].clone();
+            // ValidatorAnnounce is OPTIONAL for the origin, required only for specific ISMs.
+            let maybe_validator_announce = validator_announces.get(origin).cloned();
+
+            // Iterate through ALL configured and successfully built destination mailboxes.
+            for (destination, dest_mailbox) in mailboxes.iter() {
+                let transaction_gas_limit: Option<U256> =
+                    if skip_transaction_gas_limit_for.contains(&destination.id()) {
+                        None
+                    } else {
+                        transaction_gas_limit
+                    };
+
+                let application_operation_verifier =
+                    application_operation_verifiers.get(destination);
+                let destination_chain_setup = destination_chains[destination].clone();
+
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
                     prover_syncs[origin].clone(),
-                    validator_announce.clone(),
+                    maybe_validator_announce.clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     cache.clone(),
-                    db,
+                    origin_db.clone(),
                     IsmAwareAppContextClassifier::new(
                         dest_mailbox.clone(),
                         settings.metric_app_contexts.clone(),
@@ -354,10 +373,10 @@ impl BaseAgent for Relayer {
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
-                        origin_db: Arc::new(dbs.get(origin).unwrap().clone()),
+                        origin_db: Arc::new(origin_db.clone()),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
-                        origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
+                        origin_gas_payment_enforcer: origin_gas_payment_enforcer.clone(),
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
                         application_operation_verifier: application_operation_verifier.cloned(),
