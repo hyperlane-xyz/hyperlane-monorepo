@@ -13,7 +13,6 @@ import {
 
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
-import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { DerivedIcaRouterConfig } from '../ica/types.js';
@@ -73,12 +72,6 @@ export class EvmIcaModule extends HyperlaneModule<
         actualConfig.remoteIcaRouters,
         expectedConfig.remoteIcaRouters,
       )),
-      ...proxyAdminUpdateTxs(
-        this.chainId,
-        this.args.addresses.interchainAccountIsm,
-        actualConfig,
-        expectedConfig,
-      ),
     ];
 
     return transactions;

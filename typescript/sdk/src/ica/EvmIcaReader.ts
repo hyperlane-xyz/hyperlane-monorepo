@@ -3,11 +3,8 @@ import { providers } from 'ethers';
 import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
-  Ownable__factory,
 } from '@hyperlane-xyz/core';
 import { Address, Domain, isZeroishAddress } from '@hyperlane-xyz/utils';
-
-import { proxyAdmin } from '../deploy/proxy.js';
 
 import {
   DerivedIcaRouterConfig,
@@ -23,14 +20,8 @@ export class EvmIcaRouterReader {
       this.provider,
     );
     const owner = await icaRouterInstance.owner();
-    const proxyAddress = await proxyAdmin(this.provider, address);
 
-    const proxyAdminInstance = Ownable__factory.connect(
-      proxyAddress,
-      this.provider,
-    );
-    const [proxyAdminOwner, knownDomains, mailboxAddress] = await Promise.all([
-      proxyAdminInstance.owner(),
+    const [knownDomains, mailboxAddress] = await Promise.all([
       icaRouterInstance.domains(),
       icaRouterInstance.mailbox(),
     ]);
@@ -44,10 +35,6 @@ export class EvmIcaRouterReader {
       owner,
       address,
       mailbox: mailboxAddress,
-      proxyAdmin: {
-        address: proxyAddress,
-        owner: proxyAdminOwner,
-      },
       remoteIcaRouters: remoteRouters,
     };
 
