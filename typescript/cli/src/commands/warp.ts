@@ -487,23 +487,21 @@ export const rebalancer: CommandModuleWithContext<{
             return acc;
           }, {} as RawBalances);
 
-          const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
-
-          executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
-            throw new Error(
-              `Error processing rebalancing routes: ${e.messages}`,
-            );
-          });
-
           if (metrics) {
             for (const tokenInfo of event.tokensInfo) {
               metrics.processToken(tokenInfo).catch((e) => {
-                throw new Error(
+                errorRed(
                   `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
                 );
               });
             }
           }
+
+          const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
+
+          executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
+            errorRed(`Error processing rebalancing routes: ${e.messages}`);
+          });
         })
         // Observe monitor errors and exit
         .on('error', (e) => {
