@@ -62,12 +62,17 @@ impl EthereumTxAdapter {
         };
         let block_number = block_number.as_u64();
         let sts = match self
-            .reorg_period
-            .is_block_finalized(self.provider, block_number)
+            .provider
+            .get_finalized_block_number(&self.reorg_period)
             .await
         {
-            Ok(true) => TransactionStatus::Finalized,
-            Ok(false) => TransactionStatus::Included,
+            Ok(finalized_block) => {
+                if finalized_block as u64 >= block_number {
+                    return TransactionStatus::Finalized;
+                } else {
+                    return TransactionStatus::Included;
+                }
+            }
             Err(err) => {
                 warn!(?err, "Error checking block finality");
                 TransactionStatus::PendingInclusion
@@ -121,18 +126,14 @@ impl AdaptsChain for EthereumTxAdapter {
         &self,
         hash: hyperlane_core::H512,
     ) -> Result<TransactionStatus, SubmitterError> {
-        let tx_hash_status = match self.provider.get_transaction_receipt(hash.into()).await {
+        match self.provider.get_transaction_receipt(hash.into()).await {
             Ok(None) => Err(SubmitterError::TxHashNotFound(
                 "Transaction not found".to_string(),
             )),
-            Ok(Some(receipt)) => {
-                if receipt.status == Some(1.into()) {
-                    Ok(TransactionStatus::Success)
-                } else {
-                    Ok(TransactionStatus::Failed)
-                }
-            }
+            Ok(Some(receipt)) => Ok(self
+                .block_number_result_to_tx_hash(receipt.block_number)
+                .await),
             Err(err) => Err(SubmitterError::TxHashNotFound(err.to_string())),
-        };
+        }
     }
 }
