@@ -149,7 +149,15 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
     ) -> Result<Self> {
         conf.build_merkle_tree_hook_indexer(metrics, advanced_log_meta)
             .await
-            .map(Into::into)
+            // Handle the Option explicitly. If the hook is configured (Some),
+            // convert the Box to an Arc. If it's not configured (None),
+            // return an error because we cannot create the requested indexer.
+            .and_then(|maybe_indexer| match maybe_indexer {
+                Some(boxed_indexer) => Ok(Arc::from(boxed_indexer)),
+                None => Err(eyre!(
+                    "MerkleTreeHookIndexer requested but MerkleTreeHook is not configured for domain {}", conf.domain.name()
+                )),
+            })
     }
 }
 

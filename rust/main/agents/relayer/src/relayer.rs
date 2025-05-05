@@ -946,9 +946,11 @@ impl Relayer {
             .build_validator_announces(settings.origin_chains.iter(), core_metrics)
             .await
             .into_iter()
-            .filter_map(|(origin, mailbox_res)| match mailbox_res {
-                Ok(mailbox) => Some((origin, mailbox)),
+            .filter_map(|(origin, va_res)| match va_res {
+                Ok(Some(va)) => Some((origin, Arc::from(va))),
+                Ok(None) => None,
                 Err(err) => {
+                    // Log errors and filter them out
                     error!(?err, origin=?origin, "Critical error when building validator announce");
                     chain_metrics.set_critical_error(origin.name(), true);
                     None
