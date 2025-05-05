@@ -69,7 +69,10 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             return false;
         }
 
-        InterchainAccountRouter(msg.sender).revealAndExecute(calls, salt);
+        InterchainAccountRouter(payable(msg.sender)).revealAndExecute(
+            calls,
+            salt
+        );
         return true;
     }
 }

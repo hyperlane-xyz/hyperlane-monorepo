@@ -965,4 +965,31 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(0)
         );
     }
+
+    function testFuzz_callRemoteCommitReveal_simpleOverload(
+        bytes32 commitment
+    ) public {
+        // Arrange
+        deal(address(this), 2 * gasPaymentQuote);
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        // act
+        originIcaRouter.callRemoteCommitReveal{value: 2 * gasPaymentQuote}(
+            destination,
+            commitment
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // assert
+        // Destination ICA router should have the commitment
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(ica)
+        );
+    }
 }

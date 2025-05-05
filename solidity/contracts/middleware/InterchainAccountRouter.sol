@@ -1036,7 +1036,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         );
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
-            mailbox.dispatch{value: msg.value}(
+            mailbox.dispatch{value: address(this).balance}(
                 _destination,
                 _router,
                 _body,
@@ -1114,4 +1114,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 address(hook)
             );
     }
+
+    /// @dev This allows us to receive gas refunds from the IGP
+    receive() external payable {}
 }
