@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub struct EthereumTxAdapter {
-    conf: ChainConf,
+    _conf: ChainConf,
     _raw_conf: RawChainConf,
     provider: Box<dyn EvmProviderForSubmitter>,
     reorg_period: EthereumReorgPeriod,
@@ -49,7 +49,7 @@ impl EthereumTxAdapter {
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
 
         Ok(Self {
-            conf,
+            _conf: conf,
             _raw_conf: raw_conf,
             provider,
             reorg_period,
