@@ -1080,7 +1080,7 @@ impl ChainConf {
         }
     }
 
-    async fn build_ethereum<B>(
+    pub async fn build_ethereum<B>(
         &self,
         conf: &h_eth::ConnectionConf,
         locator: &ContractLocator<'_>,

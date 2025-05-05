@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::{
@@ -122,5 +124,15 @@ impl EthereumReorgPeriod {
             EthereumReorgPeriod::Tag(tag) => *tag,
         };
         Ok(block_id)
+    }
+
+    /// Checks if a block is finalized
+    pub async fn is_block_finalized<M: Middleware + 'static, T: Deref<Target = M>>(
+        &self,
+        provider: T,
+        block: u32,
+    ) -> ChainResult<bool> {
+        let finalized_block = crate::get_finalized_block_number(provider, self).await?;
+        Ok(finalized_block >= block)
     }
 }

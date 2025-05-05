@@ -28,12 +28,12 @@ pub struct PayloadDispatcherEntrypoint {
 }
 
 impl PayloadDispatcherEntrypoint {
-    pub fn try_from_settings(
+    pub async fn try_from_settings(
         settings: PayloadDispatcherSettings,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
         Ok(Self {
-            inner: PayloadDispatcherState::try_from_settings(settings, metrics)?,
+            inner: PayloadDispatcherState::try_from_settings(settings, metrics).await?,
         })
     }
 

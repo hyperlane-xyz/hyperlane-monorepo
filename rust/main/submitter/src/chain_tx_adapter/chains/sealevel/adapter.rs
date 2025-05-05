@@ -266,9 +266,7 @@ impl SealevelTxAdapter {
             }
             Err(err) => {
                 warn!(?err, "Failed to get transaction status by hash");
-                return Err(SubmitterError::TxSubmissionError(
-                    "Transaction hash not found".to_string(),
-                ));
+                return Err(SubmitterError::TxHashNotFound(err.to_string()));
             }
         }
     }
@@ -396,6 +394,13 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(TransactionStatus::classify_tx_status_from_hash_statuses(
             hash_status_results,
         ))
+    }
+
+    async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, SubmitterError> {
+        info!(?hash, "getting transaction hash status");
+        let status = self.get_tx_hash_status(hash).await?;
+        info!(?hash, ?status, "got transaction hash status");
+        Ok(status)
     }
 
     async fn reverted_payloads(
