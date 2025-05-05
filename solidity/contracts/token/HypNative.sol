@@ -31,9 +31,10 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
 
     /**
      * @notice Initializes the Hyperlane router
+     * @dev This function uses `reinitializer(2)` because v2 contracts support rebalancing, and v1 contracts do not.
      * @param _hook The post-dispatch hook contract.
-       @param _interchainSecurityModule The interchain security module contract.
-       @param _owner The this contract.
+     * @param _interchainSecurityModule The interchain security module contract.
+     * @param _owner The this contract.
      */
     function initialize(
         address _hook,
@@ -53,7 +54,7 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         bytes32 _recipient,
         uint256 _amount
     ) external payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, INSUFFICIENT_NATIVE_AMOUNT);
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 _hookPayment = msg.value - _amount;
         return _transferRemote(_destination, _recipient, _amount, _hookPayment);
     }
@@ -69,7 +70,7 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         bytes calldata _hookMetadata,
         address _hook
     ) external payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, INSUFFICIENT_NATIVE_AMOUNT);
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 _hookPayment = msg.value - _amount;
         return
             _transferRemote(
@@ -115,6 +116,11 @@ contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
         emit Donation(msg.sender, msg.value);
     }
 
+    /**
+     * @dev This function uses `msg.value` as payment for the bridge.
+     * User collateral is never used to make bridge payments!
+     * The rebalancer is to pay all fees for the bridge.
+     */
     function _rebalance(
         uint32 domain,
         bytes32 recipient,
