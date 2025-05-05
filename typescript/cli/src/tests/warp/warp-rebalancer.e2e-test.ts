@@ -646,5 +646,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Kill the process to finish the test
     await rebalancer.kill();
+
+    // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
+    await startRebalancerAndExpectLog(`No routes to execute`);
   });
 });
