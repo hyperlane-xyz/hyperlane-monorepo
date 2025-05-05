@@ -153,11 +153,12 @@ export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
     : config.interchainSecurityModule.address;
 }
 
-const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
-  GasRouterConfigSchema.extend({
-    mailbox: z.string().optional(),
-  }),
-);
+export const HypTokenRouterConfigMailboxOptionalSchema =
+  HypTokenConfigSchema.and(
+    GasRouterConfigSchema.extend({
+      mailbox: z.string().optional(),
+    }),
+  );
 
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema

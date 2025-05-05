@@ -157,7 +157,7 @@ describe('SmartProvider', async () => {
       await token.transfer(constants.AddressZero, 1000000);
     } catch (e: any) {
       expect(e.error.message).to.equal(
-        'execution reverted: revert: ERC20: transfer to the zero address',
+        'execution reverted: ERC20: transfer to the zero address',
       );
     }
   });
@@ -174,7 +174,7 @@ describe('SmartProvider', async () => {
       await token.transfer(signer.address, 1000000);
     } catch (e: any) {
       expect(e.error.message).to.equal(
-        'execution reverted: revert: ERC20: transfer amount exceeds balance',
+        'execution reverted: ERC20: transfer amount exceeds balance',
       );
     }
   });

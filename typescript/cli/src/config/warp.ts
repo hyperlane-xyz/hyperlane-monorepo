@@ -63,7 +63,7 @@ const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
   description: TYPE_DESCRIPTIONS[type],
 }));
 
-async function fillDefaults(
+export async function fillDefaults(
   context: CommandContext,
   config: ChainMap<Partial<MailboxClientConfig>>,
 ): Promise<ChainMap<MailboxClientConfig>> {

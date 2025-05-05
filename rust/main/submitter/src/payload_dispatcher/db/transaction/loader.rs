@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use tokio::sync::mpsc::Sender;
-use tracing::trace;
+use tracing::{debug, trace};
 
 use crate::{
     error::SubmitterError,
@@ -59,7 +59,7 @@ impl LoadableFromDb for TransactionDbLoader {
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Finalized | TransactionStatus::Dropped(_) => {
-                trace!(?item, "Transaction already processed");
+                debug!(?item, "Transaction already processed");
                 Ok(LoadingOutcome::Skipped)
             }
         }
