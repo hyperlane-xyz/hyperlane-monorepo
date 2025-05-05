@@ -154,7 +154,7 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
-    targetConfig = await this.reader.resolveHookAddresses(targetConfig);
+    targetConfig = await this.reader.deriveHookConfig(targetConfig);
 
     // Update the config
     this.args.config = targetConfig;
