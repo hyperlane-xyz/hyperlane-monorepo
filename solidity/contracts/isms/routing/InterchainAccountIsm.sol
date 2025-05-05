@@ -14,6 +14,9 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
  */
 contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
     using TypeCasts for bytes32;
+    using Message for bytes;
+    using InterchainAccountMessage for bytes;
+
     IMailbox private immutable mailbox;
 
     // ============ Constructor ============
@@ -31,9 +34,8 @@ contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
     function route(
         bytes calldata _message
     ) public view virtual override returns (IInterchainSecurityModule) {
-        address _ism = InterchainAccountMessage
-            .ism(Message.body(_message))
-            .bytes32ToAddress();
+        bytes calldata _icaMsg = _message.body();
+        address _ism = _icaMsg.ism(_icaMsg.messageType()).bytes32ToAddress();
         if (_ism == address(0)) {
             return mailbox.defaultIsm();
         } else {

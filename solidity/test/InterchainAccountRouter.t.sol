@@ -932,9 +932,18 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes memory metadata = abi.encode(salt, calls);
         _mailbox.addInboundMetadata(1, metadata);
         destinationIcaRouter.CCIP_READ_ISM().process(metadata, message);
+        // Manually process the reveal. In reality, the CCIP read ISM will call `revealAndExecute`
+        // but here we do it manually since we're not using the CCIP read ISM yet
+        destinationIcaRouter.revealAndExecute(calls, salt);
+
+        // Commitment should be cleared
         assertEq(
             address(destinationIcaRouter.verifiedCommitments(commitment)),
             address(0)
         );
+
+        // Cannot reveal twice
+        vm.expectRevert("Invalid Reveal");
+        destinationIcaRouter.revealAndExecute(calls, salt);
     }
 }

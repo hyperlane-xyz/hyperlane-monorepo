@@ -170,8 +170,16 @@ library InterchainAccountMessage {
         return bytes32(_message[1:33]);
     }
 
-    function ism(bytes calldata _message) internal view returns (bytes32) {
-        if (messageType(_message) == MessageType.REVEAL) {
+    /**
+     * @notice Parses and returns the ISM address from the provided message
+     * @param _message The interchain account message
+     * @return The ISM encoded in the message
+     */
+    function ism(
+        bytes calldata _message,
+        MessageType _type
+    ) internal pure returns (bytes32) {
+        if (_type == MessageType.REVEAL) {
             return bytes32(_message[1:33]);
         }
         return bytes32(_message[33:65]);
@@ -188,9 +196,10 @@ library InterchainAccountMessage {
     }
 
     function commitment(
-        bytes calldata _message
-    ) internal view returns (bytes32) {
-        if (messageType(_message) == MessageType.REVEAL) {
+        bytes calldata _message,
+        MessageType _type
+    ) internal pure returns (bytes32) {
+        if (_type == MessageType.REVEAL) {
             return bytes32(_message[33:65]);
         }
         return bytes32(_message[97:]);

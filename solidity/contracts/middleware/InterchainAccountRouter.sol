@@ -49,6 +49,8 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
+    /// @notice A mapping of commitments to the ICA that should execute the revealed calldata
+    /// @dev The commitment is only stored if a `COMMITMENT` message was processed for it
     mapping(bytes32 commitment => OwnableMulticall ICA)
         public verifiedCommitments;
 
@@ -295,7 +297,7 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
             // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
             require(
-                verifiedCommitments[_message.commitment()] ==
+                verifiedCommitments[_message.commitment(_messageType)] ==
                     OwnableMulticall(payable(address(0))),
                 "Commitment was not executed"
             );
@@ -303,7 +305,7 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
         }
 
         bytes32 _owner = _message.owner();
-        bytes32 _ism = _message.ism();
+        bytes32 _ism = _message.ism(_messageType);
         bytes32 _salt = _message.salt();
 
         OwnableMulticall ica = getDeployedInterchainAccount(
@@ -318,7 +320,7 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
             CallLib.Call[] memory calls = _message.calls();
             ica.multicall{value: msg.value}(calls);
         } else {
-            bytes32 commitment = _message.commitment();
+            bytes32 commitment = _message.commitment(_messageType);
             verifiedCommitments[commitment] = ica;
         }
     }
