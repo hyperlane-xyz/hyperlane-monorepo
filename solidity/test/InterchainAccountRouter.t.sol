@@ -970,7 +970,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
         bytes memory message = _mailbox.inboundMessages(1);
         bytes memory metadata = abi.encode(salt, calls);
-        _mailbox.addInboundMetadata(1, metadata);
         destinationIcaRouter.CCIP_READ_ISM().process(metadata, message);
 
         // Commitment should be cleared

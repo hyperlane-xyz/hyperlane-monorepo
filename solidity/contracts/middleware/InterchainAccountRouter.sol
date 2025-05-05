@@ -26,6 +26,7 @@ import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule
 import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
 import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
+import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -34,7 +35,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
  */
-contract InterchainAccountRouter is Router, IInterchainSecurityModule {
+contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     // ============ Libraries ============
 
     using TypeCasts for address;
@@ -325,16 +326,11 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
         }
     }
 
-    function moduleType() external pure returns (uint8) {
-        return uint8(IInterchainSecurityModule.Types.ROUTING);
-    }
-
     CommitmentReadIsm public immutable CCIP_READ_ISM;
 
-    function verify(
-        bytes calldata _metadata,
+    function route(
         bytes calldata _message
-    ) external returns (bool) {
+    ) public view override returns (IInterchainSecurityModule) {
         bytes calldata _body = _message.body();
         IInterchainSecurityModule _ism = IInterchainSecurityModule(
             _body.ism(_body.messageType()).bytes32ToAddress()
@@ -353,7 +349,7 @@ contract InterchainAccountRouter is Router, IInterchainSecurityModule {
                 _ism = mailbox.defaultIsm();
             }
         }
-        return _ism.verify(_metadata, _message);
+        return _ism;
     }
 
     /**
