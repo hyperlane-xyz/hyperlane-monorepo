@@ -27,6 +27,7 @@ export const testnet4SupportedChainNames = [
   'milkywaytestnet',
   'modetestnet',
   'monadtestnet',
+  'nobletestnet',
   'odysseytestnet',
   'optimismsepolia',
   'plumetestnet2',

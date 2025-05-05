@@ -55,6 +55,7 @@ export const keyFunderConfig: KeyFunderConfig<
     milkywaytestnet: '0',
     modetestnet: '0.05',
     monadtestnet: '0.1',
+    nobletestnet: '0',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
     plumetestnet2: '0.1',

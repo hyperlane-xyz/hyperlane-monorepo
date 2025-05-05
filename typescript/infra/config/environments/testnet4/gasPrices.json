@@ -107,6 +107,10 @@
     "amount": "52.0",
     "decimals": 9
   },
+  "nobletestnet": {
+    "amount": "0.1",
+    "decimals": 6
+  },
   "odysseytestnet": {
     "amount": "1.034000276",
     "decimals": 9

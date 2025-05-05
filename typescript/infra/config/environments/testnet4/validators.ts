@@ -450,6 +450,16 @@ export const validatorChainConfig = (
         'monadtestnet',
       ),
     },
+    nobletestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nobletestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0000000000000000000000000000000000000000'],
+        },
+        'nobletestnet',
+      ),
+    },
     weavevmtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('weavevmtestnet'),

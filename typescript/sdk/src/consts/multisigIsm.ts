@@ -1604,6 +1604,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  nobletestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x0000000000000000000000000000000000000000',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   odysseytestnet: {
     threshold: 1,
     validators: [
