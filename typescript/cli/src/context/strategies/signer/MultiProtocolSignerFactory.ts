@@ -127,10 +127,13 @@ class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
 
     const cometClient = extraParams?.provider.getCometClient();
 
+    // parse gas price so it has the correct format
+    const gasPrice = GasPrice.fromString(
+      `${extraParams.gasPrice.amount}${extraParams.gasPrice.denom}`,
+    );
+
     return SigningHyperlaneModuleClient.createWithSigner(cometClient, wallet, {
-      gasPrice: GasPrice.fromString(
-        `${extraParams.gasPrice.amount}${extraParams.gasPrice.denom}`,
-      ),
+      gasPrice,
     });
   }
 }
