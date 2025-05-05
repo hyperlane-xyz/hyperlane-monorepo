@@ -25,6 +25,8 @@ contract HypERC20MovableCollateralRouterTest is Test {
             1e18,
             address(new MockMailbox(uint32(1)))
         );
+        // Initialize the router -> we are the admin
+        router.initialize(address(0), address(0), address(this));
 
         vtb = new MockValueTransferBridge(token);
     }

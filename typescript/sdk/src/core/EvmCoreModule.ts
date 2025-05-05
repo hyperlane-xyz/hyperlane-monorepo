@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   Mailbox,
   Mailbox__factory,
@@ -83,10 +81,6 @@ export class EvmCoreModule extends HyperlaneModule<
         addresses: {
           interchainAccountIsm: args.addresses.interchainAccountIsm,
           interchainAccountRouter: args.addresses.interchainAccountRouter,
-          // TODO: fix this even though is not used at the moment internally
-          proxyAdmin: ethers.constants.AddressZero,
-          timelockController:
-            args.addresses.timelockController ?? ethers.constants.AddressZero,
         },
         config: args.config.interchainAccountRouter,
       });
