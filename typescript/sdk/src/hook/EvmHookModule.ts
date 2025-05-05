@@ -37,8 +37,6 @@ import {
   addressToBytes32,
   deepEquals,
   eqAddress,
-  objMap,
-  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -156,7 +154,7 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
-    targetConfig = await this.resolveHookAddresses(targetConfig);
+    targetConfig = await this.reader.resolveHookAddresses(targetConfig);
 
     // Update the config
     this.args.config = targetConfig;
@@ -245,48 +243,6 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return updateTxs;
-  }
-
-  /**
-   *  Recursively resolves the HookConfigs as addresses, e.g.
-   *  hook:
-   *     type: aggregationHook
-   *     hooks:
-   *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
-   *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
-   *         maxProtocolFee: "100000000000000000000"
-   *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
-   *         protocolFee: "50000000000000000"
-   *         type: protocolFee
-   *
-   * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
-   */
-  private async resolveHookAddresses(config: HookConfig) {
-    if (typeof config === 'string') return this.reader.deriveHookConfig(config);
-
-    switch (config.type) {
-      case HookType.FALLBACK_ROUTING:
-      case HookType.ROUTING:
-        config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) =>
-            this.resolveHookAddresses(hook),
-          ),
-        );
-
-        if (config.type === HookType.FALLBACK_ROUTING)
-          config.fallback = await this.resolveHookAddresses(config.fallback);
-        break;
-      case HookType.AGGREGATION:
-        config.hooks = await Promise.all(
-          config.hooks.map(async (hook) => this.resolveHookAddresses(hook)),
-        );
-        break;
-      case HookType.AMOUNT_ROUTING:
-        config.lowerHook = await this.resolveHookAddresses(config.lowerHook);
-        config.upperHook = await this.resolveHookAddresses(config.upperHook);
-        break;
-    }
-    return config;
   }
 
   // manually write static create function

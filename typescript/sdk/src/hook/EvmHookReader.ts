@@ -25,6 +25,8 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -195,6 +197,50 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  /**
+   *  Recursively resolves the HookConfigs as addresses, e.g.
+   *  hook:
+   *     type: aggregationHook
+   *     hooks:
+   *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+   *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         maxProtocolFee: "100000000000000000000"
+   *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+   *         protocolFee: "50000000000000000"
+   *         type: protocolFee
+   *
+   * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
+   */
+  public async resolveHookAddresses(config: HookConfig) {
+    if (typeof config === 'string') return this.deriveHookConfig(config);
+
+    switch (config.type) {
+      case HookType.FALLBACK_ROUTING:
+      case HookType.ROUTING:
+        config.domains = await promiseObjAll(
+          objMap(config.domains, async (_, hook) =>
+            this.resolveHookAddresses(hook),
+          ),
+        );
+
+        if (config.type === HookType.FALLBACK_ROUTING)
+          config.fallback = await this.resolveHookAddresses(config.fallback);
+        break;
+      case HookType.AGGREGATION:
+        config.hooks = await Promise.all(
+          config.hooks.map(async (hook) => this.resolveHookAddresses(hook)),
+        );
+        break;
+      case HookType.AMOUNT_ROUTING:
+        [config.lowerHook, config.upperHook] = await Promise.all([
+          this.resolveHookAddresses(config.lowerHook),
+          this.resolveHookAddresses(config.upperHook),
+        ]);
+        break;
+    }
+    return config;
   }
 
   async deriveMailboxDefaultHookConfig(
