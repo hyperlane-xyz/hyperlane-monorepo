@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {CallLib} from "./Call.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {console} from "forge-std/console.sol";
+
 /**
  * Format of message:
  * [   0:  32] ICA owner
@@ -160,9 +160,6 @@ library InterchainAccountMessage {
     function messageType(
         bytes calldata _message
     ) internal view returns (MessageType) {
-        console.log("messageType");
-        console.logBytes(_message);
-        console.log(uint(uint8(_message[0])));
         return MessageType(uint8(_message[0]));
     }
 
