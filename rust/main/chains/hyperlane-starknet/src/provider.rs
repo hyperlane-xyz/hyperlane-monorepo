@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
-    TxnReceiptInfo, H256, H512, U256,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
+    HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, FieldElement, FunctionCall, InvokeTransaction,
@@ -90,7 +90,11 @@ impl HyperlaneProvider for StarknetProvider {
 
         let (nonce, sender, calldata) = match tx.clone() {
             Transaction::Invoke(invoke_tx) => match invoke_tx {
-                InvokeTransaction::V0(_) => unreachable!("not supported"),
+                InvokeTransaction::V0(_) => {
+                    return Err(ChainCommunicationError::from_other_str(
+                        "V0 invoke transactions are not supported",
+                    ))
+                }
                 InvokeTransaction::V1(invoke_tx) => (
                     Some(invoke_tx.nonce),
                     invoke_tx.sender_address,
