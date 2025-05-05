@@ -1,7 +1,10 @@
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import {
+  DirectSecp256k1HdWallet,
+  DirectSecp256k1Wallet,
+} from '@cosmjs/proto-signing';
 import { GasPrice } from '@cosmjs/stargate';
 import { password } from '@inquirer/prompts';
-import { Signer, Wallet } from 'ethers';
+import { Signer, Wallet, ethers } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
@@ -12,7 +15,7 @@ import {
   MultiProvider,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   BaseMultiProtocolSigner,
@@ -108,13 +111,21 @@ class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
       extraParams?.provider && extraParams?.prefix && extraParams?.gasPrice,
       'Missing Cosmos Signer arguments',
     );
-    const cometClient = extraParams?.provider.getCometClient();
 
-    // TODO: what if privateKey is mnemonic?
-    const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(privateKey, 'hex'),
-      extraParams.prefix,
-    );
+    let wallet;
+
+    if (ethers.utils.isHexString(ensure0x(privateKey))) {
+      wallet = await DirectSecp256k1Wallet.fromKey(
+        Buffer.from(privateKey, 'hex'),
+        extraParams.prefix,
+      );
+    } else {
+      wallet = await DirectSecp256k1HdWallet.fromMnemonic(privateKey, {
+        prefix: extraParams.prefix,
+      });
+    }
+
+    const cometClient = extraParams?.provider.getCometClient();
 
     return SigningHyperlaneModuleClient.createWithSigner(cometClient, wallet, {
       gasPrice: GasPrice.fromString(
