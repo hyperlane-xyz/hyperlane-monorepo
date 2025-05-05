@@ -306,14 +306,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.syntheticUri]: null,
     };
 
-    const deriver = mapConfig[type];
-    if (!deriver) {
+    const deriveFunction = mapConfig[type];
+    if (!deriveFunction) {
       throw new Error(
         `Provided unsupported token type "${type}" when fetching token metadata on chain "${this.chain}" at address "${warpRouteAddress}"`,
       );
     }
 
-    const config = await deriver(warpRouteAddress);
+    const config = await deriveFunction(warpRouteAddress);
     return HypTokenConfigSchema.parse(config);
   }
 
