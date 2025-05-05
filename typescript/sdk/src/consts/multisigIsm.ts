@@ -894,6 +894,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fluence: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xabc8dd7594783c90a3c0fb760943f78c37ea6d75',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   form: {
     threshold: 2,
     validators: [
@@ -980,6 +990,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  game7: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x691dc4e763514df883155df0952f847b539454c0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   glue: {
     threshold: 2,
     validators: [
@@ -1038,6 +1058,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  hashkey: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x55007cab8788cdba22844e7a2499cf43347f487a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1119,15 +1149,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  infinityvm: {
-    threshold: 2,
+  infinityvmmainnet: {
+    threshold: 1,
     validators: [
       {
-        address: '0xeed503e0bd8fae0ad606361492db8711eaf0b935',
+        address: '0x777c19c87aaa625486dff5aab0a479100f4249ad',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1586,6 +1614,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  ontology: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x2578b0a330c492e1a1682684e27e6a93649befd5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   oortmainnet: {
     threshold: 2,
     validators: [
@@ -1671,6 +1709,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x7d49abcceafa5cd82f6615a9779f29c76bfc88e8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  peaq: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

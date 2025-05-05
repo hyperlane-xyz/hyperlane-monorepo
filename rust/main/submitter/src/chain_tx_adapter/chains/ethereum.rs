@@ -42,6 +42,10 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
+    async fn estimate_tx(&self, _tx: &mut Transaction) -> std::result::Result<(), SubmitterError> {
+        todo!()
+    }
+
     async fn submit(&self, _tx: &mut Transaction) -> Result<(), SubmitterError> {
         todo!()
     }
