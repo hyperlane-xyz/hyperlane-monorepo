@@ -18,6 +18,11 @@ import { IFundingAdapter } from './adapters/IFundingAdapter.js';
 import { SealevelFundingAdapter } from './adapters/SealevelFundingAdapter.js';
 import { ChainFundingPlan, FundingAddresses, FundingConfig } from './types.js';
 
+/**
+ * MultiProtocolFundingApp is a class that extends MultiProtocolApp and provides a funding interface for the app
+ * It is responsible for funding keys and claiming from IGP for a given context on a given environment
+ * It is also responsible for timing out the funding process if it takes too long
+ */
 export class MultiProtocolFundingApp extends MultiProtocolApp<
   IFundingAdapter,
   FundingAddresses
@@ -37,6 +42,11 @@ export class MultiProtocolFundingApp extends MultiProtocolApp<
     this.logger = logger;
   }
 
+  /**
+   * Returns the adapter for the given protocol
+   * @param protocol - The protocol to get the adapter for
+   * @returns The adapter for the given protocol
+   */
   override protocolToAdapter(
     protocol: ProtocolType,
   ): AdapterClassType<IFundingAdapter> {
@@ -45,6 +55,11 @@ export class MultiProtocolFundingApp extends MultiProtocolApp<
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 
+  /**
+   * Returns the adapter for the given chain
+   * @param chain - The chain to get the adapter for
+   * @returns The adapter for the given chain
+   */
   override adapter(chain: ChainName): IFundingAdapter {
     const Adapter = this.protocolToAdapter(this.protocol(chain));
     return new Adapter(
@@ -58,7 +73,12 @@ export class MultiProtocolFundingApp extends MultiProtocolApp<
     );
   }
 
-  // Fund specific keys on a specific chain
+  /**
+   * Funds the keys for the given chain and funding plan, also handles IGP claims
+   * @param chain - The chain to fund the keys for
+   * @param fundingPlan - The funding plan for the given chain
+   * @returns void
+   */
   async fundChainKeys(
     chain: ChainName,
     fundingPlan: ChainFundingPlan,
@@ -76,7 +96,6 @@ export class MultiProtocolFundingApp extends MultiProtocolApp<
       }
     }
 
-    // Fund each key
     for (const keyToFund of fundingPlan.keysToFund) {
       try {
         await adapter.fundKey(

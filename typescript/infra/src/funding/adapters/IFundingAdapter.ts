@@ -12,7 +12,6 @@ import { FundableRole } from '../../roles.js';
  * Extends BaseAppAdapter to leverage protocol-specific functionality
  */
 export interface IFundingAdapter extends BaseAppAdapter {
-  // Core methods that must be implemented by all adapters
   getBalance(address: string): Promise<Numberish>;
   fundKey(
     key: BaseAgentKey,

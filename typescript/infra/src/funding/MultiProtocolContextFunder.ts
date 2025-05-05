@@ -46,6 +46,9 @@ export class MultiProtocolContextFunder {
     this.fundingPlan = fundingPlan;
   }
 
+  /**
+   * Funds the keys for the given context on the given environment
+   */
   async fund(): Promise<void> {
     const results = await Promise.allSettled(
       Object.entries(this.fundingPlan).map(([chain, plan]) => {
