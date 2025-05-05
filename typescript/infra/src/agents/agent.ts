@@ -1,4 +1,5 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -16,8 +17,11 @@ function identifier(
   role: Role,
   chainName?: ChainName,
   index?: number,
+  protocol?: ProtocolType,
 ) {
-  const prefix = `${context}-${environment}-${isKey ? 'key-' : ''}`;
+  const prefix = `${context}-${environment}-${protocol ? `${protocol}-` : ''}${
+    isKey ? 'key-' : ''
+  }`;
   switch (role) {
     case Role.Validator:
       if (!chainName) throw Error('Expected chainName for validator key');
@@ -34,8 +38,17 @@ export function keyIdentifier(
   role: Role,
   chainName?: ChainName,
   index?: number,
+  protocol?: ProtocolType,
 ) {
-  return identifier(true, environment, context, role, chainName, index);
+  return identifier(
+    true,
+    environment,
+    context,
+    role,
+    chainName,
+    index,
+    protocol,
+  );
 }
 
 export function userIdentifier(
