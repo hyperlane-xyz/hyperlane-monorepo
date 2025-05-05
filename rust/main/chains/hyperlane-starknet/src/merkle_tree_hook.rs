@@ -1,15 +1,12 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, MerkleTreeHook, ReorgPeriod, H256,
+    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, MerkleTreeHook, ReorgPeriod, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
 use starknet::core::types::FieldElement;
@@ -38,7 +35,7 @@ where
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetMerkleTreeHook {
-    contract: Arc<StarknetMerkleTreeHookInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+    contract: StarknetMerkleTreeHookInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -66,7 +63,7 @@ impl StarknetMerkleTreeHook {
         let contract = StarknetMerkleTreeHookInternal::new(hook_address, account);
 
         Ok(Self {
-            contract: Arc::new(contract),
+            contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
