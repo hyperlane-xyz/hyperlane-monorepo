@@ -175,7 +175,7 @@ export const init: CommandModuleWithContext<{
       describe: 'Create an advanced ISM',
       default: false,
     },
-    out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
+    out: outputFileCommandOption(),
   },
   handler: async ({ context, advanced, out }) => {
     logCommandHeader('Hyperlane Warp Configure');

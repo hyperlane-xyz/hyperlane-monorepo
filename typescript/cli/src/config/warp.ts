@@ -4,6 +4,7 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainMap,
   DeployedOwnableConfig,
+  HypERC20Deployer,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -112,7 +113,7 @@ export async function createWarpRouteDeployConfig({
   advanced = false,
 }: {
   context: CommandContext;
-  outPath: string;
+  outPath?: string;
   advanced: boolean;
 }) {
   logBlue('Creating a new warp route deployment config...');
@@ -242,7 +243,21 @@ export async function createWarpRouteDeployConfig({
     const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
     log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
-    writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
+    if (outPath) {
+      writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
+    } else {
+      const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+        context.multiProvider,
+        warpRouteDeployConfig,
+      );
+      assert(
+        tokenMetadata?.symbol,
+        'Error deriving token metadata, please check the provided token addresses',
+      );
+      await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
+        symbol: tokenMetadata.symbol,
+      });
+    }
     logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
