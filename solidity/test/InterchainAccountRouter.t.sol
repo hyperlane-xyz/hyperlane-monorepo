@@ -12,7 +12,6 @@ import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecu
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage} from "../contracts/middleware/InterchainAccountRouter.sol";
-import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
@@ -60,7 +59,6 @@ contract InterchainAccountRouterTestBase is Test {
     uint32 internal destination = 2;
 
     TestInterchainGasPaymaster internal igp;
-    InterchainAccountIsm internal icaIsm;
     InterchainAccountRouter internal originIcaRouter;
     InterchainAccountRouter internal destinationIcaRouter;
     bytes32 internal ismOverride;
@@ -75,7 +73,6 @@ contract InterchainAccountRouterTestBase is Test {
     function deployIcaRouter(
         MockMailbox _mailbox,
         IPostDispatchHook _customHook,
-        IInterchainSecurityModule _ism,
         address _owner
     ) public returns (InterchainAccountRouter) {
         return
@@ -95,22 +92,16 @@ contract InterchainAccountRouterTestBase is Test {
             igp.getDefaultGasUsage()
         );
 
-        icaIsm = new InterchainAccountIsm(
-            address(environment.mailboxes(destination))
-        );
-
         address owner = address(this);
         originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             environment.igps(origin),
-            icaIsm,
             owner
         );
 
         destinationIcaRouter = deployIcaRouter(
             environment.mailboxes(destination),
             environment.igps(destination),
-            icaIsm,
             owner
         );
 
@@ -379,7 +370,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -452,7 +442,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -629,7 +618,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -840,7 +828,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         originIcaRouter = deployIcaRouter(
             environment.mailboxes(origin),
             testHook,
-            icaIsm,
             address(this)
         );
         originIcaRouter.enrollRemoteRouterAndIsm(
