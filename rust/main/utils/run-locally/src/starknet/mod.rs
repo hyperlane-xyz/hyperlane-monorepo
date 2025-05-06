@@ -72,13 +72,8 @@ pub fn install_starknet(
 #[derive(Clone)]
 pub struct StarknetConfig {
     pub cli_path: PathBuf,
-
-    pub sierra_classes: BTreeMap<String, PathBuf>,
-
     pub node_addr_base: String,
     pub node_port_base: u32,
-
-    pub chain_id: String,
 }
 
 pub struct StarknetResp {
@@ -106,7 +101,6 @@ impl Drop for StarknetResp {
 pub struct StarknetNetwork {
     pub launch_resp: StarknetResp,
     pub deployments: Deployments,
-    pub chain_id: String,
     pub metrics_port: u32,
     pub domain: u32,
 }
@@ -122,7 +116,6 @@ impl From<(StarknetResp, Deployments, String, u32, u32)> for StarknetNetwork {
         Self {
             launch_resp: v.0,
             deployments: v.1,
-            chain_id: v.2,
             metrics_port: v.3,
             domain: v.4,
         }
@@ -285,13 +278,8 @@ fn run_locally() {
     let addr_base = "0.0.0.0";
     let default_config = StarknetConfig {
         cli_path: katanad.clone(),
-
-        sierra_classes: sierra_classes.clone(),
-
         node_addr_base: addr_base.to_string(),
         node_port_base: 5050,
-
-        chain_id: "KATANA".to_string(),
     };
 
     let port_start = 5050u32;
@@ -304,7 +292,6 @@ fn run_locally() {
             (
                 launch_starknet_node(StarknetConfig {
                     node_port_base: port_start + (i * 10),
-                    chain_id: format!("KATANA"),
                     ..default_config.clone()
                 }),
                 format!("KATANA"),

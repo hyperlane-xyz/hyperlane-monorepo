@@ -1,7 +1,5 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use hyperlane_starknet::get_chain_id_from_domain_id;
-
 use super::{cli::StarknetCLI, StarknetNetwork};
 
 #[derive(Clone)]
@@ -83,7 +81,6 @@ pub struct AgentConfig {
     pub validator_announce: String,
     pub merkle_tree_hook: String,
     pub protocol: String,
-    pub chain_id: String,
     pub rpc_urls: Vec<AgentUrl>,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
@@ -108,7 +105,6 @@ impl AgentConfig {
             validator_announce: network.deployments.va.clone(),
             merkle_tree_hook: network.deployments.hook_merkle.clone(),
             protocol: "starknet".to_string(),
-            chain_id: get_chain_id_from_domain_id(network.domain).to_string(),
             rpc_urls: vec![AgentUrl {
                 http: format!("{}", network.launch_resp.endpoint.rpc_addr),
             }],
