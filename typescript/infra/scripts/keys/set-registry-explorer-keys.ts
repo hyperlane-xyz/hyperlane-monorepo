@@ -2,7 +2,7 @@ import { getRegistry } from '@hyperlane-xyz/registry/fs';
 
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 
-async function setEtherscanKeys() {
+async function setExplorerKeys() {
   // Local registry
   const registry = getRegistry({
     registryUris: [DEFAULT_REGISTRY_URI],
@@ -53,4 +53,4 @@ async function setEtherscanKeys() {
   }
 }
 
-setEtherscanKeys().then(console.log).catch(console.error);
+setExplorerKeys().then(console.log).catch(console.error);
