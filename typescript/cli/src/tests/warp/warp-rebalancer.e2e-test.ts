@@ -353,7 +353,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     await startRebalancerAndExpectLog(
-      'Destination 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 for domain 31338 is not allowed',
+      'Destination 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1 for domain 31338 is not allowed',
     );
   });
 
