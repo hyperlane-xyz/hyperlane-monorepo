@@ -20,6 +20,8 @@ import {
   assert,
   concurrentMap,
   getLogLevel,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -37,6 +39,7 @@ import {
   CCIPReadIsmConfig,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  IsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
@@ -84,7 +87,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
   }
 
-  async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
+  async deriveIsmConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedIsmConfig> {
     let moduleType: ModuleType | undefined = undefined;
     let derivedIsmConfig: DerivedIsmConfig;
     try {
@@ -138,6 +143,34 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     }
 
     return derivedIsmConfig;
+  }
+
+  async deriveIsmConfig(config: IsmConfig): Promise<DerivedIsmConfig> {
+    if (typeof config === 'string')
+      return this.deriveIsmConfigFromAddress(config);
+
+    // Extend the inner isms
+    switch (config.type) {
+      case IsmType.FALLBACK_ROUTING:
+      case IsmType.ROUTING:
+        config.domains = await promiseObjAll(
+          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
+        );
+        break;
+      case IsmType.AGGREGATION:
+      case IsmType.STORAGE_AGGREGATION:
+        config.modules = await Promise.all(
+          config.modules.map(async (ism) => this.deriveIsmConfig(ism)),
+        );
+        break;
+      case IsmType.AMOUNT_ROUTING:
+        [config.lowerIsm, config.upperIsm] = await Promise.all([
+          this.deriveIsmConfig(config.lowerIsm),
+          this.deriveIsmConfig(config.upperIsm),
+        ]);
+        break;
+    }
+    return config as DerivedIsmConfig;
   }
 
   async deriveRoutingConfig(
