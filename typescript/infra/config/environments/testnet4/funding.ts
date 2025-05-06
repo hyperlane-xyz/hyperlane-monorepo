@@ -57,10 +57,12 @@ export const keyFunderConfig: KeyFunderConfig<
     monadtestnet: '0.1',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
+    paradexsepolia: '0',
     plumetestnet2: '0.1',
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
+    starknetsepolia: '0',
     // no funding for SVM chains
     solanatestnet: '0',
     somniatestnet: '10',
@@ -87,9 +89,11 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '0',
     optimismsepolia: '0',
+    paradexsepolia: '0',
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
+    starknetsepolia: '0',
     // no funding for solana
     solanatestnet: '0',
     superpositiontestnet: '0',
@@ -101,6 +105,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bsctestnet: '1',
     connextsepolia: '0.1',
     ecotestnet: '0.01',
+    paradexsepolia: '0', // paradexsepolia doesn't have IGP currently
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '1',
@@ -111,6 +116,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',
+    starknetsepolia: '0', // starknetsepolia doesn't have IGP currently
     superpositiontestnet: '0.1',
   },
 };
