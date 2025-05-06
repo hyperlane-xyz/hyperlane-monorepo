@@ -1,5 +1,14 @@
 # @hyperlane-xyz/widgets
 
+## 12.5.0
+
+### Patch Changes
+
+- Updated dependencies [c8ace88]
+  - @hyperlane-xyz/sdk@12.5.0
+  - @hyperlane-xyz/cosmos-sdk@12.5.0
+  - @hyperlane-xyz/utils@12.5.0
+
 ## 12.4.0
 
 ### Patch Changes

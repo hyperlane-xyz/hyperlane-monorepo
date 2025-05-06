@@ -385,9 +385,8 @@ export async function updateSafeOwner({
         `Threshold change ${currentThreshold} => ${newThreshold}`,
       ),
     );
-    const { data: thresholdTxData } = await safeSdk.createChangeThresholdTx(
-      newThreshold,
-    );
+    const { data: thresholdTxData } =
+      await safeSdk.createChangeThresholdTx(newThreshold);
     transactions.push({
       to: thresholdTxData.to,
       data: thresholdTxData.data,
@@ -473,10 +472,10 @@ export async function getPendingTxsForChains(
             confs >= threshold
               ? SafeTxStatus.READY_TO_EXECUTE
               : confs === 0
-              ? SafeTxStatus.NO_CONFIRMATIONS
-              : threshold - confs
-              ? SafeTxStatus.ONE_AWAY
-              : SafeTxStatus.PENDING;
+                ? SafeTxStatus.NO_CONFIRMATIONS
+                : threshold - confs
+                  ? SafeTxStatus.ONE_AWAY
+                  : SafeTxStatus.PENDING;
 
           txs.push({
             chain,

@@ -134,7 +134,7 @@ export async function getExtraLockBoxConfigs({
         logIndex: Number(log.logIndex),
         transactionIndex: Number(log.transactionIndex),
         topics: log.topics,
-      } as Log),
+      }) as Log,
   );
 
   return getLockboxesFromLogs(
@@ -199,17 +199,20 @@ async function getLockboxesFromLogs(
   // A bridge might appear more than once in the event logs, we are only
   // interested in the most recent one for each bridge so we deduplicate
   // entries here
-  const dedupedBridges = parsedLogs.reduce((acc, log) => {
-    const bridgeAddress = log.args.bridge;
-    const isMostRecentLogForBridge =
-      log.blockNumber > (acc[bridgeAddress]?.blockNumber ?? 0n);
+  const dedupedBridges = parsedLogs.reduce(
+    (acc, log) => {
+      const bridgeAddress = log.args.bridge;
+      const isMostRecentLogForBridge =
+        log.blockNumber > (acc[bridgeAddress]?.blockNumber ?? 0n);
 
-    if (isMostRecentLogForBridge) {
-      acc[bridgeAddress] = log;
-    }
+      if (isMostRecentLogForBridge) {
+        acc[bridgeAddress] = log;
+      }
 
-    return acc;
-  }, {} as Record<string, ConfigurationChangedLog>);
+      return acc;
+    },
+    {} as Record<string, ConfigurationChangedLog>,
+  );
 
   const lockboxPromises = Object.values(dedupedBridges)
     // Removing bridges where the limits are set to 0 because it is equivalent of being deactivated

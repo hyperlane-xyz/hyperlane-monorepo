@@ -1,16 +1,21 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { ERC20Test } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { ERC20Test, HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
+import {
+  ChainMetadata,
   HookConfig,
   HookType,
   IsmConfig,
   IsmType,
   MUTABLE_HOOK_TYPE,
   MUTABLE_ISM_TYPE,
+  TokenStandard,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
@@ -18,26 +23,29 @@ import {
   randomHookConfig,
   randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  assert,
+  deepCopy,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  KeyBoardKeys,
-  TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
   getCombinedWarpRoutePath,
-  handlePrompts,
 } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
-  hyperlaneWarpCheck,
   hyperlaneWarpCheckRaw,
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
@@ -45,11 +53,13 @@ import {
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
+  let signer: Signer;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
   let tokenSymbol: string;
   let ownerAddress: Address;
+  let combinedWarpCoreConfigPath: string;
   let warpConfig: WarpRouteDeployConfig;
 
   before(async function () {
@@ -58,12 +68,32 @@ describe('hyperlane warp check e2e tests', async function () {
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
 
+    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+
+    const provider = new ethers.providers.JsonRpcProvider(
+      chainMetadata.rpcUrls[0].http,
+    );
+
+    signer = new Wallet(ANVIL_KEY).connect(provider);
+
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();
+
+    combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
   });
 
   async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    // currently warp deploy is not writing the deploy config to the registry
+    // should remove this once the deploy config is written to the registry
+    writeYamlOrJson(
+      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
+      warpConfig,
+    );
+
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     return warpConfig;
@@ -87,62 +117,141 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  describe('hyperlane warp check --config ...', () => {
-    it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
+  describe('hyperlane warp check --config ... and hyperlane warp check --warp ...', () => {
+    const expectedError =
+      'Both --config/-wd and --warp/-wc must be provided together when using individual file paths';
+    it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
+      await deployAndExportWarpRoute();
+
+      const output1 = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const output2 = await hyperlaneWarpCheckRaw({
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output1.exitCode).to.equal(1);
+      expect(output1.text()).to.include(expectedError);
+      expect(output2.exitCode).to.equal(1);
+      expect(output2.text()).to.include(expectedError);
+    });
+  });
+
+  describe('hyperlane warp check --symbol ...', () => {
+    it(`should not find any differences between the on chain config and the local one`, async function () {
+      await deployAndExportWarpRoute();
+
+      // only one route exists for this token so no need to interact with prompts
+      const output = await hyperlaneWarpCheckRaw({
+        symbol: tokenSymbol,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    });
+  });
+
+  describe('hyperlane warp check --warpRouteId ...', () => {
+    it(`should not find any differences between the on chain config and the local one`, async function () {
+      await deployAndExportWarpRoute();
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: createWarpRouteConfigId(tokenSymbol, [
+          CHAIN_NAME_2,
+          CHAIN_NAME_3,
+        ]),
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    });
+
+    it(`should successfully check warp routes that are not deployed as proxies`, async () => {
+      // Deploy the token and the hyp adapter
+      const symbol = 'NTAP';
+      const tokenName = 'NOTAPROXY';
+      const tokenDecimals = 10;
+      const collateral = await deployToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        tokenDecimals,
+        symbol,
+      );
+
+      const contract = new HypERC20Collateral__factory(signer);
+      const tx = await contract.deploy(
+        collateral.address,
+        1,
+        chain2Addresses.mailbox,
+      );
+
+      const deployedContract = await tx.deployed();
+      const tx2 = await deployedContract.initialize(
+        zeroAddress,
+        zeroAddress,
+        ANVIL_DEPLOYER_ADDRESS,
+      );
+
+      await tx2.wait();
+
+      // Manually add config files to the registry
+      const routePath = getCombinedWarpRoutePath(symbol, [CHAIN_NAME_2]);
+      const warpDeployConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: collateral.address,
+          owner: ANVIL_DEPLOYER_ADDRESS,
+        },
+      };
+      writeYamlOrJson(
+        routePath.replace('-config.yaml', '-deploy.yaml'),
+        warpDeployConfig,
+      );
+
+      const warpCoreConfig: WarpCoreConfig = {
+        tokens: [
+          {
+            addressOrDenom: deployedContract.address,
+            chainName: CHAIN_NAME_2,
+            decimals: tokenDecimals,
+            collateralAddressOrDenom: token.address,
+            name: tokenName,
+            standard: TokenStandard.EvmHypCollateral,
+            symbol,
+          },
+        ],
+      };
+      writeYamlOrJson(routePath, warpCoreConfig);
+
+      // Finally run warp check
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: createWarpRouteConfigId(symbol, [CHAIN_NAME_2]),
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    });
+  });
+
+  describe('hyperlane warp check --config ... --warp ...', () => {
+    it(`should not find any differences between the on chain config and the local one`, async function () {
       await deployAndExportWarpRoute();
 
       const output = await hyperlaneWarpCheckRaw({
         warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
-      );
-    });
-  });
-
-  describe('hyperlane warp check --symbol ... --config ...', () => {
-    it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
-      const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-      ];
-
-      const output = hyperlaneWarpCheckRaw({
-        symbol: tokenSymbol,
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      const finalOutput = await handlePrompts(output, steps);
-
-      expect(finalOutput.exitCode).to.equal(0);
-      expect(finalOutput.text()).to.include('No violations found');
-    });
-  });
-
-  describe('hyperlane warp check --symbol ... --config ... --key ...', () => {
-    it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-      );
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      });
 
       expect(output.exitCode).to.equal(0);
       expect(output.text()).to.includes('No violations found');
@@ -159,10 +268,10 @@ describe('hyperlane warp check e2e tests', async function () {
       it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
-        const output = await hyperlaneWarpCheck(
-          WARP_DEPLOY_OUTPUT_PATH,
-          tokenSymbol,
-        );
+        const output = await hyperlaneWarpCheckRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        });
 
         expect(output.exitCode).to.equal(0);
         expect(output.text()).to.includes('No violations found');
@@ -183,10 +292,10 @@ describe('hyperlane warp check e2e tests', async function () {
       it(`should not find any differences between the on chain config and the local one`, async function () {
         await deployAndExportWarpRoute();
 
-        const output = await hyperlaneWarpCheck(
-          WARP_DEPLOY_OUTPUT_PATH,
-          tokenSymbol,
-        );
+        const output = await hyperlaneWarpCheckRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        });
 
         expect(output.exitCode).to.equal(0);
         expect(output.text()).to.includes('No violations found');
@@ -203,10 +312,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedActualText = `ACTUAL: "${zeroAddress.toLowerCase()}"\n`;
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-      )
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      })
         .stdio('pipe')
         .nothrow();
 
@@ -226,10 +335,10 @@ describe('hyperlane warp check e2e tests', async function () {
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
@@ -262,12 +371,12 @@ describe('hyperlane warp check e2e tests', async function () {
       );
       const expectedActualText = `ACTUAL: ""\n`;
       const expectedDiffText = `      EXPECTED:
-        address: "${warpCore.tokens[0].addressOrDenom!.toLowerCase()}"`;
+        address: "${addressToBytes32(warpCore.tokens[0].addressOrDenom!)}"`;
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.includes(expectedDiffText);
@@ -295,11 +404,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-      ).nothrow();
-
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
@@ -334,10 +442,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
-      const output = await hyperlaneWarpCheck(
-        WARP_DEPLOY_OUTPUT_PATH,
-        tokenSymbol,
-      ).nothrow();
+      const output = await hyperlaneWarpCheckRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+      }).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;

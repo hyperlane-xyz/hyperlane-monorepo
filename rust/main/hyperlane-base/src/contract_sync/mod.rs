@@ -222,8 +222,13 @@ where
                 );
 
                 if let Some(tx) = self.broadcast_sender.as_ref() {
-                    for (_, meta) in &logs {
-                        if let Err(err) = tx.send(meta.transaction_id).await {
+                    // If multiple logs occur in the same transaction they'll have the same transaction_id.
+                    // Deduplicate their txids to avoid doing wasteful queries in txid indexer
+                    let unique_txids: HashSet<_> =
+                        logs.iter().map(|(_, meta)| meta.transaction_id).collect();
+
+                    for tx_id in unique_txids {
+                        if let Err(err) = tx.send(tx_id).await {
                             trace!(?err, "Error sending txid to receiver");
                         }
                     }
