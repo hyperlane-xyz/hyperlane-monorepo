@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::{
