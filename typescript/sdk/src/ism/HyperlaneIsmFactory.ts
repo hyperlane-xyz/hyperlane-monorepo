@@ -82,6 +82,31 @@ const ismFactories = {
   [IsmType.CCIP]: new CCIPIsm__factory(),
 };
 
+const domainRoutingIntializationSize = (destination: ChainName) => {
+  if (destination === 'rootstockmainnet' || destination === 'conflux') {
+    return 80;
+  }
+
+  if (destination === 'flare') {
+    return 90;
+  }
+
+  if (
+    destination === 'arthera' ||
+    destination === 'sei' ||
+    destination === 'scroll' ||
+    destination === 'cyber' ||
+    destination === 'evmos' ||
+    destination === 'xlayer' ||
+    destination === 'zircuit' ||
+    destination === 'flowmainnet'
+  ) {
+    return 120;
+  }
+
+  return 300;
+};
+
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
 
@@ -591,26 +616,37 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         }
 
         // estimate gas
+        const signerAddress = await signer.getAddress();
+        const batchSize = domainRoutingIntializationSize(destination);
+
+        // Deploy initial batch of domains
+        const initialBatchSize = Math.min(batchSize, safeConfigDomains.length);
+        const initialDomains = safeConfigDomains.slice(0, initialBatchSize);
+        const initialAddresses = submoduleAddresses.slice(0, initialBatchSize);
+
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-          owner,
-          safeConfigDomains,
-          submoduleAddresses,
+          signerAddress,
+          initialDomains,
+          initialAddresses,
           overrides,
         );
-        // add gas buffer
+        this.logger.debug(
+          `Deploying routing ISM with initial ${initialBatchSize} domains on ${destination}`,
+        );
         const tx = await domainRoutingIsmFactory.deploy(
-          owner,
-          safeConfigDomains,
-          submoduleAddresses,
+          signerAddress,
+          initialDomains,
+          initialAddresses,
           {
             gasLimit: addBufferToGasLimit(estimatedGas),
             ...overrides,
           },
         );
+
         // TODO: Should verify contract here
         receipt = await this.multiProvider.handleTx(destination, tx);
 
-        // TODO: Break this out into a generalized function
+        // Get the deployed ISM address
         const dispatchLogs = receipt.logs
           .map((log) => {
             try {
@@ -627,10 +663,44 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           throw new Error('No ModuleDeployed event found');
         }
         const moduleAddress = dispatchLogs[0].args['module'];
-        routingIsm = DomainRoutingIsm__factory.connect(
-          moduleAddress,
-          this.multiProvider.getSigner(destination),
-        );
+        routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, signer);
+
+        // Enroll remaining domains and addresses
+        // If all domains are enrolled already, this is a no-op
+        for (let i = initialBatchSize; i < safeConfigDomains.length; i++) {
+          const estimatedGas = await routingIsm.estimateGas.set(
+            safeConfigDomains[i],
+            submoduleAddresses[i],
+            overrides,
+          );
+          const chainName = this.multiProvider.getChainName(
+            safeConfigDomains[i],
+          );
+          this.logger.debug(
+            `Enrolling ${chainName} (${safeConfigDomains[i]}) ISM at ${submoduleAddresses[i]} on Domain Routing ISM ${moduleAddress}`,
+          );
+          const enrollTx = await routingIsm.set(
+            safeConfigDomains[i],
+            submoduleAddresses[i],
+            {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...overrides,
+            },
+          );
+          await this.multiProvider.handleTx(destination, enrollTx);
+        }
+
+        // Transfer ownership after all enrollments are complete
+        const transferTxEstimatedGas =
+          await routingIsm.estimateGas.transferOwnership(
+            config.owner,
+            overrides,
+          );
+        const transferTx = await routingIsm.transferOwnership(config.owner, {
+          gasLimit: addBufferToGasLimit(transferTxEstimatedGas),
+          ...overrides,
+        });
+        await this.multiProvider.handleTx(destination, transferTx);
       }
     }
     return routingIsm;
