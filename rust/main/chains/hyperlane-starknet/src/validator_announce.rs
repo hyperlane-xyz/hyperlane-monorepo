@@ -184,7 +184,11 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
     }
 
     #[instrument(ret, skip(self))]
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        _: H256,
+    ) -> Option<U256> {
         // let validator = bytes_to_hex(&announcement.value.validator.to_vec());
 
         let Ok((_, max_cost)) = self.announce_contract_call(announcement).await else {
