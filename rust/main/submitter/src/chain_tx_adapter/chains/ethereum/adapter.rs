@@ -98,7 +98,7 @@ impl AdaptsChain for EthereumTxAdapter {
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
-        use crate::chain_tx_adapter::chains::ethereum::transaction::TransactionFactory;
+        use super::transaction::TransactionFactory;
 
         info!(?payloads, "building transactions for payloads");
         let payloads_and_precursors = payloads
@@ -128,7 +128,7 @@ impl AdaptsChain for EthereumTxAdapter {
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        use crate::chain_tx_adapter::chains::ethereum::transaction::Precursor;
+        use super::transaction::Precursor;
 
         info!(?tx, "submitting transaction");
 
