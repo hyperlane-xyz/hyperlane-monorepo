@@ -197,7 +197,6 @@ export class Metrics implements IMetrics {
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
     let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
-    // const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
       warnYellow('Bridged supply not found for token', token);

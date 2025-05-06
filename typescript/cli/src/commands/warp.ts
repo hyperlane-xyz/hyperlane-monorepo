@@ -471,7 +471,9 @@ export const rebalancer: CommandModuleWithContext<{
       const executor: IExecutor = new Executor();
 
       // Creates an instance for the metrics that will publish stats for the monitored data
-      const metrics = await (withMetrics && contextFactory.createMetrics());
+      const metrics = withMetrics
+        ? await contextFactory.createMetrics()
+        : undefined;
 
       await monitor
         // Observe balances events and process rebalancing routes

@@ -15,10 +15,8 @@ export class RebalancerContextFactory {
   /**
    * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
    * @param warpRouteId - The warp route ID to monitor.
-   * @param tokenPriceGetter
-   * @param collateralTokenSymbol
-   * @param warpCore
-   * @param warpDeployConfig
+   * @param metadata - A `ChainMap` of chain names and `ChainMetadata` objects, sourced from the `IRegistry`.
+   * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    */
   private constructor(
     private readonly registry: IRegistry,
