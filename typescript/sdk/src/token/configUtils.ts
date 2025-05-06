@@ -1,5 +1,7 @@
 import { zeroAddress } from 'viem';
 
+import { EvmHookReader } from '@hyperlane-xyz/sdk';
+import { EvmIsmReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -101,44 +103,67 @@ export async function expandWarpDeployConfig(
     }),
   );
 
-  return objMap(warpDeployConfig, (chain, config) => {
-    const [remoteRouters, destinationGas] =
-      getDefaultRemoteRouterAndDestinationGasConfig(
-        multiProvider,
-        chain,
-        deployedRoutersAddresses,
-        warpDeployConfig,
+  return promiseObjAll(
+    objMap(warpDeployConfig, async (chain, config) => {
+      const [remoteRouters, destinationGas] =
+        getDefaultRemoteRouterAndDestinationGasConfig(
+          multiProvider,
+          chain,
+          deployedRoutersAddresses,
+          warpDeployConfig,
+        );
+
+      const chainConfig: WarpRouteDeployConfigMailboxRequired[string] = {
+        // Default Expansion
+        ...derivedTokenMetadata,
+        remoteRouters,
+        destinationGas,
+        hook: zeroAddress,
+        interchainSecurityModule: zeroAddress,
+        proxyAdmin: isDeployedAsProxyByChain[chain]
+          ? { owner: config.owner }
+          : undefined,
+        isNft: false,
+
+        // User-specified config takes precedence
+        ...config,
+      };
+
+      // Properly set the remote routers addresses to their 32 bytes representation
+      // as that is how they are set on chain
+      const formattedRemoteRouters = objMap(
+        chainConfig.remoteRouters ?? {},
+        (_domainId, { address }) => ({
+          address: addressToBytes32(address),
+        }),
       );
 
-    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] = {
-      // Default Expansion
-      ...derivedTokenMetadata,
-      remoteRouters,
-      destinationGas,
-      hook: zeroAddress,
-      interchainSecurityModule: zeroAddress,
-      proxyAdmin: isDeployedAsProxyByChain[chain]
-        ? { owner: config.owner }
-        : undefined,
-      isNft: false,
+      chainConfig.remoteRouters = formattedRemoteRouters;
 
-      // User-specified config takes precedence
-      ...config,
-    };
+      // Expand the hook config only if we have an explicit config in the deploy config
+      // if we have an address we leave it like that to avoid deriving
+      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
+        const reader = new EvmHookReader(multiProvider, chain);
 
-    // Properly set the remote routers addresses to their 32 bytes representation
-    // as that is how they are set on chain
-    const formattedRemoteRouters = objMap(
-      chainConfig.remoteRouters ?? {},
-      (_domainId, { address }) => ({
-        address: addressToBytes32(address),
-      }),
-    );
+        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+      }
 
-    chainConfig.remoteRouters = formattedRemoteRouters;
+      // Expand the ism config only if we have an explicit config in the deploy config
+      // if we have an address we leave it like that to avoid deriving
+      if (
+        chainConfig.interchainSecurityModule &&
+        typeof chainConfig.interchainSecurityModule !== 'string'
+      ) {
+        const reader = new EvmIsmReader(multiProvider, chain);
 
-    return chainConfig;
-  });
+        chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+          chainConfig.interchainSecurityModule,
+        );
+      }
+
+      return chainConfig;
+    }),
+  );
 }
 
 const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
@@ -178,6 +203,13 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
   return 0;
 };
 
+const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
+  // gas is removed because the destinationGas is the result of
+  // expanding the config based on the gas value for each chain
+  // see `expandWarpDeployConfig` function
+  'gas',
+]);
+
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -185,8 +217,15 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
 export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
+  const filteredObj = Object.fromEntries(
+    Object.entries(obj).filter(
+      ([key, _value]) =>
+        !FIELDS_TO_IGNORE.has(key as keyof HypTokenRouterConfig),
+    ),
+  );
+
   return sortArraysInObject(
-    transformObj(obj, transformWarpDeployConfigToCheck),
+    transformObj(filteredObj, transformWarpDeployConfigToCheck),
     sortArraysInConfigToCheck,
   );
 }
