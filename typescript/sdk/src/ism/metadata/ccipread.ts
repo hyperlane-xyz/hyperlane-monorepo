@@ -64,7 +64,9 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
         const rawHex = responseJson.data as string;
         return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
       } catch (error: any) {
-        console.warn(`CCIP-read metadata fetch failed for ${url}: ${error}`);
+        this.core.logger.warn(
+          `CCIP-read metadata fetch failed for ${url}: ${error}`,
+        );
         // try next URL
       }
     }
