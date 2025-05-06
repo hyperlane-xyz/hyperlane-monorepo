@@ -55,7 +55,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
     Transaction {
         id: UniqueIdentifier::random(),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm,
+        vm_specific_data: VmSpecificTxData::CosmWasm,
         payload_details: details.clone(),
         status,
         submission_attempts: 0,

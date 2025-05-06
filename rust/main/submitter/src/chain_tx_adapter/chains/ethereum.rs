@@ -20,6 +20,11 @@ use crate::{
     transaction::{Transaction, TransactionStatus},
 };
 
+pub use precursor::EthereumTxPrecursor;
+
+mod payload;
+mod precursor;
+
 pub struct EthereumTxAdapter {
     _conf: ChainConf,
     _raw_conf: RawChainConf,
