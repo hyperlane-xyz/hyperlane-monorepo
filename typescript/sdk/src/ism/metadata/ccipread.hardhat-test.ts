@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { TypedDataField, ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -135,18 +135,29 @@ describe('CCIP-Read ISM Integration', () => {
     expect(payload.sender).to.equal(ccipReadIsm.address);
     expect(payload.data).to.equal(message.message);
 
-    // Verify that signature is valid over (data, sender)
-    const messageHash = ethers.utils.keccak256(
-      ethers.utils.defaultAbiCoder.encode(
-        ['bytes', 'address'],
-        [payload.data, payload.sender],
-      ),
-    );
-    const recovered = ethers.utils.verifyMessage(
-      ethers.utils.arrayify(messageHash),
+    // Verify EIP-712 signature
+    const chainId = (await hre.ethers.provider.getNetwork()).chainId;
+    const domain = {
+      name: 'Hyperlane CCIPReadAuth',
+      version: '1',
+      chainId,
+      verifyingContract: ccipReadIsm.address,
+    };
+    const types: Record<string, TypedDataField[]> = {
+      Auth: [
+        { name: 'data', type: 'bytes' },
+        { name: 'sender', type: 'address' },
+      ],
+    };
+    const value = { data: payload.data, sender: payload.sender };
+    const expectedSigner = await multiProvider.getSigner('test2');
+    const recovered = ethers.utils.verifyTypedData(
+      domain,
+      types,
+      value,
       payload.signature,
     );
-    expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
+    expect(recovered).to.equal(await expectedSigner.getAddress());
   });
 
   after(() => {
