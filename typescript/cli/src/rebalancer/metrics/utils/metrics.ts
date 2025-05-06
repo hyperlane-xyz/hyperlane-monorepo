@@ -54,10 +54,15 @@ export async function submitMetrics(
 export function startMetricsServer(register: Registry): http.Server {
   return http
     .createServer((req, res) => {
-      if (req.url != '/metrics') res.writeHead(404, 'Invalid url').end();
-      if (req.method != 'GET') res.writeHead(405, 'Invalid method').end();
+      if (req.url != '/metrics') {
+        return res.writeHead(404, 'Invalid url').end();
+      }
 
-      register
+      if (req.method != 'GET') {
+        return res.writeHead(405, 'Invalid method').end();
+      }
+
+      return register
         .metrics()
         .then((metricsStr) => {
           res.writeHead(200, { ContentType: 'text/plain' }).end(metricsStr);
