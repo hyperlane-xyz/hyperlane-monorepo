@@ -23,6 +23,7 @@ import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
+  isFile,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
@@ -30,6 +31,7 @@ import {
   detectAndConfirmOrPrompt,
   setProxyAdminConfig,
 } from '../utils/input.js';
+import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
@@ -324,4 +326,44 @@ function createFallbackRoutingConfig(owner: Address): IsmConfig {
     domains: {},
     owner,
   };
+}
+
+export async function getWarpRouteDeployConfig({
+  context,
+  warpRouteDeployConfigPath,
+  warpRouteId: providedWarpRouteId,
+  symbol,
+}: {
+  context: CommandContext;
+  warpRouteDeployConfigPath?: string;
+  warpRouteId?: string;
+  symbol?: string;
+}): Promise<WarpRouteDeployConfigMailboxRequired> {
+  let warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+
+  if (warpRouteDeployConfigPath) {
+    assert(
+      isFile(warpRouteDeployConfigPath),
+      `Warp route deployment config file not found at ${warpRouteDeployConfigPath}`,
+    );
+    log(`Using warp route deployment config at ${warpRouteDeployConfigPath}`);
+
+    warpDeployConfig = await readWarpRouteDeployConfig({
+      context,
+      filePath: warpRouteDeployConfigPath,
+    });
+  } else {
+    const warpRouteId = await useProvidedWarpRouteIdOrPrompt({
+      warpRouteId: providedWarpRouteId,
+      context,
+      symbol,
+    });
+
+    warpDeployConfig = await readWarpRouteDeployConfig({
+      context,
+      warpRouteId,
+    });
+  }
+
+  return warpDeployConfig;
 }

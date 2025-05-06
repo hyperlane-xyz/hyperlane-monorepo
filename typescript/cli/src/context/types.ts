@@ -6,6 +6,7 @@ import type {
   ChainMap,
   ChainMetadata,
   MultiProvider,
+  WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
@@ -35,6 +36,7 @@ export interface WriteCommandContext extends CommandContext {
   signer: ethers.Signer;
   isDryRun?: boolean;
   dryRunChain?: string;
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<

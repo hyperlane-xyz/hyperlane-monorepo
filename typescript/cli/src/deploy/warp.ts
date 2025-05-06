@@ -64,7 +64,6 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
-import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -72,9 +71,7 @@ import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
-  isFile,
   readYamlOrJson,
-  runFileSelectionStep,
   writeYamlOrJson,
 } from '../utils/files.js';
 
@@ -97,35 +94,13 @@ interface WarpApplyParams extends DeployParams {
 
 export async function runWarpRouteDeploy({
   context,
-  warpRouteDeploymentConfigPath,
+  warpDeployConfig,
 }: {
   context: WriteCommandContext;
-  warpRouteDeploymentConfigPath?: string;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
 }) {
   const { skipConfirmation, chainMetadata, registry } = context;
-
-  if (
-    !warpRouteDeploymentConfigPath ||
-    !isFile(warpRouteDeploymentConfigPath)
-  ) {
-    if (skipConfirmation)
-      throw new Error('Warp route deployment config required');
-    warpRouteDeploymentConfigPath = await runFileSelectionStep(
-      './configs',
-      'Warp route deployment config',
-      'warp',
-    );
-  } else {
-    log(
-      `Using warp route deployment config at ${warpRouteDeploymentConfigPath}`,
-    );
-  }
-  const warpRouteConfig = await readWarpRouteDeployConfig({
-    context,
-    filePath: warpRouteDeploymentConfigPath,
-  });
-
-  const chains = Object.keys(warpRouteConfig);
+  const chains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -133,7 +108,7 @@ export async function runWarpRouteDeploy({
 
   const deploymentParams = {
     context,
-    warpDeployConfig: warpRouteConfig,
+    warpDeployConfig,
   };
 
   await runDeployPlanStep(deploymentParams);

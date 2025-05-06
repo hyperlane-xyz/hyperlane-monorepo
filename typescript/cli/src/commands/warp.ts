@@ -16,6 +16,7 @@ import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
+  getWarpRouteDeployConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
@@ -146,9 +147,11 @@ export const apply: CommandModuleWithWriteContext<{
 };
 
 export const deploy: CommandModuleWithWriteContext<{
-  config: string;
+  config?: string;
   'dry-run': string;
   'from-address': string;
+  symbol?: string;
+  warpRouteId?: string;
 }> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
@@ -156,8 +159,13 @@ export const deploy: CommandModuleWithWriteContext<{
     config: warpDeploymentConfigCommandOption,
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, dryRun }) => {
+  handler: async ({ context, config, dryRun, symbol, warpRouteId }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -165,7 +173,14 @@ export const deploy: CommandModuleWithWriteContext<{
     try {
       await runWarpRouteDeploy({
         context,
-        warpRouteDeploymentConfigPath: config,
+        warpDeployConfig:
+          context.warpDeployConfig ||
+          (await getWarpRouteDeployConfig({
+            context,
+            warpRouteDeployConfigPath: config,
+            warpRouteId,
+            symbol,
+          })),
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

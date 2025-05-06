@@ -65,6 +65,7 @@ export async function useProvidedWarpRouteIdOrPrompt({
   symbol?: string;
 }): Promise<string> {
   if (warpRouteId) return warpRouteId;
+  assert(!context.skipConfirmation, 'Warp route ID is required');
 
   const { ids: routeIds } = filterWarpRoutesIds(
     (await context.registry.listRegistryContent()).deployments.warpRoutes,
