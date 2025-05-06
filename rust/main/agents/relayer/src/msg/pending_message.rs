@@ -177,9 +177,9 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_db
-            .store_status_by_message_id(&self.message.id(), &self.status)
+            .store_status_by_message_id(&self.message.id(), &status)
         {
-            warn!(message_id = ?self.message.id(), err = %e, status = %self.status, "Persisting `status` failed for message");
+            warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
         }
         self.status = status;
     }
@@ -1046,15 +1046,34 @@ impl PendingMessage {
 mod test {
     use std::{
         fmt::Debug,
+        str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
     };
 
     use chrono::TimeDelta;
-    use hyperlane_base::db::*;
-    use hyperlane_core::{identifiers::UniqueIdentifier, *};
+    use hyperlane_base::{
+        cache::OptionalCache,
+        db::*,
+        settings::{ChainConf, ChainConnectionConf, CoreContractAddresses},
+        CoreMetrics,
+    };
+    use hyperlane_core::{config::OpSubmissionConfig, identifiers::UniqueIdentifier, *};
+    use hyperlane_test::mocks::MockValidatorAnnounceContract;
+    use tokio::sync::RwLock;
 
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use crate::{
+        merkle_tree::builder::MerkleTreeBuilder,
+        msg::{
+            gas_payment::GasPaymentEnforcer,
+            metadata::{
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+                IsmCachePolicyClassifier,
+            },
+            pending_message::{MessageContext, DEFAULT_MAX_MESSAGE_RETRIES},
+            processor::test::{dummy_submission_metrics, DummyApplicationOperationVerifier},
+        },
+    };
 
     use super::PendingMessage;
 
@@ -1336,5 +1355,117 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
+    }
+
+    #[tokio::test]
+    async fn check_stored_status() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let arb_chain_conf = ChainConf {
+            domain: origin_domain.clone(),
+            signer: None,
+            submitter: SubmitterType::Classic,
+            estimated_block_time: Duration::from_secs(1),
+            reorg_period: ReorgPeriod::from_blocks(10),
+            addresses: CoreContractAddresses {
+                mailbox: H160::from_str("0x979Ca5202784112f4738403dBec5D0F3B9daabB9")
+                    .unwrap()
+                    .into(),
+                validator_announce: H160::from_str("0x1df063280C4166AF9a725e3828b4dAC6c7113B08")
+                    .unwrap()
+                    .into(),
+                ..Default::default()
+            },
+            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
+                rpc_connection: hyperlane_ethereum::RpcConnectionConf::HttpFallback {
+                    urls: vec![
+                        "https://arbitrum.drpc.org".parse().unwrap(),
+                        "https://endpoints.omniatech.io/v1/arbitrum/one/public"
+                            .parse()
+                            .unwrap(),
+                    ],
+                },
+                transaction_overrides: Default::default(),
+                op_submission_config: OpSubmissionConfig {
+                    batch_contract_address: None,
+                    max_batch_size: 32,
+                    bypass_batch_simulation: false,
+                    ..Default::default()
+                },
+            }),
+            metrics_conf: Default::default(),
+            index: Default::default(),
+        };
+
+        let message = HyperlaneMessage {
+            nonce: 0,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+
+        let core_metrics = CoreMetrics::new("test", 9090, Default::default()).unwrap();
+        let arb_mailbox: Arc<dyn Mailbox> = arb_chain_conf
+            .build_mailbox(&core_metrics)
+            .await
+            .unwrap()
+            .into();
+
+        let base_va = Arc::new(MockValidatorAnnounceContract::default());
+        let default_ism_getter = DefaultIsmCache::new(arb_mailbox.clone());
+        let core_metrics = Arc::new(core_metrics);
+        let base_metadata_builder = BaseMetadataBuilder::new(
+            origin_domain.clone(),
+            arb_chain_conf.clone(),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
+            base_va,
+            false,
+            core_metrics.clone(),
+            cache.clone(),
+            base_db.clone(),
+            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+            IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+        );
+        let message_context = Arc::new(MessageContext {
+            destination_mailbox: arb_mailbox,
+            origin_db: Arc::new(base_db.clone()),
+            cache,
+            metadata_builder: Arc::new(base_metadata_builder),
+            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], base_db.clone())),
+            transaction_gas_limit: Default::default(),
+            metrics: dummy_submission_metrics(),
+            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+        });
+        let metadata =
+        "0x000000100000001000000010000001680000000000000000000000100000015800000000000000000000000019dc38aeae620380430c200a6e990d5af5480117dbd3d5e656de9dcf604fcc90b52a3b97d9f3573b4a0733e824f1358e515698cf00139eaa5452e030aa937f6b14162a44ec3327f6832bbf16e4b0d6df452524af1c1a04e875b4ce7ac0da92aa08838a89f2a126eef23f6b6a08b6cdbe9e9e804b321088b91b034f9466eed2da1dcc36cb220b887b15f3e111a179142c27e4a0b6d6b7a291e22577d6296d82b7c3f29e8989ec1161d853aba0982b2db28b9a9917226c2c27111c41c99e6a84e7717740f901528062385e659b4330e7227593a334be532d27bcf24f3f13bf4fc1a860e96f8d6937984ea83ef61c8ea30d48cc903f6ff725406a4d1ce73f46064b3403ea4c720b770f4389d7259b275f085c6a98cef9a04880a249b42c382ba34a63031debbfb5b9b232ffd9ee45ff63a7249e83c7e9720f9e978a431b".as_bytes().to_vec();
+
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            message_context.clone(),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+        pending_message.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: metadata.clone(),
+            gas_limit: U256::from(615293),
+        }));
+
+        let expected_status = PendingOperationStatus::ReadyToSubmit;
+        pending_message.set_status(expected_status.clone());
+
+        let db_status = pending_message
+            .ctx
+            .origin_db
+            .retrieve_status_by_message_id(&pending_message.id())
+            .expect("Failed to fetch message status")
+            .expect("Message status not found");
+
+        assert_eq!(db_status, expected_status);
     }
 }
