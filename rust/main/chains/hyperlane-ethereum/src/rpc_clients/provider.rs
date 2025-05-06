@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::prelude::Middleware;
+use ethers::{prelude::Middleware, types::TransactionReceipt};
 use ethers_core::{abi::Address, types::BlockNumber};
 use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
 use tokio::time::sleep;
@@ -16,7 +16,9 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
-use crate::{BuildableWithProvider, ConnectionConf};
+use crate::{
+    get_finalized_block_number, BuildableWithProvider, ConnectionConf, EthereumReorgPeriod,
+};
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -39,6 +41,47 @@ where
             self.provider.clone(),
             self.domain.clone(),
         ))
+    }
+}
+
+/// Methods of provider which are used in submitter
+#[async_trait]
+pub trait EvmProviderForSubmitter: Send + Sync {
+    /// Get the transaction receipt for a given transaction hash
+    async fn get_transaction_receipt(
+        &self,
+        transaction_hash: H256,
+    ) -> ChainResult<Option<TransactionReceipt>>;
+
+    /// Get the finalized block number
+    async fn get_finalized_block_number(
+        &self,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<u32>;
+}
+
+#[async_trait]
+impl<M> EvmProviderForSubmitter for EthereumProvider<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_transaction_receipt(
+        &self,
+        transaction_hash: H256,
+    ) -> ChainResult<Option<TransactionReceipt>> {
+        let receipt = self
+            .provider
+            .get_transaction_receipt(transaction_hash)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(receipt)
+    }
+
+    async fn get_finalized_block_number(
+        &self,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<u32> {
+        get_finalized_block_number(&*self.provider, reorg_period).await
     }
 }
 
@@ -192,6 +235,27 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(storage.into())
+    }
+}
+
+/// Builder for hyperlane providers.
+pub struct SubmitterProviderBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for SubmitterProviderBuilder {
+    type Output = Box<dyn EvmProviderForSubmitter>;
+    const NEEDS_SIGNER: bool = true;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        _conn: &ConnectionConf,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumProvider::new(
+            Arc::new(provider),
+            locator.domain.clone(),
+        ))
     }
 }
 
