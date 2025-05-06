@@ -530,5 +530,46 @@ export const validatorChainConfig = (
         'milkywaytestnet',
       ),
     },
+
+    nobletestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('nobletestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc30427bd74fdcf179a15b9a6e3c4e1d66104726a'],
+        },
+        'nobletestnet',
+      ),
+    },
+    megaethtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('megaethtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef'],
+        },
+        'megaethtestnet',
+      ),
+    },
+    basecamptestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('basecamptestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x84441e39ed5251410aa2baa72e7747c46d1e5e9d'],
+        },
+        'basecamptestnet',
+      ),
+    },
+    bepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xdb0128bb3d3f204eb18de7e8268e94fde0382daf'],
+        },
+        'bepolia',
+      ),
+    },
   };
 };
