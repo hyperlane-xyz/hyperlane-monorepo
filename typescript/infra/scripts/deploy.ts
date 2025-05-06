@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import fs from 'fs';
 import path from 'path';
 import prompts from 'prompts';
 
@@ -294,9 +295,22 @@ async function main() {
           )
         : config;
 
-    const deployPlanPath = path.join(modulePath, 'deployment-plan.yaml');
-    writeYamlAtPath(deployPlanPath, confirmConfig);
-    console.log(`Deployment Plan written to ${deployPlanPath}`);
+    // Have to print plan per chain because full plan is too big
+    const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
+    if (!fs.existsSync(deploymentPlansDir)) {
+      fs.mkdirSync(deploymentPlansDir, { recursive: true });
+    }
+
+    Object.entries(confirmConfig).forEach(([chain, config]) => {
+      const chainDeployPlanPath = path.join(
+        deploymentPlansDir,
+        `${chain}.yaml`,
+      );
+      writeYamlAtPath(chainDeployPlanPath, config);
+      console.log(
+        `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
+      );
+    });
 
     const { value: confirmed } = await prompts({
       type: 'confirm',

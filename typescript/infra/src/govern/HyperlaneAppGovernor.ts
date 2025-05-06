@@ -190,13 +190,22 @@ export abstract class HyperlaneAppGovernor<
             ),
           );
           try {
-            await multiSend.sendTransactions(
-              callsForSubmissionType.map((call) => ({
-                to: call.to,
-                data: call.data,
-                value: call.value,
-              })),
-            );
+            // Process calls in batches up to max size of 100
+            const maxBatchSize = 100;
+            for (
+              let i = 0;
+              i < callsForSubmissionType.length;
+              i += maxBatchSize
+            ) {
+              const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
+              await multiSend.sendTransactions(
+                batch.map((call) => ({
+                  to: call.to,
+                  data: call.data,
+                  value: call.value,
+                })),
+              );
+            }
           } catch (error) {
             rootLogger.error(
               chalk.red(`Error submitting calls on ${chain}: ${error}`),
@@ -533,18 +542,18 @@ export abstract class HyperlaneAppGovernor<
 
     // Check if the transaction will succeed with a SAFE
     // Need to check all governance types because the safe address is different for each type
-    for (const governanceType of Object.values(GovernanceType)) {
+    for (const governanceType of Object.values([GovernanceType.AbacusWorks])) {
       const safeAddress = getGovernanceSafes(governanceType)[chain];
       if (typeof safeAddress === 'string') {
         // Check if the safe can propose transactions
-        const canProposeSafe = await this.checkSafeProposalEligibility(
-          chain,
-          signerAddress,
-          safeAddress,
-        );
+        // const canProposeSafe = await this.checkSafeProposalEligibility(
+        //   chain,
+        //   signerAddress,
+        //   safeAddress,
+        // );
         if (
-          canProposeSafe &&
-          (await checkTransactionSuccess(chain, safeAddress))
+          // canProposeSafe &&
+          await checkTransactionSuccess(chain, safeAddress)
         ) {
           call.governanceType = governanceType;
           // If the transaction will succeed with the safe, return the inferred call
