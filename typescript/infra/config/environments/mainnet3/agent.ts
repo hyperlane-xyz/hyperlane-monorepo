@@ -846,9 +846,9 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3a04631-20250428-170554',
+      tag: 'f05ebc4-20250502-225226',
     },
-    blacklist: [...blacklist, ...vanguardMatchingList],
+    blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -886,9 +886,9 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '673c6d2-20250502-141150',
+      tag: 'f05ebc4-20250502-225226',
     },
-    blacklist: [...blacklist, ...vanguardMatchingList],
+    blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
@@ -924,9 +924,9 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3a04631-20250428-170554',
+      tag: 'f05ebc4-20250502-225226',
     },
-    blacklist: [...blacklist, ...vanguardMatchingList],
+    blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,

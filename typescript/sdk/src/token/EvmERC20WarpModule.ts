@@ -37,6 +37,7 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { RemoteRouters } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
@@ -162,13 +163,14 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
     const routesToEnroll = Object.entries(expectedRemoteRouters)
+      .map(([domain, rawRouter]): [string, RemoteRouters[string]] => [
+        domain,
+        { address: addressToBytes32(rawRouter.address) },
+      ])
       .filter(([domain, expectedRouter]) => {
         const actualRouter = actualRemoteRouters[domain];
         // Enroll if router doesn't exist for domain or has different address
-        return (
-          !actualRouter ||
-          !eqAddress(actualRouter.address, expectedRouter.address)
-        );
+        return !actualRouter || actualRouter.address !== expectedRouter.address;
       })
       .map(([domain]) => domain);
 
