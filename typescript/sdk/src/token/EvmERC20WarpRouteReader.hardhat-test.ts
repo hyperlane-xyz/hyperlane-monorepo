@@ -424,7 +424,7 @@ describe('ERC20WarpRouterReader', async () => {
   });
 
   // FiatTokenTest
-  it('should derive fiat collateral config correctly', async () => {
+  it('should derive collateral fiat token type correctly', async () => {
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {

@@ -51,6 +51,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmERC20WarpRouteReader',
   });
+
+  // Using null instead of undefined to force
+  // a compile error when adding a new token type
+  protected readonly deriveTokenConfigMap: Record<
+    TokenType,
+    ((address: Address) => Promise<HypTokenConfig>) | null
+  >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
 
@@ -62,6 +69,26 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+
+    this.deriveTokenConfigMap = {
+      [TokenType.XERC20]: this.deriveHypXERC20TokenConfig.bind(this),
+      [TokenType.XERC20Lockbox]:
+        this.deriveHypXERC20LockboxTokenConfig.bind(this),
+      [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
+      [TokenType.collateralFiat]:
+        this.deriveHypCollateralFiatTokenConfig.bind(this),
+      [TokenType.collateralUri]: null,
+      [TokenType.collateralVault]:
+        this.deriveHypCollateralVaultTokenConfig.bind(this),
+      [TokenType.collateralVaultRebase]:
+        this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
+      [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
+      [TokenType.nativeScaled]: null,
+      [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
+      [TokenType.syntheticRebase]:
+        this.deriveHypSyntheticRebaseConfig.bind(this),
+      [TokenType.syntheticUri]: null,
+    };
   }
 
   /**
@@ -152,8 +179,12 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
             );
             await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
             return TokenType.XERC20;
-            // eslint-disable-next-line no-empty
-          } catch {}
+          } catch (error) {
+            this.logger.debug(
+              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
+              error,
+            );
+          }
 
           try {
             const fiatToken = IFiatToken__factory.connect(
@@ -167,8 +198,12 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
             });
 
             return TokenType.collateralFiat;
-            // eslint-disable-next-line no-empty
-          } catch {}
+          } catch (error) {
+            this.logger.debug(
+              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralFiat}`,
+              error,
+            );
+          }
         }
         return tokenType as TokenType;
       } catch {
@@ -283,32 +318,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
-    // Using null instead of undefined to force
-    // a compile error when adding a new token type
-    const mapConfig: Record<
-      TokenType,
-      ((address: Address) => Promise<HypTokenConfig>) | null
-    > = {
-      [TokenType.XERC20]: this.deriveHypXERC20TokenConfig.bind(this),
-      [TokenType.XERC20Lockbox]:
-        this.deriveHypXERC20LockboxTokenConfig.bind(this),
-      [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
-      [TokenType.collateralFiat]:
-        this.deriveHypCollateralFiatTokenConfig.bind(this),
-      [TokenType.collateralUri]: null,
-      [TokenType.collateralVault]:
-        this.deriveHypCollateralVaultTokenConfig.bind(this),
-      [TokenType.collateralVaultRebase]:
-        this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
-      [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
-      [TokenType.nativeScaled]: null,
-      [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
-      [TokenType.syntheticRebase]:
-        this.deriveHypSyntheticRebaseConfig.bind(this),
-      [TokenType.syntheticUri]: null,
-    };
-
-    const deriveFunction = mapConfig[type];
+    const deriveFunction = this.deriveTokenConfigMap[type];
     if (!deriveFunction) {
       throw new Error(
         `Provided unsupported token type "${type}" when fetching token metadata on chain "${this.chain}" at address "${warpRouteAddress}"`,
