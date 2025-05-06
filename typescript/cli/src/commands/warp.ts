@@ -30,12 +30,11 @@ import {
 import { runWarpRouteRead } from '../read/warp.js';
 import { RebalancerContextFactory } from '../rebalancer/factories/RebalancerContextFactory.js';
 import {
-  Executor,
+  Config,
   IExecutor,
   IStrategy,
   MonitorPollingError,
   RawBalances,
-  Strategy,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -415,10 +414,10 @@ export const check: CommandModuleWithContext<{
   },
 };
 
-export const rebalancer: CommandModuleWithContext<{
+export const rebalancer: CommandModuleWithWriteContext<{
   warpRouteId: string;
   checkFrequency: number;
-  strategyConfigFile: string;
+  rebalancerConfigFile: string;
   withMetrics?: boolean;
 }> = {
   command: 'rebalancer',
@@ -435,9 +434,10 @@ export const rebalancer: CommandModuleWithContext<{
       demandOption: true,
       alias: 'v',
     },
-    strategyConfigFile: {
+    rebalancerConfigFile: {
       type: 'string',
-      description: 'The path to a strategy configuration file (.json or .yaml)',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: 's',
     },
@@ -452,25 +452,30 @@ export const rebalancer: CommandModuleWithContext<{
     context,
     warpRouteId,
     checkFrequency,
-    strategyConfigFile,
+    rebalancerConfigFile,
     withMetrics = false,
   }) => {
     try {
+      // Load rebalancer config from disk
+      const config = Config.fromFile(rebalancerConfigFile);
+
+      // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
         context.registry,
         warpRouteId,
+        config,
       );
 
-      // Instantiates the warp route monitor
+      // Instantiates the monitor that will observe the warp route
       const monitor = contextFactory.createMonitor(checkFrequency);
 
-      // Instantiates the strategy that will get rebalancing routes based on monitor results
-      const strategy: IStrategy = Strategy.fromConfigFile(strategyConfigFile);
+      // Instantiates the strategy that will compute how rebalance routes should be performed
+      const strategy: IStrategy = contextFactory.createStrategy();
 
-      // Instantiates the executor that will process rebalancing routes
-      const executor: IExecutor = new Executor();
+      // Instantiates the executor in charge of executing the rebalancing transactions
+      const executor: IExecutor = contextFactory.createExecutor(context.key);
 
-      // Creates an instance for the metrics that will publish stats for the monitored data
+      // Instantiates the metrics that will publish stats from the monitored data
       const metrics = withMetrics
         ? await contextFactory.createMetrics()
         : undefined;
@@ -481,7 +486,7 @@ export const rebalancer: CommandModuleWithContext<{
           const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
             if (
               !tokenInfo.token.isCollateralized() ||
-              !tokenInfo.bridgedSupply
+              tokenInfo.bridgedSupply === undefined
             ) {
               return acc;
             }
@@ -501,8 +506,8 @@ export const rebalancer: CommandModuleWithContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
-            errorRed(`Error processing rebalancing routes: ${e.messages}`);
+          executor.rebalance(rebalancingRoutes).catch((e) => {
+            errorRed('Error while rebalancing:', (e as Error).message);
           });
         })
         // Observe monitor errors and exit
