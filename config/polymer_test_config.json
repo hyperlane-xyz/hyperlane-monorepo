@@ -13,7 +13,11 @@
       "mailbox": "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
-        "from": 17607694
+        "from": 17608070
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "<replace_with_your_private_key>"
       }
     },
     "b3": {
@@ -29,7 +33,11 @@
       "mailbox": "0x840e5aada7a7aab5f06c5d3152512a246792183f",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
-         "from": 32319035
+         "from": 32324786
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "<replace_with_your_private_key>"
       }
     }
   },
@@ -38,5 +46,5 @@
   "gasPaymentEnforcement": [
      { "policy": "none" }
   ],
-   "maxMessageRetries": 5
+   "maxMessageRetries": 1
 }
