@@ -65,7 +65,7 @@ export class RebalancerContextFactory {
   }
 
   public async createMetrics(): Promise<Metrics> {
-    const tokenPriceGetter = await PriceGetter.create(this.metadata);
+    const tokenPriceGetter = PriceGetter.create(this.metadata);
     const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
     );
