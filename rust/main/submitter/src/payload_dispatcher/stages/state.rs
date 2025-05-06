@@ -53,7 +53,7 @@ impl PayloadDispatcherState {
         }
     }
 
-    pub fn try_from_settings(
+    pub async fn try_from_settings(
         settings: PayloadDispatcherSettings,
         metrics: DispatcherMetrics,
     ) -> Result<Self> {
@@ -61,7 +61,8 @@ impl PayloadDispatcherState {
             &settings.chain_conf,
             &settings.raw_chain_conf,
             &settings.metrics,
-        )?;
+        )
+        .await?;
         let db = match settings.db {
             DatabaseOrPath::Database(db) => db,
             DatabaseOrPath::Path(path) => DB::from_path(&path)?,
