@@ -21,6 +21,7 @@ export enum IsmTypes {
   NoopISM = '/hyperlane.core.interchain_security.v1.NoopISM',
   MerkleRootMultisigISM = '/hyperlane.core.interchain_security.v1.MerkleRootMultisigISM',
   MessageIdMultisigISM = '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM',
+  RoutingISM = '/hyperlane.core.interchain_security.v1.RoutingISM',
 }
 
 export const decodeIsm = (ism: any.Any | undefined): ISM => {
@@ -31,7 +32,7 @@ export const decodeIsm = (ism: any.Any | undefined): ISM => {
       return isTypes.MerkleRootMultisigISM.decode(ism.value);
     case IsmTypes.MessageIdMultisigISM:
       return isTypes.MessageIdMultisigISM.decode(ism.value);
-    case '/hyperlane.core.interchain_security.v1.RoutingISM':
+    case IsmTypes.RoutingISM:
       return isTypes.RoutingISM.decode(ism.value);
     default:
       throw new Error(`can not decode ISM with type url ${ism?.type_url}`);

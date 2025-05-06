@@ -55,7 +55,11 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     this.chainId = multiProvider.getChainId(this.chain);
     this.domainId = multiProvider.getDomainId(this.chain);
 
-    this.reader = new CosmosNativeIsmReader(signer);
+    this.reader = new CosmosNativeIsmReader(
+      this.multiProvider,
+      this.chain,
+      this.signer,
+    );
   }
 
   public async read(): Promise<IsmConfig> {
