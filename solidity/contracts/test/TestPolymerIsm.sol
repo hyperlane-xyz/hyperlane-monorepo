@@ -163,7 +163,7 @@ contract PolymerISMTest is Test {
         bytes memory _messageBody
     ) internal pure returns (bytes memory topics, bytes memory data) {
         // Define locally to avoid potential lookup issues
-        bytes32 DISPATCH_EVENT_SIGNATURE_LOCAL = 0x8a14c3cf157c13a16c714580a137977637f7e9e699b36f5b7ad738f3d04d36d1;
+        bytes32 DISPATCH_EVENT_SIGNATURE_LOCAL = 0x769f711d20c679153d382254f59892613b58a97cc876b249134ac25c80f9c814;
 
         bytes32 topic0 = DISPATCH_EVENT_SIGNATURE_LOCAL;
         // Topic 1: Indexed sender (address padded)
@@ -380,5 +380,27 @@ contract PolymerISMTest is Test {
 
         vm.expectRevert("PolymerISM: Proof message content mismatch");
         polymerIsm.verify(DUMMY_PROOF, testMessage); // Verify against the original message
+    }
+
+    // ============ Constant Verification Test ============
+
+    function test_Constant_DISPATCH_EVENT_SIGNATURE() public {
+        // Calculate the expected signature hash within the test
+        bytes32 expectedSignature = keccak256(
+            bytes("Dispatch(address,uint32,bytes32,bytes)")
+        );
+
+        // Read the constant value from the deployed contract instance
+        bytes32 actualSignature = polymerIsm.DISPATCH_EVENT_SIGNATURE();
+
+        // Assert they are equal
+        assertEq(
+            actualSignature,
+            expectedSignature,
+            "DISPATCH_EVENT_SIGNATURE constant value is incorrect"
+        );
+
+        // Optional: Log the value for visual confirmation during test runs
+        console.logBytes32(actualSignature);
     }
 }

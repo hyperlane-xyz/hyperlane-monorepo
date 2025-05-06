@@ -34,7 +34,7 @@ contract PolymerISM is IInterchainSecurityModule {
      * Used to ensure the Polymer proof corresponds to the correct event type.
      */
     bytes32 public constant DISPATCH_EVENT_SIGNATURE =
-        0x8a14c3cf157c13a16c714580a137977637f7e9e699b36f5b7ad738f3d04d36d1;
+        0x769f711d20c679153d382254f59892613b58a97cc876b249134ac25c80f9c814;
 
     // --- State Variables ---
 
