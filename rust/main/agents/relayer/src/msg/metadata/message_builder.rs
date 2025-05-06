@@ -201,7 +201,7 @@ pub async fn build_message_metadata(
         ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_builder)),
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-        ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
+        ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder, None)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;

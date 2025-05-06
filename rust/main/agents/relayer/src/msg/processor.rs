@@ -563,6 +563,7 @@ pub mod test {
             db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            None,
         )
     }
 

@@ -16,6 +16,34 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     this.core = core;
   }
 
+  /**
+   * Generates an EIP-712 authentication signature over the given data and sender.
+   */
+  private async generateAuthSignature(
+    ismAddress: string,
+    callDataHex: string,
+    sender: string,
+    destinationDomain: number,
+  ): Promise<string> {
+    const signer = this.core.multiProvider.getSigner(destinationDomain);
+    const chainId = await this.core.multiProvider.getChainId(destinationDomain);
+    const domain = {
+      name: 'Hyperlane CCIPReadAuth',
+      version: '1',
+      chainId,
+      verifyingContract: ismAddress,
+    };
+    const types: Record<string, TypedDataField[]> = {
+      Auth: [
+        { name: 'data', type: 'bytes' },
+        { name: 'sender', type: 'address' },
+      ],
+    };
+    const value = { data: callDataHex, sender };
+    // @ts-ignore ethers types somehow don't have this function
+    return await signer._signTypedData(domain, types, value);
+  }
+
   async build(
     context: MetadataContext<WithAddress<CCIPReadIsmConfig>>,
   ): Promise<string> {
@@ -44,26 +72,12 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     ];
     const callDataHex = utils.hexlify(callData);
 
-    // Compute and sign authentication signature via EIP‑712
-    const signer = this.core.multiProvider.getSigner(
+    const signature = await this.generateAuthSignature(
+      ism.address,
+      callDataHex,
+      sender,
       message.parsed.destination,
     );
-    const chainId = (await signer.provider!.getNetwork()).chainId;
-    const domain = {
-      name: 'Hyperlane CCIPReadAuth',
-      version: '1',
-      chainId,
-      verifyingContract: ism.address,
-    };
-    const types: Record<string, TypedDataField[]> = {
-      Auth: [
-        { name: 'data', type: 'bytes' },
-        { name: 'sender', type: 'address' },
-      ],
-    };
-    const value = { data: callDataHex, sender };
-    // @ts-ignore ethers types somehow don't have this function
-    const signature = await signer._signTypedData(domain, types, value);
 
     for (const urlTemplate of urls) {
       const url = urlTemplate
