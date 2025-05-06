@@ -44,23 +44,27 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     ];
     const callDataHex = utils.hexlify(callData);
 
+    // Compute and sign authentication signature
+    const messageHash = utils.keccak256(
+      utils.defaultAbiCoder.encode(['bytes', 'address'], [callDataHex, sender]),
+    );
+    const signer = this.core.multiProvider.getSigner(
+      message.parsed.destination,
+    );
+    const signature = await signer.signMessage(utils.arrayify(messageHash));
+
     for (const urlTemplate of urls) {
       const url = urlTemplate
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
       try {
-        let responseJson: any;
-        if (urlTemplate.includes('{data}')) {
-          const res = await fetch(url);
-          responseJson = await res.json();
-        } else {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender, data: callDataHex }),
-          });
-          responseJson = await res.json();
-        }
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sender, data: callDataHex, signature }),
+        });
+        const responseJson = await res.json();
+
         const rawHex = responseJson.data as string;
         return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
       } catch (error: any) {
