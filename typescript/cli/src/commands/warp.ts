@@ -28,13 +28,13 @@ import {
   logGreen,
 } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
+import { RebalancerContextFactory } from '../rebalancer/factories/RebalancerContextFactory.js';
 import {
   Executor,
   IExecutor,
-  IMonitor,
   IStrategy,
-  Monitor,
   MonitorPollingError,
+  RawBalances,
   Strategy,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -419,6 +419,7 @@ export const rebalancer: CommandModuleWithContext<{
   warpRouteId: string;
   checkFrequency: number;
   strategyConfigFile: string;
+  withMetrics?: boolean;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -440,20 +441,28 @@ export const rebalancer: CommandModuleWithContext<{
       demandOption: true,
       alias: 's',
     },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics',
+      demandOption: false,
+      alias: 'm',
+    },
   },
   handler: async ({
     context,
     warpRouteId,
     checkFrequency,
     strategyConfigFile,
+    withMetrics = false,
   }) => {
     try {
-      // Instantiates the warp route monitor
-      const monitor: IMonitor = new Monitor(
+      const contextFactory = await RebalancerContextFactory.create(
         context.registry,
         warpRouteId,
-        checkFrequency,
       );
+
+      // Instantiates the warp route monitor
+      const monitor = contextFactory.createMonitor(checkFrequency);
 
       // Instantiates the strategy that will get rebalancing routes based on monitor results
       const strategy: IStrategy = Strategy.fromConfigFile(strategyConfigFile);
@@ -461,23 +470,39 @@ export const rebalancer: CommandModuleWithContext<{
       // Instantiates the executor that will process rebalancing routes
       const executor: IExecutor = new Executor();
 
+      // Creates an instance for the metrics that will publish stats for the monitored data
+      const metrics = withMetrics
+        ? await contextFactory.createMetrics()
+        : undefined;
+
       await monitor
         // Observe balances events and process rebalancing routes
-        .on('collateralbalances', (event) => {
-          const balances = event.balances.reduce(
-            (acc, next) => {
-              acc[next.chain] = next.value;
+        .on('tokeninfo', (event) => {
+          const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
+            if (
+              !tokenInfo.token.isCollateralized() ||
+              !tokenInfo.bridgedSupply
+            ) {
               return acc;
-            },
-            {} as Record<ChainName, bigint>,
-          );
+            }
+            acc[tokenInfo.token.chainName] = tokenInfo.bridgedSupply;
+            return acc;
+          }, {} as RawBalances);
 
-          const rebalancingRoutes = strategy.getRebalancingRoutes(balances);
+          if (metrics) {
+            for (const tokenInfo of event.tokensInfo) {
+              metrics.processToken(tokenInfo).catch((e) => {
+                errorRed(
+                  `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
+                );
+              });
+            }
+          }
+
+          const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
           executor.processRebalancingRoutes(rebalancingRoutes).catch((e) => {
-            throw new Error(
-              `Error processing rebalancing routes: ${e.messages}`,
-            );
+            errorRed(`Error processing rebalancing routes: ${e.messages}`);
           });
         })
         // Observe monitor errors and exit
