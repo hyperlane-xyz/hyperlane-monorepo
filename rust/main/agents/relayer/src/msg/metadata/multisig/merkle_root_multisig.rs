@@ -6,7 +6,7 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tracing::debug;
 
 use crate::msg::metadata::MessageMetadataBuilder;
@@ -15,8 +15,13 @@ use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
+
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
+    fn module_type(&self) -> ModuleType {
+        ModuleType::MerkleRootMultisig
+    }
+
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
             MetadataToken::CheckpointMerkleTreeHook,
@@ -37,11 +42,12 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
         let highest_leaf_index = unwrap_or_none_result!(
-            self.highest_known_leaf_index().await,
+            self.base_builder().highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
         );
         let leaf_index = unwrap_or_none_result!(
-            self.get_merkle_leaf_id_by_message_id(message.id())
+            self.base_builder()
+                .get_merkle_leaf_id_by_message_id(message.id())
                 .await
                 .context(CTX)?,
             debug!(
@@ -56,8 +62,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                     threshold as usize,
                     leaf_index,
                     highest_leaf_index,
-                    self.origin_domain(),
-                    self.destination_domain(),
+                    self.base_builder().origin_domain(),
+                    self.base_builder().destination_domain(),
                 )
                 .await
                 .context(CTX)?,
@@ -67,6 +73,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             )
         );
         let proof = self
+            .base_builder()
             .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
             .await
             .context(CTX)?;

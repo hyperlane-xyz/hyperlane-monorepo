@@ -33,6 +33,12 @@ impl std::fmt::Debug for SealevelKeypair {
     }
 }
 
+impl Default for SealevelKeypair {
+    fn default() -> Self {
+        Self(Keypair::new())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use solana_sdk::signature::Keypair;

@@ -17,16 +17,15 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
-  WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   test3,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -34,6 +33,7 @@ import { ChainMap } from '../types.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
+import { derivedIsmAddress } from './types.js';
 
 describe('ERC20WarpRouterReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -110,7 +110,6 @@ describe('ERC20WarpRouterReader', async () => {
             name: TOKEN_NAME,
             symbol: TOKEN_NAME,
             decimals: TOKEN_DECIMALS,
-            totalSupply: TOKEN_SUPPLY,
             gas: GAS,
             ...baseConfig,
           },
@@ -127,7 +126,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive collateral config correctly', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
@@ -156,9 +155,9 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(
-      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
-    ).to.be.equal(await mailbox.defaultIsm());
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.collateral) {
@@ -177,7 +176,7 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.XERC20,
         token: xerc20Token.address,
@@ -206,9 +205,9 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(
-      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
-    ).to.be.equal(await mailbox.defaultIsm());
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.XERC20) {
@@ -228,7 +227,7 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.XERC20Lockbox,
         token: xerc20Lockbox.address,
@@ -256,9 +255,9 @@ describe('ERC20WarpRouterReader', async () => {
       ),
     );
     // Check ism
-    expect(
-      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
-    ).to.be.equal(await mailbox.defaultIsm());
+    expect(derivedIsmAddress(derivedConfig)).to.be.equal(
+      await mailbox.defaultIsm(),
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.XERC20) {
@@ -271,7 +270,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive synthetic rebase config correctly', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.syntheticRebase,
         collateralChainName: TestChainName.test4,
@@ -304,14 +303,14 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive synthetic config correctly', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.synthetic,
         hook: await mailbox.defaultHook(),
         name: TOKEN_NAME,
         symbol: TOKEN_NAME,
         decimals: TOKEN_DECIMALS,
-        totalSupply: TOKEN_SUPPLY,
+        initialSupply: TOKEN_SUPPLY,
         ...baseConfig,
       },
     };
@@ -337,7 +336,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive native config correctly', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.native,
         hook: await mailbox.defaultHook(),
@@ -363,7 +362,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive collateral vault config correctly', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateralVault,
         token: vault.address,
@@ -389,7 +388,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive rebase collateral vault config correctly', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateralVaultRebase,
         token: vault.address,
@@ -415,7 +414,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
@@ -438,7 +437,7 @@ describe('ERC20WarpRouterReader', async () => {
     // Create config
     const otherChain = TestChainName.test3;
     const otherChainMetadata = test3;
-    const config: WarpRouteDeployConfig = {
+    const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
@@ -462,6 +461,6 @@ describe('ERC20WarpRouterReader', async () => {
     expect(Object.keys(derivedConfig.remoteRouters!).length).to.equal(1);
     expect(
       derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
-    ).to.be.equal(warpRoute[otherChain].collateral.address);
+    ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
   });
 });

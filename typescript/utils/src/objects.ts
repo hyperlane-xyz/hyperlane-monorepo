@@ -72,8 +72,8 @@ export function deepFind<I extends object, O extends I>(
   const entries = isObject(obj)
     ? Object.values(obj)
     : Array.isArray(obj)
-    ? obj
-    : [];
+      ? obj
+      : [];
   return entries.map((e) => deepFind(e as any, func, depth - 1)).find((v) => v);
 }
 
@@ -336,4 +336,61 @@ export function mustGet<T>(obj: Record<string, T>, key: string): T {
     throw new Error(`Missing key ${key} in object ${JSON.stringify(obj)}`);
   }
   return value;
+}
+
+export type TransformObjectTransformer = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => any;
+
+/**
+ * Recursively applies `formatter` to the provided object
+ *
+ * @param obj
+ * @param transformer a user defined function that takes an object and transforms it.
+ * @param maxDepth the maximum depth that can be reached when going through nested fields of a property
+ *
+ * @throws if `maxDepth` is reached in an object property
+ */
+export function transformObj(
+  obj: any,
+  transformer: TransformObjectTransformer,
+  maxDepth = 15,
+): any {
+  return internalTransformObj(obj, transformer, [], maxDepth);
+}
+
+function internalTransformObj(
+  obj: any,
+  transformer: TransformObjectTransformer,
+  propPath: Array<string>,
+  maxDepth: number,
+): any {
+  if (propPath.length > maxDepth) {
+    throw new Error(`transformObj went too deep. Max depth is ${maxDepth}`);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((obj) =>
+      internalTransformObj(obj, transformer, [...propPath], maxDepth),
+    );
+  } else if (isObject(obj)) {
+    const newObj = Object.entries(obj)
+      .map(([key, value]) => {
+        return [
+          key,
+          internalTransformObj(
+            value,
+            transformer,
+            [...propPath, key],
+            maxDepth,
+          ),
+        ];
+      })
+      .filter(([_key, value]) => value !== undefined && value !== null);
+
+    return transformer(Object.fromEntries(newObj), propPath);
+  }
+
+  return transformer(obj, propPath);
 }

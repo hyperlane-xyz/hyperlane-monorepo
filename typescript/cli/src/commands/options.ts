@@ -36,6 +36,13 @@ export const registryUrisCommandOption: Options = {
   default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
 };
 
+export const githubAuthTokenOption: Options = {
+  type: 'string',
+  description: 'Github auth token for accessing registry repository',
+  default: ENV.GH_AUTH_TOKEN,
+  defaultDescription: 'process.env.GH_AUTH_TOKEN',
+};
+
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
@@ -257,4 +264,10 @@ export const avsChainCommandOption: Options = {
   description: 'Chain to interact with the AVS on',
   demandOption: true,
   choices: ['holesky', 'ethereum'],
+};
+
+export const warpRouteIdCommandOption: Options = {
+  type: 'string',
+  description: 'Warp route ID to specify the warp route',
+  alias: 'id',
 };

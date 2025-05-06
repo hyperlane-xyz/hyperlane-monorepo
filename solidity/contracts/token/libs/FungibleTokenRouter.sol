@@ -3,6 +3,10 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./TokenRouter.sol";
 
+/**
+ * @title Hyperlane Fungible Token Router that extends TokenRouter with scaling logic for fungible tokens with different decimals.
+ * @author Abacus Works
+ */
 abstract contract FungibleTokenRouter is TokenRouter {
     uint256 public immutable scale;
 

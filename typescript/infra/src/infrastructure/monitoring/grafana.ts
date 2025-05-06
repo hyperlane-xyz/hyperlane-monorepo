@@ -1,5 +1,5 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { inCIMode, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AlertType,
@@ -64,6 +64,16 @@ export async function exportGrafanaAlert(
 export async function fetchGrafanaServiceAccountToken(): Promise<string> {
   let saToken: string | undefined;
 
+  if (inCIMode()) {
+    saToken = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN;
+    if (!saToken) {
+      throw new Error(
+        'GRAFANA_SERVICE_ACCOUNT_TOKEN is not set in CI environment',
+      );
+    }
+    return saToken;
+  }
+
   try {
     saToken = (await fetchGCPSecret(
       'grafana-balance-alert-thresholds-token',
@@ -123,7 +133,7 @@ export async function updateGrafanaAlert(
 
 export function generateQuery(
   alertType: AlertType,
-  thresholds: ChainMap<string>,
+  thresholds: ChainMap<number>,
 ): string {
   const config = alertConfigMapping[alertType];
   const walletQueryName = walletNameQueryFormat[config.walletName];
@@ -139,7 +149,7 @@ export function generateQuery(
       }
       return `last_over_time(hyperlane_wallet_balance{${labels.join(
         ', ',
-      )}}[1d]) - ${minBalance} or`;
+      )}}[1d]) - ${minBalance.toString()} or`;
     },
   );
 

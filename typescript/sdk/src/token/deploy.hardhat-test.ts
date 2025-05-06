@@ -27,20 +27,40 @@ import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { HypTokenRouterConfig, WarpRouteDeployConfig } from './types.js';
+import {
+  SyntheticTokenConfig,
+  WarpRouteDeployConfigMailboxRequired,
+} from './types.js';
 
 const chain = TestChainName.test1;
 
+function addOverridesToConfig(
+  config: WarpRouteDeployConfigMailboxRequired,
+  ownerOverrides: Record<string, string>,
+): WarpRouteDeployConfigMailboxRequired {
+  return Object.fromEntries(
+    Object.entries(config).map(([chain, config]) => {
+      return [
+        chain,
+        {
+          ...config,
+          ownerOverrides,
+        },
+      ];
+    }),
+  );
+}
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: WarpRouteDeployConfig;
+  let config: WarpRouteDeployConfigMailboxRequired;
   let token: Address;
   let xerc20: XERC20Test;
   let erc20: ERC20Test;
   let admin: ProxyAdmin;
+  const totalSupply = '100000';
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -52,21 +72,20 @@ describe('TokenDeployer', async () => {
     const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     const routerConfigMap = coreApp.getRouterConfig(signer.address);
-    config = objMap(
-      routerConfigMap,
-      (chain, c): HypTokenRouterConfig => ({
-        type: TokenType.synthetic,
-        name: chain,
-        symbol: `u${chain}`,
-        decimals: 18,
-        totalSupply: '100000',
-        ...c,
-      }),
-    );
+    const token: SyntheticTokenConfig = {
+      type: TokenType.synthetic,
+      name: chain,
+      symbol: `u${chain}`,
+      decimals: 18,
+    };
+    config = objMap(routerConfigMap, (chain, c) => ({
+      ...token,
+      ...c,
+    }));
   });
 
   beforeEach(async () => {
-    const { name, decimals, symbol, totalSupply } = config[chain];
+    const { name, decimals, symbol } = config[chain];
     const implementation = await new XERC20Test__factory(signer).deploy(
       name!,
       symbol!,
@@ -113,7 +132,7 @@ describe('TokenDeployer', async () => {
 
     describe('HypERC20Checker', async () => {
       let checker: HypERC20Checker;
-
+      let app: HypERC20App;
       beforeEach(async () => {
         config[chain] = {
           ...config[chain],
@@ -123,7 +142,7 @@ describe('TokenDeployer', async () => {
         };
 
         const contractsMap = await deployer.deploy(config);
-        const app = new HypERC20App(contractsMap, multiProvider);
+        app = new HypERC20App(contractsMap, multiProvider);
         checker = new HypERC20Checker(multiProvider, app, config);
       });
 
@@ -132,7 +151,7 @@ describe('TokenDeployer', async () => {
         checker.expectEmpty();
       });
 
-      it(`should check owner of collateral`, async () => {
+      it(`should not output "collateralToken" violation when ownerOverrides is unset`, async () => {
         if (type !== TokenType.XERC20) {
           return;
         }
@@ -140,11 +159,33 @@ describe('TokenDeployer', async () => {
         await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
         await checker.check();
         checker.expectViolations({
+          [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
+        });
+      });
+
+      it('should output "collateralToken" violation when ownerOverrides.collateralToken is set', async () => {
+        if (type !== TokenType.XERC20) {
+          return;
+        }
+        const previousOwner = await xerc20.owner();
+        const configWithOverrides = addOverridesToConfig(config, {
+          collateralToken: previousOwner,
+        });
+
+        const checkerWithOwnerOverrides = new HypERC20Checker(
+          multiProvider,
+          app,
+          configWithOverrides,
+        );
+
+        await xerc20.transferOwnership(ethers.Wallet.createRandom().address);
+        await checkerWithOwnerOverrides.check();
+        checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
         });
       });
 
-      it(`should check owner of collateral proxyAdmin`, async () => {
+      it(`should not output "collateralProxyAdmin" violation when ownerOverrides is unset`, async () => {
         if (type !== TokenType.XERC20) {
           return;
         }
@@ -152,6 +193,27 @@ describe('TokenDeployer', async () => {
         await admin.transferOwnership(ethers.Wallet.createRandom().address);
         await checker.check();
         checker.expectViolations({
+          [ViolationType.Owner]: 0, // No violation because ownerOverrides is not set
+        });
+      });
+
+      it('should output "collateralProxyAdmin" violation when ownerOverrides.collateralProxyAdmin is set', async () => {
+        if (type !== TokenType.XERC20) {
+          return;
+        }
+        const previousOwner = await admin.owner();
+        const configWithOverrides = addOverridesToConfig(config, {
+          collateralProxyAdmin: previousOwner,
+        });
+        const checkerWithOwnerOverrides = new HypERC20Checker(
+          multiProvider,
+          app,
+          configWithOverrides,
+        );
+
+        await admin.transferOwnership(ethers.Wallet.createRandom().address);
+        await checkerWithOwnerOverrides.check();
+        checkerWithOwnerOverrides.expectViolations({
           [ViolationType.Owner]: 1,
         });
       });

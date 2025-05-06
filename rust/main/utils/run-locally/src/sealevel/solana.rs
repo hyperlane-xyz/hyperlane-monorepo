@@ -420,8 +420,12 @@ pub fn initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = get_message_id_from_logs(output.clone())
-        .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
+    let message_id = get_message_id_from_logs(output.clone()).unwrap_or_else(|| {
+        panic!(
+            "failed to get message id from logs for transfer: {:?}",
+            output
+        )
+    });
 
     log!("found message id: {}", message_id);
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
@@ -459,8 +463,13 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
         .run_with_output()
         .join();
-    let non_matching_igp_message_id = get_message_id_from_logs(output.clone())
-        .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
+    let non_matching_igp_message_id =
+        get_message_id_from_logs(output.clone()).unwrap_or_else(|| {
+            panic!(
+                "failed to get message id from logs non-matching igp paying transfer: {:?}",
+                output
+            )
+        });
 
     log!(
         "paying gas to a different IGP account for message id: {}",

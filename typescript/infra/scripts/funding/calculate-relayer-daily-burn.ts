@@ -20,6 +20,8 @@ import {
   sortThresholds,
 } from '../../src/funding/balances.js';
 import {
+  LOCAL_PROM_URL,
+  PROMETHEUS_LOCAL_PORT,
   PrometheusInstantResult,
   fetchPrometheusInstantExpression,
   portForwardPrometheusServer,
@@ -38,7 +40,6 @@ const SCRAPER_READ_ONLY_DB_SECRET_NAME =
 
 const LOOK_BACK_DAYS = 10; // the number of days to look back for average destination tx costs
 const MIN_NUMBER_OF_TXS = 100; // the minimum number of txs to consider for daily burn
-const PROMETHEUS_LOCAL_PORT = 9090;
 const MIN_BURN_INCREASE_FACTOR = 0.05; // burn should be at least 5% higher than current to be updated
 const LOW_PROPOSED_BURN_FACTOR = 0.5; // proposed burn should be at least 50% lower than current to initiate user review
 
@@ -120,7 +121,7 @@ async function getDailyRelayerBurnScraperDB(
       avg_tx_cost_native * ${MIN_NUMBER_OF_TXS} AS min_tx,
       avg_tx_cost_native * avg_daily_messages AS avg_tx_cost,
       GREATEST(
-        avg_tx_cost_native * ${MIN_NUMBER_OF_TXS}, 
+        avg_tx_cost_native * ${MIN_NUMBER_OF_TXS},
         avg_tx_cost_native * avg_daily_messages
       ) as daily_burn
     FROM
@@ -145,8 +146,6 @@ async function getSealevelBurnProm(
   const portForwardProcess = await portForwardPrometheusServer(
     PROMETHEUS_LOCAL_PORT,
   );
-
-  const promUrl = `http://localhost:${PROMETHEUS_LOCAL_PORT}`;
 
   const burn: ChainMap<number> = {};
 
@@ -186,7 +185,10 @@ async function getSealevelBurnProm(
   let results: PrometheusInstantResult[];
 
   try {
-    results = await fetchPrometheusInstantExpression(promUrl, promQlQuery);
+    results = await fetchPrometheusInstantExpression(
+      LOCAL_PROM_URL,
+      promQlQuery,
+    );
   } finally {
     portForwardProcess.kill();
     rootLogger.info('Prometheus server port-forward process killed');
@@ -285,9 +287,8 @@ async function calculateDailyRelayerBurn(
 
   if (lowProposedDailyBurn.length > 0) {
     console.table(lowProposedDailyBurn);
-    const userAdjustments = await handleLowProposedDailyBurn(
-      lowProposedDailyBurn,
-    );
+    const userAdjustments =
+      await handleLowProposedDailyBurn(lowProposedDailyBurn);
     updatedBurnData = { ...updatedBurnData, ...userAdjustments };
   }
 

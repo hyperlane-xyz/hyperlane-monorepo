@@ -1849,7 +1849,7 @@
     "displayName": "Fraxtal",
     "domainId": 252,
     "gasCurrencyCoinGeckoId": "frax-ether",
-    "gnosisSafeTransactionServiceUrl": "https://transaction-frax.safe.optimism.io",
+    "gnosisSafeTransactionServiceUrl": "https://safe.mainnet.frax.com/txs",
     "name": "fraxtal",
     "nativeToken": {
       "decimals": 18,
@@ -2169,6 +2169,7 @@
     "displayName": "HyperEVM",
     "domainId": 999,
     "gasCurrencyCoinGeckoId": "hyperliquid",
+    "gnosisSafeTransactionServiceUrl": "https://prod.hyperliquid.keypersafe.xyz",
     "name": "hyperevm",
     "nativeToken": {
       "decimals": 18,
@@ -2514,6 +2515,7 @@
     "displayName": "Lisk",
     "domainId": 1135,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-lisk.safe.optimism.io",
     "name": "lisk",
     "nativeToken": {
       "decimals": 18,
@@ -3352,6 +3354,45 @@
       "gasPrice": "0.025"
     }
   },
+  "plume": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://phoenix-explorer.plumenetwork.xyz/api",
+        "family": "blockscout",
+        "name": "Plume Explorer",
+        "url": "https://phoenix-explorer.plumenetwork.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 98866,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Plume",
+    "domainId": 98866,
+    "gasCurrencyCoinGeckoId": "plume",
+    "index": {
+      "from": 9588
+    },
+    "name": "plume",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Plume",
+      "symbol": "PLUME"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://phoenix-rpc.plumenetwork.xyz"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
+  },
   "polygon": {
     "blockExplorers": [
       {
@@ -4052,6 +4093,7 @@
     "displayName": "Soneium",
     "domainId": 1868,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://trx-soneium-stg.safe.protofire.io",
     "name": "soneium",
     "nativeToken": {
       "decimals": 18,
@@ -4342,9 +4384,6 @@
     "protocol": "ethereum",
     "rpcUrls": [
       {
-        "http": "https://archive.chain.opentensor.ai"
-      },
-      {
         "http": "https://bittensor-finney.api.onfinality.io/public"
       }
     ],
@@ -4372,6 +4411,7 @@
     "displayName": "Superseed",
     "domainId": 5330,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://trx-superseed.safe.protofire.io",
     "name": "superseed",
     "nativeToken": {
       "decimals": 18,
@@ -4712,6 +4752,7 @@
     "displayName": "Unichain",
     "domainId": 130,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-unichain.safe.global",
     "name": "unichain",
     "nativeToken": {
       "decimals": 18,
@@ -4859,6 +4900,7 @@
     "displayName": "World Chain",
     "domainId": 480,
     "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-worldchain.safe.global",
     "name": "worldchain",
     "nativeToken": {
       "decimals": 18,

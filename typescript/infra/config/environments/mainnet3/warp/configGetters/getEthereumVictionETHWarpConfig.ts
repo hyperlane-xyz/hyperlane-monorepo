@@ -20,7 +20,6 @@ export const getEthereumVictionETHWarpConfig = async (
     name: 'ETH',
     symbol: 'ETH',
     decimals: 18,
-    totalSupply: 0,
     gas: 50_000,
     interchainSecurityModule: ethers.constants.AddressZero,
   };

@@ -41,6 +41,8 @@ export const infrastructure: InfrastructureConfig = {
       'hyperlane-testnet4-',
       'rc-testnet4-',
       'testnet4-',
+      // All vanguard secrets
+      'vanguard',
     ],
   },
 };

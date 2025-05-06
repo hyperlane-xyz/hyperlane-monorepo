@@ -17,14 +17,14 @@ import {
   getArgs,
   withChains,
   withDryRun,
-  withWarpRouteIdRequired,
+  withKnownWarpRouteIdRequired,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId, chains, dryRun } = await withChains(
-    withWarpRouteIdRequired(withDryRun(getArgs())),
+    withKnownWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
 
   const { warpDeployConfig, warpCoreConfig } =

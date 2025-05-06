@@ -14,6 +14,8 @@ import { execCmd } from '../../utils/utils.js';
 
 const PROMETHEUS_SERVER_SERVICE_NAME = 'prometheus-server';
 const PROMETHEUS_SERVER_NAMESPACE = 'monitoring';
+export const PROMETHEUS_LOCAL_PORT = 9090;
+export const LOCAL_PROM_URL = `http://localhost:${PROMETHEUS_LOCAL_PORT}`;
 
 interface PrometheusSecrets {
   remote_write_uri: string;

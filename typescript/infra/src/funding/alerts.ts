@@ -34,7 +34,7 @@ function getBalanceAlertRegex(walletName: WalletName): RegExp {
     case WalletName.KeyFunder:
       return /wallet_name="key-funder", chain="([^"]+)"[^-]+ - ([0-9.]+)/g;
     case WalletName.Relayer:
-      return /wallet_name="relayer", chain="([^"]+)"[^-]+ - ([0-9.]+)/g;
+      return /wallet_name="relayer", chain="([^"]+)", hyperlane_context="hyperlane"[^-]+ - ([0-9.]+)/g;
     default:
       throw new Error(`Unknown wallet name: ${walletName}`);
   }

@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use ethers::middleware::gas_escalator::{Frequency, GasEscalatorMiddleware, GeometricGasPrice};
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
@@ -26,11 +27,13 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 use hyperlane_metric::prometheus_metric::{
-    NodeInfo, PrometheusClientMetrics, PrometheusClientMetricsBuilder, PrometheusConfig,
+    ClientConnectionType, NodeInfo, PrometheusClientMetrics, PrometheusClientMetricsBuilder,
+    PrometheusConfig,
 };
 use tracing::instrument;
 
 use crate::signer::Signers;
+use crate::tx::PENDING_TX_TIMEOUT_SECS;
 use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
 
 // This should be whatever the prometheus scrape interval is
@@ -156,6 +159,7 @@ pub trait BuildableWithProvider {
                 .clone()
                 .unwrap_or_else(|| PrometheusClientMetricsBuilder::default().build().unwrap()),
             PrometheusConfig {
+                connection_type: ClientConnectionType::Rpc,
                 node: Some(NodeInfo {
                     host: url_to_host_info(&url),
                 }),
@@ -280,11 +284,14 @@ fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M>
 where
     M: Middleware + 'static,
 {
-    // Increase the gas price by 12.5% every 90 seconds
-    // (These are the default values from ethers doc comments)
+    // Increase the gas price by 25% every 90 seconds
     const COEFFICIENT: f64 = 1.125;
-    const EVERY_SECS: u64 = 90u64;
-    // a 3k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
+
+    // escalating creates a new tx hash, and the submitter tracks each tx hash for at most
+    // `PENDING_TX_TIMEOUT_SECS`. So the escalator will send a new tx when the initial
+    // tx hash stops being tracked.
+    const EVERY_SECS: u64 = PENDING_TX_TIMEOUT_SECS;
+    // a 50k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
     const MAX_GAS_PRICE: u128 = 3_000 * 10u128.pow(9);
     let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
@@ -293,7 +300,27 @@ where
     GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
 }
 
+/// Builds a new HTTP provider with the given URL.
 fn build_http_provider(url: Url) -> ChainResult<Http> {
+    let client = get_reqwest_client(&url)?;
+    Ok(Http::new_with_client(url, client))
+}
+
+/// Gets a cached reqwest client for the given URL, or builds a new one if it doesn't exist.
+fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
+    let client_cache = get_reqwest_client_cache();
+    if let Some(client) = client_cache.get(url) {
+        return Ok(client.clone());
+    }
+    let client = build_new_reqwest_client(url.clone())?;
+    client_cache.insert(url.clone(), client.clone());
+    Ok(client)
+}
+
+/// Builds a new reqwest client with the given URL.
+/// Generally `get_reqwest_client` should be used instead of this function,
+/// as it caches the client for reuse.
+fn build_new_reqwest_client(url: Url) -> ChainResult<Client> {
     let mut queries_to_keep = vec![];
     let mut headers = reqwest::header::HeaderMap::new();
 
@@ -323,11 +350,20 @@ fn build_http_provider(url: Url) -> ChainResult<Http> {
         .clear()
         .extend_pairs(queries_to_keep);
 
-    let http_client = Client::builder()
+    let client = Client::builder()
         .timeout(HTTP_CLIENT_TIMEOUT)
         .default_headers(headers)
         .build()
         .map_err(EthereumProviderConnectionError::from)?;
 
-    Ok(Http::new_with_client(url, http_client))
+    Ok(client)
+}
+
+/// A cache for reqwest clients, indexed by URL.
+/// Generally creating a new Reqwest client is expensive due to some DNS
+/// resolutions, so we cache them for reuse.
+static REQWEST_CLIENT_CACHE: OnceLock<DashMap<Url, Client>> = OnceLock::new();
+
+fn get_reqwest_client_cache() -> &'static DashMap<Url, Client> {
+    REQWEST_CLIENT_CACHE.get_or_init(DashMap::new)
 }

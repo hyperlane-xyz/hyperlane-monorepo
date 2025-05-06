@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "8.9.0",
+  "version": "12.5.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.95.4",
@@ -25,7 +25,7 @@
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-import": "^2.31.0",
     "mocha": "^10.2.0",
-    "prettier": "^2.8.8",
+    "prettier": "^3.5.3",
     "sinon": "^13.0.2",
     "typescript": "5.3.3"
   },
@@ -40,7 +40,7 @@
   "prepublish": "yarn build",
   "scripts": {
     "dev": "tsc -w",
-    "build": "tsc",
+    "build": "tsc --excludeFiles \"**/*.test.ts\"",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
     "lint": "eslint -c ./eslint.config.mjs",
@@ -49,7 +49,10 @@
     "test:ci": "yarn test"
   },
   "type": "module",
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./eslint-rules": "./dist/eslint-rules/index.js"
+  },
   "types": "./dist/index.d.ts",
   "files": [
     "/dist"

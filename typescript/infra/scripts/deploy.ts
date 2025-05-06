@@ -22,7 +22,7 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMap } from '@hyperlane-xyz/utils';
+import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
@@ -37,7 +37,7 @@ import {
 } from '../src/deployment/verify.js';
 import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
-import { inCIMode, writeYamlAtPath } from '../src/utils/utils.js';
+import { writeYamlAtPath } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -49,8 +49,8 @@ import {
   withConcurrentDeploy,
   withContext,
   withFork,
+  withKnownWarpRouteId,
   withModule,
-  withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -67,7 +67,9 @@ async function main() {
   } = await withContext(
     withConcurrentDeploy(
       withChains(
-        withModule(withFork(withWarpRouteId(withBuildArtifactPath(getArgs())))),
+        withModule(
+          withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
+        ),
       ),
     ),
   ).argv;

@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../../config/registry.js';
 import { InfraS3Validator } from '../../src/agents/aws/validator.js';
@@ -73,7 +73,8 @@ async function main() {
       Object.entries(agentConfig.validators.chains)
         .filter(([validatorChain, _]) => {
           // Ensure we skip lumia, as we don't have the addresses in registry.
-          if (validatorChain === 'lumia') {
+          // temporarily skip ontology as we do not have funds, will undo when we deploy
+          if (validatorChain === 'lumia' || validatorChain === 'ontology') {
             return false;
           }
 
@@ -132,12 +133,15 @@ async function main() {
       console.log(
         `[${chain}] Announcing ${address} checkpoints at ${location}`,
       );
-      await validatorAnnounce.announce(
+      const estimatedGas = await validatorAnnounce.estimateGas.announce(
         address,
         location,
         signature,
-        multiProvider.getTransactionOverrides(chain),
       );
+      await validatorAnnounce.announce(address, location, signature, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...multiProvider.getTransactionOverrides(chain),
+      });
     } else {
       console.log(
         `[${chain}] Already announced ${address} checkpoints at ${location}`,

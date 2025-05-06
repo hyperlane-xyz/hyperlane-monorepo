@@ -18,28 +18,32 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use tokio::sync::Mutex;
+use tokio::try_join;
+use tracing::{debug, error, info, instrument, warn};
+
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256,
-    U256,
+    ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256, U256,
 };
-use tracing::{debug, error, info, warn};
 
-use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
+use crate::{EthereumMailboxCache, EthereumReorgPeriod, Middleware, TransactionOverrides};
 
-/// An amount of gas to add to the estimated gas
-pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
+/// An amount of gas to add to the estimated gas limit
+pub const GAS_LIMIT_BUFFER: u32 = 75_000;
 
-// A multiplier to apply to the estimated gas, i.e. 10%.
-pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
-pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
+// A multiplier to apply to the estimated gas limit, i.e. 10%.
+pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
     // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
     // by the time the transaction lands on chain, requiring a higher gas limit.
     // In this case, we apply a multiplier to the gas estimate.
     let gas = if domain.is_arbitrum_nitro() {
-        gas.saturating_mul(GAS_ESTIMATE_MULTIPLIER_NUMERATOR.into())
-            .checked_div(GAS_ESTIMATE_MULTIPLIER_DENOMINATOR.into())
+        gas.saturating_mul(DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR.into())
+            .checked_div(DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR.into())
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
             })?
@@ -48,7 +52,7 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
     };
 
     // Always add a flat buffer
-    Ok(gas.saturating_add(GAS_ESTIMATE_BUFFER.into()))
+    Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
@@ -60,19 +64,13 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let data = tx
-        .tx
-        .data()
-        .map(|b| bytes_to_hex(b))
-        .unwrap_or_else(|| "None".into());
-
     let to = tx
         .tx
         .to()
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, %data, tx=?tx.tx, "Dispatching transaction");
+    info!(?to, from=?tx.tx.from(), gas_limit=?tx.tx.gas(), gas_price=?tx.tx.gas_price(), nonce=?tx.tx.nonce(), "Dispatching transaction");
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut
         .await?
@@ -80,6 +78,7 @@ where
     track_pending_tx(dispatched).await
 }
 
+#[instrument(skip(pending_tx))]
 pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
     pending_tx: PendingTransaction<'_, P>,
 ) -> ChainResult<TransactionReceipt> {
@@ -87,7 +86,7 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
 
     info!(?tx_hash, "Dispatched tx");
 
-    match tokio::time::timeout(Duration::from_secs(150), pending_tx).await {
+    match tokio::time::timeout(Duration::from_secs(PENDING_TX_TIMEOUT_SECS), pending_tx).await {
         // all good
         Ok(Ok(Some(receipt))) => {
             info!(?tx_hash, "confirmed transaction");
@@ -115,6 +114,8 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
+    with_gas_limit_overrides: bool,
+    cache: Arc<Mutex<EthereumMailboxCache>>,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
@@ -126,19 +127,27 @@ where
         None => tx.estimate_gas().await?.into(),
     };
 
-    estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
-    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        estimated_gas_limit.max(gas_limit)
-    } else {
-        estimated_gas_limit
+    if with_gas_limit_overrides {
+        estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
+        if let Some(gas_limit) = transaction_overrides.gas_limit {
+            estimated_gas_limit = estimated_gas_limit.max(gas_limit)
+        }
+    }
+    let gas_limit = estimated_gas_limit;
+    let (cached_latest_block, cached_eip1559_fee) = {
+        let cache = cache.lock().await;
+        (cache.latest_block.clone(), cache.eip1559_fee)
     };
 
     // Cap the gas limit to the block gas limit
-    let latest_block = provider
-        .get_block(BlockNumber::Latest)
-        .await
-        .map_err(ChainCommunicationError::from_other)?
-        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    let latest_block = match cached_latest_block {
+        Some(block) => block,
+        None => provider
+            .get_block(BlockNumber::Latest)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?,
+    };
     let block_gas_limit: U256 = latest_block.gas_limit.into();
     let gas_limit = if gas_limit > block_gas_limit {
         warn!(
@@ -157,11 +166,17 @@ where
         return Ok(tx.gas_price(gas_price).gas(gas_limit));
     }
 
-    let Ok((base_fee, max_fee, max_priority_fee)) =
-        estimate_eip1559_fees(provider, None, &latest_block, domain, &tx.tx).await
-    else {
-        // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit));
+    let eip1559_fee_result = match cached_eip1559_fee {
+        Some(fee) => Ok((fee, latest_block)),
+        None => estimate_eip1559_fees(provider.clone(), None, domain, &tx.tx).await,
+    };
+    let ((base_fee, max_fee, max_priority_fee), _) = match eip1559_fee_result {
+        Ok(result) => result,
+        Err(err) => {
+            warn!(?err, "Failed to estimate EIP-1559 fees");
+            // Assume it's not an EIP 1559 chain
+            return Ok(apply_legacy_overrides(tx, transaction_overrides).gas(gas_limit));
+        }
     };
 
     // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
@@ -170,18 +185,12 @@ where
     // fee lower than 3 gwei because of privileged transactions being included by block
     // producers that have a lower priority fee.
     if base_fee.is_zero() {
-        return Ok(tx.gas(gas_limit));
+        return Ok(apply_legacy_overrides(tx, transaction_overrides).gas(gas_limit));
     }
 
     // Apply overrides for EIP 1559 tx params if they exist.
-    let max_fee = transaction_overrides
-        .max_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_fee);
-    let max_priority_fee = transaction_overrides
-        .max_priority_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_priority_fee);
+    let (max_fee, max_priority_fee) =
+        apply_1559_overrides(max_fee, max_priority_fee, transaction_overrides);
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
@@ -204,34 +213,117 @@ where
     Ok(eip_1559_tx.gas(gas_limit))
 }
 
+fn apply_legacy_overrides<M, D>(
+    tx: ContractCall<M, D>,
+    transaction_overrides: &TransactionOverrides,
+) -> ContractCall<M, D>
+where
+    M: Middleware + 'static,
+    D: Detokenize,
+{
+    let gas_price = tx.tx.gas_price();
+    // if no gas price was set in the tx, leave the tx as is and return early
+    let Some(mut gas_price) = gas_price else {
+        return tx;
+    };
+
+    let min_price_override = transaction_overrides
+        .min_gas_price
+        .map(Into::into)
+        .unwrap_or(0.into());
+    gas_price = gas_price.max(min_price_override);
+    gas_price = apply_gas_price_cap(gas_price, transaction_overrides);
+    tx.gas_price(gas_price)
+}
+
+fn apply_1559_overrides(
+    max_fee: EthersU256,
+    max_priority_fee: EthersU256,
+    transaction_overrides: &TransactionOverrides,
+) -> (EthersU256, EthersU256) {
+    let mut max_fee = transaction_overrides
+        .max_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_fee);
+    if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
+        max_fee = max_fee.max(min_fee.into());
+    }
+
+    let mut max_priority_fee = transaction_overrides
+        .max_priority_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_priority_fee);
+
+    if let Some(min_priority_fee) = transaction_overrides.min_priority_fee_per_gas {
+        max_priority_fee = max_priority_fee.max(min_priority_fee.into());
+    }
+    max_fee = apply_gas_price_cap(max_fee, transaction_overrides);
+    (max_fee, max_priority_fee)
+}
+
+fn apply_gas_price_cap(
+    gas_price: EthersU256,
+    transaction_overrides: &TransactionOverrides,
+) -> EthersU256 {
+    if let Some(gas_price_cap) = transaction_overrides.gas_price_cap {
+        if gas_price > gas_price_cap.into() {
+            warn!(
+                ?gas_price,
+                ?gas_price_cap,
+                "Gas price for transaction is higher than the gas price cap. Capping it to the gas price cap."
+            );
+            return gas_price_cap.into();
+        }
+    }
+    gas_price
+}
+
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
+pub type Eip1559Fee = (
+    EthersU256, // base fee
+    EthersU256, // max fee
+    EthersU256, // max priority fee
+);
+
+async fn latest_block<M>(provider: Arc<M>) -> ChainResult<Block<TxHash>>
+where
+    M: Middleware + 'static,
+{
+    let latest_block = provider
+        .get_block(BlockNumber::Latest)
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    Ok(latest_block)
+}
+
 /// Use this to estimate EIP 1559 fees with some chain-specific logic.
-async fn estimate_eip1559_fees<M>(
+pub(crate) async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
-    latest_block: &Block<TxHash>,
     domain: &HyperlaneDomain,
     tx: &TypedTransaction,
-) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+) -> ChainResult<(Eip1559Fee, Block<TxHash>)>
 where
     M: Middleware + 'static,
 {
     if domain.is_zksync_stack() {
-        estimate_eip1559_fees_zksync(provider, latest_block, tx).await
+        estimate_eip1559_fees_zksync(provider, tx).await
     } else {
-        estimate_eip1559_fees_default(provider, estimator, latest_block).await
+        estimate_eip1559_fees_default(provider, estimator).await
     }
 }
 
 async fn estimate_eip1559_fees_zksync<M>(
     provider: Arc<M>,
-    latest_block: &Block<TxHash>,
     tx: &TypedTransaction,
-) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+) -> ChainResult<(Eip1559Fee, Block<TxHash>)>
 where
     M: Middleware + 'static,
 {
+    let latest_block = latest_block(provider.clone()).await?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
@@ -240,7 +332,10 @@ where
     let max_fee_per_gas = response.max_fee_per_gas;
     let max_priority_fee_per_gas = response.max_priority_fee_per_gas;
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    Ok((
+        (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
+        latest_block,
+    ))
 }
 
 async fn zksync_estimate_fee<M>(
@@ -287,23 +382,28 @@ struct ZksyncEstimateFeeResponse {
 async fn estimate_eip1559_fees_default<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
-    latest_block: &Block<TxHash>,
-) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+) -> ChainResult<((EthersU256, EthersU256, EthersU256), Block<TxHash>)>
 where
     M: Middleware + 'static,
 {
+    let latest_block = latest_block(provider.clone());
+
+    let fee_history = async {
+        provider
+            .fee_history(
+                EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                BlockNumber::Latest,
+                &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    };
+
+    let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
-
-    let fee_history = provider
-        .fee_history(
-            EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-            BlockNumber::Latest,
-            &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
-        )
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
 
     // use the provided fee estimator function, or fallback to the default implementation.
     let (max_fee_per_gas, max_priority_fee_per_gas) = if let Some(es) = estimator {
@@ -312,7 +412,10 @@ where
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    Ok((
+        (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
+        latest_block,
+    ))
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(

@@ -1,7 +1,7 @@
 import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes } from 'react';
 
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
@@ -10,13 +10,18 @@ import { WalletIcon } from '../icons/Wallet.js';
 import { useIsSsr } from '../utils/ssr.js';
 
 import { WalletLogo } from './WalletLogo.js';
-import { useAccounts, useWalletDetails } from './multiProtocol.js';
+import {
+  getAddressFromAccountAndChain,
+  useAccounts,
+  useWalletDetails,
+} from './multiProtocol.js';
 
 type Props = {
   multiProvider: MultiProtocolProvider;
   onClickWhenConnected: () => void;
   onClickWhenUnconnected: () => void;
   countClassName?: string;
+  chainName?: ChainName;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function ConnectWalletButton({
@@ -25,6 +30,7 @@ export function ConnectWalletButton({
   onClickWhenUnconnected,
   className,
   countClassName,
+  chainName,
   ...rest
 }: Props) {
   const isSsr = useIsSsr();
@@ -34,6 +40,12 @@ export function ConnectWalletButton({
 
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];
+
+  const shownAddress = shortenAddress(
+    getAddressFromAccountAndChain(firstAccount, chainName),
+    true,
+  );
+
   const firstWallet =
     walletDetails[firstAccount?.protocol || ProtocolType.Ethereum];
 
@@ -71,14 +83,7 @@ export function ConnectWalletButton({
                 <div className="htw-text-xs htw-text-gray-500">
                   {firstWallet.name || 'Wallet'}
                 </div>
-                <div className="htw-text-xs">
-                  {readyAccounts[0].addresses.length
-                    ? shortenAddress(
-                        readyAccounts[0].addresses[0].address,
-                        true,
-                      )
-                    : 'Unknown'}
-                </div>
+                <div className="htw-text-xs">{shownAddress}</div>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>

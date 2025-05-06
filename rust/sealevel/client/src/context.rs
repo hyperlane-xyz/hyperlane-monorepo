@@ -174,6 +174,11 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             "\t==== Transaction in base58: ====\n\t{}",
             bs58::encode(bincode::serialize(&txn).unwrap()).into_string()
         );
+
+        println!(
+            "\t==== Message in base58: ====\n\t{}",
+            bs58::encode(bincode::serialize(&message).unwrap()).into_string()
+        );
     }
 
     pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {

@@ -1,4 +1,11 @@
 #!/usr/bin/env sh
+
+if [ ! -f "$(dirname -- "$0")/_/husky.sh" ]; then
+    echo "$(dirname -- "$0")/_/husky.sh" is missing >&2
+    echo 'did you make sure to run `yarn install`?' >&2
+    exit 1
+fi
+
 . "$(dirname -- "$0")/_/husky.sh"
 
 # If not in GitHub Actions, check for potential secrets in staged files

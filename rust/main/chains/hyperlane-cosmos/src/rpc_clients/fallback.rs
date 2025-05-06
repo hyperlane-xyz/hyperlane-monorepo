@@ -36,7 +36,7 @@ mod tests {
     use async_trait::async_trait;
     use hyperlane_core::rpc_clients::test::ProviderMock;
     use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProviderBuilder};
-    use hyperlane_core::ChainCommunicationError;
+    use hyperlane_core::ChainResult;
     use tokio::time::sleep;
 
     use super::*;
@@ -60,7 +60,7 @@ mod tests {
 
     #[async_trait]
     impl BlockNumberGetter for CosmosProviderMock {
-        async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+        async fn get_block_number(&self) -> ChainResult<u64> {
             Ok(0)
         }
     }
@@ -72,7 +72,7 @@ mod tests {
     }
 
     impl CosmosFallbackProvider<CosmosProviderMock> {
-        async fn low_level_test_call(&mut self) -> Result<(), ChainCommunicationError> {
+        async fn low_level_test_call(&mut self) -> ChainResult {
             self.call(|provider| {
                 provider.push("GET", "http://localhost:1234");
                 let future = async move {

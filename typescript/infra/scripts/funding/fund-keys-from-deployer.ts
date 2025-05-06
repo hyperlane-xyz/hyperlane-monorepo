@@ -24,7 +24,6 @@ import {
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys.js';
-import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {
   ContextAndRoles,
@@ -81,8 +80,8 @@ const walletBalanceGauge = getWalletBalanceGauge(
   Object.keys(constMetricLabels),
 );
 
-// Min delta is 50% of the desired balance
-const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
+// Min delta is 60% of the desired balance
+const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 // Don't send the full amount over to RC keys
@@ -91,6 +90,10 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
+
+// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
+const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
+const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -153,7 +156,11 @@ async function main() {
 
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
-    .default('skip-igp-claim', false).argv;
+    .default('skip-igp-claim', false)
+
+    .array('chain-skip-override')
+    .describe('chain-skip-override', 'Array of chains to skip funding for')
+    .default('chain-skip-override', []).argv;
 
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
@@ -171,6 +178,7 @@ async function main() {
         multiProvider,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
@@ -187,6 +195,7 @@ async function main() {
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
+          argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
@@ -239,6 +248,7 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
+    public readonly chainSkipOverride: ChainName[],
     public readonly desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -253,6 +263,18 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
+        // Skip funding for vanguard contexts on non-vanguard chains
+        if (
+          VANGUARD_CONTEXTS.includes(this.context) &&
+          !VANGUARD_CHAINS.includes(chain)
+        ) {
+          logger.warn(
+            { chain, context: this.context },
+            'Skipping funding for vanguard context on non-vanguard chain',
+          );
+          return false;
+        }
+
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -291,6 +313,7 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -318,10 +341,13 @@ class ContextFunder {
 
     // Indexed by the identifier for quicker lookup
     const idsAndAddresses: Record<string, KeyAsAddress> =
-      allIdsAndAddresses.reduce((agg, idAndAddress) => {
-        agg[idAndAddress.identifier] = idAndAddress;
-        return agg;
-      }, {} as Record<string, KeyAsAddress>);
+      allIdsAndAddresses.reduce(
+        (agg, idAndAddress) => {
+          agg[idAndAddress.identifier] = idAndAddress;
+          return agg;
+        },
+        {} as Record<string, KeyAsAddress>,
+      );
 
     const agentConfig = getAgentConfig(context, environment);
     // Unfetched keys per chain and role, so we know which keys
@@ -366,6 +392,7 @@ class ContextFunder {
       context,
       contextsAndRolesToFund[context]!,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
       igpClaimThresholdPerChain,
@@ -379,6 +406,7 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
@@ -396,9 +424,6 @@ class ContextFunder {
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
-    const chainsToFund = supportedChainNames.filter(
-      (chain) => !chainsToSkip.includes(chain),
-    );
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -409,7 +434,7 @@ class ContextFunder {
       }
       fundableRoleKeys[role] = roleAddress;
 
-      for (const chain of chainsToFund) {
+      for (const chain of supportedChainNames) {
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
@@ -434,6 +459,7 @@ class ContextFunder {
       context,
       rolesToFund,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
       igpClaimThresholdPerChain,
@@ -454,6 +480,14 @@ class ContextFunder {
   }
 
   private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
+    if (this.chainSkipOverride.includes(chain)) {
+      logger.warn(
+        { chain },
+        `Configured to skip funding operations for chain ${chain}, skipping`,
+      );
+      return;
+    }
+
     const { promise, cleanup } = createTimeoutPromise(
       CHAIN_FUNDING_TIMEOUT_MS,
       `Timed out funding chain ${chain} after ${
@@ -837,9 +871,8 @@ class ContextFunder {
       L1MessageQueue.abi,
       l1ChainSigner,
     );
-    const gasQuote = await l1MessageQueue.estimateCrossDomainMessageFee(
-      l2GasLimit,
-    );
+    const gasQuote =
+      await l1MessageQueue.estimateCrossDomainMessageFee(l2GasLimit);
     const totalAmount = amount.add(gasQuote);
     return l1EthGateway['depositETH(address,uint256,uint256)'](
       to,

@@ -34,16 +34,15 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
+  CCIPReadIsmConfig,
+  DerivedIsmConfig,
   DomainRoutingIsmConfig,
-  IsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
-
-export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
@@ -120,7 +119,11 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           derivedIsmConfig = await this.deriveNullConfig(address);
           break;
         case ModuleType.CCIP_READ:
-          throw new Error('CCIP_READ does not have a corresponding IsmType');
+          // CCIP-Read ISM: metadata fetched off-chain
+          return {
+            address,
+            type: IsmType.CCIP_READ,
+          } as WithAddress<CCIPReadIsmConfig>;
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
         default:

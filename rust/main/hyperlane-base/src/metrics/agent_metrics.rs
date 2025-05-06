@@ -15,7 +15,7 @@ use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use tracing::info_span;
-use tracing::{debug, instrument::Instrumented, trace, warn, Instrument};
+use tracing::{debug, trace, warn, Instrument};
 
 use crate::settings::ChainConf;
 use crate::CoreMetrics;
@@ -206,7 +206,16 @@ impl ChainSpecificMetricsUpdater {
     }
 
     async fn update_block_details(&self) {
-        if let HyperlaneDomain::Unknown { .. } = self.conf.domain {
+        if let HyperlaneDomain::Unknown {
+            domain_id,
+            domain_name,
+            ..
+        } = &self.conf.domain
+        {
+            debug!(
+                domain_id,
+                domain_name, "Unknown domain, skipping chain metrics"
+            );
             return;
         };
         let chain = self.conf.domain.name();
@@ -218,7 +227,7 @@ impl ChainSpecificMetricsUpdater {
                 return;
             }
             _ => {
-                trace!(chain, "No chain metrics available");
+                debug!(chain, "No chain metrics available");
                 return;
             }
         };
@@ -226,6 +235,7 @@ impl ChainSpecificMetricsUpdater {
         let height = chain_metrics.latest_block.number as i64;
         trace!(chain, height, "Fetched block height for metrics");
         self.chain_metrics.set_block_height(chain, height);
+
         if self.chain_metrics.gas_price.is_some() {
             let protocol = self.conf.domain.domain_protocol();
             let decimals_scale = 10f64.powf(decimals_by_protocol(protocol).into());
@@ -252,15 +262,17 @@ impl ChainSpecificMetricsUpdater {
     }
 
     /// Spawns a tokio task to update the metrics
-    pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
+    pub fn spawn(self) -> JoinHandle<()> {
         let name = format!("metrics::agent::{}", self.conf.domain.name());
         tokio::task::Builder::new()
             .name(&name)
-            .spawn(async move {
-                self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
-                    .await;
-            })
+            .spawn(
+                async move {
+                    self.start_updating_on_interval(METRICS_SCRAPE_INTERVAL)
+                        .await;
+                }
+                .instrument(info_span!("MetricsUpdater")),
+            )
             .expect("spawning tokio task from Builder is infallible")
-            .instrument(info_span!("MetricsUpdater"))
     }
 }
