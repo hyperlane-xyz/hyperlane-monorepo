@@ -683,10 +683,14 @@ where
 
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        todo!()
+        let contract_call = self
+            .process_contract_call(message, metadata, None, false)
+            .await?;
+        let data = (contract_call.tx, contract_call.function);
+        serde_json::to_vec(&data).map_err(Into::into)
     }
 }
 
