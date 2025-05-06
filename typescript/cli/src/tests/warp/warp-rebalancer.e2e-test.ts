@@ -604,6 +604,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       warpRouteId,
       CHECK_FREQUENCY,
       REBALANCER_CONFIG_PATH,
+      false,
     );
 
     // Await for the event that is emitted when the rebalance is triggered
