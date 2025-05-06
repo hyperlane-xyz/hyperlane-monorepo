@@ -95,19 +95,16 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
       '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM',
     );
 
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: messageIdIsm.id,
-    });
+    let decodedIsm =
+      await signer.query.interchainSecurity.DecodedIsm<MessageIdMultisigISM>({
+        id: messageIdIsm.id,
+      });
 
     expect(decodedIsm.ism.id).to.equal(messageIdIsm.id);
     expect(decodedIsm.ism.owner).to.equal(signer.account.address);
 
-    expect((decodedIsm.ism as MessageIdMultisigISM).threshold).to.equal(
-      threshold,
-    );
-    expect((decodedIsm.ism as MessageIdMultisigISM).validators).deep.equal(
-      validators,
-    );
+    expect(decodedIsm.ism.threshold).to.equal(threshold);
+    expect(decodedIsm.ism.validators).deep.equal(validators);
   });
 
   step('create new MerkleRootMultisig ISM', async () => {
@@ -150,19 +147,16 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
       '/hyperlane.core.interchain_security.v1.MerkleRootMultisigISM',
     );
 
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: merkleRootIsm.id,
-    });
+    let decodedIsm =
+      await signer.query.interchainSecurity.DecodedIsm<MerkleRootMultisigISM>({
+        id: merkleRootIsm.id,
+      });
 
     expect(decodedIsm.ism.id).to.equal(merkleRootIsm.id);
     expect(decodedIsm.ism.owner).to.equal(signer.account.address);
 
-    expect((decodedIsm.ism as MerkleRootMultisigISM).threshold).to.equal(
-      threshold,
-    );
-    expect((decodedIsm.ism as MerkleRootMultisigISM).validators).deep.equal(
-      validators,
-    );
+    expect(decodedIsm.ism.threshold).to.equal(threshold);
+    expect(decodedIsm.ism.validators).deep.equal(validators);
   });
 
   step('create new Routing ISM', async () => {
