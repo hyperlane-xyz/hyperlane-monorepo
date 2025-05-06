@@ -27,6 +27,7 @@ mockall::mock! {
         async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+        async fn get_tx_hash_status(&self, hash: hyperlane_core::H512) -> Result<TransactionStatus, SubmitterError>;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;
         async fn nonce_gap_exists(&self) -> bool;
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError>;

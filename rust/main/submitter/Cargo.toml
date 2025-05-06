@@ -10,6 +10,7 @@ version.workspace = true
 [dependencies]
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
+hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 
 async-trait.workspace = true

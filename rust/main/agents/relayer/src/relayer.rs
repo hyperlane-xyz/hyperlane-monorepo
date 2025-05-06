@@ -908,16 +908,32 @@ impl Relayer {
         dispatcher_metrics: DispatcherMetrics,
         db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcherEntrypoint> {
-        settings.destination_chains.iter()
+        let entrypoint_futures: Vec<_> = settings
+            .destination_chains
+            .iter()
             .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
-            .map(|chain| (chain.clone(), PayloadDispatcherSettings {
-                chain_conf: settings.chains[&chain.to_string()].clone(),
-                raw_chain_conf: Default::default(),
-                domain: chain.clone(),
-                db: DatabaseOrPath::Database(db.clone()),
-                metrics: core_metrics.clone(),
-            }))
-            .map(|(chain, s)| (chain, PayloadDispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone())))
+            .map(|chain| {
+                (
+                    chain.clone(),
+                    PayloadDispatcherSettings {
+                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        raw_chain_conf: Default::default(),
+                        domain: chain.clone(),
+                        db: DatabaseOrPath::Database(db.clone()),
+                        metrics: core_metrics.clone(),
+                    },
+                )
+            })
+            .map(|(chain, s)| async {
+                (
+                    chain,
+                    PayloadDispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone())
+                        .await,
+                )
+            })
+            .collect();
+        let results = futures::future::join_all(entrypoint_futures).await;
+        results.into_iter()
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
@@ -940,7 +956,7 @@ impl Relayer {
         dispatcher_metrics: DispatcherMetrics,
         db: DB,
     ) -> HashMap<HyperlaneDomain, PayloadDispatcher> {
-        settings
+        let dispatcher_futures: Vec<_> = settings
             .destination_chains
             .iter()
             .filter(|chain| SubmitterType::Lander == settings.chains[&chain.to_string()].submitter)
@@ -956,13 +972,18 @@ impl Relayer {
                     },
                 )
             })
-            .map(|(chain, s)| {
+            .map(|(chain, s)| async {
                 let chain_name = chain.to_string();
                 (
                     chain,
-                    PayloadDispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()),
+                    PayloadDispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone())
+                        .await,
                 )
             })
+            .collect();
+        let results = futures::future::join_all(dispatcher_futures).await;
+        results
+            .into_iter()
             .filter_map(|(chain, result)| match result {
                 Ok(entrypoint) => Some((chain, entrypoint)),
                 Err(err) => {
