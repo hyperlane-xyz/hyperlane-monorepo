@@ -6,6 +6,7 @@ import {
   ChainId,
   Domain,
   ProtocolType,
+  assert,
   deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -157,8 +158,10 @@ export class CosmosNativeHookModule extends HyperlaneModule<
 
     const { nativeToken } = this.multiProvider.getChainMetadata(this.chain);
 
+    assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
+
     const { response: igp } = await this.signer.createIgp({
-      denom: nativeToken?.denom ?? '',
+      denom: nativeToken.denom,
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
