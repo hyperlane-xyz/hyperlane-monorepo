@@ -154,13 +154,7 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
-
-    // Do not support updating to a custom Hook address
-    if (typeof targetConfig === 'string') {
-      throw new Error(
-        'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
-      );
-    }
+    targetConfig = await this.reader.deriveHookConfig(targetConfig);
 
     // Update the config
     this.args.config = targetConfig;
