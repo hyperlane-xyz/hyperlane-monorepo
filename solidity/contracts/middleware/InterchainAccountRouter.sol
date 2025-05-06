@@ -1152,7 +1152,4 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 address(hook)
             );
     }
-
-    /// @dev This allows us to receive gas refunds from the IGP
-    receive() external payable {}
 }
