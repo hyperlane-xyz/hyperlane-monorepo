@@ -235,7 +235,7 @@ export async function runFileSelectionStep(
   });
 
   if (filename) return filename;
-  else throw new Error(`No filepath entered ${description}`);
+  else throw new Error(`No filepath entered for ${description}`);
 }
 
 export function indentYamlOrJson(str: string, indentLevel: number): string {

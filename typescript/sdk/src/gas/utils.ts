@@ -16,7 +16,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
 
-import { ProtocolAgnositicGasOracleConfig } from './oracle/types.js';
+import { ProtocolAgnosticGasOracleConfig } from './oracle/types.js';
 
 export interface GasPriceConfig {
   amount: string;
@@ -175,9 +175,9 @@ export function getLocalStorageGasOracleConfig({
   gasPriceModifier?: (
     local: ChainName,
     remote: ChainName,
-    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+    gasOracleConfig: ProtocolAgnosticGasOracleConfig,
   ) => BigNumberJs.Value;
-}): ChainMap<ProtocolAgnositicGasOracleConfig> {
+}): ChainMap<ProtocolAgnosticGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
   );
@@ -246,14 +246,14 @@ export function getLocalStorageGasOracleConfig({
       ...agg,
       [remote]: gasOracleConfig,
     };
-  }, {} as ChainMap<ProtocolAgnositicGasOracleConfig>);
+  }, {} as ChainMap<ProtocolAgnosticGasOracleConfig>);
 }
 
 function adjustForPrecisionLoss(
   gasPrice: BigNumberJs.Value,
   exchangeRate: BigNumber,
   remoteDecimals: number,
-): ProtocolAgnositicGasOracleConfig {
+): ProtocolAgnosticGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
 
@@ -267,7 +267,7 @@ function adjustForPrecisionLoss(
     // Check that there's no significant underflow when applying
     // this to the exchange rate:
     const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
-    const recoveredExchangeRate = adjustedExchangeRate.mul(
+    const recoveredExchangeRate = adjustedExchangeRate.times(
       gasPriceScalingFactor,
     );
     if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {

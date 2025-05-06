@@ -279,7 +279,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker, ica);
   } else {
     throw Error(
-      `Checker or governor not implemented not implemented for ${module}`,
+      `Checker or governor not implemented for ${module}`,
     );
   }
 
