@@ -65,7 +65,7 @@ export function startMetricsServer(register: Registry): http.Server {
       return register
         .metrics()
         .then((metricsStr) => {
-          res.writeHead(200, { ContentType: 'text/plain' }).end(metricsStr);
+          res.writeHead(200, { 'Content-Type': 'text/plain' }).end(metricsStr);
         })
         .catch((err) => logger.error(err));
     })
