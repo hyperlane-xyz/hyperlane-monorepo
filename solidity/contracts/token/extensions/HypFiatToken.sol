@@ -26,9 +26,6 @@ contract HypFiatToken is HypERC20Collateral {
         uint256 _amount,
         bytes calldata /*metadata*/
     ) internal override {
-        require(
-            IFiatToken(address(wrappedToken)).mint(_recipient, _amount),
-            "FiatToken mint failed"
-        );
+        IFiatToken(address(wrappedToken)).mint(_recipient, _amount);
     }
 }
