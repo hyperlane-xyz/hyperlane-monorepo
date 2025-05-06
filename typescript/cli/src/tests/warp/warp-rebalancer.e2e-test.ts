@@ -168,11 +168,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  async function startRebalancerAndExpectLog(log: string, timeout = 10000) {
+  async function startRebalancerAndExpectLog(
+    log: string,
+    timeout = 10000,
+    withMetrics = false,
+  ) {
     const process = hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
       REBALANCER_STRATEGY_CONFIG_PATH,
+      withMetrics,
     );
 
     let timeoutId: NodeJS.Timeout;
