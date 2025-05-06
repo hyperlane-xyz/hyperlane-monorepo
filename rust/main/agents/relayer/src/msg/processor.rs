@@ -404,7 +404,7 @@ impl MessageProcessorMetrics {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use std::time::Instant;
 
     use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
@@ -442,7 +442,7 @@ mod test {
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{
-                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
+                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
         },
@@ -451,7 +451,7 @@ mod test {
 
     use super::*;
 
-    struct DummyApplicationOperationVerifier {}
+    pub struct DummyApplicationOperationVerifier {}
 
     #[async_trait]
     impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
@@ -464,7 +464,7 @@ mod test {
         }
     }
 
-    fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
+    pub fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
         MessageProcessorMetrics {
             max_last_known_message_nonce_gauge: IntGauge::new(
                 "dummy_max_last_known_message_nonce_gauge",
@@ -478,7 +478,7 @@ mod test {
         }
     }
 
-    fn dummy_cache_metrics() -> MeteredCacheMetrics {
+    pub fn dummy_cache_metrics() -> MeteredCacheMetrics {
         MeteredCacheMetrics {
             hit_count: IntCounterVec::new(
                 prometheus::Opts::new("dummy_hit_count", "help string"),
@@ -493,7 +493,7 @@ mod test {
         }
     }
 
-    fn dummy_submission_metrics() -> MessageSubmissionMetrics {
+    pub fn dummy_submission_metrics() -> MessageSubmissionMetrics {
         MessageSubmissionMetrics {
             origin: "".to_string(),
             destination: "".to_string(),
@@ -525,7 +525,7 @@ mod test {
                     url: "http://example.com".parse().unwrap(),
                 },
                 transaction_overrides: Default::default(),
-                operation_batch: Default::default(),
+                op_submission_config: Default::default(),
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
@@ -562,7 +562,7 @@ mod test {
             cache,
             db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
-            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
+            IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         )
     }
 
@@ -824,9 +824,9 @@ mod test {
             /// Retrieve the nonce of the highest processed message we're aware of
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
 
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
 
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 

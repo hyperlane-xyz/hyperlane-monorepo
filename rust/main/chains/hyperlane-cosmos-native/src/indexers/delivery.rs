@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use hyperlane_cosmos_rs::{hyperlane::core::v1::Process, prost::Name};
+use hyperlane_cosmos_rs::{hyperlane::core::v1::EventProcess, prost::Name};
 use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
@@ -33,7 +33,7 @@ impl CosmosNativeDeliveryIndexer {
 
 impl CosmosEventIndexer<H256> for CosmosNativeDeliveryIndexer {
     fn target_type() -> String {
-        Process::full_name()
+        EventProcess::full_name()
     }
 
     fn provider(&self) -> &RpcProvider {

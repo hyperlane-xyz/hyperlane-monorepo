@@ -270,6 +270,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  auroratestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xab1a2c76bf4cced43fde7bc1b5b57b9be3e7f937',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   avalanche: {
     threshold: 2,
     validators: [
@@ -758,7 +768,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ethereum: {
-    threshold: 4,
+    threshold: 6,
     validators: [
       {
         address: '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
@@ -776,6 +786,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de',
         alias: 'AVS: Pier Two',
       },
+      {
+        address: '0x5d7442439959af11172bf92d9a8d21cf88d136e3',
+        alias: 'P2P',
+      },
+      DEFAULT_ZKV_VALIDATOR,
     ],
   },
 
@@ -879,6 +894,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fluence: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xabc8dd7594783c90a3c0fb760943f78c37ea6d75',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   form: {
     threshold: 2,
     validators: [
@@ -965,6 +990,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  game7: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x691dc4e763514df883155df0952f847b539454c0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   glue: {
     threshold: 2,
     validators: [
@@ -1023,6 +1058,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  hashkey: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x55007cab8788cdba22844e7a2499cf43347f487a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1104,15 +1149,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  infinityvm: {
-    threshold: 2,
+  infinityvmmainnet: {
+    threshold: 1,
     validators: [
       {
-        address: '0xeed503e0bd8fae0ad606361492db8711eaf0b935',
+        address: '0x777c19c87aaa625486dff5aab0a479100f4249ad',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1399,6 +1442,26 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  milkyway: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x9985e0c6df8e25b655b46a317af422f5e7756875',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  milkywaytestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x65c7581e14efdf4d9c5320882170f022835bd742',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   mint: {
     threshold: 2,
     validators: [
@@ -1551,6 +1614,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  ontology: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x2578b0a330c492e1a1682684e27e6a93649befd5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   oortmainnet: {
     threshold: 2,
     validators: [
@@ -1626,6 +1699,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xea483af11c19fa41b16c31d1534c2a486a92bcac',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  peaq: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

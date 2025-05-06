@@ -11,7 +11,11 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { safes } from '../../config/environments/mainnet3/owners.js';
+import {
+  getGovernanceIcas,
+  getGovernanceSafes,
+} from '../../config/environments/mainnet3/governance/utils.js';
+import { withGovernanceType } from '../../src/governance.js';
 import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
 import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
@@ -19,11 +23,11 @@ import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 const environment = 'mainnet3';
-const safeChains = Object.keys(safes);
 
 async function main() {
-  const { chains } = await withChains(yargs(process.argv.slice(2)), safeChains)
-    .argv;
+  const { chains, governanceType } = await withGovernanceType(
+    withChains(yargs(process.argv.slice(2))),
+  ).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   const config = getEnvironmentConfig(environment);
@@ -33,16 +37,24 @@ async function main() {
   const registry = await config.getRegistry();
   const warpRoutes = await registry.getWarpRoutes();
 
+  // Get the relevant set of governance safes and icas
+  const safes = getGovernanceSafes(governanceType);
+  const icas = getGovernanceIcas(governanceType);
+
+  // Initialize the transaction reader with the relevant safes and icas
   const reader = new GovernTransactionReader(
     environment,
     multiProvider,
     chainAddresses,
     config.core,
     warpRoutes,
+    safes,
+    icas,
   );
 
+  // Get the pending transactions for the relevant chains, for the chosen governance type
   const pendingTxs = await getPendingTxsForChains(
-    !chains || chains.length === 0 ? safeChains : chains,
+    !chains || chains.length === 0 ? Object.keys(safes) : chains,
     multiProvider,
     safes,
   );
@@ -90,11 +102,12 @@ async function main() {
     process.exit(1);
   } else {
     rootLogger.info('✅✅✅✅✅ No fatal errors ✅✅✅✅✅');
-    const chainResults = Object.fromEntries(chainResultEntries);
-    const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
-    writeYamlAtPath(resultsPath, chainResults);
-    rootLogger.info(`Results written to ${resultsPath}`);
   }
+
+  const chainResults = Object.fromEntries(chainResultEntries);
+  const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
+  writeYamlAtPath(resultsPath, chainResults);
+  rootLogger.info(`Results written to ${resultsPath}`);
 }
 
 main().catch((err) => {

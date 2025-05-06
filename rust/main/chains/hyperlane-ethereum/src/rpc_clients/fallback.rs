@@ -98,7 +98,7 @@ where
     type Error = ProviderError;
 
     // TODO: Refactor to use `FallbackProvider::call`
-    #[instrument]
+    #[instrument(skip(self, params))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,

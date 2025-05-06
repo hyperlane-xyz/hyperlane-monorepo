@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use tokio::sync::mpsc::Sender;
-use tracing::trace;
+use tracing::{debug, trace};
 
 use crate::{
     error::SubmitterError,
@@ -21,10 +21,12 @@ pub struct TransactionDbLoader {
     db: Arc<dyn TransactionDb>,
     inclusion_stage_sender: Sender<Transaction>,
     finality_stage_sender: Sender<Transaction>,
+    domain: String,
 }
 impl TransactionDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
-        DbIterator::new(Arc::new(self), "transaction_db_loader".to_string(), true).await
+        let domain = self.domain.clone();
+        DbIterator::new(Arc::new(self), "Transaction".to_string(), true, domain).await
     }
 }
 
@@ -57,7 +59,7 @@ impl LoadableFromDb for TransactionDbLoader {
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Finalized | TransactionStatus::Dropped(_) => {
-                trace!(?item, "Transaction already processed");
+                debug!(?item, "Transaction already processed");
                 Ok(LoadingOutcome::Skipped)
             }
         }

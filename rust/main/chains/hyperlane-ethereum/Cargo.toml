@@ -10,6 +10,7 @@ version.workspace = true
 [dependencies]
 # Main block
 async-trait.workspace = true
+dashmap.workspace = true
 derive-new.workspace = true
 ethers-contract.workspace = true
 ethers-core.workspace = true

@@ -96,7 +96,7 @@ pub struct PendingMessage {
     submitted: bool,
     #[new(default)]
     #[serde(skip_serializing)]
-    submission_data: Option<Box<MessageSubmissionData>>,
+    pub(crate) submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
@@ -987,7 +987,7 @@ impl PendingMessage {
             .build(ism_address, &self.message, params)
             .await
             .map_err(|err| match &err {
-                MetadataBuildError::FailedToBuild(_) => {
+                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
                     self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
                 }
                 MetadataBuildError::CouldNotFetch => {
@@ -1014,6 +1014,10 @@ impl PendingMessage {
                 MetadataBuildError::AggregationThresholdNotMet(threshold) => {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+                }
+                MetadataBuildError::MaxValidatorCountReached(count) => {
+                    warn!(count, "Max validator count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
                 }
             });
         let build_metadata_end = Instant::now();
@@ -1165,8 +1169,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 

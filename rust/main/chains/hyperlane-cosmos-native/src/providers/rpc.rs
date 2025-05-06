@@ -37,7 +37,7 @@ use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use super::cosmos::CosmosFallbackProvider;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct CosmosHttpClient {
     client: HttpClient,
     metrics: PrometheusClientMetrics,
@@ -107,6 +107,24 @@ impl CosmosHttpClient {
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(Self::new(client, metrics, metrics_config))
+    }
+}
+
+impl Drop for CosmosHttpClient {
+    fn drop(&mut self) {
+        // decrement provider metric count
+        let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
+        self.metrics.decrement_provider_instance(chain_name);
+    }
+}
+
+impl Clone for CosmosHttpClient {
+    fn clone(&self) -> Self {
+        Self::new(
+            self.client.clone(),
+            self.metrics.clone(),
+            self.metrics_config.clone(),
+        )
     }
 }
 
@@ -315,7 +333,7 @@ impl RpcProvider {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
-        let account_info = self.get_account(signer.address.clone()).await?;
+        let account_info = self.get_account(signer.address_string.clone()).await?;
 
         // timeout height of zero means that we do not have a timeout height TODO: double check
         let tx_body = tx::Body::new(msgs, String::default(), 0u32);

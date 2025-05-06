@@ -26,7 +26,7 @@ use hyperlane_core::{
     HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
     ValidatorAnnounce, H256, U256,
 };
-use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
+use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
 use crate::{
     settings::ValidatorSettings,
@@ -46,6 +46,7 @@ pub struct Validator {
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
+    raw_signer: Signers,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
     reorg_period: ReorgPeriod,
@@ -56,6 +57,7 @@ pub struct Validator {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
+    max_sign_concurrency: usize,
 }
 
 /// Metadata for `validator`
@@ -115,8 +117,10 @@ impl BaseAgent for Validator {
         let db = DB::from_path(&settings.db)?;
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
+        let raw_signer: Signers = settings.validator.build().await?;
+
         // Intentionally using hyperlane_ethereum for the validator's signer
-        let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
+        let (signer_instance, signer) = SingletonSigner::new(raw_signer.clone());
 
         let core = settings.build_hyperlane_core(metrics.clone());
         // Be extra sure to panic checkpoint syncer fails, which indicates
@@ -154,6 +158,7 @@ impl BaseAgent for Validator {
                 &contract_sync_metrics,
                 msg_db.clone().into(),
                 false,
+                false,
             )
             .await?;
 
@@ -167,6 +172,7 @@ impl BaseAgent for Validator {
             merkle_tree_hook_sync,
             validator_announce: validator_announce.into(),
             signer,
+            raw_signer,
             signer_instance: Some(Box::new(signer_instance)),
             reorg_period: settings.reorg_period,
             interval: settings.interval,
@@ -176,6 +182,7 @@ impl BaseAgent for Validator {
             core_metrics: metrics,
             runtime_metrics,
             agent_metadata,
+            max_sign_concurrency: settings.max_sign_concurrency,
         })
     }
 
@@ -293,9 +300,11 @@ impl Validator {
             self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
             self.signer.clone(),
+            self.raw_signer.clone(),
             self.checkpoint_syncer.clone(),
             Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
+            self.max_sign_concurrency,
         );
 
         let tip_tree = self
@@ -303,6 +312,7 @@ impl Validator {
             .tree(&self.reorg_period)
             .await
             .expect("failed to get merkle tree");
+
         // This function is only called after we have already checked that the
         // merkle tree hook has count > 0, but we assert to be extra sure this is
         // the case.
@@ -414,18 +424,21 @@ impl Validator {
                     .chain_signer()
                     .await?
                 {
-                    let chain_signer = chain_signer.address_string();
-                    info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
+                    let chain_signer_string = chain_signer.address_string();
+                    let chain_signer_h256 = chain_signer.address_h256();
+                    info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
+
                     let balance_delta = self
                         .validator_announce
-                        .announce_tokens_needed(signed_announcement.clone())
+                        .announce_tokens_needed(signed_announcement.clone(), chain_signer_h256)
                         .await
                         .unwrap_or_default();
                     if balance_delta > U256::zero() {
                         warn!(
                             tokens_needed=%balance_delta,
                             eth_validator_address=?announcement.validator,
-                            ?chain_signer,
+                            ?chain_signer_string,
+                            ?chain_signer_h256,
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
@@ -433,7 +446,7 @@ impl Validator {
                             .validator_announce
                             .announce(signed_announcement.clone())
                             .await;
-                        Self::log_on_announce_failure(result, &chain_signer);
+                        Self::log_on_announce_failure(result, &chain_signer_string);
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");

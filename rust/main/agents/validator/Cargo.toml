@@ -10,6 +10,7 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+aws-config.workspace = true
 axum.workspace = true
 chrono.workspace = true
 config.workspace = true
@@ -36,6 +37,9 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+
+# Dependency version is determined by ethers
+rusoto_core = '*'
 
 [dev-dependencies]
 mockall.workspace = true

@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
+use futures::future::join_all;
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
@@ -13,38 +14,46 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
 };
-use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod};
-use hyperlane_ethereum::SingletonSignerHandle;
+use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
+use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: ReorgPeriod,
-    signer: SingletonSignerHandle,
+    #[allow(unused)]
+    singleton_signer: SingletonSignerHandle,
+    signer: Signers,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
+    max_sign_concurrency: usize,
 }
 
 impl ValidatorSubmitter {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         interval: Duration,
         reorg_period: ReorgPeriod,
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
-        signer: SingletonSignerHandle,
+        singleton_signer: SingletonSignerHandle,
+        signer: Signers,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         db: Arc<dyn HyperlaneDb>,
         metrics: ValidatorSubmitterMetrics,
+        max_sign_concurrency: usize,
     ) -> Self {
         Self {
             reorg_period,
             interval,
             merkle_tree_hook,
+            singleton_signer,
             signer,
             checkpoint_syncer,
             db,
             metrics,
+            max_sign_concurrency,
         }
     }
 
@@ -148,6 +157,7 @@ impl ValidatorSubmitter {
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &Checkpoint,
     ) {
+        let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
             !tree_exceeds_checkpoint(correctness_checkpoint, tree),
@@ -240,6 +250,12 @@ impl ValidatorSubmitter {
             panic!("{panic_message}");
         }
 
+        tracing::info!(
+            elapsed=?start.elapsed(),
+            checkpoint_queue_len = checkpoint_queue.len(),
+            "Checkpoint submitter reached correctness checkpoint"
+        );
+
         if !checkpoint_queue.is_empty() {
             info!(
                 index = checkpoint.index,
@@ -255,22 +271,73 @@ impl ValidatorSubmitter {
         }
     }
 
+    async fn sign_checkpoint(
+        &self,
+        checkpoint: CheckpointWithMessageId,
+    ) -> ChainResult<SignedType<CheckpointWithMessageId>> {
+        let signer_retries = 5;
+
+        for i in 0..signer_retries {
+            match self.signer.sign(checkpoint).await {
+                Ok(signed_checkpoint) => return Ok(signed_checkpoint),
+                Err(err) => {
+                    tracing::warn!(
+                        ?checkpoint,
+                        attempt = i,
+                        retries = signer_retries,
+                        ?err,
+                        "Error signing checkpoint with direct signer"
+                    );
+                    sleep(Duration::from_millis(100)).await;
+                }
+            }
+        }
+
+        tracing::warn!(
+            ?checkpoint,
+            retries = signer_retries,
+            "Error signing checkpoint with direct signer after all retries, falling back to singleton signer"
+        );
+
+        // Now try the singleton signer as a last resort
+        Ok(self.singleton_signer.sign(checkpoint).await?)
+    }
+
     async fn sign_and_submit_checkpoint(
         &self,
         checkpoint: CheckpointWithMessageId,
     ) -> ChainResult<()> {
+        let start = Instant::now();
         let existing = self
             .checkpoint_syncer
             .fetch_checkpoint(checkpoint.index)
             .await?;
+        tracing::trace!(
+            elapsed=?start.elapsed(),
+            "Fetched checkpoint from checkpoint storage",
+        );
+
         if existing.is_some() {
             debug!(index = checkpoint.index, "Checkpoint already submitted");
             return Ok(());
         }
-        let signed_checkpoint = self.signer.sign(checkpoint).await?;
+
+        let start = Instant::now();
+        let signed_checkpoint = self.sign_checkpoint(checkpoint).await?;
+        tracing::trace!(
+            elapsed=?start.elapsed(),
+            "Signed checkpoint",
+        );
+
+        let start = Instant::now();
         self.checkpoint_syncer
             .write_checkpoint(&signed_checkpoint)
             .await?;
+        tracing::trace!(
+            elapsed=?start.elapsed(),
+            "Stored checkpoint",
+        );
+
         debug!(index = checkpoint.index, "Signed and submitted checkpoint");
 
         // TODO: move these into S3 implementations
@@ -280,36 +347,81 @@ impl ValidatorSubmitter {
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints(&self, checkpoints: Vec<CheckpointWithMessageId>) {
-        let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
-        // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
-        // since those are the most likely to make messages become processable.
-        // A side effect is that new checkpoints will also be submitted in reverse order.
-        for queued_checkpoint in checkpoints.into_iter().rev() {
-            // certain checkpoint stores rate limit very aggressively, so we retry indefinitely
-            call_and_retry_indefinitely(|| {
-                let self_clone = self.clone();
-                Box::pin(async move {
-                    self_clone
-                        .sign_and_submit_checkpoint(queued_checkpoint)
-                        .await?;
-                    Ok(())
-                })
-            })
-            .await;
-        }
+    async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
+        // The checkpoints are ordered by index, so the last one is the highest index.
+        let last_checkpoint_index = checkpoints[checkpoints.len() - 1].index;
 
-        call_and_retry_indefinitely(|| {
-            let self_clone = self.clone();
-            Box::pin(async move {
-                self_clone
-                    .checkpoint_syncer
-                    .update_latest_index(last_checkpoint.index)
-                    .await?;
-                Ok(())
-            })
-        })
-        .await;
+        let arc_self = Arc::new(self.clone());
+
+        let mut first_chunk = true;
+
+        while !checkpoints.is_empty() {
+            let start = Instant::now();
+
+            // Take a chunk of checkpoints, starting with the highest index.
+            // This speeds up processing historic checkpoints (those before the validator is spun up),
+            // since those are the most likely to make messages become processable.
+            // A side effect is that new checkpoints will also be submitted in reverse order.
+
+            // This logic is a bit awkward, but we want control over the chunks so we can also
+            // write the latest index to the checkpoint storage after the first chunk is successful.
+            let mut chunk = Vec::with_capacity(self.max_sign_concurrency);
+            for _ in 0..self.max_sign_concurrency {
+                if let Some(cp) = checkpoints.pop() {
+                    chunk.push(cp);
+                } else {
+                    break;
+                }
+            }
+
+            let chunk_len = chunk.len();
+
+            let futures = chunk.into_iter().map(|checkpoint| {
+                let self_clone = arc_self.clone();
+                call_and_retry_indefinitely(move || {
+                    let self_clone = self_clone.clone();
+                    Box::pin(async move {
+                        let start = Instant::now();
+                        self_clone.sign_and_submit_checkpoint(checkpoint).await?;
+                        tracing::info!(
+                            elapsed=?start.elapsed(),
+                            "Signed and submitted checkpoint",
+                        );
+                        Ok(())
+                    })
+                })
+            });
+
+            join_all(futures).await;
+
+            tracing::info!(
+                elapsed=?start.elapsed(),
+                chunk_len,
+                remaining_checkpoints = checkpoints.len(),
+                "Signed and submitted checkpoint chunk",
+            );
+
+            // If it's the first chunk, update the latest index
+            if first_chunk {
+                call_and_retry_indefinitely(|| {
+                    let self_clone = self.clone();
+                    Box::pin(async move {
+                        let start = Instant::now();
+                        self_clone
+                            .checkpoint_syncer
+                            .update_latest_index(last_checkpoint_index)
+                            .await?;
+                        tracing::trace!(
+                            elapsed=?start.elapsed(),
+                            "Updated latest index",
+                        );
+                        Ok(())
+                    })
+                })
+                .await;
+                first_chunk = false;
+            }
+        }
     }
 }
 
@@ -476,8 +588,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 
@@ -635,15 +747,22 @@ mod test {
                 Ok(())
             });
 
+        let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
+            .parse::<ethers::signers::LocalWallet>()
+            .unwrap()
+            .into();
+
         // instantiate the validator submitter
         let validator_submitter = ValidatorSubmitter::new(
             Duration::from_secs(1),
             ReorgPeriod::from_blocks(expected_reorg_period),
             Arc::new(mock_merkle_tree_hook),
             dummy_singleton_handle(),
+            signer,
             Arc::new(mock_checkpoint_syncer),
             Arc::new(db),
             dummy_metrics(),
+            50,
         );
 
         // mock the correctness checkpoint response
