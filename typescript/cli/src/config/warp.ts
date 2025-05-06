@@ -101,14 +101,12 @@ export async function readWarpRouteDeployConfig({
       context: CommandContext;
       filePath: string;
     }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config;
-  if ('filePath' in args) {
-    config = readYamlOrJson(args.filePath);
-  } else {
-    config = await context.registry.getWarpDeployConfig(args.warpRouteId);
-  }
+  let config =
+    'filePath' in args
+      ? readYamlOrJson(args.filePath)
+      : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
-  if (!config) throw new Error(`No warp route deploy config found!`);
+  assert(config, `No warp route deploy config found!`);
 
   config = await fillDefaults(context, config as any);
 
