@@ -60,7 +60,7 @@ export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deplo
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/warp-route-deployment.yaml`;
 export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
 
-export const REBALANCER_STRATEGY_CONFIG_PATH = `${TEMP_PATH}/rebalancer-strategy.json`;
+export const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
 
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
