@@ -2,11 +2,13 @@ rpc_endpoint_b3 := "https://sepolia.b3.fun/http"
 rpc_endpoint_ape := "https://curtis.rpc.caldera.xyz/http"
 chain_id_b3 := "1993"
 chain_id_ape := "33111"
-mailbox_contract_addr_b3 := "0x8abcae02b22a5267a94689f417824eff177da0df"
-mailbox_contract_addr_ape := "0x633695f0e73d773932076c5ca40f2d0749988f4d"
-simple_sender_receiver_addr_b3 := "0x5d68f3ee540cb7f05e24a7a889d84ad5be04a8e6"
-simple_sender_receiver_addr_ape := "0x5d68f3ee540cb7f05e24a7a889d84ad5be04a8e6"
 polymer_prover_addr := "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa"
+mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
+mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
+polymer_ism_addr_b3 := "0xf2e5865ec2c707c8d674ca1db1da95d7dbbd48c7"
+polymer_ism_addr_ape := "0x9f8296f8b4b92a6686fddb96ed1833b15d64ba3c"
+simple_sender_receiver_addr_b3 := "0x72e64c23b13629edb7e61c81b4c06afe8e7e5550"
+simple_sender_receiver_addr_ape := "0x3cd986b41583beeaa96e9f8cf79a304469c58e9f"
 
 deploy-mailbox-b3:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
@@ -23,7 +25,7 @@ deploy-mailbox-ape:
         -vvvv
 
 deploy-polymer-ism-b3:
-    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
     export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_b3 }}" \
@@ -31,7 +33,7 @@ deploy-polymer-ism-b3:
         -vvvv
 
 deploy-polymer-ism-ape:
-    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
     export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_ape }}" \
@@ -40,7 +42,7 @@ deploy-polymer-ism-ape:
 
 deploy-simple-app-b3:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
-    export POLYMER_ISM_ADDRESS="{{ polymer_prover_addr }}" && \
+    export POLYMER_ISM_ADDRESS="{{ polymer_ism_addr_b3 }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_b3 }}" \
         --broadcast \
@@ -48,7 +50,7 @@ deploy-simple-app-b3:
 
 deploy-simple-app-ape:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
-    export POLYMER_ISM_ADDRESS="{{ polymer_prover_addr }}" && \
+    export POLYMER_ISM_ADDRESS="{{ polymer_ism_addr_ape }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_ape }}" \
         --broadcast \

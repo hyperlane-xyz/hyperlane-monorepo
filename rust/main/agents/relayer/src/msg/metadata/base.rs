@@ -19,12 +19,12 @@ use crate::settings::matching_list::MatchingList;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum MetadataBuildError {
-    #[error("Some external error causing the build to fail")]
+    #[error("Some external error causing the build to fail: {0}")]
     FailedToBuild(String),
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.
     /// Provides the reason for the refusal.
-    #[error("Refused")]
+    #[error("Refused: {0}")]
     Refused(String),
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]

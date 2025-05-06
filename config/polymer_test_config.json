@@ -10,10 +10,10 @@
           "http": "https://curtis.rpc.caldera.xyz/http"
         }
       ],
-      "mailbox": "0x633695f0e73d773932076c5ca40f2d0749988f4d",
+      "mailbox": "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
-        "from": 17525341
+        "from": 17607694
       }
     },
     "b3": {
@@ -26,10 +26,10 @@
           "http": "https://sepolia.b3.fun/http"
         }
       ],
-      "mailbox": "0x8abcae02b22a5267a94689f417824eff177da0df",
+      "mailbox": "0x840e5aada7a7aab5f06c5d3152512a246792183f",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
-         "from": 31937330
+         "from": 32319035
       }
     }
   },
