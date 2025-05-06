@@ -257,6 +257,8 @@ export interface EthersV5Transaction
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
+export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
+
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
   transaction: VTransaction;
