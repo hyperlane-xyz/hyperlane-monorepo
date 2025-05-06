@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use eyre::Result;
-use uuid::Uuid;
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 
@@ -10,6 +9,11 @@ use crate::{
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
+
+pub use precursor::EthereumTxPrecursor;
+
+mod payload;
+mod precursor;
 
 pub struct EthereumTxAdapter {
     _conf: ChainConf,
