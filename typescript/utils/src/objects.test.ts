@@ -472,7 +472,7 @@ describe('Object utilities', () => {
     }
   });
 
-  describe.only(sortArraysInObject.name, () => {
+  describe(sortArraysInObject.name, () => {
     [1, 'hello', true, null, undefined].map((value) => {
       it(`should return the same primitive value if the input is a primitive ${value}`, () => {
         expect(sortArraysInObject(value)).to.equal(value);
