@@ -50,6 +50,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
     address public immutable implementation;
     bytes32 public immutable bytecodeHash;
+    CommitmentReadIsm public immutable CCIP_READ_ISM;
     uint public constant COMMIT_TX_GAS_USAGE = 10_000;
 
     // ============ Public Storage ============
@@ -329,8 +330,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             verifiedCommitments[commitment] = ica;
         }
     }
-
-    CommitmentReadIsm public immutable CCIP_READ_ISM;
 
     function route(
         bytes calldata _message
