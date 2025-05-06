@@ -79,7 +79,7 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let signer = self.provider.rpc().get_signer()?.address.to_owned();
+        let signer = self.provider.rpc().get_signer()?.address_string.to_owned();
         let announce = MsgAnnounceValidator {
             validator: announcement.value.validator.encode_hex(),
             storage_location: announcement.value.storage_location.clone(),
@@ -104,6 +104,7 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
     async fn announce_tokens_needed(
         &self,
         _announcement: SignedType<Announcement>,
+        _chain_signer: H256,
     ) -> Option<U256> {
         // TODO: check user balance. For now, just try announcing and
         // allow the announce attempt to fail if there are not enough tokens.

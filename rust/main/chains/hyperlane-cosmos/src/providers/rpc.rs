@@ -337,7 +337,7 @@ impl RpcProvider {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
-        let account_info = self.get_account(signer.address.clone()).await?;
+        let account_info = self.get_account(signer.address_string.clone()).await?;
 
         let current_height = self.get_block_number().await? as u32;
 

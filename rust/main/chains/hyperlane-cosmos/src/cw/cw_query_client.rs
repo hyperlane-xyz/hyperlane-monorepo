@@ -187,7 +187,7 @@ impl CwQueryClient {
         let signer = self.get_signer()?;
         let contract_address = self.contract_address.address();
         let msg = MsgExecuteContract {
-            sender: signer.address.clone(),
+            sender: signer.address_string.clone(),
             contract: contract_address,
             msg: serde_json::to_string(&payload)?.as_bytes().to_vec(),
             funds: vec![],

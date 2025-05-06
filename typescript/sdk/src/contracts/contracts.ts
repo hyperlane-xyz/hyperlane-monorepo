@@ -188,6 +188,7 @@ export function attachContractsMapAndGetForeignDeployments<
           throw new Error('Ethereum chain should not have foreign deployments');
 
         case ProtocolType.Cosmos:
+        case ProtocolType.CosmosNative:
           return router;
 
         case ProtocolType.Sealevel:

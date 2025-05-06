@@ -1030,7 +1030,8 @@ impl ChainConf {
         }
     }
 
-    async fn build_ethereum<B>(
+    /// Try to convert the chain settings into a provider
+    pub async fn build_ethereum<B>(
         &self,
         conf: &h_eth::ConnectionConf,
         locator: &ContractLocator<'_>,

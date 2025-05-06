@@ -20,7 +20,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   test3,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -461,6 +461,6 @@ describe('ERC20WarpRouterReader', async () => {
     expect(Object.keys(derivedConfig.remoteRouters!).length).to.equal(1);
     expect(
       derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
-    ).to.be.equal(warpRoute[otherChain].collateral.address);
+    ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
   });
 });

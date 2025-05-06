@@ -614,9 +614,8 @@ export class WarpCore {
     );
     if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError = await this.validateOriginCollateral(
-      originTokenAmount,
-    );
+    const originCollateralError =
+      await this.validateOriginCollateral(originTokenAmount);
     if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
@@ -672,7 +671,10 @@ export class WarpCore {
       return { recipient: 'Invalid recipient' };
 
     // Also ensure the address denom is correct if the dest protocol is Cosmos
-    if (protocol === ProtocolType.Cosmos) {
+    if (
+      protocol === ProtocolType.Cosmos ||
+      protocol === ProtocolType.CosmosNative
+    ) {
       if (!bech32Prefix) {
         this.logger.error(`No bech32 prefix found for chain ${destination}`);
         return { destination: 'Invalid chain data' };

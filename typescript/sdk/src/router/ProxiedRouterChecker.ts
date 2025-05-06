@@ -44,9 +44,12 @@ export abstract class ProxiedRouterChecker<
     );
   }
 
-  async checkChain(chain: ChainName): Promise<void> {
+  async checkChain(
+    chain: ChainName,
+    expectedChains?: ChainName[],
+  ): Promise<void> {
     await super.checkMailboxClient(chain);
-    await super.checkEnrolledRouters(chain);
+    await super.checkEnrolledRouters(chain, expectedChains);
     await this.checkProxiedContracts(chain);
     await this.checkOwnership(chain);
   }

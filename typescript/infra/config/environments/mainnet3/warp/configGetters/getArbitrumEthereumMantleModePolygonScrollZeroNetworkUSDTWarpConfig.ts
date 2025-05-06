@@ -31,6 +31,9 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       type: TokenType.collateral,
       token: tokens.arbitrum.USDT,
       interchainSecurityModule: ISM_CONFIG,
+      remoteRouters: {
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+      },
     };
 
     const ethereum: HypTokenRouterConfig = {
@@ -43,6 +46,9 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       type: TokenType.collateral,
       token: tokens.ethereum.USDT,
       interchainSecurityModule: ISM_CONFIG,
+      remoteRouters: {
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+      },
     };
 
     const mantle: HypTokenRouterConfig = {
@@ -55,6 +61,9 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       type: TokenType.collateral,
       token: tokens.mantle.USDT,
       interchainSecurityModule: ISM_CONFIG,
+      remoteRouters: {
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+      },
     };
 
     const mode: HypTokenRouterConfig = {
@@ -67,6 +76,9 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       type: TokenType.collateral,
       token: tokens.mode.USDT,
       interchainSecurityModule: ISM_CONFIG,
+      remoteRouters: {
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+      },
     };
 
     const polygon: HypTokenRouterConfig = {
@@ -79,6 +91,9 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       type: TokenType.collateral,
       token: tokens.polygon.USDT,
       interchainSecurityModule: ISM_CONFIG,
+      remoteRouters: {
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+      },
     };
 
     const scroll: HypTokenRouterConfig = {
@@ -91,6 +106,9 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       type: TokenType.collateral,
       token: tokens.scroll.USDT,
       interchainSecurityModule: ISM_CONFIG,
+      remoteRouters: {
+        543210: { address: '0x36dcfe3A0C6e0b5425F298587159249d780AAfab' },
+      },
     };
 
     const zeronetwork: HypTokenRouterConfig = {
