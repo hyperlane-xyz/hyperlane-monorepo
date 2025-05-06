@@ -4,19 +4,10 @@ import {
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { isTypes } from '@hyperlane-xyz/cosmos-types';
-import {
-  Address,
-  ProtocolType,
-  WithAddress,
-  assert,
-  concurrentMap,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
 
-import { EvmIsmReader } from './EvmIsmReader.js';
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -31,7 +22,6 @@ export class CosmosNativeIsmReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainNameOrId,
     protected readonly cosmosProviderOrSigner:
       | HyperlaneModuleClient
       | SigningHyperlaneModuleClient,
@@ -110,38 +100,19 @@ export class CosmosNativeIsmReader {
         },
       );
 
-    const domainIds = ism.routes.map((r) => r.domain);
     const domains: DomainRoutingIsmConfig['domains'] = {};
 
-    await concurrentMap(1, domainIds, async (domainId) => {
-      const metadata = this.multiProvider.tryGetChainMetadata(domainId);
-      if (!metadata) {
+    for (const route of ism.routes) {
+      const chainName = this.multiProvider.tryGetChainName(route.domain);
+      if (!chainName) {
         this.logger.warn(
-          `Unknown domain ID ${domainId}, skipping domain configuration`,
+          `Unknown domain ID ${route.domain}, skipping domain configuration`,
         );
-        return;
+        continue;
       }
 
-      switch (metadata.protocol) {
-        case ProtocolType.Ethereum: {
-          domains[metadata.name] = await new EvmIsmReader(
-            this.multiProvider,
-            this.chain,
-          ).deriveIsmConfig(address);
-          break;
-        }
-        case ProtocolType.CosmosNative: {
-          domains[metadata.name] = await this.deriveIsmConfig(address);
-          break;
-        }
-        default: {
-          this.logger.warn(
-            `Protocol type ${metadata.protocol} not supported, skipping domain configuration`,
-          );
-          return;
-        }
-      }
-    });
+      domains[chainName] = await this.deriveIsmConfig(address);
+    }
 
     return {
       type: IsmType.ROUTING,
