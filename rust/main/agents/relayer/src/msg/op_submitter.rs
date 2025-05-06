@@ -661,6 +661,16 @@ async fn submit_via_lander(
         }
     };
 
+    let operation_success_criteria = match op.success_criteria() {
+        Ok(s) => s,
+        Err(e) => {
+            let reason = ReprepareReason::ErrorCreatingSuccessCriteria;
+            let msg = "Error creating success criteria";
+            prepare_op(op, prepare_queue, e, msg, reason).await;
+            return;
+        }
+    };
+
     let message_id = op.id();
     let metadata = format!("{message_id:?}");
     let mailbox = op
@@ -668,7 +678,13 @@ async fn submit_via_lander(
         .expect("Operation should contain Mailbox address")
         .address();
     let payload_id = PayloadId::random();
-    let payload = FullPayload::new(payload_id, metadata, operation_payload, mailbox);
+    let payload = FullPayload::new(
+        payload_id,
+        metadata,
+        operation_payload,
+        operation_success_criteria,
+        mailbox,
+    );
 
     if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;
