@@ -29,9 +29,9 @@ impl EthereumTxPrecursor {
     }
 
     pub fn from_payload(payload: &FullPayload) -> Self {
-        use crate::chain_tx_adapter::chains::ethereum::payload::Precursor;
+        use crate::chain_tx_adapter::chains::ethereum::payload::parse_data;
 
-        let (tx, function) = payload.precursor();
+        let (tx, function) = parse_data(payload);
         EthereumTxPrecursor::new(tx, function)
     }
 }
