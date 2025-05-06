@@ -5,10 +5,10 @@ chain_id_ape := "33111"
 polymer_prover_addr := "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa"
 mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
-polymer_ism_addr_b3 := "0xf2e5865ec2c707c8d674ca1db1da95d7dbbd48c7"
-polymer_ism_addr_ape := "0x9f8296f8b4b92a6686fddb96ed1833b15d64ba3c"
-simple_sender_receiver_addr_b3 := "0x72e64c23b13629edb7e61c81b4c06afe8e7e5550"
-simple_sender_receiver_addr_ape := "0x3cd986b41583beeaa96e9f8cf79a304469c58e9f"
+polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
+polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
+simple_sender_receiver_addr_b3 := "0xc2f4e5df683a44e4b432958cdfa7340651206119"
+simple_sender_receiver_addr_ape := "0x9db781bb4f64f754c01652de4f2d452548105f4d"
 
 deploy-mailbox-b3:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
