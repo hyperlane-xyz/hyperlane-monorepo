@@ -1,52 +1,24 @@
-import { z } from 'zod';
-import { fromZodError } from 'zod-validation-error';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
-
-import { readYamlOrJson } from '../../utils/files.js';
 import {
   IStrategy,
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
 
-import { Delta, StrategyConfig } from './types.js';
+type ChainConfig = {
+  weight: bigint;
+  tolerance: bigint;
+};
+
+type Delta = { chain: ChainName; amount: bigint };
 
 export class Strategy implements IStrategy {
   private readonly chains: ChainName[];
-  private readonly config: StrategyConfig;
+  private readonly config: ChainMap<ChainConfig>;
   private readonly totalWeight: bigint;
 
-  /**
-   * Create a new Strategy from a config file found at the given path.
-   */
-  static fromConfigFile(configPath: string): Strategy {
-    const ChainConfigSchema = z.object({
-      weight: z
-        .string()
-        .or(z.number())
-        .transform((val) => BigInt(val)),
-      tolerance: z
-        .string()
-        .or(z.number())
-        .transform((val) => BigInt(val)),
-    });
-
-    const StrategyConfigSchema = z.record(z.string(), ChainConfigSchema);
-
-    const config = readYamlOrJson(configPath);
-
-    const validationResult = StrategyConfigSchema.safeParse(config);
-
-    if (!validationResult.success) {
-      const validationError = fromZodError(validationResult.error);
-      throw new Error(validationError.message);
-    }
-
-    return new Strategy(validationResult.data);
-  }
-
-  constructor(config: StrategyConfig) {
+  constructor(config: ChainMap<ChainConfig>) {
     const chains = Object.keys(config);
 
     // Rebalancing makes sense only with more than one chain.
