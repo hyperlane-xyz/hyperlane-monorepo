@@ -73,6 +73,8 @@ impl StarknetMailbox {
         let mut is_legacy = signer.version == 3;
         if locator.domain.id() == 12263410 {
             is_legacy = true;
+        } else {
+            is_legacy = false;
         }
         let account = build_single_owner_account(
             &conn.url,
