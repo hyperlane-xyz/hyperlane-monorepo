@@ -1,8 +1,8 @@
+import { logger } from 'ethers';
 import EventEmitter from 'events';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
-import { MultiProtocolProvider, WarpCore } from '@hyperlane-xyz/sdk';
-import { objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
+import { Token, WarpCore } from '@hyperlane-xyz/sdk';
+import { sleep } from '@hyperlane-xyz/utils';
 
 import { WrappedError } from '../../utils/errors.js';
 import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
@@ -23,20 +23,18 @@ export class Monitor implements IMonitor {
   private isMonitorRunning = false;
 
   /**
-   * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
-   * @param warpRouteId - The warp route ID to monitor.
    * @param checkFrequency - The frequency to poll balances in ms.
    */
   constructor(
-    private readonly registry: IRegistry,
-    private readonly warpRouteId: string,
     private readonly checkFrequency: number,
+    private readonly warpCore: WarpCore,
   ) {}
 
-  on(
-    eventName: 'collateralbalances' | 'start' | 'error',
-    fn: (...args: any[]) => void,
-  ) {
+  // overloads from IMonitor
+  on(eventName: 'tokeninfo', fn: (event: MonitorEvent) => void): this;
+  on(eventName: 'error', fn: (event: Error) => void): this;
+  on(eventName: 'start', fn: () => void): this;
+  on(eventName: string, fn: (...args: any[]) => void): this {
     this.emitter.on(eventName, fn);
     return this;
   }
@@ -53,48 +51,25 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
-
-      // Build the WarpCore from the registry
-      const metadata = await this.registry.getMetadata();
-      const addresses = await this.registry.getAddresses();
-
-      // The Sealevel warp adapters require the Mailbox address, so we
-      // get mailboxes for all chains and merge them with the chain metadata.
-      const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-      const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
-      const warpCoreConfig = await this.registry.getWarpRoute(this.warpRouteId);
-      const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-
-      // this can be considered the starting point of the monitor
       this.emitter.emit('start');
 
       while (this.isMonitorRunning) {
         try {
           const event: MonitorEvent = {
-            balances: [],
+            tokensInfo: [],
           };
 
-          for (const token of warpCore.tokens) {
-            // Ignore non-collateralized tokens given that we only care about collateral balances
-            if (!token.isCollateralized()) {
-              continue;
-            }
+          for (const token of this.warpCore.tokens) {
+            const bridgedSupply = await this.getTokenBridgedSupply(token);
 
-            const adapter = token.getHypAdapter(warpCore.multiProvider);
-
-            // Get the bridged supply of the collateral token to obtain how much collateral is available
-            const bridgedSupply = await adapter.getBridgedSupply();
-
-            event.balances.push({
-              chain: token.chainName,
-              owner: token.addressOrDenom,
-              token: token.collateralAddressOrDenom!,
-              value: bridgedSupply!,
+            event.tokensInfo.push({
+              token,
+              bridgedSupply,
             });
           }
 
-          // Emit the event containing the collateral balances
-          this.emitter.emit('collateralbalances', event);
+          // Emit the event warp routes info
+          this.emitter.emit('tokeninfo', event);
         } catch (e) {
           this.emitter.emit(
             'error',
@@ -117,6 +92,27 @@ export class Monitor implements IMonitor {
         ),
       );
     }
+  }
+
+  private async getTokenBridgedSupply(
+    token: Token,
+  ): Promise<bigint | undefined> {
+    if (!token.isHypToken()) {
+      logger.warn(
+        'Cannot get bridged balance for a non-Hyperlane token',
+        token,
+      );
+      return;
+    }
+
+    const adapter = token.getHypAdapter(this.warpCore.multiProvider);
+    const bridgedSupply = await adapter.getBridgedSupply();
+
+    if (bridgedSupply === undefined) {
+      logger.warn('Bridged supply not found for token', token);
+    }
+
+    return bridgedSupply;
   }
 
   stop() {
