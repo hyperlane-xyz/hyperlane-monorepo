@@ -970,22 +970,28 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes32 commitment
     ) public {
         // Arrange
-        deal(address(this), 2 * gasPaymentQuote);
+        gasPaymentQuote = igp.quoteGasPayment(
+            destination,
+            100_000 + originIcaRouter.COMMIT_TX_GAS_USAGE()
+        );
+        deal(address(this), gasPaymentQuote);
         originIcaRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
         );
-        // act
-        originIcaRouter.callRemoteCommitReveal{value: 2 * gasPaymentQuote}(
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal{value: gasPaymentQuote}(
             destination,
-            commitment
+            commitment,
+            100_000
         );
 
         // Process message
         environment.processNextPendingMessage();
 
-        // assert
+        // Assert
         // Destination ICA router should have the commitment
         assertEq(
             address(destinationIcaRouter.verifiedCommitments(commitment)),

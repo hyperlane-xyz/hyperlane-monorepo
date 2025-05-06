@@ -27,6 +27,8 @@ import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
 import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
 import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -42,11 +44,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     using TypeCasts for bytes32;
     using InterchainAccountMessage for bytes;
     using Message for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ Constants ============
 
     address public immutable implementation;
     bytes32 public immutable bytecodeHash;
+    uint public constant COMMIT_TX_GAS_USAGE = 10_000;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
@@ -816,21 +820,26 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _commitment: _commitment
         });
 
-        _commitmentMsgId = _dispatchMessageWithHook(
+        uint commitMsgValue = (msg.value * COMMIT_TX_GAS_USAGE) /
+            (_hookMetadata.gasLimit() + COMMIT_TX_GAS_USAGE);
+
+        _commitmentMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
             _ism,
             _commitmentMsg,
-            _hookMetadata,
-            _hook
+            StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
+            _hook,
+            commitMsgValue
         );
-        _revealMsgId = _dispatchMessageWithHook(
+        _revealMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
             _ism,
             _revealMsg,
             _hookMetadata,
-            _hook
+            _hook,
+            msg.value - commitMsgValue
         );
     }
 
@@ -858,10 +867,15 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
     function callRemoteCommitReveal(
         uint32 _destination,
-        bytes32 _commitment
+        bytes32 _commitment,
+        uint _gasLimit
     ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
+
+        bytes memory hookMetadata = StandardHookMetadata.overrideGasLimit(
+            _gasLimit
+        );
 
         return
             callRemoteCommitReveal(
@@ -869,7 +883,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _router,
                 _ism,
                 bytes32(0),
-                bytes(""),
+                hookMetadata,
                 hook,
                 InterchainAccountMessage.EMPTY_SALT,
                 _commitment
@@ -1030,13 +1044,38 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes memory _hookMetadata,
         IPostDispatchHook _hook
     ) private returns (bytes32) {
+        return
+            _dispatchMessageWithValue(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _hookMetadata,
+                _hook,
+                msg.value
+            );
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router using a `value` parameter for msg.value
+     * @param _value The amount to pass as `msg.value` to the mailbox.dispatch()
+     */
+    function _dispatchMessageWithValue(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _body,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        uint _value
+    ) private returns (bytes32) {
         require(
             _router != InterchainAccountMessage.EMPTY_SALT,
             "no router specified for destination"
         );
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
-            mailbox.dispatch{value: address(this).balance}(
+            mailbox.dispatch{value: _value}(
                 _destination,
                 _router,
                 _body,
