@@ -167,7 +167,8 @@ export function hyperlaneWarpRebalancer(
         --warpRouteId ${warpRouteId} \
         --checkFrequency ${checkFrequency} \
         --rebalancerConfigFile ${rebalancerConfigFile} \
-        --withMetrics ${withMetrics}`;
+        --withMetrics ${withMetrics} \
+        --key ${ANVIL_KEY}`;
 }
 
 /**
