@@ -51,7 +51,7 @@ impl SubmitterError {
             SubmitterError::NonRetryableError(_) => "NonRetryableError".to_string(),
             SubmitterError::DbError(_) => "DbError".to_string(),
             SubmitterError::ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
-            SubmitterError::TxHashNotFound(_) => todo!(),
+            SubmitterError::TxHashNotFound(_) => "TxHashNotFound".to_string(),
         }
     }
 }

@@ -74,7 +74,10 @@ impl EthereumTxAdapter {
                 }
             }
             Err(err) => {
-                warn!(?err, "Error checking block finality");
+                warn!(
+                    ?err,
+                    "Error checking block finality. Assuming tx is pending inclusion"
+                );
                 TransactionStatus::PendingInclusion
             }
         }
