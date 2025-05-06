@@ -52,6 +52,41 @@ export async function getWarpCoreConfigOrExit({
 }
 
 /**
+ * Gets or prompts user selection for a warp route ID.
+ * Uses provided ID or filters by symbol and prompts if multiple options exist.
+ */
+export async function useProvidedWarpRouteIdOrPrompt({
+  context,
+  warpRouteId,
+  symbol,
+}: {
+  context: CommandContext;
+  warpRouteId?: string;
+  symbol?: string;
+}): Promise<string> {
+  if (warpRouteId) return warpRouteId;
+
+  const { ids: routeIds } = filterWarpRoutesIds(
+    (await context.registry.listRegistryContent()).deployments.warpRoutes,
+    symbol ? { symbol } : undefined,
+  );
+
+  assert(routeIds.length !== 0, 'No valid warp routes found in registry');
+
+  return routeIds.length === 1
+    ? routeIds[0]
+    : ((await search({
+        message: 'Select a warp route:',
+        source: (term) => {
+          return routeIds.filter((id) =>
+            id.toLowerCase().includes(term?.toLowerCase() || ''),
+          );
+        },
+        pageSize: 20,
+      })) as string);
+}
+
+/**
  * Gets both warp configs based on the provided inputs. Handles all cases:
  * - warpRouteId: gets configs directly from registry
  * - warpDeployConfigPath & warpCoreConfigPath: reads from files
@@ -88,28 +123,11 @@ export async function getWarpConfigs({
     return { warpDeployConfig, warpCoreConfig };
   }
 
-  let selectedId = warpRouteId;
-  if (!selectedId) {
-    const { ids: routeIds } = filterWarpRoutesIds(
-      (await context.registry.listRegistryContent()).deployments.warpRoutes,
-      symbol ? { symbol } : undefined,
-    );
-
-    assert(routeIds.length !== 0, 'No valid warp routes found in registry');
-
-    selectedId =
-      routeIds.length === 1
-        ? routeIds[0]
-        : ((await search({
-            message: 'Select a warp route:',
-            source: (term) => {
-              return routeIds.filter((id) =>
-                id.toLowerCase().includes(term?.toLowerCase() || ''),
-              );
-            },
-            pageSize: 20,
-          })) as string);
-  }
+  const selectedId = await useProvidedWarpRouteIdOrPrompt({
+    context,
+    warpRouteId,
+    symbol,
+  });
 
   const warpCoreConfig = await context.registry.getWarpRoute(selectedId);
   assert(warpCoreConfig, `Missing warp config for warp route ${selectedId}.`);
