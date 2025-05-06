@@ -345,7 +345,7 @@ impl SerialSubmitter {
 }
 
 #[instrument(skip_all, fields(%domain))]
-async fn receive_task(
+pub async fn receive_task(
     domain: HyperlaneDomain,
     mut rx: mpsc::UnboundedReceiver<QueueOperation>,
     prepare_queue: OpQueue,

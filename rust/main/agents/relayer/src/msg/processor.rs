@@ -369,8 +369,8 @@ impl MessageProcessor {
 
 #[derive(Debug)]
 pub struct MessageProcessorMetrics {
-    max_last_known_message_nonce_gauge: IntGauge,
-    last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
+    pub max_last_known_message_nonce_gauge: IntGauge,
+    pub last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
 impl MessageProcessorMetrics {
@@ -405,9 +405,16 @@ impl MessageProcessorMetrics {
 
 #[cfg(test)]
 pub mod test {
-    use std::time::Instant;
+    use std::{collections::VecDeque, path::PathBuf, str::FromStr, time::Instant};
 
-    use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
+    use futures::future::try_join_all;
+    use hyperlane_ethereum::{ConnectionConf, RpcConnectionConf};
+    use prometheus::{
+        opts, register_int_gauge_vec, CounterVec, IntCounter, IntCounterVec, IntGaugeVec, Opts,
+        Registry,
+    };
+    use serde::Serialize;
+    use tokio::sync::Mutex;
     use tokio::{
         sync::{
             mpsc::{self, UnboundedReceiver},
@@ -421,14 +428,16 @@ pub mod test {
         cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache},
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
-            InterchainGasPaymentData,
+            InterchainGasPaymentData, DB,
         },
-        settings::{ChainConf, ChainConnectionConf, Settings},
+        settings::{ChainConf, ChainConnectionConf, CoreContractAddresses, Settings},
     };
     use hyperlane_core::{
-        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey,
-        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
-        PendingOperationStatus, H256,
+        config::OpSubmissionConfig, identifiers::UniqueIdentifier, test_utils::dummy_domain,
+        BatchItem, ChainResult, Decode, GasPaymentKey, InterchainGasPayment,
+        InterchainGasPaymentMeta, KnownHyperlaneDomain, Mailbox, MerkleTreeInsertion,
+        MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
+        ReorgPeriod, ReprepareReason, SubmitterType, TryBatchAs, TxOutcome, H160, H256, U256,
     };
     use hyperlane_operation_verifier::{
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
@@ -444,6 +453,11 @@ pub mod test {
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
+            },
+            op_queue::OpQueue,
+            op_submitter::{
+                confirm_classic_task, prepare_classic_task, receive_task, submit_classic_task,
+                SerialSubmitterMetrics,
             },
         },
         processor::Processor,
@@ -969,5 +983,391 @@ pub mod test {
             forward_backward_iterator.high_nonce_iter.nonce,
             Some(MAX_ONCHAIN_NONCE + 1)
         );
+    }
+
+    type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
+
+    #[derive(Serialize)]
+    pub struct MockMessage {
+        pub message: PendingMessage,
+        #[serde(skip)]
+        pub prepare_responses: ResponseList<PendingOperationResult>,
+    }
+
+    impl Debug for MockMessage {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{:?}", self.message)
+        }
+    }
+
+    #[async_trait::async_trait]
+    #[typetag::serialize]
+    impl PendingOperation for MockMessage {
+        fn id(&self) -> H256 {
+            self.message.id()
+        }
+
+        fn status(&self) -> PendingOperationStatus {
+            self.message.status()
+        }
+
+        fn set_status(&mut self, status: PendingOperationStatus) {
+            self.message.set_status(status)
+        }
+
+        fn priority(&self) -> u32 {
+            self.message.priority()
+        }
+
+        fn origin_domain_id(&self) -> u32 {
+            self.message.origin_domain_id()
+        }
+
+        fn destination_domain(&self) -> &HyperlaneDomain {
+            self.message.destination_domain()
+        }
+
+        fn sender_address(&self) -> &H256 {
+            self.message.sender_address()
+        }
+
+        fn recipient_address(&self) -> &H256 {
+            self.message.recipient_address()
+        }
+
+        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
+            self.message.retrieve_status_from_db()
+        }
+
+        fn app_context(&self) -> Option<String> {
+            self.message.app_context()
+        }
+
+        async fn prepare(&mut self) -> PendingOperationResult {
+            self.prepare_responses
+                .lock()
+                .await
+                .pop_front()
+                .expect("No mock prepare response set")
+        }
+
+        async fn submit(&mut self) -> PendingOperationResult {
+            PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting)
+        }
+
+        fn set_submission_outcome(&mut self, outcome: TxOutcome) {
+            self.message.set_submission_outcome(outcome)
+        }
+
+        fn get_tx_cost_estimate(&self) -> Option<U256> {
+            self.message.get_tx_cost_estimate()
+        }
+
+        async fn confirm(&mut self) -> PendingOperationResult {
+            self.message.confirm().await
+        }
+
+        fn set_operation_outcome(
+            &mut self,
+            submission_outcome: TxOutcome,
+            submission_estimated_cost: U256,
+        ) {
+            self.message
+                .set_operation_outcome(submission_outcome, submission_estimated_cost)
+        }
+
+        fn next_attempt_after(&self) -> Option<Instant> {
+            self.message.next_attempt_after()
+        }
+
+        fn set_next_attempt_after(&mut self, delay: Duration) {
+            self.message.set_next_attempt_after(delay)
+        }
+
+        fn reset_attempts(&mut self) {
+            self.message.reset_attempts();
+        }
+
+        fn set_retries(&mut self, retries: u32) {
+            self.message.set_retries(retries);
+        }
+
+        fn get_retries(&self) -> u32 {
+            self.message.get_retries()
+        }
+
+        fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+            self.message.try_get_mailbox()
+        }
+
+        fn get_metric(&self) -> Option<Arc<IntGauge>> {
+            self.message.get_metric()
+        }
+
+        fn set_metric(&mut self, metric: Arc<IntGauge>) {
+            self.message.set_metric(metric)
+        }
+
+        async fn payload(&self) -> ChainResult<Vec<u8>> {
+            self.message.payload().await
+        }
+
+        fn on_reprepare(
+            &mut self,
+            err: Option<String>,
+            reason: ReprepareReason,
+        ) -> PendingOperationResult {
+            self.message.on_reprepare(err, reason)
+        }
+    }
+
+    impl TryBatchAs<HyperlaneMessage> for MockMessage {
+        fn try_batch(&self) -> ChainResult<BatchItem<HyperlaneMessage>> {
+            self.message.try_batch()
+        }
+    }
+
+    fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
+        (
+            IntGaugeVec::new(
+                prometheus::Opts::new("op_queue", "OpQueue metrics"),
+                &[
+                    "destination",
+                    "queue_metrics_label",
+                    "operation_status",
+                    "app_context",
+                ],
+            )
+            .unwrap(),
+            "queue_metrics_label".to_string(),
+        )
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_status_error() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let destination_domain =
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = PathBuf::from("/tmp/kamiyaa/rocksdb");
+        let db = DB::from_path(temp_dir.as_path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+        /*
+               let (message_processor, mut receive_channel) =
+                   dummy_message_processor(&origin_domain, &destination_domain, &base_db, cache.clone());
+
+               let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
+               let process_fut = processor.spawn(info_span!("MessageProcessor"));
+               let mut pending_messages = vec![];
+               let pending_message_accumulator = async {
+                   while let Some(pm) = receive_channel.recv().await {
+                       eprintln!("DB Message: {:?}", pm);
+                       pending_messages.push(pm);
+                   }
+               };
+               tokio::select! {
+                   _ = process_fut => {},
+                   _ = pending_message_accumulator => {},
+                   _ = sleep(Duration::from_millis(200)) => { panic!("No PendingMessage received from the processor") }
+               };
+        */
+
+        let arb_chain_conf = ChainConf {
+            domain: origin_domain.clone(),
+            // TODO
+            signer: None,
+            submitter: SubmitterType::Classic,
+            estimated_block_time: Duration::from_secs(1),
+            reorg_period: ReorgPeriod::from_blocks(10),
+            addresses: CoreContractAddresses {
+                mailbox: H160::from_str("0x979Ca5202784112f4738403dBec5D0F3B9daabB9")
+                    .unwrap()
+                    .into(),
+                validator_announce: H160::from_str("0x1df063280C4166AF9a725e3828b4dAC6c7113B08")
+                    .unwrap()
+                    .into(),
+                ..Default::default()
+            },
+            connection: ChainConnectionConf::Ethereum(ConnectionConf {
+                rpc_connection: RpcConnectionConf::HttpFallback {
+                    urls: vec![
+                        "https://arbitrum.drpc.org".parse().unwrap(),
+                        "https://endpoints.omniatech.io/v1/arbitrum/one/public"
+                            .parse()
+                            .unwrap(),
+                    ],
+                },
+                transaction_overrides: Default::default(),
+                op_submission_config: OpSubmissionConfig {
+                    batch_contract_address: None,
+                    max_batch_size: 32,
+                    bypass_batch_simulation: false,
+                    ..Default::default()
+                },
+            }),
+            metrics_conf: Default::default(),
+            index: Default::default(),
+        };
+
+        // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a
+        // Base -> Arbitrum, uses the default ISM
+        let message_bytes = hex::decode("0300139ebf000021050000000000000000000000005454cf5584939f7f884e95dba33fecd6d40b8fe20000a4b1000000000000000000000000fd34afdfbac1e47afc539235420e4be4a206f26d0000000000000000000000008650ee37ba2b0a8ac5954a04b46ee07093eab7f90000000000000000000000000000000000000000000000004563918244f40000").unwrap();
+        let mut message = HyperlaneMessage::read_from(&mut &message_bytes[..]).unwrap();
+        message.nonce = 0;
+        message.origin = KnownHyperlaneDomain::Arbitrum as u32;
+        message.destination = KnownHyperlaneDomain::Arbitrum as u32;
+
+        let core_metrics = CoreMetrics::new("test", 9090, Default::default()).unwrap();
+        let arb_mailbox: Arc<dyn Mailbox> = arb_chain_conf
+            .build_mailbox(&core_metrics)
+            .await
+            .unwrap()
+            .into();
+
+        let base_va = Arc::new(MockValidatorAnnounceContract::default());
+        let default_ism_getter = DefaultIsmCache::new(arb_mailbox.clone());
+        let core_metrics = Arc::new(core_metrics);
+        let base_metadata_builder = BaseMetadataBuilder::new(
+            origin_domain.clone(),
+            arb_chain_conf.clone(),
+            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
+            base_va,
+            false,
+            core_metrics.clone(),
+            cache.clone(),
+            base_db.clone(),
+            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+            IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+        );
+        let message_context = Arc::new(MessageContext {
+            destination_mailbox: arb_mailbox,
+            origin_db: Arc::new(base_db.clone()),
+            cache,
+            metadata_builder: Arc::new(base_metadata_builder),
+            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], base_db.clone())),
+            transaction_gas_limit: Default::default(),
+            metrics: dummy_submission_metrics(),
+            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+        });
+        let metadata =
+        "0x000000100000001000000010000001680000000000000000000000100000015800000000000000000000000019dc38aeae620380430c200a6e990d5af5480117dbd3d5e656de9dcf604fcc90b52a3b97d9f3573b4a0733e824f1358e515698cf00139eaa5452e030aa937f6b14162a44ec3327f6832bbf16e4b0d6df452524af1c1a04e875b4ce7ac0da92aa08838a89f2a126eef23f6b6a08b6cdbe9e9e804b321088b91b034f9466eed2da1dcc36cb220b887b15f3e111a179142c27e4a0b6d6b7a291e22577d6296d82b7c3f29e8989ec1161d853aba0982b2db28b9a9917226c2c27111c41c99e6a84e7717740f901528062385e659b4330e7227593a334be532d27bcf24f3f13bf4fc1a860e96f8d6937984ea83ef61c8ea30d48cc903f6ff725406a4d1ce73f46064b3403ea4c720b770f4389d7259b275f085c6a98cef9a04880a249b42c382ba34a63031debbfb5b9b232ffd9ee45ff63a7249e83c7e9720f9e978a431b".as_bytes().to_vec();
+
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            message_context.clone(),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+        pending_message.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: metadata.clone(),
+            gas_limit: U256::from(615293),
+        }));
+
+        //        let res = base_db.store_message(&pending_message.message, 0);
+        //        println!("Store RES: {:?}", res);
+
+        let vec_deque: VecDeque<_> = [
+            PendingOperationResult::Success,
+            PendingOperationResult::Reprepare(ReprepareReason::ErrorEstimatingGas),
+            /*
+            PendingOperationResult::Success,
+            PendingOperationResult::Reprepare(ReprepareReason::ErrorEstimatingGas),
+            PendingOperationResult::Success,
+            PendingOperationResult::Reprepare(ReprepareReason::ErrorEstimatingGas),
+             */
+        ]
+        .into_iter()
+        .collect();
+
+        let message = MockMessage {
+            message: pending_message,
+            prepare_responses: Arc::new(Mutex::new(vec_deque)),
+        };
+
+        let broadcaster = tokio::sync::broadcast::Sender::new(100);
+
+        let receiver = Arc::new(Mutex::new(broadcaster.subscribe()));
+        let (metrics, _) = dummy_metrics_and_label();
+        let prepare_queue = OpQueue::new(metrics.clone(), "prepare".into(), receiver.clone());
+        let submit_queue = OpQueue::new(metrics.clone(), "submit".into(), receiver.clone());
+        let confirm_queue = OpQueue::new(metrics.clone(), "confirm".into(), receiver.clone());
+
+        let submitter_queue_length = register_int_gauge_vec!(
+            opts!("submitter_queue_length", "Submitter queue length",),
+            &["remote", "queue_name", "operation_status", "app_context"],
+        )
+        .unwrap();
+        let operations_processed_count = IntCounter::new(
+            "operations_processed_count",
+            "Number of operations processed",
+        )
+        .unwrap();
+
+        let serial_submitter_metrics = SerialSubmitterMetrics {
+            submitter_queue_length,
+            ops_confirmed: operations_processed_count.clone(),
+            ops_dropped: operations_processed_count.clone(),
+            ops_failed: operations_processed_count.clone(),
+            ops_prepared: operations_processed_count.clone(),
+            ops_submitted: operations_processed_count.clone(),
+        };
+
+        prepare_queue
+            .push(
+                Box::new(message),
+                Some(PendingOperationStatus::FirstPrepareAttempt),
+            )
+            .await;
+
+        let prepare_task = tokio::task::Builder::new()
+            .spawn(prepare_classic_task(
+                origin_domain.clone(),
+                prepare_queue.clone(),
+                submit_queue.clone(),
+                confirm_queue.clone(),
+                10,
+                None,
+                serial_submitter_metrics.clone(),
+            ))
+            .unwrap();
+
+        let submit_task = tokio::task::Builder::new()
+            .spawn(submit_classic_task(
+                origin_domain.clone(),
+                prepare_queue.clone(),
+                submit_queue.clone(),
+                confirm_queue.clone(),
+                10,
+                serial_submitter_metrics.clone(),
+            ))
+            .unwrap();
+
+        let confirm_task = tokio::task::Builder::new()
+            .spawn(confirm_classic_task(
+                origin_domain.clone(),
+                prepare_queue.clone(),
+                confirm_queue.clone(),
+                10,
+                serial_submitter_metrics.clone(),
+            ))
+            .unwrap();
+        /*
+               let receive_task = tokio::task::Builder::new()
+                   .spawn(receive_task(
+                       domain.clone(),
+                       receive_channel,
+                       prepare_queue.clone(),
+                   )).unwrap();
+        */
+
+        let tasks = [prepare_task, submit_task, confirm_task];
+
+        if let Err(err) = try_join_all(tasks).await {
+            eprintln!("Error {:?}", err);
+        }
     }
 }

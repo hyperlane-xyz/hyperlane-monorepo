@@ -174,15 +174,23 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
+        println!("Message ID: {:?}", self.message.id());
         println!("Writing status to db {:?}", status);
         if let Err(e) = self
             .ctx
             .origin_db
-            .store_status_by_message_id(&self.message.id(), &self.status)
+            .store_status_by_message_id(&self.message.id(), &status)
         {
-            warn!(message_id = ?self.message.id(), err = %e, status = %self.status, "Persisting `status` failed for message");
+            warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
         }
         self.status = status;
+
+        // std::thread::sleep(Duration::from_secs(1));
+        let status = self
+            .ctx
+            .origin_db
+            .retrieve_status_by_message_id(&self.message.id());
+        println!("New message status: {:?}", status);
     }
 
     fn priority(&self) -> u32 {
