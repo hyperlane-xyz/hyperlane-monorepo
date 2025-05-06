@@ -686,9 +686,10 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        let contract_call = self
-            .process_contract_call(message, metadata, None, false)
-            .await?;
+        let contract_call = self.contract.process(
+            metadata.to_vec().into(),
+            RawHyperlaneMessage::from(message).to_vec().into(),
+        );
         let data = (contract_call.tx, contract_call.function);
         serde_json::to_vec(&data).map_err(Into::into)
     }
