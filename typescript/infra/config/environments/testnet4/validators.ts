@@ -221,18 +221,6 @@ export const validatorChainConfig = (
         'citreatestnet',
       ),
     },
-    camptestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('camptestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'camptestnet',
-      ),
-    },
     formtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('formtestnet'),
@@ -367,18 +355,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'abstracttestnet',
-      ),
-    },
-    treasuretopaz: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('treasuretopaz'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'treasuretopaz',
       ),
     },
 

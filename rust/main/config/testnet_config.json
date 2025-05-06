@@ -1034,70 +1034,6 @@
       "interchainAccountRouter": "0x3572a9d808738922194921b275B2A55414BcDA57",
       "timelockController": "0x0000000000000000000000000000000000000000"
     },
-    "camptestnet": {
-      "blockExplorers": [
-        {
-          "apiUrl": "https://camp-network-testnet.blockscout.com/api",
-          "family": "blockscout",
-          "name": "Camp Network Testnet Explorer",
-          "url": "https://camp-network-testnet.blockscout.com"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 2,
-        "reorgPeriod": 1
-      },
-      "chainId": 325000,
-      "displayName": "Camp Network Testnet V2",
-      "domainId": 325000,
-      "gasCurrencyCoinGeckoId": "ethereum",
-      "isTestnet": true,
-      "name": "camptestnet",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "Ether",
-        "symbol": "ETH"
-      },
-      "protocol": "ethereum",
-      "rpcUrls": [
-        {
-          "http": "https://rpc-campnetwork.xyz"
-        }
-      ],
-      "aggregationHook": "0xb97D172479E9EC2501524E02703B42247559A1bD",
-      "domainRoutingIsm": "0x2a2F4AAaf726abb4B969c2804D38e188555683b5",
-      "domainRoutingIsmFactory": "0x44b764045BfDC68517e10e783E69B376cef196B2",
-      "fallbackRoutingHook": "0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818",
-      "interchainAccountIsm": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
-      "interchainAccountRouter": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
-      "interchainGasPaymaster": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
-      "interchainSecurityModule": "0x8C241675A4c755F78B9D4473e7D546169635FA53",
-      "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
-      "merkleTreeHook": "0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A",
-      "pausableHook": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011",
-      "pausableIsm": "0x04438ef7622f5412f82915F59caD4f704C61eA48",
-      "protocolFee": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
-      "proxyAdmin": "0x54148470292C24345fb828B003461a9444414517",
-      "staticAggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-      "staticAggregationIsm": "0x77d4B4090B666d84b4451C7425682B8F51Dbd827",
-      "staticAggregationIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
-      "staticMerkleRootMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
-      "staticMerkleRootWeightedMultisigIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
-      "staticMessageIdMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-      "staticMessageIdWeightedMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-      "storageGasOracle": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE",
-      "testRecipient": "0x7483faD0Bc297667664A43A064bA7c9911659f57",
-      "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
-      "index": {
-        "from": 4591544
-      },
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      }
-    },
     "citreatestnet": {
       "blockExplorers": [
         {
@@ -1980,64 +1916,6 @@
       "validatorAnnounce": "0xfE9a467831a28Ec3D54deCCf0A2A41fa77dDD1D7",
       "index": {
         "from": 964305
-      }
-    },
-    "treasuretopaz": {
-      "blockExplorers": [
-        {
-          "apiUrl": "https://rpc-explorer-verify.topaz.treasure.lol/contract_verification",
-          "family": "etherscan",
-          "name": "Treasure Topaz Block Explorer",
-          "url": "https://topaz.treasurescan.io"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 1,
-        "reorgPeriod": 0
-      },
-      "chainId": 978658,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "Treasure Topaz Testnet",
-      "displayNameShort": "Treasure Testnet",
-      "domainId": 978658,
-      "isTestnet": true,
-      "name": "treasuretopaz",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "MAGIC",
-        "symbol": "MAGIC"
-      },
-      "protocol": "ethereum",
-      "rpcUrls": [
-        {
-          "http": "https://rpc.topaz.treasure.lol"
-        }
-      ],
-      "technicalStack": "zksync",
-      "domainRoutingIsm": "0x7ca1b3fa385F3585f8ab58c0bC90A421689141B8",
-      "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
-      "fallbackDomainRoutingHook": "0x623f284257f133E8bE7c74f6D4D684B61FE8923a",
-      "fallbackRoutingHook": "0x623f284257f133E8bE7c74f6D4D684B61FE8923a",
-      "interchainGasPaymaster": "0xbAaE1B4e953190b05C757F69B2F6C46b9548fa4f",
-      "interchainSecurityModule": "0x7ca1b3fa385F3585f8ab58c0bC90A421689141B8",
-      "mailbox": "0x28f448885bEaaF662f8A9A6c9aF20fAd17A5a1DC",
-      "merkleTreeHook": "0x7fa6009b59F139813eA710dB5496976eE8D80E64",
-      "proxyAdmin": "0xfbA0c57A6BA24B5440D3e2089222099b4663B98B",
-      "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
-      "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
-      "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-      "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-      "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-      "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-      "storageGasOracle": "0x5F1bADC7e28B9b4C98f58dB4e5841e5bf63A7A52",
-      "testRecipient": "0x9EC79CA89DeF61BFa2f38cD4fCC137b9e49d60dD",
-      "validatorAnnounce": "0xfE9a467831a28Ec3D54deCCf0A2A41fa77dDD1D7",
-      "index": {
-        "from": 86008
       }
     },
     "kyvealpha": {

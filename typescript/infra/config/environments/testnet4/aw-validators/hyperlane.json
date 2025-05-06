@@ -31,9 +31,6 @@
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
   },
-  "camptestnet": {
-    "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
-  },
   "carrchaintestnet": {
     "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
   },
@@ -135,9 +132,6 @@
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
-  },
-  "treasuretopaz": {
-    "validators": ["0x9750849beda0a7870462d4685f953fe39033a5ae"]
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]

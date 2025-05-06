@@ -31,10 +31,6 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "camptestnet": {
-    "amount": "0.001000253",
-    "decimals": 9
-  },
   "carrchaintestnet": {
     "amount": "0.001",
     "decimals": 9
@@ -161,10 +157,6 @@
   },
   "superpositiontestnet": {
     "amount": "0.01",
-    "decimals": 9
-  },
-  "treasuretopaz": {
-    "amount": "0.453964137",
     "decimals": 9
   },
   "unichaintestnet": {

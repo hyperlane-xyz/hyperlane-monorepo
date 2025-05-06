@@ -461,16 +461,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  camptestnet: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   carrchaintestnet: {
     threshold: 1,
     validators: [
@@ -2399,16 +2389,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_HASHKEY_CLOUD_VALIDATOR,
-    ],
-  },
-
-  treasuretopaz: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x9750849beda0a7870462d4685f953fe39033a5ae',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 

@@ -8,7 +8,6 @@ export const testnet4SupportedChainNames = [
   'auroratestnet',
   'basesepolia',
   'bsctestnet',
-  'camptestnet',
   'carrchaintestnet',
   'chronicleyellowstone',
   'citreatestnet',
@@ -41,7 +40,6 @@ export const testnet4SupportedChainNames = [
   'suavetoliman',
   'subtensortestnet',
   'superpositiontestnet',
-  'treasuretopaz',
   'unichaintestnet',
   'weavevmtestnet',
 ] as const;
