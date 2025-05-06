@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 7.2.0-permissable-mint.0
+
+### Minor Changes
+
+- 3fa2eba: Be more perssmiable about minting in HypFiatToken
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.6.0-permissable-mint.0
+
 ## 7.1.4
 
 ### Patch Changes

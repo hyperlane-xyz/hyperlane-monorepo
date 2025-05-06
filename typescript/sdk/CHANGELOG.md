@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 12.6.0-permissable-mint.0
+
+### Minor Changes
+
+- 76f0eba: Add Cosmos Native ISM Reader & Module
+- 1f370e6: Add HookModule.resolveHookAddresses() to resolve all HookConfig addresses
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+
+### Patch Changes
+
+- 7d56f2c: Pass remote chain to adjustForPrecisionLoss for better error logging
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+- Updated dependencies [76f0eba]
+- Updated dependencies [3fa2eba]
+  - @hyperlane-xyz/cosmos-sdk@12.6.0-permissable-mint.0
+  - @hyperlane-xyz/core@7.2.0-permissable-mint.0
+  - @hyperlane-xyz/utils@12.6.0-permissable-mint.0
+
 ## 12.5.0
 
 ### Patch Changes

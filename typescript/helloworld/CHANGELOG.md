@@ -1,5 +1,18 @@
 # @hyperlane-xyz/helloworld
 
+## 12.6.0-permissable-mint.0
+
+### Patch Changes
+
+- Updated dependencies [76f0eba]
+- Updated dependencies [3fa2eba]
+- Updated dependencies [1f370e6]
+- Updated dependencies [7d56f2c]
+- Updated dependencies [248d2e1]
+- Updated dependencies [f6ed6ad]
+  - @hyperlane-xyz/sdk@12.6.0-permissable-mint.0
+  - @hyperlane-xyz/core@7.2.0-permissable-mint.0
+
 ## 12.5.0
 
 ### Patch Changes

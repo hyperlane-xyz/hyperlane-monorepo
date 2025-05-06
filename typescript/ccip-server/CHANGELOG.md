@@ -1,5 +1,7 @@
 # @hyperlane-xyz/ccip-server
 
+## 12.6.0-permissable-mint.0
+
 ## 12.5.0
 
 ## 12.4.0

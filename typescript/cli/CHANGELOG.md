@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 12.6.0-permissable-mint.0
+
+### Minor Changes
+
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+
+### Patch Changes
+
+- 166f849: Remove outputting isNft in warp init config
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+
 ## 12.5.0
 
 ### Minor Changes
