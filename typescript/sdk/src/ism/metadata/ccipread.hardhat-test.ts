@@ -99,7 +99,7 @@ describe('CCIP-Read ISM Integration', () => {
     await expect(mailbox.process(metadata, message.message)).to.not.be.reverted;
   });
 
-  it.only('sends signature field in request when calling fetch', async () => {
+  it('sends signature field in request when calling fetch', async () => {
     const { dispatchTx, message } = await core.sendMessage(
       'test1',
       'test2',
