@@ -355,6 +355,43 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .unwrap_or_default();
             err.into_result(SignerConf::Aws { id, region })
         }};
+        (yubihsm) => {{
+            let addr = signer
+                .chain(&mut err)
+                .get_key("address")
+                .parse_string()
+                .unwrap_or_default();
+            let port = signer
+                .chain(&mut err)
+                .get_key("port")
+                .parse_u16()
+                .unwrap_or_default();
+            let authentication_key_id = signer
+                .chain(&mut err)
+                .get_key("authentication_key_id")
+                .parse_u16()
+                .unwrap_or_default();
+
+            let signing_key_id = signer
+                .chain(&mut err)
+                .get_key("signing_key_id")
+                .parse_u16()
+                .unwrap_or_default();
+
+            let password = signer
+                .chain(&mut err)
+                .get_key("password")
+                .parse_string()
+                .unwrap_or_default();
+
+            err.into_result(SignerConf::YubiHsm {
+                addr: addr.to_owned(),
+                port,
+                authentication_key_id,
+                signing_key_id,
+                password: password.to_owned(),
+            })
+        }};
         (cosmosKey) => {{
             let key = signer
                 .chain(&mut err)
@@ -383,6 +420,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
+        Some("yubihsm") => parse_signer!(yubihsm),
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")

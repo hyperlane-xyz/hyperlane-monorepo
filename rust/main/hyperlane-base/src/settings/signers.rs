@@ -7,6 +7,8 @@ use rusoto_kms::KmsClient;
 use tracing::instrument;
 
 use hyperlane_core::{AccountAddressType, H256};
+use hyperlane_ethereum::yubi;
+use hyperlane_sealevel::Keypair;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
@@ -35,6 +37,19 @@ pub enum SignerConf {
         prefix: String,
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
+    },
+    /// A Yubihsm2 signer
+    YubiHsm {
+        /// Port to access the YubiHSM HTTP Connector
+        port: u16,
+        /// Address for the Yubihsm HTTP connector (likey http://127.0.0.1)
+        addr: String,
+        /// Authentication key id
+        authentication_key_id: u16,
+        /// Authentication key password
+        password: String,
+        /// Signing key id
+        signing_key_id: u16,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -70,7 +85,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
         Ok(match conf {
             SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(LocalWallet::from(
                 ethers::core::k256::ecdsa::SigningKey::from(
-                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                    ethers::core::k256::SecretKey::from_slice(key.as_bytes())
                         .context("Invalid ethereum signer key")?,
                 ),
             )),
@@ -85,6 +100,36 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
 
                 let signer = AwsSigner::new(client, id, 0).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
+            }
+            SignerConf::YubiHsm {
+                addr,
+                port,
+                authentication_key_id,
+                password,
+                signing_key_id,
+            } => {
+                let http_config = ethers::signers::yubihsm::HttpConfig {
+                    addr: addr.to_string(),
+                    port: *port,
+                    timeout_ms: 5000,
+                };
+
+                let authentication_key =
+                    ethers::signers::yubihsm::authentication::Key::derive_from_password(
+                        password.as_bytes(),
+                    );
+
+                let credentials = ethers::signers::yubihsm::Credentials::new(
+                    *authentication_key_id,
+                    authentication_key,
+                );
+
+                let signer = yubi::YubiHsmSigner::new_wallet(
+                    http_config,
+                    credentials,
+                    signing_key_id.clone(),
+                );
+                hyperlane_ethereum::Signers::Yubi(signer)
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")

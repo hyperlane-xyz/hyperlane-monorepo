@@ -3,6 +3,7 @@ use ethers::prelude::{Address, Signature};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip712::Eip712;
 use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError};
+use yubi::YubiHsmWallet;
 
 use hyperlane_core::{
     HyperlaneSigner, HyperlaneSignerError, Signature as HyperlaneSignature, H160, H256,
@@ -10,6 +11,7 @@ use hyperlane_core::{
 
 mod singleton;
 pub use singleton::*;
+pub mod yubi;
 
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
@@ -18,6 +20,8 @@ pub enum Signers {
     Local(LocalWallet),
     /// A signer using a key stored in aws kms
     Aws(AwsSigner),
+    /// A signer using a key stored in a yubihsm2
+    Yubi(YubiHsmWallet),
 }
 
 impl From<LocalWallet> for Signers {
@@ -32,6 +36,12 @@ impl From<AwsSigner> for Signers {
     }
 }
 
+impl From<YubiHsmWallet> for Signers {
+    fn from(s: YubiHsmWallet) -> Self {
+        Signers::Yubi(s)
+    }
+}
+
 #[async_trait]
 impl Signer for Signers {
     type Error = SignersError;
@@ -43,6 +53,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => Ok(signer.sign_message(message).await?),
             Signers::Aws(signer) => Ok(signer.sign_message(message).await?),
+            Signers::Yubi(signer) => Ok(signer.sign_message(message).await?),
         }
     }
 
@@ -50,6 +61,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => Ok(signer.sign_transaction(message).await?),
             Signers::Aws(signer) => Ok(signer.sign_transaction(message).await?),
+            Signers::Yubi(signer) => Ok(signer.sign_transaction(message).await?),
         }
     }
 
@@ -60,6 +72,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => Ok(signer.sign_typed_data(payload).await?),
             Signers::Aws(signer) => Ok(signer.sign_typed_data(payload).await?),
+            Signers::Yubi(signer) => Ok(signer.sign_typed_data(payload).await?),
         }
     }
 
@@ -67,6 +80,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => signer.address(),
             Signers::Aws(signer) => signer.address(),
+            Signers::Yubi(signer) => signer.address(),
         }
     }
 
@@ -74,6 +88,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => signer.chain_id(),
             Signers::Aws(signer) => signer.chain_id(),
+            Signers::Yubi(signer) => signer.chain_id(),
         }
     }
 
@@ -81,6 +96,7 @@ impl Signer for Signers {
         match self {
             Signers::Local(signer) => signer.with_chain_id(chain_id).into(),
             Signers::Aws(signer) => signer.with_chain_id(chain_id).into(),
+            Signers::Yubi(signer) => signer.with_chain_id(chain_id).into(),
         }
     }
 }
