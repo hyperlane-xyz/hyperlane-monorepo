@@ -43,7 +43,7 @@ impl PayloadDetails {
 pub struct FullPayload {
     /// reference to payload used by other components
     pub details: PayloadDetails,
-    /// calldata on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
+    /// serialized `ContractCall` on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
     pub data: Vec<u8>,
     /// defaults to the hyperlane mailbox
     pub to: Address,
