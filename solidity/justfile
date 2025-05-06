@@ -1,0 +1,85 @@
+rpc_endpoint_b3 := "https://sepolia.b3.fun/http"
+rpc_endpoint_ape := "https://curtis.rpc.caldera.xyz/http"
+chain_id_b3 := "1993"
+chain_id_ape := "33111"
+polymer_prover_addr := "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa"
+mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
+mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
+polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
+polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
+simple_sender_receiver_addr_b3 := "0xc2f4e5df683a44e4b432958cdfa7340651206119"
+simple_sender_receiver_addr_ape := "0x9db781bb4f64f754c01652de4f2d452548105f4d"
+
+deploy-mailbox-b3:
+    export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url "{{ rpc_endpoint_b3 }}" \
+        --broadcast \
+        -vvvv
+
+deploy-mailbox-ape:
+    export HYPERLANE_DOMAIN_ID="{{ chain_id_ape }}" && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+deploy-polymer-ism-b3:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{ rpc_endpoint_b3 }}" \
+        --broadcast \
+        -vvvv
+
+deploy-polymer-ism-ape:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+deploy-simple-app-b3:
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
+    export POLYMER_ISM_ADDRESS="{{ polymer_ism_addr_b3 }}" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{ rpc_endpoint_b3 }}" \
+        --broadcast \
+        -vvvv
+
+deploy-simple-app-ape:
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
+    export POLYMER_ISM_ADDRESS="{{ polymer_ism_addr_ape }}" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+send-message-b3-to-ape:
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_b3 }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_ape }}" && \
+    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ape }}" && \
+    export MESSAGE_CONTENT="Hello from B3 to Ape!" && \
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url "{{ rpc_endpoint_b3 }}" \
+        --broadcast \
+        -vvvv
+
+send-message-ape-to-b3:
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_ape }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_b3 }}" && \
+    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_b3 }}" && \
+    export MESSAGE_CONTENT="Hello from Ape Curtis to B3 Sepolia!" && \
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+test-mailbox-contract-deployment-b3:
+    cast call "{{ mailbox_contract_addr_b3 }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_b3 }}"
+    cast call "{{ mailbox_contract_addr_b3 }}" "nonce()" --rpc-url "{{ rpc_endpoint_b3 }}"
+
+test-mailbox-contract-deployment-ape:
+    cast call "{{ mailbox_contract_addr_ape }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_ape }}"
+    cast call "{{ mailbox_contract_addr_ape }}" "nonce()" --rpc-url "{{ rpc_endpoint_ape }}"

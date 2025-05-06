@@ -34,7 +34,7 @@ contract PolymerISM is IInterchainSecurityModule {
      * Used to ensure the Polymer proof corresponds to the correct event type.
      */
     bytes32 public constant DISPATCH_EVENT_SIGNATURE =
-        0x8a14c3cf157c13a16c714580a137977637f7e9e699b36f5b7ad738f3d04d36d1;
+        0x769f711d20c679153d382254f59892613b58a97cc876b249134ac25c80f9c814;
 
     // --- State Variables ---
 
@@ -44,7 +44,7 @@ contract PolymerISM is IInterchainSecurityModule {
     /// TODO: Add support for multiple Mailbox contract addresses.
     /// @notice The Hyperlane Mailbox contract address on the origin chain.
     /// @dev This is the contract expected to emit the Dispatch event proven by Polymer.
-    /// This naive appraoch assumes the Mailbox contract is deployed to the same address on all chains. 
+    /// This naive appraoch assumes the Mailbox contract is deployed to the same address on all chains.
     /// This approach does not scale to multiple Mailbox contract addresses.
     address public immutable originMailbox;
 
@@ -62,10 +62,7 @@ contract PolymerISM is IInterchainSecurityModule {
      * @param _polymerProver Address of the ICrossL2ProverV2 contract on this chain.
      * @param _originMailbox Address of the Mailbox contract on the origin chain.
      */
-    constructor(
-        address _polymerProver,
-        address _originMailbox
-    ) {
+    constructor(address _polymerProver, address _originMailbox) {
         require(
             _polymerProver != address(0),
             "PolymerISM: Invalid polymer prover address"
@@ -78,10 +75,7 @@ contract PolymerISM is IInterchainSecurityModule {
         polymerProver = ICrossL2ProverV2(_polymerProver);
         originMailbox = _originMailbox;
 
-        emit PolymerISMConfigured(
-            _polymerProver,
-            _originMailbox
-        );
+        emit PolymerISMConfigured(_polymerProver, _originMailbox);
     }
 
     // --- IInterchainSecurityModule Implementation ---
@@ -170,9 +164,9 @@ contract PolymerISM is IInterchainSecurityModule {
         // The 'data' field of the Dispatch event contains only the abi.encode(bytes message).
         bytes memory message_from_proof = abi.decode(data_from_proof, (bytes));
 
-        // Check 6: Does the message body from the proof match the message being verified?
+        // Check 6: Does the *full message* content from the proof match the *full message* being verified?
         require(
-            keccak256(message_from_proof) == keccak256(_message.body()),
+            keccak256(message_from_proof) == keccak256(_message),
             "PolymerISM: Proof message content mismatch"
         );
 

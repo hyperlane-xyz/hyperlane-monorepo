@@ -1,0 +1,50 @@
+{
+  "chains": {
+    "apechain": {
+      "name": "apechain",
+      "domain": 33111,
+      "chainId": 33111,
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://curtis.rpc.caldera.xyz/http"
+        }
+      ],
+      "mailbox": "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28",
+      "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
+      "index": {
+        "from": 17608070
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "<replace_with_your_private_key>"
+      }
+    },
+    "b3": {
+      "name": "b3",
+      "domain": 1993,
+      "chainId": 1993,
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://sepolia.b3.fun/http"
+        }
+      ],
+      "mailbox": "0x840e5aada7a7aab5f06c5d3152512a246792183f",
+      "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
+      "index": {
+         "from": 32324786
+      },
+      "signer": {
+        "type": "hexKey",
+        "key": "<replace_with_your_private_key>"
+      }
+    }
+  },
+  "db": "/tmp/hyperlane_relayer_db",
+  "relayChains": "apechain,b3",
+  "gasPaymentEnforcement": [
+     { "policy": "none" }
+  ],
+   "maxMessageRetries": 1
+}

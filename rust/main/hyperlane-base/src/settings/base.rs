@@ -114,6 +114,33 @@ impl Settings {
             tracing: self.tracing.clone(),
         }
     }
+
+    /// Try to build a ValidatorAnnounce contract instance.
+    /// Returns Ok(None) if the validator announce address is not configured for the domain.
+    pub async fn build_validator_announce(
+        &self,
+        domain: &HyperlaneDomain,
+        metrics: &CoreMetrics,
+    ) -> Result<Option<Box<dyn ValidatorAnnounce>>> {
+        let setup = self.chain_setup(domain)?;
+        setup.build_validator_announce(metrics).await
+    }
+
+    /// Try to build ValidatorAnnounce contract instances for multiple domains.
+    pub async fn build_validator_announces(
+        &self,
+        domains: impl Iterator<Item = &HyperlaneDomain>,
+        metrics: &CoreMetrics,
+    ) -> HashMap<HyperlaneDomain, Result<Option<Arc<dyn ValidatorAnnounce>>>> {
+        join_all(domains.map(|d| async {
+            let result = self.build_validator_announce(d, metrics).await;
+            // Convert Box<dyn T> to Arc<dyn T> for consistency with the macro's plural return types
+            (d.clone(), result.map(|opt_box| opt_box.map(Arc::from)))
+        }))
+        .await
+        .into_iter()
+        .collect()
+    }
 }
 
 /// Generate a call to ChainSetup for the given builder
@@ -152,7 +179,6 @@ impl Settings {
     build_chain_conf_fns!(build_mailbox, build_mailboxes -> dyn Mailbox);
     build_chain_conf_fns!(build_merkle_tree_hook, build_merkle_tree_hooks -> dyn MerkleTreeHook);
     build_chain_conf_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
-    build_chain_conf_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
 
     /// Build a contract sync for type `T` using log store `S`
     pub async fn sequenced_contract_sync<T, S>(

@@ -149,7 +149,15 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
     ) -> Result<Self> {
         conf.build_merkle_tree_hook_indexer(metrics, advanced_log_meta)
             .await
-            .map(Into::into)
+            // Handle the Option explicitly. If the hook is configured (Some),
+            // convert the Box to an Arc. If it's not configured (None),
+            // return an error because we cannot create the requested indexer.
+            .and_then(|maybe_indexer| match maybe_indexer {
+                Some(boxed_indexer) => Ok(Arc::from(boxed_indexer)),
+                None => Err(eyre!(
+                    "MerkleTreeHookIndexer requested but MerkleTreeHook is not configured for domain {}", conf.domain.name()
+                )),
+            })
     }
 }
 
@@ -199,9 +207,9 @@ pub struct CoreContractAddresses {
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: H256,
     /// Address of the ValidatorAnnounce contract
-    pub validator_announce: H256,
+    pub validator_announce: Option<H256>,
     /// Address of the MerkleTreeHook contract
-    pub merkle_tree_hook: H256,
+    pub merkle_tree_hook: Option<H256>,
 }
 
 /// Indexing settings
@@ -353,7 +361,17 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MerkleTreeHook>> {
         let ctx = "Building merkle tree hook";
-        let locator = self.locator(self.addresses.merkle_tree_hook);
+        let address = self
+            .addresses
+            .merkle_tree_hook
+            .ok_or_else(|| {
+                eyre!(
+                    "Merkle tree hook address is not configured for {}",
+                    self.domain
+                )
+            })
+            .context(ctx)?;
+        let locator = self.locator(address);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -647,117 +665,137 @@ impl ChainConf {
         &self,
         metrics: &CoreMetrics,
         advanced_log_meta: bool,
-    ) -> Result<Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>> {
+    ) -> Result<Option<Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>>> {
         let ctx = "Building merkle tree hook indexer";
-        let locator = self.locator(self.addresses.merkle_tree_hook);
+        if let Some(address) = self.addresses.merkle_tree_hook {
+            let locator = self.locator(address);
 
-        match &self.connection {
-            ChainConnectionConf::Ethereum(conf) => {
-                let reorg_period =
-                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
-                self.build_ethereum(
-                    conf,
-                    &locator,
-                    metrics,
-                    h_eth::MerkleTreeHookIndexerBuilder { reorg_period },
-                )
-                .await
-            }
-            ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(conf) => {
-                let provider =
-                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
-                let tx_submitter =
-                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+            match &self.connection {
+                ChainConnectionConf::Ethereum(conf) => {
+                    let reorg_period =
+                        EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
+                    self.build_ethereum(
+                        conf,
+                        &locator,
+                        metrics,
+                        h_eth::MerkleTreeHookIndexerBuilder { reorg_period },
+                    )
+                    .await
+                    .map(Some)
+                }
+                ChainConnectionConf::Fuel(_) => todo!(),
+                ChainConnectionConf::Sealevel(conf) => {
+                    let provider =
+                        Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                    let tx_submitter =
+                        build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
-                let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
-                    provider,
-                    tx_submitter,
-                    &locator,
-                    conf,
-                    advanced_log_meta,
-                )?);
-                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
-                    *mailbox_indexer,
-                ));
-                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
+                    let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                        provider,
+                        tx_submitter,
+                        &locator,
+                        conf,
+                        advanced_log_meta,
+                    )?);
+                    let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
+                        *mailbox_indexer,
+                    ));
+                    Ok(Some(
+                        indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
+                    ))
+                }
+                ChainConnectionConf::Cosmos(conf) => {
+                    let signer = self.cosmos_signer().await.context(ctx)?;
+                    let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
 
-                let provider = build_cosmos_provider(self, conf, metrics, &locator, signer)?;
-                let wasm_provider = build_cosmos_wasm_provider(
-                    self,
-                    conf,
-                    &locator,
-                    metrics,
-                    reorg_period,
-                    h_cosmos::CosmosMerkleTreeHookIndexer::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
-                )?;
+                    let provider = build_cosmos_provider(self, conf, metrics, &locator, signer)?;
+                    let wasm_provider = build_cosmos_wasm_provider(
+                        self,
+                        conf,
+                        &locator,
+                        metrics,
+                        reorg_period,
+                        h_cosmos::CosmosMerkleTreeHookIndexer::MERKLE_TREE_INSERTION_EVENT_TYPE
+                            .into(),
+                    )?;
 
-                let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
-                    provider,
-                    wasm_provider,
-                    locator,
-                )?);
-                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+                    let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
+                        provider,
+                        wasm_provider,
+                        locator,
+                    )?);
+                    Ok(Some(
+                        indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
+                    ))
+                }
+                ChainConnectionConf::CosmosNative(conf) => {
+                    let provider =
+                        build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                    let indexer = Box::new(h_cosmos_native::CosmosNativeMerkleTreeHook::new(
+                        provider, locator,
+                    )?);
+                    Ok(Some(
+                        indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
+                    ))
+                }
             }
-            ChainConnectionConf::CosmosNative(conf) => {
-                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_cosmos_native::CosmosNativeMerkleTreeHook::new(
-                    provider, locator,
-                )?);
-                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
-            }
+            .context(ctx)
+        } else {
+            Ok(None)
         }
-        .context(ctx)
     }
 
     /// Try to convert the chain settings into a ValidatorAnnounce
+    /// Returns None if validator announce address is not configured
     pub async fn build_validator_announce(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn ValidatorAnnounce>> {
+    ) -> Result<Option<Box<dyn ValidatorAnnounce>>> {
         let ctx = "Building validator announce";
-        let locator = self.locator(self.addresses.validator_announce);
-        match &self.connection {
-            ChainConnectionConf::Ethereum(conf) => {
-                self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
+        if let Some(address) = self.addresses.validator_announce {
+            let locator = self.locator(address);
+
+            match &self.connection {
+                ChainConnectionConf::Ethereum(conf) => self
+                    .build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
-            }
-            ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(conf) => {
-                let provider =
-                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
-                let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
-                    provider, &locator,
-                ));
-                Ok(va as Box<dyn ValidatorAnnounce>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_provider(self, conf, metrics, &locator, signer)?;
+                    .map(Some),
+                ChainConnectionConf::Fuel(_) => todo!(),
+                ChainConnectionConf::Sealevel(conf) => {
+                    let provider =
+                        Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                    let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
+                        provider, &locator,
+                    ));
+                    Ok(Some(va as Box<dyn ValidatorAnnounce>))
+                }
+                ChainConnectionConf::Cosmos(conf) => {
+                    let signer = self.cosmos_signer().await.context(ctx)?;
+                    let provider = build_cosmos_provider(self, conf, metrics, &locator, signer)?;
 
-                let va = Box::new(h_cosmos::CosmosValidatorAnnounce::new(
-                    provider,
-                    locator.clone(),
-                )?);
+                    let va = Box::new(h_cosmos::CosmosValidatorAnnounce::new(
+                        provider,
+                        locator.clone(),
+                    )?);
 
-                Ok(va as Box<dyn ValidatorAnnounce>)
-            }
-            ChainConnectionConf::CosmosNative(conf) => {
-                let signer = self.cosmos_native_signer().await.context(ctx)?;
-                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, signer)?;
-                let va = Box::new(h_cosmos_native::CosmosNativeValidatorAnnounce::new(
-                    provider,
-                    locator.clone(),
-                )?);
+                    Ok(Some(va as Box<dyn ValidatorAnnounce>))
+                }
+                ChainConnectionConf::CosmosNative(conf) => {
+                    let signer = self.cosmos_native_signer().await.context(ctx)?;
+                    let provider =
+                        build_cosmos_native_provider(self, conf, metrics, &locator, signer)?;
+                    let va = Box::new(h_cosmos_native::CosmosNativeValidatorAnnounce::new(
+                        provider,
+                        locator.clone(),
+                    )?);
 
-                Ok(va as Box<dyn ValidatorAnnounce>)
+                    Ok(Some(va as Box<dyn ValidatorAnnounce>))
+                }
             }
+            .context(ctx)
+        } else {
+            Ok(None)
         }
-        .context("Building ValidatorAnnounce")
     }
 
     /// Try to convert the chain setting into an InterchainSecurityModule
@@ -1043,26 +1081,34 @@ impl ChainConf {
                 });
         };
 
+        // --- Register mandatory contracts ---
         register_contract(
             "mailbox",
             self.addresses.mailbox,
             EthereumMailboxAbi::fn_map_owned(),
         );
         register_contract(
-            "validator_announce",
-            self.addresses.validator_announce,
-            EthereumValidatorAnnounceAbi::fn_map_owned(),
-        );
-        register_contract(
             "igp",
             self.addresses.interchain_gas_paymaster,
             EthereumInterchainGasPaymasterAbi::fn_map_owned(),
         );
-        register_contract(
-            "merkle_tree_hook",
-            self.addresses.merkle_tree_hook,
-            EthereumInterchainGasPaymasterAbi::fn_map_owned(),
-        );
+
+        // --- Register optional contracts only if they exist ---
+        if let Some(address) = self.addresses.validator_announce {
+            register_contract(
+                "validator_announce",
+                address,
+                EthereumValidatorAnnounceAbi::fn_map_owned(),
+            );
+        }
+
+        if let Some(address) = self.addresses.merkle_tree_hook {
+            register_contract(
+                "merkle_tree_hook",
+                address,
+                EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+            );
+        }
 
         cfg
     }

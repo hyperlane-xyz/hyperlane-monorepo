@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use derive_new::new;
-use eyre::Context;
+use eyre::{eyre, Context};
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
@@ -33,7 +33,7 @@ pub struct BaseMetadataBuilder {
     origin_domain: HyperlaneDomain,
     destination_chain_setup: ChainConf,
     origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    origin_validator_announce: Arc<dyn ValidatorAnnounce>,
+    origin_validator_announce: Option<Arc<dyn ValidatorAnnounce>>,
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     cache: MeteredCache<LocalCache>,
@@ -161,8 +161,16 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let storage_locations = self
-            .origin_validator_announce
+        // Handle the optional origin_validator_announce
+        let Some(origin_validator_announce) = self.origin_validator_announce.as_ref() else {
+            warn!(hyp_message=?message, origin_domain=%self.origin_domain.name(), "Attempted to build checkpoint syncer for message, but origin chain has no ValidatorAnnounce configured.");
+            return Err(CheckpointSyncerBuildError::Other(eyre!(
+                "Origin chain {} has no ValidatorAnnounce configured, cannot build checkpoint syncer based on announcements.",
+                self.origin_domain.name()
+            )));
+        };
+
+        let storage_locations = origin_validator_announce
             .get_announced_storage_locations(validators)
             .await?;
 

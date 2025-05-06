@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose, Engine};
 use derive_new::new;
 use ethers::types::Bytes;
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use tracing::debug;
 
 /// Message sent to the Polymer proof provider
@@ -25,7 +25,7 @@ pub struct PolymerProofResponse {
 }
 
 /// Fetches proofs for messages using Polymer's proof service
-#[derive(Debug, new, Default, Clone)]
+#[derive(Debug, new, Clone)]
 pub struct PolymerProofProvider {
     #[new(default)]
     /// The API token for Polymer
@@ -38,10 +38,20 @@ pub struct PolymerProofProvider {
     max_retries: u32,
 }
 
+impl Default for PolymerProofProvider {
+    fn default() -> Self {
+        Self {
+            api_token: "944738c1-7692-4da0-99c8-adbf878b3413".to_string(),
+            api_endpoint: "https://proof.testnet.polymer.zone".to_string(),
+            max_retries: 5,
+        }
+    }
+}
+
 impl PolymerProofProvider {
     /// Fetch a proof for a message
     pub async fn fetch_proof(&self, request: &PolymerProofRequest) -> Result<PolymerProofResponse> {
-        debug!(
+        tracing::info!(
             chain_id = request.chain_id,
             block_number = request.block_number,
             tx_index = request.tx_index,
@@ -68,9 +78,19 @@ impl PolymerProofProvider {
                 ]
             }))
             .send()
-            .await?;
+            .await
+            .wrap_err("log_requestProof")?;
 
-        let job_id = response.json::<i64>().await?;
+        let response_json: serde_json::Value = response
+            .json()
+            .await
+            .wrap_err("Failed to parse JSON response for log_requestProof")?;
+
+        let job_id = response_json["result"].as_i64().ok_or_else(|| {
+            eyre::eyre!("'result' field is missing or not an i64 in log_requestProof response")
+        })?;
+
+        tracing::info!(job_id, "Proof requested");
 
         // Poll for the proof
         let mut attempts = 0;
@@ -84,11 +104,32 @@ impl PolymerProofProvider {
                     "params": [job_id]
                 }))
                 .send()
-                .await?;
+                .await
+                .wrap_err("log_queryProof")?;
 
-            let result = response.json::<serde_json::Value>().await?;
+            let response_json: serde_json::Value = response
+                .json()
+                .await
+                .wrap_err("Failed to parse JSON response for log_queryProof")?;
+
+            // Extract the nested "result" object
+            let result = response_json["result"].as_object().ok_or_else(|| {
+                eyre::eyre!("'result' field is missing or not an object in log_queryProof response")
+            })?;
+
+            tracing::info!(
+                job_id,
+                status = ?result["status"],
+                "Received proof status response",
+            );
+
             if result["status"] == "ready" || result["status"] == "complete" {
-                let proof = general_purpose::STANDARD.decode(result["proof"].as_str().unwrap())?;
+                let proof_str = result["proof"]
+                    .as_str()
+                    .ok_or_else(|| eyre::eyre!("'proof' field is missing or not a string"))?;
+                let proof = general_purpose::STANDARD
+                    .decode(proof_str)
+                    .wrap_err("Failed to decode base64 proof")?;
                 return Ok(PolymerProofResponse {
                     proof: Bytes::from(proof),
                 });
@@ -98,6 +139,13 @@ impl PolymerProofProvider {
             if attempts > self.max_retries {
                 return Err(eyre::eyre!("Timeout waiting for proof"));
             }
+
+            tracing::info!(
+                job_id,
+                attempt = attempts,
+                max_retries = self.max_retries,
+                "Polling for proof status"
+            );
 
             // TODO: Use exponential backoff.
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
