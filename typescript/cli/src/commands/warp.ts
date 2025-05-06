@@ -7,7 +7,7 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -31,12 +31,10 @@ import { runWarpRouteRead } from '../read/warp.js';
 import { RebalancerContextFactory } from '../rebalancer/factories/RebalancerContextFactory.js';
 import {
   Config,
-  Executor,
   IExecutor,
   IStrategy,
   MonitorPollingError,
   RawBalances,
-  Strategy,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -458,30 +456,26 @@ export const rebalancer: CommandModuleWithWriteContext<{
     withMetrics = false,
   }) => {
     try {
+      // Load rebalancer config from disk
+      const config = Config.fromFile(rebalancerConfigFile);
+
+      // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
         context.registry,
         warpRouteId,
+        config,
       );
 
-      const config = Config.fromFile(rebalancerConfigFile);
-
-      // Instantiates the warp route monitor
+      // Instantiates the monitor that will observe the warp route
       const monitor = contextFactory.createMonitor(checkFrequency);
 
-      // Instantiates the strategy that will get rebalancing routes based on monitor results
-      const strategy: IStrategy = new Strategy(
-        objMap(config, (_, v) => ({
-          weight: v.weight,
-          tolerance: v.tolerance,
-        })),
-      );
+      // Instantiates the strategy that will compute how rebalance routes should be performed
+      const strategy: IStrategy = contextFactory.createStrategy();
 
-      const executor: IExecutor = await new Executor(
-        objMap(config, (_, v) => v.bridge),
-        context.key,
-      ).init(context.registry, warpRouteId);
+      // Instantiates the executor in charge of executing the rebalancing transactions
+      const executor: IExecutor = contextFactory.createExecutor(context.key);
 
-      // Creates an instance for the metrics that will publish stats for the monitored data
+      // Instantiates the metrics that will publish stats from the monitored data
       const metrics = withMetrics
         ? await contextFactory.createMetrics()
         : undefined;
@@ -492,7 +486,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
           const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
             if (
               !tokenInfo.token.isCollateralized() ||
-              !tokenInfo.bridgedSupply
+              tokenInfo.bridgedSupply === undefined
             ) {
               return acc;
             }

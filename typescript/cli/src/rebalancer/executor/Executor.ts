@@ -1,66 +1,41 @@
 import { ethers } from 'ethers';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
   EvmHypCollateralAdapter,
-  MultiProtocolProvider,
   Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { log } from '../../logger.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 export class Executor implements IExecutor {
-  private initData?: {
-    warpCore: WarpCore;
-    chainMetadata: ChainMap<ChainMetadata>;
-    tokensByChainName: Map<ChainName, Token>;
-  };
+  private readonly tokensByChainName: Map<ChainName, Token>;
 
   constructor(
     private readonly bridges: ChainMap<Address>,
     private readonly rebalancerKey: string,
-  ) {}
-
-  async init(registry: IRegistry, warpRouteId: string): Promise<Executor> {
-    if (this.initData) {
-      throw new Error('Executor already initialized');
-    }
-
-    const metadata = await registry.getMetadata();
-    const addresses = await registry.getAddresses();
-    const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-    const provider = new MultiProtocolProvider(objMerge(metadata, mailboxes));
-    const warpCoreConfig = await registry.getWarpRoute(warpRouteId);
-    const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-
-    this.initData = {
-      warpCore,
-      chainMetadata: metadata,
-      tokensByChainName: new Map(warpCore.tokens.map((t) => [t.chainName, t])),
-    };
-
-    return this;
+    private readonly warpCore: WarpCore,
+    private readonly chainMetadata: ChainMap<ChainMetadata>,
+  ) {
+    this.tokensByChainName = new Map(
+      warpCore.tokens.map((t) => [t.chainName, t]),
+    );
   }
 
   async rebalance(routes: RebalancingRoute[]) {
-    if (!this.initData) {
-      throw new Error('Executor not initialized');
-    }
-
     if (routes.length === 0) {
       log('No routes to execute');
 
       return;
     }
 
-    const { warpCore, chainMetadata, tokensByChainName } = this.initData;
+    const { warpCore, chainMetadata, tokensByChainName } = this;
 
     const transactions: {
       signer: ethers.Signer;

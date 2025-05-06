@@ -7,20 +7,25 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
+import { Config } from '../config/Config.js';
+import { Executor } from '../executor/Executor.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
+import { Strategy } from '../strategy/Strategy.js';
 
 export class RebalancerContextFactory {
   /**
    * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
    * @param warpRouteId - The warp route ID to monitor.
+   * @param config - The rebalancer config
    * @param metadata - A `ChainMap` of chain names and `ChainMetadata` objects, sourced from the `IRegistry`.
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    */
   private constructor(
     private readonly registry: IRegistry,
     private readonly warpRouteId: string,
+    private readonly config: Config,
     private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
   ) {}
@@ -28,10 +33,12 @@ export class RebalancerContextFactory {
   /**
    * @param registry - The registry that contains a collection of configs, artifacts, and schemas for Hyperlane.
    * @param warpRouteId - The warp route ID to monitor.
+   * @param config - The rebalancer config
    */
   public static async create(
     registry: IRegistry,
     warpRouteId: string,
+    config: Config,
   ): Promise<RebalancerContextFactory> {
     const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
@@ -51,6 +58,7 @@ export class RebalancerContextFactory {
     return new RebalancerContextFactory(
       registry,
       warpRouteId,
+      config,
       metadata,
       warpCore,
     );
@@ -75,5 +83,23 @@ export class RebalancerContextFactory {
 
   public createMonitor(checkFrequency: number): Monitor {
     return new Monitor(checkFrequency, this.warpCore);
+  }
+
+  public createStrategy(): Strategy {
+    return new Strategy(
+      objMap(this.config, (_, v) => ({
+        weight: v.weight,
+        tolerance: v.tolerance,
+      })),
+    );
+  }
+
+  public createExecutor(rebalancerKey: string): Executor {
+    return new Executor(
+      objMap(this.config, (_, v) => v.bridge),
+      rebalancerKey,
+      this.warpCore,
+      this.metadata,
+    );
   }
 }
