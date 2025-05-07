@@ -112,6 +112,14 @@ contract InterchainAccountRouter is Router {
         return callRemote(_destination, _gasLimit, calls);
     }
 
+    /**
+     * @notice Dispatches a batch of calls to be executed on a remote chain by
+     *         the caller’s interchain account, using the router’s default configuration.
+     * @param _destination The destination domain identifier.
+     * @param _gasLimit    The gas limit that the remote execution may consume.
+     * @param _calls       Array of low‑level calls to relay.
+     * @return             The Hyperlane message ID corresponding to the dispatched message.
+     */
     function callRemote(
         uint32 _destination,
         uint256 _gasLimit,
@@ -129,6 +137,15 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    /**
+     * @notice Variant of {callRemote} that lets the caller specify a namespace (`_salt`)
+     *         so multiple interchain accounts can coexist for the same owner.
+     * @param _destination Destination domain identifier.
+     * @param _salt        Namespace label (CREATE2 salt) used to derive a unique account.
+     * @param _gasLimit    Gas limit for the remote call batch.
+     * @param _calls       Calls to execute via the interchain account.
+     * @return             The Hyperlane message ID emitted by the Mailbox.
+     */
     function callRemoteNamespaced(
         uint32 _destination,
         bytes32 _salt,
@@ -147,6 +164,20 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    /**
+     * @notice Fully‑configurable helper for dispatching remote calls. Allows
+     *         explicit overrides for the destination router, ISM, namespace salt,
+     *         and post‑dispatch hook.
+     * @param _destination  Destination domain identifier.
+     * @param _router       Remote router address (as bytes32) that should receive the message.
+     * @param _ism          Interchain Security Module to associate with the derived account
+     *                       (pass 0x0 to accept the router’s default).
+     * @param _salt         Additional namespace salt for deterministic account derivation.
+     * @param _calls        Calls to execute on the destination chain.
+     * @param _hook         Optional post‑dispatch hook contract.
+     * @param _hookMetadata Opaque metadata blob understood by the hook.
+     * @return              Hyperlane message ID for the dispatched message.
+     */
     function callRemoteAdvanced(
         uint32 _destination,
         bytes32 _router,
@@ -200,6 +231,13 @@ contract InterchainAccountRouter is Router {
     }
 
     // ============ External Functions ============
+    /**
+     * @notice Computes (without deploying) the address of the caller’s interchain
+     *         account on the local chain for a given origin and configuration.
+     * @param _origin        The origin domain where messages will originate.
+     * @param _accountConfig Account configuration (owner, ISM, salt).
+     * @return account       Predicted local interchain account address.
+     */
     function getLocalInterchainAccount(
         uint32 _origin,
         AccountConfig memory _accountConfig
@@ -211,6 +249,13 @@ contract InterchainAccountRouter is Router {
         );
     }
 
+    /**
+     * @notice Returns the caller’s interchain account on the local chain,
+     *         lazily deploying it with CREATE2 if it does not already exist.
+     * @param _origin        Origin domain of the account.
+     * @param _accountConfig Configuration struct (owner, ISM, salt).
+     * @return               Reference to the deployed {OwnableMulticall} proxy.
+     */
     function getDeployedInterchainAccount(
         uint32 _origin,
         AccountConfig memory _accountConfig
@@ -223,6 +268,13 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    /**
+     * @notice Predicts the address of the caller’s interchain account on a
+     *         destination chain using this router’s domain mapping.
+     * @param destination    Destination domain identifier.
+     * @param _accountConfig Configuration struct (owner, ISM, salt).
+     * @return account       Predicted interchain account address on the destination chain.
+     */
     function getRemoteInterchainAccount(
         uint32 destination,
         AccountConfig calldata _accountConfig
@@ -234,7 +286,17 @@ contract InterchainAccountRouter is Router {
             );
     }
 
-    // ============ Router overrides ============
+    /**
+     * @notice Returns (deploying if necessary) the caller’s interchain account
+     *         contract for the given origin domain and router address.
+     * @dev    Low‑level helper used by the external {getDeployedInterchainAccount}
+     *         overload.  Computes the CREATE2 salt, predicts the account address,
+     *         and deploys the proxy on‑demand.
+     * @param _origin        Remote origin domain of the account.
+     * @param _router        Remote origin router address (as bytes32).
+     * @param _accountConfig Configuration struct (owner, ISM, salt).
+     * @return               Reference to the deployed {OwnableMulticall} proxy.
+     */
     function getDeployedInterchainAccount(
         uint32 _origin,
         bytes32 _router,
@@ -257,6 +319,16 @@ contract InterchainAccountRouter is Router {
         return OwnableMulticall(_account);
     }
 
+    /**
+     * @notice Computes the deterministic CREATE2 salt and the resulting local
+     *         interchain account address for the given origin domain, router,
+     *         and account configuration—without deploying anything.
+     * @param _origin        Remote origin domain.
+     * @param _router        Origin router address (as bytes32).
+     * @param _accountConfig Configuration struct (owner, ISM, salt).
+     * @return salt          CREATE2 salt that will be used for deployment.
+     * @return account       Predicted account address on the local chain.
+     */
     function getLocalInterchainAccount(
         uint32 _origin,
         bytes32 _router,
@@ -266,6 +338,14 @@ contract InterchainAccountRouter is Router {
         account = getLocalInterchainAccount(salt);
     }
 
+    /**
+     * @notice Predicts the address of the caller’s interchain account on a
+     *         destination chain when the destination router address is supplied
+     *         explicitly (rather than via the {routers} mapping).
+     * @param _router        Destination router address.
+     * @param _accountConfig Configuration struct (owner, ISM, salt).
+     * @return account       Predicted interchain account address on the destination chain.
+     */
     function getRemoteInterchainAccount(
         address _router,
         AccountConfig calldata _accountConfig
