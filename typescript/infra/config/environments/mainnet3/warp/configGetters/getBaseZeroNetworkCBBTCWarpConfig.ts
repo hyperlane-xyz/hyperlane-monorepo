@@ -40,6 +40,7 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
     },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
+    gas: 300000,
   };
 
   return {

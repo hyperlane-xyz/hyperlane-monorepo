@@ -94,6 +94,7 @@ export const getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig
       type: TokenType.collateral,
       token: tokens.zeronetwork.USDC,
       interchainSecurityModule: ISM_CONFIG,
+      gas: 300000,
     };
 
     const ethereum: HypTokenRouterConfig = {
