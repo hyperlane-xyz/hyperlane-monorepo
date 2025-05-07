@@ -203,9 +203,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   async function startRebalancerAndExpectLog(
     log: string,
-    timeout = 10000,
-    withMetrics = false,
+    options: { timeout?: number; withMetrics?: boolean } = {},
   ) {
+    const { timeout = 10_000, withMetrics = false } = options;
+
     const process = hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
@@ -650,5 +651,25 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
     await startRebalancerAndExpectLog(`No routes to execute`);
+  });
+
+  it('should successfully log balance tracking', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `"module":"warp-balance-monitor","labels":{"chain_name":"anvil4","token_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_name":"token","wallet_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_standard":"EvmHypSynthetic","warp_route_id":"TOKEN/anvil2-anvil3-anvil4","related_chain_names":"anvil2,anvil3"},"balance":20,"msg":"Wallet balance updated for token"`,
+      { withMetrics: true },
+    );
   });
 });
