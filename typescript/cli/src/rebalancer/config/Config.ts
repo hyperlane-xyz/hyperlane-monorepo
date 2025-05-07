@@ -19,7 +19,7 @@ const ChainConfigSchema = z.object({
 
 const ConfigSchema = z
   .object({
-    monitorOnly: z.boolean(),
+    monitorOnly: z.boolean().optional().default(false),
     chains: z.record(z.string(), ChainConfigSchema),
   })
   .strict();
