@@ -58,6 +58,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   // For these tests we mostly care about the first run
   const CHECK_FREQUENCY = 60000;
 
+  const DEFAULT_METRICS_SERVER = 'http://localhost:9090/metrics';
+
   let tokenSymbol: string;
   let warpRouteId: string;
   let snapshots: { rpcUrl: string; snapshotId: string }[] = [];
@@ -677,16 +679,17 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     startRebalancerAndExpectLog('expects nothing', {
       timeout: 5_000,
       withMetrics: true,
+    })
       // it's expected for it to error by timeout
       // we're only checking that the server exposes
       // the expected prometheus data
-    }).catch(() => {});
+      .catch(() => {});
 
     // Give the server some time to start
     await sleep(3000);
 
     // Check if the metrics endpoint is responding
-    const response = await fetch('http://localhost:9090/metrics');
+    const response = await fetch(DEFAULT_METRICS_SERVER);
     expect(response.status).to.equal(200);
 
     // Get the metrics content
@@ -697,5 +700,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Check for specific Hyperlane metrics
     expect(metricsText).to.include('hyperlane_wallet_balance');
+  });
+
+  it('should not find any metrics server when they are not enabled', async () => {
+    startRebalancerAndExpectLog('expects nothing', {
+      withMetrics: false,
+    })
+      // it's expected for it to error by timeout
+      // we're only checking that the server exposes
+      // the expected prometheus data
+      .catch(() => {});
+
+    // Give the server some time to start
+    await sleep(3000);
+
+    let failed = false;
+    try {
+      await fetch(DEFAULT_METRICS_SERVER);
+    } catch (_) {
+      failed = true;
+    }
+
+    // Check that metrics endpoint is not responding
+    expect(failed).to.be.true;
   });
 });
