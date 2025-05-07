@@ -1,7 +1,7 @@
 //! InterchainAccount program.
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, SizedData};
+use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use hyperlane_interchain_accounts::InterchainAccountMessage;
@@ -146,6 +146,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
     if storage_info.key != &storage_pda_key {
         return Err(ProgramError::InvalidArgument);
     }
+    verify_account_uninitialized(storage_info)?;
 
     let storage_account = InterchainAccountStorageAccount::from(InterchainAccountStorage {
         local_domain: init.local_domain,
