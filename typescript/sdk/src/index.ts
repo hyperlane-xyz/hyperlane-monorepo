@@ -24,6 +24,8 @@ export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
 export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
 export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
+export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
+export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
 export {
   AW_VALIDATOR_ALIAS,
   defaultMultisigConfigs,
@@ -581,8 +583,6 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
-export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
-export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
