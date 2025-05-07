@@ -19,7 +19,13 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { CosmosNativeIsmReader } from './CosmosNativeIsmReader.js';
-import { IsmConfig, IsmConfigSchema, IsmType } from './types.js';
+import {
+  DomainRoutingIsmConfig,
+  IsmConfig,
+  IsmConfigSchema,
+  IsmType,
+  MultisigIsmConfig,
+} from './types.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -134,27 +140,74 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
     switch (ismType) {
       case IsmType.MERKLE_ROOT_MULTISIG: {
-        const { response: merkleRootResponse } =
-          await this.signer.createMerkleRootMultisigIsm({
-            validators: config.validators,
-            threshold: config.threshold,
-          });
-        return merkleRootResponse.id;
+        return this.deployMerkleRootMultisigIsm(config);
       }
       case IsmType.MESSAGE_ID_MULTISIG: {
-        const { response: messageIdResponse } =
-          await this.signer.createMessageIdMultisigIsm({
-            validators: config.validators,
-            threshold: config.threshold,
-          });
-        return messageIdResponse.id;
+        return this.deployMessageIdMultisigIsm(config);
+      }
+      case IsmType.ROUTING: {
+        return this.deployRoutingIsm(config);
       }
       case IsmType.TEST_ISM: {
-        const { response: noopResponse } = await this.signer.createNoopIsm({});
-        return noopResponse.id;
+        return this.deployNoopIsm();
       }
       default:
-        throw new Error(`ISM type ${ismType} is not supported on Cosmos`);
+        throw new Error(
+          `ISM type ${ismType} is not supported on Cosmos Native`,
+        );
     }
+  }
+
+  protected async deployMerkleRootMultisigIsm(
+    config: MultisigIsmConfig,
+  ): Promise<Address> {
+    const { response } = await this.signer.createMerkleRootMultisigIsm({
+      validators: config.validators,
+      threshold: config.threshold,
+    });
+    return response.id;
+  }
+
+  protected async deployMessageIdMultisigIsm(
+    config: MultisigIsmConfig,
+  ): Promise<Address> {
+    const { response } = await this.signer.createMessageIdMultisigIsm({
+      validators: config.validators,
+      threshold: config.threshold,
+    });
+    return response.id;
+  }
+
+  protected async deployRoutingIsm(
+    config: DomainRoutingIsmConfig,
+  ): Promise<Address> {
+    const routes = [];
+
+    // deploy ISMs for each domain
+    for (const chainName of Object.keys(config.domains)) {
+      const domainId = this.multiProvider.tryGetDomainId(chainName);
+      if (!domainId) {
+        this.logger.warn(
+          `Unknown chain ${chainName}, skipping ISM configuration`,
+        );
+        continue;
+      }
+
+      const address = await this.deploy({ config: config.domains[chainName] });
+      routes.push({
+        ism: address,
+        domain: domainId,
+      });
+    }
+
+    const { response } = await this.signer.createRoutingIsm({
+      routes,
+    });
+    return response.id;
+  }
+
+  protected async deployNoopIsm(): Promise<Address> {
+    const { response } = await this.signer.createNoopIsm({});
+    return response.id;
   }
 }
