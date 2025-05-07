@@ -492,8 +492,6 @@ fn enroll_remote_routers(
 
     // Account 2: Owner.
     let owner_info = next_account_info(accounts_iter)?;
-    storage.ensure_owner_signer(owner_info)?;
-
     storage.enroll_remote_routers_only_owner(owner_info, configs)?;
 
     // Store it, & realloc if needed
