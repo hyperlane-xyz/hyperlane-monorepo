@@ -3,6 +3,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
 use reqwest::{Client, ClientBuilder};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sov_universal_wallet::schema::{RollupRoots, Schema};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -93,7 +94,7 @@ impl UniversalClient {
         })
     }
 
-    /// Query the Universale Wallet for the encoded transaction body.
+    /// Query the Universal Wallet for the encoded transaction body.
     async fn encoded_call_message(&self, call_message: &Value) -> Result<String> {
         let schema = Self::fetch_schema(&self.api_url, &self.http_client).await?;
         let rtc_index = schema.rollup_expected_index(RollupRoots::RuntimeCall)?;
@@ -137,6 +138,16 @@ impl UniversalClient {
     }
 
     async fn submit_tx(&self, tx: String) -> Result<String> {
+        #[derive(Deserialize)]
+        struct Schema {
+            data: Data,
+        }
+
+        #[derive(Deserialize)]
+        struct Data {
+            id: String,
+        }
+
         let url = format!("{}/sequencer/txs", self.api_url);
         let resp = self
             .http_client
@@ -145,7 +156,10 @@ impl UniversalClient {
             .send()
             .await?;
 
-        if !resp.status().is_success() {
+        if resp.status().is_success() {
+            let parsed_response: Schema = resp.json().await?;
+            Ok(parsed_response.data.id)
+        } else {
             let status = resp.status();
             let error_text = resp
                 .text()
@@ -153,17 +167,6 @@ impl UniversalClient {
                 .unwrap_or_else(|_| "Unknown error".to_string());
             bail!("Request failed with status {}: {}", status, error_text);
         }
-
-        let parsed_response: serde_json::Value = resp.json().await?;
-
-        let Some(id) = parsed_response
-            .get("data")
-            .and_then(|data| data.get("id"))
-            .and_then(|id| id.as_str())
-        else {
-            bail!("ID not found in response");
-        };
-        Ok(id.to_string())
     }
 
     /// Query the rollup REST API for it's schema, in JSON format (used to serialise json transactions into borsh ones)
