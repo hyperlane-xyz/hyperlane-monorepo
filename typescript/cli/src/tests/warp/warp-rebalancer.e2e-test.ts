@@ -653,7 +653,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog(`No routes to execute`);
   });
 
-  it('should successfully log balance tracking', async () => {
+  it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       [CHAIN_NAME_2]: {
         weight: '75',
@@ -671,5 +671,31 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       `"module":"warp-balance-monitor","labels":{"chain_name":"anvil4","token_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_name":"token","wallet_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_standard":"EvmHypSynthetic","warp_route_id":"TOKEN/anvil2-anvil3-anvil4","related_chain_names":"anvil2,anvil3"},"balance":20,"msg":"Wallet balance updated for token"`,
       { withMetrics: true },
     );
+  });
+
+  it('should start the metrics server and expose prometheus metrics', async () => {
+    startRebalancerAndExpectLog('expects nothing', {
+      timeout: 5_000,
+      withMetrics: true,
+      // it's expected for it to error by timeout
+      // we're only checking that the server exposes
+      // the expected prometheus data
+    }).catch(() => {});
+
+    // Give the server some time to start
+    await sleep(3000);
+
+    // Check if the metrics endpoint is responding
+    const response = await fetch('http://localhost:9090/metrics');
+    expect(response.status).to.equal(200);
+
+    // Get the metrics content
+    const metricsText = await response.text();
+    expect(metricsText).to.not.be.empty;
+    expect(metricsText).to.include('# HELP');
+    expect(metricsText).to.include('# TYPE');
+
+    // Check for specific Hyperlane metrics
+    expect(metricsText).to.include('hyperlane_wallet_balance');
   });
 });
