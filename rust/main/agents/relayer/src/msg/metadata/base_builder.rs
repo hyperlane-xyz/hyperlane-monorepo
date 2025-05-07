@@ -23,6 +23,7 @@ use hyperlane_core::{
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
+use hyperlane_ethereum::Signers;
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
@@ -42,6 +43,8 @@ pub struct BaseMetadataBuilder {
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
+    /// Optional Ethereum signer for CCIP-read authentication
+    signer: Option<Signers>,
 }
 
 impl Debug for BaseMetadataBuilder {

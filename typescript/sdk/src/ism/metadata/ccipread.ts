@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { TypedDataField, utils } from 'ethers';
 
 import { ICcipReadIsm__factory } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
@@ -14,6 +14,34 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
 
   constructor(core: HyperlaneCore) {
     this.core = core;
+  }
+
+  /**
+   * Generates an EIP-712 authentication signature over the given data and sender.
+   */
+  private async generateAuthSignature(
+    ismAddress: string,
+    callDataHex: string,
+    sender: string,
+    destinationDomain: number,
+  ): Promise<string> {
+    const signer = this.core.multiProvider.getSigner(destinationDomain);
+    const chainId = await this.core.multiProvider.getChainId(destinationDomain);
+    const domain = {
+      name: 'Hyperlane CCIPReadAuth',
+      version: '1',
+      chainId,
+      verifyingContract: ismAddress,
+    };
+    const types: Record<string, TypedDataField[]> = {
+      Auth: [
+        { name: 'data', type: 'bytes' },
+        { name: 'sender', type: 'address' },
+      ],
+    };
+    const value = { data: callDataHex, sender };
+    // @ts-ignore ethers types somehow don't have this function
+    return await signer._signTypedData(domain, types, value);
   }
 
   async build(
@@ -44,23 +72,25 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     ];
     const callDataHex = utils.hexlify(callData);
 
+    const signature = await this.generateAuthSignature(
+      ism.address,
+      callDataHex,
+      sender,
+      message.parsed.destination,
+    );
+
     for (const urlTemplate of urls) {
       const url = urlTemplate
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
       try {
-        let responseJson: any;
-        if (urlTemplate.includes('{data}')) {
-          const res = await fetch(url);
-          responseJson = await res.json();
-        } else {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender, data: callDataHex }),
-          });
-          responseJson = await res.json();
-        }
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sender, data: callDataHex, signature }),
+        });
+        const responseJson = await res.json();
+
         const rawHex = responseJson.data as string;
         return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
       } catch (error: any) {

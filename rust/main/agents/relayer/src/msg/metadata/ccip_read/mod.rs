@@ -1,20 +1,23 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
-use derive_more::Deref;
-use derive_new::new;
+use ethers::signers::Signer;
+use ethers::types::transaction::eip712::{EIP712Domain, Eip712DomainType, TypedData};
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use hyperlane_base::cache::FunctionCallCache;
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, RawHyperlaneMessage, H256,
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneContract, HyperlaneMessage, RawHyperlaneMessage,
+    H256,
 };
-use hyperlane_ethereum::OffchainLookup;
+use hyperlane_ethereum::{OffchainLookup, Signers};
 
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
@@ -29,12 +32,82 @@ struct OffchainResponse {
     data: String,
 }
 
-#[derive(Clone, Debug, new, Deref)]
+#[derive(Clone, Debug)]
 pub struct CcipReadIsmMetadataBuilder {
     base: MessageMetadataBuilder,
+    signer: Option<Signers>,
 }
 
 impl CcipReadIsmMetadataBuilder {
+    // constructor
+    pub fn new(base: MessageMetadataBuilder, signer: Option<Signers>) -> Self {
+        Self { base, signer }
+    }
+
+    /// Generates an optional EIP-712 authentication signature.
+    async fn generate_signature(
+        &self,
+        info: &OffchainLookup,
+        message: &HyperlaneMessage,
+    ) -> Result<Option<String>, MetadataBuildError> {
+        if let Some(signer) = &self.signer {
+            // TODO: Get the right chain ID, not domain ID
+            let chain_id = message.destination as u64;
+
+            // Build EIP-712 domain
+            let domain = EIP712Domain {
+                name: Some("Hyperlane CCIPReadAuth".to_string()),
+                version: Some("1".to_string()),
+                chain_id: Some(chain_id.into()),
+                verifying_contract: Some(info.sender),
+                salt: None,
+            };
+
+            // Define types for the Auth struct
+            let mut types = BTreeMap::new();
+            types.insert(
+                "Auth".to_string(),
+                vec![
+                    Eip712DomainType {
+                        name: "data".to_string(),
+                        r#type: "bytes".to_string(),
+                    },
+                    Eip712DomainType {
+                        name: "sender".to_string(),
+                        r#type: "address".to_string(),
+                    },
+                ],
+            );
+
+            // Prepare the typed data message
+            let mut message_map = BTreeMap::new();
+            message_map.insert(
+                "data".to_string(),
+                JsonValue::String(bytes_to_hex(&info.call_data)),
+            );
+            message_map.insert(
+                "sender".to_string(),
+                JsonValue::String(bytes_to_hex(&info.sender.as_bytes())),
+            );
+
+            let typed_data = TypedData {
+                types,
+                primary_type: "Auth".to_string(),
+                domain,
+                message: message_map,
+            };
+
+            // Sign the typed data
+            let sig = signer
+                .sign_typed_data(&typed_data)
+                .await
+                .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))?;
+            Ok(Some(sig.to_string()))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Returns info on how to query for offchain information
     /// This method will attempt to get the value from cache first. If it is a cache miss,
     /// it will request it from the ISM contract. The result will be cached for future use.
@@ -52,6 +125,7 @@ impl CcipReadIsmMetadataBuilder {
         let call_params = (ism.address(), message.id());
 
         let info_from_cache = self
+            .base
             .base_builder()
             .cache()
             .get_cached_call_result::<SerializedOffchainLookup>(ism_domain, fn_key, &call_params)
@@ -92,7 +166,8 @@ impl CcipReadIsmMetadataBuilder {
             }
         };
 
-        self.base_builder()
+        self.base
+            .base_builder()
             .cache()
             .cache_call_result(
                 ism_domain,
@@ -120,12 +195,16 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
         let ism = self
+            .base
             .base_builder()
             .build_ccip_read_ism(ism_address)
             .await
             .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         let info = self.call_get_offchain_verify_info(ism, message).await?;
+
+        // Compute relayer authentication signature via EIP-712
+        let signature_opt = self.generate_signature(&info, message).await?;
 
         for url in info.urls.iter() {
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
@@ -137,10 +216,13 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 .replace("{sender}", sender_as_bytes)
                 .replace("{data}", data_as_bytes);
             let res = if !url.contains("{data}") {
-                let body = json!({
+                let mut body = json!({
                     "sender": sender_as_bytes,
                     "data": data_as_bytes
                 });
+                if let Some(sig) = &signature_opt {
+                    body["signature"] = json!(sig);
+                }
                 Client::new()
                     .post(interpolated_url)
                     .header("Content-Type", "application/json")
