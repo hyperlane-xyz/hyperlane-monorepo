@@ -145,6 +145,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return derivedIsmConfig;
   }
 
+  // expands ISM configs that are set as addresses by deriving the config
+  // from the on-chain deployment
   async deriveIsmConfig(config: IsmConfig): Promise<DerivedIsmConfig> {
     if (typeof config === 'string')
       return this.deriveIsmConfigFromAddress(config);
@@ -170,6 +172,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         ]);
         break;
     }
+
     return config as DerivedIsmConfig;
   }
 

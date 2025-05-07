@@ -1,7 +1,6 @@
 import { zeroAddress } from 'viem';
 
-import { EvmHookReader } from '@hyperlane-xyz/sdk';
-import { EvmIsmReader } from '@hyperlane-xyz/sdk';
+import { EvmHookReader, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -140,9 +139,17 @@ export async function expandWarpDeployConfig(
 
       chainConfig.remoteRouters = formattedRemoteRouters;
 
+      const isEVMChain =
+        multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
+
       // Expand the hook config only if we have an explicit config in the deploy config
+      // and the current chain is an EVM one.
       // if we have an address we leave it like that to avoid deriving
-      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
+      if (
+        isEVMChain &&
+        chainConfig.hook &&
+        typeof chainConfig.hook !== 'string'
+      ) {
         const reader = new EvmHookReader(multiProvider, chain);
 
         chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
@@ -151,6 +158,7 @@ export async function expandWarpDeployConfig(
       // Expand the ism config only if we have an explicit config in the deploy config
       // if we have an address we leave it like that to avoid deriving
       if (
+        isEVMChain &&
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {

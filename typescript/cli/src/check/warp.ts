@@ -25,19 +25,13 @@ export async function runWarpRouteCheck({
       const expectedDeployedConfig = warpRouteConfig[chain];
       const currentDeployedConfig = onChainWarpConfig[chain];
 
-      // If the expected config specifies the hook as an address instead of the full config
+      // If the expected config specifies the hook or the ism as an address instead of the full config
       // compare just the addresses
-      if (
-        expectedDeployedConfig.hook &&
-        typeof expectedDeployedConfig.hook === 'string'
-      ) {
+      if (typeof expectedDeployedConfig.hook === 'string') {
         currentDeployedConfig.hook = derivedHookAddress(currentDeployedConfig);
       }
 
-      if (
-        expectedDeployedConfig.interchainSecurityModule &&
-        typeof expectedDeployedConfig.interchainSecurityModule === 'string'
-      ) {
+      if (typeof expectedDeployedConfig.interchainSecurityModule === 'string') {
         currentDeployedConfig.interchainSecurityModule = derivedIsmAddress(
           currentDeployedConfig,
         );
