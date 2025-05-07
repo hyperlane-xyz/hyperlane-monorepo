@@ -116,7 +116,7 @@
     "decimals": 9
   },
   "nobletestnet": {
-    "amount": "0.1",
+    "amount": "0.001",
     "decimals": 1
   },
   "odysseytestnet": {
