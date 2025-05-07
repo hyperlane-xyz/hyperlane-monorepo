@@ -223,9 +223,9 @@ export class ContractVerifier {
           errorMessage = `${responseJson.message}: ${responseJson.result}`;
           break;
         default:
-          errorMessage = `Verification failed: ${
-            JSON.stringify(responseJson.result) ?? response.statusText
-          }`;
+          errorMessage = `Verification failed: ${JSON.stringify(
+            responseJson.result ?? response.statusText,
+          )}`;
           break;
       }
 
