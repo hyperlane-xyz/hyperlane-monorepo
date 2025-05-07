@@ -166,21 +166,27 @@ export async function createWarpRouteDeployConfig({
       choices: typeChoices,
     });
 
-    // TODO: restore NFT prompting
-    const isNft =
-      type === TokenType.syntheticUri || type === TokenType.collateralUri;
-
     switch (type) {
       case TokenType.collateral:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
       case TokenType.collateralUri:
         result[chain] = {
           type,
           owner,
           proxyAdmin,
-          isNft,
+          isNft: true,
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
@@ -191,7 +197,6 @@ export async function createWarpRouteDeployConfig({
         result[chain] = {
           type,
           owner,
-          isNft,
           proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
@@ -206,7 +211,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
@@ -220,11 +224,19 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
           token: await input({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
+        };
+        break;
+      case TokenType.syntheticUri:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          isNft: true,
         };
         break;
       default:
@@ -232,7 +244,6 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           proxyAdmin,
-          isNft,
           interchainSecurityModule,
         };
     }

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use ethers::{
     abi::RawLog,
@@ -49,12 +49,13 @@ where
 }
 
 #[instrument(level = "trace", err, ret, skip(provider))]
-pub async fn get_finalized_block_number<M>(
-    provider: &M,
+pub async fn get_finalized_block_number<M, T>(
+    provider: T,
     reorg_period: &EthereumReorgPeriod,
 ) -> ChainResult<u32>
 where
     M: Middleware + 'static,
+    T: Deref<Target = M>,
 {
     let number = match *reorg_period {
         EthereumReorgPeriod::Blocks(blocks) => provider
