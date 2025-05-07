@@ -3200,7 +3200,7 @@
       "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "grpcUrls": [
         {
-          "http": "https://noble-testnet-grpc.polkachu.com:21590"
+          "http": "http://noble-testnet-grpc.polkachu.com:21590"
         }
       ]
     }
