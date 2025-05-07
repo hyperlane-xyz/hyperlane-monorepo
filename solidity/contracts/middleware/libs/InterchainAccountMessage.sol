@@ -36,7 +36,12 @@ library InterchainAccountMessage {
         return abi.decode(_message, (AccountConfig, CallLib.Call[]));
     }
 
+    /**
+     * @notice Parses and returns the ISM address from the provided message
+     * @param _message The interchain account message
+     * @return The ISM encoded in the message
+     */
     function ism(bytes calldata _message) internal pure returns (address) {
-        return bytes32(_message[32:64]).bytes32ToAddress();
+        return address(bytes20(_message[44:64]));
     }
 }

@@ -96,32 +96,6 @@ contract InterchainAccountRouter is Router {
     // ============ External Functions ============
 
     /**
-     * @notice Returns the fee required to cover the cost of a remote call.
-     * @param _destination The domain of the destination router.
-     * @param _gasLimit The gas limit to override with.
-     */
-    function quoteCallRemote(
-        uint32 _destination,
-        uint256 _gasLimit
-    ) external view returns (uint256) {
-        bytes memory _messageBody = InterchainAccountMessage.encode(
-            AccountConfig({
-                owner: msg.sender.addressToBytes32(),
-                ism: bytes32(0),
-                salt: bytes32(0)
-            }),
-            new CallLib.Call[](0)
-        );
-        return
-            _Router_quoteDispatch(
-                _destination,
-                _messageBody,
-                _defaultHookMetadata(_gasLimit),
-                address(hook)
-            );
-    }
-
-    /**
      * @notice Dispatches a single remote call to be made by an owner's
      * interchain account on the destination domain
      * @dev Uses the default router and ISM addresses for the destination
@@ -318,6 +292,32 @@ contract InterchainAccountRouter is Router {
         );
 
         return Create2.computeAddress(_salt, _bytecodeHash, _router);
+    }
+
+    /**
+     * @notice Returns the fee required to cover the cost of a remote call.
+     * @param _destination The domain of the destination router.
+     * @param _gasLimit The gas limit to override with.
+     */
+    function quoteCallRemote(
+        uint32 _destination,
+        uint256 _gasLimit
+    ) external view returns (uint256) {
+        bytes memory _messageBody = InterchainAccountMessage.encode(
+            AccountConfig({
+                owner: msg.sender.addressToBytes32(),
+                ism: bytes32(0),
+                salt: bytes32(0)
+            }),
+            new CallLib.Call[](0)
+        );
+        return
+            _Router_quoteDispatch(
+                _destination,
+                _messageBody,
+                _defaultHookMetadata(_gasLimit),
+                address(hook)
+            );
     }
 
     /**
