@@ -111,7 +111,7 @@ export class CosmosNativeIsmReader {
         continue;
       }
 
-      domains[chainName] = await this.deriveIsmConfig(address);
+      domains[chainName] = await this.deriveIsmConfig(route.ism);
     }
 
     return {

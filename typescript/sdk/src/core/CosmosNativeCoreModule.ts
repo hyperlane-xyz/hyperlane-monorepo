@@ -181,26 +181,45 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     };
 
     if (typeof config.defaultIsm !== 'string') {
-      if (config.defaultIsm.type === IsmType.MERKLE_ROOT_MULTISIG) {
-        addresses.staticMerkleRootMultisigIsmFactory = defaultIsm;
-      } else if (config.defaultIsm.type === IsmType.MESSAGE_ID_MULTISIG) {
-        addresses.staticMessageIdMultisigIsmFactory = defaultIsm;
+      switch (config.defaultIsm.type) {
+        case IsmType.MERKLE_ROOT_MULTISIG: {
+          addresses.staticMerkleRootMultisigIsmFactory = defaultIsm;
+          break;
+        }
+        case IsmType.MESSAGE_ID_MULTISIG: {
+          addresses.staticMessageIdMultisigIsmFactory = defaultIsm;
+          break;
+        }
+        case IsmType.ROUTING: {
+          addresses.domainRoutingIsmFactory = defaultIsm;
+          break;
+        }
       }
     }
 
     if (typeof config.defaultHook !== 'string') {
-      if (config.defaultHook.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-        addresses.interchainGasPaymaster = defaultHook;
-      } else if (config.defaultHook.type === HookType.MERKLE_TREE) {
-        addresses.merkleTreeHook = defaultHook;
+      switch (config.defaultHook.type) {
+        case HookType.INTERCHAIN_GAS_PAYMASTER: {
+          addresses.interchainGasPaymaster = defaultHook;
+          break;
+        }
+        case HookType.MERKLE_TREE: {
+          addresses.merkleTreeHook = defaultHook;
+          break;
+        }
       }
     }
 
     if (typeof config.requiredHook !== 'string') {
-      if (config.requiredHook.type === HookType.INTERCHAIN_GAS_PAYMASTER) {
-        addresses.interchainGasPaymaster = requiredHook;
-      } else if (config.requiredHook.type === HookType.MERKLE_TREE) {
-        addresses.merkleTreeHook = requiredHook;
+      switch (config.requiredHook.type) {
+        case HookType.INTERCHAIN_GAS_PAYMASTER: {
+          addresses.interchainGasPaymaster = defaultHook;
+          break;
+        }
+        case HookType.MERKLE_TREE: {
+          addresses.merkleTreeHook = defaultHook;
+          break;
+        }
       }
     }
 
