@@ -8,7 +8,7 @@ import {CctpMessageV2} from "../libs/CctpMessageV2.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 import {AbstractCcipReadIsm} from "./ccip-read/AbstractCcipReadIsm.sol";
 import {ICcipReadIsm} from "../interfaces/isms/ICcipReadIsm.sol";
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {TypedMemView} from "../libs/TypedMemView.sol";
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 
 contract CctpIsm is AbstractCcipReadIsm {
