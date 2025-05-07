@@ -8,6 +8,7 @@ import {
 import {
   ChainMap,
   ChainName,
+  DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
@@ -63,7 +64,7 @@ export async function getWarpRouteConfigsByCore({
 }: {
   context: CommandContext;
   warpCoreConfig: WarpCoreConfig;
-}): Promise<ChainMap<HypTokenRouterConfig>> {
+}): Promise<DerivedWarpRouteDeployConfig> {
   const addresses = Object.fromEntries(
     warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
   );
@@ -75,7 +76,7 @@ async function deriveWarpRouteConfigs(
   context: CommandContext,
   addresses: ChainMap<string>,
   warpCoreConfig?: WarpCoreConfig,
-): Promise<ChainMap<HypTokenRouterConfig>> {
+): Promise<DerivedWarpRouteDeployConfig> {
   const { multiProvider } = context;
 
   validateEvmCompatibility(addresses);
