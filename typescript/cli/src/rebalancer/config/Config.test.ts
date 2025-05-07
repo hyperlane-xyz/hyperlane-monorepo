@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 
-import { REBALANCER_CONFIG_PATH } from '../../tests/commands/helpers.js';
+import {
+  ANVIL_KEY,
+  REBALANCER_CONFIG_PATH,
+} from '../../tests/commands/helpers.js';
 import { writeYamlOrJson } from '../../utils/files.js';
 
 import { Config } from './Config.js';
@@ -36,13 +39,13 @@ describe('Config', () => {
   it('should throw when the config file does not exist', () => {
     rmSync(REBALANCER_CONFIG_PATH, { force: true });
 
-    expect(() => Config.fromFile(REBALANCER_CONFIG_PATH, {})).to.throw(
+    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
       `File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
     );
   });
 
   it('should load config from file', () => {
-    expect(Config.fromFile(REBALANCER_CONFIG_PATH, {})).to.deep.equal({
+    expect(Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.deep.equal({
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
       monitorOnly: false,
@@ -68,7 +71,7 @@ describe('Config', () => {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-    expect(() => Config.fromFile(REBALANCER_CONFIG_PATH, {})).to.throw(
+    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
       'No chains configured',
     );
   });
@@ -78,7 +81,7 @@ describe('Config', () => {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-    expect(() => Config.fromFile(REBALANCER_CONFIG_PATH, {})).to.throw(
+    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
       'warpRouteId is required',
     );
   });
@@ -89,7 +92,7 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      Config.fromFile(REBALANCER_CONFIG_PATH, {
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {
         warpRouteId: 'warpRouteId by override',
       }).warpRouteId,
     ).to.equal('warpRouteId by override');
@@ -100,7 +103,7 @@ describe('Config', () => {
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
-    expect(() => Config.fromFile(REBALANCER_CONFIG_PATH, {})).to.throw(
+    expect(() => Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.throw(
       'checkFrequency is required',
     );
   });
@@ -111,7 +114,7 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      Config.fromFile(REBALANCER_CONFIG_PATH, { checkFrequency: 1337 })
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, { checkFrequency: 1337 })
         .checkFrequency,
     ).to.equal(1337);
   });
@@ -123,7 +126,7 @@ describe('Config', () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
 
     expect(
-      Config.fromFile(REBALANCER_CONFIG_PATH, {
+      Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {
         warpRouteId: 'warpRouteId by override',
         checkFrequency: 1337,
         monitorOnly: false,
