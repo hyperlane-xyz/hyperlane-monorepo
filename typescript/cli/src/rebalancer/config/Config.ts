@@ -19,19 +19,13 @@ const ChainConfigSchema = z.object({
 
 const ConfigSchema = z
   .object({
-    monitorOnly: z.boolean().optional().default(false),
-    chains: z.record(z.string(), ChainConfigSchema),
+    monitorOnly: z.boolean().default(false),
   })
-  .strict();
+  .catchall(ChainConfigSchema);
 
-export type ChainConfig = z.infer<typeof ChainConfigSchema>;
-
-export type ConfigData = z.infer<typeof ConfigSchema>;
+type ChainConfig = z.infer<typeof ChainConfigSchema>;
 
 export class Config {
-  monitorOnly: boolean;
-  chains: ChainMap<ChainConfig>;
-
   static fromFile(path: string) {
     const config = readYamlOrJson(path);
     const validationResult = ConfigSchema.safeParse(config);
@@ -40,11 +34,13 @@ export class Config {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    return new Config(validationResult.data);
+    const { monitorOnly, ...chains } = validationResult.data;
+
+    return new Config(monitorOnly, chains);
   }
 
-  constructor(config: ConfigData) {
-    this.monitorOnly = config.monitorOnly;
-    this.chains = config.chains;
-  }
+  constructor(
+    public readonly monitorOnly: boolean,
+    public readonly chains: ChainMap<ChainConfig>,
+  ) {}
 }
