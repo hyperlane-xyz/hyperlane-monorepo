@@ -319,11 +319,31 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  basecamptestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x84441e39ed5251410aa2baa72e7747c46d1e5e9d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   basesepolia: {
     threshold: 1,
     validators: [
       {
         address: '0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  bepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xdb0128bb3d3f204eb18de7e8268e94fde0382daf',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -458,16 +478,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  camptestnet: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 
@@ -1390,6 +1400,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  megaethtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   merlin: {
     threshold: 2,
     validators: [
@@ -1601,6 +1621,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  nobletestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc30427bd74fdcf179a15b9a6e3c4e1d66104726a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -2399,16 +2429,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_HASHKEY_CLOUD_VALIDATOR,
-    ],
-  },
-
-  treasuretopaz: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x9750849beda0a7870462d4685f953fe39033a5ae',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 
