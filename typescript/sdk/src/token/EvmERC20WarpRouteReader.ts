@@ -10,7 +10,9 @@ import {
   IXERC20__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
+  buildArtifact,
 } from '@hyperlane-xyz/core';
+import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   assert,
@@ -54,10 +56,17 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    this.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      buildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   /**

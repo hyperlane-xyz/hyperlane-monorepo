@@ -335,6 +335,8 @@ export class ContractVerifier {
     );
   }
 
+  async getVerifiedContractSourceCode() {}
+
   private getProxyData(input: ContractVerificationInput) {
     return {
       address: input.address,
