@@ -91,7 +91,7 @@ pub fn process_instruction(
                 get_interchain_security_module(program_id, accounts)
             }
             MessageRecipientInstruction::InterchainSecurityModuleAccountMetas => {
-                set_account_meta_return_data(program_id)
+                set_ism_meta_return_data(program_id)
             }
             MessageRecipientInstruction::Handle(_instruction) => {
                 unimplemented!("Handle instruction not implemented")
@@ -442,7 +442,7 @@ fn get_interchain_security_module(program_id: &Pubkey, accounts: &[AccountInfo])
     Ok(())
 }
 
-fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
+fn set_ism_meta_return_data(program_id: &Pubkey) -> ProgramResult {
     let (storage_pda_key, _storage_pda_bump) =
         Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
 
