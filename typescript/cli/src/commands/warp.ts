@@ -32,10 +32,11 @@ import {
   Config,
   IExecutor,
   IStrategy,
-  MonitorPollingError,
   RawBalances,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
+// TODO: This import should come from the IMonitor interface
+import { MonitorPollingError } from '../rebalancer/monitor/Monitor.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
