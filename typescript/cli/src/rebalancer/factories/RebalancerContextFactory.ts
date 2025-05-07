@@ -9,6 +9,8 @@ import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
+import { MonitorOnlyExecutor } from '../executor/MonitorOnlyExecutor.js';
+import { IExecutor } from '../interfaces/IExecutor.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
@@ -87,16 +89,20 @@ export class RebalancerContextFactory {
 
   public createStrategy(): Strategy {
     return new Strategy(
-      objMap(this.config, (_, v) => ({
+      objMap(this.config.chains, (_, v) => ({
         weight: v.weight,
         tolerance: v.tolerance,
       })),
     );
   }
 
-  public createExecutor(rebalancerKey: string): Executor {
+  public createExecutor(rebalancerKey: string): IExecutor {
+    if (this.config.monitorOnly) {
+      return new MonitorOnlyExecutor();
+    }
+
     return new Executor(
-      objMap(this.config, (_, v) => v.bridge),
+      objMap(this.config.chains, (_, v) => v.bridge),
       rebalancerKey,
       this.warpCore,
       this.metadata,

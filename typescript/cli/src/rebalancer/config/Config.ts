@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
@@ -17,12 +17,20 @@ const ChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
 });
 
-const ConfigSchema = z.record(z.string(), ChainConfigSchema);
+const ConfigSchema = z
+  .object({
+    monitorOnly: z.boolean(),
+    chains: z.record(z.string(), ChainConfigSchema),
+  })
+  .strict();
 
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 
+export type ConfigData = z.infer<typeof ConfigSchema>;
+
 export class Config {
-  [key: ChainName]: ChainConfig;
+  monitorOnly: boolean;
+  chains: ChainMap<ChainConfig>;
 
   static fromFile(path: string) {
     const config = readYamlOrJson(path);
@@ -35,7 +43,8 @@ export class Config {
     return new Config(validationResult.data);
   }
 
-  constructor(data: ChainMap<ChainConfig>) {
-    Object.assign(this, data);
+  constructor(config: ConfigData) {
+    this.monitorOnly = config.monitorOnly;
+    this.chains = config.chains;
   }
 }
