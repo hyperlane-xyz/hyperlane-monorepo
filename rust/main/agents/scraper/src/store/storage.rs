@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use itertools::Itertools;
-use tracing::{trace, warn};
+use tracing::{debug, warn};
 
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
@@ -84,7 +84,7 @@ impl HyperlaneDbStore {
             .await?
             .map(|block| (block.hash, block))
             .collect();
-        trace!(?blocks, "Ensured blocks");
+        debug!(?blocks, "Ensured blocks");
 
         // We ensure transactions only from blocks which are inserted into database
         let txn_hash_with_block_ids = block_id_by_txn_hash
@@ -92,6 +92,7 @@ impl HyperlaneDbStore {
             .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|b| (txn, b.id)))
             .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
         let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
+        debug!("Ensured transactions");
 
         Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
     }

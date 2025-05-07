@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use eyre::Result;
+use tracing::debug;
 
 use hyperlane_core::{
     unwrap_or_none_result, HyperlaneLogStore, HyperlaneMessage,
@@ -25,6 +26,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
             .await?
             .map(|t| (t.hash, t))
             .collect();
+
+        debug!("Preparing storable");
         let storable = messages
             .iter()
             .filter_map(|(message, meta)| {
@@ -32,6 +35,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
                     .map(|t| (message.inner().clone(), meta, t.id))
             })
             .map(|(msg, meta, txn_id)| StorableMessage { msg, meta, txn_id });
+        debug!(?storable, "Prepared storable");
         let stored = self
             .db
             .store_dispatched_messages(self.domain.id(), &self.mailbox_address, storable)
