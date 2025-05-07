@@ -6,7 +6,14 @@ import {
 import { isTypes } from '@hyperlane-xyz/cosmos-types';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DerivedIsmConfig, IsmType, MultisigIsmConfig } from './types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+
+import {
+  DerivedIsmConfig,
+  DomainRoutingIsmConfig,
+  IsmType,
+  MultisigIsmConfig,
+} from './types.js';
 
 export class CosmosNativeIsmReader {
   protected readonly logger = rootLogger.child({
@@ -14,6 +21,7 @@ export class CosmosNativeIsmReader {
   });
 
   constructor(
+    protected readonly multiProvider: MultiProvider,
     protected readonly cosmosProviderOrSigner:
       | HyperlaneModuleClient
       | SigningHyperlaneModuleClient,
@@ -33,6 +41,8 @@ export class CosmosNativeIsmReader {
           return this.deriveMerkleRootMultisigConfig(address);
         case IsmTypes.MessageIdMultisigISM:
           return this.deriveMessageIdMultisigConfig(address);
+        case IsmTypes.RoutingISM:
+          return this.deriveRoutingConfig(address);
         case IsmTypes.NoopISM:
           return this.deriveTestConfig(address);
         default:
@@ -64,7 +74,7 @@ export class CosmosNativeIsmReader {
 
   private async deriveMessageIdMultisigConfig(
     address: Address,
-  ): Promise<DerivedIsmConfig> {
+  ): Promise<WithAddress<MultisigIsmConfig>> {
     const { ism } =
       await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
         {
@@ -77,6 +87,38 @@ export class CosmosNativeIsmReader {
       address,
       validators: ism.validators,
       threshold: ism.threshold,
+    };
+  }
+
+  private async deriveRoutingConfig(
+    address: Address,
+  ): Promise<WithAddress<DomainRoutingIsmConfig>> {
+    const { ism } =
+      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.RoutingISM>(
+        {
+          id: address,
+        },
+      );
+
+    const domains: DomainRoutingIsmConfig['domains'] = {};
+
+    for (const route of ism.routes) {
+      const chainName = this.multiProvider.tryGetChainName(route.domain);
+      if (!chainName) {
+        this.logger.warn(
+          `Unknown domain ID ${route.domain}, skipping domain configuration`,
+        );
+        continue;
+      }
+
+      domains[chainName] = await this.deriveIsmConfig(address);
+    }
+
+    return {
+      type: IsmType.ROUTING,
+      address,
+      owner: ism.owner,
+      domains,
     };
   }
 
