@@ -1,7 +1,7 @@
 # A dockerfile combining all needed tools to set up hyperlane relayer, validators
 # and evm counterparty for testing hyperlane module in sov sdk
 
-FROM rust:1.85 AS builder
+FROM rust:1.85 AS rust-builder
 
 WORKDIR /hyperlane-monorepo
 
@@ -33,20 +33,35 @@ RUN --mount=type=ssh \
 
 FROM debian:bookworm-slim AS runner
 
+WORKDIR /build
+
+# build and install @hyperlane-xyz/cli
+# TODO: this clones branch that is much more up to date with
+# upstream hyperlane-monorepo than the branch with rust components.
+# This should be replaced with `COPY` as rust gets up to date with upstream.
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends git libclang-dev npm jq make build-essential && \
+  npm install -g yarn && \
+  git clone https://github.com/eigerco/hyperlane-monorepo --depth 1 --branch sovereign-cli-support && \
+  cd hyperlane-monorepo && \
+  yarn install && \
+  yarn build && \
+  yarn workspace @hyperlane-xyz/cli bundle && \
+  npm install -g ./typescript/cli && \
+  apt-get remove --purge -y git jq make build-essential && \
+  apt-get autoremove -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* && \
+  npm uninstall -g yarn && \
+  npm cache clear --force && \
+  cd - && \
+  rm -rf hyperlane-monorepo
+
 WORKDIR /app
 
-# hyperlane-cli
-RUN apt-get update && \
-  apt-get install -y --no-install-recommends libclang-dev npm make build-essential && \
-  npm install -g @hyperlane-xyz/cli && \
-  npm cache clear --force && \
-  apt-get remove make build-essential -y && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
 # anvil
-COPY --from=builder /root/.foundry/bin/* /usr/bin
+COPY --from=rust-builder /root/.foundry/bin/* /usr/bin
 # rust and validators
-COPY --from=builder /usr/bin/relayer /usr/bin/validator /usr/bin
+COPY --from=rust-builder /usr/bin/relayer /usr/bin/validator /usr/bin
 # hyperlane config files looked up by relative path
-COPY --from=builder /hyperlane-monorepo/rust/main/config ./config
-
+COPY --from=rust-builder /hyperlane-monorepo/rust/main/config ./config
