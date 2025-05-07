@@ -188,6 +188,8 @@ export class CosmosNativeHookModule extends HyperlaneModule<
       await this.signer.setIgpOwner({
         igp_id: igp.id,
         new_owner: config.owner,
+        // if the new owner is empty we rennounce the ownership
+        renounce_ownership: !config.owner,
       });
     }
 

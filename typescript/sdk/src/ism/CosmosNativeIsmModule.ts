@@ -312,6 +312,8 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
           owner: actual.owner,
           ism_id: this.args.addresses.deployedIsm,
           new_owner: expected.owner,
+          // if the new owner is empty we rennounce the ownership
+          renounce_ownership: !expected.owner,
         }),
       });
     }
