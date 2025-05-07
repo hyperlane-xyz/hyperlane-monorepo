@@ -17,21 +17,25 @@ const ChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
 });
 
-const ConfigWithoutChainsSchema = z.object({
+const BaseConfigSchema = z.object({
   warpRouteId: z.string().optional(),
   checkFrequency: z.number().optional(),
   withMetrics: z.boolean().optional(),
   monitorOnly: z.boolean().optional(),
 });
 
-const ConfigSchema = ConfigWithoutChainsSchema.catchall(ChainConfigSchema);
+const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
 
 type ChainConfig = z.infer<typeof ChainConfigSchema>;
 
-type ConfigWithoutChains = z.infer<typeof ConfigWithoutChainsSchema>;
+type BaseConfig = z.infer<typeof BaseConfigSchema>;
 
 export class Config {
-  static fromFile(configFilePath: string, overrides: ConfigWithoutChains) {
+  static load(
+    configFilePath: string,
+    rebalancerKey: string,
+    overrides: BaseConfig,
+  ) {
     const config = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
 
@@ -65,6 +69,7 @@ export class Config {
     }
 
     return new Config(
+      rebalancerKey,
       warpRouteId,
       checkFrequency,
       monitorOnly,
@@ -74,6 +79,7 @@ export class Config {
   }
 
   constructor(
+    public readonly rebalancerKey: string,
     public readonly warpRouteId: string,
     public readonly checkFrequency: number,
     public readonly monitorOnly: boolean,
