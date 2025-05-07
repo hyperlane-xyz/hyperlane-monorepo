@@ -12,6 +12,7 @@ import {
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  HyperToken__factory,
 } from '@hyperlane-xyz/core';
 
 import { TokenType } from './config.js';
@@ -28,6 +29,7 @@ export const hypERC20contracts = {
   [TokenType.native]: 'HypNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
+  [TokenType.hyperToken]: 'HyperToken',
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -42,6 +44,7 @@ export const hypERC20factories = {
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
+  [TokenType.hyperToken]: new HyperToken__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 

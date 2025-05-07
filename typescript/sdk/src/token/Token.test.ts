@@ -83,6 +83,14 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmHyperToken]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHyperToken,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 18,
+    symbol: 'HYPER',
+    name: 'HYPER',
+  },
   [TokenStandard.EvmHypSyntheticRebase]: {
     chainName: TestChainName.test2,
     standard: TokenStandard.EvmHypSyntheticRebase,

@@ -21,6 +21,7 @@ export enum TokenStandard {
   EvmHypSyntheticRebase = 'EvmHypSyntheticRebase',
   EvmHypXERC20 = 'EvmHypXERC20',
   EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
+  EvmHyperToken = 'EvmHyperToken',
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
 
@@ -71,6 +72,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypSyntheticRebase: ProtocolType.Ethereum,
   EvmHypXERC20: ProtocolType.Ethereum,
   EvmHypXERC20Lockbox: ProtocolType.Ethereum,
+  EvmHyperToken: ProtocolType.Ethereum,
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
 
@@ -163,6 +165,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypSyntheticRebase,
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHyperToken,
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.SealevelHypNative,
@@ -207,6 +210,7 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+  [TokenType.hyperToken]: TokenStandard.EvmHyperToken,
 };
 
 // Starknet supported token types

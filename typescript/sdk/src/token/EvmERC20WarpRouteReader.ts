@@ -7,6 +7,7 @@ import {
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
   HypXERC20Lockbox__factory,
+  HyperToken__factory,
   IXERC20__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
@@ -43,6 +44,7 @@ import {
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
+const OWNER_DOES_NOT_HAVE_ADMIN_ROLE = 'OWNER_DOES_NOT_HAVE_ADMIN_ROLE';
 export class EvmERC20WarpRouteReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmERC20WarpRouteReader',
@@ -82,9 +84,33 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       ? await this.fetchProxyAdminConfig(warpRouteAddress)
       : undefined;
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
+    let owner = mailboxClientConfig.owner;
+    // If the token is a hyper token, also check that the owner has the admin role
+    if (type === TokenType.hyperToken) {
+      try {
+        const hyperToken = HyperToken__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+        const hasAdminRole = await hyperToken.hasRole(
+          await hyperToken.DEFAULT_ADMIN_ROLE(),
+          proxyAdmin.owner,
+        );
+        if (!hasAdminRole) {
+          owner = OWNER_DOES_NOT_HAVE_ADMIN_ROLE;
+        }
+      } catch (e) {
+        this.logger.error(
+          `Error checking admin role for hyper token at ${warpRouteAddress}`,
+          e,
+        );
+        owner = OWNER_DOES_NOT_HAVE_ADMIN_ROLE;
+      }
+    }
 
     return {
       ...mailboxClientConfig,
+      owner,
       ...tokenConfig,
       remoteRouters,
       proxyAdmin,
@@ -121,6 +147,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.syntheticRebase]: {
         factory: HypERC4626__factory,
         method: 'collateralDomain',
+      },
+      [TokenType.hyperToken]: {
+        factory: HyperToken__factory,
+        method: 'DEFAULT_ADMIN_ROLE',
       },
       [TokenType.synthetic]: {
         factory: HypERC20__factory,
@@ -306,7 +336,8 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       };
     } else if (
       type === TokenType.synthetic ||
-      type === TokenType.syntheticRebase
+      type === TokenType.syntheticRebase ||
+      type === TokenType.hyperToken
     ) {
       const baseMetadata = await this.fetchERC20Metadata(warpRouteAddress);
 
