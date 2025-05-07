@@ -81,11 +81,23 @@ pub trait AdaptsChain: Send + Sync {
         true
     }
 
-    /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
+    /// Uses BatchManager, returns any reverted Payload IDs sent in a Transaction.
+    /// Called in the Finality Stage (PayloadDispatcher).
     async fn reverted_payloads(
         &self,
         tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, SubmitterError>;
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
+        use TransactionStatus::{Dropped, Finalized, Included, Mempool, PendingInclusion};
+
+        let reverted = match tx.status {
+            // If transaction is Finalized, payloads will be checked individually with
+            // success criteria once we support batching.
+            PendingInclusion | Mempool | Included | Finalized => vec![],
+            Dropped(_) => tx.payload_details.clone(),
+        };
+
+        Ok(reverted)
+    }
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;

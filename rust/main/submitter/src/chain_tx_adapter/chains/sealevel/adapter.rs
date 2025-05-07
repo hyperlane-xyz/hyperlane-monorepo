@@ -403,14 +403,6 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(status)
     }
 
-    async fn reverted_payloads(
-        &self,
-        _tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
-        // Dummy implementation of reverted payloads for Sealevel since we don't have batching for Sealevel
-        Ok(Vec::new())
-    }
-
     fn estimated_block_time(&self) -> &Duration {
         &self.estimated_block_time
     }

@@ -138,13 +138,6 @@ impl AdaptsChain for EthereumTxAdapter {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
     }
 
-    async fn reverted_payloads(
-        &self,
-        _tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
-        todo!()
-    }
-
     fn estimated_block_time(&self) -> &std::time::Duration {
         todo!()
     }
