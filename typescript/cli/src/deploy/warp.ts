@@ -14,6 +14,7 @@ import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
+  CosmosNativeIsmModule,
   EvmERC20WarpModule,
   EvmHookModule,
   EvmIsmModule,
@@ -59,6 +60,8 @@ import {
   Address,
   ProtocolType,
   assert,
+  isObjEmpty,
+  objFilter,
   objMap,
   promiseObjAll,
   retryAsync,
@@ -195,10 +198,6 @@ async function executeDeploy(
     context: { multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const deployer = warpDeployConfig.isNft
-    ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
-
   const config: WarpRouteDeployConfigMailboxRequired =
     isDryRun && dryRunChain
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
@@ -225,7 +224,34 @@ async function executeDeploy(
     contractVerifier,
   );
 
-  const deployedContracts = await deployer.deploy(modifiedConfig);
+  const evmConfig = objFilter(
+    modifiedConfig,
+    (chain, _): _ is any =>
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const cosmosNativeConfig = objFilter(
+    modifiedConfig,
+    (chain, _): _ is any =>
+      multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+  );
+
+  let deployedContracts = {};
+
+  if (!isObjEmpty(evmConfig)) {
+    const deployer = warpDeployConfig.isNft
+      ? new HypERC721Deployer(multiProvider)
+      : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
+
+    const evmContracts = await deployer.deploy(modifiedConfig);
+    deployedContracts = { ...deployedContracts, ...evmContracts };
+  }
+
+  if (!isObjEmpty(cosmosNativeConfig)) {
+    // TODO: implement
+
+    const cosmosNativeContracts = {};
+    deployedContracts = { ...deployedContracts, ...cosmosNativeContracts };
+  }
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -327,17 +353,42 @@ async function createWarpIsm({
     `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
   );
 
-  const evmIsmModule = await EvmIsmModule.create({
-    chain,
-    mailbox: chainAddresses.mailbox,
-    multiProvider: context.multiProvider,
-    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
-    config: interchainSecurityModule,
-    ccipContractCache,
-    contractVerifier,
-  });
-  const { deployedIsm } = evmIsmModule.serialize();
-  return deployedIsm;
+  const protocolType = context.multiProvider.getProtocol(chain);
+
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      const evmIsmModule = await EvmIsmModule.create({
+        chain,
+        mailbox: chainAddresses.mailbox,
+        multiProvider: context.multiProvider,
+        proxyFactoryFactories:
+          extractIsmAndHookFactoryAddresses(chainAddresses),
+        config: interchainSecurityModule,
+        ccipContractCache,
+        contractVerifier,
+      });
+      const { deployedIsm } = evmIsmModule.serialize();
+      return deployedIsm;
+    }
+    case ProtocolType.Cosmos: {
+      const signer = context.multiProtocolSigner!.getCosmosNativeSigner(chain);
+
+      const cosmosIsmModule = await CosmosNativeIsmModule.create({
+        chain,
+        multiProvider: context.multiProvider,
+        addresses: {
+          deployedIsm: '',
+          mailbox: chainAddresses.mailbox,
+        },
+        config: interchainSecurityModule,
+        signer,
+      });
+      const { deployedIsm } = cosmosIsmModule.serialize();
+      return deployedIsm;
+    }
+    default:
+      throw new Error(`Protocol type ${protocolType} not supported`);
+  }
 }
 
 async function createWarpHook({
@@ -367,32 +418,51 @@ async function createWarpHook({
 
   logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
 
-  // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
-  const proxyAdminAddress: Address =
-    warpConfig.proxyAdmin?.address ??
-    (
-      await context.multiProvider.handleDeploy(
-        chain,
-        new ProxyAdmin__factory(),
-        [],
-      )
-    ).address;
+  const protocolType = context.multiProvider.getProtocol(chain);
 
-  const evmHookModule = await EvmHookModule.create({
-    chain,
-    multiProvider: context.multiProvider,
-    coreAddresses: {
-      mailbox: chainAddresses.mailbox,
-      proxyAdmin: proxyAdminAddress,
-    },
-    config: hook,
-    ccipContractCache,
-    contractVerifier,
-    proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
-  });
-  logGreen(`Finished creating ${hook.type} Hook for token on ${chain} chain.`);
-  const { deployedHook } = evmHookModule.serialize();
-  return deployedHook;
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      logBlue(`Loading registry factory addresses for ${chain}...`);
+
+      logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
+
+      // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
+      const proxyAdminAddress: Address =
+        warpConfig.proxyAdmin?.address ??
+        (
+          await context.multiProvider.handleDeploy(
+            chain,
+            new ProxyAdmin__factory(),
+            [],
+          )
+        ).address;
+
+      const evmHookModule = await EvmHookModule.create({
+        chain,
+        multiProvider: context.multiProvider,
+        coreAddresses: {
+          mailbox: chainAddresses.mailbox,
+          proxyAdmin: proxyAdminAddress,
+        },
+        config: hook,
+        ccipContractCache,
+        contractVerifier,
+        proxyFactoryFactories:
+          extractIsmAndHookFactoryAddresses(chainAddresses),
+      });
+      logGreen(
+        `Finished creating ${hook.type} Hook for token on ${chain} chain.`,
+      );
+      const { deployedHook } = evmHookModule.serialize();
+      return deployedHook;
+    }
+    case ProtocolType.Cosmos: {
+      logBlue(`No warp hooks for cosmos chains, skipping deployment.`);
+      return hook;
+    }
+    default:
+      throw new Error(`Protocol type ${protocolType} not supported`);
+  }
 }
 
 async function getWarpCoreConfig(

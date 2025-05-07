@@ -64,12 +64,12 @@ export async function runPreflightChecksForChains({
       case ProtocolType.Ethereum:
         signer = multiProtocolSigner!.getEVMSigner(chain);
         break;
-      case ProtocolType.Cosmos:
+      case ProtocolType.CosmosNative:
         signer = multiProtocolSigner!.getCosmosNativeSigner(chain);
         break;
       default:
         throw new Error(
-          'Only Ethereum and Cosmos chains are supported for now',
+          'Only Ethereum and Cosmos Native chains are supported for now',
         );
     }
 
