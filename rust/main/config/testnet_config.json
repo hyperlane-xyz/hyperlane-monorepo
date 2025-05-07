@@ -69,6 +69,7 @@
       "aggregationHook": "0xD2670EedcD21116c6F0B331Ce391eA4B3Bf1aB19",
       "blockExplorers": [
         {
+          "apiKey": "QAI5SWBNHJSFAN6KMS9RC5JGFKV2IYD2Z5",
           "apiUrl": "https://api-sepolia.arbiscan.io/api",
           "family": "etherscan",
           "name": "Arbiscan",
@@ -140,6 +141,7 @@
       "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
       "blockExplorers": [
         {
+          "apiKey": "R8CVTG7HDJYD5JDV2GSD5TGQH3J2KJDSSY",
           "apiUrl": "https://api-sepolia.basescan.org/api",
           "family": "etherscan",
           "name": "BaseScan",
@@ -576,6 +578,7 @@
       "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
       "blockExplorers": [
         {
+          "apiKey": "JMYR3W6HHVPQ1HH8T6W8HSZVG88IH3MHRU",
           "apiUrl": "https://api-sepolia-optimistic.etherscan.io/api",
           "family": "etherscan",
           "name": "OP Sepolia Explorer",
@@ -852,6 +855,7 @@
       "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
       "blockExplorers": [
         {
+          "apiKey": "CYUPN3Q66JIMRGQWYUDXJKQH4SX8YIYZMW",
           "apiUrl": "https://api-sepolia.etherscan.io/api",
           "family": "etherscan",
           "name": "Etherscan",
@@ -2071,6 +2075,7 @@
     "sonicblaze": {
       "blockExplorers": [
         {
+          "apiKey": "V9PP7AFQF5Q6GJSQQ5YS2UBN7GI8QCA443",
           "apiUrl": "https://api-testnet.sonicscan.org/api",
           "family": "etherscan",
           "name": "Sonic Blaze Testnet Explorer",
@@ -3160,7 +3165,7 @@
       "domainId": 1196573006,
       "gasPrice": {
         "denom": "uusdn",
-        "amount": "0.1"
+        "amount": "0.001"
       },
       "index": {
         "chunk": 10,
