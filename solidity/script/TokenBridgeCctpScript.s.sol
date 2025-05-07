@@ -14,7 +14,7 @@ import {ITokenMessengerV2} from "../contracts/interfaces/cctp/ITokenMessengerV2.
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {IMessageTransmitter} from "../contracts/interfaces/cctp/IMessageTransmitter.sol";
 import {CctpMessageV2} from "../contracts/libs/CctpMessageV2.sol";
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {TypedMemView} from "../contracts/libs/TypedMemView.sol";
 
 import {console} from "forge-std/console.sol";
 

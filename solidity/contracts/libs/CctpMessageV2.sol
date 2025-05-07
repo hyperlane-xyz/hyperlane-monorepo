@@ -17,7 +17,7 @@
  */
 pragma solidity >=0.8.0;
 
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {TypedMemView} from "./TypedMemView.sol";
 
 // @dev copied from https://github.com/circlefin/evm-cctp-contracts/blob/release-2025-03-11T143015/src/messages/v2/MessageV2.sol
 // @dev We need only source domain and nonce which have the same indexes of Cctp message version 1

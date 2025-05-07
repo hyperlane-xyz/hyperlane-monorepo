@@ -15,7 +15,7 @@
  */
 pragma solidity >=0.8.0;
 
-import "@memview-sol/contracts/TypedMemView.sol";
+import {TypedMemView} from "./TypedMemView.sol";
 
 // @dev CCTP Message version 1
 // @dev copied from https://github.com/circlefin/evm-cctp-contracts/blob/release-2025-03-11T143015/src/messages/Message.sol

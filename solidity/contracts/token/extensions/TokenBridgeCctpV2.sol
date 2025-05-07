@@ -5,8 +5,7 @@ import {TokenBridgeCctp} from "../TokenBridgeCctp.sol";
 import {CctpMessageV2} from "../../libs/CctpMessageV2.sol";
 import {ITokenMessengerV2} from "../../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitter} from "../../interfaces/cctp/IMessageTransmitter.sol";
-
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {TypedMemView} from "../../libs/TypedMemView.sol";
 
 contract TokenBridgeCctpV2 is TokenBridgeCctp {
     using CctpMessageV2 for bytes29;

@@ -11,8 +11,6 @@ import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {AbstractCcipReadIsm} from "../isms/ccip-read/AbstractCcipReadIsm.sol";
 
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
-
 abstract contract TokenBridgeCctp is
     ITokenBridge,
     HypERC20Collateral,

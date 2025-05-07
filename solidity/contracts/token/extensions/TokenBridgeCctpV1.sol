@@ -11,7 +11,7 @@ import {ITokenMessenger} from "../../interfaces/cctp/ITokenMessenger.sol";
 import {IMessageTransmitter} from "../../interfaces/cctp/IMessageTransmitter.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractCcipReadIsm} from "../../isms/ccip-read/AbstractCcipReadIsm.sol";
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {TypedMemView} from "../../libs/TypedMemView.sol";
 
 contract TokenBridgeCctpV1 is TokenBridgeCctp {
     using CctpMessage for bytes29;

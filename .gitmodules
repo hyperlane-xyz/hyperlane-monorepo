@@ -4,6 +4,3 @@
 [submodule "solidity/lib/fx-portal"]
 	path = solidity/lib/fx-portal
 	url = https://github.com/0xPolygon/fx-portal
-[submodule "solidity/lib/memview-sol"]
-	path = solidity/lib/memview-sol
-	url = https://github.com/LayneHaber/memview-sol
