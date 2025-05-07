@@ -77,16 +77,16 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
       [TokenType.collateralFiat]:
         this.deriveHypCollateralFiatTokenConfig.bind(this),
-      [TokenType.collateralUri]: null,
       [TokenType.collateralVault]:
         this.deriveHypCollateralVaultTokenConfig.bind(this),
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
-      [TokenType.nativeScaled]: null,
       [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
       [TokenType.syntheticRebase]:
         this.deriveHypSyntheticRebaseConfig.bind(this),
+      [TokenType.nativeScaled]: null,
+      [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
     };
   }
@@ -332,12 +332,12 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   private async deriveHypXERC20TokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const hypTokenInstance = HypXERC20__factory.connect(
+    const hypXERC20TokenInstance = HypXERC20__factory.connect(
       hypTokenAddress,
       this.provider,
     );
 
-    const collateralTokenAddress = await hypTokenInstance.wrappedToken();
+    const collateralTokenAddress = await hypXERC20TokenInstance.wrappedToken();
     const [erc20TokenMetadata, xERC20Metadata] = await Promise.all([
       this.fetchERC20Metadata(collateralTokenAddress),
       this.fetchXERC20Config(collateralTokenAddress, hypTokenAddress),
@@ -354,16 +354,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   private async deriveHypXERC20LockboxTokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const hypTokenInstance = HypXERC20Lockbox__factory.connect(
-      hypTokenAddress,
-      this.provider,
-    );
+    const hypXERC20TokenLockboxTokenInstance =
+      HypXERC20Lockbox__factory.connect(hypTokenAddress, this.provider);
 
-    const xerc20Token = await hypTokenInstance.xERC20();
+    const xerc20TokenAddress =
+      await hypXERC20TokenLockboxTokenInstance.xERC20();
     const [erc20TokenMetadata, xERC20Metadata, lockbox] = await Promise.all([
-      this.fetchERC20Metadata(xerc20Token),
-      this.fetchXERC20Config(xerc20Token, hypTokenAddress),
-      hypTokenInstance.lockbox(),
+      this.fetchERC20Metadata(xerc20TokenAddress),
+      this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
+      hypXERC20TokenLockboxTokenInstance.lockbox(),
     ]);
 
     return {
@@ -377,18 +376,21 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   private async deriveHypCollateralTokenConfig(
     hypToken: Address,
   ): Promise<CollateralTokenConfig> {
-    const hypTokenInstance = HypERC20Collateral__factory.connect(
+    const hypCollateralTokenInstance = HypERC20Collateral__factory.connect(
       hypToken,
       this.provider,
     );
 
-    const collateralAddress = await hypTokenInstance.wrappedToken();
-    const erc20TokenMetadata = await this.fetchERC20Metadata(collateralAddress);
+    const collateralTokenAddress =
+      await hypCollateralTokenInstance.wrappedToken();
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.collateral,
-      token: collateralAddress,
+      token: collateralTokenAddress,
     };
   }
 
