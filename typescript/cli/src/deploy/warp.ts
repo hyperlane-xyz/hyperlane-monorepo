@@ -36,6 +36,7 @@ import {
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
+  TokenMetadataMap,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -397,27 +398,30 @@ async function getWarpCoreConfig(
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
-  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    params.context.multiProvider,
-    params.warpDeployConfig,
-  );
-  assert(
-    tokenMetadata && isTokenMetadata(tokenMetadata),
-    'Missing required token metadata',
-  );
-  const { decimals, symbol, name } = tokenMetadata;
-  assert(decimals, 'Missing decimals on token metadata');
+  const tokenMetadata: TokenMetadataMap =
+    await HypERC20Deployer.deriveTokenMetadata(
+      params.context.multiProvider,
+      params.warpDeployConfig,
+    );
+
+  for (const [, config] of Object.entries(tokenMetadata.getMetadata())) {
+    assert(
+      tokenMetadata && isTokenMetadata(config),
+      'Missing required token metadata',
+    );
+    assert(config.decimals, 'Missing decimals on token metadata');
+  }
 
   generateTokenConfigs(
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
-    symbol,
-    name,
-    decimals,
+    tokenMetadata,
   );
 
   fullyConnectTokens(warpCoreConfig);
+
+  const symbol = tokenMetadata.getSymbol();
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -429,9 +433,7 @@ function generateTokenConfigs(
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  symbol: string,
-  name: string,
-  decimals: number,
+  tokenMetadata: TokenMetadataMap,
 ): void {
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -440,12 +442,15 @@ function generateTokenConfigs(
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
 
+    const metadata = tokenMetadata.getMetadataForChainSafe(chainName);
+    const decimals = tokenMetadata.getDecimals();
+
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
       decimals,
-      symbol: config.symbol || symbol,
-      name,
+      symbol: config.symbol || metadata.symbol,
+      name: metadata.name,
       addressOrDenom:
         contract[warpDeployConfig[chainName].type as keyof TokenFactories]
           .address,

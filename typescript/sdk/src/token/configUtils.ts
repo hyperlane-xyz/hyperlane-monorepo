@@ -94,7 +94,7 @@ export async function expandWarpDeployConfig(
 
     return {
       // Default Expansion
-      ...derivedTokenMetadata,
+      ...derivedTokenMetadata.getMetadataForChain(chain),
       remoteRouters,
       destinationGas,
       hook: zeroAddress,

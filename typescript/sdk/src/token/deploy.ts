@@ -22,6 +22,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
+import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
@@ -34,7 +35,6 @@ import {
 } from './contracts.js';
 import {
   HypTokenRouterConfig,
-  TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -123,31 +123,29 @@ abstract class TokenDeployer<
   static async deriveTokenMetadata(
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
-  ): Promise<TokenMetadata | undefined> {
-    // Use priority list to determine which token metadata should be used primarily
-    const priorityGetter = (type: string) => {
-      return ['collateral', 'native'].indexOf(type);
-    };
+  ): Promise<TokenMetadataMap> {
+    const metadataMap: TokenMetadataMap = new TokenMetadataMap();
 
-    const sortedEntries = Object.entries(configMap).sort(
-      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
-    );
-
-    for (const [chain, config] of sortedEntries) {
+    for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
-        return TokenMetadataSchema.parse(config);
+        metadataMap.setMetadata(chain, TokenMetadataSchema.parse(config));
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
+        metadataMap.setMetadata(chain, undefined);
         continue;
       }
 
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          return TokenMetadataSchema.parse({
-            ...nativeToken,
-          });
+          metadataMap.setMetadata(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
+          continue;
         }
       }
 
@@ -163,10 +161,14 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          return TokenMetadataSchema.parse({
-            name,
-            symbol,
-          });
+          metadataMap.setMetadata(
+            chain,
+            TokenMetadataSchema.parse({
+              name,
+              symbol,
+            }),
+          );
+          continue;
         }
 
         let token: string;
@@ -195,19 +197,21 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        return TokenMetadataSchema.parse({
-          name,
-          symbol,
-          decimals,
-        });
+        metadataMap.setMetadata(
+          chain,
+          TokenMetadataSchema.parse({
+            name,
+            symbol,
+            decimals,
+          }),
+        );
       }
     }
-
-    return undefined;
+    return metadataMap;
   }
 
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
-    let tokenMetadata: TokenMetadata | undefined;
+    let tokenMetadata: TokenMetadataMap;
     try {
       tokenMetadata = await TokenDeployer.deriveTokenMetadata(
         this.multiProvider,
@@ -218,8 +222,8 @@ abstract class TokenDeployer<
       throw err;
     }
 
-    const resolvedConfigMap = objMap(configMap, (_, config) => ({
-      ...tokenMetadata,
+    const resolvedConfigMap = objMap(configMap, (chain, config) => ({
+      ...tokenMetadata.getMetadataForChain(chain),
       gas: gasOverhead(config.type),
       ...config,
     }));

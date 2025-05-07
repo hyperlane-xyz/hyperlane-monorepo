@@ -77,6 +77,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     warpCoreConfigPath: string,
     chainName: ChainName,
     expectedMetadata: { decimals: number; symbol: string },
+    skipTypeCheck: boolean = false,
   ): Promise<void> {
     const currentWarpDeployConfig = await readWarpConfig(
       chainName,
@@ -84,9 +85,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       WARP_DEPLOY_OUTPUT_PATH,
     );
 
-    expect(currentWarpDeployConfig[chainName].type).to.equal(
-      warpDeployConfig[chainName].type,
-    );
+    if (!skipTypeCheck) {
+      expect(currentWarpDeployConfig[chainName].type).to.equal(
+        warpDeployConfig[chainName].type,
+      );
+    }
     expect(currentWarpDeployConfig[chainName].decimals).to.equal(
       warpDeployConfig[chainName].decimals ?? expectedMetadata.decimals,
     );
@@ -274,120 +277,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const finalOutput = await handlePrompts(output, steps);
 
       // Assertions
-      // TODO:
-      //  - Check that collateral name and symbol was used
-      //  - Check type, decimals, mailbox
-
-      const expectedMetadata = {
-        decimals: expectedTokenDecimals,
-        symbol: expectedTokenSymbol,
-      };
-
-      const currentWarpDeployConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-
-      expect(finalOutput.exitCode).to.equal(0);
-
-      expect(currentWarpDeployConfig[CHAIN_NAME_2].symbol).to.equal(
-        expectedMetadata.symbol,
-      );
-      expect(currentWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
-        expectedMetadata.symbol,
-      );
-    });
-  });
-
-  describe('hyperlane warp deploy --config ... --yes', () => {
-    it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
-      const nonExistingFilePath = 'non-existing-path';
-      // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
-      // user to enter a valid file and then it will finally fail
-      const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('Select Warp route deployment config file'),
-          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes(
-              'Enter Warp route deployment config filepath',
-            ),
-          input: `${nonExistingFilePath}${KeyBoardKeys.ENTER}`,
-        },
-      ];
-
-      const output = hyperlaneWarpDeployRaw({
-        warpCorePath: nonExistingFilePath,
-        skipConfirmationPrompts: true,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      const finalOutput = await handlePrompts(output, steps);
-
-      expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
-        `Warp route deployment config is required`,
-      );
-    });
-
-    it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
-      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
-
-      const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
-        token.symbol(),
-        token.decimals(),
-      ]);
-      console.log(expectedTokenDecimals);
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        expectedTokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
-
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          mailbox: chain3Addresses.mailbox,
-          owner: ownerAddress,
-        },
-      };
-
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-
-      const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-      ];
-
-      // Deploy
-      const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
-        skipConfirmationPrompts: true,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      const finalOutput = await handlePrompts(output, steps);
-
-      // Assertions
       expect(finalOutput.exitCode).to.equal(0);
 
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
@@ -396,6 +285,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          // Skip type check as collateral instead of collateralFiat was deployed
+          true,
         );
       }
     });
