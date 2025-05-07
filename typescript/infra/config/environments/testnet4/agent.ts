@@ -75,6 +75,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -84,6 +85,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -121,6 +123,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -130,6 +133,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: true,
+    starknetsepolia: true,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
@@ -167,6 +171,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
+    paradexsepolia: false,
     plumetestnet2: true,
     polygonamoy: true,
     scrollsepolia: true,
@@ -176,6 +181,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     soneiumtestnet: true,
     sonicblaze: true,
     sonicsvmtestnet: false,
+    starknetsepolia: false,
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: false,
@@ -227,7 +233,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
   // Default policy is OnChainFeeQuoting
   {
-    type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+    type: GasPaymentEnforcementPolicyType.None,
   },
 ];
 
@@ -383,7 +389,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd9e0b4b-20250425-145730',
+      tag: '7411c6f-20250428-161515',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -407,7 +413,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd9e0b4b-20250425-145730',
+      tag: 'd1a1ac8-20250502-153149',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
