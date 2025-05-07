@@ -1,3 +1,4 @@
+pub use ethereum::EthereumTxPrecursor;
 pub use factory::ChainTxAdapterFactory;
 pub use sealevel::SealevelTxPrecursor;
 
