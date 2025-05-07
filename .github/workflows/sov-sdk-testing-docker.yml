@@ -67,7 +67,7 @@ jobs:
             ${{ runner.os }}-buildx-${{ matrix.platform.arch }}-
 
       - name: Build and push image
-        uses: docker/build-push-action@v6.15
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./hyperlane.Dockerfile
