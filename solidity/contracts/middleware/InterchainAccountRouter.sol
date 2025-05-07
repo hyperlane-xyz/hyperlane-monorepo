@@ -45,13 +45,6 @@ contract InterchainAccountRouter is Router {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a default ISM is set for a remote domain
-     * @param domain The remote domain
-     * @param ism The address of the remote ISM
-     */
-    event RemoteIsmEnrolled(uint32 indexed domain, bytes32 ism);
-
-    /**
      * @notice Emitted when an interchain call is dispatched to a remote domain
      * @param destination The destination domain on which to make the call
      * @param router The address of the remote router
