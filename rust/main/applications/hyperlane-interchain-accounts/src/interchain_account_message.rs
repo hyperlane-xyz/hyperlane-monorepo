@@ -2,14 +2,22 @@
 
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError, H256};
 
+#[derive(Debug)]
+pub struct AccountConfig {
+    /// The account owner on the origin domain.
+    owner: H256,
+    /// The ISM to use on the destination domain.
+    ism: H256,
+    /// The salt to use for account derivation.
+    salt: H256,
+}
+
 /// Message contents sent or received by a Hyperlane Interchain Account program
 #[derive(Debug)]
 pub struct InterchainAccountMessage {
     /// The kind of message. See solidity InterchainAccountMessage.sol
     kind: u8,
-    pub owner: H256,
-    pub ism: H256,
-    pub salt: H256,
+    pub account_config: AccountConfig,
     pub calls: Vec<u8>,
 }
 
@@ -20,9 +28,9 @@ impl Encode for InterchainAccountMessage {
     {
         writer.write([self.kind].as_ref())?;
 
-        writer.write_all(self.owner.as_ref())?;
-        writer.write_all(self.ism.as_ref())?;
-        writer.write_all(self.salt.as_ref())?;
+        writer.write_all(self.account_config.owner.as_ref())?;
+        writer.write_all(self.account_config.ism.as_ref())?;
+        writer.write_all(self.account_config.salt.as_ref())?;
 
         writer.write_all(&self.calls)?;
 
@@ -35,8 +43,9 @@ impl Decode for InterchainAccountMessage {
     where
         R: std::io::Read,
     {
-        let mut kind = [0_u8; 1];
-        reader.read_exact(&mut kind)?;
+        let mut kind_buf = [0_u8; 1];
+        reader.read_exact(&mut kind_buf)?;
+        let kind = kind_buf[0];
 
         let mut owner = H256::zero();
         reader.read_exact(owner.as_mut())?;
@@ -51,10 +60,8 @@ impl Decode for InterchainAccountMessage {
         reader.read_to_end(&mut calls)?;
 
         Ok(Self {
-            kind: kind[0],
-            owner,
-            ism,
-            salt,
+            kind,
+            account_config: AccountConfig { owner, ism, salt },
             calls,
         })
     }
@@ -65,9 +72,11 @@ impl InterchainAccountMessage {
     pub fn new(owner: H256, ism: Option<H256>, salt: Option<H256>, calls: Vec<u8>) -> Self {
         Self {
             kind: 0,
-            owner,
-            ism: ism.unwrap_or_default(),
-            salt: salt.unwrap_or_default(),
+            account_config: AccountConfig {
+                owner,
+                ism: ism.unwrap_or_default(),
+                salt: salt.unwrap_or_default(),
+            },
             calls,
         }
     }

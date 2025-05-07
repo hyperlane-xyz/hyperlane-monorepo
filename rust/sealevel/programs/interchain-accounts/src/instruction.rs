@@ -30,16 +30,14 @@ pub struct Init {
 /// CallRemote instruction data.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct CallRemoteMessage {
-    /// The address of the owner on the origin domain.
-    pub sender: Pubkey,
-    /// The destination domain to run the calls on.
+    /// The destination domain of the account.
     pub destination: u32,
-    /// The ISM to use on the destination domain.
+    /// The ism to use on the destination domain.
     pub ism: Option<H256>,
     /// The salt to use for account derivation.
     pub salt: Option<H256>,
     /// The gas limit to use for the calls.
-    pub gas_limit: Option<u64>,
+    pub gas_limit: u64,
     /// The abi-encoded calls
     pub calls: Vec<u8>,
 }

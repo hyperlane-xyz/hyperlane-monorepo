@@ -33,9 +33,6 @@ use crate::{
     instruction::{CallRemoteMessage, Init, InterchainAccountInstruction},
 };
 
-/// The amount of gas to pay for.
-pub const DEFAULT_HANDLE_GAS_AMOUNT: u64 = 200_000;
-
 /// Seeds relating to the PDA account with program data.
 #[macro_export]
 macro_rules! program_storage_pda_seeds {
@@ -211,10 +208,10 @@ fn send_call_remote(
 
     // Account 1: Message sender signer.
     let sender_signer_info = next_account_info(accounts_iter)?;
-    if !sender_signer_info.is_signer || *sender_signer_info.key != remote_call.sender {
+    if !sender_signer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    let owner = H256(remote_call.sender.to_bytes());
+    let owner = H256(sender_signer_info.owner.to_bytes());
 
     // Account 2: Mailbox program.
     let _mailbox_info = next_account_info(accounts_iter)?;
@@ -355,7 +352,7 @@ fn send_call_remote(
             dispatch_authority_seeds,
             remote_call.destination,
             encoded_message.into(),
-            remote_call.gas_limit.unwrap_or(DEFAULT_HANDLE_GAS_AMOUNT),
+            remote_call.gas_limit,
             dispatch_account_metas,
             dispatch_account_infos,
             igp_payment_account_metas,
