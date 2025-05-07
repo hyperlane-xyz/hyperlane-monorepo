@@ -28,13 +28,13 @@ import {
   logGreen,
 } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
-import { RebalancerContextFactory } from '../rebalancer/factories/RebalancerContextFactory.js';
 import {
   Config,
   IExecutor,
   IStrategy,
   MonitorPollingError,
   RawBalances,
+  RebalancerContextFactory,
 } from '../rebalancer/index.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -415,7 +415,7 @@ export const check: CommandModuleWithContext<{
 };
 
 export const rebalancer: CommandModuleWithWriteContext<{
-  rebalancerConfigFile: string;
+  configFile: string;
   warpRouteId?: string;
   checkFrequency?: number;
   withMetrics?: boolean;
@@ -424,7 +424,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
   builder: {
-    rebalancerConfigFile: {
+    configFile: {
       type: 'string',
       description:
         'The path to a rebalancer configuration file (.json or .yaml)',
@@ -455,35 +455,44 @@ export const rebalancer: CommandModuleWithWriteContext<{
       alias: 'o',
     },
   },
-  handler: async ({ rebalancerConfigFile, context, ...rest }) => {
+  handler: async ({
+    configFile,
+    context,
+    warpRouteId,
+    checkFrequency,
+    withMetrics,
+    monitorOnly,
+  }) => {
     try {
+      const { registry, key: rebalancerKey } = context;
+
+      // This might happen because despite the key being typed as required, it is not validated beforehand.
+      if (!rebalancerKey) {
+        throw new Error('No key found in context');
+      }
+
       // Load rebalancer config from disk
-      const config = Config.fromFile(rebalancerConfigFile, {
-        warpRouteId: rest.warpRouteId,
-        checkFrequency: rest.checkFrequency,
-        withMetrics: rest.withMetrics,
-        monitorOnly: rest.monitorOnly,
+      const config = Config.load(configFile, rebalancerKey, {
+        warpRouteId,
+        checkFrequency,
+        withMetrics,
+        monitorOnly,
       });
 
       // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
-        context.registry,
+        registry,
         config,
       );
 
       // Instantiates the monitor that will observe the warp route
-      const monitor = contextFactory.createMonitor(config.checkFrequency);
+      const monitor = contextFactory.createMonitor();
 
       // Instantiates the strategy that will compute how rebalance routes should be performed
       const strategy: IStrategy = contextFactory.createStrategy();
 
-      // This might happen because despite the key being typed as required, it is not validated beforehand.
-      if (!context.key) {
-        throw new Error('No key found in context');
-      }
-
       // Instantiates the executor in charge of executing the rebalancing transactions
-      const executor: IExecutor = contextFactory.createExecutor(context.key);
+      const executor: IExecutor = contextFactory.createExecutor();
 
       // Instantiates the metrics that will publish stats from the monitored data
       const metrics = config.withMetrics
