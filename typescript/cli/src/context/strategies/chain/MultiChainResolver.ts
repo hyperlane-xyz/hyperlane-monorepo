@@ -80,7 +80,7 @@ export class MultiChainResolver implements ChainResolver {
     const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context: argv.context,
       warpRouteId: argv.warpRouteId,
-      symbol: argv.warpRouteId,
+      symbol: argv.symbol,
       warpDeployConfigPath: argv.config,
       warpCoreConfigPath: argv.warp,
     });
