@@ -42,7 +42,10 @@ export class CosmosNativeWarpRouteReader {
       multiProvider,
       cosmosProviderOrSigner,
     );
-    this.ismReader = new CosmosNativeIsmReader(cosmosProviderOrSigner);
+    this.ismReader = new CosmosNativeIsmReader(
+      multiProvider,
+      cosmosProviderOrSigner,
+    );
   }
 
   /**

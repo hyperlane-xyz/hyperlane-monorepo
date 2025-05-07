@@ -161,6 +161,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       default_hook: defaultHook,
       required_hook: requiredHook,
       new_owner: config.owner || '',
+      renounce_ownership: false,
     });
 
     const addresses: DeployedCoreAddresses = {
