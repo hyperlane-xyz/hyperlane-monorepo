@@ -1,11 +1,15 @@
 use std::fmt::Debug;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::{prelude::Middleware, types::TransactionReceipt};
+use ethers_contract::builders::ContractCall;
+use ethers_core::abi::Function;
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::{abi::Address, types::BlockNumber};
 use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
 use tokio::time::sleep;
@@ -58,6 +62,9 @@ pub trait EvmProviderForSubmitter: Send + Sync {
         &self,
         reorg_period: &EthereumReorgPeriod,
     ) -> ChainResult<u32>;
+
+    /// Send transaction into blockchain
+    async fn send(&self, tx: TypedTransaction, function: Function) -> ChainResult<H256>;
 }
 
 #[async_trait]
@@ -82,6 +89,23 @@ where
         reorg_period: &EthereumReorgPeriod,
     ) -> ChainResult<u32> {
         get_finalized_block_number(&*self.provider, reorg_period).await
+    }
+
+    async fn send(&self, tx: TypedTransaction, function: Function) -> ChainResult<H256> {
+        let contract_call = ContractCall {
+            tx,
+            function,
+            block: None,
+            client: self.provider.clone(),
+            datatype: PhantomData::<()>,
+        };
+
+        let pending = contract_call
+            .send()
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        Ok(pending.tx_hash().into())
     }
 }
 
