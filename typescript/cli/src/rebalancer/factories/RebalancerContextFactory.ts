@@ -11,6 +11,7 @@ import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
 import { MonitorOnlyExecutor } from '../executor/MonitorOnlyExecutor.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
+import { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
@@ -73,11 +74,11 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createMonitor(checkFrequency: number): Monitor {
-    return new Monitor(checkFrequency, this.warpCore);
+  public createMonitor(): Monitor {
+    return new Monitor(this.config.checkFrequency, this.warpCore);
   }
 
-  public createStrategy(): Strategy {
+  public createStrategy(): IStrategy {
     return new Strategy(
       objMap(this.config.chains, (_, v) => ({
         weight: v.weight,
@@ -86,14 +87,14 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createExecutor(rebalancerKey: string): IExecutor {
+  public createExecutor(): IExecutor {
     if (this.config.monitorOnly) {
       return new MonitorOnlyExecutor();
     }
 
     return new Executor(
       objMap(this.config.chains, (_, v) => v.bridge),
-      rebalancerKey,
+      this.config.rebalancerKey,
       this.warpCore,
       this.metadata,
     );
