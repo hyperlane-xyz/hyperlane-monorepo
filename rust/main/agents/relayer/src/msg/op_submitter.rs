@@ -26,7 +26,7 @@ use submitter::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::server::MessageRetryRequest;
+use crate::server::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
