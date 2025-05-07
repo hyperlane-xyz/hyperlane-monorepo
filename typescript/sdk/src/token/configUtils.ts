@@ -18,11 +18,14 @@ import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { gasOverhead } from './config.js';
+import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   HypTokenRouterConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  WarpTokenRouterVirtualConfig,
 } from './types.js';
 
 /**
@@ -82,7 +85,9 @@ export async function expandWarpDeployConfig(
   multiProvider: MultiProvider,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   deployedRoutersAddresses: ChainMap<Address>,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
+): Promise<
+  WarpRouteDeployConfigMailboxRequired & WarpTokenRouterVirtualConfig
+> {
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
@@ -109,7 +114,8 @@ export async function expandWarpDeployConfig(
         warpDeployConfig,
       );
 
-    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] = {
+    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
+      HypTokenRouterVirtualConfig = {
       // Default Expansion
       ...derivedTokenMetadata,
       remoteRouters,
@@ -121,6 +127,11 @@ export async function expandWarpDeployConfig(
         : undefined,
       isNft: false,
 
+      // Virtual config - Used to compare actual contract verification status
+      contractVerificationStatus: {
+        TransparentUpgradeableProxy: true,
+        [hypERC20contracts[config.type]]: true,
+      },
       // User-specified config takes precedence
       ...config,
     };
