@@ -11,6 +11,7 @@
   "plume": 0.05,
   "reactive": 0.1,
   "sophon": 50,
+  "svmbnb": 0.1,
   "tangle": 6,
   "vana": 0.001
 }
