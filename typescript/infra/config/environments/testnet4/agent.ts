@@ -207,6 +207,21 @@ const contextBase = {
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      // For testing nobletestnet<>auroratestnet until we control the IGP
+      {
+        originDomain: getDomainId('nobletestnet'),
+        destinationDomain: getDomainId('auroratestnet'),
+      },
+      // For testing nobletestnet<>hyperliquidevmtestnet until we control the IGP
+      {
+        originDomain: getDomainId('nobletestnet'),
+        destinationDomain: getDomainId('hyperliquidevmtestnet'),
+      },
+    ],
+  },
+  {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
