@@ -34,7 +34,7 @@ pub struct EthereumProvider<M> {
 }
 
 impl<M> EthereumProvider<M> {
-    /// Get the provider
+    /// Create a ContractCall object for a given transaction and function.
     pub fn build_contract_call(
         &self,
         tx: TypedTransaction,
