@@ -40,12 +40,21 @@ export class Config {
     }
 
     const {
-      warpRouteId = overrides.warpRouteId,
-      checkFrequency = overrides.checkFrequency,
-      monitorOnly = overrides.monitorOnly,
-      withMetrics = overrides.withMetrics,
+      warpRouteId: fileWarpRouteId,
+      checkFrequency: fileCheckFrequency,
+      monitorOnly: fileMonitorOnly,
+      withMetrics: fileWithMetrics,
       ...chains
     } = validationResult.data;
+
+    if (!Object.keys(chains).length) {
+      throw new Error('No chains configured');
+    }
+
+    const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
+    const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
+    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly ?? false;
+    const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
 
     if (!warpRouteId) {
       throw new Error('warpRouteId is required');
@@ -58,8 +67,8 @@ export class Config {
     return new Config(
       warpRouteId,
       checkFrequency,
-      monitorOnly ?? false,
-      withMetrics ?? false,
+      monitorOnly,
+      withMetrics,
       chains,
     );
   }
