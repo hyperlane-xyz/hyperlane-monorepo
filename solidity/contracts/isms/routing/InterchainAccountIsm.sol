@@ -12,6 +12,9 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
  * @title InterchainAccountIsm
  */
 contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
+    using Message for bytes;
+    using InterchainAccountMessage for bytes;
+
     IMailbox private immutable mailbox;
 
     // ============ Constructor ============
@@ -29,7 +32,7 @@ contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
     function route(
         bytes calldata _message
     ) public view virtual override returns (IInterchainSecurityModule) {
-        address _ism = InterchainAccountMessage.ism(Message.body(_message));
+        address _ism = _message.body().ism();
         if (_ism == address(0)) {
             return mailbox.defaultIsm();
         } else {
