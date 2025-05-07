@@ -6,10 +6,11 @@ use crate::{
 use async_trait::async_trait;
 use core::ops::RangeInclusive;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H256, H512, U256,
 };
+use serde::Deserialize;
 
 /// A reference to a `InterchainGasPaymasterIndexer` contract on some Sovereign chain
 #[derive(Debug, Clone)]
@@ -28,19 +29,39 @@ impl SovereignInterchainGasPaymasterIndexer {
     }
 }
 
+#[derive(Deserialize)]
+struct Igp {
+    message_body: MessageBody,
+}
+
+#[derive(Deserialize)]
+struct MessageBody {
+    message_id: H256,
+    dest_domain: u32,
+    payment: U256,
+    gas_limit: U256,
+}
+
 #[async_trait]
 impl crate::indexer::SovIndexer<InterchainGasPayment> for SovereignInterchainGasPaymasterIndexer {
     const EVENT_KEY: &'static str = "IGP/GasPayment";
     fn client(&self) -> &SovereignRestClient {
         self.provider.client()
     }
-    async fn latest_sequence(&self, _at_slot: Option<u64>) -> ChainResult<Option<u32>> {
-        Ok(None)
+    async fn latest_sequence(&self, at_slot: Option<u64>) -> ChainResult<Option<u32>> {
+        let sequence = self.client().get_count(at_slot).await?;
+
+        Ok(Some(sequence))
     }
-    fn decode_event(&self, _event: &TxEvent) -> ChainResult<InterchainGasPayment> {
-        Err(ChainCommunicationError::CustomError(
-            "Not yet implemented".into(),
-        ))
+    fn decode_event(&self, event: &TxEvent) -> ChainResult<InterchainGasPayment> {
+        let igp: Igp = serde_json::from_value(event.value.clone())?;
+
+        Ok(InterchainGasPayment {
+            message_id: igp.message_body.message_id,
+            destination: igp.message_body.dest_domain,
+            payment: igp.message_body.payment,
+            gas_amount: igp.message_body.gas_limit,
+        })
     }
 }
 
