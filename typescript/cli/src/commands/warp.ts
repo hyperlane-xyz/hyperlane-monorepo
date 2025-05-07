@@ -415,25 +415,15 @@ export const check: CommandModuleWithContext<{
 };
 
 export const rebalancer: CommandModuleWithWriteContext<{
-  warpRouteId: string;
-  checkFrequency: number;
   rebalancerConfigFile: string;
+  warpRouteId?: string;
+  checkFrequency?: number;
   withMetrics?: boolean;
+  monitorOnly?: boolean;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
   builder: {
-    warpRouteId: {
-      type: 'string',
-      description: 'The warp route ID to rebalance',
-      demandOption: true,
-    },
-    checkFrequency: {
-      type: 'number',
-      description: 'Frequency to check balances in ms',
-      demandOption: true,
-      alias: 'v',
-    },
     rebalancerConfigFile: {
       type: 'string',
       description:
@@ -441,42 +431,62 @@ export const rebalancer: CommandModuleWithWriteContext<{
       demandOption: true,
       alias: 's',
     },
+    warpRouteId: {
+      type: 'string',
+      description: 'The warp route ID to rebalance',
+      demandOption: false,
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms',
+      demandOption: false,
+      alias: 'v',
+    },
     withMetrics: {
       type: 'boolean',
       description: 'Enable metrics',
       demandOption: false,
       alias: 'm',
     },
+    monitorOnly: {
+      type: 'boolean',
+      description: 'Run in monitor only mode',
+      demandOption: false,
+      alias: 'o',
+    },
   },
-  handler: async ({
-    context,
-    warpRouteId,
-    checkFrequency,
-    rebalancerConfigFile,
-    withMetrics = false,
-  }) => {
+  handler: async ({ rebalancerConfigFile, context, ...rest }) => {
     try {
       // Load rebalancer config from disk
-      const config = Config.fromFile(rebalancerConfigFile);
+      const config = Config.fromFile(rebalancerConfigFile, {
+        warpRouteId: rest.warpRouteId,
+        checkFrequency: rest.checkFrequency,
+        withMetrics: rest.withMetrics,
+        monitorOnly: rest.monitorOnly,
+      });
 
       // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
         context.registry,
-        warpRouteId,
         config,
       );
 
       // Instantiates the monitor that will observe the warp route
-      const monitor = contextFactory.createMonitor(checkFrequency);
+      const monitor = contextFactory.createMonitor(config.checkFrequency);
 
       // Instantiates the strategy that will compute how rebalance routes should be performed
       const strategy: IStrategy = contextFactory.createStrategy();
+
+      // This might happen because despite the key being typed as required, it is not validated beforehand.
+      if (!context.key) {
+        throw new Error('No key found in context');
+      }
 
       // Instantiates the executor in charge of executing the rebalancing transactions
       const executor: IExecutor = contextFactory.createExecutor(context.key);
 
       // Instantiates the metrics that will publish stats from the monitored data
-      const metrics = withMetrics
+      const metrics = config.withMetrics
         ? await contextFactory.createMetrics()
         : undefined;
 

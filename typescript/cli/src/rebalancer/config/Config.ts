@@ -17,30 +17,58 @@ const ChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
 });
 
-const ConfigSchema = z
-  .object({
-    monitorOnly: z.boolean().default(false),
-  })
-  .catchall(ChainConfigSchema);
+const ConfigWithoutChainsSchema = z.object({
+  warpRouteId: z.string().optional(),
+  checkFrequency: z.number().optional(),
+  withMetrics: z.boolean().optional(),
+  monitorOnly: z.boolean().optional(),
+});
+
+const ConfigSchema = ConfigWithoutChainsSchema.catchall(ChainConfigSchema);
 
 type ChainConfig = z.infer<typeof ChainConfigSchema>;
 
+type ConfigWithoutChains = z.infer<typeof ConfigWithoutChainsSchema>;
+
 export class Config {
-  static fromFile(path: string) {
-    const config = readYamlOrJson(path);
+  static fromFile(configFilePath: string, overrides: ConfigWithoutChains) {
+    const config = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
 
     if (!validationResult.success) {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { monitorOnly, ...chains } = validationResult.data;
+    const {
+      warpRouteId = overrides.warpRouteId,
+      checkFrequency = overrides.checkFrequency,
+      monitorOnly = overrides.monitorOnly,
+      withMetrics = overrides.withMetrics,
+      ...chains
+    } = validationResult.data;
 
-    return new Config(monitorOnly, chains);
+    if (!warpRouteId) {
+      throw new Error('warpRouteId is required');
+    }
+
+    if (!checkFrequency) {
+      throw new Error('checkFrequency is required');
+    }
+
+    return new Config(
+      warpRouteId,
+      checkFrequency,
+      monitorOnly ?? false,
+      withMetrics ?? false,
+      chains,
+    );
   }
 
   constructor(
+    public readonly warpRouteId: string,
+    public readonly checkFrequency: number,
     public readonly monitorOnly: boolean,
+    public readonly withMetrics: boolean,
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 }
