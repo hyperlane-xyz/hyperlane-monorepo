@@ -5,4 +5,4 @@
 '@hyperlane-xyz/cli': minor
 ---
 
-Upgraded @hyperlane-xyz/registry to 13.16.0 and updated warp route config API usage
+Upgraded @hyperlane-xyz/registry to 14.0.0 and updated warp route config API usage
