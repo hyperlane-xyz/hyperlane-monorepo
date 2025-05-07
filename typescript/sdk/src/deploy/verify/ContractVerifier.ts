@@ -2,7 +2,7 @@ import fetch from 'cross-fetch';
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import { Address, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -335,7 +335,33 @@ export class ContractVerifier {
     );
   }
 
-  async getVerifiedContractSourceCode() {}
+  async getVerifiedContractSourceCode(
+    chain: ChainName,
+    address: Address,
+    verificationLogger: Logger,
+  ): Promise<Partial<ContractVerificationInput>> {
+    verificationLogger.trace(
+      `Fetching contract ABI ${chain} for address ${chain}`,
+    );
+    const sourceCodeResults = (
+      await this.submitForm(
+        chain,
+        ExplorerApiActions.GETSOURCECODE,
+        verificationLogger,
+        { address },
+      )
+    )[0];
+
+    return {
+      address,
+      name: sourceCodeResults.ContractName,
+      expectedimplementation:
+        sourceCodeResults.ImplementationAddress ||
+        sourceCodeResults.Implementation,
+      isProxy:
+        sourceCodeResults.IsProxy === 'true' || sourceCodeResults.Proxy === '1',
+    };
+  }
 
   private getProxyData(input: ContractVerificationInput) {
     return {
