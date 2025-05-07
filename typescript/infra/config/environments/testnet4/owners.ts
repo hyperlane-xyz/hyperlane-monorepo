@@ -28,6 +28,9 @@ export const owners: ChainMap<OwnableConfig> = {
   milkywaytestnet: {
     owner: 'n/a - CSDK not supported here',
   },
+  nobletestnet: {
+    owner: 'n/a - CSDK not supported here',
+  },
 };
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
