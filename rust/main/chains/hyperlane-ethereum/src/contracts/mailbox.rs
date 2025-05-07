@@ -697,9 +697,7 @@ where
         let call = self.contract.delivered(message_id.0);
 
         let data = (call.tx, call.function);
-        let calldata = serde_json::to_vec(&data)
-            .map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))?;
-        Ok(Some(calldata))
+        serde_json::to_vec(&data).map(Some).map_err(Into::into)
     }
 }
 

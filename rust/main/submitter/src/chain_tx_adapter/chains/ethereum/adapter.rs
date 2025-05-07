@@ -15,13 +15,14 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::ContractLocator;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForSubmitter, SubmitterProviderBuilder};
 
-use crate::chain_tx_adapter::chains::ethereum::transaction::Precursor;
 use crate::{
     chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, EthereumTxPrecursor, GasLimit},
     error::SubmitterError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
+
+use super::transaction::Precursor;
 
 mod gas_limit_estimator;
 mod tx_status_checker;
@@ -135,6 +136,31 @@ impl AdaptsChain for EthereumTxAdapter {
         hash: hyperlane_core::H512,
     ) -> Result<TransactionStatus, SubmitterError> {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
+    }
+
+    async fn reverted_payloads(
+        &self,
+        tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
+        let payload_details_and_precursors = tx
+            .payload_details
+            .iter()
+            .filter_map(|d| EthereumTxPrecursor::from_success_criteria(d).map(|p| (d, p)))
+            .collect::<Vec<_>>();
+
+        let mut reverted = Vec::new();
+        for (detail, precursor) in payload_details_and_precursors {
+            let success = self
+                .provider
+                .call(&precursor.tx, &precursor.function)
+                .await
+                .unwrap_or(true);
+            if !success {
+                reverted.push(detail.clone());
+            }
+        }
+
+        Ok(reverted)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
