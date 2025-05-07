@@ -5,7 +5,7 @@ use tendermint_rpc::endpoint::block::Response;
 use tendermint_rpc::{HttpClient, Url};
 
 #[test]
-fn test_deserialise() {
+fn test_deserialize() {
     let json = r#"{
         "block_id": {
             "hash": "9E947DB9A8B4C7DF627133BA3E63524A1FDA37569B8C3EF4BA565B298D67D932",
