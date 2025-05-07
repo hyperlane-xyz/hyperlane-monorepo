@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use eyre::{bail, eyre, ContextCompat, Report};
+use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};

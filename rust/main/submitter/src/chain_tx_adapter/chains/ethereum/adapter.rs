@@ -6,7 +6,6 @@ use ethers::contract::builders::ContractCall;
 use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
-use eyre::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -101,7 +100,7 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn estimate_tx(&self, tx: &mut Transaction) -> std::result::Result<(), SubmitterError> {
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_tx(
             &self.provider,

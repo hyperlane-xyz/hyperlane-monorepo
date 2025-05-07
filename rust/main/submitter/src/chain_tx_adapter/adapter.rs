@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::Report;
 use futures_util::future::join_all;
 use tokio::sync::mpsc::error::SendError;
 use tracing::{info, instrument};
