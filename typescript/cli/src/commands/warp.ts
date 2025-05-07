@@ -4,10 +4,17 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  EvmERC20WarpRouteReader,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -388,10 +395,12 @@ export const check: CommandModuleWithContext<{
 
     // Expand the config before removing non-EVM chain configs to correctly expand
     // the remote routers
+    const deployedRoutersAddresses =
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
     let expandedWarpDeployConfig = await expandWarpDeployConfig(
       context.multiProvider,
       warpDeployConfig,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
+      deployedRoutersAddresses,
     );
 
     // Remove any non EVM chain configs to avoid the checker crashing
@@ -413,8 +422,27 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     });
 
+    // Add virtual config
+    const expandedOnChainWarpConfig = await promiseObjAll(
+      objMap(onChainWarpConfig, async (chain, config) => {
+        const warpReader = new EvmERC20WarpRouteReader(
+          context.multiProvider,
+          chain,
+        );
+        const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
+          chain,
+          deployedRoutersAddresses[chain],
+        );
+
+        return {
+          ...config,
+          ...warpVirtualConfig,
+        };
+      }),
+    );
+
     await runWarpRouteCheck({
-      onChainWarpConfig,
+      onChainWarpConfig: expandedOnChainWarpConfig,
       warpRouteConfig: expandedWarpDeployConfig,
     });
 
