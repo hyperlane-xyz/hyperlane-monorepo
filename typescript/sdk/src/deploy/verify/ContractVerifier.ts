@@ -241,9 +241,9 @@ export class ContractVerifier {
     }
 
     if (responseJson.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
-      const errorMessage = `Verification failed. ${
-        JSON.stringify(responseJson.result) ?? response.statusText
-      }`;
+      const errorMessage = `Verification failed. ${JSON.stringify(
+        responseJson.result ?? response.statusText,
+      )}`;
       verificationLogger.debug(errorMessage);
       throw new Error(`[${chain}] ${errorMessage}`);
     }
