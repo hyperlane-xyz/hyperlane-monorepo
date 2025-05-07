@@ -1,4 +1,9 @@
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { Logger } from 'pino';
+
+import {
+  COSMOS_MODULE_MESSAGE_REGISTRY as R,
+  SigningHyperlaneModuleClient,
+} from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
   ChainId,
@@ -6,6 +11,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -25,7 +31,9 @@ import {
   IsmConfigSchema,
   IsmType,
   MultisigIsmConfig,
+  STATIC_ISM_TYPES,
 } from './types.js';
+import { calculateDomainRoutingDelta } from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -91,16 +99,40 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       'normalized expectedConfig should be an object',
     );
 
+    // Update the config
+    this.args.config = expectedConfig;
+
     // If configs match, no updates needed
     if (deepEquals(actualConfig, expectedConfig)) {
       return [];
     }
 
-    this.args.addresses.deployedIsm = await this.deploy({
-      config: expectedConfig,
-    });
+    // if the ISM is a static ISM we can not update it, instead
+    // it needs to be recreated with the expected config
+    if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
+      this.args.addresses.deployedIsm = await this.deploy({
+        config: expectedConfig,
+      });
 
-    return [];
+      return [];
+    }
+
+    let updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
+    if (expectedConfig.type === IsmType.ROUTING) {
+      const logger = this.logger.child({
+        destination: this.chain,
+        ismType: expectedConfig.type,
+      });
+      logger.debug(`Updating ${expectedConfig.type} on ${this.chain}`);
+
+      updateTxs = await this.updateRoutingIsm({
+        actual: actualConfig,
+        expected: expectedConfig,
+        logger,
+      });
+    }
+
+    return updateTxs;
   }
 
   // manually write static create function
@@ -204,6 +236,87 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       routes,
     });
     return response.id;
+  }
+
+  protected async updateRoutingIsm({
+    actual,
+    expected,
+    logger,
+  }: {
+    actual: DomainRoutingIsmConfig;
+    expected: DomainRoutingIsmConfig;
+    logger: Logger;
+  }): Promise<AnnotatedCosmJsNativeTransaction[]> {
+    const updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
+
+    const knownChains = new Set(this.multiProvider.getKnownChainNames());
+
+    const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
+      actual,
+      expected,
+    );
+
+    const knownEnrolls = intersection(knownChains, new Set(domainsToEnroll));
+
+    // Enroll domains
+    for (const origin of knownEnrolls) {
+      logger.debug(
+        `Reconfiguring preexisting routing ISM for origin ${origin}...`,
+      );
+      const ism = await this.deploy({
+        config: expected.domains[origin],
+      });
+
+      const domain = this.multiProvider.getDomainId(origin);
+      updateTxs.push({
+        annotation: `Setting new ISM for origin ${origin}...`,
+        typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
+        value: R.MsgSetRoutingIsmDomain.proto.converter.create({
+          owner: actual.owner,
+          ism_id: this.args.addresses.deployedIsm,
+          route: {
+            ism,
+            domain,
+          },
+        }),
+      });
+    }
+
+    const knownUnenrolls = intersection(
+      knownChains,
+      new Set(domainsToUnenroll),
+    );
+
+    // Unenroll domains
+    for (const origin of knownUnenrolls) {
+      const domain = this.multiProvider.getDomainId(origin);
+      updateTxs.push({
+        annotation: `Unenrolling originDomain ${domain} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
+        typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
+        value: R.MsgRemoveRoutingIsmDomain.proto.converter.create({
+          owner: actual.owner,
+          ism_id: this.args.addresses.deployedIsm,
+          domain,
+        }),
+      });
+    }
+
+    // Update ownership
+    if (actual.owner !== expected.owner) {
+      updateTxs.push({
+        annotation: `Transferring ownership of ISM from ${
+          actual.owner
+        } to ${expected.owner}`,
+        typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
+        value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
+          owner: actual.owner,
+          ism_id: this.args.addresses.deployedIsm,
+          new_owner: expected.owner,
+        }),
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async deployNoopIsm(): Promise<Address> {
