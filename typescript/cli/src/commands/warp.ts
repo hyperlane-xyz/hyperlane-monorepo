@@ -456,8 +456,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
   },
   handler: async ({
-    configFile,
     context,
+    configFile,
     warpRouteId,
     checkFrequency,
     withMetrics,
