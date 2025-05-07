@@ -8,7 +8,7 @@ use tracing::warn;
 
 use crate::{SubmitterError, TransactionStatus};
 
-async fn block_number_result_to_tx_hash(
+async fn block_number_result_to_tx_status(
     provider: &Box<dyn EvmProviderForSubmitter>,
     block_number: Option<U64>,
     reorg_period: &EthereumReorgPeriod,
@@ -45,7 +45,10 @@ pub async fn get_tx_hash_status(
             "Transaction not found".to_string(),
         )),
         Ok(Some(receipt)) => {
-            Ok(block_number_result_to_tx_hash(provider, receipt.block_number, reorg_period).await)
+            Ok(
+                block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
+                    .await,
+            )
         }
         Err(err) => Err(SubmitterError::TxHashNotFound(err.to_string())),
     }
