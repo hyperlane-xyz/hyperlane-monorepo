@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use maplit::hashmap;
-use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge};
+use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
@@ -27,6 +27,9 @@ pub struct MessageSubmissionMetrics {
     pub metadata_build_count: IntCounterVec,
     /// Total number of seconds spent building different types of metadata.
     pub metadata_build_duration: CounterVec,
+
+    /// Indicator for merkle root mismatch
+    pub merkle_root_mismatch: IntGaugeVec,
 }
 
 impl MessageSubmissionMetrics {
@@ -50,6 +53,7 @@ impl MessageSubmissionMetrics {
                 .with_label_values(&[origin, destination]),
             metadata_build_count: metrics.metadata_build_count(),
             metadata_build_duration: metrics.metadata_build_duration(),
+            merkle_root_mismatch: metrics.merkle_root_mismatch(),
         }
     }
 
@@ -74,5 +78,15 @@ impl MessageSubmissionMetrics {
         self.metadata_build_duration
             .with(&labels)
             .inc_by(params.duration.as_secs_f64());
+    }
+
+    /// Set merkle root mismatch
+    pub fn set_merkle_root_mismatch(&self, app_context: Option<String>) {
+        self.merkle_root_mismatch
+            .with(&hashmap! {
+                "app_context" => app_context.as_deref().unwrap_or("Unknown"),
+                "origin" => self.origin.as_str(),
+            })
+            .set(1);
     }
 }

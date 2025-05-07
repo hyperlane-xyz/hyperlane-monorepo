@@ -407,7 +407,7 @@ impl MessageProcessorMetrics {
 pub mod test {
     use std::time::Instant;
 
-    use prometheus::{CounterVec, IntCounter, IntCounterVec, Opts, Registry};
+    use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry};
     use tokio::{
         sync::{
             mpsc::{self, UnboundedReceiver},
@@ -507,6 +507,11 @@ pub mod test {
             metadata_build_duration: CounterVec::new(
                 Opts::new("metadata_build_duration", "help string"),
                 &["app_context", "origin", "remote", "status"],
+            )
+            .unwrap(),
+            merkle_root_mismatch: IntGaugeVec::new(
+                Opts::new("merkle_root_mismatch", "help string"),
+                &["app_context", "origin"],
             )
             .unwrap(),
         }

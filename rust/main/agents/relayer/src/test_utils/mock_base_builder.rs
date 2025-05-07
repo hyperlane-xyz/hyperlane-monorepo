@@ -14,7 +14,7 @@ use hyperlane_core::{
 };
 
 use crate::msg::metadata::{
-    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier,
+    BuildsBaseMetadata, IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MetadataBuildError,
 };
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
@@ -24,9 +24,9 @@ pub struct MockBaseMetadataBuilderResponses {
     pub origin_domain: Option<HyperlaneDomain>,
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
-    pub ism_cache_policy_classifier: Option<IsmCachePolicyClassifier>,
     pub cache: Option<OptionalCache<MeteredCache<LocalCache>>>,
-    pub get_proof: ResponseList<eyre::Result<Proof>>,
+    pub get_proof: ResponseList<Result<Proof, MetadataBuildError>>,
+    pub ism_cache_policy_classifier: Option<IsmCachePolicyClassifier>,
     pub highest_known_leaf_index: ResponseList<Option<u32>>,
     pub get_merkle_leaf_id_by_message_id: ResponseList<eyre::Result<Option<u32>>>,
     /// build_ism uses a hashmap of VecDeque responses instead.
@@ -136,7 +136,11 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .expect("No mock cache response set")
     }
 
-    async fn get_proof(&self, _leaf_index: u32, _checkpoint: Checkpoint) -> eyre::Result<Proof> {
+    async fn get_proof(
+        &self,
+        _leaf_index: u32,
+        _checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError> {
         self.responses
             .get_proof
             .lock()
