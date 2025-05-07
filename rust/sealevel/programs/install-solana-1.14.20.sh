@@ -1,7 +1,9 @@
+#!/bin/sh
+
 # Solana CLI releases were migrated from https://release.solana.com to
 # https://release.anza.xyz, but along the way some old versions weren't ported over.
 # This includes 1.14.20, which is the version we require to build the programs.
-#
+
 # This script is adapted from https://release.anza.xyz/v1.18.18/install with the following
 # changes:
 # - The version is hardcoded to 1.14.20
@@ -11,7 +13,7 @@
 SOLANA_RELEASE=v1.14.20
 SOLANA_INSTALL_INIT_ARGS=v1.14.20
 SOLANA_DOWNLOAD_ROOT=https://github.com/solana-labs/solana/releases/download/
-#!/bin/sh
+
 # Copyright 2016 The Rust Project Developers. See the COPYRIGHT
 # file at the top-level directory of this distribution and at
 # http://rust-lang.org/COPYRIGHT.
