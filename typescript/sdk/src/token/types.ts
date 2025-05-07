@@ -374,3 +374,16 @@ function extractCCIPIsmMap(
       break;
   }
 }
+
+export const HypTokenRouterVirtualConfigSchema = z.object({
+  contractVerificationStatus: z.record(z.boolean()),
+});
+export type HypTokenRouterVirtualConfig = z.infer<
+  typeof HypTokenRouterVirtualConfigSchema
+>;
+export const WarpTokenRouterVirtualConfigSchema = z.record(
+  HypTokenRouterVirtualConfigSchema,
+);
+export type WarpTokenRouterVirtualConfig = z.infer<
+  typeof WarpTokenRouterVirtualConfigSchema
+>;
