@@ -26,18 +26,18 @@ export interface CommandContext {
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
+  multiProtocolProvider: MultiProtocolProvider;
   skipConfirmation: boolean;
   key?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
   strategyPath?: string;
-  multiProtocolProvider?: MultiProtocolProvider;
-  multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export interface WriteCommandContext extends CommandContext {
   key: string;
   signer: ethers.Signer;
+  multiProtocolSigner?: MultiProtocolSignerManager;
   isDryRun?: boolean;
   dryRunChain?: string;
 }
