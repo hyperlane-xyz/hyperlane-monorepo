@@ -12,8 +12,8 @@ import {
   IXERC20__factory,
   ProxyAdmin__factory,
   TokenRouter__factory,
-  buildArtifact,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -34,7 +34,7 @@ import {
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { isProxy, proxyAdmin } from './../deploy/proxy.js';
@@ -44,6 +44,7 @@ import {
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
+  HypTokenRouterVirtualConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
@@ -96,7 +97,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
-      buildArtifact,
+      coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
   }
@@ -131,6 +132,33 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       proxyAdmin,
       destinationGas,
     };
+  }
+
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+    virtualConfig: { contractVerificationStatus: Record<string, boolean> } = {
+      contractVerificationStatus: {},
+    },
+  ): Promise<HypTokenRouterVirtualConfig> {
+    const contractSourceResults =
+      await this.contractVerifier!.getVerifiedContractSourceCode(
+        chain,
+        address,
+        this.logger,
+      );
+
+    virtualConfig.contractVerificationStatus[contractSourceResults.name!] =
+      true;
+
+    if (contractSourceResults.isProxy)
+      await this.deriveWarpRouteVirtualConfig(
+        chain,
+        contractSourceResults.expectedimplementation!,
+        virtualConfig,
+      );
+
+    return virtualConfig;
   }
 
   /**
