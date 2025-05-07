@@ -43,10 +43,8 @@ fn test_configuration_fields() {
     // when
     let estimated_block_time = adapter.estimated_block_time();
     let max_batch_size = adapter.max_batch_size();
-    let reorg_period = adapter.reorg_period.clone();
 
     // then
     assert_eq!(estimated_block_time, &expected_estimated_block_time);
     assert_eq!(max_batch_size, expected_max_batch_size);
-    assert_eq!(reorg_period, expected_reorg_period);
 }

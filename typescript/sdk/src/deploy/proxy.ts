@@ -85,43 +85,47 @@ export async function isProxy(
 export function proxyAdminUpdateTxs(
   chainId: ChainId,
   proxyAddress: Address,
-  actualConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
-  expectedConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+  actualConfig: Readonly<{ owner: string; proxyAdmin?: DeployedOwnableConfig }>,
+  expectedConfig: Readonly<{
+    owner: string;
+    proxyAdmin?: DeployedOwnableConfig;
+  }>,
 ): AnnotatedEV5Transaction[] {
   const transactions: AnnotatedEV5Transaction[] = [];
 
-  // Return early because old config files did not have the
-  // proxyAdmin property
-  if (!expectedConfig.proxyAdmin?.address) {
-    return transactions;
-  }
-
-  const actualProxyAdmin = actualConfig.proxyAdmin!;
   const parsedChainId =
     typeof chainId === 'string' ? parseInt(chainId) : chainId;
 
   if (
-    actualProxyAdmin.address &&
-    actualProxyAdmin.address !== expectedConfig.proxyAdmin.address
+    actualConfig.proxyAdmin?.address &&
+    expectedConfig.proxyAdmin?.address &&
+    actualConfig.proxyAdmin.address !== expectedConfig.proxyAdmin.address
   ) {
     transactions.push({
       chainId: parsedChainId,
-      annotation: `Updating ProxyAdmin for proxy at "${proxyAddress}" from "${actualProxyAdmin.address}" to "${expectedConfig.proxyAdmin.address}"`,
-      to: actualProxyAdmin.address,
+      annotation: `Updating ProxyAdmin for proxy at "${proxyAddress}" from "${actualConfig.proxyAdmin.address}" to "${expectedConfig.proxyAdmin.address}"`,
+      to: actualConfig.proxyAdmin.address,
       data: ProxyAdmin__factory.createInterface().encodeFunctionData(
         'changeProxyAdmin(address,address)',
         [proxyAddress, expectedConfig.proxyAdmin.address],
       ),
     });
   } else {
+    const actualOwnershipConfig = actualConfig.proxyAdmin ?? {
+      owner: actualConfig.owner,
+    };
+    const expectedOwnershipConfig = expectedConfig.proxyAdmin ?? {
+      owner: expectedConfig.owner,
+    };
+
     transactions.push(
       // Internally the createTransferOwnershipTx method already checks if the
       // two owner values are the same and produces an empty tx batch if they are
       ...transferOwnershipTransactions(
         parsedChainId,
-        actualProxyAdmin.address!,
-        actualProxyAdmin,
-        expectedConfig.proxyAdmin,
+        actualOwnershipConfig.address!,
+        actualOwnershipConfig,
+        expectedOwnershipConfig,
       ),
     );
   }

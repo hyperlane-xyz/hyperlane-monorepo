@@ -16,6 +16,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
     transaction::Transaction as SealevelTransaction,
 };
+use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
@@ -56,15 +57,22 @@ use crate::{
 
 const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
 
+#[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub enum EstimateFreshnessCache {
+    #[default]
+    Stale,
+    Fresh,
+}
+
 pub struct SealevelTxAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
-    reorg_period: ReorgPeriod,
     keypair: SealevelKeypair,
     client: Box<dyn SubmitSealevelRpc>,
     provider: Box<dyn SealevelProviderForSubmitter>,
     oracle: Box<dyn PriorityFeeOracle>,
     submitter: Box<dyn TransactionSubmitter>,
+    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionId, EstimateFreshnessCache>>>,
 }
 
 impl SealevelTxAdapter {
@@ -120,19 +128,19 @@ impl SealevelTxAdapter {
         submitter: Box<dyn TransactionSubmitter>,
     ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
-        let reorg_period = conf.reorg_period.clone();
         let max_batch_size = Self::batch_size(&conf)?;
         let keypair = create_keypair(&conf)?;
+        let estimate_freshness_cache = Arc::new(Mutex::new(HashMap::new()));
 
         Ok(Self {
             estimated_block_time,
             max_batch_size,
-            reorg_period,
             keypair,
             provider,
             client,
             oracle,
             submitter,
+            estimate_freshness_cache,
         })
     }
 
@@ -147,12 +155,12 @@ impl SealevelTxAdapter {
         Self {
             estimated_block_time: Duration::from_secs(1),
             max_batch_size: 1,
-            reorg_period: ReorgPeriod::default(),
             keypair: SealevelKeypair::default(),
             provider,
             client,
             oracle,
             submitter,
+            estimate_freshness_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -166,7 +174,7 @@ impl SealevelTxAdapter {
 
     async fn estimate(
         &self,
-        precursor: SealevelTxPrecursor,
+        precursor: &SealevelTxPrecursor,
     ) -> Result<SealevelTxPrecursor, SubmitterError> {
         let estimate = self
             .provider
@@ -177,7 +185,10 @@ impl SealevelTxAdapter {
                 &*self.oracle,
             )
             .await?;
-        Ok(SealevelTxPrecursor::new(precursor.instruction, estimate))
+        Ok(SealevelTxPrecursor::new(
+            precursor.instruction.clone(),
+            estimate,
+        ))
     }
 
     async fn create_unsigned_transaction(
@@ -219,44 +230,43 @@ impl SealevelTxAdapter {
     #[instrument(skip(self))]
     async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, SubmitterError> {
         let signature = Signature::new(tx_hash.as_ref());
-        let transaction_search_result = self.client.get_transaction(signature).await;
 
-        let transaction = match transaction_search_result {
-            Ok(transaction) => transaction,
-            Err(err) => {
-                warn!(?err, "Failed to get transaction status by hash");
-                return Err(SubmitterError::TxSubmissionError(
-                    "Transaction hash not found".to_string(),
-                ));
-            }
-        };
+        // query the tx hash from most to least finalized to learn what level of finality it has
+        // the calls below can be parallelized if needed, but for now avoid rate limiting
 
-        // slot at which transaction was included into blockchain
-        let inclusion_slot = transaction.slot;
-
-        info!(slot = ?inclusion_slot, "found transaction");
-
-        // if block with this slot is added to the chain, transaction is considered to be confirmed
-        let confirming_slot = inclusion_slot + self.reorg_period.as_blocks()? as u64;
-
-        let confirming_block = self.client.get_block(confirming_slot).await;
-
-        if confirming_block.is_ok() {
-            info!("finalized transaction");
+        if self
+            .client
+            .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
+            .await
+            .is_ok()
+        {
+            info!("transaction finalized");
             return Ok(TransactionStatus::Finalized);
         }
 
-        // block which includes transaction into blockchain
-        let including_block = self.client.get_block(inclusion_slot).await;
+        // the "confirmed" commitment is equivalent to being "included" in a block on evm
+        if self
+            .client
+            .get_transaction_with_commitment(signature, CommitmentConfig::confirmed())
+            .await
+            .is_ok()
+        {
+            info!("transaction included");
+            return Ok(TransactionStatus::Included);
+        }
 
-        match including_block {
+        match self
+            .client
+            .get_transaction_with_commitment(signature, CommitmentConfig::processed())
+            .await
+        {
             Ok(_) => {
-                info!("included transaction");
-                Ok(TransactionStatus::Included)
+                info!("transaction pending inclusion");
+                return Ok(TransactionStatus::PendingInclusion);
             }
-            Err(_) => {
-                info!("pending transaction");
-                Ok(TransactionStatus::PendingInclusion)
+            Err(err) => {
+                warn!(?err, "Failed to get transaction status by hash");
+                return Err(SubmitterError::TxHashNotFound(err.to_string()));
             }
         }
     }
@@ -270,7 +280,7 @@ impl AdaptsChain for SealevelTxAdapter {
     ) -> Result<Option<GasLimit>, SubmitterError> {
         info!(?payload, "estimating payload");
         let not_estimated = SealevelTxPrecursor::from_payload(payload);
-        let estimated = self.estimate(not_estimated).await?;
+        let estimated = self.estimate(&not_estimated).await?;
         info!(?payload, ?estimated, "estimated payload");
         Ok(Some(estimated.estimate.compute_units.into()))
     }
@@ -284,11 +294,8 @@ impl AdaptsChain for SealevelTxAdapter {
 
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
-            let Ok(estimated) = self.estimate(not_estimated).await else {
-                transactions.push(TxBuildingResult::new(vec![payload.details.clone()], None));
-                continue;
-            };
-            let transaction = TransactionFactory::build(payload, estimated);
+            // We are not estimating transaction here since we will estimate it just before submission
+            let transaction = TransactionFactory::build(payload, not_estimated);
             transactions.push(TxBuildingResult::new(
                 vec![payload.details.clone()],
                 Some(transaction),
@@ -312,12 +319,43 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(success)
     }
 
-    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        info!(?tx, "submitting transaction");
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        use EstimateFreshnessCache::{Fresh, Stale};
+
+        info!(?tx, "estimating transaction");
         let not_estimated = tx.precursor();
-        // TODO: the `estimate` call shouldn't happen here - the `Transaction` argument should already contain the precursor,
-        // set in the `build_transactions` method
-        let estimated = self.estimate(not_estimated.clone()).await?;
+        let estimated = self.estimate(not_estimated).await?;
+
+        // If cache does not contain estimate type, insert Simulation type so that it can be used on the first submission
+        {
+            let mut guard = self.estimate_freshness_cache.lock().await;
+            if guard.get(&tx.id).copied().unwrap_or_default() == Stale {
+                guard.insert(tx.id.clone(), Fresh);
+            }
+        };
+
+        tx.vm_specific_data = VmSpecificTxData::Svm(estimated);
+        info!(?tx, "estimated transaction");
+        Ok(())
+    }
+
+    async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        use EstimateFreshnessCache::{Fresh, Stale};
+
+        info!(?tx, "submitting transaction");
+
+        let previous = tx.precursor();
+        let estimated = {
+            let mut guard = self.estimate_freshness_cache.lock().await;
+            match guard.get(&tx.id).copied().unwrap_or_default() {
+                Stale => self.estimate(previous).await?,
+                Fresh => {
+                    guard.insert(tx.id.clone(), Stale);
+                    previous.clone()
+                }
+            }
+        };
+
         let svm_transaction = self.create_signed_transaction(&estimated).await?;
         let signature = self
             .submitter
@@ -358,6 +396,13 @@ impl AdaptsChain for SealevelTxAdapter {
         ))
     }
 
+    async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, SubmitterError> {
+        info!(?hash, "getting transaction hash status");
+        let status = self.get_tx_hash_status(hash).await?;
+        info!(?hash, ?status, "got transaction hash status");
+        Ok(status)
+    }
+
     async fn reverted_payloads(
         &self,
         _tx: &Transaction,
@@ -375,10 +420,12 @@ impl AdaptsChain for SealevelTxAdapter {
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
-        let last_submission_time = tx.last_submission_attempt.unwrap_or(tx.creation_timestamp);
-        let seconds_since_last_submission =
-            (Utc::now() - last_submission_time).num_seconds() as u64;
-        seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS
+        if let Some(ref last_submission_time) = tx.last_submission_attempt {
+            let seconds_since_last_submission =
+                (Utc::now() - last_submission_time).num_seconds() as u64;
+            return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
+        }
+        true
     }
 }
 

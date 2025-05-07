@@ -6,6 +6,7 @@ import {
   ChainId,
   Domain,
   ProtocolType,
+  assert,
   deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -69,7 +70,6 @@ export class CosmosNativeHookModule extends HyperlaneModule<
   public async update(
     targetConfig: HookConfig,
   ): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    // Nothing to do if its the default hook
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -83,14 +83,12 @@ export class CosmosNativeHookModule extends HyperlaneModule<
       );
     }
 
-    // Update the config
     this.args.config = targetConfig;
 
     // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig = normalizeConfig(await this.read());
     const normalizedTargetConfig = normalizeConfig(targetConfig);
 
-    // If configs match, no updates needed
     if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
       return [];
     }
@@ -102,7 +100,6 @@ export class CosmosNativeHookModule extends HyperlaneModule<
     return [];
   }
 
-  // manually write static create function
   public static async create({
     chain,
     config,
@@ -159,11 +156,12 @@ export class CosmosNativeHookModule extends HyperlaneModule<
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 
-    // TODO: what about denom?
     const { nativeToken } = this.multiProvider.getChainMetadata(this.chain);
 
+    assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
+
     const { response: igp } = await this.signer.createIgp({
-      denom: nativeToken?.denom ?? '',
+      denom: nativeToken.denom,
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {

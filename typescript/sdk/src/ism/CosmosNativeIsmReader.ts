@@ -1,8 +1,10 @@
 import {
   HyperlaneModuleClient,
+  IsmTypes,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { isTypes } from '@hyperlane-xyz/cosmos-types';
+import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DerivedIsmConfig, IsmType, MultisigIsmConfig } from './types.js';
 
@@ -24,15 +26,17 @@ export class CosmosNativeIsmReader {
           id: address,
         });
 
-      switch (ism?.type_url) {
-        case '/hyperlane.core.interchain_security.v1.MerkleRootMultisigISM':
+      assert(ism, `ISM with id ${address} not found`);
+
+      switch (ism.type_url) {
+        case IsmTypes.MerkleRootMultisigISM:
           return this.deriveMerkleRootMultisigConfig(address);
-        case '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM':
+        case IsmTypes.MessageIdMultisigISM:
           return this.deriveMessageIdMultisigConfig(address);
-        case '/hyperlane.core.interchain_security.v1.NoopISM':
-          throw new Error('Error deriving NOOP ISM type');
+        case IsmTypes.NoopISM:
+          return this.deriveTestConfig(address);
         default:
-          throw new Error(`Unknown ISM ModuleType: ${ism?.type_url}`);
+          throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
       }
     } catch (error) {
       this.logger.error(`Failed to derive ISM config for ${address}`, error);
@@ -44,45 +48,42 @@ export class CosmosNativeIsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
     const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm({
-        id: address,
-      });
+      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
+        {
+          id: address,
+        },
+      );
 
-    // perform type narrowing
-    if ('validators' in ism && 'threshold' in ism) {
-      return {
-        type: IsmType.MERKLE_ROOT_MULTISIG,
-        address,
-        validators: ism.validators,
-        threshold: ism.threshold,
-      };
-    }
-
-    throw new Error(
-      `found no validators and threshold in MERKLE_ROOT_MULTISIG ISM: ${address}`,
-    );
+    return {
+      type: IsmType.MERKLE_ROOT_MULTISIG,
+      address,
+      validators: ism.validators,
+      threshold: ism.threshold,
+    };
   }
 
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<DerivedIsmConfig> {
     const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm({
-        id: address,
-      });
+      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
+        {
+          id: address,
+        },
+      );
 
-    // perform type narrowing
-    if ('validators' in ism && 'threshold' in ism) {
-      return {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        address,
-        validators: ism.validators,
-        threshold: ism.threshold,
-      };
-    }
+    return {
+      type: IsmType.MESSAGE_ID_MULTISIG,
+      address,
+      validators: ism.validators,
+      threshold: ism.threshold,
+    };
+  }
 
-    throw new Error(
-      `found no validators and threshold in MESSAGE_ID_MULTISIG ISM: ${address}`,
-    );
+  private async deriveTestConfig(address: Address): Promise<DerivedIsmConfig> {
+    return {
+      type: IsmType.TEST_ISM,
+      address,
+    };
   }
 }

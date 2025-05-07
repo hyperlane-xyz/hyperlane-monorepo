@@ -91,8 +91,14 @@ impl InclusionStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
-                pool.lock().await.insert(tx.id.clone(), tx.clone());
+                // the lock is held until the metric is updated, to prevent race conditions
+                let mut pool_lock = pool.lock().await;
+                let pool_len = pool_lock.len();
+                pool_lock.insert(tx.id.clone(), tx.clone());
                 info!(?tx, "Received transaction");
+                state
+                    .metrics
+                    .update_queue_length_metric(STAGE_NAME, pool_len as u64, &domain);
             } else {
                 error!("Building stage channel closed");
                 return Err(SubmitterError::ChannelClosed);
@@ -114,18 +120,22 @@ impl InclusionStage {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
 
-            let pool_snapshot = pool.lock().await.clone();
-            state.metrics.update_queue_length_metric(
-                STAGE_NAME,
-                pool_snapshot.len() as u64,
-                &domain,
-            );
+            let pool_snapshot = {
+                let pool_snapshot = pool.lock().await.clone();
+                state.metrics.update_queue_length_metric(
+                    STAGE_NAME,
+                    pool_snapshot.len() as u64,
+                    &domain,
+                );
+                pool_snapshot
+            };
             info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
-            for (_, tx) in pool_snapshot {
+            for (_, mut tx) in pool_snapshot {
                 if let Err(err) =
                     Self::try_process_tx(tx.clone(), &finality_stage_sender, &state, &pool).await
                 {
-                    error!(?err, ?tx, "Error processing transaction. Skipping for now");
+                    error!(?err, ?tx, "Error processing transaction. Dropping it");
+                    Self::drop_tx(&state, &mut tx, TxDropReason::FailedSimulation, &pool).await?;
                 }
             }
         }
@@ -187,18 +197,38 @@ impl InclusionStage {
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
-        let simulation_success = call_until_success_or_nonretryable_error(
-            || state.adapter.simulate_tx(&tx),
-            "Simulating transaction",
+        // TODO: simulating the transaction is commented out for now, because
+        // on SVM the tx is simulated in the `submit` call.
+        // let simulation_success = call_until_success_or_nonretryable_error(
+        //     || state.adapter.simulate_tx(&tx),
+        //     "Simulating transaction",
+        //     state,
+        // )
+        // .await
+        // // if simulation fails or hits a non-retryable error, drop the tx
+        // .unwrap_or(false);
+        // if !simulation_success {
+        //     warn!(?tx, "Transaction simulation failed");
+        //     return Err(eyre!("Transaction simulation failed"));
+        // }
+        // info!(?tx, "Transaction simulation succeeded");
+
+        // Estimating transaction just before we submit it
+        // TODO we will need to re-classify `ChainCommunicationError` into `SubmitterError::EstimateError` in the future.
+        // At the moment, both errors are non-retryable, so we can keep them as is.
+        tx = call_until_success_or_nonretryable_error(
+            || {
+                let tx_clone = tx.clone();
+                async move {
+                    let mut tx_clone_inner = tx_clone.clone();
+                    state.adapter.estimate_tx(&mut tx_clone_inner).await?;
+                    Ok(tx_clone_inner)
+                }
+            },
+            "Simulating and estimating transaction",
             state,
         )
         .await?;
-        if !simulation_success {
-            warn!(?tx, "Transaction simulation failed");
-            Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
-            return Err(eyre!("Transaction simulation failed"));
-        }
-        info!(?tx, "Transaction simulation succeeded");
 
         // successively calling `submit` will result in escalating gas price until the tx is accepted
         // by the node.
@@ -307,6 +337,8 @@ mod tests {
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(true));
 
+        mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
+
         mock_adapter.expect_submit().returning(|_| Ok(()));
 
         let (txs_created, txs_received, tx_db, payload_db, pool) =
@@ -337,6 +369,10 @@ mod tests {
             .returning(|_| Ok(TransactionStatus::PendingInclusion));
 
         mock_adapter.expect_simulate_tx().returning(|_| Ok(false));
+
+        mock_adapter
+            .expect_estimate_tx()
+            .returning(|_| Err(SubmitterError::SimulationFailed));
 
         let (txs_created, txs_received, tx_db, payload_db, pool) =
             set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;

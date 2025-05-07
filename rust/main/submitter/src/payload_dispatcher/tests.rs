@@ -10,7 +10,7 @@ use crate::{
         BuildingStageQueue, PayloadDbLoader, PayloadDispatcherState,
     },
     Entrypoint, FullPayload, PayloadDispatcher, PayloadDispatcherEntrypoint, PayloadId,
-    PayloadStatus, TransactionStatus,
+    PayloadStatus, SubmitterError, TransactionStatus,
 };
 
 use super::PayloadDb;
@@ -105,20 +105,20 @@ async fn test_entrypoint_send_is_finalized_by_dispatcher() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_entrypoint_send_is_dropped_by_dispatcher() {
+async fn test_entrypoint_send_fails_simulation_after_first_submission() {
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
     let mut counter = 0;
-    adapter.expect_simulate_tx().returning(move |_| {
+    adapter.expect_estimate_tx().returning(move |_| {
         counter += 1;
         if counter == 1 {
             // simulation is successful the first time around, and the payload makes it into a tx
-            Ok(true)
+            Ok(())
         } else {
             // the second time around, the simulation fails, say due to a network race condition
             // where the payload was delivered by someone else and now it reverts
-            Ok(false)
+            Err(SubmitterError::SimulationFailed)
         }
     });
     let adapter = mock_adapter_methods(adapter, payload.clone());
@@ -129,7 +129,55 @@ async fn test_entrypoint_send_is_dropped_by_dispatcher() {
     let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
     entrypoint.send_payload(&payload).await.unwrap();
 
-    // wait until the payload status is InTransaction(Finalized)
+    // wait until the payload status is InTransaction(Dropped(_))
+    wait_until_payload_status(
+        entrypoint.inner.payload_db.clone(),
+        payload.id(),
+        |payload_status| {
+            println!("Payload status: {:?}", payload_status);
+            matches!(
+                payload_status,
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+            )
+        },
+    )
+    .await;
+    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
+
+    let metrics_assertion = MetricsAssertion {
+        domain: entrypoint.inner.domain.clone(),
+        finalized_txs: 0,
+        building_stage_queue_length: 0,
+        inclusion_stage_pool_length: 0,
+        finality_stage_pool_length: 0,
+        dropped_payloads: 1,
+        dropped_transactions: 1,
+        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
+        dropped_transaction_reason: "FailedSimulation".to_string(),
+        transaction_submissions: 1,
+    };
+    assert_metrics(metrics, metrics_assertion);
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_entrypoint_send_fails_simulation_before_first_submission() {
+    let payload = FullPayload::random();
+
+    let mut adapter = MockAdapter::new();
+    // the payload always fails simulation
+    adapter
+        .expect_estimate_tx()
+        .returning(move |_| Err(SubmitterError::SimulationFailed));
+    let adapter = mock_adapter_methods(adapter, payload.clone());
+    let adapter = Arc::new(adapter);
+    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
+    let metrics = dispatcher.inner.metrics.clone();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+    entrypoint.send_payload(&payload).await.unwrap();
+
+    // wait until the payload status is InTransaction(Dropped(_))
     wait_until_payload_status(
         entrypoint.inner.payload_db.clone(),
         payload.id(),
@@ -153,46 +201,6 @@ async fn test_entrypoint_send_is_dropped_by_dispatcher() {
         dropped_transactions: 1,
         dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
         dropped_transaction_reason: "FailedSimulation".to_string(),
-        transaction_submissions: 0,
-    };
-    assert_metrics(metrics, metrics_assertion);
-}
-
-#[tracing_test::traced_test]
-#[tokio::test]
-async fn test_entrypoint_payload_fails_simulation() {
-    let payload = FullPayload::random();
-
-    let mut adapter = MockAdapter::new();
-    // the payload always fails simulation
-    adapter.expect_simulate_tx().returning(move |_| Ok(false));
-    let adapter = mock_adapter_methods(adapter, payload.clone());
-    let adapter = Arc::new(adapter);
-    let (entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter.clone()).await;
-    let metrics = dispatcher.inner.metrics.clone();
-
-    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
-    entrypoint.send_payload(&payload).await.unwrap();
-
-    // wait until the payload status is InTransaction(Finalized)
-    wait_until_payload_status(
-        entrypoint.inner.payload_db.clone(),
-        payload.id(),
-        |payload_status| matches!(payload_status, PayloadStatus::Dropped(_)),
-    )
-    .await;
-    sleep(Duration::from_millis(200)).await; // Wait for the metrics to be updated
-
-    let metrics_assertion = MetricsAssertion {
-        domain: entrypoint.inner.domain.clone(),
-        finalized_txs: 0,
-        building_stage_queue_length: 0,
-        inclusion_stage_pool_length: 0,
-        finality_stage_pool_length: 0,
-        dropped_payloads: 1,
-        dropped_transactions: 0,
-        dropped_payload_reason: "FailedSimulation".to_string(),
-        dropped_transaction_reason: "".to_string(),
         transaction_submissions: 0,
     };
     assert_metrics(metrics, metrics_assertion);
@@ -281,6 +289,8 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
     adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
 
     adapter.expect_simulate_tx().returning(|_| Ok(true));
+
+    adapter.expect_estimate_tx().returning(|_| Ok(()));
 
     adapter.expect_submit().returning(|_| Ok(()));
     adapter

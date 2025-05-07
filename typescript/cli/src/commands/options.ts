@@ -271,3 +271,9 @@ export const avsChainCommandOption: Options = {
   demandOption: true,
   choices: ['holesky', 'ethereum'],
 };
+
+export const warpRouteIdCommandOption: Options = {
+  type: 'string',
+  description: 'Warp route ID to specify the warp route',
+  alias: 'id',
+};

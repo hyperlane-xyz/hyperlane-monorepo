@@ -2,7 +2,7 @@ import {
   HyperlaneModuleClient,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -10,6 +10,7 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
 } from './types.js';
 
@@ -32,7 +33,7 @@ export class CosmosNativeHookReader {
       } else if (await this.isMerkleTreeHook(address)) {
         return this.deriveMerkleTreeConfig(address);
       } else if (await this.isNoopHook(address)) {
-        throw new Error(`Unsupported hook type: NoopHook`);
+        return this.deriveNoopConfig(address);
       } else {
         throw new Error(`Unsupported hook type for address: ${address}`);
       }
@@ -49,9 +50,7 @@ export class CosmosNativeHookReader {
       id: address,
     });
 
-    if (!igp) {
-      throw new Error(`IGP not found for address ${address}`);
-    }
+    assert(igp, `IGP not found for address ${address}`);
 
     const { destination_gas_configs } =
       await this.cosmosProviderOrSigner.query.postDispatch.DestinationGasConfigs(
@@ -94,13 +93,30 @@ export class CosmosNativeHookReader {
         id: address,
       });
 
-    if (!merkle_tree_hook) {
-      throw new Error(`Merkle Tree Hook not found for address ${address}`);
-    }
+    assert(
+      merkle_tree_hook,
+      `Merkle Tree Hook not found for address ${address}`,
+    );
 
     return {
       type: HookType.MERKLE_TREE,
       address: merkle_tree_hook.id,
+    };
+  }
+
+  private async deriveNoopConfig(
+    address: Address,
+  ): Promise<WithAddress<MailboxDefaultHookConfig>> {
+    const { noop_hook } =
+      await this.cosmosProviderOrSigner.query.postDispatch.NoopHook({
+        id: address,
+      });
+
+    assert(noop_hook, `Noop Hook not found for address ${address}`);
+
+    return {
+      type: HookType.MAILBOX_DEFAULT,
+      address: noop_hook.id,
     };
   }
 

@@ -7,7 +7,6 @@ import type {
   ChainMetadata,
   MultiProtocolProvider,
   MultiProvider,
-  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
@@ -31,7 +30,6 @@ export interface CommandContext {
   key?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
-  warpCoreConfig?: WarpCoreConfig;
   strategyPath?: string;
   multiProtocolProvider?: MultiProtocolProvider;
   multiProtocolSigner?: MultiProtocolSignerManager;

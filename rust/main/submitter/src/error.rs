@@ -14,6 +14,8 @@ pub enum SubmitterError {
     TxAlreadyExists,
     #[error("The transaction reverted")]
     TxReverted,
+    #[error("The transaction hash was not found: {0}")]
+    TxHashNotFound(String),
     #[error("Failed to send over a channel {0}")]
     ChannelSendFailure(#[from] tokio::sync::mpsc::error::SendError<Transaction>),
     #[error("Channel closed")]
@@ -49,6 +51,7 @@ impl SubmitterError {
             SubmitterError::NonRetryableError(_) => "NonRetryableError".to_string(),
             SubmitterError::DbError(_) => "DbError".to_string(),
             SubmitterError::ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
+            SubmitterError::TxHashNotFound(_) => "TxHashNotFound".to_string(),
         }
     }
 }
@@ -60,11 +63,20 @@ pub trait IsRetryable {
 impl IsRetryable for SubmitterError {
     fn is_retryable(&self) -> bool {
         match self {
-            SubmitterError::NetworkError(_) => true,
             SubmitterError::TxSubmissionError(_) => true,
-            SubmitterError::ChannelSendFailure(_) => true,
-            SubmitterError::ChainCommunicationError(_) => true,
-            SubmitterError::EyreError(_) => true,
+            SubmitterError::NetworkError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::ChainCommunicationError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::EyreError(_) => {
+                // TODO: add logic to classify based on the error message
+                false
+            }
+            SubmitterError::ChannelSendFailure(_) => false,
             SubmitterError::NonRetryableError(_) => false,
             SubmitterError::TxReverted => false,
             SubmitterError::SimulationFailed => false,
@@ -72,6 +84,7 @@ impl IsRetryable for SubmitterError {
             SubmitterError::PayloadNotFound => false,
             SubmitterError::TxAlreadyExists => false,
             SubmitterError::DbError(_) => false,
+            SubmitterError::TxHashNotFound(_) => false,
         }
     }
 }

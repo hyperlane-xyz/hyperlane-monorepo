@@ -24,8 +24,10 @@ mockall::mock! {
         async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, SubmitterError>;
         async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
         async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, SubmitterError>;
+        async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError>;
         async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError>;
+        async fn get_tx_hash_status(&self, hash: hyperlane_core::H512) -> Result<TransactionStatus, SubmitterError>;
         async fn reverted_payloads(&self, tx: &Transaction) -> Result<Vec<PayloadDetails>, SubmitterError>;
         async fn nonce_gap_exists(&self) -> bool;
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError>;
@@ -53,7 +55,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
     Transaction {
         id: UniqueIdentifier::random(),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm,
+        vm_specific_data: VmSpecificTxData::CosmWasm,
         payload_details: details.clone(),
         status,
         submission_attempts: 0,

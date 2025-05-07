@@ -1,5 +1,14 @@
 # @hyperlane-xyz/sdk
 
+## 12.5.0
+
+### Patch Changes
+
+- c8ace88: Export HypTokenRouterConfigMailboxOptionalSchema and HypTokenRouterConfigMailboxOptional
+  - @hyperlane-xyz/cosmos-sdk@12.5.0
+  - @hyperlane-xyz/utils@12.5.0
+  - @hyperlane-xyz/core@7.1.4
+
 ## 12.4.0
 
 ### Minor Changes

@@ -42,11 +42,11 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
-    async fn submit(&self, _tx: &mut Transaction) -> Result<(), SubmitterError> {
+    async fn estimate_tx(&self, _tx: &mut Transaction) -> std::result::Result<(), SubmitterError> {
         todo!()
     }
 
-    async fn tx_status(&self, _tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
+    async fn submit(&self, _tx: &mut Transaction) -> Result<(), SubmitterError> {
         todo!()
     }
 
@@ -62,6 +62,13 @@ impl AdaptsChain for CosmosTxAdapter {
     }
 
     fn max_batch_size(&self) -> u32 {
+        todo!()
+    }
+
+    async fn get_tx_hash_status(
+        &self,
+        _hash: hyperlane_core::H512,
+    ) -> std::result::Result<TransactionStatus, SubmitterError> {
         todo!()
     }
 }
