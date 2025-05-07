@@ -998,4 +998,30 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(ica)
         );
     }
+
+    function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {
+        // Arrange
+        // We use _Router_quoteDispatch so we actually need a remote router enrolled before quoting
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        uint gasLimitForExecutingCalls = 100_000;
+        uint quote = originIcaRouter.quoteGasForCommitReveal(
+            destination,
+            bytes(""),
+            gasLimitForExecutingCalls
+        );
+
+        uint directIGPQuote = igp.quoteGasPayment(
+            origin,
+            gasLimitForExecutingCalls + originIcaRouter.COMMIT_TX_GAS_USAGE()
+        );
+
+        // Assert
+        // The ICA Router gets it quote by passing fixed gas plus variable gas to the IGP
+        assertEq(quote, directIGPQuote);
+    }
 }
