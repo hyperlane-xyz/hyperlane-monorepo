@@ -16,12 +16,14 @@ import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
+import { getWarpConfigs } from '../../../utils/warp.js';
 
 import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
+  WARP_APPLY,
   STRATEGY,
   CORE_APPLY,
   DEFAULT,
@@ -40,6 +42,8 @@ export class MultiChainResolver implements ChainResolver {
     switch (this.mode) {
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
+      case ChainSelectionMode.WARP_APPLY:
+        return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
@@ -63,6 +67,27 @@ export class MultiChainResolver implements ChainResolver {
     });
     argv.context.warpDeployConfig = warpDeployConfig;
     argv.context.chains = Object.keys(warpDeployConfig);
+    assert(
+      argv.context.chains.length !== 0,
+      'No chains found in warp route deployment config',
+    );
+    return argv.context.chains;
+  }
+
+  private async resolveWarpApplyChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      symbol: argv.warpRouteId,
+      warpDeployConfigPath: argv.config,
+      warpCoreConfigPath: argv.warp,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+    argv.context.warpDeployConfig = warpDeployConfig;
+    argv.context.chains = Object.keys(warpDeployConfig);
+
     assert(
       argv.context.chains.length !== 0,
       'No chains found in warp route deployment config',

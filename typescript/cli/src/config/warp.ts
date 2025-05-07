@@ -286,9 +286,29 @@ function restrictChoices(typeChoices: TokenType[]) {
 
 // Note, this is different than the function above which reads a config
 // for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
-export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
-  const config = readYamlOrJson(filePath);
-  if (!config) throw new Error(`No warp route config found at ${filePath}`);
+export async function readWarpCoreConfig(
+  args:
+    | {
+        context: CommandContext;
+        warpRouteId: string;
+      }
+    | {
+        filePath: string;
+      },
+): Promise<WarpCoreConfig> {
+  let config: WarpCoreConfig | null = null;
+  const readWithFilePath = 'filePath' in args;
+  if (readWithFilePath) {
+    config = readYamlOrJson(args.filePath);
+  } else {
+    config = await args.context.registry.getWarpRoute(args.warpRouteId);
+  }
+  assert(
+    config,
+    `No warp route config found for warp route ${
+      readWithFilePath ? args.filePath : args.warpRouteId
+    }`,
+  );
   return WarpCoreConfigSchema.parse(config);
 }
 

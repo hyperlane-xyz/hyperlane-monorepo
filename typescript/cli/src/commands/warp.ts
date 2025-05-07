@@ -2,10 +2,6 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
-  warpRouteConfigPathToId,
-  warpRouteConfigToId,
-} from '@hyperlane-xyz/registry';
-import {
   ChainName,
   ChainSubmissionStrategySchema,
   expandWarpDeployConfig,
@@ -17,7 +13,6 @@ import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
   getWarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
   CommandModuleWithContext,
@@ -81,9 +76,10 @@ export const warpCommand: CommandModule = {
 };
 
 export const apply: CommandModuleWithWriteContext<{
-  config: string;
+  config?: string;
+  warp?: string;
   symbol?: string;
-  warp: string;
+  warpRouteId?: string;
   strategy?: string;
   receiptsDir: string;
 }> = {
@@ -91,12 +87,12 @@ export const apply: CommandModuleWithWriteContext<{
   describe: 'Update Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
     warp: {
       ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    symbol: {
+      ...symbolCommandOption,
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
@@ -110,30 +106,23 @@ export const apply: CommandModuleWithWriteContext<{
   handler: async ({
     context,
     config,
-    symbol,
     warp,
+    symbol,
+    warpRouteId,
     strategy: strategyUrl,
     receiptsDir,
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
-
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      symbol,
-      warp,
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
     });
-
-    const warpRouteId = warp
-      ? warpRouteConfigPathToId(warp)
-      : warpRouteConfigToId(warpCoreConfig, symbol);
 
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig({
-      context,
-      warpRouteId,
-      filePath: config,
-    });
 
     await runWarpRouteApply({
       context,

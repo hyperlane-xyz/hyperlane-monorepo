@@ -4,7 +4,6 @@ import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
-  WarpRouteDeployConfigMailboxRequiredSchema,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -14,11 +13,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  fillDefaults,
   readWarpCoreConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
-import { CommandContext } from '../context/types.js';
+import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
 
 import { selectRegistryWarpRoute } from './tokens.js';
@@ -42,7 +40,7 @@ export async function getWarpCoreConfigOrExit({
   if (symbol) {
     warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
   } else if (warp) {
-    warpCoreConfig = readWarpCoreConfig(warp);
+    warpCoreConfig = await readWarpCoreConfig({ filePath: warp });
   } else {
     logRed(`Please specify either a symbol or warp config`);
     process.exit(0);
@@ -87,6 +85,28 @@ export async function useProvidedWarpRouteIdOrPrompt({
       })) as string);
 }
 
+async function loadWarpConfigsFromFiles({
+  warpDeployConfigPath,
+  warpCoreConfigPath,
+  context,
+}: {
+  warpDeployConfigPath: string;
+  warpCoreConfigPath: string;
+  context: CommandContext;
+}): Promise<{
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpCoreConfig: WarpCoreConfig;
+}> {
+  const warpDeployConfig = await readWarpRouteDeployConfig({
+    filePath: warpDeployConfigPath,
+    context,
+  });
+  const warpCoreConfig = await readWarpCoreConfig({
+    filePath: warpCoreConfigPath,
+  });
+  return { warpDeployConfig, warpCoreConfig };
+}
+
 /**
  * Gets both warp configs based on the provided inputs. Handles all cases:
  * - warpRouteId: gets configs directly from registry
@@ -101,7 +121,7 @@ export async function getWarpConfigs({
   warpCoreConfigPath,
   symbol,
 }: {
-  context: CommandContext;
+  context: CommandContext | WriteCommandContext;
   warpRouteId?: string;
   warpDeployConfigPath?: string;
   warpCoreConfigPath?: string;
@@ -110,18 +130,32 @@ export async function getWarpConfigs({
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (warpDeployConfigPath || warpCoreConfigPath) {
-    if (!warpDeployConfigPath || !warpCoreConfigPath) {
-      throw new Error(
-        'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
-      );
-    }
-    const warpDeployConfig = await readWarpRouteDeployConfig({
-      filePath: warpDeployConfigPath,
+  if (
+    'warpCoreConfig' in context &&
+    'warpDeployConfig' in context &&
+    context.warpCoreConfig &&
+    context.warpDeployConfig
+  ) {
+    return {
+      warpDeployConfig: context.warpDeployConfig,
+      warpCoreConfig: context.warpCoreConfig,
+    };
+  }
+
+  const hasDeployConfigFilePath = !!warpDeployConfigPath;
+  const hasCoreConfigFilePath = !!warpCoreConfigPath;
+
+  assert(
+    hasDeployConfigFilePath !== hasCoreConfigFilePath,
+    'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
+  );
+
+  if (hasDeployConfigFilePath && hasCoreConfigFilePath) {
+    return loadWarpConfigsFromFiles({
+      warpDeployConfigPath,
+      warpCoreConfigPath,
       context,
     });
-    const warpCoreConfig = readWarpCoreConfig(warpCoreConfigPath);
-    return { warpDeployConfig, warpCoreConfig };
   }
 
   const selectedId = await useProvidedWarpRouteIdOrPrompt({
@@ -130,21 +164,17 @@ export async function getWarpConfigs({
     symbol,
   });
 
-  const warpCoreConfig = await context.registry.getWarpRoute(selectedId);
-  assert(warpCoreConfig, `Missing warp config for warp route ${selectedId}.`);
-  const warpDeployConfig =
-    await context.registry.getWarpDeployConfig(selectedId);
-  assert(
-    warpDeployConfig,
-    `Missing warp deploy config for warp route ${selectedId}.`,
-  );
-
-  const filledConfig = await fillDefaults(context, warpDeployConfig);
-  const validatedConfig =
-    WarpRouteDeployConfigMailboxRequiredSchema.parse(filledConfig);
+  const warpCoreConfig = await readWarpCoreConfig({
+    context,
+    warpRouteId: selectedId,
+  });
+  const warpDeployConfig = await readWarpRouteDeployConfig({
+    warpRouteId: selectedId,
+    context,
+  });
 
   return {
-    warpDeployConfig: validatedConfig,
+    warpDeployConfig,
     warpCoreConfig,
   };
 }
