@@ -7707,6 +7707,7 @@ __metadata:
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts": "npm:^4.9.3"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
+    "@openzeppelin/upgrades-core": "npm:1.42.0"
     "@typechain/ethers-v5": "npm:^11.1.2"
     "@typechain/ethers-v6": "npm:^0.5.1"
     "@typechain/hardhat": "npm:^9.1.0"
@@ -10365,6 +10366,26 @@ __metadata:
     lodash: "npm:^4.17.19"
     node-fetch: "npm:^2.6.0"
   checksum: 10/a5eb346929b9d0d3b4b245a6a910105906a396f092a1df193bb7bb4feb7910a08e3c990c02079a477d28f4b32e8e659468159382cc632034da58d87d5eccb624
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/upgrades-core@npm:1.42.0":
+  version: 1.42.0
+  resolution: "@openzeppelin/upgrades-core@npm:1.42.0"
+  dependencies:
+    "@nomicfoundation/slang": "npm:^0.18.3"
+    cbor: "npm:^10.0.0"
+    chalk: "npm:^4.1.0"
+    compare-versions: "npm:^6.0.0"
+    debug: "npm:^4.1.1"
+    ethereumjs-util: "npm:^7.0.3"
+    minimatch: "npm:^9.0.5"
+    minimist: "npm:^1.2.7"
+    proper-lockfile: "npm:^4.1.1"
+    solidity-ast: "npm:^0.4.51"
+  bin:
+    openzeppelin-upgrades-core: dist/cli/cli.js
+  checksum: 10/69815c9cd72edbb0b6968097a1dcb374b07038198477359ddd5b67c3d087db72a61ca6d0cd7c3a23c501b1bb43e8ff3d02819e2016191a8fd58e2a3faa1324bc
   languageName: node
   linkType: hard
 
