@@ -694,7 +694,7 @@ where
     }
 
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        let call = self.contract.delivered(message_id.0);
+        let call = self.contract.delivered(message_id.into());
 
         let data = (call.tx, call.function);
         serde_json::to_vec(&data).map(Some).map_err(Into::into)
