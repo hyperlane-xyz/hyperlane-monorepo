@@ -645,7 +645,7 @@ async function updateExistingWarpRoute(
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
-    multiProvider: multiProvider,
+    multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     includeVirtual: false,
