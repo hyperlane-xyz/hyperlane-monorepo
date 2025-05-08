@@ -203,18 +203,24 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
+  function startRebalancer(options: { withMetrics?: boolean } = {}) {
+    const { withMetrics = false } = options;
+
+    return hyperlaneWarpRebalancer(
+      warpRouteId,
+      CHECK_FREQUENCY,
+      REBALANCER_CONFIG_PATH,
+      withMetrics,
+    );
+  }
+
   async function startRebalancerAndExpectLog(
     log: string,
     options: { timeout?: number; withMetrics?: boolean } = {},
   ) {
     const { timeout = 10_000, withMetrics = false } = options;
 
-    const process = hyperlaneWarpRebalancer(
-      warpRouteId,
-      CHECK_FREQUENCY,
-      REBALANCER_CONFIG_PATH,
-      withMetrics,
-    );
+    const process = startRebalancer({ withMetrics });
 
     let timeoutId: NodeJS.Timeout;
 
@@ -676,14 +682,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
-    startRebalancerAndExpectLog('expects nothing', {
-      timeout: 5_000,
-      withMetrics: true,
-    })
-      // it's expected for it to error by timeout
-      // we're only checking that the server exposes
-      // the expected prometheus data
-      .catch(() => {});
+    const process = startRebalancer({ withMetrics: true });
 
     // Give the server some time to start
     await sleep(3000);
@@ -700,16 +699,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Check for specific Hyperlane metrics
     expect(metricsText).to.include('hyperlane_wallet_balance');
+
+    await process.kill();
   });
 
   it('should not find any metrics server when they are not enabled', async () => {
-    startRebalancerAndExpectLog('expects nothing', {
-      withMetrics: false,
-    })
-      // it's expected for it to error by timeout
-      // we're only checking that the server exposes
-      // the expected prometheus data
-      .catch(() => {});
+    const process = startRebalancer({ withMetrics: false });
 
     // Give the server some time to start
     await sleep(3000);
@@ -723,5 +718,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Check that metrics endpoint is not responding
     expect(failed).to.be.true;
+
+    await process.kill();
   });
 });
