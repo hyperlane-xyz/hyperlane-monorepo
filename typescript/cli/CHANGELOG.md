@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 12.5.0
+
+### Minor Changes
+
+- 862f14f: feat(cli): Add registry-based warp route lookup and config validation
+
 ## 12.4.0
 
 ## 12.3.0
