@@ -9449,6 +9449,47 @@
       "index": {
         "from": 4997878
       }
+    },
+    "svmbnb": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.svmbnbmainnet.soo.network/",
+          "family": "other",
+          "name": "svmBNB Explorer",
+          "url": "https://explorer.svmbnbmainnet.soo.network/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 0.05,
+        "reorgPeriod": 0
+      },
+      "chainId": 574456,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "svmBNB",
+      "domainId": 574456,
+      "gasCurrencyCoinGeckoId": "binancecoin",
+      "name": "svmbnb",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "BNB",
+        "symbol": "BNB"
+      },
+      "protocol": "sealevel",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.svmbnbmainnet.soo.network/rpc"
+        }
+      ],
+      "technicalStack": "other",
+      "interchainGasPaymaster": "76JNRGvHbER5CL7X4Mw6qpzvvKDW3syyfZ5LNXfY53sC",
+      "interchainSecurityModule": "3aD11eiNt2ZjmgiQayNRyZfp7hXBRS9hbeyPbk7cmTyv",
+      "mailbox": "GzwNZJ2EXUWQCEoV6zoBGLxkdsnjkLvm6zHReMEC2JSA",
+      "merkleTreeHook": "GzwNZJ2EXUWQCEoV6zoBGLxkdsnjkLvm6zHReMEC2JSA",
+      "validatorAnnounce": "Gh4LUk91bj4QGYWsBY4QyDGhs68n8Maf8oeTRZoQZAEf"
     }
   },
   "defaultRpcConsensusType": "fallback"
