@@ -341,7 +341,7 @@ export class ContractVerifier {
     verificationLogger: Logger,
   ): Promise<Partial<ContractVerificationInput>> {
     verificationLogger.trace(
-      `Fetching contract ABI ${chain} for address ${chain}`,
+      `Fetching contract ABI for ${chain} address ${address}`,
     );
     const sourceCodeResults = (
       await this.submitForm(
