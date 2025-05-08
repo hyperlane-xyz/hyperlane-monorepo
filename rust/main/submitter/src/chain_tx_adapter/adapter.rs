@@ -108,7 +108,7 @@ pub trait AdaptsChain: Send + Sync {
         todo!()
     }
 
-    async fn tx_in_finality(&self, _count: usize) {
+    async fn set_unfinalized_tx_count(&self, _count: usize) {
         // nothing as default implementation
     }
 }

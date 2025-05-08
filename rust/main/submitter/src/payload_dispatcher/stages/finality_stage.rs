@@ -97,7 +97,7 @@ impl FinalityStage {
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = tx_receiver.recv().await {
                 let pool_len = pool.insert(tx.clone()).await;
-                state.adapter.tx_in_finality(pool_len).await;
+                state.adapter.set_unfinalized_tx_count(pool_len).await;
                 info!(?tx, "Received transaction");
             } else {
                 error!("Inclusion stage channel closed");
@@ -121,7 +121,10 @@ impl FinalityStage {
             sleep(*estimated_block_time).await;
 
             let pool_snapshot = pool.snapshot().await;
-            state.adapter.tx_in_finality(pool_snapshot.len()).await;
+            state
+                .adapter
+                .set_unfinalized_tx_count(pool_snapshot.len())
+                .await;
             state.metrics.update_queue_length_metric(
                 STAGE_NAME,
                 pool_snapshot.len() as u64,
@@ -193,7 +196,7 @@ impl FinalityStage {
                 info!(?tx_id, "Transaction is finalized");
 
                 let pool_len = pool.remove(&tx_id).await;
-                state.adapter.tx_in_finality(pool_len).await;
+                state.adapter.set_unfinalized_tx_count(pool_len).await;
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
@@ -254,7 +257,7 @@ impl FinalityStage {
             }
         }
         let pool_len = pool.remove(&tx.id).await;
-        state.adapter.tx_in_finality(pool_len).await;
+        state.adapter.set_unfinalized_tx_count(pool_len).await;
         Ok(())
     }
 }

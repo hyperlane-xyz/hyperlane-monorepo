@@ -183,7 +183,7 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn tx_in_finality(&self, count: usize) {
+    async fn set_unfinalized_tx_count(&self, count: usize) {
         self.nonce_manager.lock().await.tx_in_finality_count = count;
     }
 }
