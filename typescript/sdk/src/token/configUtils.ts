@@ -119,6 +119,7 @@ export async function expandWarpDeployConfig(
       proxyAdmin: isDeployedAsProxyByChain[chain]
         ? { owner: config.owner }
         : undefined,
+      isNft: false,
 
       // User-specified config takes precedence
       ...config,
