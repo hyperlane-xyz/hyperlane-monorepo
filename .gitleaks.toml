@@ -86,3 +86,13 @@ keywords = [
     "grove.city"
 ]
 tags = ["key", "Grove City"]
+
+[[rules]]
+id = "ccvalidators-api-key"
+description = "CryptoCrew API Key"
+regex = '''https://rpc\.[a-zA-Z0-9-]+\.ccvalidators\.com/[a-zA-Z0-9-]+'''
+keywords = [
+    "ccvalidators",
+    "ccvalidators.com"
+]
+tags = ["key", "Crypto Crew"]
