@@ -64,23 +64,23 @@ The name of the ClusterSecretStore
 The warp-routes container
 */}}
 {{- define "hyperlane.warp-routes.container" }}
-  - name: warp-routes
-    image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-    imagePullPolicy: IfNotPresent
-    env:
-    - name: LOG_FORMAT
-      value: json
-    - name: REGISTRY_COMMIT
-      value: {{ .Values.hyperlane.registryCommit }}
-    args:
-    - ./node_modules/.bin/tsx
-    - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
-    - -v
-    - "30000"
-    - --warpRouteId
-    - {{ .Values.warpRouteId }}
-    - -e
-    - {{ .Values.environment}}
+- name: warp-routes
+  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  imagePullPolicy: IfNotPresent
+  env:
+  - name: LOG_FORMAT
+    value: json
+  - name: REGISTRY_COMMIT
+    value: {{ .Values.hyperlane.registryCommit }}
+  args:
+  - ./node_modules/.bin/tsx
+  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
+  - -v
+  - "30000"
+  - --warpRouteId
+  - {{ .Values.warpRouteId }}
+  - -e
+  - {{ .Values.environment}}
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
