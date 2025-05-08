@@ -1,0 +1,13 @@
+arbitrumsepolia:
+  weight: "100"
+  tolerance: "2"
+  bridge: "0x65C418813af18A847d32239bd50393460238f62e"
+optimismsepolia:
+  weight: "100"
+  tolerance: "2"
+  bridge: "0x65C418813af18A847d32239bd50393460238f62e"
+sepolia:
+  weight: "100"
+  tolerance: "2"
+  bridge: "0x65C418813af18A847d32239bd50393460238f62e"
+
