@@ -243,6 +243,12 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
 }
 
 mod test {
+    use std::{str::FromStr, vec};
+
+    use ethers::types::H160;
+    use hyperlane_core::SignedType;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_generate_signature_hex() {
