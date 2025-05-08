@@ -515,7 +515,7 @@ describe('Object utilities', () => {
     });
   });
 
-  describe.only(keepOnlyDiffObjects.name, () => {
+  describe(keepOnlyDiffObjects.name, () => {
     const testCases: { input: any; expected: any }[] = [
       {
         input: {
