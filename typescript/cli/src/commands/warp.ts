@@ -401,6 +401,7 @@ export const check: CommandModuleWithContext<{
       context.multiProvider,
       warpDeployConfig,
       deployedRoutersAddresses,
+      true,
     );
 
     // Remove any non EVM chain configs to avoid the checker crashing

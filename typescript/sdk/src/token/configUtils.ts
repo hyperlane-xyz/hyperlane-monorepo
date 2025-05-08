@@ -25,7 +25,6 @@ import {
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
-  WarpTokenRouterVirtualConfig,
 } from './types.js';
 
 /**
@@ -81,12 +80,23 @@ export function getRouterAddressesFromWarpCoreConfig(
   ) as ChainMap<Address>;
 }
 
+/**
+ * Expands a Warp deploy configuration with additional data
+ *
+ * @param multiProvider
+ * @param warpDeployConfig - The initial Warp route deployment configuration
+ * @param deployedRoutersAddresses - Addresses of deployed routers for each chain
+ * @param expandVirtual - Optional flag to expand virtual configuration details
+ * @returns A promise resolving to an expanded Warp deploy configuration with derived metadata, remote routers, and gas configurations
+ */
 export async function expandWarpDeployConfig(
   multiProvider: MultiProvider,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   deployedRoutersAddresses: ChainMap<Address>,
+  expandVirtual: boolean = false,
 ): Promise<
-  WarpRouteDeployConfigMailboxRequired & WarpTokenRouterVirtualConfig
+  WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>
 > {
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
@@ -115,7 +125,7 @@ export async function expandWarpDeployConfig(
       );
 
     const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
-      HypTokenRouterVirtualConfig = {
+      Partial<HypTokenRouterVirtualConfig> = {
       // Default Expansion
       ...derivedTokenMetadata,
       remoteRouters,
@@ -126,15 +136,16 @@ export async function expandWarpDeployConfig(
         ? { owner: config.owner }
         : undefined,
       isNft: false,
-
-      // Virtual config - Used to compare actual contract verification status
-      contractVerificationStatus: {
-        TransparentUpgradeableProxy: true,
-        [hypERC20contracts[config.type]]: true,
-      },
       // User-specified config takes precedence
       ...config,
     };
+
+    // Virtual config - If set to true because we expect these specific contracts to be verified
+    if (expandVirtual)
+      chainConfig.contractVerificationStatus = {
+        TransparentUpgradeableProxy: true,
+        [hypERC20contracts[config.type]]: true,
+      };
 
     // Properly set the remote routers addresses to their 32 bytes representation
     // as that is how they are set on chain

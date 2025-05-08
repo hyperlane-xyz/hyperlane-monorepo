@@ -350,7 +350,7 @@ export class ContractVerifier {
         verificationLogger,
         { address },
       )
-    )[0];
+    )[0]; // This specific query only returns 1 result
 
     return {
       address,
