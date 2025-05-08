@@ -62,6 +62,13 @@ library CallLib {
         }
     }
 
+    function hash(
+        Call[] calldata calls,
+        bytes32 salt
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(salt, calls));
+    }
+
     function multistaticcall(
         StaticCallWithCallback[] memory _calls
     ) internal view returns (bytes[] memory) {

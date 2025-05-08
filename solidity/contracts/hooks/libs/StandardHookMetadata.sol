@@ -133,6 +133,14 @@ library StandardHookMetadata {
             );
     }
 
+    function formatMetadata(
+        uint256 _msgValue,
+        uint256 _gasLimit,
+        address _refundAddress
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(VARIANT, _msgValue, _gasLimit, _refundAddress);
+    }
+
     /**
      * @notice Formats the specified gas limit and refund address into standard hook metadata.
      * @param _msgValue msg.value for the message.
