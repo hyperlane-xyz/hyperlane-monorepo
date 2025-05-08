@@ -384,6 +384,10 @@ pub mod test {
             todo!()
         }
 
+        fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
+            todo!()
+        }
+
         fn on_reprepare(
             &mut self,
             _err_msg: Option<String>,
