@@ -321,7 +321,7 @@ contract InterchainAccountRouter is Router {
             CallLib.Call[] memory calls = _message.calls();
             ica.multicall{value: msg.value}(calls);
         } else {
-            // This is definitely of a message of type COMMITMENT
+            // This is definitely a message of type COMMITMENT
             verifiedCommitments[_commitment] = ica;
         }
     }
