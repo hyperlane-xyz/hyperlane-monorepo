@@ -150,7 +150,9 @@ fn attempt_program_deploy(
     ];
 
     let compute_unit_price_str = compute_unit_price.to_string();
-    command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
+    if compute_unit_price > 0 {
+        command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
+    }
 
     // Success!
     if let Ok(true) = run_cmd(command.as_slice(), None, None) {
