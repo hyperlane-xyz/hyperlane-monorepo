@@ -31,7 +31,7 @@ use solana_sdk::{
 const REMOTE_DOMAIN: u32 = 4242;
 const GAS_LIMIT: u64 = 300_000;
 
-/// Convenience: hard‑coded program id so we don’t have to redeclare it.
+/// Convenience: hard‑coded program id so we don't have to redeclare it.
 fn ica_program_id() -> Pubkey {
     pubkey!("682KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1")
 }
@@ -232,7 +232,9 @@ async fn test_transfer_ownership_fails_without_owner_sig() {
 
 #[tokio::test]
 async fn test_call_remote_dispatch() {
-    const LOCAL_DOMAIN: u32 = 99;
+    const LOCAL_DOMAIN: u32 = 5555;
+
+    println!("Starting test...");
 
     // 1) Spin up banks client with ICA + Mailbox
     let program_id = ica_program_id();
@@ -241,6 +243,7 @@ async fn test_call_remote_dispatch() {
     let (mut banks_client, payer) = setup_client().await;
 
     // 2) Initialize Mailbox & ICA
+    println!("Initializing mailbox...");
     let mailbox_accounts = initialize_mailbox(
         &mut banks_client,
         &mailbox_program_id,
@@ -252,16 +255,18 @@ async fn test_call_remote_dispatch() {
     .await
     .unwrap();
 
+    println!("Initializing ICA...");
     let storage_pda = initialize_ica(
         &mut banks_client,
         &payer,
-        &program_id,
+        &ica_program_id(),
         &mailbox_accounts,
         LOCAL_DOMAIN,
     )
     .await
     .unwrap();
 
+    println!("Preparing transaction...");
     // 3) Fuzz‑safe deterministic call body
     let calls: Vec<u8> = vec![1, 2, 3, 4];
     let router = Some(H256::random());
