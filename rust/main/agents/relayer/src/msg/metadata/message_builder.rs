@@ -6,7 +6,6 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
-use hyperlane_ethereum::Signers;
 use {
     hyperlane_base::cache::{FunctionCallCache, NoParams},
     tracing::warn,

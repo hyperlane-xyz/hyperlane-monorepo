@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
 use derive_more::Deref;
 use derive_new::new;
-use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode, types::H160};
+use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use hyperlane_base::cache::FunctionCallCache;
 use regex::Regex;
 use reqwest::Client;
@@ -243,12 +243,6 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
 }
 
 mod test {
-    use std::{str::FromStr, vec};
-
-    use ethers::types::H160;
-    use hyperlane_core::SignedType;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_generate_signature_hex() {
