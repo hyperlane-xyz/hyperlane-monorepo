@@ -9,6 +9,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use hyperlane_ethereum::Signers;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};

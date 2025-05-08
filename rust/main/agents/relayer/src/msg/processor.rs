@@ -15,6 +15,7 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
+use hyperlane_ethereum::Signers;
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, instrument, trace};

@@ -1,4 +1,4 @@
-import { TypedDataField, utils } from 'ethers';
+import { utils } from 'ethers';
 
 import { ICcipReadIsm__factory } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
@@ -14,34 +14,6 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
 
   constructor(core: HyperlaneCore) {
     this.core = core;
-  }
-
-  /**
-   * Generates an EIP-712 authentication signature over the given data and sender.
-   */
-  private async generateAuthSignature(
-    ismAddress: string,
-    callDataHex: string,
-    sender: string,
-    destinationDomain: number,
-  ): Promise<string> {
-    const signer = this.core.multiProvider.getSigner(destinationDomain);
-    const chainId = await this.core.multiProvider.getChainId(destinationDomain);
-    const domain = {
-      name: 'Hyperlane CCIPReadAuth',
-      version: '1',
-      chainId,
-      verifyingContract: ismAddress,
-    };
-    const types: Record<string, TypedDataField[]> = {
-      Auth: [
-        { name: 'data', type: 'bytes' },
-        { name: 'sender', type: 'address' },
-      ],
-    };
-    const value = { data: callDataHex, sender };
-    // @ts-ignore ethers types somehow don't have this function
-    return await signer._signTypedData(domain, types, value);
   }
 
   async build(
@@ -72,12 +44,14 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     ];
     const callDataHex = utils.hexlify(callData);
 
-    const signature = await this.generateAuthSignature(
-      ism.address,
-      callDataHex,
-      sender,
+    // Compute and sign authentication signature
+    const messageHash = utils.keccak256(
+      utils.defaultAbiCoder.encode(['bytes', 'address'], [callDataHex, sender]),
+    );
+    const signer = this.core.multiProvider.getSigner(
       message.parsed.destination,
     );
+    const signature = await signer.signMessage(utils.arrayify(messageHash));
 
     for (const urlTemplate of urls) {
       const url = urlTemplate

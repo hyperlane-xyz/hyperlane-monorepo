@@ -6,6 +6,7 @@ use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 use derive_new::new;
 use eyre::Context;
 use futures::{stream, StreamExt};
+use hyperlane_ethereum::Signers;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -23,7 +24,6 @@ use hyperlane_core::{
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
-use hyperlane_ethereum::Signers;
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
@@ -43,7 +43,6 @@ pub struct BaseMetadataBuilder {
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
-    /// Optional Ethereum signer for CCIP-read authentication
     signer: Option<Signers>,
 }
 
@@ -80,6 +79,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>;
+    async fn get_signer(&self) -> Option<Signers>;
 }
 
 #[async_trait::async_trait]
@@ -271,6 +271,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             checkpoint_syncers,
             app_context.map(|ctx| (self.metrics.clone(), ctx)),
         ))
+    }
+
+    async fn get_signer(&self) -> Option<Signers> {
+        self.signer.clone()
     }
 }
 
