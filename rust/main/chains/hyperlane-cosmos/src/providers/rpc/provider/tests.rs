@@ -21,11 +21,11 @@ async fn test_fallback_provider() {
     use tendermint_rpc::Client;
 
     // Neutron
-    let url = "https://rpc.neutron-main-eu1.ccvalidators.com/5UTUPnLpjr0A-archive";
+    let url = "<neutron url>";
     let height = 22488720u32;
 
     // Osmosis
-    // let url = "https://rpc.osmosis-main-eu1.ccvalidators.com/O94CeacupnQi-archive";
+    // let url = "<osmosis url>";
     // let height = 15317185u32;
 
     let url = Url::from_str(url).unwrap();
