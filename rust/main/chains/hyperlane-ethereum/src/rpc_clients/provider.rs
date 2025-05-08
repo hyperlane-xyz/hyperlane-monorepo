@@ -1,11 +1,16 @@
 use std::fmt::Debug;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::prelude::Middleware;
+use ethers::types::{Block, H256 as EthersH256};
+use ethers::{prelude::Middleware, types::TransactionReceipt};
+use ethers_contract::builders::ContractCall;
+use ethers_core::abi::Function;
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::{abi::Address, types::BlockNumber};
 use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
 use tokio::time::sleep;
@@ -16,7 +21,9 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
-use crate::{BuildableWithProvider, ConnectionConf};
+use crate::{
+    get_finalized_block_number, BuildableWithProvider, ConnectionConf, EthereumReorgPeriod,
+};
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -24,6 +31,23 @@ use crate::{BuildableWithProvider, ConnectionConf};
 pub struct EthereumProvider<M> {
     provider: Arc<M>,
     domain: HyperlaneDomain,
+}
+
+impl<M> EthereumProvider<M> {
+    /// Create a ContractCall object for a given transaction and function.
+    pub fn build_contract_call(
+        &self,
+        tx: TypedTransaction,
+        function: Function,
+    ) -> ContractCall<M, ()> {
+        ContractCall {
+            tx,
+            function,
+            block: None,
+            client: self.provider.clone(),
+            datatype: PhantomData::<()>,
+        }
+    }
 }
 
 impl<M> HyperlaneChain for EthereumProvider<M>
@@ -39,6 +63,89 @@ where
             self.provider.clone(),
             self.domain.clone(),
         ))
+    }
+}
+
+/// Methods of provider which are used in submitter
+#[async_trait]
+pub trait EvmProviderForSubmitter: Send + Sync {
+    /// Get the transaction receipt for a given transaction hash
+    async fn get_transaction_receipt(
+        &self,
+        transaction_hash: H256,
+    ) -> ChainResult<Option<TransactionReceipt>>;
+
+    /// Get the finalized block number
+    async fn get_finalized_block_number(
+        &self,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<u32>;
+
+    /// Get the block for a given block number
+    async fn get_block(&self, block_number: BlockNumber) -> ChainResult<Option<Block<EthersH256>>>;
+
+    /// Estimate the gas limit for a transaction
+    async fn estimate_gas_limit(
+        &self,
+        tx: &TypedTransaction,
+        function: &Function,
+    ) -> Result<U256, ChainCommunicationError>;
+
+    /// Send transaction into blockchain
+    async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
+}
+
+#[async_trait]
+impl<M> EvmProviderForSubmitter for EthereumProvider<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_transaction_receipt(
+        &self,
+        transaction_hash: H256,
+    ) -> ChainResult<Option<TransactionReceipt>> {
+        let receipt = self
+            .provider
+            .get_transaction_receipt(transaction_hash)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(receipt)
+    }
+
+    async fn get_finalized_block_number(
+        &self,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<u32> {
+        get_finalized_block_number(&*self.provider, reorg_period).await
+    }
+
+    async fn get_block(&self, block_number: BlockNumber) -> ChainResult<Option<Block<EthersH256>>> {
+        let block = self
+            .provider
+            .get_block(block_number)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(block)
+    }
+
+    async fn estimate_gas_limit(
+        &self,
+        tx: &TypedTransaction,
+        function: &Function,
+    ) -> Result<U256, ChainCommunicationError> {
+        let contract_call = self.build_contract_call(tx.clone(), function.clone());
+        let gas_limit = contract_call.estimate_gas().await?.into();
+        Ok(gas_limit)
+    }
+
+    async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
+        let contract_call = self.build_contract_call(tx.clone(), function.clone());
+        let pending = contract_call
+            .send()
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        Ok(pending.tx_hash().into())
     }
 }
 
@@ -192,6 +299,27 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)?;
         Ok(storage.into())
+    }
+}
+
+/// Builder for hyperlane providers.
+pub struct SubmitterProviderBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for SubmitterProviderBuilder {
+    type Output = Box<dyn EvmProviderForSubmitter>;
+    const NEEDS_SIGNER: bool = true;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        _conn: &ConnectionConf,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumProvider::new(
+            Arc::new(provider),
+            locator.domain.clone(),
+        ))
     }
 }
 
