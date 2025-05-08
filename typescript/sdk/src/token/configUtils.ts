@@ -81,13 +81,13 @@ export function getRouterAddressesFromWarpCoreConfig(
 }
 
 /**
- * Expands a Warp deploy configuration with additional data
+ * Expands a Warp deploy config with additional data
  *
  * @param multiProvider
- * @param warpDeployConfig - The initial Warp route deployment configuration
+ * @param warpDeployConfig - The warp deployment config
  * @param deployedRoutersAddresses - Addresses of deployed routers for each chain
- * @param includeVirtual - Optional flag to expand virtual configuration details
- * @returns A promise resolving to an expanded Warp deploy configuration with derived metadata, remote routers, and gas configurations
+ * @param includeVirtual - Optional flag to expand virtual config details
+ * @returns A promise resolving to an expanded Warp deploy config with derived and virtual metadata
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
