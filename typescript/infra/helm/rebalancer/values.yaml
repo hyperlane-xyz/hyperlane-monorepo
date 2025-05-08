@@ -1,0 +1,13 @@
+image:
+  repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
+  tag:
+hyperlane:
+  runEnv: mainnet3
+  context: hyperlane
+  registryCommit:
+  rebalancerConfigPath:
+  withMetrics: true
+nameOverride: ''
+fullnameOverride: ''
+externalSecrets:
+  clusterSecretStore:
