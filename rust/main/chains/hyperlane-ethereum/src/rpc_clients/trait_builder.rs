@@ -68,7 +68,9 @@ pub trait BuildableWithProvider {
     /// Whether this provider requires submission middleware such as gas oracle,
     /// gas escalator, nonce manager. It defaults to true, since it's only Lander
     /// that doesn't require it.
-    const USES_ETHERS_SUBMISSION_MIDDLEWARE: bool = true;
+    fn uses_ethers_submission_middleware(&self) -> bool {
+        true
+    }
 
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
@@ -212,7 +214,7 @@ pub trait BuildableWithProvider {
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        if !Self::USES_ETHERS_SUBMISSION_MIDDLEWARE {
+        if !self.uses_ethers_submission_middleware() {
             // don't wrap the signing provider in any middlewares
             return Ok(self
                 .build_with_provider(signing_provider, conn, locator)
