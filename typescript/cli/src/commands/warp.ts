@@ -464,11 +464,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
     try {
       const { registry, key: rebalancerKey } = context;
 
-      // This might happen because despite the key being typed as required, it is not validated beforehand.
-      if (!rebalancerKey) {
-        throw new Error('No key found in context');
-      }
-
       // Load rebalancer config from disk
       const config = Config.load(configFile, rebalancerKey, {
         warpRouteId,
