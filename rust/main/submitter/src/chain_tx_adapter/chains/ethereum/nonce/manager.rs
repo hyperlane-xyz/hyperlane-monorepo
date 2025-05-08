@@ -35,7 +35,7 @@ impl NonceManager {
             .tx
             .from()
             .ok_or(SubmitterError::TxSubmissionError(
-                "Transaction missing  address".to_string(),
+                "Transaction missing address".to_string(),
             ))?;
         let nonce = provider.get_nonce_on_finalized_block(address).await?;
         let next_nonce = nonce + self.tx_in_finality_count;
