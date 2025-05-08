@@ -38,6 +38,7 @@ import {
 import { MonitorPollingError } from '../rebalancer/monitor/Monitor.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { ENV } from '../utils/env.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -420,6 +421,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   checkFrequency?: number;
   withMetrics?: boolean;
   monitorOnly?: boolean;
+  coingeckoApiKey?: string;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -451,6 +453,13 @@ export const rebalancer: CommandModuleWithWriteContext<{
       description: 'Run in monitor only mode',
       demandOption: false,
     },
+    coingeckoApiKey: {
+      type: 'string',
+      description: 'CoinGecko API key',
+      demandOption: false,
+      alias: ['g', 'coingecko-api-key'],
+      implies: 'withMetrics',
+    },
   },
   handler: async ({
     context,
@@ -459,6 +468,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
     checkFrequency,
     withMetrics,
     monitorOnly,
+    coingeckoApiKey = ENV.COINGECKO_API_KEY,
   }) => {
     try {
       const { registry, key: rebalancerKey } = context;
@@ -489,8 +499,8 @@ export const rebalancer: CommandModuleWithWriteContext<{
         : undefined;
 
       // Instantiates the metrics that will publish stats from the monitored data
-      const metrics = config.withMetrics
-        ? await contextFactory.createMetrics()
+      const metrics = withMetrics
+        ? await contextFactory.createMetrics(coingeckoApiKey)
         : undefined;
 
       await monitor

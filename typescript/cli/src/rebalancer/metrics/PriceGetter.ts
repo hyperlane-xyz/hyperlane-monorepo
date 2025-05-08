@@ -24,14 +24,13 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
 
   public static create(
     chainMetadata: ChainMap<ChainMetadata>,
+    coingeckoApiKey?: string,
     expirySeconds?: number,
     sleepMsBetweenRequests?: number,
   ) {
-    const apiKey = process.env.COINGECKO_API_KEY;
-
     return new PriceGetter({
       chainMetadata,
-      apiKey,
+      apiKey: coingeckoApiKey,
       expirySeconds,
       sleepMsBetweenRequests,
     });
