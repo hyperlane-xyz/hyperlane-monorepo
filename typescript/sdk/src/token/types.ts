@@ -381,9 +381,3 @@ export const HypTokenRouterVirtualConfigSchema = z.object({
 export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema
 >;
-export const WarpTokenRouterVirtualConfigSchema = z.record(
-  HypTokenRouterVirtualConfigSchema,
-);
-export type WarpTokenRouterVirtualConfig = z.infer<
-  typeof WarpTokenRouterVirtualConfigSchema
->;

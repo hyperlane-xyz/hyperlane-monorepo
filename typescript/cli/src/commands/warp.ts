@@ -397,12 +397,12 @@ export const check: CommandModuleWithContext<{
     // the remote routers
     const deployedRoutersAddresses =
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-    let expandedWarpDeployConfig = await expandWarpDeployConfig(
-      context.multiProvider,
+    let expandedWarpDeployConfig = await expandWarpDeployConfig({
+      multiProvider: context.multiProvider,
       warpDeployConfig,
       deployedRoutersAddresses,
-      true,
-    );
+      includeVirtual: true,
+    });
 
     // Remove any non EVM chain configs to avoid the checker crashing
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(

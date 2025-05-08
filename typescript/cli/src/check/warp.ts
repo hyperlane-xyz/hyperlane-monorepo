@@ -1,8 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfigMailboxRequired,
-  WarpTokenRouterVirtualConfig,
   transformConfigToCheck,
 } from '@hyperlane-xyz/sdk';
 import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
@@ -15,7 +15,7 @@ export async function runWarpRouteCheck({
   onChainWarpConfig,
 }: {
   warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
-    WarpTokenRouterVirtualConfig;
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
   onChainWarpConfig: WarpRouteDeployConfigMailboxRequired;
 }): Promise<void> {
   // Go through each chain and only add to the output the chains that have mismatches

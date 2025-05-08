@@ -633,7 +633,7 @@ export {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
-  WarpTokenRouterVirtualConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,

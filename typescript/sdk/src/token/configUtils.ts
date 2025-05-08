@@ -86,18 +86,25 @@ export function getRouterAddressesFromWarpCoreConfig(
  * @param multiProvider
  * @param warpDeployConfig - The initial Warp route deployment configuration
  * @param deployedRoutersAddresses - Addresses of deployed routers for each chain
- * @param expandVirtual - Optional flag to expand virtual configuration details
+ * @param includeVirtual - Optional flag to expand virtual configuration details
  * @returns A promise resolving to an expanded Warp deploy configuration with derived metadata, remote routers, and gas configurations
  */
-export async function expandWarpDeployConfig(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  deployedRoutersAddresses: ChainMap<Address>,
-  expandVirtual: boolean = false,
-): Promise<
+export async function expandWarpDeployConfig(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  deployedRoutersAddresses: ChainMap<Address>;
+  includeVirtual: boolean;
+}): Promise<
   WarpRouteDeployConfigMailboxRequired &
     Record<string, Partial<HypTokenRouterVirtualConfig>>
 > {
+  const {
+    multiProvider,
+    warpDeployConfig,
+    deployedRoutersAddresses,
+    includeVirtual,
+  } = params;
+
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
@@ -141,7 +148,7 @@ export async function expandWarpDeployConfig(
     };
 
     // Virtual config - If set to true because we expect these specific contracts to be verified
-    if (expandVirtual)
+    if (includeVirtual)
       chainConfig.contractVerificationStatus = {
         TransparentUpgradeableProxy: true,
         [hypERC20contracts[config.type]]: true,
