@@ -1,4 +1,4 @@
-import chai from 'chai';
+import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
@@ -51,7 +51,6 @@ import {
 } from '../commands/warp.js';
 
 chai.use(chaiAsPromised);
-const expect = chai.expect;
 chai.should();
 
 describe('hyperlane warp rebalancer e2e tests', async function () {
@@ -331,6 +330,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should log that no routes are to be executed', async () => {
     await startRebalancerAndExpectLog(`No routes to execute`);
+  });
+
+  it('should not rebalance if mode is monitorOnly', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      monitorOnly: true,
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `monitorOnly mode enabled, skipping rebalancing`,
+    );
   });
 
   it('should throw if key does not belong to the assigned rebalancer', async () => {
@@ -715,8 +734,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await sleep(3000);
 
     // Check that metrics endpoint is not responding
-    return fetch(DEFAULT_METRICS_SERVER).should.be.rejected.then(() =>
-      process.kill(),
-    );
+    await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
+
+    await process.kill();
   });
 });
