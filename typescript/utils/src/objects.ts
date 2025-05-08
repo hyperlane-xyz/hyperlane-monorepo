@@ -344,9 +344,7 @@ export function keepOnlyDiffObjects(obj: any): any {
 
     if (!isNullish(casted.expected) && !isNullish(casted.actual)) {
       return obj;
-    }
-    // Otherwise recurse deeper
-    else {
+    } else {
       const filtered = Object.fromEntries(
         Object.entries(obj)
           .map(([key, value]): [string, any] => [
@@ -356,6 +354,8 @@ export function keepOnlyDiffObjects(obj: any): any {
           .filter(([_key, value]) => !isObjEmpty(value)),
       );
 
+      // if this object has a type field we include to easily
+      // identify the type of the hook or ism
       if (!isObjEmpty(filtered) && obj.type) {
         filtered.type = obj.type;
       }
