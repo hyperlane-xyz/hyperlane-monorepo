@@ -1,4 +1,4 @@
-import chai from 'chai';
+import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
@@ -51,7 +51,6 @@ import {
 } from '../commands/warp.js';
 
 chai.use(chaiAsPromised);
-const expect = chai.expect;
 chai.should();
 
 describe('hyperlane warp rebalancer e2e tests', async function () {
@@ -735,8 +734,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await sleep(3000);
 
     // Check that metrics endpoint is not responding
-    return fetch(DEFAULT_METRICS_SERVER).should.be.rejected.then(() =>
-      process.kill(),
-    );
+    await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
+
+    await process.kill();
   });
 });
