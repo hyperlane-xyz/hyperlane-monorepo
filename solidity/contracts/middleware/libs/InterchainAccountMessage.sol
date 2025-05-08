@@ -197,6 +197,7 @@ library InterchainAccountMessageReveal {
     function ism(bytes calldata _message) internal pure returns (bytes32) {
         return bytes32(_message[1:33]);
     }
+
     function commitment(
         bytes calldata _message
     ) internal pure returns (bytes32) {
