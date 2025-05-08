@@ -9,7 +9,6 @@ import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
-import { StubExecutor } from '../executor/StubExecutor.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -88,10 +87,6 @@ export class RebalancerContextFactory {
   }
 
   public createExecutor(): IExecutor {
-    if (this.config.monitorOnly) {
-      return new StubExecutor();
-    }
-
     return new Executor(
       objMap(this.config.chains, (_, v) => v.bridge),
       this.config.rebalancerKey,

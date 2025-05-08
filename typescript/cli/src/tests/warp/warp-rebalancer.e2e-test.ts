@@ -348,7 +348,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    await startRebalancerAndExpectLog(`StubExecutor rebalance called`);
+    await startRebalancerAndExpectLog(
+      `monitorOnly mode enabled, skipping rebalancing`,
+    );
   });
 
   it('should throw if key does not belong to the assigned rebalancer', async () => {

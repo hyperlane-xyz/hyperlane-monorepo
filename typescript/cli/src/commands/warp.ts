@@ -30,7 +30,6 @@ import {
 import { runWarpRouteRead } from '../read/warp.js';
 import {
   Config,
-  IExecutor,
   IStrategy,
   RawBalances,
   RebalancerContextFactory,
@@ -485,7 +484,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const strategy: IStrategy = contextFactory.createStrategy();
 
       // Instantiates the executor in charge of executing the rebalancing transactions
-      const executor: IExecutor = contextFactory.createExecutor();
+      const executor = !config.monitorOnly
+        ? contextFactory.createExecutor()
+        : undefined;
 
       // Instantiates the metrics that will publish stats from the monitored data
       const metrics = config.withMetrics
@@ -518,9 +519,13 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          executor.rebalance(rebalancingRoutes).catch((e) => {
-            errorRed('Error while rebalancing:', (e as Error).message);
-          });
+          if (executor) {
+            executor.rebalance(rebalancingRoutes).catch((e) => {
+              errorRed('Error while rebalancing:', (e as Error).message);
+            });
+          } else {
+            log('monitorOnly mode enabled, skipping rebalancing');
+          }
         })
         // Observe monitor errors and exit
         .on('error', (e) => {
