@@ -537,4 +537,63 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             )
         );
     }
+
+    function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
+        // act
+        originIcaRouter.callRemoteCommitReveal{value: 2 * gasPaymentQuote}(
+            destination,
+            GAS_LIMIT_OVERRIDE,
+            commitment
+        );
+
+        // Process message
+        environment.processNextPendingMessage();
+
+        // assert
+        // Destination ICA router should have the commitment
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(ica)
+        );
+    }
+
+    function testFuzz_revealAndExecute(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = keccak256(abi.encode(salt, calls));
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+
+        // Act
+        originIcaRouter.callRemoteCommitReveal{value: 2 * gasPaymentQuote}(
+            destination,
+            GAS_LIMIT_OVERRIDE,
+            commitment
+        );
+        // Process commit message
+        environment.processNextPendingMessage();
+
+        // Destination ICA router should have the commitment after commit message
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(ica)
+        );
+
+        // Manually process the reveal. In reality, the CCIP read ISM will call `revealAndExecute`
+        // but here we do it manually since we're not using the CCIP read ISM yet
+        destinationIcaRouter.revealAndExecute(calls, salt);
+
+        // Commitment should be cleared
+        assertEq(
+            address(destinationIcaRouter.verifiedCommitments(commitment)),
+            address(0)
+        );
+
+        // Cannot reveal twice
+        vm.expectRevert("Invalid Reveal");
+        destinationIcaRouter.revealAndExecute(calls, salt);
+    }
 }

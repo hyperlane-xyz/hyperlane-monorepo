@@ -15,7 +15,7 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
-import {AccountConfig, InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
+import {AccountConfig, MessageType, InterchainAccountMessage, InterchainAccountMessageCommitment, InterchainAccountMessageCalls, InterchainAccountMessageReveal} from "./libs/InterchainAccountMessage.sol";
 import {CallLib} from "./libs/Call.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -36,11 +36,21 @@ contract InterchainAccountRouter is Router {
 
     using TypeCasts for address;
     using TypeCasts for bytes32;
+    using InterchainAccountMessage for bytes;
 
     // ============ Constants ============
 
-    address public immutable implementation;
-    bytes32 public immutable bytecodeHash;
+    address internal immutable implementation;
+    bytes32 internal immutable bytecodeHash;
+
+    // ============ Public Storage ============
+    /// @notice A mapping of commitments to the ICA that should execute the revealed calldata
+    /// @dev The commitment is only stored if a `COMMITMENT` message was processed for it
+    mapping(bytes32 commitment => OwnableMulticall ICA)
+        public verifiedCommitments;
+
+    // ============ Upgrade Gap ============
+    uint256[49] private __GAP;
 
     // ============ Events ============
 
@@ -55,6 +65,21 @@ contract InterchainAccountRouter is Router {
         bytes32 router,
         AccountConfig config
     );
+
+    /**
+     * @notice Emitted when an interchain call commitment is dispatched to a remote domain
+     * @param destination The destination domain on which to make the call
+     * @param router The address of the remote router
+     * @param config The account config containing the owner, ISM, and salt
+     */
+    event CommitRevealDispatched(
+        bytes32 indexed commitment,
+        uint32 indexed destination,
+        bytes32 router,
+        AccountConfig config
+    );
+
+    event CommitmentRevealed(bytes32 indexed commitment);
 
     /**
      * @notice Emitted when an interchain account contract is deployed
@@ -197,7 +222,7 @@ contract InterchainAccountRouter is Router {
             mailbox.dispatch{value: msg.value}(
                 _destination,
                 _router,
-                InterchainAccountMessage.encode(accountConfig, _calls),
+                InterchainAccountMessageCalls.encode(accountConfig, _calls),
                 _hookMetadata,
                 _hook
             );
@@ -217,17 +242,40 @@ contract InterchainAccountRouter is Router {
         bytes32 _sender,
         bytes calldata _message
     ) external payable override onlyMailbox {
-        (
-            AccountConfig memory _accountConfig,
-            CallLib.Call[] memory _calls
-        ) = InterchainAccountMessage.decode(_message);
+        MessageType _messageType = _message.messageType();
 
-        OwnableMulticall _interchainAccount = getDeployedInterchainAccount(
+        if (_messageType == MessageType.REVEAL) {
+            bytes32 _commitment = InterchainAccountMessageReveal.commitment(
+                _message
+            );
+            // If the message is a reveal, we don't do any derivation of the ica address
+            // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
+            // so here we just check that commitment -> ICA association has been cleared
+            require(
+                verifiedCommitments[_commitment] ==
+                    OwnableMulticall(payable(address(0))),
+                "Commitment was not executed"
+            );
+            return;
+        }
+
+        AccountConfig memory accountConfig = _message.accountConfig();
+        OwnableMulticall account = getDeployedInterchainAccount(
             _origin,
             _sender,
-            _accountConfig
+            accountConfig
         );
-        _interchainAccount.multicall{value: msg.value}(_calls);
+
+        if (_messageType == MessageType.COMMITMENT) {
+            bytes32 commitment = InterchainAccountMessageCommitment.commitment(
+                _message
+            );
+            verifiedCommitments[commitment] = account;
+        } else {
+            account.multicall{value: msg.value}(
+                InterchainAccountMessageCalls.calls(_message)
+            );
+        }
     }
 
     // ============ External Functions ============
@@ -376,7 +424,7 @@ contract InterchainAccountRouter is Router {
         uint32 _destination,
         uint256 _gasLimit
     ) external view returns (uint256) {
-        bytes memory _messageBody = InterchainAccountMessage.encode(
+        bytes memory _messageBody = InterchainAccountMessageCalls.encode(
             AccountConfig({
                 owner: msg.sender.addressToBytes32(),
                 ism: bytes32(0),
@@ -391,6 +439,133 @@ contract InterchainAccountRouter is Router {
                 _defaultHookMetadata(_gasLimit),
                 address(hook)
             );
+    }
+
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        uint256 _gasLimit,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        return
+            callRemoteCommitRevealAdvanced(
+                _destination,
+                routers(_destination),
+                bytes32(0),
+                bytes32(0),
+                bytes32(0),
+                _commitment,
+                hook,
+                _defaultHookMetadata(_gasLimit)
+            );
+    }
+
+    function callRemoteCommitRevealNamespaced(
+        uint32 _destination,
+        bytes32 _salt,
+        uint256 _gasLimit,
+        bytes32 _commitment
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        return
+            callRemoteCommitRevealAdvanced(
+                _destination,
+                routers(_destination),
+                _salt,
+                bytes32(0),
+                bytes32(0),
+                _commitment,
+                hook,
+                _defaultHookMetadata(_gasLimit)
+            );
+    }
+
+    uint256 private constant COMMITMENT_GAS_LIMIT = 20_000;
+
+    function callRemoteCommitRevealAdvanced(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _accountSalt,
+        bytes32 _accountIsm,
+        bytes32 _offchainLookupIsm,
+        bytes32 _commitment,
+        IPostDispatchHook _hook,
+        bytes memory _hookMetadata
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        bytes memory commitMetadata = StandardHookMetadata.overrideGasLimit(
+            COMMITMENT_GAS_LIMIT
+        );
+        uint256 commitFee = mailbox.quoteDispatch(
+            _destination,
+            _router,
+            new bytes(0),
+            commitMetadata
+        );
+        require(msg.value >= commitFee, "Insufficient value for commit fee");
+
+        AccountConfig memory accountConfig = AccountConfig({
+            owner: msg.sender.addressToBytes32(),
+            ism: _accountIsm,
+            salt: _accountSalt
+        });
+        emit CommitRevealDispatched(
+            _commitment,
+            _destination,
+            _router,
+            accountConfig
+        );
+
+        _commitmentMsgId = mailbox.dispatch{value: commitFee}(
+            _destination,
+            _router,
+            InterchainAccountMessageCommitment.encode(
+                accountConfig,
+                _commitment
+            ),
+            commitMetadata,
+            _hook
+        );
+
+        _revealMsgId = mailbox.dispatch{value: msg.value - commitFee}(
+            _destination,
+            _router,
+            InterchainAccountMessageReveal.encode(
+                _offchainLookupIsm,
+                _commitment
+            ),
+            _hookMetadata,
+            _hook
+        );
+    }
+
+    /// @dev The calls represented by the commitment can only be executed once.
+    function revealAndExecute(
+        CallLib.Call[] calldata _calls,
+        bytes32 _salt
+    ) external payable {
+        bytes32 _givenCommitment = keccak256(abi.encode(_salt, _calls));
+        OwnableMulticall ica = verifiedCommitments[_givenCommitment];
+
+        require(address(payable(ica)) != address(0), "Invalid Reveal");
+        delete verifiedCommitments[_givenCommitment];
+        emit CommitmentRevealed(_givenCommitment);
+
+        ica.multicall{value: msg.value}(_calls);
+    }
+
+    // ============ Internal Functions ============
+    function _implementationBytecode(
+        address router
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                type(OwnableMulticall).creationCode,
+                abi.encode(router)
+            );
+    }
+
+    function _proxyBytecodeHash(
+        address _implementation
+    ) internal pure returns (bytes32) {
+        return keccak256(MinimalProxy.bytecode(_implementation));
     }
 
     /**
@@ -428,22 +603,6 @@ contract InterchainAccountRouter is Router {
         bytes32 _salt
     ) private view returns (address payable) {
         return payable(Create2.computeAddress(_salt, bytecodeHash));
-    }
-
-    function _implementationBytecode(
-        address router
-    ) private pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                type(OwnableMulticall).creationCode,
-                abi.encode(router)
-            );
-    }
-
-    function _proxyBytecodeHash(
-        address _implementation
-    ) private pure returns (bytes32) {
-        return keccak256(MinimalProxy.bytecode(_implementation));
     }
 
     function _defaultHookMetadata(

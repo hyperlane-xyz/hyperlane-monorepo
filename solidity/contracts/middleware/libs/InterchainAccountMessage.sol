@@ -10,38 +10,95 @@ struct AccountConfig {
     bytes32 salt;
 }
 
-/**
- * Format of message:
- * [   0:  96] Account config [owner, ISM, salt]
- * [  96:????] Calls, abi encoded
- */
+enum MessageType {
+    CALLS,
+    COMMITMENT,
+    REVEAL
+}
+
 library InterchainAccountMessage {
     using TypeCasts for bytes32;
+    using TypeCasts for address;
 
+    function messageType(
+        bytes calldata _message
+    ) internal pure returns (MessageType) {
+        return MessageType(uint8(_message[0]));
+    }
+
+    function ism(bytes calldata _message) internal pure returns (bytes32) {
+        return bytes32(_message[33:65]);
+    }
+
+    function accountConfig(
+        bytes calldata _message
+    ) internal pure returns (AccountConfig memory) {
+        assert(messageType(_message) != MessageType.REVEAL);
+        return abi.decode(_message[1:97], (AccountConfig));
+    }
+}
+
+library InterchainAccountMessageCalls {
     function encode(
         AccountConfig memory _accountConfig,
         CallLib.Call[] memory _calls
     ) internal pure returns (bytes memory) {
-        return abi.encode(_accountConfig, _calls);
+        return
+            abi.encodePacked(
+                MessageType.CALLS,
+                abi.encode(_accountConfig),
+                abi.encode(_calls)
+            );
     }
 
-    /**
-     * @notice Parses and returns the calls from the provided message
-     * @param _message The interchain account message
-     * @return The account config and array of calls
-     */
-    function decode(
+    function accountConfig(
         bytes calldata _message
-    ) internal pure returns (AccountConfig memory, CallLib.Call[] memory) {
-        return abi.decode(_message, (AccountConfig, CallLib.Call[]));
+    ) internal pure returns (AccountConfig memory) {
+        return abi.decode(_message[1:97], (AccountConfig));
     }
 
-    /**
-     * @notice Parses and returns the ISM address from the provided message
-     * @param _message The interchain account message
-     * @return The ISM encoded in the message
-     */
-    function ism(bytes calldata _message) internal pure returns (address) {
-        return address(bytes20(_message[44:64]));
+    function calls(
+        bytes calldata _message
+    ) internal pure returns (CallLib.Call[] memory) {
+        return abi.decode(_message[97:], (CallLib.Call[]));
+    }
+}
+
+library InterchainAccountMessageCommitment {
+    function encode(
+        AccountConfig memory _accountConfig,
+        bytes32 _commitment
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                MessageType.COMMITMENT,
+                abi.encode(_accountConfig),
+                _commitment
+            );
+    }
+
+    function commitment(
+        bytes calldata _message
+    ) internal pure returns (bytes32) {
+        return bytes32(_message[97:]);
+    }
+}
+
+library InterchainAccountMessageReveal {
+    function encode(
+        bytes32 _ism,
+        bytes32 _commitment
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(MessageType.REVEAL, _ism, _commitment);
+    }
+
+    function ism(bytes calldata _message) internal pure returns (bytes32) {
+        return bytes32(_message[1:33]);
+    }
+
+    function commitment(
+        bytes calldata _message
+    ) internal pure returns (bytes32) {
+        return bytes32(_message[33:65]);
     }
 }
