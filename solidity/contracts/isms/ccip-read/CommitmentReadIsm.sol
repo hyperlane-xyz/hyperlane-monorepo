@@ -5,12 +5,13 @@ pragma solidity >=0.8.0;
 import {Mailbox} from "../../Mailbox.sol";
 import {AbstractCcipReadIsm} from "./AbstractCcipReadIsm.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {InterchainAccountMessage} from "../../middleware/libs/InterchainAccountMessage.sol";
+import {InterchainAccountMessageReveal} from "../../middleware/libs/InterchainAccountMessage.sol";
 import {InterchainAccountRouter} from "../../middleware/InterchainAccountRouter.sol";
 import {CallLib} from "../../middleware/libs/Call.sol";
 import {Message} from "../../libs/Message.sol";
+
 contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
-    using InterchainAccountMessage for bytes;
+    using InterchainAccountMessageReveal for bytes;
     using Message for bytes;
 
     string[] public urls;
@@ -65,7 +66,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
 
         bytes calldata body = _message.body();
 
-        if (actualHash != body.commitment(body.messageType())) {
+        if (actualHash != body.commitment()) {
             return false;
         }
 
