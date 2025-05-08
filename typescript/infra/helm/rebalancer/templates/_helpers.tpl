@@ -5,6 +5,7 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+
 {{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
@@ -23,6 +24,7 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 {{- end }}
 
+
 {{/*
 Create chart name and version as used by the chart label.
 */}}
@@ -37,7 +39,7 @@ Common labels
 helm.sh/chart: {{ include "hyperlane.chart" . }}
 hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
 hyperlane/context: {{ .Values.hyperlane.context | quote }}
-app.kubernetes.io/component: warp-routes
+app.kubernetes.io/component: rebalancer
 {{ include "hyperlane.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
@@ -61,26 +63,31 @@ The name of the ClusterSecretStore
 {{- end }}
 
 {{/*
-The warp-routes container
+The rebalancer container
 */}}
-{{- define "hyperlane.warp-routes.container" }}
-  - name: warp-routes
-    image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-    imagePullPolicy: IfNotPresent
-    env:
-    - name: LOG_FORMAT
-      value: json
-    - name: REGISTRY_COMMIT
-      value: {{ .Values.hyperlane.registryCommit }}
-    args:
-    - ./node_modules/.bin/tsx
-    - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
-    - -v
-    - "30000"
-    - --warpRouteId
-    - {{ .Values.warpRouteId }}
-    - -e
-    - {{ .Values.environment}}
+{{- define "hyperlane.rebalancer.container" }}
+- name: rebalancer
+  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  imagePullPolicy: IfNotPresent
+  env:
+  - name: REGISTRY_COMMIT
+    value: {{ .Values.hyperlane.registryCommit }}
+  args:
+  - "yarn"
+  - "workspace"
+  - "@hyperlane-xyz/cli"
+  - "hyperlane"
+  - "warp"
+  - "rebalancer"
+  - "--warpRouteId"
+  - {{ .Values.warpRouteId }}
+  - "--checkFrequency"
+  - {{ .Values.checkFrequency }}
+  - "--rebalancerConfigFile"
+  - {{ .Values.rebalancerConfigFile }}
+  - "--key=$(REBALANCER_KEY)"
+  - "--withMetrics"
+  - {{ .Values.withMetrics }}
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
