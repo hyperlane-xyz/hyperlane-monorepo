@@ -46,6 +46,19 @@ contract InterchainAccountRouterTestBase is Test {
     using TypeCasts for address;
     using TypeCasts for bytes32;
 
+    event RemoteCallDispatched(
+        uint32 indexed destination,
+        bytes32 router,
+        AccountConfig config
+    );
+
+    event CommitRevealDispatched(
+        bytes32 indexed commitment,
+        uint32 indexed destination,
+        bytes32 router,
+        AccountConfig config
+    );
+
     event InterchainAccountCreated(
         address indexed account,
         uint32 origin,
@@ -175,6 +188,32 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(
             originIcaRouter.getRemoteInterchainAccount(destination, fuzzConfig),
             destinationIcaRouter.getLocalInterchainAccount(origin, fuzzConfig)
+        );
+    }
+
+    function testFuzz_remoteCallDispatched(bytes32 data, uint256 value) public {
+        // Ensure the call array isn’t empty
+        vm.assume(data != bytes32(0));
+        CallLib.Call[] memory calls = getCalls(data, value);
+
+        // Expected event fields
+        bytes32 expectedRouter = address(destinationIcaRouter)
+            .addressToBytes32();
+        AccountConfig memory expectedCfg = AccountConfig({
+            owner: address(this).addressToBytes32(),
+            ism: bytes32(0),
+            salt: bytes32(0)
+        });
+
+        // Expect RemoteCallDispatched from the origin router
+        vm.expectEmit(true, false, false, true, address(originIcaRouter));
+        emit RemoteCallDispatched(destination, expectedRouter, expectedCfg);
+
+        // Act ‑ dispatch the remote call
+        originIcaRouter.callRemote{value: gasPaymentQuote}(
+            destination,
+            GAS_LIMIT_OVERRIDE,
+            calls
         );
     }
 
@@ -541,6 +580,21 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     }
 
     function testFuzz_callRemoteCommitReveal(bytes32 commitment) public {
+        // Expect the CommitRevealDispatched event from the origin router
+        bytes32 expectedRouter = address(destinationIcaRouter)
+            .addressToBytes32();
+        AccountConfig memory expectedCfg = AccountConfig({
+            owner: address(this).addressToBytes32(),
+            ism: bytes32(0),
+            salt: bytes32(0)
+        });
+        vm.expectEmit(true, true, false, false, address(originIcaRouter));
+        emit CommitRevealDispatched(
+            commitment,
+            destination,
+            expectedRouter,
+            expectedCfg
+        );
         // act
         originIcaRouter.callRemoteCommitReveal{value: 2 * gasPaymentQuote}(
             destination,
