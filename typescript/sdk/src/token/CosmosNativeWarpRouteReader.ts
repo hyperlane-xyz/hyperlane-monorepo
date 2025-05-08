@@ -3,12 +3,7 @@ import {
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { warpTypes } from '@hyperlane-xyz/cosmos-types';
-import {
-  Address,
-  assert,
-  bytes32ToAddress,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
 import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
@@ -156,7 +151,7 @@ export class CosmosNativeWarpRouteReader {
       (value, router) => ({
         ...value,
         [router.receiver_domain]: {
-          address: bytes32ToAddress(router.receiver_contract),
+          address: router.receiver_contract,
         },
       }),
       {},

@@ -287,5 +287,3 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
     return hypERC721contracts[this.routerContractKey(config)];
   }
 }
-
-export class CosmosNativeDeployer {}
