@@ -152,7 +152,7 @@ impl AdaptsChain for EthereumTxAdapter {
         for (detail, precursor) in payload_details_and_precursors {
             let success = self
                 .provider
-                .call(&precursor.tx, &precursor.function)
+                .check(&precursor.tx, &precursor.function)
                 .await
                 .unwrap_or(true);
             if !success {

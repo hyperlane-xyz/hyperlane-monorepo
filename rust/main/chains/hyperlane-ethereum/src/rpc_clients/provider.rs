@@ -94,8 +94,8 @@ pub trait EvmProviderForSubmitter: Send + Sync {
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
 
-    /// Read-only call into blockchain
-    async fn call(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
+    /// Read-only call into blockchain which returns a boolean
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 }
 
 #[async_trait]
@@ -151,7 +151,7 @@ where
         Ok(pending.tx_hash().into())
     }
 
-    async fn call(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool> {
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool> {
         let contract_call = self.build_contract_call::<bool>(tx.clone(), function.clone());
         let success = contract_call
             .call()
