@@ -219,6 +219,9 @@ pub trait BuildableWithProvider {
                 .await);
         }
 
+        // The signing provider is used for sending txs, which may end up stuck in the mempool due to
+        // gas pricing issues. We first wrap the provider in a signer middleware, to sign any new txs sent by the gas escalator middleware.
+        // We keep nonce manager as the outermost middleware, so that resubmitting a tx with a higher gas price reuses its initial nonce.
         let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
         let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
         let nonce_manager_provider = wrap_with_nonce_manager(gas_oracle_provider, signer.address())
