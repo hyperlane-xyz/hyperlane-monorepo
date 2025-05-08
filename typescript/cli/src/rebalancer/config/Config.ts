@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
@@ -17,25 +17,73 @@ const ChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
 });
 
-const ConfigSchema = z.record(z.string(), ChainConfigSchema);
+const BaseConfigSchema = z.object({
+  warpRouteId: z.string().optional(),
+  checkFrequency: z.number().optional(),
+  withMetrics: z.boolean().optional(),
+  monitorOnly: z.boolean().optional(),
+});
 
-export type ChainConfig = z.infer<typeof ChainConfigSchema>;
+const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
+
+type ChainConfig = z.infer<typeof ChainConfigSchema>;
+
+type BaseConfig = z.infer<typeof BaseConfigSchema>;
 
 export class Config {
-  [key: ChainName]: ChainConfig;
-
-  static fromFile(path: string) {
-    const config = readYamlOrJson(path);
+  static load(
+    configFilePath: string,
+    rebalancerKey: string,
+    overrides: BaseConfig,
+  ) {
+    const config = readYamlOrJson(configFilePath);
     const validationResult = ConfigSchema.safeParse(config);
 
     if (!validationResult.success) {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    return new Config(validationResult.data);
+    const {
+      warpRouteId: fileWarpRouteId,
+      checkFrequency: fileCheckFrequency,
+      monitorOnly: fileMonitorOnly,
+      withMetrics: fileWithMetrics,
+      ...chains
+    } = validationResult.data;
+
+    if (!Object.keys(chains).length) {
+      throw new Error('No chains configured');
+    }
+
+    const warpRouteId = overrides.warpRouteId ?? fileWarpRouteId;
+    const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
+    const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly ?? false;
+    const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
+
+    if (!warpRouteId) {
+      throw new Error('warpRouteId is required');
+    }
+
+    if (!checkFrequency) {
+      throw new Error('checkFrequency is required');
+    }
+
+    return new Config(
+      rebalancerKey,
+      warpRouteId,
+      checkFrequency,
+      monitorOnly,
+      withMetrics,
+      chains,
+    );
   }
 
-  constructor(data: ChainMap<ChainConfig>) {
-    Object.assign(this, data);
-  }
+  constructor(
+    public readonly rebalancerKey: string,
+    public readonly warpRouteId: string,
+    public readonly checkFrequency: number,
+    public readonly monitorOnly: boolean,
+    public readonly withMetrics: boolean,
+    public readonly chains: ChainMap<ChainConfig>,
+  ) {}
 }
