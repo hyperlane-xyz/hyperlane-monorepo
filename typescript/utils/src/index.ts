@@ -114,6 +114,7 @@ export {
   deepEquals,
   deepFind,
   diffObjMerge,
+  keepOnlyDiffObjects,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
