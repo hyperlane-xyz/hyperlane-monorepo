@@ -2557,12 +2557,14 @@ dependencies = [
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-test-utils",
  "serializable-account-meta",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
  "spl-noop",
+ "tarpc",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
-//! HelloWorld instructions.
+//! InterchainAccounts instructions.
 
+use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -32,6 +33,8 @@ pub struct Init {
 pub struct CallRemoteMessage {
     /// The destination domain of the account.
     pub destination: u32,
+    /// The recipient of the message.
+    pub router: Option<H256>,
     /// The ism to use on the destination domain.
     pub ism: Option<H256>,
     /// The salt to use for account derivation.
@@ -55,6 +58,10 @@ pub enum InterchainAccountInstruction {
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
     /// Transfer ownership of the program.  Only current owner may call.
     TransferOwnership(Option<Pubkey>),
+}
+
+impl DiscriminatorData for InterchainAccountInstruction {
+    const DISCRIMINATOR: [u8; Self::DISCRIMINATOR_LENGTH] = PROGRAM_INSTRUCTION_DISCRIMINATOR;
 }
 
 /// Gets an instruction to initialize the program.
@@ -91,7 +98,7 @@ pub fn init_instruction(
 
     let instruction = Instruction {
         program_id,
-        data: InterchainAccountInstruction::Init(init).try_to_vec()?,
+        data: InterchainAccountInstruction::Init(init).encode()?,
         accounts,
     };
 
@@ -110,17 +117,17 @@ pub fn enroll_remote_routers_instruction(
 
     // Accounts:
     // 0. `[executable]` System program.
-    // 1. `[signer]` Payer.
-    // 2. `[writeable]` Storage PDA.
+    // 1. `[writeable]` Storage PDA.
+    // 2. `[signer]` Owner.
     let accounts = vec![
         AccountMeta::new_readonly(solana_program::system_program::id(), false),
         AccountMeta::new(program_storage_account, false),
-        AccountMeta::new(owner, true),
+        AccountMeta::new_readonly(owner, true),
     ];
 
     let instruction = Instruction {
         program_id,
-        data: InterchainAccountInstruction::EnrollRemoteRouters(configs).try_to_vec()?,
+        data: InterchainAccountInstruction::EnrollRemoteRouters(configs).encode()?,
         accounts,
     };
 
@@ -147,7 +154,7 @@ pub fn set_interchain_security_module_instruction(
 
     let instruction = Instruction {
         program_id,
-        data: InterchainAccountInstruction::SetInterchainSecurityModule(ism).try_to_vec()?,
+        data: InterchainAccountInstruction::SetInterchainSecurityModule(ism).encode()?,
         accounts,
     };
 
@@ -174,7 +181,7 @@ pub fn transfer_ownership_instruction(
 
     let instruction = Instruction {
         program_id,
-        data: InterchainAccountInstruction::TransferOwnership(new_owner).try_to_vec()?,
+        data: InterchainAccountInstruction::TransferOwnership(new_owner).encode()?,
         accounts,
     };
 

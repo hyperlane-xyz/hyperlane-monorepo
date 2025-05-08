@@ -1,15 +1,17 @@
 //! InterchainAccount program.
 
 use access_control::AccessControl;
-use account_utils::{create_pda_account, verify_account_uninitialized, SizedData};
-use borsh::{BorshDeserialize, BorshSerialize};
+use account_utils::{
+    create_pda_account, verify_account_uninitialized, DiscriminatorDecode, SizedData,
+};
+use borsh::BorshSerialize;
 
 use hyperlane_interchain_accounts::InterchainAccountMessage;
 use hyperlane_sealevel_connection_client::{
     router::{HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig},
-    HyperlaneConnectionClient,
+    // HyperlaneConnectionClient,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+// use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
 use hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
@@ -52,27 +54,6 @@ macro_rules! program_storage_pda_seeds {
     }};
 }
 
-/// The PDA seeds relating to a program's call remote authority
-#[macro_export]
-macro_rules! call_remote_authority_pda_seeds {
-    () => {{
-        &[
-            b"hyperlane_interchain_account",
-            b"-",
-            b"call_remote_authority",
-        ]
-    }};
-
-    ($bump_seed:expr) => {{
-        &[
-            b"hyperlane_interchain_account",
-            b"-",
-            b"call_remote_authority",
-            &[$bump_seed],
-        ]
-    }};
-}
-
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
 
@@ -99,7 +80,7 @@ pub fn process_instruction(
         };
     }
 
-    let instruction = InterchainAccountInstruction::try_from_slice(instruction_data)
+    let instruction = InterchainAccountInstruction::decode(instruction_data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
     match instruction {
         InterchainAccountInstruction::Init(mailbox) => init(program_id, accounts, mailbox),
@@ -181,16 +162,15 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramRes
 /// 4.  `[]` This program's dispatch authority.
 /// 5.  `[executable]` System program.
 /// 6.  `[executable]` SPL Noop program.
-/// 7.  `[signer]` Payer.
-/// 8.  `[signer]` Unique message account.
-/// 9.  `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
+/// 7.  `[signer]` Unique message account.
+/// 8.  `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
 ///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 ///    ---- if an IGP is configured ----
-/// 10.  `[executable]` The IGP program.
-/// 11. `[writeable]` The IGP program data.
-/// 12. `[writeable]` The gas payment PDA.
-/// 13. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-/// 14. `[writeable]` The IGP account.
+///  9.  `[executable]` The IGP program.
+/// 10. `[writeable]` The IGP program data.
+/// 11. `[writeable]` The gas payment PDA.
+/// 12. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+/// 13. `[writeable]` The IGP account.
 ///     ---- end if an IGP is configured ----
 fn send_call_remote(
     program_id: &Pubkey,
@@ -209,12 +189,13 @@ fn send_call_remote(
     let storage =
         InterchainAccountStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
-    // Account 1: Message sender signer.
-    let sender_signer_info = next_account_info(accounts_iter)?;
-    if !sender_signer_info.is_signer {
+    // Account 1: Payer & message sender signer.
+    let payer_info = next_account_info(accounts_iter)?;
+    if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    let owner = H256(sender_signer_info.owner.to_bytes());
+    // Owner of the interchain‑account call is the signer’s pubkey.
+    let owner = H256(payer_info.key.to_bytes());
 
     // Account 2: Mailbox program.
     let _mailbox_info = next_account_info(accounts_iter)?;
@@ -236,9 +217,6 @@ fn send_call_remote(
     // Account 6: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
 
-    // Account 7: Payer.
-    let payer_info = next_account_info(accounts_iter)?;
-
     // Account 8: Unique message account.
     let unique_message_account_info = next_account_info(accounts_iter)?;
 
@@ -250,7 +228,7 @@ fn send_call_remote(
         AccountMeta::new_readonly(*dispatch_authority_info.key, true),
         AccountMeta::new_readonly(*system_program_info.key, false),
         AccountMeta::new_readonly(*spl_noop_info.key, false),
-        AccountMeta::new(*payer_info.key, true),
+        AccountMeta::new(*payer_info.key, true), // signer & payer
         AccountMeta::new_readonly(*unique_message_account_info.key, true),
         AccountMeta::new(*dispatched_message_info.key, false),
     ];
@@ -264,79 +242,79 @@ fn send_call_remote(
         dispatched_message_info.clone(),
     ];
 
-    let igp_payment_accounts =
-        if let Some((igp_program_id, igp_account_type)) = storage.interchain_gas_paymaster() {
-            // Account 10: The IGP program
-            let igp_program_account_info = next_account_info(accounts_iter)?;
-            if igp_program_account_info.key != igp_program_id {
-                return Err(ProgramError::InvalidArgument);
-            }
+    // let igp_payment_accounts =
+    //     if let Some((igp_program_id, igp_account_type)) = storage.interchain_gas_paymaster() {
+    //         // Account 10: The IGP program
+    //         let igp_program_account_info = next_account_info(accounts_iter)?;
+    //         if igp_program_account_info.key != igp_program_id {
+    //             return Err(ProgramError::InvalidArgument);
+    //         }
 
-            // Account 11: The IGP program data.
-            // No verification is performed here, the IGP will do that.
-            let igp_program_data_account_info = next_account_info(accounts_iter)?;
+    //         // Account 11: The IGP program data.
+    //         // No verification is performed here, the IGP will do that.
+    //         let igp_program_data_account_info = next_account_info(accounts_iter)?;
 
-            // Account 12: The gas payment PDA.
-            // No verification is performed here, the IGP will do that.
-            let igp_payment_pda_account_info = next_account_info(accounts_iter)?;
+    //         // Account 12: The gas payment PDA.
+    //         // No verification is performed here, the IGP will do that.
+    //         let igp_payment_pda_account_info = next_account_info(accounts_iter)?;
 
-            // Account 13: The configured IGP account.
-            let configured_igp_account_info = next_account_info(accounts_iter)?;
-            if configured_igp_account_info.key != igp_account_type.key() {
-                return Err(ProgramError::InvalidArgument);
-            }
+    //         // Account 13: The configured IGP account.
+    //         let configured_igp_account_info = next_account_info(accounts_iter)?;
+    //         if configured_igp_account_info.key != igp_account_type.key() {
+    //             return Err(ProgramError::InvalidArgument);
+    //         }
 
-            // Accounts expected by the IGP's `PayForGas` instruction:
-            //
-            // 0. `[executable]` The system program.
-            // 1. `[signer]` The payer.
-            // 2. `[writeable]` The IGP program data.
-            // 3. `[signer]` Unique gas payment account.
-            // 4. `[writeable]` Gas payment PDA.
-            // 5. `[writeable]` The IGP account.
-            // 6. `[]` Overhead IGP account (optional).
+    //         // Accounts expected by the IGP's `PayForGas` instruction:
+    //         //
+    //         // 0. `[executable]` The system program.
+    //         // 1. `[signer]` The payer.
+    //         // 2. `[writeable]` The IGP program data.
+    //         // 3. `[signer]` Unique gas payment account.
+    //         // 4. `[writeable]` Gas payment PDA.
+    //         // 5. `[writeable]` The IGP account.
+    //         // 6. `[]` Overhead IGP account (optional).
 
-            let mut igp_payment_account_metas = vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(*payer_info.key, true),
-                AccountMeta::new(*igp_program_data_account_info.key, false),
-                AccountMeta::new_readonly(*unique_message_account_info.key, true),
-                AccountMeta::new(*igp_payment_pda_account_info.key, false),
-            ];
-            let mut igp_payment_account_infos = vec![
-                system_program_info.clone(),
-                payer_info.clone(),
-                igp_program_data_account_info.clone(),
-                unique_message_account_info.clone(),
-                igp_payment_pda_account_info.clone(),
-            ];
+    //         let mut igp_payment_account_metas = vec![
+    //             AccountMeta::new_readonly(solana_program::system_program::id(), false),
+    //             AccountMeta::new(*payer_info.key, true),
+    //             AccountMeta::new(*igp_program_data_account_info.key, false),
+    //             AccountMeta::new_readonly(*unique_message_account_info.key, true),
+    //             AccountMeta::new(*igp_payment_pda_account_info.key, false),
+    //         ];
+    //         let mut igp_payment_account_infos = vec![
+    //             system_program_info.clone(),
+    //             payer_info.clone(),
+    //             igp_program_data_account_info.clone(),
+    //             unique_message_account_info.clone(),
+    //             igp_payment_pda_account_info.clone(),
+    //         ];
 
-            match igp_account_type {
-                InterchainGasPaymasterType::Igp(_) => {
-                    igp_payment_account_metas
-                        .push(AccountMeta::new(*configured_igp_account_info.key, false));
-                    igp_payment_account_infos.push(configured_igp_account_info.clone());
-                }
-                InterchainGasPaymasterType::OverheadIgp(_) => {
-                    // Account 13: The inner IGP account.
-                    let inner_igp_account_info = next_account_info(accounts_iter)?;
+    //         match igp_account_type {
+    //             InterchainGasPaymasterType::Igp(_) => {
+    //                 igp_payment_account_metas
+    //                     .push(AccountMeta::new(*configured_igp_account_info.key, false));
+    //                 igp_payment_account_infos.push(configured_igp_account_info.clone());
+    //             }
+    //             InterchainGasPaymasterType::OverheadIgp(_) => {
+    //                 // Account 13: The inner IGP account.
+    //                 let inner_igp_account_info = next_account_info(accounts_iter)?;
 
-                    // The inner IGP is expected first, then the overhead IGP.
-                    igp_payment_account_metas.extend([
-                        AccountMeta::new(*inner_igp_account_info.key, false),
-                        AccountMeta::new_readonly(*configured_igp_account_info.key, false),
-                    ]);
-                    igp_payment_account_infos.extend([
-                        inner_igp_account_info.clone(),
-                        configured_igp_account_info.clone(),
-                    ]);
-                }
-            };
+    //                 // The inner IGP is expected first, then the overhead IGP.
+    //                 igp_payment_account_metas.extend([
+    //                     AccountMeta::new(*inner_igp_account_info.key, false),
+    //                     AccountMeta::new_readonly(*configured_igp_account_info.key, false),
+    //                 ]);
+    //                 igp_payment_account_infos.extend([
+    //                     inner_igp_account_info.clone(),
+    //                     configured_igp_account_info.clone(),
+    //                 ]);
+    //             }
+    //         };
 
-            Some((igp_payment_account_metas, igp_payment_account_infos))
-        } else {
-            None
-        };
+    //         Some((igp_payment_account_metas, igp_payment_account_infos))
+    //     } else {
+    //         None
+    //     };
 
     let message =
         InterchainAccountMessage::new(owner, remote_call.ism, remote_call.salt, remote_call.calls);
@@ -348,30 +326,30 @@ fn send_call_remote(
     let dispatch_authority_seeds: &[&[u8]] =
         mailbox_message_dispatch_authority_pda_seeds!(expected_dispatch_authority_bump);
 
-    if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
-        // Dispatch the message and pay for gas.
-        storage.dispatch_with_gas(
-            program_id,
-            dispatch_authority_seeds,
-            remote_call.destination,
-            encoded_message.into(),
-            remote_call.gas_limit,
-            dispatch_account_metas,
-            dispatch_account_infos,
-            igp_payment_account_metas,
-            &igp_payment_account_infos,
-        )?;
-    } else {
-        // Dispatch the message.
-        storage.dispatch(
-            program_id,
-            dispatch_authority_seeds,
-            remote_call.destination,
-            encoded_message.into(),
-            dispatch_account_metas,
-            dispatch_account_infos,
-        )?;
-    }
+    // if let Some((igp_payment_account_metas, igp_payment_account_infos)) = igp_payment_accounts {
+    //     // Dispatch the message and pay for gas.
+    //     storage.dispatch_with_gas(
+    //         program_id,
+    //         dispatch_authority_seeds,
+    //         remote_call.destination,
+    //         encoded_message.into(),
+    //         remote_call.gas_limit,
+    //         dispatch_account_metas,
+    //         dispatch_account_infos,
+    //         igp_payment_account_metas,
+    //         &igp_payment_account_infos,
+    //     )?;
+    // } else {
+    // Dispatch the message.
+    storage.dispatch(
+        program_id,
+        dispatch_authority_seeds,
+        remote_call.destination,
+        encoded_message.into(),
+        dispatch_account_metas,
+        dispatch_account_infos,
+    )?;
+    // }
 
     msg!(
         "Remote call requested, owner: {}, destination: {}, ism: {:?}, salt: {:?}",
@@ -434,8 +412,8 @@ fn transfer_ownership(
     if storage_info.key != &expected_storage_pda_key {
         return Err(ProgramError::InvalidArgument);
     }
-    let mut storage = InterchainAccountStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?
-        .into_inner();
+    let mut storage =
+        InterchainAccountStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?.into_inner();
 
     // Account 1: Current owner signer.
     let owner_info = next_account_info(accounts_iter)?;
