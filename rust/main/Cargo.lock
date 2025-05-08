@@ -4839,6 +4839,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-interchain-accounts"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-core",
+]
+
+[[package]]
 name = "hyperlane-metric"
 version = "0.1.0"
 dependencies = [

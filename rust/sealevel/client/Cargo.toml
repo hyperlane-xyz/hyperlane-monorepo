@@ -50,3 +50,4 @@ hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce
     "no-entrypoint",
 ] }
 hyperlane-sealevel-hello-world = { path = "../programs/helloworld" }
+hyperlane-sealevel-interchain-accounts = { path = "../programs/interchain-accounts" }
