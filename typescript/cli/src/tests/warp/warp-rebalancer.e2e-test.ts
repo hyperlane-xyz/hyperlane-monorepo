@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { $ } from 'zx';
@@ -48,6 +49,10 @@ import {
   hyperlaneWarpRebalancer,
   hyperlaneWarpSendRelay,
 } from '../commands/warp.js';
+
+chai.use(chaiAsPromised);
+const expect = chai.expect;
+chai.should();
 
 describe('hyperlane warp rebalancer e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -703,21 +708,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await process.kill();
   });
 
-  it('should not find any metrics server when they are not enabled', async () => {
+  it('should not find any metrics server when metrics are not enabled', async () => {
     const process = startRebalancer({ withMetrics: false });
 
     // Give the server some time to start
     await sleep(3000);
 
-    let failed = false;
-    try {
-      await fetch(DEFAULT_METRICS_SERVER);
-    } catch (_) {
-      failed = true;
-    }
-
     // Check that metrics endpoint is not responding
-    expect(failed).to.be.true;
+    fetch(DEFAULT_METRICS_SERVER).should.eventually.throw();
 
     await process.kill();
   });
