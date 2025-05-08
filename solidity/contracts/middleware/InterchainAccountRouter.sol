@@ -443,6 +443,17 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    /**
+     * @notice Dispatches a two‑step *commit‑reveal* sequence using the router’s
+     *         default configuration. A zero‑gas COMMITMENT message is sent first
+     *         so the destination router can store `_commitment`, followed by a
+     *         REVEAL message that carries the actual gas limit for execution.
+     * @param _destination      Destination domain identifier.
+     * @param _gasLimit         Gas limit that the subsequent reveal/execute call may consume.
+     * @param _commitment       `keccak256(abi.encode(salt, calls))` hash that will be revealed later.
+     * @return _commitmentMsgId Hyperlane message ID of the COMMITMENT message.
+     * @return _revealMsgId     Hyperlane message ID of the REVEAL message.
+     */
     function callRemoteCommitReveal(
         uint32 _destination,
         uint256 _gasLimit,
@@ -461,6 +472,16 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    /**
+     * @notice Variant of {callRemoteCommitReveal} that lets the caller supply
+     *         a namespace salt so multiple interchain accounts can coexist.
+     * @param _destination      Destination domain identifier.
+     * @param _salt             Namespace label (CREATE2 salt) used to derive a unique ICA.
+     * @param _gasLimit         Gas limit that the reveal may consume.
+     * @param _commitment       Commitment hash (`keccak256(abi.encode(salt, calls))`).
+     * @return _commitmentMsgId Hyperlane message ID for the COMMITMENT message.
+     * @return _revealMsgId     Hyperlane message ID for the REVEAL message.
+     */
     function callRemoteCommitRevealNamespaced(
         uint32 _destination,
         bytes32 _salt,
@@ -482,6 +503,20 @@ contract InterchainAccountRouter is Router {
 
     uint256 private constant COMMITMENT_GAS_LIMIT = 20_000;
 
+    /**
+     * @notice Low‑level helper for commit‑reveal that exposes every override knob:
+     *         router, interchain account salt & ISM, off‑chain lookup ISM, hook, and metadata.
+     * @param _destination       Destination domain identifier.
+     * @param _router            Destination router address (as bytes32).
+     * @param _accountSalt       Namespace salt for ICA derivation (CREATE2).
+     * @param _accountIsm        ISM to associate with the interchain account (0x0 for default).
+     * @param _offchainLookupIsm ISM that will verify the off‑chain lookup performed by REVEAL.
+     * @param _commitment        Commitment hash (`keccak256(abi.encode(salt, calls))`).
+     * @param _hook              Post‑dispatch hook contract.
+     * @param _hookMetadata      Opaque metadata blob understood by the hook.
+     * @return _commitmentMsgId  Hyperlane message ID of the COMMITMENT dispatch.
+     * @return _revealMsgId      Hyperlane message ID of the REVEAL dispatch.
+     */
     function callRemoteCommitRevealAdvanced(
         uint32 _destination,
         bytes32 _router,
@@ -538,6 +573,13 @@ contract InterchainAccountRouter is Router {
         );
     }
 
+    /**
+     * @notice Reveals the calldata associated with a previously verified commitment
+     *         and executes it atomically via the stored interchain account.
+     * @dev    Reverts if the commitment was never registered or has already been executed.
+     * @param _calls Array of calls whose hash matches the stored commitment.
+     * @param _salt  Salt that, together with `_calls`, formed the original commitment hash.
+     */
     /// @dev The calls represented by the commitment can only be executed once.
     function revealAndExecute(
         CallLib.Call[] calldata _calls,
