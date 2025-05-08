@@ -8,9 +8,7 @@ use crate::utils::{as_task, TaskHandle};
 use super::cli::StarknetCLI;
 use super::types::{DeclaredClasses, Deployments};
 
-pub(crate) const STARKNET_KEYPAIR: &str = "./config/test-starknet-keys/test_deployer-keypair.json";
-pub(crate) const STARKNET_ACCOUNT: &str = "./config/test-starknet-keys/test_deployer-account.json";
-pub(crate) const KEYPAIR_PASSWORD: &str = "test";
+pub(crate) const STARKNET_ACCOUNT: &str = "katana-0";
 
 pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")

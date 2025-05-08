@@ -13,7 +13,7 @@ use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::starknet::types::{AgentConfigOut, ValidatorConfig};
-use crate::starknet::utils::{KEYPAIR_PASSWORD, STARKNET_ACCOUNT, STARKNET_KEYPAIR};
+use crate::starknet::utils::STARKNET_ACCOUNT;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
@@ -26,13 +26,12 @@ mod source;
 mod types;
 mod utils;
 
-const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/dojo";
-const KATANA_CLI_VERSION: &str = "1.3.0";
+const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/katana";
+const KATANA_CLI_VERSION: &str = "1.5.0";
 const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
-const STARKNET_CLI_VERSION: &str = "0.3.8";
-
-const CAIRO_HYPERLANE_GIT: &str = "https://github.com/aroralanuk/starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.3.4";
+const STARKNET_CLI_VERSION: &str = "0.3.8"; // we need 0.3.8 because the latest version breaks the rpc schema
+const CAIRO_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane_starknet";
+const CAIRO_HYPERLANE_VERSION: &str = "0.3.2";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -56,8 +55,6 @@ pub fn install_starknet(
             version: STARKNET_CLI_VERSION.to_string(),
         })
         .install(starknet_cli_dir);
-
-    // println!("codes_src {:?}", codes_src);
 
     let codes = codes_src
         .unwrap_or(CodeSource::Remote {
@@ -303,12 +300,12 @@ fn run_locally() {
 
     let domains = nodes.iter().map(|v| v.3).collect::<Vec<_>>();
 
-    let deployer = "0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"; // 1st katana account
+    let deployer = "0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec"; // 1st katana account
     let _linker = "validator";
     let validator = &ValidatorConfig {
-        private_key: "0x0014d6672dcb4b77ca36a887e9a11cd9d637d5012468175829e9c6e770c61642"
+        private_key: "0x00c5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912"
             .to_string(),
-        address: "0x00e29882a1fcba1e7e10cad46212257fea5c752a4f9b1b1ec683c503a2cf5c8a".to_string(),
+        address: "0x0127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec".to_string(),
     };
     let _relayer = "hpl-relayer";
 
@@ -320,9 +317,7 @@ fn run_locally() {
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
             let mut starknet_cli = launch_resp.cli(&starklid);
             starknet_cli.init(
-                STARKNET_KEYPAIR.into(),
                 STARKNET_ACCOUNT.into(),
-                KEYPAIR_PASSWORD.into(),
                 launch_resp.endpoint.rpc_addr.clone(),
             );
 
@@ -427,15 +422,13 @@ fn run_locally() {
         }
 
         for target in targets {
-            dispatched_messages += 1;
+            dispatched_messages += 2;
             let mut cli = StarknetCLI::new(starklid.clone());
 
             let msg_body: &[u8] = b"hello world";
 
             cli.init(
-                STARKNET_KEYPAIR.into(),
                 STARKNET_ACCOUNT.into(),
-                KEYPAIR_PASSWORD.into(),
                 node.launch_resp.endpoint.rpc_addr.clone(),
             );
 
@@ -458,13 +451,31 @@ fn run_locally() {
             // which means no hook nor hook_metadata
             let options_args = vec!["1".to_string(), "1".to_string()];
 
-            let args = initial_args
+            let args: Vec<_> = initial_args
                 .into_iter()
                 .chain(strk_msg_str)
                 .chain(vec![format!("u256:{}", fee_amount)])
                 .chain(options_args)
                 .collect();
 
+            cli.send_tx(
+                node.deployments.mailbox.clone(),
+                "dispatch".to_string(),
+                args.clone(),
+            );
+
+            sleep(Duration::from_secs(5));
+
+            cli.send_tx(
+                node.deployments.mailbox.clone(),
+                "dispatch".to_string(),
+                args.clone(),
+            );
+
+            sleep(Duration::from_secs(5));
+
+            // we actually send 3 transactions - however, the last one does not get confirmed because katna only builds blocks when a new transaction is sent
+            // and because we have a confirmation threshold of 1 we don't get the last one confirmed
             cli.send_tx(
                 node.deployments.mailbox.clone(),
                 "dispatch".to_string(),

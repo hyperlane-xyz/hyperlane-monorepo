@@ -247,7 +247,10 @@ async fn fetch_logs_in_range<T>(
     address: FieldElement,
     key: &str,
     parse: fn(&starknet::core::types::EmittedEvent) -> ChainResult<Indexed<T>>,
-) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>
+where
+    T: std::fmt::Debug,
+{
     let key = get_selector_from_name(key)
         .map_err(|_| HyperlaneStarknetError::from_other("get selector cannot fail"))?;
 
@@ -258,7 +261,9 @@ async fn fetch_logs_in_range<T>(
         keys: Some(vec![vec![key]]),
     };
 
-    let chunk_size = range.end() - range.start() + 1;
+    // TODO: this is a placeholder for the chunk size
+    // we should use the pagination token
+    let chunk_size = 100u32;
 
     let events: ChainResult<Vec<(_, LogMeta)>> = provider
         .get_events(filter, None, chunk_size.into())
@@ -269,7 +274,6 @@ async fn fetch_logs_in_range<T>(
         .enumerate()
         .map(|(index, event)| {
             let parsed_event = parse(&event)?;
-
             let meta = LogMeta {
                 address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
                 block_number: event.block_number.unwrap(),

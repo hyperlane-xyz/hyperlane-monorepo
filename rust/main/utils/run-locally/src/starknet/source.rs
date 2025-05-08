@@ -131,14 +131,14 @@ impl CLISource {
         };
         let dir_path = dir_path.to_str().unwrap();
 
-        let release_name = format!("dojo_v{version}_{target}");
+        let release_name = format!("katana_v{version}_{target}");
         let release_comp = format!("{release_name}.tar.gz");
 
-        log!("Downloading Dojo CLI v{}", version);
+        log!("Downloading Katana CLI v{}", version);
         let uri = format!("{git}/releases/download/v{version}/{release_comp}");
         download(&release_comp, &uri, dir_path);
 
-        log!("Uncompressing Dojo release");
+        log!("Uncompressing Katana release");
         untar(&release_comp, dir_path);
 
         concat_path(dir_path, "katana")

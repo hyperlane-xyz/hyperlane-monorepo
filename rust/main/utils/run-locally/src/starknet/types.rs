@@ -51,6 +51,7 @@ pub struct AgentConfigSigner {
     pub typ: String,
     pub key: String,
     pub address: String,
+    pub version: String,
 }
 
 #[derive(Clone, Debug)]
@@ -112,6 +113,7 @@ impl AgentConfig {
                 typ: "starkKey".to_string(),
                 key: validator.private_key.clone(),
                 address: validator.address.clone(),
+                version: "1".to_string(),
             },
             contract_address_bytes: 32,
             index: AgentConfigIndex {

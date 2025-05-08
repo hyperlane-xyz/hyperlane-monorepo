@@ -8,9 +8,7 @@ use super::types::DeclareResponse;
 pub struct StarknetCLI {
     pub bin: PathBuf,
     rpc_addr: String,
-    keystore_path: String,
-    keystore_password: String,
-    account_path: String,
+    account: String,
 }
 
 #[allow(dead_code)]
@@ -26,16 +24,8 @@ impl StarknetCLI {
         Program::new(self.bin.clone()).working_dir("../../")
     }
 
-    pub fn init(
-        &mut self,
-        keystore_path: String,
-        account_path: String,
-        keystore_password: String,
-        rpc_addr: String,
-    ) {
-        self.account_path = account_path;
-        self.keystore_path = keystore_path;
-        self.keystore_password = keystore_password;
+    pub fn init(&mut self, account: String, rpc_addr: String) {
+        self.account = account;
         self.rpc_addr = rpc_addr;
     }
 
@@ -44,11 +34,8 @@ impl StarknetCLI {
             .cli()
             .cmd("declare")
             .cmd(sierra_path.to_str().unwrap())
-            .arg("keystore", self.keystore_path.clone())
-            .arg("keystore-password", self.keystore_password.clone())
-            .arg("account", self.account_path.clone())
-            .arg("rpc", self.rpc_addr.clone())
-            // .arg("compiler-version", "2.10.1")
+            .arg("account", &self.account)
+            .arg("rpc", &self.rpc_addr)
             .run_with_output()
             .join();
 
@@ -65,10 +52,8 @@ impl StarknetCLI {
             .cmd("deploy")
             .cmd(class_hash)
             .cmds(constructor_args)
-            .arg("keystore", self.keystore_path.clone())
-            .arg("keystore-password", self.keystore_password.clone())
-            .arg("account", self.account_path.clone())
-            .arg("rpc", self.rpc_addr.clone())
+            .arg("account", &self.account)
+            .arg("rpc", &self.rpc_addr)
             .arg("salt", "1".to_string()) // Always use salt 1, this makes the deploy deterministic
             .run_with_output()
             .join();
@@ -85,10 +70,8 @@ impl StarknetCLI {
             .cmd(address)
             .cmd(function_name)
             .cmds(constructor_args)
-            .arg("keystore", self.keystore_path.clone())
-            .arg("keystore-password", self.keystore_password.clone())
-            .arg("account", self.account_path.clone())
-            .arg("rpc", self.rpc_addr.clone())
+            .arg("account", &self.account)
+            .arg("rpc", &self.rpc_addr)
             .run_with_output()
             .join();
 
@@ -102,10 +85,8 @@ impl StarknetCLI {
             .cmd(contract_address)
             .cmd(function_name)
             .cmds(args)
-            .arg("keystore", self.keystore_path.clone())
-            .arg("keystore-password", self.keystore_password.clone())
-            .arg("account", self.account_path.clone())
-            .arg("rpc", self.rpc_addr.clone())
+            .arg("account", &self.account)
+            .arg("rpc", &self.rpc_addr)
             .run_with_output()
             .join();
 
