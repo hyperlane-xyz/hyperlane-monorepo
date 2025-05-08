@@ -7,6 +7,8 @@ import {
   addressToBytes32,
   objMap,
   promiseObjAll,
+  retryAsync,
+  rootLogger,
   transformObj,
 } from '@hyperlane-xyz/utils';
 
@@ -176,18 +178,28 @@ export async function expandOnChainWarpDeployConfig(params: {
   deployedRoutersAddresses: ChainMap<Address>;
 }) {
   const { multiProvider, warpDeployConfig, deployedRoutersAddresses } = params;
+
   return promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
       const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
-      const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
-        chain,
-        deployedRoutersAddresses[chain],
-      );
 
-      return {
-        ...warpVirtualConfig,
-        ...config,
-      };
+      try {
+        // Need to use retryAsync because explorer API can rate limit. If it still fails, return the config.
+        return retryAsync(async () => {
+          const warpVirtualConfig =
+            await warpReader.deriveWarpRouteVirtualConfig(
+              chain,
+              deployedRoutersAddresses[chain],
+            );
+          return {
+            ...warpVirtualConfig,
+            ...config,
+          };
+        });
+      } catch (e) {
+        rootLogger.warn(`Failed to fetch virtual config with error: ${e}`);
+        return config;
+      }
     }),
   );
 }
