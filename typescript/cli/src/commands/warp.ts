@@ -12,7 +12,7 @@ import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
+  getWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
   CommandModuleWithContext,
@@ -76,9 +76,10 @@ export const warpCommand: CommandModule = {
 };
 
 export const apply: CommandModuleWithWriteContext<{
-  config: string;
+  config?: string;
+  warp?: string;
   symbol?: string;
-  warp: string;
+  warpRouteId?: string;
   strategy?: string;
   receiptsDir: string;
 }> = {
@@ -86,12 +87,12 @@ export const apply: CommandModuleWithWriteContext<{
   describe: 'Update Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
     warp: {
       ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    symbol: {
+      ...symbolCommandOption,
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
@@ -105,25 +106,23 @@ export const apply: CommandModuleWithWriteContext<{
   handler: async ({
     context,
     config,
-    symbol,
     warp,
+    symbol,
+    warpRouteId,
     strategy: strategyUrl,
     receiptsDir,
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
-
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      symbol,
-      warp,
+    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
       context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
     });
 
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig({
-      filePath: config,
-      context,
-    });
 
     await runWarpRouteApply({
       context,
@@ -137,9 +136,11 @@ export const apply: CommandModuleWithWriteContext<{
 };
 
 export const deploy: CommandModuleWithWriteContext<{
-  config: string;
+  config?: string;
   'dry-run': string;
   'from-address': string;
+  symbol?: string;
+  warpRouteId?: string;
 }> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
@@ -147,8 +148,13 @@ export const deploy: CommandModuleWithWriteContext<{
     config: warpDeploymentConfigCommandOption,
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, dryRun }) => {
+  handler: async ({ context, config, dryRun, symbol, warpRouteId }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -156,7 +162,14 @@ export const deploy: CommandModuleWithWriteContext<{
     try {
       await runWarpRouteDeploy({
         context,
-        warpRouteDeploymentConfigPath: config,
+        warpDeployConfig:
+          context.warpDeployConfig ||
+          (await getWarpRouteDeployConfig({
+            context,
+            warpRouteDeployConfigPath: config,
+            warpRouteId,
+            symbol,
+          })),
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
@@ -178,7 +191,7 @@ export const init: CommandModuleWithContext<{
       describe: 'Create an advanced ISM',
       default: false,
     },
-    out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
+    out: outputFileCommandOption(),
   },
   handler: async ({ context, advanced, out }) => {
     logCommandHeader('Hyperlane Warp Configure');
