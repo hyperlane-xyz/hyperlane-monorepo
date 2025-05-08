@@ -4,17 +4,11 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
-  EvmERC20WarpRouteReader,
+  expandOnChainWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  assert,
-  objFilter,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -424,23 +418,11 @@ export const check: CommandModuleWithContext<{
     });
 
     // Add virtual config
-    const expandedOnChainWarpConfig = await promiseObjAll(
-      objMap(onChainWarpConfig, async (chain, config) => {
-        const warpReader = new EvmERC20WarpRouteReader(
-          context.multiProvider,
-          chain,
-        );
-        const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
-          chain,
-          deployedRoutersAddresses[chain],
-        );
-
-        return {
-          ...config,
-          ...warpVirtualConfig,
-        };
-      }),
-    );
+    const expandedOnChainWarpConfig = await expandOnChainWarpDeployConfig({
+      multiProvider: context.multiProvider,
+      warpDeployConfig: onChainWarpConfig,
+      deployedRoutersAddresses,
+    });
 
     await runWarpRouteCheck({
       onChainWarpConfig: expandedOnChainWarpConfig,

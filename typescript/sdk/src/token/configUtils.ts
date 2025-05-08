@@ -17,6 +17,7 @@ import { ChainMap } from '../types.js';
 import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { gasOverhead } from './config.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -167,6 +168,28 @@ export async function expandWarpDeployConfig(params: {
 
     return chainConfig;
   });
+}
+
+export async function expandOnChainWarpDeployConfig(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  deployedRoutersAddresses: ChainMap<Address>;
+}) {
+  const { multiProvider, warpDeployConfig, deployedRoutersAddresses } = params;
+  return promiseObjAll(
+    objMap(warpDeployConfig, async (chain, config) => {
+      const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
+      const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
+        chain,
+        deployedRoutersAddresses[chain],
+      );
+
+      return {
+        ...warpVirtualConfig,
+        ...config,
+      };
+    }),
+  );
 }
 
 const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
