@@ -4,10 +4,9 @@ import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
-import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
+import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 
@@ -21,7 +20,6 @@ import {
   StarknetJsProvider,
   TypedProvider,
   ViemProvider,
-  ZKSyncProvider,
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
@@ -135,29 +133,12 @@ export function defaultStarknetJsProviderBuilder(
   return { provider, type: ProviderType.Starknet };
 }
 
-export function defaultZKSyncProviderBuilder(
-  rpcUrls: RpcUrl[],
-  network: providers.Networkish,
-): ZKSyncProvider {
-  assert(rpcUrls.length, 'No RPC URLs provided');
-  const url = rpcUrls[0].http;
-  const provider = new ZKProvider(url, network);
-  return { type: ProviderType.ZkSync, provider };
-}
-
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
 ): providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
-}
-
-export function defaultZKProviderBuilder(
-  rpcUrls: RpcUrl[],
-  _network: number | string,
-): ZKProvider {
-  return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
 }
 
 export type ProviderBuilderMap = Record<
@@ -173,7 +154,6 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
-  [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<

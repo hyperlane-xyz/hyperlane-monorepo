@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
@@ -8,7 +7,7 @@ import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
-type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
+type EthersLikeProvider = ethers.providers.Provider;
 
 export type UpgradeConfig = {
   timelock: {

@@ -20,6 +20,7 @@ import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -266,7 +267,14 @@ export class HyperlaneRelayer {
     }
 
     this.logger.debug({ message }, `Simulating recipient message handling`);
-    await this.core.estimateHandle(message);
+    const destinationTechStack = this.multiProvider.getChainMetadata(
+      this.core.getDestination(message),
+    ).technicalStack;
+
+    // ZkSync does not support estimateHandle without signer
+    if (destinationTechStack !== ChainTechnicalStack.ZkSync) {
+      await this.core.estimateHandle(message);
+    }
 
     // parallelizable because configs are on different chains
     const [ism, hook] = await Promise.all([
