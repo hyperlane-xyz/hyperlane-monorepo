@@ -368,7 +368,7 @@ mod tests {
     use time::macros::*;
 
     use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
-    use sea_orm::{DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Value};
+    use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Value};
     use time::PrimitiveDateTime;
 
     use crate::db::{generated::message, ScraperDb, StorableMessage};
@@ -376,9 +376,11 @@ mod tests {
     /// Tests store_dispatched_messages() a transaction works
     #[tokio::test]
     async fn test_store_dispatched_messages_transaction() {
+        const MESSAGE_AMOUNT: usize = 10000;
+
         let query_results: Vec<Vec<_>> = (0..10000)
             .map(|i| message::Model {
-                id: i,
+                id: i as i64,
                 time_created: PrimitiveDateTime::new(date!(2019 - 01 - 01), time!(0:00)),
                 msg_id: vec![],
                 origin: 0,
@@ -420,8 +422,8 @@ mod tests {
             .into_connection();
         let scraper_db = ScraperDb::with_connection(mock_db);
 
-        let logs_meta: Vec<_> = (0..10000).map(|_| LogMeta::default()).collect();
-        let messages: Vec<_> = (0..10000)
+        let logs_meta: Vec<_> = (0..MESSAGE_AMOUNT).map(|_| LogMeta::default()).collect();
+        let messages: Vec<_> = (0..MESSAGE_AMOUNT)
             .map(|i| StorableMessage {
                 msg: HyperlaneMessage::default(),
                 meta: &logs_meta[i],
@@ -438,9 +440,11 @@ mod tests {
     /// within the transaction fails
     #[tokio::test]
     async fn test_store_dispatched_messages_fail() {
-        let query_results: Vec<Vec<_>> = (0..5000)
+        const MESSAGE_AMOUNT: usize = 5000;
+
+        let query_results: Vec<Vec<_>> = (0..MESSAGE_AMOUNT)
             .map(|i| message::Model {
-                id: i,
+                id: i as i64,
                 time_created: PrimitiveDateTime::new(date!(2019 - 01 - 01), time!(0:00)),
                 msg_id: vec![],
                 origin: 0,
@@ -479,8 +483,8 @@ mod tests {
             .into_connection();
         let scraper_db = ScraperDb::with_connection(mock_db);
 
-        let logs_meta: Vec<_> = (0..10000).map(|_| LogMeta::default()).collect();
-        let messages: Vec<_> = (0..10000)
+        let logs_meta: Vec<_> = (0..MESSAGE_AMOUNT).map(|_| LogMeta::default()).collect();
+        let messages: Vec<_> = (0..MESSAGE_AMOUNT)
             .map(|i| StorableMessage {
                 msg: HyperlaneMessage::default(),
                 meta: &logs_meta[i],
@@ -491,5 +495,35 @@ mod tests {
             .store_dispatched_messages(0, &H256::zero(), messages.into_iter())
             .await;
         assert!(res.is_err());
+    }
+
+    /// Tests store_dispatched_messages() with a real postgres instance
+    #[ignore]
+    #[tokio::test]
+    async fn test_store_dispatched_messages_real_postgres() {
+        const POSTGRES_URL: &str = "postgresql://postgres:password@localhost:5432";
+        const MESSAGE_AMOUNT: usize = 100000;
+
+        let db = Database::connect(POSTGRES_URL).await.unwrap();
+        let scraper_db = ScraperDb::with_connection(db);
+
+        let logs_meta: Vec<_> = (0..MESSAGE_AMOUNT).map(|_| LogMeta::default()).collect();
+        let messages: Vec<_> = (0..MESSAGE_AMOUNT)
+            .map(|i| {
+                let mut msg = HyperlaneMessage::default();
+                msg.nonce = i as u32;
+                msg.origin = 1;
+                msg.destination = 1;
+                StorableMessage {
+                    msg,
+                    meta: &logs_meta[i],
+                    txn_id: 0 as i64,
+                }
+            })
+            .collect();
+        let res = scraper_db
+            .store_dispatched_messages(0, &H256::zero(), messages.into_iter())
+            .await;
+        assert!(res.is_ok());
     }
 }
