@@ -34,7 +34,8 @@ contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
     function route(
         bytes calldata _message
     ) public view virtual override returns (IInterchainSecurityModule) {
-        address _ism = _message.body().ism().bytes32ToAddress();
+        bytes calldata _icaMsg = _message.body();
+        address _ism = _icaMsg.ism().bytes32ToAddress();
         if (_ism == address(0)) {
             return mailbox.defaultIsm();
         } else {

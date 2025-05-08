@@ -266,15 +266,17 @@ contract InterchainAccountRouter is Router {
             accountConfig
         );
 
-        if (_messageType == MessageType.COMMITMENT) {
-            bytes32 commitment = InterchainAccountMessageCommitment.commitment(
+        if (_messageType == MessageType.CALLS) {
+            CallLib.Call[] memory calls = InterchainAccountMessageCalls.calls(
                 _message
             );
-            verifiedCommitments[commitment] = account;
+            account.multicall{value: msg.value}(calls);
         } else {
-            account.multicall{value: msg.value}(
-                InterchainAccountMessageCalls.calls(_message)
+            // This is definitely a message of type COMMITMENT
+            bytes32 _commitment = InterchainAccountMessageCommitment.commitment(
+                _message
             );
+            verifiedCommitments[_commitment] = account;
         }
     }
 
