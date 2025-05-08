@@ -330,6 +330,43 @@ export function diffObjMerge(
   };
 }
 
+// Recursively visit all the fields in an object and keep
+// only those that describe mismatches
+export function keepOnlyDiffObjects(obj: any): any {
+  const result: ObjectDiff = {};
+
+  if (Array.isArray(obj)) {
+    return obj
+      .map((item) => (isObject(item) ? keepOnlyDiffObjects(item) : {}))
+      .filter((item) => !isObjEmpty(item));
+  } else if (isObject(obj)) {
+    const casted = obj as ObjectDiffOutput;
+
+    if (!isNullish(casted.expected) && !isNullish(casted.actual)) {
+      return obj;
+    }
+    // Otherwise recurse deeper
+    else {
+      const filtered = Object.fromEntries(
+        Object.entries(obj)
+          .map(([key, value]): [string, any] => [
+            key,
+            keepOnlyDiffObjects(value),
+          ])
+          .filter(([_key, value]) => !isObjEmpty(value)),
+      );
+
+      if (!isObjEmpty(filtered) && obj.type) {
+        filtered.type = obj.type;
+      }
+
+      return filtered;
+    }
+  }
+
+  return result;
+}
+
 export function mustGet<T>(obj: Record<string, T>, key: string): T {
   const value = obj[key];
   if (!value) {

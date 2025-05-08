@@ -10,6 +10,7 @@ import {
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  keepOnlyDiffObjects,
   mustGet,
   objFilter,
   objKeys,
@@ -512,5 +513,152 @@ describe('Object utilities', () => {
 
       expect(sortArraysInObject(input)).to.deep.equal(expected);
     });
+  });
+
+  describe.only(keepOnlyDiffObjects.name, () => {
+    const testCases: { input: any; expected: any }[] = [
+      {
+        input: {
+          a: {
+            foo: { expected: 1, actual: 2 },
+            bar: { something: true },
+            nested: {
+              baz: { expected: 'x', actual: 'y' },
+              qux: { nope: 0 },
+            },
+          },
+          arr: [
+            { alpha: { expected: 10, actual: 20 } },
+            { beta: { wrong: true } },
+          ],
+          plain: 123,
+        },
+        expected: {
+          a: {
+            foo: { expected: 1, actual: 2 },
+            nested: {
+              baz: { expected: 'x', actual: 'y' },
+            },
+          },
+          arr: [{ alpha: { expected: 10, actual: 20 } }],
+        },
+      },
+      {
+        input: {
+          ethereum: {
+            mailbox: '0xc005dc82818d67af737725bd4bf75435d065d239',
+            owner: '0xd1e6626310fd54eceb5b9a51da2ec329d6d4b68a',
+            hook: {
+              type: 'aggregationHook',
+              hooks: [
+                {
+                  type: 'protocolFee',
+                  protocolFee: {
+                    expected: '158365200000000',
+                    actual: '129871800000000',
+                  },
+                  beneficiary: '0x8410927c286a38883bc23721e640f31d3e3e79f8',
+                },
+              ],
+            },
+            interchainSecurityModule: {
+              type: 'staticAggregationIsm',
+              modules: [
+                {
+                  owner: '0xd1e6626310fd54eceb5b9a51da2ec329d6d4b68a',
+                  type: 'defaultFallbackRoutingIsm',
+                  domains: {},
+                },
+                {
+                  owner: '0xd1e6626310fd54eceb5b9a51da2ec329d6d4b68a',
+                  type: 'domainRoutingIsm',
+                  domains: {
+                    berachain: {
+                      type: 'staticAggregationIsm',
+                      modules: [
+                        {
+                          type: 'merkleRootMultisigIsm',
+                          validators: [
+                            '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+                            '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
+                          ],
+                          threshold: 1,
+                        },
+                        {
+                          type: 'messageIdMultisigIsm',
+                          validators: [
+                            '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+                            '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
+                          ],
+                          threshold: 1,
+                        },
+                      ],
+                      threshold: 1,
+                    },
+                  },
+                },
+              ],
+              threshold: 2,
+            },
+            decimals: {
+              expected: 18,
+              actual: 10,
+            },
+            isNft: false,
+            type: 'xERC20Lockbox',
+            token: '0xbc5511354c4a9a50de928f56db01dd327c4e56d5',
+            remoteRouters: {
+              '80094': {
+                address: {
+                  expected:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b0',
+                  actual:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b1',
+                },
+              },
+            },
+          },
+        },
+        expected: {
+          ethereum: {
+            type: 'xERC20Lockbox',
+            hook: {
+              type: 'aggregationHook',
+              hooks: [
+                {
+                  type: 'protocolFee',
+                  protocolFee: {
+                    expected: '158365200000000',
+                    actual: '129871800000000',
+                  },
+                },
+              ],
+            },
+            decimals: {
+              expected: 18,
+              actual: 10,
+            },
+            remoteRouters: {
+              '80094': {
+                address: {
+                  expected:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b0',
+                  actual:
+                    '0x00000000000000000000000025a851bf599cb8aef00ac1d1a9fb575ebf9d94b1',
+                },
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    for (const { expected, input } of testCases) {
+      it(`should keep only the fields that have diff objects`, () => {
+        const act = keepOnlyDiffObjects(input);
+
+        expect(act).to.eql(expected);
+      });
+    }
   });
 });
