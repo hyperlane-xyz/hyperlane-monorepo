@@ -734,8 +734,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await sleep(3000);
 
     // Check that metrics endpoint is not responding
-    await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
-
-    await process.kill();
+    return fetch(DEFAULT_METRICS_SERVER).should.be.rejected.then(() =>
+      process.kill(),
+    );
   });
 });
