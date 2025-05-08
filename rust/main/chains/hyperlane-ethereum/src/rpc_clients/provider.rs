@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
+use ethers::types::{Block, H256 as EthersH256};
 use ethers::{prelude::Middleware, types::TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use ethers_core::abi::Function;
@@ -30,6 +31,23 @@ use crate::{
 pub struct EthereumProvider<M> {
     provider: Arc<M>,
     domain: HyperlaneDomain,
+}
+
+impl<M> EthereumProvider<M> {
+    /// Create a ContractCall object for a given transaction and function.
+    pub fn build_contract_call<D>(
+        &self,
+        tx: TypedTransaction,
+        function: Function,
+    ) -> ContractCall<M, D> {
+        ContractCall {
+            tx,
+            function,
+            block: None,
+            client: self.provider.clone(),
+            datatype: PhantomData::<D>,
+        }
+    }
 }
 
 impl<M> HyperlaneChain for EthereumProvider<M>
@@ -63,8 +81,21 @@ pub trait EvmProviderForSubmitter: Send + Sync {
         reorg_period: &EthereumReorgPeriod,
     ) -> ChainResult<u32>;
 
+    /// Get the block for a given block number
+    async fn get_block(&self, block_number: BlockNumber) -> ChainResult<Option<Block<EthersH256>>>;
+
+    /// Estimate the gas limit for a transaction
+    async fn estimate_gas_limit(
+        &self,
+        tx: &TypedTransaction,
+        function: &Function,
+    ) -> Result<U256, ChainCommunicationError>;
+
     /// Send transaction into blockchain
-    async fn send(&self, tx: TypedTransaction, function: Function) -> ChainResult<H256>;
+    async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
+
+    /// Read-only call into blockchain which returns a boolean
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 }
 
 #[async_trait]
@@ -91,21 +122,43 @@ where
         get_finalized_block_number(&*self.provider, reorg_period).await
     }
 
-    async fn send(&self, tx: TypedTransaction, function: Function) -> ChainResult<H256> {
-        let contract_call = ContractCall {
-            tx,
-            function,
-            block: None,
-            client: self.provider.clone(),
-            datatype: PhantomData::<()>,
-        };
+    async fn get_block(&self, block_number: BlockNumber) -> ChainResult<Option<Block<EthersH256>>> {
+        let block = self
+            .provider
+            .get_block(block_number)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(block)
+    }
 
+    async fn estimate_gas_limit(
+        &self,
+        tx: &TypedTransaction,
+        function: &Function,
+    ) -> Result<U256, ChainCommunicationError> {
+        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let gas_limit = contract_call.estimate_gas().await?.into();
+        Ok(gas_limit)
+    }
+
+    async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
+        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let pending = contract_call
             .send()
             .await
             .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
 
         Ok(pending.tx_hash().into())
+    }
+
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool> {
+        let contract_call = self.build_contract_call::<bool>(tx.clone(), function.clone());
+        let success = contract_call
+            .call()
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        Ok(success)
     }
 }
 

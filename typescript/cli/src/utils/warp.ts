@@ -4,7 +4,6 @@ import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
-  WarpRouteDeployConfigMailboxRequiredSchema,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -14,11 +13,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  fillDefaults,
   readWarpCoreConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
-import { CommandContext } from '../context/types.js';
+import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
 
 import { selectRegistryWarpRoute } from './tokens.js';
@@ -42,13 +40,71 @@ export async function getWarpCoreConfigOrExit({
   if (symbol) {
     warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
   } else if (warp) {
-    warpCoreConfig = readWarpCoreConfig(warp);
+    warpCoreConfig = await readWarpCoreConfig({ filePath: warp });
   } else {
     logRed(`Please specify either a symbol or warp config`);
     process.exit(0);
   }
 
   return warpCoreConfig;
+}
+
+/**
+ * Gets or prompts user selection for a warp route ID.
+ * Uses provided ID or filters by symbol and prompts if multiple options exist.
+ */
+export async function useProvidedWarpRouteIdOrPrompt({
+  context,
+  warpRouteId,
+  symbol,
+}: {
+  context: CommandContext;
+  warpRouteId?: string;
+  symbol?: string;
+}): Promise<string> {
+  if (warpRouteId) return warpRouteId;
+  assert(!context.skipConfirmation, 'Warp route ID is required');
+
+  const { ids: routeIds } = filterWarpRoutesIds(
+    (await context.registry.listRegistryContent()).deployments.warpRoutes,
+    symbol ? { symbol } : undefined,
+  );
+
+  assert(routeIds.length !== 0, 'No valid warp routes found in registry');
+
+  return routeIds.length === 1
+    ? routeIds[0]
+    : ((await search({
+        message: 'Select a warp route:',
+        source: (term) => {
+          return routeIds.filter((id) =>
+            id.toLowerCase().includes(term?.toLowerCase() || ''),
+          );
+        },
+        pageSize: 20,
+      })) as string);
+}
+
+async function loadWarpConfigsFromFiles({
+  warpDeployConfigPath,
+  warpCoreConfigPath,
+  context,
+}: {
+  warpDeployConfigPath: string;
+  warpCoreConfigPath: string;
+  context: CommandContext;
+}): Promise<{
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpCoreConfig: WarpCoreConfig;
+}> {
+  const warpDeployConfig = await readWarpRouteDeployConfig({
+    filePath: warpDeployConfigPath,
+    context,
+  });
+  const warpCoreConfig = await readWarpCoreConfig({
+    filePath: warpCoreConfigPath,
+  });
+  return { warpDeployConfig, warpCoreConfig };
 }
 
 /**
@@ -65,7 +121,7 @@ export async function getWarpConfigs({
   warpCoreConfigPath,
   symbol,
 }: {
-  context: CommandContext;
+  context: CommandContext | WriteCommandContext;
   warpRouteId?: string;
   warpDeployConfigPath?: string;
   warpCoreConfigPath?: string;
@@ -74,58 +130,50 @@ export async function getWarpConfigs({
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (warpDeployConfigPath || warpCoreConfigPath) {
-    if (!warpDeployConfigPath || !warpCoreConfigPath) {
-      throw new Error(
-        'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
-      );
-    }
-    const warpDeployConfig = await readWarpRouteDeployConfig(
-      warpDeployConfigPath,
-      context,
-    );
-    const warpCoreConfig = readWarpCoreConfig(warpCoreConfigPath);
-    return { warpDeployConfig, warpCoreConfig };
+  if (
+    'warpCoreConfig' in context &&
+    'warpDeployConfig' in context &&
+    context.warpCoreConfig &&
+    context.warpDeployConfig
+  ) {
+    return {
+      warpDeployConfig: context.warpDeployConfig,
+      warpCoreConfig: context.warpCoreConfig,
+    };
   }
 
-  let selectedId = warpRouteId;
-  if (!selectedId) {
-    const { ids: routeIds } = filterWarpRoutesIds(
-      (await context.registry.listRegistryContent()).deployments.warpRoutes,
-      symbol ? { symbol } : undefined,
-    );
-
-    assert(routeIds.length !== 0, 'No valid warp routes found in registry');
-
-    selectedId =
-      routeIds.length === 1
-        ? routeIds[0]
-        : ((await search({
-            message: 'Select a warp route:',
-            source: (term) => {
-              return routeIds.filter((id) =>
-                id.toLowerCase().includes(term?.toLowerCase() || ''),
-              );
-            },
-            pageSize: 20,
-          })) as string);
-  }
-
-  const warpCoreConfig = await context.registry.getWarpRoute(selectedId);
-  assert(warpCoreConfig, `Missing warp config for warp route ${selectedId}.`);
-  const warpDeployConfig =
-    await context.registry.getWarpDeployConfig(selectedId);
+  const hasDeployConfigFilePath = !!warpDeployConfigPath;
+  const hasCoreConfigFilePath = !!warpCoreConfigPath;
   assert(
-    warpDeployConfig,
-    `Missing warp deploy config for warp route ${selectedId}.`,
+    hasDeployConfigFilePath === hasCoreConfigFilePath,
+    'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
   );
 
-  const filledConfig = await fillDefaults(context, warpDeployConfig);
-  const validatedConfig =
-    WarpRouteDeployConfigMailboxRequiredSchema.parse(filledConfig);
+  if (hasDeployConfigFilePath && hasCoreConfigFilePath) {
+    return loadWarpConfigsFromFiles({
+      warpDeployConfigPath,
+      warpCoreConfigPath,
+      context,
+    });
+  }
+
+  const selectedId = await useProvidedWarpRouteIdOrPrompt({
+    context,
+    warpRouteId,
+    symbol,
+  });
+
+  const warpCoreConfig = await readWarpCoreConfig({
+    context,
+    warpRouteId: selectedId,
+  });
+  const warpDeployConfig = await readWarpRouteDeployConfig({
+    warpRouteId: selectedId,
+    context,
+  });
 
   return {
-    warpDeployConfig: validatedConfig,
+    warpDeployConfig,
     warpCoreConfig,
   };
 }

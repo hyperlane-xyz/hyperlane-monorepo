@@ -6,7 +6,6 @@ use ethers::contract::builders::ContractCall;
 use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
-use eyre::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -16,7 +15,6 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::ContractLocator;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForSubmitter, SubmitterProviderBuilder};
 
-use crate::chain_tx_adapter::chains::ethereum::transaction::Precursor;
 use crate::{
     chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, EthereumTxPrecursor, GasLimit},
     error::SubmitterError,
@@ -24,8 +22,14 @@ use crate::{
     transaction::{Transaction, TransactionStatus},
 };
 
+use super::transaction::Precursor;
+
+mod gas_limit_estimator;
+mod tx_status_checker;
+
 pub struct EthereumTxAdapter {
-    _conf: ChainConf,
+    conf: ChainConf,
+    connection_conf: ConnectionConf,
     _raw_conf: RawChainConf,
     provider: Box<dyn EvmProviderForSubmitter>,
     reorg_period: EthereumReorgPeriod,
@@ -53,38 +57,12 @@ impl EthereumTxAdapter {
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
 
         Ok(Self {
-            _conf: conf,
+            conf,
+            connection_conf,
             _raw_conf: raw_conf,
             provider,
             reorg_period,
         })
-    }
-
-    async fn block_number_result_to_tx_hash(&self, block_number: Option<U64>) -> TransactionStatus {
-        let Some(block_number) = block_number else {
-            return TransactionStatus::PendingInclusion;
-        };
-        let block_number = block_number.as_u64();
-        match self
-            .provider
-            .get_finalized_block_number(&self.reorg_period)
-            .await
-        {
-            Ok(finalized_block) => {
-                if finalized_block as u64 >= block_number {
-                    TransactionStatus::Finalized
-                } else {
-                    TransactionStatus::Included
-                }
-            }
-            Err(err) => {
-                warn!(
-                    ?err,
-                    "Error checking block finality. Assuming tx is pending inclusion"
-                );
-                TransactionStatus::PendingInclusion
-            }
-        }
     }
 }
 
@@ -123,8 +101,16 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn estimate_tx(&self, _tx: &mut Transaction) -> std::result::Result<(), SubmitterError> {
-        todo!()
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        let precursor = tx.precursor_mut();
+        gas_limit_estimator::estimate_tx(
+            &self.provider,
+            precursor,
+            &self.connection_conf.transaction_overrides,
+            &self.conf.domain,
+            true,
+        )
+        .await
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
@@ -135,7 +121,7 @@ impl AdaptsChain for EthereumTxAdapter {
         let precursor = tx.precursor();
         let hash = self
             .provider
-            .send(precursor.tx.clone(), precursor.function.clone())
+            .send(&precursor.tx, &precursor.function)
             .await?;
 
         tx.tx_hashes.push(hash.into());
@@ -149,22 +135,32 @@ impl AdaptsChain for EthereumTxAdapter {
         &self,
         hash: hyperlane_core::H512,
     ) -> Result<TransactionStatus, SubmitterError> {
-        match self.provider.get_transaction_receipt(hash.into()).await {
-            Ok(None) => Err(SubmitterError::TxHashNotFound(
-                "Transaction not found".to_string(),
-            )),
-            Ok(Some(receipt)) => Ok(self
-                .block_number_result_to_tx_hash(receipt.block_number)
-                .await),
-            Err(err) => Err(SubmitterError::TxHashNotFound(err.to_string())),
-        }
+        tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
     }
 
     async fn reverted_payloads(
         &self,
-        _tx: &Transaction,
+        tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, SubmitterError> {
-        todo!()
+        let payload_details_and_precursors = tx
+            .payload_details
+            .iter()
+            .filter_map(|d| EthereumTxPrecursor::from_success_criteria(d).map(|p| (d, p)))
+            .collect::<Vec<_>>();
+
+        let mut reverted = Vec::new();
+        for (detail, precursor) in payload_details_and_precursors {
+            let success = self
+                .provider
+                .check(&precursor.tx, &precursor.function)
+                .await
+                .unwrap_or(true);
+            if !success {
+                reverted.push(detail.clone());
+            }
+        }
+
+        Ok(reverted)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
