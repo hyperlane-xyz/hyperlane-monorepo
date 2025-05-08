@@ -5,9 +5,7 @@ import {
   Token,
 } from '@hyperlane-xyz/sdk';
 
-import { errorRed, warnYellow } from '../../logger.js';
-
-import { tryGCPSecretFromEnvVariable } from './scripts/tryGCPSecretFromEnvVariable.js';
+import { warnYellow } from '../../logger.js';
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {
   private constructor({
@@ -29,7 +27,7 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     expirySeconds?: number,
     sleepMsBetweenRequests?: number,
   ) {
-    const apiKey = PriceGetter.getCoinGeckoApiKey();
+    const apiKey = process.env.COINGECKO_API_KEY;
 
     return new PriceGetter({
       chainMetadata,
@@ -59,20 +57,5 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     const prices = await this.getTokenPriceByIds([coingeckoId]);
     if (!prices) return undefined;
     return prices[0];
-  }
-
-  static getCoinGeckoApiKey(): string | undefined {
-    const environment = 'mainnet3';
-    let apiKey: string | undefined;
-    try {
-      apiKey = tryGCPSecretFromEnvVariable(`${environment}-coingecko-api-key`);
-    } catch (e) {
-      errorRed(
-        'Error fetching CoinGecko API key, proceeding with public tier',
-        e,
-      );
-    }
-
-    return apiKey;
   }
 }
