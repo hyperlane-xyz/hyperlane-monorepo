@@ -147,7 +147,7 @@ export async function expandWarpDeployConfig(params: {
       ...config,
     };
 
-    // Virtual config - If set to true because we expect these specific contracts to be verified
+    // Virtual config - Set to true because we expect these specific contracts to be verified
     if (includeVirtual)
       chainConfig.contractVerificationStatus = {
         TransparentUpgradeableProxy: true,
