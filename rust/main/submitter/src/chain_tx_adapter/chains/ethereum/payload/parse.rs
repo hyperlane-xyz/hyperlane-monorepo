@@ -1,7 +1,8 @@
-use crate::payload::PayloadDetails;
-use crate::FullPayload;
 use ethers::abi::Function;
 use ethers::types::transaction::eip2718::TypedTransaction;
+
+use crate::payload::PayloadDetails;
+use crate::FullPayload;
 
 pub fn parse_data(payload: &FullPayload) -> (TypedTransaction, Function) {
     parse(&payload.data).expect(
