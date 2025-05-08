@@ -98,8 +98,8 @@ pub trait EvmProviderForSubmitter: Send + Sync {
     /// Read-only call into blockchain which returns a boolean
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
-    /// Get the nonce for a given address on the finalized block
-    async fn get_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+    /// Get the next nonce to use for a given address (using the finalized block)
+    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
 }
 
 #[async_trait]
@@ -165,7 +165,7 @@ where
         Ok(success)
     }
 
-    async fn get_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256> {
+    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256> {
         self.provider
             .get_transaction_count(*address, Some(BlockId::Number(BlockNumber::Finalized)))
             .await
