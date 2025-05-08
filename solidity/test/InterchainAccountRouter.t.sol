@@ -53,6 +53,8 @@ contract InterchainAccountRouterTestBase is Test {
         AccountConfig config
     );
 
+    event CommitmentRevealed(bytes32 indexed commitment);
+
     MockHyperlaneEnvironment internal environment;
 
     uint32 internal origin = 1;
@@ -584,6 +586,8 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // Manually process the reveal. In reality, the CCIP read ISM will call `revealAndExecute`
         // but here we do it manually since we're not using the CCIP read ISM yet
+        vm.expectEmit(true, false, false, false, address(destinationIcaRouter));
+        emit CommitmentRevealed(commitment);
         destinationIcaRouter.revealAndExecute(calls, salt);
 
         // Commitment should be cleared
