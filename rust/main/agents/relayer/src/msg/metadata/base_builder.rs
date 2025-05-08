@@ -63,6 +63,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
     fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
+    fn get_signer(&self) -> Option<Signers>;
 
     async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
@@ -79,7 +80,6 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>;
-    async fn get_signer(&self) -> Option<Signers>;
 }
 
 #[async_trait::async_trait]
@@ -273,7 +273,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         ))
     }
 
-    async fn get_signer(&self) -> Option<Signers> {
+    fn get_signer(&self) -> Option<Signers> {
         self.signer.clone()
     }
 }

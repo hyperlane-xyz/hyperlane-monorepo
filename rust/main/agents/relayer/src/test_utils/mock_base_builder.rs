@@ -106,7 +106,7 @@ impl MockBaseMetadataBuilder {
 
 #[async_trait::async_trait]
 impl BuildsBaseMetadata for MockBaseMetadataBuilder {
-    async fn get_signer(&self) -> Option<Signers> {
+    fn get_signer(&self) -> Option<Signers> {
         None // Mock implementation returning None
     }
     fn origin_domain(&self) -> &HyperlaneDomain {
