@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { $ } from 'zx';
@@ -49,6 +50,10 @@ import {
   hyperlaneWarpSendRelay,
 } from '../commands/warp.js';
 
+chai.use(chaiAsPromised);
+const expect = chai.expect;
+chai.should();
+
 describe('hyperlane warp rebalancer e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
@@ -57,6 +62,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   // The rest are done every CHECK_FREQUENCY ms
   // For these tests we mostly care about the first run
   const CHECK_FREQUENCY = 60000;
+
+  const DEFAULT_METRICS_SERVER = 'http://localhost:9090/metrics';
 
   let tokenSymbol: string;
   let warpRouteId: string;
@@ -201,17 +208,24 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  async function startRebalancerAndExpectLog(
-    log: string,
-    timeout = 10000,
-    withMetrics = false,
-  ) {
-    const process = hyperlaneWarpRebalancer(
+  function startRebalancer(options: { withMetrics?: boolean } = {}) {
+    const { withMetrics = false } = options;
+
+    return hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
       REBALANCER_CONFIG_PATH,
       withMetrics,
     );
+  }
+
+  async function startRebalancerAndExpectLog(
+    log: string,
+    options: { timeout?: number; withMetrics?: boolean } = {},
+  ) {
+    const { timeout = 10_000, withMetrics = false } = options;
+
+    const process = startRebalancer({ withMetrics });
 
     let timeoutId: NodeJS.Timeout;
 
@@ -650,5 +664,59 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
     await startRebalancerAndExpectLog(`No routes to execute`);
+  });
+
+  it('should successfully log metrics tracking', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        weight: '75',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        weight: '25',
+        tolerance: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    await startRebalancerAndExpectLog(
+      `"module":"warp-balance-monitor","labels":{"chain_name":"anvil4","token_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_name":"token","wallet_address":"0x59b670e9fA9D0A427751Af201D676719a970857b","token_standard":"EvmHypSynthetic","warp_route_id":"TOKEN/anvil2-anvil3-anvil4","related_chain_names":"anvil2,anvil3"},"balance":20,"msg":"Wallet balance updated for token"`,
+      { withMetrics: true },
+    );
+  });
+
+  it('should start the metrics server and expose prometheus metrics', async () => {
+    const process = startRebalancer({ withMetrics: true });
+
+    // Give the server some time to start
+    await sleep(3000);
+
+    // Check if the metrics endpoint is responding
+    const response = await fetch(DEFAULT_METRICS_SERVER);
+    expect(response.status).to.equal(200);
+
+    // Get the metrics content
+    const metricsText = await response.text();
+    expect(metricsText).to.not.be.empty;
+    expect(metricsText).to.include('# HELP');
+    expect(metricsText).to.include('# TYPE');
+
+    // Check for specific Hyperlane metrics
+    expect(metricsText).to.include('hyperlane_wallet_balance');
+
+    await process.kill();
+  });
+
+  it('should not find any metrics server when metrics are not enabled', async () => {
+    const process = startRebalancer({ withMetrics: false });
+
+    // Give the server some time to start
+    await sleep(3000);
+
+    // Check that metrics endpoint is not responding
+    return fetch(DEFAULT_METRICS_SERVER).should.be.rejected.then(() =>
+      process.kill(),
+    );
   });
 });

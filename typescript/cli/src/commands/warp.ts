@@ -511,6 +511,16 @@ export const rebalancer: CommandModuleWithWriteContext<{
       await monitor
         // Observe balances events and process rebalancing routes
         .on('tokeninfo', (event) => {
+          if (metrics) {
+            for (const tokenInfo of event.tokensInfo) {
+              metrics.processToken(tokenInfo).catch((e) => {
+                errorRed(
+                  `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
+                );
+              });
+            }
+          }
+
           const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
             if (
               !tokenInfo.token.isCollateralized() ||
@@ -521,16 +531,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
             acc[tokenInfo.token.chainName] = tokenInfo.bridgedSupply;
             return acc;
           }, {} as RawBalances);
-
-          if (metrics) {
-            for (const tokenInfo of event.tokensInfo) {
-              metrics.processToken(tokenInfo).catch((e) => {
-                errorRed(
-                  `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
-                );
-              });
-            }
-          }
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
