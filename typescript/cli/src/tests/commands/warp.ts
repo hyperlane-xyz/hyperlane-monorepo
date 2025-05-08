@@ -159,14 +159,14 @@ export function hyperlaneWarpSendRelay(
 export function hyperlaneWarpRebalancer(
   warpRouteId: string,
   checkFrequency: number,
-  rebalancerConfigFile: string,
-  withMetrics: boolean = false,
+  configFile: string,
+  withMetrics: boolean,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --warpRouteId ${warpRouteId} \
         --checkFrequency ${checkFrequency} \
-        --rebalancerConfigFile ${rebalancerConfigFile} \
+        --configFile ${configFile} \
         --withMetrics ${withMetrics} \
         --key ${ANVIL_KEY}`;
 }
