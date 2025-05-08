@@ -194,11 +194,6 @@ library InterchainAccountMessage {
 }
 
 library InterchainAccountMessageReveal {
-    enum MessageType {
-        CALLS,
-        COMMITMENT,
-        REVEAL
-    }
     function ism(bytes calldata _message) internal pure returns (bytes32) {
         return bytes32(_message[1:33]);
     }
