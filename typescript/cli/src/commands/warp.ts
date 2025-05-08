@@ -430,7 +430,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
       description:
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
-      alias: 's',
+      alias: ['rebalancerConfigFile'],
     },
     warpRouteId: {
       type: 'string',
@@ -441,19 +441,16 @@ export const rebalancer: CommandModuleWithWriteContext<{
       type: 'number',
       description: 'Frequency to check balances in ms',
       demandOption: false,
-      alias: 'v',
     },
     withMetrics: {
       type: 'boolean',
       description: 'Enable metrics',
       demandOption: false,
-      alias: 'm',
     },
     monitorOnly: {
       type: 'boolean',
       description: 'Run in monitor only mode',
       demandOption: false,
-      alias: 'o',
     },
   },
   handler: async ({
