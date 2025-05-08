@@ -53,6 +53,8 @@ pub enum InterchainAccountInstruction {
     SetInterchainSecurityModule(Option<Pubkey>),
     /// Enrolls remote routers
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
+    /// Transfer ownership of the program.  Only current owner may call.
+    TransferOwnership(Option<Pubkey>),
 }
 
 /// Gets an instruction to initialize the program.
@@ -146,6 +148,33 @@ pub fn set_interchain_security_module_instruction(
     let instruction = Instruction {
         program_id,
         data: InterchainAccountInstruction::SetInterchainSecurityModule(ism).try_to_vec()?,
+        accounts,
+    };
+
+    Ok(instruction)
+}
+
+/// Gets an instruction to transfer ownership of the program.
+pub fn transfer_ownership_instruction(
+    program_id: Pubkey,
+    current_owner: Pubkey,
+    new_owner: Option<Pubkey>,
+) -> Result<Instruction, ProgramError> {
+    let (program_storage_account, _program_storage_bump) =
+        Pubkey::try_find_program_address(program_storage_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // Accounts:
+    // 0. `[writeable]` Storage PDA account.
+    // 1. `[signer]` Current owner.
+    let accounts = vec![
+        AccountMeta::new(program_storage_account, false),
+        AccountMeta::new(current_owner, true),
+    ];
+
+    let instruction = Instruction {
+        program_id,
+        data: InterchainAccountInstruction::TransferOwnership(new_owner).try_to_vec()?,
         accounts,
     };
 

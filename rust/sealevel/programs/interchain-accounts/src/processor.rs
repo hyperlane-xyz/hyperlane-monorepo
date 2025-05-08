@@ -112,6 +112,9 @@ pub fn process_instruction(
         InterchainAccountInstruction::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)
         }
+        InterchainAccountInstruction::TransferOwnership(new_owner) => {
+            transfer_ownership(program_id, accounts, new_owner)
+        }
     }
 }
 
@@ -407,6 +410,39 @@ fn set_interchain_security_module(
     storage.ensure_owner_signer(owner_info)?;
 
     storage.ism = ism;
+
+    // Store it
+    InterchainAccountStorageAccount::from(storage).store(storage_info, false)?;
+
+    Ok(())
+}
+
+/// Accounts:
+/// 0. `[writeable]` Storage PDA account.
+/// 1. `[signer]` Current owner.
+fn transfer_ownership(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_owner: Option<Pubkey>,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Storage PDA account.
+    let storage_info = next_account_info(accounts_iter)?;
+    let (expected_storage_pda_key, _expected_storage_pda_bump) =
+        Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
+    if storage_info.key != &expected_storage_pda_key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    let mut storage = InterchainAccountStorageAccount::fetch(&mut &storage_info.data.borrow()[..])?
+        .into_inner();
+
+    // Account 1: Current owner signer.
+    let owner_info = next_account_info(accounts_iter)?;
+    storage.ensure_owner_signer(owner_info)?;
+
+    // Update owner.
+    storage.owner = new_owner;
 
     // Store it
     InterchainAccountStorageAccount::from(storage).store(storage_info, false)?;
