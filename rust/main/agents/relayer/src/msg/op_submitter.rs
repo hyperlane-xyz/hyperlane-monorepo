@@ -664,8 +664,8 @@ async fn submit_via_lander(
     let operation_success_criteria = match op.success_criteria() {
         Ok(s) => s,
         Err(e) => {
-            let reason = ReprepareReason::ErrorCreatingSuccessCriteria;
-            let msg = "Error creating success criteria";
+            let reason = ReprepareReason::ErrorCreatingPayloadSuccessCriteria;
+            let msg = "Error creating payload success criteria";
             prepare_op(op, prepare_queue, e, msg, reason).await;
             return;
         }

@@ -288,9 +288,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Failed to retrieve payload id status by message id")]
     /// Failed to retrieve payload id status by message id
     ErrorRetrievingPayloadStatus,
-    #[strum(to_string = "Failed to create success criteria")]
-    /// Failed to create success criteria
-    ErrorCreatingSuccessCriteria,
+    #[strum(to_string = "Failed to create payload success criteria")]
+    /// Failed to create payload success criteria
+    ErrorCreatingPayloadSuccessCriteria,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
