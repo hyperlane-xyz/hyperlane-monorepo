@@ -33,6 +33,14 @@ export interface MessageTx extends MessageTxStub {
   maxPriorityPerGas: number;
 }
 
+export interface TransactionInfo {
+  from: string;
+  transactionHash: string;
+  blockNumber: number;
+  gasUsed: number;
+  timestamp: number;
+}
+
 export interface MessageStub {
   status: MessageStatus;
   id: string; // Database id
@@ -42,6 +50,8 @@ export interface MessageStub {
   recipient: Address;
   originChainId: number;
   originDomainId: number;
+  originTransaction: TransactionInfo;
+  destinationTransaction: TransactionInfo;
   destinationChainId: number;
   destinationDomainId: number;
   origin: MessageTxStub;

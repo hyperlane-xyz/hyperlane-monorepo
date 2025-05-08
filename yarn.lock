@@ -6342,6 +6342,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@eth-optimism/core-utils@npm:^0.13.2":
+  version: 0.13.2
+  resolution: "@eth-optimism/core-utils@npm:0.13.2"
+  dependencies:
+    "@ethersproject/abi": "npm:^5.7.0"
+    "@ethersproject/abstract-provider": "npm:^5.7.0"
+    "@ethersproject/address": "npm:^5.7.0"
+    "@ethersproject/bignumber": "npm:^5.7.0"
+    "@ethersproject/bytes": "npm:^5.7.0"
+    "@ethersproject/constants": "npm:^5.7.0"
+    "@ethersproject/contracts": "npm:^5.7.0"
+    "@ethersproject/keccak256": "npm:^5.7.0"
+    "@ethersproject/properties": "npm:^5.7.0"
+    "@ethersproject/rlp": "npm:^5.7.0"
+    "@ethersproject/web": "npm:^5.7.1"
+    chai: "npm:^4.3.10"
+    ethers: "npm:^5.7.2"
+    node-fetch: "npm:^2.6.7"
+  checksum: 10/035287fc13fc94090e66a8833e3994fa669d46ac0009102114e3d27634b7303887614dc8a2093378c98bcd8bcd9668a59acd26ecc64d06f0709e0692bc380d35
+  languageName: node
+  linkType: hard
+
 "@eth-optimism/sdk@npm:^3.1.6":
   version: 3.1.6
   resolution: "@eth-optimism/sdk@npm:3.1.6"
@@ -6355,6 +6377,22 @@ __metadata:
   peerDependencies:
     ethers: ^5
   checksum: 10/39ab8b94c7a4c4333ed31046de5a429529486b287a8080f7ad9f1a2d4c51d5f09a545931501c1b930578baca58cfc072626c460570b4bb6ba304f08061cb6f72
+  languageName: node
+  linkType: hard
+
+"@eth-optimism/sdk@npm:^3.3.3":
+  version: 3.3.3
+  resolution: "@eth-optimism/sdk@npm:3.3.3"
+  dependencies:
+    "@eth-optimism/contracts": "npm:0.6.0"
+    "@eth-optimism/core-utils": "npm:^0.13.2"
+    lodash: "npm:^4.17.21"
+    merkletreejs: "npm:^0.3.11"
+    rlp: "npm:^2.2.7"
+    semver: "npm:^7.6.0"
+  peerDependencies:
+    ethers: ^5
+  checksum: 10/435d0c0b38238e76e1b13cf09a0b1f39c212bcd91ad231ad3d5be522498645633d1391ec1ac4a3843fa7f22f7110f161bc8168394996e59e5841558cd658110a
   languageName: node
   linkType: hard
 
@@ -7626,6 +7664,7 @@ __metadata:
   resolution: "@hyperlane-xyz/ccip-server@workspace:typescript/ccip-server"
   dependencies:
     "@chainlink/ccip-read-server": "npm:^0.2.1"
+    "@eth-optimism/sdk": "npm:^3.3.3"
     "@jest/globals": "npm:^29.7.0"
     "@types/node": "npm:^18.14.5"
     dotenv-flow: "npm:^4.1.0"

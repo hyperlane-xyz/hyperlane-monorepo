@@ -59,6 +59,13 @@ abstract contract GasRouter is Router {
     function quoteGasPayment(
         uint32 _destinationDomain
     ) external view virtual returns (uint256) {
+        return _quoteGasPayment(_destinationDomain);
+    }
+
+    /// @dev Lets derived contracts access the quote
+    function _quoteGasPayment(
+        uint32 _destinationDomain
+    ) internal view virtual returns (uint256) {
         return _GasRouter_quoteDispatch(_destinationDomain, "", address(hook));
     }
 
