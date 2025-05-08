@@ -701,4 +701,9 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
-export { TokenMetadataMap } from './token/TokenMetadataMap.js';
+export {
+  TokenMetadataMap,
+  getDecimals,
+  getName,
+  getSymbol,
+} from './token/TokenMetadataMap.js';

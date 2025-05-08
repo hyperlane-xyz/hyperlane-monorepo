@@ -77,7 +77,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     warpCoreConfigPath: string,
     chainName: ChainName,
     expectedMetadata: { decimals: number; symbol: string },
-    skipTypeCheck: boolean = false,
+    expectedMailboxAddress: string,
   ): Promise<void> {
     const currentWarpDeployConfig = await readWarpConfig(
       chainName,
@@ -85,11 +85,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       WARP_DEPLOY_OUTPUT_PATH,
     );
 
-    if (!skipTypeCheck) {
-      expect(currentWarpDeployConfig[chainName].type).to.equal(
-        warpDeployConfig[chainName].type,
-      );
-    }
+    expect(currentWarpDeployConfig[chainName].type).to.equal(
+      warpDeployConfig[chainName].type,
+    );
     expect(currentWarpDeployConfig[chainName].decimals).to.equal(
       warpDeployConfig[chainName].decimals ?? expectedMetadata.decimals,
     );
@@ -97,7 +95,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       warpDeployConfig[chainName].symbol ?? expectedMetadata.symbol,
     );
     expect(currentWarpDeployConfig[chainName].mailbox).to.equal(
-      chain2Addresses.mailbox,
+      expectedMailboxAddress,
     );
   }
 
@@ -198,11 +196,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
+        const mailboxAddress =
+          chainName === CHAIN_NAME_3
+            ? chain3Addresses.mailbox
+            : chain2Addresses.mailbox;
+
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          mailboxAddress,
         );
       }
     });
@@ -212,21 +216,27 @@ describe('hyperlane warp deploy e2e tests', async function () {
         ANVIL_KEY,
         CHAIN_NAME_2,
         9,
-        'USDC.e',
-        'USD Coin Fiat',
+        'TOKEN.E',
+        'FIAT TOKEN',
       );
       const token = await deployToken(
         ANVIL_KEY,
         CHAIN_NAME_3,
         9,
-        'USDC',
-        'USD Coin',
+        'TOKEN',
+        'TOKEN',
       );
 
-      const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
+      const [
+        expectedTokenSymbol,
+        expectedTokenDecimals,
+        expectedCollateralTokenSymbol,
+      ] = await Promise.all([
+        tokenFiat.symbol(),
+        tokenFiat.decimals(),
         token.symbol(),
-        token.decimals(),
       ]);
+
       const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
         expectedTokenSymbol,
         [CHAIN_NAME_2, CHAIN_NAME_3],
@@ -279,14 +289,148 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
 
+      const collateralFiatWarpDeployConfig = await readWarpConfig(
+        CHAIN_NAME_2,
+        COMBINED_WARP_CORE_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      const collateralWarpDeployConfig = await readWarpConfig(
+        CHAIN_NAME_3,
+        COMBINED_WARP_CORE_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
+
+      // Used collateral type to deploy, which is why this check is skipped
+      // expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].type).to.equal(
+      //   warpConfig[CHAIN_NAME_2].type,
+      // );
+      expect(collateralWarpDeployConfig[CHAIN_NAME_3].type).to.equal(
+        warpConfig[CHAIN_NAME_3].type,
+      );
+      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].decimals).to.equal(
+        warpConfig[CHAIN_NAME_2].decimals ?? expectedTokenDecimals,
+      );
+      expect(collateralWarpDeployConfig[CHAIN_NAME_3].decimals).to.equal(
+        warpConfig[CHAIN_NAME_3].decimals ?? expectedTokenDecimals,
+      );
+      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].symbol).to.equal(
+        warpConfig[CHAIN_NAME_2].symbol ?? expectedTokenSymbol,
+      );
+      expect(collateralWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
+        warpConfig[CHAIN_NAME_3].symbol ?? expectedCollateralTokenSymbol,
+      );
+      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox).to.equal(
+        chain2Addresses.mailbox,
+      );
+      expect(collateralWarpDeployConfig[CHAIN_NAME_3].mailbox).to.equal(
+        chain3Addresses.mailbox,
+      );
+    });
+  });
+
+  describe('hyperlane warp deploy --config ... --yes', () => {
+    it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
+      const nonExistingFilePath = 'non-existing-path';
+      // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
+      // user to enter a valid file and then it will finally fail
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes('Select Warp route deployment config file'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes(
+              'Enter Warp route deployment config filepath',
+            ),
+          input: `${nonExistingFilePath}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneWarpDeployRaw({
+        warpCorePath: nonExistingFilePath,
+        skipConfirmationPrompts: true,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text()).to.include(
+        `Warp route deployment config is required`,
+      );
+    });
+
+    it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
+      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+
+      const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
+        token.symbol(),
+        token.decimals(),
+      ]);
+      console.log(expectedTokenDecimals);
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        expectedTokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      // Deploy
+      const output = hyperlaneWarpDeployRaw({
+        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+        skipConfirmationPrompts: true,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions
+      expect(finalOutput.exitCode).to.equal(0);
+
       for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
+        const mailboxAddress =
+          chainName === CHAIN_NAME_3
+            ? chain3Addresses.mailbox
+            : chain2Addresses.mailbox;
+
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
           { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
-          // Skip type check as collateral instead of collateralFiat was deployed
-          true,
+          mailboxAddress,
         );
       }
     });

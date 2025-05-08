@@ -48,7 +48,10 @@ import {
   connectContractsMap,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
+  getDecimals,
+  getName,
   getRouterAddressesFromWarpCoreConfig,
+  getSymbol,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -404,7 +407,7 @@ async function getWarpCoreConfig(
       params.warpDeployConfig,
     );
 
-  for (const [, config] of Object.entries(tokenMetadata.getMetadata())) {
+  for (const [, config] of Object.entries(tokenMetadata)) {
     assert(
       tokenMetadata && isTokenMetadata(config),
       'Missing required token metadata',
@@ -421,7 +424,7 @@ async function getWarpCoreConfig(
 
   fullyConnectTokens(warpCoreConfig);
 
-  const symbol = tokenMetadata.getSymbol();
+  const symbol: string | undefined = getSymbol(tokenMetadata);
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -442,15 +445,16 @@ function generateTokenConfigs(
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
 
-    const metadata = tokenMetadata.getMetadataForChainSafe(chainName);
-    const decimals = tokenMetadata.getDecimals();
+    const decimals = getDecimals(tokenMetadata);
+    const name: any = getName(tokenMetadata, chainName);
+    const symbol: any = getSymbol(tokenMetadata, chainName);
 
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
       decimals,
-      symbol: config.symbol || metadata.symbol,
-      name: metadata.name,
+      symbol: config.symbol || symbol,
+      name,
       addressOrDenom:
         contract[warpDeployConfig[chainName].type as keyof TokenFactories]
           .address,

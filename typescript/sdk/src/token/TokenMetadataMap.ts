@@ -1,78 +1,59 @@
 import { TokenMetadata } from './types.js';
 
-export class TokenMetadataMap {
-  private readonly metadata: Record<string, TokenMetadata | undefined>;
+export type TokenMetadataMap = Record<string, TokenMetadata | undefined>;
 
-  constructor() {
-    this.metadata = {};
+export function getDecimals(map: TokenMetadataMap): number {
+  const decimalsList = Object.values(map)
+    .filter(
+      (config): config is TokenMetadata =>
+        config !== undefined && config.decimals !== undefined,
+    )
+    .map((config) => config.decimals);
+
+  if (decimalsList.length === 0) {
+    throw new Error(`No TokenMetadata or decimals defined for any chain`);
   }
 
-  getMetadata(): Record<string, TokenMetadata | undefined> {
-    return this.metadata;
-  }
-
-  getMetadataForChain(chain: string): TokenMetadata | undefined {
-    return this.metadata[chain];
-  }
-
-  getMetadataForChainSafe(chain: string): TokenMetadata {
-    const metadata = this.metadata[chain];
-    if (metadata) {
-      return metadata;
-    }
-
-    const fallback = Object.values(this.metadata).find(
-      (meta): meta is TokenMetadata => meta !== undefined,
-    );
-
-    if (!fallback) {
+  const [first, ...rest] = decimalsList;
+  for (const d of rest) {
+    if (d !== first) {
       throw new Error(
-        `No TokenMetadata defined for any chain (including ${chain})`,
+        `Mismatched decimals found in TokenMetadata: expected ${first}, but found ${d}`,
       );
     }
-
-    return fallback;
   }
 
-  getSymbol(): string | undefined {
-    for (const config of Object.values(this.metadata)) {
-      if (config && config.symbol) {
-        return config.symbol;
-      }
+  return first!;
+}
+
+export function getSymbol(
+  map: TokenMetadataMap,
+  chain: string = '',
+): string | undefined {
+  if (chain && map[chain]?.symbol) {
+    return map[chain]?.symbol;
+  }
+
+  for (const config of Object.values(map)) {
+    if (config?.symbol) {
+      return config.symbol;
     }
-    return undefined;
+  }
+  return undefined;
+}
+
+export function getName(
+  map: TokenMetadataMap,
+  chain: string,
+): string | undefined {
+  if (map[chain]?.name) {
+    return map[chain]?.name;
   }
 
-  getName(): string | undefined {
-    for (const config of Object.values(this.metadata)) {
-      if (config && config.name) {
-        return config.name;
-      }
+  for (const config of Object.values(map)) {
+    if (config?.name) {
+      return config.name;
     }
-    return undefined;
   }
-
-  getDecimals(): number {
-    const decimalsList = Object.values(this.metadata)
-      .filter((config) => config && config.decimals !== undefined)
-      .map((config) => config?.decimals);
-
-    if (decimalsList.length === 0) {
-      throw new Error(`No TokenMetadata or decimals defined for any chain`);
-    }
-
-    const [first, ...rest] = decimalsList;
-    for (const d of rest) {
-      if (d !== first) {
-        throw new Error(
-          `Mismatched decimals found in TokenMetadata: expected ${first}, but found ${d}`,
-        );
-      }
-    }
-    return first!;
-  }
-
-  setMetadata(chain: string, metadata: TokenMetadata | undefined): void {
-    this.metadata[chain] = metadata;
-  }
+  return undefined;
 }
