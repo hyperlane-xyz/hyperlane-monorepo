@@ -262,7 +262,7 @@ mod test {
             )
             .unwrap(),
         );
-        let ism_address = H256::random();
+        let ism_address = H256::from([4; 32]);
         let info = OffchainLookup {
             call_data: vec![1, 2, 3].into(),
             sender: H160::zero(),
@@ -285,7 +285,7 @@ mod test {
         assert_eq!(signature_hex.len(), 132);
         assert_eq!(
             signature_hex,
-            "0x16a3dcb2c286ae358c453c0751fd88e4385824fc5ce72ef505d39373ea9fcefd0b85a26546a7b3d6b21da49799fd09851d6bd390384ab6c18873e2a9748a72ad1c"
+            "0x0ec721ca5f131710c330c6fed7d64723fcbb53d7057a2145d608d0ccbc0dd8225de1a45614dd67af26c5c7a67fb51e413504d037480f1f1328278a96e2cdae951c"
         );
 
         // Test the signature is valid
