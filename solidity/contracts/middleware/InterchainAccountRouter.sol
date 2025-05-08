@@ -15,7 +15,7 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {OwnableMulticall} from "./libs/OwnableMulticall.sol";
-import {InterchainAccountMessage} from "./libs/InterchainAccountMessage.sol";
+import {InterchainAccountMessage, InterchainAccountMessageReveal} from "./libs/InterchainAccountMessage.sol";
 import {CallLib} from "./libs/Call.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -297,21 +297,27 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         InterchainAccountMessage.MessageType _messageType = _message
             .messageType();
 
-        // If the message is a reveal, we don't do any derivation of the ica address
-        // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
-        // so here we just check that commitment -> ICA association has been cleared
+        bytes32 _commitment;
+        bytes32 _ism;
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
+            _commitment = InterchainAccountMessageReveal.commitment(_message);
+            _ism = InterchainAccountMessageReveal.ism(_message);
+
+            // If the message is a reveal, we don't do any derivation of the ica address
             // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
+            // so here we just check that commitment -> ICA association has been cleared
             require(
-                verifiedCommitments[_message.commitment(_messageType)] ==
+                verifiedCommitments[_commitment] ==
                     OwnableMulticall(payable(address(0))),
                 "Commitment was not executed"
             );
             return;
+        } else {
+            _commitment = _message.commitment();
+            _ism = _message.ism();
         }
 
         bytes32 _owner = _message.owner();
-        bytes32 _ism = _message.ism(_messageType);
         bytes32 _salt = _message.salt();
 
         OwnableMulticall ica = getDeployedInterchainAccount(
@@ -326,33 +332,9 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             CallLib.Call[] memory calls = _message.calls();
             ica.multicall{value: msg.value}(calls);
         } else {
-            bytes32 commitment = _message.commitment(_messageType);
-            verifiedCommitments[commitment] = ica;
+            // This is definitely a message of type COMMITMENT
+            verifiedCommitments[_commitment] = ica;
         }
-    }
-
-    function route(
-        bytes calldata _message
-    ) public view override returns (IInterchainSecurityModule) {
-        bytes calldata _body = _message.body();
-        IInterchainSecurityModule _ism = IInterchainSecurityModule(
-            _body.ism(_body.messageType()).bytes32ToAddress()
-        );
-
-        // If the ISM is not set, we need to check if the message is a reveal
-        // If it is, we need to set the ISM to the CCIP read ISM
-        // Otherwise, we need to set the ISM to the default ISM
-        if (address(_ism) == address(0)) {
-            if (
-                _body.messageType() ==
-                InterchainAccountMessage.MessageType.REVEAL
-            ) {
-                _ism = CCIP_READ_ISM;
-            } else {
-                _ism = mailbox.defaultIsm();
-            }
-        }
-        return _ism;
     }
 
     /**
