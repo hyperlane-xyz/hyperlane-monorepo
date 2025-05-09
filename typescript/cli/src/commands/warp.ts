@@ -112,8 +112,8 @@ export const apply: CommandModuleWithWarpApplyContext<{
     await runWarpRouteApply({
       context,
       // Already fetched in the resolveWarpApplyChains
-      warpDeployConfig: context.warpDeployConfig!!,
-      warpCoreConfig: context.warpCoreConfig!!,
+      warpDeployConfig: context.warpDeployConfig,
+      warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
     });
