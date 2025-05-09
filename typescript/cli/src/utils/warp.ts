@@ -130,18 +130,6 @@ export async function getWarpConfigs({
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (
-    'warpCoreConfig' in context &&
-    'warpDeployConfig' in context &&
-    context.warpCoreConfig &&
-    context.warpDeployConfig
-  ) {
-    return {
-      warpDeployConfig: context.warpDeployConfig,
-      warpCoreConfig: context.warpCoreConfig,
-    };
-  }
-
   const hasDeployConfigFilePath = !!warpDeployConfigPath;
   const hasCoreConfigFilePath = !!warpCoreConfigPath;
   assert(
