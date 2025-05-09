@@ -343,29 +343,19 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes calldata _body = _message.body();
         InterchainAccountMessage.MessageType _messageType = _body.messageType();
 
-        bytes32 ismRaw = _messageType ==
-            InterchainAccountMessage.MessageType.REVEAL
-            ? InterchainAccountMessageReveal.ism(_body)
-            : InterchainAccountMessage.ism(_body);
-
-        IInterchainSecurityModule _ism = IInterchainSecurityModule(
-            ismRaw.bytes32ToAddress()
-        );
-
         // If the ISM is not set, we need to check if the message is a reveal
         // If it is, we need to set the ISM to the CCIP read ISM
         // Otherwise, we need to set the ISM to the default ISM
-        if (address(_ism) == address(0)) {
-            if (
-                _body.messageType() ==
-                InterchainAccountMessage.MessageType.REVEAL
-            ) {
-                _ism = CCIP_READ_ISM;
-            } else {
-                _ism = mailbox.defaultIsm();
-            }
+        address _ism;
+        if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
+            _ism = InterchainAccountMessageReveal.ism(_body).bytes32ToAddress();
+            _ism = _ism == address(0) ? address(CCIP_READ_ISM) : _ism;
+        } else {
+            _ism = InterchainAccountMessage.ism(_body).bytes32ToAddress();
+            _ism = _ism == address(0) ? address(mailbox.defaultIsm()) : _ism;
         }
-        return _ism;
+
+        return IInterchainSecurityModule(_ism);
     }
 
     /**
