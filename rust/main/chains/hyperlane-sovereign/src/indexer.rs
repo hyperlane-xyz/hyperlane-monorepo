@@ -73,9 +73,9 @@ where
 
         Ok((
             sequence,
-            finalized_slot
-                .try_into()
-                .map_err(|e| ChainCommunicationError::CustomError(format!("{e:?}")))?,
+            finalized_slot.try_into().map_err(|_| {
+                ChainCommunicationError::CustomError("Slot number overflowed".into())
+            })?,
         ))
     }
 

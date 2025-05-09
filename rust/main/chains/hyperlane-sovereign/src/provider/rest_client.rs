@@ -458,34 +458,6 @@ impl SovereignRestClient {
         Ok(res)
     }
 
-    // @ISM
-    pub async fn dry_run(&self) -> ChainResult<Option<U256>> {
-        let query = "/rollup/simulate";
-
-        let json = json!(
-            {
-                "body":{
-                    "details":{
-                        "chain_id":0,
-                        "max_fee":0,
-                        "max_priority_fee_bips":0
-                    },
-                    "encoded_call_message":"",
-                    "nonce":0,
-                    "sender_pub_key":""
-                }
-            }
-        );
-
-        let response = self
-            .http_post(query, &json)
-            .await
-            .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Error: {e}")))?;
-        let _response: Schema<Data> = serde_json::from_slice(&response)?;
-
-        Ok(None)
-    }
-
     // @ISM - test working
     pub async fn module_type(&self, recipient: H256) -> ChainResult<ModuleType> {
         let query = format!("/modules/mailbox/recipient-ism/{recipient:?}");

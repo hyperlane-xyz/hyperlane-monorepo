@@ -1,8 +1,9 @@
 use crate::{ConnectionConf, Signer, SovereignProvider};
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
+    ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
+    H256, U256,
 };
 
 /// A struct for the ISM on the Sovereign chain.
@@ -50,12 +51,17 @@ impl HyperlaneChain for SovereignInterchainSecurityModule {
 impl InterchainSecurityModule for SovereignInterchainSecurityModule {
     async fn dry_run_verify(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let result = self.provider.client().dry_run().await?;
-
-        Ok(result)
+        let tx_cost_estimate = self
+            .provider
+            .client()
+            .process_estimate_costs(message, metadata)
+            .await?;
+        Ok(Some(FixedPointNumber::try_into(
+            tx_cost_estimate.gas_price,
+        )?))
     }
 
     async fn module_type(&self) -> ChainResult<ModuleType> {
