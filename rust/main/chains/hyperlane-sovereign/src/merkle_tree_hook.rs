@@ -51,25 +51,8 @@ impl crate::indexer::SovIndexer<MerkleTreeInsertion> for SovereignMerkleTreeHook
         let parsed_event: InsertedIntoTreeEvent = serde_json::from_value(event.value.clone())?;
 
         let merkle_insertion = MerkleTreeInsertion::new(
-            parsed_event
-                .inserted_into_tree
-                .as_ref()
-                .and_then(|d| d.index)
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from(
-                        "parsed_event contained None",
-                    ))
-                })?,
-            H256::from_str(
-                &parsed_event
-                    .inserted_into_tree
-                    .and_then(|d| d.id)
-                    .ok_or_else(|| {
-                        ChainCommunicationError::CustomError(String::from(
-                            "parsed_event contained None",
-                        ))
-                    })?,
-            )?,
+            parsed_event.inserted_into_tree.index,
+            H256::from_str(&parsed_event.inserted_into_tree.id)?,
         );
 
         Ok(merkle_insertion)
@@ -78,13 +61,13 @@ impl crate::indexer::SovIndexer<MerkleTreeInsertion> for SovereignMerkleTreeHook
 
 #[derive(Clone, Debug, Deserialize)]
 struct InsertedIntoTreeEvent {
-    inserted_into_tree: Option<TreeEventBody>,
+    inserted_into_tree: TreeEventBody,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct TreeEventBody {
-    id: Option<String>,
-    index: Option<u32>,
+    id: String,
+    index: u32,
 }
 
 #[async_trait]

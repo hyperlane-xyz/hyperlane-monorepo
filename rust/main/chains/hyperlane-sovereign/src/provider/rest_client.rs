@@ -20,22 +20,11 @@ use url::Url;
 
 #[derive(Clone, Debug, Deserialize)]
 struct Schema<T> {
-    data: Option<T>,
-    _errors: Option<Errors>,
-    _meta: Option<Meta>,
+    data: T,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-struct Meta {
-    _meta: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Errors {
-    _details: Option<Value>,
-    _status: Option<u32>,
-    _title: Option<String>,
-}
+struct Data;
 
 /// Convert H256 type to String.
 pub fn to_bech32(input: H256) -> ChainResult<String> {
@@ -245,11 +234,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Batch> = serde_json::from_slice(&response)?;
 
-        response.data.ok_or_else(|| {
-            ChainCommunicationError::CustomError(
-                "Invalid response: missing batch field".to_string(),
-            )
-        })
+        Ok(response.data)
     }
 
     pub async fn get_specified_slot(&self, slot: u64) -> ChainResult<Slot> {
@@ -261,11 +246,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Slot> = serde_json::from_slice(&response)?;
 
-        response.data.ok_or_else(|| {
-            ChainCommunicationError::CustomError(
-                "Invalid response: missing batch field".to_string(),
-            )
-        })
+        Ok(response.data)
     }
 
     pub async fn get_tx_by_hash(&self, tx_id: String) -> ChainResult<Tx> {
@@ -277,9 +258,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Tx> = serde_json::from_slice(&response)?;
 
-        response.data.ok_or_else(|| {
-            ChainCommunicationError::CustomError("Invalid response: missing tx field".to_string())
-        })
+        Ok(response.data)
     }
 
     // Return the latest slot.
@@ -294,11 +273,8 @@ impl SovereignRestClient {
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
-        let data = response.data.ok_or(ChainCommunicationError::CustomError(
-            "Invalid response".to_string(),
-        ))?;
 
-        Ok(data.number)
+        Ok(response.data.number)
     }
 
     // Return the finalized slot
@@ -314,11 +290,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
 
-        let data = response.data.ok_or(ChainCommunicationError::CustomError(
-            "Invalid response".to_string(),
-        ))?;
-
-        Ok(data.number)
+        Ok(response.data.number)
     }
 
     // @Mailbox
@@ -334,40 +306,26 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<u32> = serde_json::from_slice(&response)?;
 
-        let response = response.data.unwrap_or_default();
-
-        Ok(response)
+        Ok(response.data)
     }
 
     // @Mailbox
     pub async fn get_delivered_status(&self, message_id: H256) -> ChainResult<bool> {
-        #[derive(Clone, Debug, Deserialize)]
-        struct Data {
-            _value: Option<StateMap>,
-        }
-
-        #[derive(Clone, Debug, Deserialize)]
-        struct StateMap {
-            _sender: Option<String>,
-            _block_number: Option<u32>,
-        }
-
         let query = format!("/modules/mailbox/state/deliveries/items/{message_id:?}");
 
         let response = self
             .http_get(&query)
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
-        let response: Schema<Data> = serde_json::from_slice(&response)?;
-
-        Ok(response.data.is_some())
+        let response: Result<Schema<Data>, serde_json::Error> = serde_json::from_slice(&response);
+        Ok(response.is_ok())
     }
 
     // @Mailbox - test working
     pub async fn default_ism(&self) -> ChainResult<H256> {
         #[derive(Clone, Debug, Deserialize)]
         struct Data {
-            value: Option<String>,
+            value: String,
         }
 
         let query = "/modules/mailbox/state/default-ism";
@@ -378,10 +336,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
 
-        let addr_bech32 = response.data.and_then(|d| d.value).ok_or_else(|| {
-            ChainCommunicationError::CustomError(String::from("Data contained None"))
-        })?;
-        from_bech32(&addr_bech32)
+        from_bech32(&response.data.value)
     }
 
     // @Mailbox
@@ -438,39 +393,18 @@ impl SovereignRestClient {
     ) -> ChainResult<TxCostEstimate> {
         #[derive(Clone, Debug, Deserialize)]
         struct Data {
-            apply_tx_result: Option<ApplyTxResult>,
+            apply_tx_result: ApplyTxResult,
         }
 
         #[derive(Clone, Debug, Deserialize)]
         struct ApplyTxResult {
-            _receipt: Option<Receipt>,
-            transaction_consumption: Option<TransactionConsumption>,
-        }
-
-        #[derive(Clone, Debug, Deserialize)]
-        struct Receipt {
-            _events: Option<Vec<Events>>,
-            _receipt: Option<SubReceipt>,
-        }
-
-        #[derive(Clone, Debug, Deserialize)]
-        struct Events {
-            _key: Option<String>,
-            _value: Option<String>,
-        }
-
-        #[derive(Clone, Debug, Deserialize)]
-        struct SubReceipt {
-            _content: Option<String>,
-            _outcome: Option<String>,
+            transaction_consumption: TransactionConsumption,
         }
 
         #[derive(Clone, Debug, Deserialize)]
         struct TransactionConsumption {
-            base_fee: Option<Vec<u32>>,
-            gas_price: Option<Vec<String>>,
-            _priority_fee: Option<u32>,
-            _remaining_funds: Option<u32>,
+            base_fee: Vec<u32>,
+            gas_price: Vec<String>,
         }
 
         let query = "/rollup/simulate";
@@ -488,25 +422,9 @@ impl SovereignRestClient {
             response
                 .clone()
                 .data
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from("data contained None"))
-                })?
                 .apply_tx_result
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from(
-                        "apply_tx_result contained None",
-                    ))
-                })?
                 .transaction_consumption
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from(
-                        "transaction_consumption contained None",
-                    ))
-                })?
                 .gas_price
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from("gas_price contained None"))
-                })?
                 .first()
                 .ok_or_else(|| {
                     ChainCommunicationError::CustomError(String::from("Failed to get item(0)"))
@@ -522,25 +440,9 @@ impl SovereignRestClient {
         let gas_limit = U256::from(
             *response
                 .data
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from("data contained None"))
-                })?
                 .apply_tx_result
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from(
-                        "apply_tx_result contained None",
-                    ))
-                })?
                 .transaction_consumption
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from(
-                        "transaction_consumption contained None",
-                    ))
-                })?
                 .base_fee
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from("base_fee contained None"))
-                })?
                 .first()
                 .ok_or_else(|| {
                     ChainCommunicationError::CustomError(String::from("Failed to get item(0)"))
@@ -558,11 +460,6 @@ impl SovereignRestClient {
 
     // @ISM
     pub async fn dry_run(&self) -> ChainResult<Option<U256>> {
-        #[derive(Clone, Debug, Deserialize)]
-        struct Data {
-            _data: Option<Value>,
-        }
-
         let query = "/rollup/simulate";
 
         let json = json!(
@@ -598,11 +495,8 @@ impl SovereignRestClient {
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<u8> = serde_json::from_slice(&response)?;
-        let module_type = response
-            .data
-            .ok_or_else(|| ChainCommunicationError::CustomError("Data contained None".into()))?;
 
-        ModuleType::from_u8(module_type).ok_or_else(|| {
+        ModuleType::from_u8(response.data).ok_or_else(|| {
             ChainCommunicationError::CustomError("Unknown ModuleType returned".into())
         })
     }
@@ -616,7 +510,7 @@ impl SovereignRestClient {
         }
         #[derive(Clone, Debug, Deserialize)]
         struct Data {
-            value: Option<Inner>,
+            value: Inner,
         }
 
         let query = match slot {
@@ -632,30 +526,30 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
 
-        if let Some(resp) = response.data.and_then(|data| data.value) {
-            let count = resp.count;
-            let branch = resp
-                .branch
-                .iter()
-                .map(|hex| H256::from_str(hex))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| ChainCommunicationError::ParseError {
-                    msg: format!("Couldn't parse hex: {e}"),
-                })?;
+        let branch = response
+            .data
+            .value
+            .branch
+            .iter()
+            .map(|hex| H256::from_str(hex))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| ChainCommunicationError::ParseError {
+                msg: format!("Couldn't parse hex: {e}"),
+            })?;
 
-            let branch_len = branch.len();
-            let branch: [_; TREE_DEPTH] =
-                branch
-                    .try_into()
-                    .map_err(|_| ChainCommunicationError::ParseError {
-                        msg: format!(
-                            "Invalid tree size, expected {TREE_DEPTH} elements, found {branch_len}",
-                        ),
-                    })?;
-            Ok(IncrementalMerkle { count, branch })
-        } else {
-            Ok(IncrementalMerkle::default())
-        }
+        let branch_len = branch.len();
+        let branch: [_; TREE_DEPTH] =
+            branch
+                .try_into()
+                .map_err(|_| ChainCommunicationError::ParseError {
+                    msg: format!(
+                        "Invalid tree size, expected {TREE_DEPTH} elements, found {branch_len}",
+                    ),
+                })?;
+        Ok(IncrementalMerkle {
+            count: response.data.value.count,
+            branch,
+        })
     }
 
     // @Merkle Tree Hook
@@ -669,9 +563,8 @@ impl SovereignRestClient {
             .http_get(query)
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
-        let response: Schema<u32> = serde_json::from_slice(&response)?;
-
-        Ok(response.data.unwrap_or_default())
+        let response: Result<Schema<u32>, serde_json::Error> = serde_json::from_slice(&response);
+        Ok(response.map(|res| res.data).unwrap_or_default())
     }
 
     // @Merkle Tree Hook
@@ -696,18 +589,13 @@ impl SovereignRestClient {
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
-        let response = response
-            .data
-            .ok_or_else(|| ChainCommunicationError::ParseError {
-                msg: "Response was empty".into(),
-            })?;
 
         let response = Checkpoint {
             // sovereign implementation provides dummy address as hook is sovereign-sdk module
             merkle_tree_hook_address: H256::default(),
             mailbox_domain,
-            root: H256::from_str(&response.root)?,
-            index: response.index,
+            root: H256::from_str(&response.data.root)?,
+            index: response.data.index,
         };
 
         Ok(response)
@@ -729,19 +617,15 @@ impl SovereignRestClient {
             .await
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
-        let response = response.data.ok_or_else(|| {
-            ChainCommunicationError::CustomError(
-                "No validators and threshold found, is ISM multisig?".into(),
-            )
-        })?;
 
         let validators = response
+            .data
             .validators
             .iter()
             .map(|v| H256::from_str(&format!("0x{:0>64}", v.trim_start_matches("0x"))))
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((validators, response.threshold))
+        Ok((validators, response.data.threshold))
     }
 
     // @Validator Announce
@@ -751,8 +635,7 @@ impl SovereignRestClient {
     ) -> ChainResult<Vec<Vec<String>>> {
         #[derive(Clone, Debug, Deserialize)]
         struct Data {
-            _key: Option<String>,
-            value: Option<Vec<String>>,
+            value: Vec<String>,
         }
 
         let mut res = Vec::new();
@@ -766,18 +649,19 @@ impl SovereignRestClient {
             let response = self.http_get(&query).await.map_err(|e| {
                 ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}"))
             })?;
-            let response: Schema<Data> = serde_json::from_slice(&response)?;
+            let response: Result<Schema<Data>, serde_json::Error> =
+                serde_json::from_slice(&response);
 
-            if let Some(data) = response.data {
+            if let Ok(response) = response {
                 res[i].push(String::new());
-                if let Some(storage_locations) = data.value {
-                    storage_locations
-                        .into_iter()
-                        .enumerate()
-                        .for_each(|(j, storage_location)| {
-                            res[i][j] = storage_location;
-                        });
-                }
+                response
+                    .data
+                    .value
+                    .into_iter()
+                    .enumerate()
+                    .for_each(|(j, storage_location)| {
+                        res[i][j] = storage_location;
+                    });
             }
         }
 
@@ -786,39 +670,16 @@ impl SovereignRestClient {
 
     // @Validator Announce
     pub async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        #[derive(Clone, Debug, Deserialize)]
-        struct Data {
-            _key: Option<String>,
-            _value: Option<Vec<String>>,
-        }
+        let result = utils::announce_validator(announcement, &self.universal_wallet_client).await?;
+        let tx_id = &format!("0x{:0>128}", result.trim_start_matches("0x"));
 
-        // check if already registered
-        let query = format!(
-            "/modules/mailbox/state/validators/items/{:?}",
-            announcement.value.validator
-        );
-
-        let response = self
-            .http_get(&query)
-            .await
-            .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
-        let response: Schema<Data> = serde_json::from_slice(&response)?;
-
-        let mut tx_outcome = TxOutcome {
-            transaction_id: H512::default(),
-            executed: bool::default(),
+        // Upstream logic is only concerned with `executed` status is we've made it this far.
+        Ok(TxOutcome {
+            transaction_id: H512::from_str(tx_id)?,
+            executed: true,
             gas_used: U256::default(),
             gas_price: FixedPointNumber::default(),
-        };
-        if response.data.is_none() {
-            let res =
-                utils::announce_validator(announcement, &self.universal_wallet_client).await?;
-            tx_outcome.executed = true;
-            let tx_id = &format!("0x{:0>128}", res.trim_start_matches("0x"));
-            tx_outcome.transaction_id = H512::from_str(tx_id)?;
-        };
-
-        Ok(tx_outcome)
+        })
     }
 }
 
