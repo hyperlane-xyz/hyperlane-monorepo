@@ -18,6 +18,8 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
+use crate::ECLIPSE_DOMAIN;
+
 const SOLANA_DOMAIN: u32 = 1399811149;
 
 pub(crate) fn get_compute_unit_price_micro_lamports_for_id(domain: u32) -> u64 {
@@ -82,6 +84,13 @@ pub(crate) fn deploy_program(
                 "As this is not the first deploy attempt, the buffer {} is re-used",
                 buffer_keypair.pubkey()
             );
+        }
+
+        // Temporary measure for Eclipse due to incompatibility with Solana CLI 1.18.18
+        // to avoid setting a non-zero compute unit price, which is not supported
+        // by earlier versions of the Solana CLI.
+        if local_domain == ECLIPSE_DOMAIN {
+            compute_unit_price = 0;
         }
 
         if attempt_program_deploy(
