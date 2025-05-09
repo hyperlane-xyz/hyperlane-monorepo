@@ -203,25 +203,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   ): Promise<WithAddress<RoutingIsmConfig>> {
     const ism = AmountRoutingIsm__factory.connect(address, this.provider);
 
-    try {
-      const [lowerIsm, upperIsm, threshold] = await Promise.all([
-        ism.lower(),
-        ism.upper(),
-        ism.threshold(),
-      ]);
-      return {
-        type: IsmType.AMOUNT_ROUTING,
-        address,
-        lowerIsm: await this.deriveIsmConfig(lowerIsm),
-        upperIsm: await this.deriveIsmConfig(upperIsm),
-        threshold: threshold.toNumber(),
-      };
-    } catch {
-      return {
-        type: IsmType.ICA_ROUTING,
-        address,
-      };
-    }
+    const [lowerIsm, upperIsm, threshold] = await Promise.all([
+      ism.lower(),
+      ism.upper(),
+      ism.threshold(),
+    ]);
+    return {
+      type: IsmType.AMOUNT_ROUTING,
+      address,
+      lowerIsm: await this.deriveIsmConfig(lowerIsm),
+      upperIsm: await this.deriveIsmConfig(upperIsm),
+      threshold: threshold.toNumber(),
+    };
   }
 
   async deriveAggregationConfig(
