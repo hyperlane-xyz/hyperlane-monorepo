@@ -394,3 +394,26 @@ function internalTransformObj(
 
   return transformer(obj, propPath);
 }
+
+export function sortArraysInObject(
+  obj: any,
+  sortFunction?: (a: any, b: any) => number,
+): any {
+  // Check if the current object is an array
+  if (Array.isArray(obj)) {
+    return obj
+      .sort(sortFunction)
+      .map((item) => sortArraysInObject(item, sortFunction));
+  }
+  // Check if it's an object and not null or undefined
+  else if (isObject(obj)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        key,
+        sortArraysInObject(value, sortFunction),
+      ]),
+    );
+  }
+
+  return obj;
+}
