@@ -7,6 +7,8 @@ mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
 polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
 polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
+default_fallback_routing_ism_addr_b3 := "YOUR_DFR_ISM_B3_ADDRESS_HERE" # Update after deployment
+default_fallback_routing_ism_addr_ape := "YOUR_DFR_ISM_APE_ADDRESS_HERE" # Update after deployment
 simple_sender_receiver_addr_b3 := "0xc2f4e5df683a44e4b432958cdfa7340651206119"
 simple_sender_receiver_addr_ape := "0x9db781bb4f64f754c01652de4f2d452548105f4d"
 
@@ -40,9 +42,27 @@ deploy-polymer-ism-ape:
         --broadcast \
         -vvvv
 
+deploy-default-fallback-routing-ism-b3:
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
+    export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_ape }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_b3 }}" && \
+    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
+        --rpc-url "{{ rpc_endpoint_b3 }}" \
+        --broadcast \
+        -vvvv
+
+deploy-default-fallback-routing-ism-ape:
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
+    export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_b3 }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_ape }}" && \
+    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
+        --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
 deploy-simple-app-b3:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
-    export POLYMER_ISM_ADDRESS="{{ polymer_ism_addr_b3 }}" && \
+    export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_b3 }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_b3 }}" \
         --broadcast \
@@ -50,7 +70,7 @@ deploy-simple-app-b3:
 
 deploy-simple-app-ape:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_ape }}" && \
-    export POLYMER_ISM_ADDRESS="{{ polymer_ism_addr_ape }}" && \
+    export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_ape }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_ape }}" \
         --broadcast \
