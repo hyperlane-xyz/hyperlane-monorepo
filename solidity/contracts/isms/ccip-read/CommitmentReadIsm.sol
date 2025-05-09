@@ -9,10 +9,12 @@ import {InterchainAccountMessageReveal} from "../../middleware/libs/InterchainAc
 import {InterchainAccountRouter} from "../../middleware/InterchainAccountRouter.sol";
 import {CallLib} from "../../middleware/libs/Call.sol";
 import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
     using InterchainAccountMessageReveal for bytes;
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     string[] public urls;
     Mailbox public immutable mailbox;
@@ -62,18 +64,25 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             _metadata,
             (bytes32, CallLib.Call[])
         );
-        bytes32 actualHash = keccak256(_metadata);
 
-        bytes calldata body = _message.body();
-
-        if (actualHash != body.commitment()) {
+        bytes32 revealedHash = keccak256(_metadata);
+        bytes32 msgCommitment = _message.body().commitment();
+        if (revealedHash != msgCommitment) {
             return false;
         }
 
-        InterchainAccountRouter(payable(msg.sender)).revealAndExecute(
-            calls,
-            salt
+        InterchainAccountRouter icaRouter = InterchainAccountRouter(
+            _message.recipient().bytes32ToAddress()
         );
+
+        // If the commitment has been executed, don't call revealAndExecute, just let caller know the message is legit
+        if (
+            address(icaRouter.verifiedCommitments(msgCommitment)) == address(0)
+        ) {
+            return true;
+        }
+
+        icaRouter.revealAndExecute(calls, salt);
         return true;
     }
 }
