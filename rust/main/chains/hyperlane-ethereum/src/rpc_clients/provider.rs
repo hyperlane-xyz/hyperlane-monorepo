@@ -323,6 +323,13 @@ impl BuildableWithProvider for SubmitterProviderBuilder {
     type Output = Box<dyn EvmProviderForSubmitter>;
     const NEEDS_SIGNER: bool = true;
 
+    // the submitter does not use the ethers submission middleware.
+    // it uses its own logic for setting transaction parameters
+    // and landing them onchain
+    fn uses_ethers_submission_middleware(&self) -> bool {
+        false
+    }
+
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
