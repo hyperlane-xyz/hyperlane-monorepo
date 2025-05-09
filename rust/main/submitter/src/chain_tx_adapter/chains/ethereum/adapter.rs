@@ -6,7 +6,6 @@ use ethers::contract::builders::ContractCall;
 use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
-use eyre::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -16,13 +15,14 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::ContractLocator;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForSubmitter, SubmitterProviderBuilder};
 
-use crate::chain_tx_adapter::chains::ethereum::transaction::Precursor;
 use crate::{
     chain_tx_adapter::{adapter::TxBuildingResult, AdaptsChain, EthereumTxPrecursor, GasLimit},
     error::SubmitterError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
 };
+
+use super::transaction::Precursor;
 
 mod gas_limit_estimator;
 mod tx_status_checker;
@@ -101,7 +101,7 @@ impl AdaptsChain for EthereumTxAdapter {
         todo!()
     }
 
-    async fn estimate_tx(&self, tx: &mut Transaction) -> std::result::Result<(), SubmitterError> {
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         let precursor = tx.precursor_mut();
         gas_limit_estimator::estimate_tx(
             &self.provider,
@@ -140,9 +140,27 @@ impl AdaptsChain for EthereumTxAdapter {
 
     async fn reverted_payloads(
         &self,
-        _tx: &Transaction,
+        tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, SubmitterError> {
-        todo!()
+        let payload_details_and_precursors = tx
+            .payload_details
+            .iter()
+            .filter_map(|d| EthereumTxPrecursor::from_success_criteria(d).map(|p| (d, p)))
+            .collect::<Vec<_>>();
+
+        let mut reverted = Vec::new();
+        for (detail, precursor) in payload_details_and_precursors {
+            let success = self
+                .provider
+                .check(&precursor.tx, &precursor.function)
+                .await
+                .unwrap_or(true);
+            if !success {
+                reverted.push(detail.clone());
+            }
+        }
+
+        Ok(reverted)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
