@@ -407,12 +407,15 @@ async function getWarpCoreConfig(
       params.warpDeployConfig,
     );
 
-  for (const [, config] of Object.entries(tokenMetadata)) {
+  for (const [chain, config] of Object.entries(tokenMetadata)) {
     assert(
-      tokenMetadata && isTokenMetadata(config),
-      'Missing required token metadata',
+      config && isTokenMetadata(config),
+      `Missing required token metadata for chain ${chain}`,
     );
-    assert(config.decimals, 'Missing decimals on token metadata');
+    assert(
+      config.decimals,
+      `Missing decimals on token metadata for chain ${chain}`,
+    );
   }
 
   generateTokenConfigs(

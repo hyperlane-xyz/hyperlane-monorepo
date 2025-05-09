@@ -1,6 +1,8 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import { TokenMetadata } from './types.js';
 
-export type TokenMetadataMap = Record<string, TokenMetadata | undefined>;
+export type TokenMetadataMap = Record<string, TokenMetadata>;
 
 export function getDecimals(map: TokenMetadataMap): number {
   const decimalsList = Object.values(map)
@@ -10,9 +12,10 @@ export function getDecimals(map: TokenMetadataMap): number {
     )
     .map((config) => config.decimals);
 
-  if (decimalsList.length === 0) {
-    throw new Error(`No TokenMetadata or decimals defined for any chain`);
-  }
+  assert(
+    decimalsList.length,
+    'No TokenMetadata or decimals defined for any chain',
+  );
 
   const [first, ...rest] = decimalsList;
   for (const d of rest) {
@@ -34,12 +37,7 @@ export function getSymbol(
     return map[chain]?.symbol;
   }
 
-  for (const config of Object.values(map)) {
-    if (config?.symbol) {
-      return config.symbol;
-    }
-  }
-  return undefined;
+  return Object.values(map).find((config) => config?.symbol)?.symbol;
 }
 
 export function getName(

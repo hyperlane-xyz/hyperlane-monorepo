@@ -136,7 +136,6 @@ abstract class TokenDeployer<
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
-        metadataMap[chain] = undefined;
         continue;
       }
 
@@ -206,9 +205,9 @@ abstract class TokenDeployer<
   }
 
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
-    let tokenMetadata: TokenMetadataMap;
+    let tokenMetadataMap: TokenMetadataMap;
     try {
-      tokenMetadata = await TokenDeployer.deriveTokenMetadata(
+      tokenMetadataMap = await TokenDeployer.deriveTokenMetadata(
         this.multiProvider,
         configMap,
       );
@@ -218,9 +217,9 @@ abstract class TokenDeployer<
     }
 
     const resolvedConfigMap = objMap(configMap, (chain, config) => ({
-      decimals: getDecimals(tokenMetadata),
-      name: getName(tokenMetadata, chain),
-      symbol: getSymbol(tokenMetadata, chain),
+      decimals: getDecimals(tokenMetadataMap),
+      name: getName(tokenMetadataMap, chain),
+      symbol: getSymbol(tokenMetadataMap, chain),
       gas: gasOverhead(config.type),
       ...config,
     }));
