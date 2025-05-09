@@ -35,17 +35,17 @@ pub struct EthereumProvider<M> {
 
 impl<M> EthereumProvider<M> {
     /// Create a ContractCall object for a given transaction and function.
-    pub fn build_contract_call(
+    pub fn build_contract_call<D>(
         &self,
         tx: TypedTransaction,
         function: Function,
-    ) -> ContractCall<M, ()> {
+    ) -> ContractCall<M, D> {
         ContractCall {
             tx,
             function,
             block: None,
             client: self.provider.clone(),
-            datatype: PhantomData::<()>,
+            datatype: PhantomData::<D>,
         }
     }
 }
@@ -93,6 +93,9 @@ pub trait EvmProviderForSubmitter: Send + Sync {
 
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
+
+    /// Read-only call into blockchain which returns a boolean
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 }
 
 #[async_trait]
@@ -133,19 +136,29 @@ where
         tx: &TypedTransaction,
         function: &Function,
     ) -> Result<U256, ChainCommunicationError> {
-        let contract_call = self.build_contract_call(tx.clone(), function.clone());
+        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }
 
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
-        let contract_call = self.build_contract_call(tx.clone(), function.clone());
+        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
         let pending = contract_call
             .send()
             .await
             .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
 
         Ok(pending.tx_hash().into())
+    }
+
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool> {
+        let contract_call = self.build_contract_call::<bool>(tx.clone(), function.clone());
+        let success = contract_call
+            .call()
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        Ok(success)
     }
 }
 
