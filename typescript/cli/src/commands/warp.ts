@@ -479,6 +479,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         checkFrequency,
         withMetrics,
         monitorOnly,
+        coingeckoApiKey,
       });
 
       // Instantiate the factory used to create the different rebalancer components
@@ -500,7 +501,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
       // Instantiates the metrics that will publish stats from the monitored data
       const metrics = withMetrics
-        ? await contextFactory.createMetrics(coingeckoApiKey)
+        ? await contextFactory.createMetrics()
         : undefined;
 
       await monitor
