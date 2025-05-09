@@ -52,7 +52,6 @@ import {
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
-  isTokenMetadata,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -404,19 +403,6 @@ async function getWarpCoreConfig(
       params.warpDeployConfig,
     );
 
-  for (const [chain, config] of Object.entries(
-    tokenMetadataMap.getMetadata(),
-  )) {
-    assert(
-      config && isTokenMetadata(config),
-      `Missing required token metadata for chain ${chain}`,
-    );
-    assert(
-      config.decimals,
-      `Missing decimals on token metadata for chain ${chain}`,
-    );
-  }
-
   generateTokenConfigs(
     warpCoreConfig,
     params.warpDeployConfig,
@@ -426,7 +412,7 @@ async function getWarpCoreConfig(
 
   fullyConnectTokens(warpCoreConfig);
 
-  const symbol: string | undefined = tokenMetadataMap.getSymbol();
+  const symbol = tokenMetadataMap.getFirstSymbol();
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -447,9 +433,12 @@ function generateTokenConfigs(
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
 
-    const decimals = tokenMetadataMap.getDecimals();
+    const decimals: number | undefined =
+      tokenMetadataMap.getDecimals(chainName);
     const name: any = tokenMetadataMap.getName(chainName);
     const symbol: any = tokenMetadataMap.getSymbol(chainName);
+
+    assert(decimals, `Decimals for ${chainName} doesn't exist`);
 
     warpCoreConfig.tokens.push({
       chainName,
@@ -728,7 +717,7 @@ async function deriveMetadataFromExisting(
 
   return objMap(extendedConfigs, (_chain, extendedConfig) => {
     return {
-      ...existingTokenMetadata,
+      ...existingTokenMetadata.getMetadataForChain(_chain),
       ...extendedConfig,
     };
   });

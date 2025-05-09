@@ -35,6 +35,7 @@ import {
 } from './contracts.js';
 import {
   HypTokenRouterConfig,
+  TokenMetadata,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -124,10 +125,18 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadataMap> {
-    const metadataMap: TokenMetadataMap = new TokenMetadataMap({});
-    for (const [chain, config] of Object.entries(configMap)) {
+    const metadataMap: Record<string, TokenMetadata> = {};
+    const priorityGetter = (type: string) => {
+      return ['collateral', 'native'].indexOf(type);
+    };
+
+    const sortedEntries = Object.entries(configMap).sort(
+      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
+    );
+
+    for (const [chain, config] of sortedEntries) {
       if (isTokenMetadata(config)) {
-        metadataMap.setMetadata(chain, TokenMetadataSchema.parse(config));
+        metadataMap[chain] = TokenMetadataSchema.parse(config);
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
@@ -137,12 +146,9 @@ abstract class TokenDeployer<
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          metadataMap.setMetadata(
-            chain,
-            TokenMetadataSchema.parse({
-              ...nativeToken,
-            }),
-          );
+          metadataMap[chain] = TokenMetadataSchema.parse({
+            ...nativeToken,
+          });
           continue;
         }
       }
@@ -159,13 +165,10 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          metadataMap.setMetadata(
-            chain,
-            TokenMetadataSchema.parse({
-              name,
-              symbol,
-            }),
-          );
+          metadataMap[chain] = TokenMetadataSchema.parse({
+            name,
+            symbol,
+          });
           continue;
         }
 
@@ -195,17 +198,15 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        metadataMap.setMetadata(
-          chain,
-          TokenMetadataSchema.parse({
-            name,
-            symbol,
-            decimals,
-          }),
-        );
+        metadataMap[chain] = TokenMetadataSchema.parse({
+          name,
+          symbol,
+          decimals,
+        });
       }
     }
-    return metadataMap;
+
+    return new TokenMetadataMap(metadataMap);
   }
 
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
@@ -221,10 +222,12 @@ abstract class TokenDeployer<
     }
 
     const resolvedConfigMap = objMap(configMap, (chain, config) => ({
-      decimals: tokenMetadataMap.getDecimals(),
       name: tokenMetadataMap.getName(chain),
+      decimals: tokenMetadataMap.getDecimals(chain),
       symbol: tokenMetadataMap.getSymbol(chain),
+      scale: tokenMetadataMap.getScale(chain),
       gas: gasOverhead(config.type),
+      // TODO: Verify that config overwrites values here
       ...config,
     }));
     return super.deploy(resolvedConfigMap);

@@ -7,31 +7,42 @@ export class TokenMetadataMap {
 
   constructor(map: Record<string, TokenMetadata>) {
     this.tokenMetadataMap = map;
-  }
 
-  getDecimals(): number {
-    const decimalsList = Object.values(this.tokenMetadataMap)
-      .filter(
-        (config): config is TokenMetadata =>
-          config !== undefined && config.decimals !== undefined,
-      )
-      .map((config) => config.decimals);
-
+    // TODO: Check if decimals (and scale?) need to stay optional in the schema
     assert(
-      decimalsList.length,
-      'No TokenMetadata or decimals defined for any chain',
+      Object.values(this.tokenMetadataMap).every((config) => !!config.decimals),
+      'All decimals must be defined',
     );
 
-    const [first, ...rest] = decimalsList;
-    for (const d of rest) {
-      if (d !== first) {
-        throw new Error(
-          `Mismatched decimals found in TokenMetadata: expected ${first}, but found ${d}`,
-        );
-      }
-    }
+    if (!this.areDecimalsUniform()) {
+      const maxDecimals = Math.max(
+        ...Object.values(this.tokenMetadataMap).map(
+          (config) => config.decimals!,
+        ),
+      );
 
-    return first!;
+      Object.entries(this.tokenMetadataMap).forEach(([chain, config]) => {
+        if (config.decimals) {
+          const scale = 10 ** (maxDecimals - config.decimals);
+
+          assert(
+            this.tokenMetadataMap[chain].scale &&
+              scale !== this.tokenMetadataMap[chain].scale,
+            `Scale is not correct for ${chain}`,
+          );
+          this.tokenMetadataMap[chain].scale = scale;
+        }
+      });
+    }
+  }
+
+  getDecimals(chain: string): number | undefined {
+    if (this.tokenMetadataMap[chain]) {
+      return this.tokenMetadataMap[chain].decimals!;
+    }
+    return Object.values(this.tokenMetadataMap).find(
+      (config) => config?.decimals,
+    )?.decimals;
   }
 
   getMetadata(): Record<string, TokenMetadata | undefined> {
@@ -43,16 +54,23 @@ export class TokenMetadataMap {
   }
 
   getName(chain: string): string | undefined {
-    if (this.tokenMetadataMap[chain]?.name) {
+    if (this.tokenMetadataMap[chain]) {
       return this.tokenMetadataMap[chain]?.name;
     }
-
+    // TODO: Make sure to sort this correctly to derive first priority
     return Object.values(this.tokenMetadataMap).find((config) => config?.name)
       ?.name;
   }
 
-  getSymbol(chain: string = ''): string | undefined {
-    if (chain && this.tokenMetadataMap[chain]?.symbol) {
+  getScale(chain: string): number | undefined {
+    if (this.tokenMetadataMap[chain]) {
+      return this.tokenMetadataMap[chain]?.scale;
+    }
+    return undefined;
+  }
+
+  getSymbol(chain: string): string | undefined {
+    if (this.tokenMetadataMap[chain]) {
       return this.tokenMetadataMap[chain]?.symbol;
     }
 
@@ -60,7 +78,18 @@ export class TokenMetadataMap {
       ?.symbol;
   }
 
-  setMetadata(chain: string, metadata: TokenMetadata): void {
-    this.tokenMetadataMap[chain] = metadata;
+  getFirstSymbol(): string | undefined {
+    return Object.values(this.tokenMetadataMap).find((config) => config?.symbol)
+      ?.symbol;
+  }
+
+  areDecimalsUniform(): boolean {
+    const [first, ...rest] = Object.values(this.tokenMetadataMap);
+    for (const d of rest) {
+      if (d.decimals !== first.decimals) {
+        return false;
+      }
+    }
+    return true;
   }
 }
