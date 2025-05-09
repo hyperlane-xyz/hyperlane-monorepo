@@ -12,7 +12,7 @@ contract DeploySimpleMessageSenderReceiver is Script {
         // These should be set in your environment variables or .env file
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address mailboxAddress = vm.envAddress("MAILBOX_ADDRESS"); // Address of the deployed Mailbox proxy
-        address polymerIsmAddress = vm.envAddress("POLYMER_ISM_ADDRESS"); // Address of the deployed PolymerISM
+        address ismAddress = vm.envAddress("ISM_ADDRESS"); // Address of the deployed ISM (e.g., DefaultFallbackRoutingIsm)
 
         // --- Input Validation ---
         require(
@@ -20,8 +20,8 @@ contract DeploySimpleMessageSenderReceiver is Script {
             "MAILBOX_ADDRESS env var not set or invalid"
         );
         require(
-            polymerIsmAddress != address(0),
-            "POLYMER_ISM_ADDRESS env var not set or invalid"
+            ismAddress != address(0),
+            "ISM_ADDRESS env var not set or invalid"
         );
 
         vm.startBroadcast(deployerPrivateKey);
@@ -29,11 +29,10 @@ contract DeploySimpleMessageSenderReceiver is Script {
         // --- Deployment ---
         console.log("Deploying SimpleMessageSenderReceiver...");
         console.log("  Using Mailbox:", mailboxAddress);
-        console.log("  Using PolymerISM:", polymerIsmAddress);
-
+        console.log("  Using ISM:", ismAddress);
         SimpleMessageSenderReceiver instance = new SimpleMessageSenderReceiver(
             mailboxAddress,
-            polymerIsmAddress
+            ismAddress
         );
 
         deployedAddress = address(instance);
