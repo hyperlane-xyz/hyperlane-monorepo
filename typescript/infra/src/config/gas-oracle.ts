@@ -66,6 +66,27 @@ function getLocalStorageGasOracleConfigOverride(
     return agg;
   }, {} as ChainMap<ChainGasOracleParams>);
 
+  const getTypicalUsdQuote = (
+    local: ChainName,
+    remote: ChainName,
+    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+  ): number => {
+    const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
+      local,
+      remote,
+      getOverhead,
+    );
+    const localTokenUsdPrice = parseFloat(tokenPrices[local]);
+    return getUsdQuote(
+      localTokenUsdPrice,
+      localExchangeRateScale,
+      localNativeTokenDecimals,
+      localProtocolType,
+      gasOracleConfig,
+      typicalRemoteGasAmount,
+    );
+  };
+
   // Modifier to adjust the gas price to meet minimum USD cost requirements.
   const gasPriceModifier = (
     local: ChainName,
@@ -141,6 +162,7 @@ function getLocalStorageGasOracleConfigOverride(
     gasOracleParams,
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
     gasPriceModifier,
+    getTypicalUsdQuote,
   });
 }
 

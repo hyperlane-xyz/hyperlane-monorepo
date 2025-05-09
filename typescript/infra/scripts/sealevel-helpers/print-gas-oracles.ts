@@ -48,7 +48,8 @@ async function main() {
     if (!connectedChainsSet) {
       return undefined;
     }
-    const connectedChains = [...connectedChainsSet];
+    // Sort for consistently ordered outputs
+    const connectedChains = [...connectedChainsSet].sort();
 
     return connectedChains.reduce((agg, destination) => {
       const oracleConfig = igpConfig.oracleConfig[destination];
@@ -103,6 +104,8 @@ function getChainConnections(
       ['solanamainnet', 'everclear'],
       ['solanamainnet', 'infinityvm'],
       ['solanamainnet', 'sophon'],
+      // Temporary until the Frag warp routes are in
+      ['solanamainnet', 'soon', 'eclipsemainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
