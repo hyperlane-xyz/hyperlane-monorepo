@@ -187,6 +187,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
     superseed: true,
     superpositionmainnet: true,
+    svmbnb: true,
     swell: true,
     taiko: true,
     tangle: true,
@@ -333,6 +334,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
     superseed: true,
     superpositionmainnet: true,
+    svmbnb: true,
     swell: true,
     taiko: true,
     tangle: true,
@@ -479,6 +481,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
     superseed: true,
     superpositionmainnet: true,
+    svmbnb: true,
     swell: true,
     taiko: true,
     tangle: true,
@@ -860,7 +863,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '673c6d2-20250502-141150',
+      tag: '6df66f8-20250508-104808',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
