@@ -796,10 +796,10 @@
     "eclipsemainnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.eclipse.xyz/api",
+          "apiUrl": "https://api.eclipsescan.xyz/",
           "family": "other",
           "name": "Eclipse Explorer",
-          "url": "https://explorer.eclipse.xyz/"
+          "url": "https://eclipsescan.xyz/"
         }
       ],
       "blocks": {
@@ -836,7 +836,7 @@
         }
       ],
       "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2",
-      "interchainSecurityModule": "BgG35GxoaMgmiam3EJzcwivwQ2DTYGPTLfUCg7bhiH6V",
+      "interchainSecurityModule": "CMtST8GBWTTzBgYCdAm7Kfh4aVhM2KAeVvTo2gNoDgNU",
       "technicalStack": "other"
     },
     "endurance": {
@@ -9453,10 +9453,10 @@
     "svmbnb": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.svmbnbmainnet.soo.network/",
+          "apiUrl": "https://explorer.svmbnbmainnet.soo.network",
           "family": "other",
           "name": "svmBNB Explorer",
-          "url": "https://explorer.svmbnbmainnet.soo.network/"
+          "url": "https://explorer.svmbnbmainnet.soo.network"
         }
       ],
       "blocks": {
