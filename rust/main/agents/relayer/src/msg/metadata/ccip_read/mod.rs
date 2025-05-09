@@ -36,16 +36,16 @@ pub struct CcipReadIsmMetadataBuilder {
     base: MessageMetadataBuilder,
 }
 
-/// A Hyperlane (checkpoint, messageId) tuple
+/// An authenticated offchain lookup payload
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
-pub struct HyperlaneOffchainLookupAttestation {
+pub struct HyperlaneAuthenticatedOffchainLookup {
     message_id: H256,
     url_template: Vec<u8>,
     sender: H160,
     call_data: Vec<u8>,
 }
 
-impl Signable for HyperlaneOffchainLookupAttestation {
+impl Signable for HyperlaneAuthenticatedOffchainLookup {
     fn signing_hash(&self) -> H256 {
         H256::from_slice(
             Keccak256::new()
@@ -68,7 +68,7 @@ impl CcipReadIsmMetadataBuilder {
         url: &String,
     ) -> Result<String, MetadataBuildError> {
         // Derive the hash over call_data and sender
-        let signable = HyperlaneOffchainLookupAttestation {
+        let signable = HyperlaneAuthenticatedOffchainLookup {
             message_id: message.id(),
             url_template: url.clone().into(),
             call_data: info.call_data.clone().to_vec(),
@@ -184,7 +184,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         for url in info.urls.iter() {
             // Compute relayer authentication signature via EIP-191
             let maybe_signature_hex = if let Some(signer) = self.base.base_builder().get_signer() {
-                Some(Self::generate_signature_hex(&signer, &info, message, url).await?)
+                Some(Self::generate_signature_hex(signer, &info, message, url).await?)
             } else {
                 None
             };
@@ -280,7 +280,7 @@ mod test {
         );
 
         // Test the signature is valid
-        let signable = HyperlaneOffchainLookupAttestation {
+        let signable = HyperlaneAuthenticatedOffchainLookup {
             message_id: message.id(),
             url_template: url.into(),
             sender: info.sender.into(),
