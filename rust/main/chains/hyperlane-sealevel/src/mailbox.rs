@@ -552,4 +552,8 @@ impl Mailbox for SealevelMailbox {
         let process_instruction = self.get_process_instruction(message, metadata).await?;
         serde_json::to_vec(&process_instruction).map_err(Into::into)
     }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        Ok(None)
+    }
 }

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use ethers::abi::Function;
 use ethers::types::transaction::eip2718::TypedTransaction;
 
-use crate::payload::FullPayload;
+use crate::payload::{FullPayload, PayloadDetails};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct EthereumTxPrecursor {
@@ -29,9 +29,15 @@ impl EthereumTxPrecursor {
     }
 
     pub fn from_payload(payload: &FullPayload) -> Self {
-        use crate::chain_tx_adapter::chains::ethereum::payload::parse_data;
+        use super::payload::parse_data;
 
         let (tx, function) = parse_data(payload);
         EthereumTxPrecursor::new(tx, function)
+    }
+
+    pub fn from_success_criteria(details: &PayloadDetails) -> Option<Self> {
+        use super::payload::parse_success_criteria;
+
+        parse_success_criteria(details).map(|(tx, function)| EthereumTxPrecursor::new(tx, function))
     }
 }
