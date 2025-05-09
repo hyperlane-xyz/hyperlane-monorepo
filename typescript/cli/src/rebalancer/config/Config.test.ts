@@ -50,10 +50,10 @@ describe('Config', () => {
     expect(Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.deep.equal({
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
-      rebalancerKey: ANVIL_KEY,
       monitorOnly: false,
       withMetrics: false,
       coingeckoApiKey: COINGECKO_API_KEY,
+      rebalancerKey: ANVIL_KEY,
       chains: {
         chain1: {
           weight: 100n,
@@ -141,9 +141,9 @@ describe('Config', () => {
       warpRouteId: 'warpRouteId by override',
       checkFrequency: 1337,
       monitorOnly: false,
-      rebalancerKey: ANVIL_KEY,
       withMetrics: false,
       coingeckoApiKey: '',
+      rebalancerKey: ANVIL_KEY,
       chains: {
         chain1: {
           weight: 100n,
