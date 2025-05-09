@@ -4,12 +4,10 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
-  expandWarpDeployConfig,
-  getRouterAddressesFromWarpCoreConfig,
+  MultiProtocolWarpRouteModule,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
+import { assert, keepOnlyDiffObjects, objFilter } from '@hyperlane-xyz/utils';
 
-import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
   readWarpRouteDeployConfig,
@@ -21,7 +19,7 @@ import {
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
-import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
+import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -30,6 +28,7 @@ import {
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { formatYamlViolationsOutput } from '../utils/output.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 import {
   filterWarpConfigsToMatchingChains,
@@ -386,39 +385,24 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     ));
 
-    // Expand the config before removing non-EVM chain configs to correctly expand
-    // the remote routers
-    let expandedWarpDeployConfig = await expandWarpDeployConfig(
-      context.multiProvider,
-      warpDeployConfig,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
-    );
+    const multiProtocolWarpModule =
+      await MultiProtocolWarpRouteModule.fromDeployedConfig(
+        context.multiProvider,
+        warpDeployConfig,
+        warpCoreConfig,
+      );
 
-    // Remove any non EVM chain configs to avoid the checker crashing
-    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
-      (config) =>
-        context.multiProvider.getProtocol(config.chainName) ===
-        ProtocolType.Ethereum,
-    );
+    const checkResult = await multiProtocolWarpModule.check();
+    if (checkResult.isInvalid) {
+      log(
+        formatYamlViolationsOutput(
+          yamlStringify(keepOnlyDiffObjects(checkResult.violations), null, 2),
+        ),
+      );
+      process.exit(1);
+    }
 
-    expandedWarpDeployConfig = objFilter(
-      expandedWarpDeployConfig,
-      (chain, _config): _config is any =>
-        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
-
-    // Get on-chain config
-    const onChainWarpConfig = await getWarpRouteConfigsByCore({
-      context,
-      warpCoreConfig,
-    });
-
-    await runWarpRouteCheck({
-      onChainWarpConfig,
-      warpRouteConfig: expandedWarpDeployConfig,
-    });
-
-    process.exit(0);
+    logGreen(`No violations found`);
   },
 };
 

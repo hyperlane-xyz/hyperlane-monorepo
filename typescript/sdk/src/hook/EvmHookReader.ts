@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   WithAddress,
   assert,
   concurrentMap,
@@ -36,6 +37,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
+import { IHookReader } from './IHookReader.js';
 import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
@@ -56,8 +58,8 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-export interface HookReader {
-  deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
+export interface HookReader extends IHookReader<ProtocolType.Ethereum> {
+  deriveHookConfig(address: HookConfig): Promise<DerivedHookConfig>;
   deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>>;
@@ -92,6 +94,8 @@ export interface HookReader {
 }
 
 export class EvmHookReader extends HyperlaneReader implements HookReader {
+  readonly protocol: ProtocolType.Ethereum = ProtocolType.Ethereum;
+
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
   /**
    * HookConfig cache for already retrieved configs. Useful to avoid recomputing configs

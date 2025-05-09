@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   WithAddress,
   assert,
   concurrentMap,
@@ -33,6 +34,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
+import { IIsmReader } from './IIsmReader.js';
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
@@ -47,7 +49,7 @@ import {
   RoutingIsmConfig,
 } from './types.js';
 
-export interface IsmReader {
+export interface IsmReader extends IIsmReader<ProtocolType.Ethereum> {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
@@ -67,6 +69,7 @@ export interface IsmReader {
 }
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
+  readonly protocol: ProtocolType.Ethereum = ProtocolType.Ethereum;
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
   protected isZkSyncChain: boolean;
 

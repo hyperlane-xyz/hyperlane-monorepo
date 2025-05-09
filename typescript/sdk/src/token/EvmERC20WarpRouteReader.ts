@@ -15,6 +15,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   assert,
   eqAddress,
   getLogLevel,
@@ -36,6 +37,7 @@ import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { isProxy, proxyAdmin } from './../deploy/proxy.js';
+import { IWarpRouteReader } from './IWarpReader.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
@@ -47,7 +49,11 @@ import {
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
-export class EvmERC20WarpRouteReader extends HyperlaneReader {
+export class EvmERC20WarpRouteReader
+  extends HyperlaneReader
+  implements IWarpRouteReader<ProtocolType.Ethereum>
+{
+  readonly protocol: ProtocolType.Ethereum = ProtocolType.Ethereum;
   protected readonly logger = rootLogger.child({
     module: 'EvmERC20WarpRouteReader',
   });
@@ -58,8 +64,8 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     TokenType,
     ((address: Address) => Promise<HypTokenConfig>) | null
   >;
-  evmHookReader: EvmHookReader;
-  evmIsmReader: EvmIsmReader;
+  hookReader: EvmHookReader;
+  ismReader: EvmIsmReader;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -67,8 +73,8 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     super(multiProvider, chain);
-    this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
-    this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    this.hookReader = new EvmHookReader(multiProvider, chain, concurrency);
+    this.ismReader = new EvmIsmReader(multiProvider, chain, concurrency);
 
     this.deriveTokenConfigMap = {
       [TokenType.XERC20]: this.deriveHypXERC20TokenConfig.bind(this),
@@ -254,10 +260,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
 
     const derivedIsm = eqAddress(ism, constants.AddressZero)
       ? constants.AddressZero
-      : await this.evmIsmReader.deriveIsmConfig(ism);
+      : await this.ismReader.deriveIsmConfig(ism);
     const derivedHook = eqAddress(hook, constants.AddressZero)
       ? constants.AddressZero
-      : await this.evmHookReader.deriveHookConfig(hook);
+      : await this.hookReader.deriveHookConfig(hook);
 
     return {
       mailbox,

@@ -709,3 +709,4 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export { MultiProtocolWarpRouteModule } from './multi-vm/MultiProtocolWarpModule.js';

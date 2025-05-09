@@ -1,6 +1,5 @@
 import { zeroAddress } from 'viem';
 
-import { EvmHookReader, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -22,6 +21,7 @@ import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
+import { IWarpRouteReader } from './IWarpReader.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -93,6 +93,7 @@ export async function expandWarpDeployConfig(
   multiProvider: MultiProvider,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   deployedRoutersAddresses: ChainMap<Address>,
+  warpReadersByChain?: Partial<ChainMap<IWarpRouteReader<ProtocolType>>>,
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
@@ -163,32 +164,29 @@ export async function expandWarpDeployConfig(
 
       chainConfig.destinationGas = formattedDestinationGas;
 
-      const isEVMChain =
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
-
+      const hookReader =
+        warpReadersByChain && warpReadersByChain[chain]?.hookReader;
       // Expand the hook config only if we have an explicit config in the deploy config
       // and the current chain is an EVM one.
       // if we have an address we leave it like that to avoid deriving
       if (
-        isEVMChain &&
+        hookReader &&
         chainConfig.hook &&
         typeof chainConfig.hook !== 'string'
       ) {
-        const reader = new EvmHookReader(multiProvider, chain);
-
-        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+        chainConfig.hook = await hookReader.deriveHookConfig(chainConfig.hook);
       }
 
+      const ismReader =
+        warpReadersByChain && warpReadersByChain[chain]?.ismReader;
       // Expand the ism config only if we have an explicit config in the deploy config
       // if we have an address we leave it like that to avoid deriving
       if (
-        isEVMChain &&
+        ismReader &&
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
-        const reader = new EvmIsmReader(multiProvider, chain);
-
-        chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+        chainConfig.interchainSecurityModule = await ismReader.deriveIsmConfig(
           chainConfig.interchainSecurityModule,
         );
       }
