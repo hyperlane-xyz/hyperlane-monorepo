@@ -41,6 +41,8 @@ Contract deployment is managed using Foundry scripts and `just` targets.
     - `mailbox_contract_addr_ape`
     - `polymer_ism_addr_b3`
     - `polymer_ism_addr_ape`
+    - `default_fallback_routing_ism_addr_b3`
+    - `default_fallback_routing_ism_addr_ape`
     - `simple_sender_receiver_addr_b3`
     - `simple_sender_receiver_addr_ape`
   - Other variables like `polymer_prover_addr`, RPC endpoints, and chain IDs in `solidity/justfile` should also be verified for your target environment. The provided file contains example values.
@@ -89,11 +91,30 @@ The Polymer ISM contracts are responsible for verifying messages using proofs fr
   1. Find the deployed Polymer ISM contract addresses from the `broadcast` directory.
   2. Update `polymer_ism_addr_b3` and `polymer_ism_addr_ape` variables in `hyperlane-monorepo/solidity/justfile`.
 
-### 3. Deploy Simple Sender/Receiver Contracts (Test Application)
+### 3. Deploy Default Fallback Routing ISM Contracts
 
-These contracts demonstrate a basic cross-chain messaging application using the Polymer ISM.
+These contracts will route incoming messages. For messages from known Polymer-enabled origins (Ape Chain on B3, B3 Sepolia on Ape Chain), they will use the respective `PolymerISM` deployed in Step 2. For all other origins, they will fall back to the Mailbox's default ISM.
 
 - **Prerequisites:** Ensure `mailbox_contract_addr_b3/ape` and `polymer_ism_addr_b3/ape` are correctly set in `solidity/justfile`.
+- **Commands:**
+
+  ```bash
+  # On B3 Sepolia
+  just deploy-default-fallback-routing-ism-b3
+
+  # On Ape Chain
+  just deploy-default-fallback-routing-ism-ape
+  ```
+
+- **After deployment:**
+  1. Find the deployed `DefaultFallbackRoutingIsm` contract addresses.
+  2. Update `default_fallback_routing_ism_addr_b3` and `default_fallback_routing_ism_addr_ape` in `hyperlane-monorepo/solidity/justfile`.
+
+### 4. Deploy Simple Sender/Receiver Contracts (Test Application)
+
+These contracts demonstrate a basic cross-chain messaging application. They will be configured to use the `DefaultFallbackRoutingIsm` deployed in Step 3 as their ISM.
+
+- **Prerequisites:** Ensure `mailbox_contract_addr_b3/ape` and `default_fallback_routing_ism_addr_b3/ape` are correctly set in `solidity/justfile`.
 - **Commands:**
 
   ```bash
@@ -109,7 +130,7 @@ These contracts demonstrate a basic cross-chain messaging application using the 
   1. Find the deployed Simple Sender/Receiver contract addresses.
   2. Update `simple_sender_receiver_addr_b3` and `simple_sender_receiver_addr_ape` in `solidity/justfile`. These addresses are used by the `send-message-*` test targets.
 
-### 4. Sanity Check Contract Deployments
+### 5. Sanity Check Contract Deployments
 
 You can perform a quick check to ensure the Mailbox contracts are deployed and accessible. These commands use the addresses configured in `solidity/justfile`.
 
@@ -135,7 +156,7 @@ The Hyperlane relayer is responsible for observing messages on the source chain 
 - **Update the following in `config/polymer_test_config.json`:**
   - `chains.<chainName>.signer.key`: Replace `<replace_with_your_private_key>` with your actual private keys for both `apechain` and `b3`. These keys are used to sign transactions for relaying messages.
   - `chains.<chainName>.mailbox`: Ensure these addresses match the Mailbox proxy contract addresses you deployed in Step 3.1.
-  - `chains.<chainName>.index.from`: Adjust the starting block number for indexing if necessary (e.g., to the block after your contracts were deployed).
+  - `chains.<chainName>.index.from`: Adjust the starting block number for indexing if necessary (e.g., to a block close to your contract deployments).
   - The `gasPaymentEnforcement` is set to `policy: "none"`, which aligns with demonstrating message relaying without standard Hyperlane fee enforcement, using the Polymer ISM.
 
 ### 2. Run the Relayer
@@ -146,9 +167,7 @@ The Hyperlane relayer is responsible for observing messages on the source chain 
   just run-polymer-test-relayer
   ```
 
-  This command will:
-      1. Build the relayer: `cd rust/main/agents/relayer && cargo build`
-      2. Run the relayer: `rust/main/target/debug/relayer --config-path ./config/polymer_test_config.json`.
+  This command will: 1. Build the relayer: `cd rust/main/agents/relayer && cargo build` 2. Run the relayer: `rust/main/target/debug/relayer --config-path ./config/polymer_test_config.json`.
 
 ## Testing End-to-End Communication
 
