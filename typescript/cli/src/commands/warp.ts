@@ -13,6 +13,8 @@ import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   CommandModuleWithContext,
+  CommandModuleWithWarpApplyContext,
+  CommandModuleWithWarpDeployContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
@@ -72,7 +74,7 @@ export const warpCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
-export const apply: CommandModuleWithWriteContext<{
+export const apply: CommandModuleWithWarpApplyContext<{
   config?: string;
   warp?: string;
   symbol?: string;
@@ -119,7 +121,7 @@ export const apply: CommandModuleWithWriteContext<{
   },
 };
 
-export const deploy: CommandModuleWithWriteContext<{
+export const deploy: CommandModuleWithWarpDeployContext<{
   config?: string;
   'dry-run': string;
   'from-address': string;
@@ -147,7 +149,7 @@ export const deploy: CommandModuleWithWriteContext<{
       await runWarpRouteDeploy({
         context,
         // Already fetched in the resolveWarpRouteConfigChains
-        warpDeployConfig: context.warpDeployConfig!!,
+        warpDeployConfig: context.warpDeployConfig,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
