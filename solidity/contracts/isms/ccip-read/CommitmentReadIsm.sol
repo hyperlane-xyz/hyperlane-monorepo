@@ -67,9 +67,10 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
 
         bytes32 revealedHash = keccak256(_metadata);
         bytes32 msgCommitment = _message.body().commitment();
-        if (revealedHash != msgCommitment) {
-            revert("Commitment ISM: Revealed Hash Invalid");
-        }
+        require(
+            revealedHash == msgCommitment,
+            "Commitment ISM: Revealed Hash Invalid"
+        );
 
         InterchainAccountRouter icaRouter = InterchainAccountRouter(
             _message.recipient().bytes32ToAddress()
