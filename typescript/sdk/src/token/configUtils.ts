@@ -7,8 +7,6 @@ import {
   addressToBytes32,
   objMap,
   promiseObjAll,
-  retryAsync,
-  rootLogger,
   transformObj,
 } from '@hyperlane-xyz/utils';
 
@@ -150,12 +148,18 @@ export async function expandWarpDeployConfig(params: {
       ...config,
     };
 
-    // Virtual config - Set to true because we expect these specific contracts to be verified
-    if (includeVirtual)
+    // Virtual Config Expansion
+    if (includeVirtual) {
       chainConfig.contractVerificationStatus = {
-        TransparentUpgradeableProxy: true,
         [hypERC20contracts[config.type]]: true,
       };
+
+      if (isDeployedAsProxyByChain[chain]) {
+        chainConfig.contractVerificationStatus.TransparentUpgradeableProxy =
+          true;
+        chainConfig.contractVerificationStatus.ProxyAdmin = true;
+      }
+    }
 
     // Properly set the remote routers addresses to their 32 bytes representation
     // as that is how they are set on chain
