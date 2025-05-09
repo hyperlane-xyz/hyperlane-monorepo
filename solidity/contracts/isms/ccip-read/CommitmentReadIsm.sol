@@ -68,21 +68,20 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         bytes32 revealedHash = keccak256(_metadata);
         bytes32 msgCommitment = _message.body().commitment();
         if (revealedHash != msgCommitment) {
-            return false;
+            revert("Commitment ISM: Revealed Hash Invalid");
         }
 
         InterchainAccountRouter icaRouter = InterchainAccountRouter(
             _message.recipient().bytes32ToAddress()
         );
 
-        // If the commitment has been executed, don't call revealAndExecute, just let caller know the message is legit
+        // If the commitment hasn't been executed, execute it
         if (
-            address(icaRouter.verifiedCommitments(msgCommitment)) == address(0)
+            address(icaRouter.verifiedCommitments(msgCommitment)) != address(0)
         ) {
-            return true;
+            icaRouter.revealAndExecute(calls, salt);
         }
 
-        icaRouter.revealAndExecute(calls, salt);
         return true;
     }
 }
