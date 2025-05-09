@@ -43,6 +43,7 @@ export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 export const E2E_TEST_BURN_ADDRESS =
   '0x0000000000000000000000000000000000000001';
+export const COINGECKO_API_KEY = 'CG-Gmk12Pz3A4L9qR5XtV7Kd8N3';
 
 export const CHAIN_NAME_2 = 'anvil2';
 export const CHAIN_NAME_3 = 'anvil3';
