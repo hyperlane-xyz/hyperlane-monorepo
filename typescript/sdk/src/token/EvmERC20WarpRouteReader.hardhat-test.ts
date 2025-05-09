@@ -161,7 +161,7 @@ describe('ERC20WarpRouterReader', async () => {
 
     // Check hook because they're potentially objects
     expect(derivedConfig.hook).to.deep.equal(
-      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+      await evmERC20WarpRouteReader.hookReader.deriveHookConfig(
         config[chain].hook as string,
       ),
     );
@@ -211,7 +211,7 @@ describe('ERC20WarpRouterReader', async () => {
 
     // Check hook because they're potentially objects
     expect(derivedConfig.hook).to.deep.equal(
-      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+      await evmERC20WarpRouteReader.hookReader.deriveHookConfig(
         config[chain].hook as string,
       ),
     );
@@ -261,7 +261,7 @@ describe('ERC20WarpRouterReader', async () => {
 
     // Check hook because they're potentially objects
     expect(derivedConfig.hook).to.deep.equal(
-      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+      await evmERC20WarpRouteReader.hookReader.deriveHookConfig(
         config[chain].hook as string,
       ),
     );
