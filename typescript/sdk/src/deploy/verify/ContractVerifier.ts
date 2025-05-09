@@ -2,7 +2,7 @@ import fetch from 'cross-fetch';
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import { Address, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -223,9 +223,9 @@ export class ContractVerifier {
           errorMessage = `${responseJson.message}: ${responseJson.result}`;
           break;
         default:
-          errorMessage = `Verification failed: ${
-            JSON.stringify(responseJson.result) ?? response.statusText
-          }`;
+          errorMessage = `Verification failed: ${JSON.stringify(
+            responseJson.result ?? response.statusText,
+          )}`;
           break;
       }
 
@@ -241,9 +241,9 @@ export class ContractVerifier {
     }
 
     if (responseJson.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
-      const errorMessage = `Verification failed. ${
-        JSON.stringify(responseJson.result) ?? response.statusText
-      }`;
+      const errorMessage = `Verification failed. ${JSON.stringify(
+        responseJson.result ?? response.statusText,
+      )}`;
       verificationLogger.debug(errorMessage);
       throw new Error(`[${chain}] ${errorMessage}`);
     }
@@ -333,6 +333,34 @@ export class ContractVerifier {
         guid: guid,
       },
     );
+  }
+
+  async getContractVerificationStatus(
+    chain: ChainName,
+    address: Address,
+    verificationLogger: Logger,
+  ): Promise<{ isVerified: false } | { isVerified: true; name: string }> {
+    verificationLogger.trace(
+      `Fetching contract ABI for ${chain} address ${address}`,
+    );
+    const sourceCodeResults = (
+      await this.submitForm(
+        chain,
+        ExplorerApiActions.GETSOURCECODE,
+        verificationLogger,
+        { address },
+      )
+    )[0]; // This specific query only returns 1 result
+
+    // Explorer won't return ContractName if unverified
+    return sourceCodeResults.ContractName
+      ? {
+          isVerified: true,
+          name: sourceCodeResults.ContractName,
+        }
+      : {
+          isVerified: false,
+        };
   }
 
   private getProxyData(input: ContractVerificationInput) {

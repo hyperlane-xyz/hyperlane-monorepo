@@ -4,6 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  expandOnChainWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -384,11 +385,14 @@ export const check: CommandModuleWithContext<{
 
     // Expand the config before removing non-EVM chain configs to correctly expand
     // the remote routers
-    let expandedWarpDeployConfig = await expandWarpDeployConfig(
-      context.multiProvider,
+    const deployedRoutersAddresses =
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+    let expandedWarpDeployConfig = await expandWarpDeployConfig({
+      multiProvider: context.multiProvider,
       warpDeployConfig,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
-    );
+      deployedRoutersAddresses,
+      includeVirtual: true,
+    });
 
     // Remove any non EVM chain configs to avoid the checker crashing
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
@@ -409,8 +413,15 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     });
 
+    // Add virtual config
+    const expandedOnChainWarpConfig = await expandOnChainWarpDeployConfig({
+      multiProvider: context.multiProvider,
+      warpDeployConfig: onChainWarpConfig,
+      deployedRoutersAddresses,
+    });
+
     await runWarpRouteCheck({
-      onChainWarpConfig,
+      onChainWarpConfig: expandedOnChainWarpConfig,
       warpRouteConfig: expandedWarpDeployConfig,
     });
 

@@ -17,10 +17,13 @@ import { ChainMap } from '../types.js';
 import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { gasOverhead } from './config.js';
+import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   HypTokenRouterConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
@@ -78,11 +81,31 @@ export function getRouterAddressesFromWarpCoreConfig(
   ) as ChainMap<Address>;
 }
 
-export async function expandWarpDeployConfig(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  deployedRoutersAddresses: ChainMap<Address>,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
+/**
+ * Expands a Warp deploy config with additional data
+ *
+ * @param multiProvider
+ * @param warpDeployConfig - The warp deployment config
+ * @param deployedRoutersAddresses - Addresses of deployed routers for each chain
+ * @param includeVirtual - Optional flag to expand virtual config details
+ * @returns A promise resolving to an expanded Warp deploy config with derived and virtual metadata
+ */
+export async function expandWarpDeployConfig(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  deployedRoutersAddresses: ChainMap<Address>;
+  includeVirtual: boolean;
+}): Promise<
+  WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>
+> {
+  const {
+    multiProvider,
+    warpDeployConfig,
+    deployedRoutersAddresses,
+    includeVirtual,
+  } = params;
+
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
@@ -109,7 +132,8 @@ export async function expandWarpDeployConfig(
         warpDeployConfig,
       );
 
-    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] = {
+    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
+      Partial<HypTokenRouterVirtualConfig> = {
       // Default Expansion
       ...derivedTokenMetadata,
       remoteRouters,
@@ -120,10 +144,22 @@ export async function expandWarpDeployConfig(
         ? { owner: config.owner }
         : undefined,
       isNft: false,
-
       // User-specified config takes precedence
       ...config,
     };
+
+    // Virtual Config Expansion
+    if (includeVirtual) {
+      chainConfig.contractVerificationStatus = {
+        [hypERC20contracts[config.type]]: true,
+      };
+
+      if (isDeployedAsProxyByChain[chain]) {
+        chainConfig.contractVerificationStatus.TransparentUpgradeableProxy =
+          true;
+        chainConfig.contractVerificationStatus.ProxyAdmin = true;
+      }
+    }
 
     // Properly set the remote routers addresses to their 32 bytes representation
     // as that is how they are set on chain
@@ -138,6 +174,28 @@ export async function expandWarpDeployConfig(
 
     return chainConfig;
   });
+}
+
+export async function expandOnChainWarpDeployConfig(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  deployedRoutersAddresses: ChainMap<Address>;
+}) {
+  const { multiProvider, warpDeployConfig, deployedRoutersAddresses } = params;
+
+  return promiseObjAll(
+    objMap(warpDeployConfig, async (chain, config) => {
+      const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
+      const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
+        chain,
+        deployedRoutersAddresses[chain],
+      );
+      return {
+        ...warpVirtualConfig,
+        ...config,
+      };
+    }),
+  );
 }
 
 const transformWarpDeployConfigToCheck: TransformObjectTransformer = (

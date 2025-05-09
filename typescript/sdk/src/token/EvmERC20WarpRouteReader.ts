@@ -13,6 +13,8 @@ import {
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   assert,
@@ -32,16 +34,17 @@ import {
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { isProxy, proxyAdmin } from './../deploy/proxy.js';
+import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
+  HypTokenRouterVirtualConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
@@ -60,11 +63,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  contractVerifier: ContractVerifier;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
@@ -89,6 +94,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
     };
+
+    this.contractVerifier =
+      contractVerifier ??
+      new ContractVerifier(
+        multiProvider,
+        {},
+        coreBuildArtifact,
+        ExplorerLicenseType.MIT,
+      );
   }
 
   /**
@@ -121,6 +135,48 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       proxyAdmin,
       destinationGas,
     };
+  }
+
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+    virtualConfig: { contractVerificationStatus: Record<string, boolean> } = {
+      contractVerificationStatus: {},
+    },
+  ): Promise<HypTokenRouterVirtualConfig> {
+    try {
+      const verificationStatus =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          address,
+          this.logger,
+        );
+
+      if (verificationStatus.isVerified)
+        virtualConfig.contractVerificationStatus[verificationStatus.name] =
+          true;
+
+      if (await isProxy(this.provider, address)) {
+        // Derive implementation status
+        await this.deriveWarpRouteVirtualConfig(
+          chain,
+          await proxyImplementation(this.provider, address),
+          virtualConfig,
+        );
+
+        // Derive ProxyAdmin status
+        await this.deriveWarpRouteVirtualConfig(
+          chain,
+          await proxyAdmin(this.provider, address),
+          virtualConfig,
+        );
+      }
+
+      return virtualConfig;
+    } catch (e) {
+      this.logger.info(`Error deriving warp virtual config: ${e}`);
+      return virtualConfig;
+    }
   }
 
   /**

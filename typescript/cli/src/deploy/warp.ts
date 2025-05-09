@@ -619,11 +619,12 @@ async function updateExistingWarpRoute(
   const deployedRoutersAddresses =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
-  const expandedWarpDeployConfig = await expandWarpDeployConfig(
+  const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
-  );
+    includeVirtual: false,
+  });
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
