@@ -96,8 +96,9 @@ export class Executor implements IExecutor {
 
     const results = await Promise.allSettled(
       transactions.map(async ({ signer, populatedTx }) => {
-        console.log('populatedTx', populatedTx);
-        const tx = await signer.sendTransaction(populatedTx);
+        const txObj = { ...populatedTx, value: 1 };
+        console.log('populatedTx', txObj);
+        const tx = await signer.sendTransaction(txObj);
         const receipt = await tx.wait();
 
         return receipt;
