@@ -4,6 +4,7 @@ import { rmSync } from 'fs';
 
 import {
   ANVIL_KEY,
+  COINGECKO_API_KEY,
   REBALANCER_CONFIG_PATH,
 } from '../../tests/commands/helpers.js';
 import { writeYamlOrJson } from '../../utils/files.js';
@@ -17,6 +18,7 @@ describe('Config', () => {
     data = {
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
+      coingeckoApiKey: COINGECKO_API_KEY,
       chain1: {
         weight: 100,
         tolerance: 0,
@@ -51,6 +53,7 @@ describe('Config', () => {
       rebalancerKey: ANVIL_KEY,
       monitorOnly: false,
       withMetrics: false,
+      coingeckoApiKey: COINGECKO_API_KEY,
       chains: {
         chain1: {
           weight: 100n,
@@ -132,6 +135,7 @@ describe('Config', () => {
         checkFrequency: 1337,
         monitorOnly: false,
         withMetrics: false,
+        coingeckoApiKey: '',
       }),
     ).to.deep.equal({
       warpRouteId: 'warpRouteId by override',
@@ -139,6 +143,7 @@ describe('Config', () => {
       monitorOnly: false,
       rebalancerKey: ANVIL_KEY,
       withMetrics: false,
+      coingeckoApiKey: '',
       chains: {
         chain1: {
           weight: 100n,
