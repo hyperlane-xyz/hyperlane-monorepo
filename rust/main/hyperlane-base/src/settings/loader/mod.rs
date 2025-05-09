@@ -17,9 +17,9 @@ mod case_adapter;
 mod environment;
 
 /// Deserialize a settings object from the configs.
-pub fn load_settings<T, R>() -> ConfigResult<R>
+pub async fn load_settings<T, R>() -> ConfigResult<R>
 where
-    T: DeserializeOwned + Debug,
+    T: DeserializeOwned + Debug + Send + 'static,
     R: FromRawConf<T>,
 {
     let root_path = ConfigPath::default();
@@ -124,7 +124,7 @@ where
         })
         .into_config_result(|| root_path.clone())?;
 
-    let res = raw_config.parse_config(&root_path);
+    let res = raw_config.parse_config(&root_path).await;
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
     }
