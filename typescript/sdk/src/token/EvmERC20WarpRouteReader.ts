@@ -37,7 +37,7 @@ import {
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { isProxy, proxyAdmin } from './../deploy/proxy.js';
+import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
@@ -63,12 +63,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  contractVerifier: ContractVerifier;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
-    protected readonly contractVerifier?: ContractVerifier,
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
@@ -94,12 +95,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.syntheticUri]: null,
     };
 
-    this.contractVerifier ??= new ContractVerifier(
-      multiProvider,
-      {},
-      coreBuildArtifact,
-      ExplorerLicenseType.MIT,
-    );
+    this.contractVerifier =
+      contractVerifier ??
+      new ContractVerifier(
+        multiProvider,
+        {},
+        coreBuildArtifact,
+        ExplorerLicenseType.MIT,
+      );
   }
 
   /**
@@ -141,24 +144,39 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       contractVerificationStatus: {},
     },
   ): Promise<HypTokenRouterVirtualConfig> {
-    const contractSourceResults =
-      await this.contractVerifier!.getVerifiedContractSourceCode(
-        chain,
-        address,
-        this.logger,
-      );
+    try {
+      const verificationStatus =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          address,
+          this.logger,
+        );
 
-    virtualConfig.contractVerificationStatus[contractSourceResults.name!] =
-      true;
+      if (verificationStatus.isVerified)
+        virtualConfig.contractVerificationStatus[verificationStatus.name] =
+          true;
 
-    if (contractSourceResults.isProxy)
-      await this.deriveWarpRouteVirtualConfig(
-        chain,
-        contractSourceResults.expectedimplementation!,
-        virtualConfig,
-      );
+      if (await isProxy(this.provider, address)) {
+        // Derive implementation status
+        await this.deriveWarpRouteVirtualConfig(
+          chain,
+          await proxyImplementation(this.provider, address),
+          virtualConfig,
+        );
 
-    return virtualConfig;
+        // Derive ProxyAdmin status
+        await this.deriveWarpRouteVirtualConfig(
+          chain,
+          await proxyAdmin(this.provider, address),
+          virtualConfig,
+        );
+      }
+
+      return virtualConfig;
+    } catch (e) {
+      this.logger.info(`Error deriving warp virtual config: ${e}`);
+      return virtualConfig;
+    }
   }
 
   /**

@@ -335,11 +335,11 @@ export class ContractVerifier {
     );
   }
 
-  async getVerifiedContractSourceCode(
+  async getContractVerificationStatus(
     chain: ChainName,
     address: Address,
     verificationLogger: Logger,
-  ): Promise<Partial<ContractVerificationInput>> {
+  ): Promise<{ isVerified: false } | { isVerified: true; name: string }> {
     verificationLogger.trace(
       `Fetching contract ABI for ${chain} address ${address}`,
     );
@@ -352,15 +352,15 @@ export class ContractVerifier {
       )
     )[0]; // This specific query only returns 1 result
 
-    return {
-      address,
-      name: sourceCodeResults.ContractName,
-      expectedimplementation:
-        sourceCodeResults.ImplementationAddress ||
-        sourceCodeResults.Implementation,
-      isProxy:
-        sourceCodeResults.IsProxy === 'true' || sourceCodeResults.Proxy === '1',
-    };
+    // Explorer won't return ContractName if unverified
+    return sourceCodeResults.ContractName
+      ? {
+          isVerified: true,
+          name: sourceCodeResults.ContractName,
+        }
+      : {
+          isVerified: false,
+        };
   }
 
   private getProxyData(input: ContractVerificationInput) {
