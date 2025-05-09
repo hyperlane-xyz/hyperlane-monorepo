@@ -146,7 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: false,
+    arcadiatestnet2: true,
     auroratestnet: true,
     basecamptestnet: true,
     basesepolia: true,
