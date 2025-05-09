@@ -22,6 +22,7 @@ const BaseConfigSchema = z.object({
   checkFrequency: z.number().optional(),
   withMetrics: z.boolean().optional(),
   monitorOnly: z.boolean().optional(),
+  coingeckoApiKey: z.string().optional(),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
@@ -48,6 +49,7 @@ export class Config {
       checkFrequency: fileCheckFrequency,
       monitorOnly: fileMonitorOnly,
       withMetrics: fileWithMetrics,
+      coingeckoApiKey: fileWithCoingeckoApiKey,
       ...chains
     } = validationResult.data;
 
@@ -59,6 +61,8 @@ export class Config {
     const checkFrequency = overrides.checkFrequency ?? fileCheckFrequency;
     const monitorOnly = overrides.monitorOnly ?? fileMonitorOnly ?? false;
     const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
+    const coingeckoApiKey =
+      overrides.coingeckoApiKey ?? fileWithCoingeckoApiKey ?? '';
 
     if (!warpRouteId) {
       throw new Error('warpRouteId is required');
@@ -74,6 +78,7 @@ export class Config {
       checkFrequency,
       monitorOnly,
       withMetrics,
+      coingeckoApiKey,
       chains,
     );
   }
@@ -84,6 +89,7 @@ export class Config {
     public readonly checkFrequency: number,
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
+    public readonly coingeckoApiKey: string,
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 }
