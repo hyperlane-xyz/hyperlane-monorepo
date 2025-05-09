@@ -28,6 +28,7 @@ where
     let mut builder = Config::builder();
 
     // Always load the default config files (`rust/main/config/*.json`)
+    println!("Loading default config files");
     for entry in PathBuf::from("./config")
         .read_dir()
         .context("Failed to open config directory")
@@ -46,10 +47,12 @@ where
         }
     }
 
+    println!("Loading default config files complete");
     // Load a set of additional user specified config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
         .map(|s| s.split(',').map(|s| s.to_owned()).collect())
         .unwrap_or_default();
+    println!("Loading user config files");
 
     for path in &config_file_paths {
         let p = PathBuf::from(path);
@@ -77,6 +80,7 @@ where
         }
     }
 
+    println!("Loading env vars and command line arguments");
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(CaseAdapter::new(
@@ -90,6 +94,7 @@ where
         .build()
         .context("Failed to load config sources")
         .into_config_result(|| root_path.clone())?;
+    println!("Loading env vars and command line arguments complete");
 
     let formatted_config = {
         let f = format!("{config_deserializer:#?}");
@@ -104,6 +109,7 @@ where
         }
     };
 
+    println!("Deserializing config");
     let raw_config = Config::try_deserialize::<T>(config_deserializer)
         .or_else(|err| {
             let mut err = if let Some(source_err) = err.source() {
@@ -121,6 +127,7 @@ where
         })
         .into_config_result(|| root_path.clone())?;
 
+    println!("Deserializing config complete");
     let res = raw_config.parse_config(&root_path);
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
