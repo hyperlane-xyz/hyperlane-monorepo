@@ -22,6 +22,7 @@ COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY solidity/package.json ./solidity/
+COPY starknet/package.json ./starknet/ 
 
 RUN yarn install && yarn cache clean
 
