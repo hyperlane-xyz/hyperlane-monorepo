@@ -46,7 +46,7 @@ pub enum CheckpointSyncerConf {
 #[derive(Debug, thiserror::Error)]
 pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
-    #[error("Fatal: A reorg event has been detected, manual intervention required: {0:?}")]
+    #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. {0:?}")]
     ReorgEvent(ReorgEvent),
     /// Error communicating with the chain
     #[error(transparent)]
