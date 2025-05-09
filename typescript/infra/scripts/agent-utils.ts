@@ -514,10 +514,11 @@ export function getKeyForRole(
   role: Role,
   chain?: ChainName,
   index?: number,
+  protocol?: ProtocolType,
 ): CloudAgentKey {
   debugLog(`Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
-  return getCloudAgentKey(agentConfig, role, chain, index);
+  return getCloudAgentKey(agentConfig, role, chain, index, protocol);
 }
 
 export async function getMultiProtocolProvider(

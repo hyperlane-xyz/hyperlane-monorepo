@@ -21,11 +21,14 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  EthersV5Signer,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
   ProviderType,
   SolanaWeb3Provider,
+  SolanaWeb3Signer,
   TypedProvider,
+  TypedSigner,
   TypedTransaction,
   ViemProvider,
 } from './ProviderType.js';
@@ -41,6 +44,7 @@ import {
 export interface MultiProtocolProviderOptions {
   logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
+  signers?: ChainMap<ProviderMap<TypedSigner>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
 
@@ -60,7 +64,7 @@ export class MultiProtocolProvider<
   // Chain name -> provider type -> provider
   protected readonly providers: ChainMap<ProviderMap<TypedProvider>>;
   // Chain name -> provider type -> signer
-  protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
+  protected signers: ChainMap<ProviderMap<TypedSigner>>;
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
   public readonly logger: Logger;
 
@@ -75,6 +79,7 @@ export class MultiProtocolProvider<
         module: 'MultiProtocolProvider',
       });
     this.providers = options.providers || {};
+    this.signers = options.signers || {};
     this.providerBuilders =
       options.providerBuilders || defaultProviderBuilderMap;
   }
@@ -229,6 +234,55 @@ export class MultiProtocolProvider<
     for (const chain of Object.keys(providers)) {
       this.setProvider(chain, providers[chain]);
     }
+  }
+
+  tryGetSigner(
+    chainNameOrId: ChainNameOrId,
+    type?: ProviderType,
+  ): TypedSigner | null {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata) return null;
+    const { name, protocol } = metadata;
+    type = type || PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
+    if (!type) return null;
+    return this.signers[name]?.[type] || null;
+  }
+
+  getSigner(chainNameOrId: ChainNameOrId, type?: ProviderType): TypedSigner {
+    const signer = this.tryGetSigner(chainNameOrId, type);
+    if (!signer) throw new Error(`No signer available for ${chainNameOrId}`);
+    return signer;
+  }
+
+  protected getSpecificSigner<T>(
+    chainNameOrId: ChainNameOrId,
+    type: ProviderType,
+  ): T {
+    const signer = this.getSigner(chainNameOrId, type);
+    return signer.signer as T;
+  }
+
+  getSolanaWeb3Signer(
+    chainNameOrId: ChainNameOrId,
+  ): SolanaWeb3Signer['signer'] {
+    return this.getSpecificSigner<SolanaWeb3Signer['signer']>(
+      chainNameOrId,
+      ProviderType.SolanaWeb3,
+    );
+  }
+
+  getEthersV5Signer(chainNameOrId: ChainNameOrId): EthersV5Signer['signer'] {
+    return this.getSpecificSigner<EthersV5Signer['signer']>(
+      chainNameOrId,
+      ProviderType.EthersV5,
+    );
+  }
+
+  setSigner(chainNameOrId: ChainNameOrId, signer: TypedSigner): TypedSigner {
+    const chainName = this.getChainName(chainNameOrId);
+    this.signers[chainName] ||= {};
+    this.signers[chainName][signer.type] = signer;
+    return signer;
   }
 
   estimateTransactionFee({
