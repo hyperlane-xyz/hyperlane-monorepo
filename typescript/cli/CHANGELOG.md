@@ -1,5 +1,20 @@
 # @hyperlane-xyz/cli
 
+## 12.6.0
+
+### Minor Changes
+
+- ce0b173: Refactored warp route configuration functions to use object parameters instead of positional parameters for improved clarity and flexibility.
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+- de7c6ae: Added registry based warp configs support
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- 166f849: Remove outputting isNft in warp init config
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+
 ## 12.5.0
 
 ### Minor Changes
