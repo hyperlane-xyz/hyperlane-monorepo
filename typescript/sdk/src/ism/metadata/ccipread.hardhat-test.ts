@@ -125,22 +125,22 @@ describe('CCIP-Read ISM Integration', () => {
     // Verify that fetch was called exactly once
     expect(fetchStub.calledOnce).to.be.true;
     const [url, options] = fetchStub.getCall(0).args;
-    expect(url).to.equal(
-      CCIP_READ_SERVER_URL.replace('{data}', message.message),
-    );
     const payload = JSON.parse(options.body as string);
+    expect(url).to.equal(CCIP_READ_SERVER_URL.replace('{data}', payload.data));
 
     // Should include sender, data, and signature
     expect(payload).to.include.keys('sender', 'data', 'signature');
     expect(payload.sender).to.equal(ccipReadIsm.address);
-    expect(payload.data).to.equal(message.message);
 
     // Verify that signature is valid over (data, sender)
-    const messageHash = ethers.utils.keccak256(
-      ethers.utils.defaultAbiCoder.encode(
-        ['bytes', 'address'],
-        [payload.data, payload.sender],
-      ),
+    const messageHash = ethers.utils.solidityKeccak256(
+      ['string', 'address', 'bytes', 'string'],
+      [
+        'HYPERLANE_OFFCHAINLOOKUP',
+        payload.sender,
+        payload.data,
+        CCIP_READ_SERVER_URL,
+      ],
     );
     const recovered = ethers.utils.verifyMessage(
       ethers.utils.arrayify(messageHash),

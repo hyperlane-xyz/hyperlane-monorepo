@@ -21,6 +21,7 @@ import "./AbstractCcipReadIsm.sol";
  */
 contract TestCcipReadIsm is AbstractCcipReadIsm {
     string[] public urls;
+    bytes calldataToReturn = bytes("callDataToReturn");
 
     constructor(string[] memory _urls) {
         urls = _urls;
@@ -30,7 +31,13 @@ contract TestCcipReadIsm is AbstractCcipReadIsm {
         bytes calldata _message
     ) external view override {
         // Revert with OffchainLookup to instruct off-chain resolution
-        revert OffchainLookup(address(this), urls, _message, bytes4(0), "");
+        revert OffchainLookup(
+            address(this),
+            urls,
+            calldataToReturn,
+            bytes4(0),
+            ""
+        );
     }
 
     function verify(

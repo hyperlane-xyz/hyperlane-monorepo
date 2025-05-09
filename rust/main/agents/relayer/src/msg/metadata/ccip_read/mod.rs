@@ -14,7 +14,7 @@ use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
     utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
-    Signable, H256,
+    Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
 
@@ -40,8 +40,8 @@ pub struct CcipReadIsmMetadataBuilder {
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct HyperlaneOffchainLookupAttestation {
     message_id: H256,
-    ism_address: H256,
-    sender: H256,
+    url_template: Vec<u8>,
+    sender: H160,
     call_data: Vec<u8>,
 }
 
@@ -54,9 +54,9 @@ impl Signable for HyperlaneOffchainLookupAttestation {
         H256::from_slice(
             Keccak256::new()
                 .chain(b"HYPERLANE_OFFCHAINLOOKUP")
-                .chain(self.ism_address)
                 .chain(self.sender)
                 .chain(self.call_data.as_slice())
+                .chain(self.url_template.as_slice())
                 .finalize()
                 .as_slice(),
         )
@@ -69,12 +69,12 @@ impl CcipReadIsmMetadataBuilder {
         signer: &Signers,
         info: &OffchainLookup,
         message: &HyperlaneMessage,
-        ism_address: H256,
+        url: &String,
     ) -> Result<String, MetadataBuildError> {
         // Derive the hash over call_data and sender
         let signable = HyperlaneOffchainLookupAttestation {
             message_id: message.id(),
-            ism_address,
+            url_template: url.clone().into(),
             call_data: info.call_data.clone().to_vec(),
             sender: info.sender.into(),
         };
@@ -185,14 +185,13 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
 
         let info = self.call_get_offchain_verify_info(ism, message).await?;
 
-        // Compute relayer authentication signature via EIP-191
-        let maybe_signature_hex = if let Some(signer) = self.base.base_builder().get_signer() {
-            Some(Self::generate_signature_hex(&signer, &info, message, ism_address).await?)
-        } else {
-            None
-        };
-
         for url in info.urls.iter() {
+            // Compute relayer authentication signature via EIP-191
+            let maybe_signature_hex = if let Some(signer) = self.base.base_builder().get_signer() {
+                Some(Self::generate_signature_hex(&signer, &info, message, url).await?)
+            } else {
+                None
+            };
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
             // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
             // the full address)
@@ -252,46 +251,42 @@ mod test {
 
     #[tokio::test]
     async fn test_generate_signature_hex() {
-        // $ cast wallet new
-        // Successfully created new keypair.
-        // Address:     0xf9BC1b491f14d457Ee935AC0B7E2044B1DDFAc91
-        // Private key: 0x35873ad2f7722ec6bde58404d23a3dbbd5e2534e7252c0623c6ec0651f15a0ce
+        // default hardhat key
         let signer = Signers::Local(
             ethers::signers::Wallet::from_str(
-                "35873ad2f7722ec6bde58404d23a3dbbd5e2534e7252c0623c6ec0651f15a0ce",
+                "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
             )
             .unwrap(),
         );
-        let ism_address = H256::from([4; 32]);
+        let url = "http://example.com/{data}".to_string();
         let info = OffchainLookup {
-            call_data: vec![1, 2, 3].into(),
-            sender: H160::zero(),
-            urls: vec!["http://example.com".to_string()],
-            callback_function: [1, 2, 3, 4],
-            extra_data: vec![4, 5, 6].into(),
+            // from TestCcipReadIsm.sol
+            call_data: "callDataToReturn".as_bytes().to_vec().into(),
+            // from ccipread.hardhat-test.ts
+            sender: H160::from_str("4ee6ecad1c2dae9f525404de8555724e3c35d07b").unwrap(),
+            urls: vec![url.clone()],
+            callback_function: [0, 0, 0, 0],
+            extra_data: vec![].into(),
         };
         let message = HyperlaneMessage::default();
 
-        let signature_hex = CcipReadIsmMetadataBuilder::generate_signature_hex(
-            &signer,
-            &info,
-            &message,
-            ism_address,
-        )
-        .await
-        .unwrap();
+        let signature_hex =
+            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &message, &url)
+                .await
+                .unwrap();
 
         // 65 bytes = 130 hex chars + 2 for 0x
         assert_eq!(signature_hex.len(), 132);
+        // Get the control from the hardhat test
         assert_eq!(
             signature_hex,
-            "0x0ec721ca5f131710c330c6fed7d64723fcbb53d7057a2145d608d0ccbc0dd8225de1a45614dd67af26c5c7a67fb51e413504d037480f1f1328278a96e2cdae951c"
+            "0xd250bede928002f89fd3d561793b9ae800fd84765ee5d7ab75cb93a86c3b62f9494e347c0f6747f475f85bf791c6770463ccc8d99a7828214b538b11255d16621b"
         );
 
         // Test the signature is valid
         let signable = HyperlaneOffchainLookupAttestation {
             message_id: message.id(),
-            ism_address,
+            url_template: url.into(),
             sender: info.sender.into(),
             call_data: info.call_data.clone().to_vec(),
         };
