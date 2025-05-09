@@ -56,8 +56,8 @@ export class RebalancerContextFactory {
     return new RebalancerContextFactory(registry, config, metadata, warpCore);
   }
 
-  public async createMetrics(): Promise<Metrics> {
-    const tokenPriceGetter = PriceGetter.create(this.metadata);
+  public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
+    const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);
     const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
     );
