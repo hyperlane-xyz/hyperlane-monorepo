@@ -213,6 +213,9 @@ export class MultiChainResolver implements ChainResolver {
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
   }
+  static forWarpApply(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
+  }
 
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
