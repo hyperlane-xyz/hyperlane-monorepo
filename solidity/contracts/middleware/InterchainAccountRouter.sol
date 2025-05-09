@@ -1156,26 +1156,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
-    /**
-     * @notice Get a quote for `callRemoteCommitReveal`
-     * @param _messageBody The message body. As for right now, this can actually be left empty since the IGP does not use it.
-     */
-    function quoteGasForCommitReveal(
-        uint32 _destination,
-        bytes calldata _messageBody,
-        uint256 gasLimit
-    ) public view returns (uint256 _gasPayment) {
-        return
-            _Router_quoteDispatch(
-                _destination,
-                _messageBody,
-                StandardHookMetadata.overrideGasLimit(
-                    gasLimit + COMMIT_TX_GAS_USAGE
-                ),
-                address(hook)
-            );
-    }
-
     /// @dev It would be nice if we could reuse the above function which takes in the message body, but
     /// that function uses `bytes calldata` so we can't pass empty (in-memory) bytes to it. We can't use `this.quote()` either because
     /// Mailbox._buildMessage() uses msg.sender.

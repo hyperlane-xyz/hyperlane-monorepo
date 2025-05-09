@@ -15,6 +15,7 @@ import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMes
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
+
 contract Callable {
     mapping(address => bytes32) public data;
     mapping(address => uint256) public value;
@@ -1011,7 +1012,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint gasLimitForExecutingCalls = 100_000;
         uint quote = originIcaRouter.quoteGasForCommitReveal(
             destination,
-            bytes(""),
             gasLimitForExecutingCalls
         );
 
