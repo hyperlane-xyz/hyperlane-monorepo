@@ -48,6 +48,7 @@ describe('Config', () => {
     expect(Config.load(REBALANCER_CONFIG_PATH, ANVIL_KEY, {})).to.deep.equal({
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
+      rebalancerKey: ANVIL_KEY,
       monitorOnly: false,
       withMetrics: false,
       chains: {
@@ -136,6 +137,7 @@ describe('Config', () => {
       warpRouteId: 'warpRouteId by override',
       checkFrequency: 1337,
       monitorOnly: false,
+      rebalancerKey: ANVIL_KEY,
       withMetrics: false,
       chains: {
         chain1: {
