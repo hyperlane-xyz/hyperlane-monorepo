@@ -186,24 +186,14 @@ export async function expandOnChainWarpDeployConfig(params: {
   return promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
       const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
-
-      try {
-        // Need to use retryAsync because explorer API can rate limit. If it still fails, return the config.
-        return retryAsync(async () => {
-          const warpVirtualConfig =
-            await warpReader.deriveWarpRouteVirtualConfig(
-              chain,
-              deployedRoutersAddresses[chain],
-            );
-          return {
-            ...warpVirtualConfig,
-            ...config,
-          };
-        });
-      } catch (e) {
-        rootLogger.warn(`Failed to fetch virtual config with error: ${e}`);
-        return config;
-      }
+      const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
+        chain,
+        deployedRoutersAddresses[chain],
+      );
+      return {
+        ...warpVirtualConfig,
+        ...config,
+      };
     }),
   );
 }
