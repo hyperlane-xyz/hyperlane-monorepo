@@ -137,7 +137,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     suavetoliman: true,
     subtensortestnet: true,
     superpositiontestnet: true,
-    treasuretopaz: true,
+    treasuretopaz: false,
     unichaintestnet: true,
     weavevmtestnet: true,
   },
@@ -445,33 +445,22 @@ export const kesselRunnerNetworks = [
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: 'd1a1ac8-20250502-153149',
     },
-    whitelist: kesselMatchingList,
+    whitelist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
     cache: {
       enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
     },
-    resources: {
-      requests: {
-        cpu: '20000m',
-        memory: '32Gi',
-      },
-    },
+    resources: relayerResources,
   },
 };
 

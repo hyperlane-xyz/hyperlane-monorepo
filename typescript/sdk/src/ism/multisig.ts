@@ -15,8 +15,8 @@ export const multisigConfigToIsmConfig = (
   config: MultisigConfig,
 ): MultisigIsmConfig => ({
   type,
-  threshold: config.threshold,
-  validators: config.validators.map((v) => v.address),
+  threshold: config?.threshold || 0,
+  validators: config?.validators.map((v) => v.address) || [],
 });
 
 // build multisigIsmConfig from multisigConfig

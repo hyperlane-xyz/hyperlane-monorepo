@@ -43,13 +43,6 @@
       "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
     ]
   },
-  "berabartio": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": [
-      "0x541dd3cb282cf869d72883557badae245b63e1fd"
-    ]
-  },
   "bsctestnet": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -175,6 +168,13 @@
     "threshold": 1,
     "validators": [
       "0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"
+    ]
+  },
+  "starknetsepolia": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 1,
+    "validators": [
+      "0xd07272cc3665d6e383a319691dcce5731ecf54a5"
     ]
   },
   "suavetoliman": {

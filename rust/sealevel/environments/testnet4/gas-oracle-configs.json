@@ -8,6 +8,14 @@
       },
       "overhead": 600000
     },
+    "starknetsepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 151966
+    },
     "connextsepolia": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",

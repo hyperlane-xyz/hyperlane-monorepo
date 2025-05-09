@@ -1,0 +1,10 @@
+{
+  "solanatestnet": {
+    "hex": "0x93ed8c40f469c527807bbf354056397cbade0c4be05a3ba5513128d9648597d4",
+    "base58": "AxT2AeJJpwUjrhDJVm8grXCMsnwtyp4Zf68yMUiiCdK9"
+  },
+  "starknetsepolia": {
+    "hex": "0x05a5b7d2a9be4c41cdc522b42cd787ea4d142bf1dc8619a47be2196c0b3ad1a0",
+    "base58": "P3bpgG6FDnAJfq8zV6Zgt9JV1ZCoiKoabNkQf8o3zJs"
+  }
+}

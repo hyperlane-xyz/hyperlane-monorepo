@@ -249,8 +249,8 @@ export function getOverhead(
 ): number {
   return ethereumChainNames.includes(remote as any)
     ? multisigIsmVerificationCost(
-        defaultMultisigConfigs[local].threshold,
-        defaultMultisigConfigs[local].validators.length,
+        defaultMultisigConfigs[local]?.threshold || 1,
+        defaultMultisigConfigs[local]?.validators.length || 1,
       )
     : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 }
