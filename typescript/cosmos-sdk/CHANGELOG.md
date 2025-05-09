@@ -1,5 +1,15 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 12.6.0
+
+### Minor Changes
+
+- 76f0eba: Add Cosmos Native ISM Reader & Module
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@12.6.0
+
 ## 12.5.0
 
 ### Patch Changes
