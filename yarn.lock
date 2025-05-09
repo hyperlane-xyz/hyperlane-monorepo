@@ -7990,6 +7990,7 @@ __metadata:
     eslint-import-resolver-typescript: "npm:^3.6.3"
     eslint-plugin-import: "npm:^2.31.0"
     globby: "npm:^14.1.0"
+    mocha: "npm:^10.2.0"
     prettier: "npm:^3.5.3"
     starknet: "npm:^6.24.1"
     tsx: "npm:^4.19.1"
