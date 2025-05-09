@@ -87,6 +87,7 @@ export const apply: CommandModuleWithWriteContext<{
   describe: 'Update Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
+    warpRouteId: warpRouteIdCommandOption,
     warp: {
       ...warpCoreConfigCommandOption,
       demandOption: false,
