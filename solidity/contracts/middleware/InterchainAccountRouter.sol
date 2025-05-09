@@ -55,10 +55,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
-    /// @notice A mapping of commitments to the ICA that should execute the revealed calldata
-    /// @dev The commitment is only stored if a `COMMITMENT` message was processed for it
-    mapping(bytes32 commitment => OwnableMulticall ICA)
-        public verifiedCommitments;
 
     // ============ Upgrade Gap ============
 
@@ -296,29 +292,17 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     ) external payable override onlyMailbox {
         InterchainAccountMessage.MessageType _messageType = _message
             .messageType();
-
-        bytes32 _commitment;
-        bytes32 _ism;
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
-            _commitment = InterchainAccountMessageReveal.commitment(_message);
-            _ism = InterchainAccountMessageReveal.ism(_message);
-
-            // If the message is a reveal, we don't do any derivation of the ica address
-            // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
-            // so here we just check that commitment -> ICA association has been cleared
-            require(
-                verifiedCommitments[_commitment] ==
-                    OwnableMulticall(payable(address(0))),
-                "Commitment was not executed"
-            );
+            // If the message is a reveal,
+            // the commitment should have been executed in the `verify` method of the ISM
+            // that verified this message. The commitment is deleted in `revealAndExecute`.
+            // Simply return.
             return;
-        } else {
-            _commitment = _message.commitment();
-            _ism = _message.ism();
         }
 
         bytes32 _owner = _message.owner();
         bytes32 _salt = _message.salt();
+        bytes32 _ism = _message.ism();
 
         OwnableMulticall ica = getDeployedInterchainAccount(
             _origin,
@@ -333,7 +317,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             ica.multicall{value: msg.value}(calls);
         } else {
             // This is definitely a message of type COMMITMENT
-            verifiedCommitments[_commitment] = ica;
+            require(
+                ica.commitment() == bytes32(0),
+                "ICA Router: Previous commitment pending execution"
+            );
+            bytes32 _commitment = _message.commitment();
+            ica.setCommitment(_commitment);
         }
     }
 
@@ -895,15 +884,20 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     /// @dev The calls represented by the commitment can only be executed once per commitment,
     /// though you can submit the same commitment again after the calls have been executed.
     function revealAndExecute(
-        CallLib.Call[] calldata _calls,
-        bytes32 _salt
-    ) external payable {
-        bytes32 _givenCommitment = keccak256(abi.encode(_salt, _calls));
-        OwnableMulticall ica = verifiedCommitments[_givenCommitment];
-        require(address(payable(ica)) != address(0), "Invalid Reveal");
+        CallLib.Call[] calldata calls,
+        bytes32 salt,
+        OwnableMulticall ica
+    ) external payable returns (bytes32 executedCommitment) {
+        // If there is no active commitment, do nothing.
+        bytes32 icaCommitment = ica.commitment();
+        if (icaCommitment == bytes32(0)) return bytes32(0);
 
-        delete verifiedCommitments[_givenCommitment];
-        ica.multicall{value: msg.value}(_calls);
+        bytes32 revealedHash = keccak256(abi.encode(calls, salt, ica));
+        require(icaCommitment == revealedHash, "Invalid Reveal");
+
+        ica.deleteCommitment();
+        ica.multicall{value: msg.value}(calls);
+        return icaCommitment;
     }
 
     // ============ Internal Functions ============
