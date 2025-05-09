@@ -11,6 +11,7 @@ use ethers::{prelude::Middleware, types::TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use ethers_core::abi::Function;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
+use ethers_core::types::BlockId;
 use ethers_core::{abi::Address, types::BlockNumber};
 use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
 use tokio::time::sleep;
@@ -96,6 +97,9 @@ pub trait EvmProviderForSubmitter: Send + Sync {
 
     /// Read-only call into blockchain which returns a boolean
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
+
+    /// Get the next nonce to use for a given address (using the finalized block)
+    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
 }
 
 #[async_trait]
@@ -159,6 +163,14 @@ where
             .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
 
         Ok(success)
+    }
+
+    async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256> {
+        self.provider
+            .get_transaction_count(*address, Some(BlockId::Number(BlockNumber::Finalized)))
+            .await
+            .map_err(ChainCommunicationError::from_other)
+            .map(Into::into)
     }
 }
 

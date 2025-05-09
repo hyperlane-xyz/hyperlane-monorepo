@@ -107,4 +107,8 @@ pub trait AdaptsChain: Send + Sync {
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError> {
         todo!()
     }
+
+    async fn set_unfinalized_tx_count(&self, _count: usize) {
+        // nothing as default implementation
+    }
 }
