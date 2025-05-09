@@ -10,10 +10,7 @@ import {
 import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
-import {
-  createWarpRouteDeployConfig,
-  getWarpRouteDeployConfig,
-} from '../config/warp.js';
+import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
@@ -104,31 +101,17 @@ export const apply: CommandModuleWithWriteContext<{
       coerce: (dir) => removeEndingSlash(dir),
     },
   },
-  handler: async ({
-    context,
-    config,
-    warp,
-    symbol,
-    warpRouteId,
-    strategy: strategyUrl,
-    receiptsDir,
-  }) => {
+  handler: async ({ context, strategy: strategyUrl, receiptsDir }) => {
     logCommandHeader('Hyperlane Warp Apply');
-    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-      context,
-      warpRouteId,
-      symbol,
-      warpDeployConfigPath: config,
-      warpCoreConfigPath: warp,
-    });
 
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
 
     await runWarpRouteApply({
       context,
-      warpDeployConfig,
-      warpCoreConfig,
+      // Already fetched in the resolveWarpApplyChains
+      warpDeployConfig: context.warpDeployConfig!!,
+      warpCoreConfig: context.warpCoreConfig!!,
       strategyUrl,
       receiptsDir,
     });
@@ -155,7 +138,7 @@ export const deploy: CommandModuleWithWriteContext<{
     },
     warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, dryRun, symbol, warpRouteId }) => {
+  handler: async ({ context, dryRun }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -163,14 +146,8 @@ export const deploy: CommandModuleWithWriteContext<{
     try {
       await runWarpRouteDeploy({
         context,
-        warpDeployConfig:
-          context.warpDeployConfig ||
-          (await getWarpRouteDeployConfig({
-            context,
-            warpRouteDeployConfigPath: config,
-            warpRouteId,
-            symbol,
-          })),
+        // Already fetched in the resolveWarpRouteConfigChains
+        warpDeployConfig: context.warpDeployConfig!!,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
