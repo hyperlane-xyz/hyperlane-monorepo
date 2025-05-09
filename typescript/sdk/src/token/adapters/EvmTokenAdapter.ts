@@ -308,6 +308,35 @@ export class EvmHypCollateralAdapter
       t.populateTransferTx(params),
     );
   }
+
+  async isRebalancer(account: Address): Promise<boolean> {
+    const role = await this.collateralContract.REBALANCER_ROLE();
+
+    return this.collateralContract.hasRole(role, account);
+  }
+
+  async getAllowedDestination(domain: Domain): Promise<Address> {
+    const allowedDestinationBytes32 =
+      await this.collateralContract.allowedDestinations(domain);
+
+    return bytes32ToAddress(allowedDestinationBytes32);
+  }
+
+  isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
+    return this.collateralContract.allowedBridges(domain, bridge);
+  }
+
+  populateRebalanceTx(params: {
+    domain: Domain;
+    amount: Numberish;
+    bridge: Address;
+  }): Promise<PopulatedTransaction> {
+    return this.collateralContract.populateTransaction.rebalance(
+      params.domain,
+      params.amount,
+      params.bridge,
+    );
+  }
 }
 
 export class EvmHypCollateralFiatAdapter

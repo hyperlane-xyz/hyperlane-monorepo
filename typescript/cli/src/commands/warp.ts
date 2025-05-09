@@ -20,10 +20,25 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logCommandHeader,
+  logGreen,
+} from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
+import {
+  Config,
+  IStrategy,
+  RawBalances,
+  RebalancerContextFactory,
+} from '../rebalancer/index.js';
+// TODO: This import should come from the IMonitor interface
+import { MonitorPollingError } from '../rebalancer/monitor/Monitor.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { ENV } from '../utils/env.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -62,6 +77,7 @@ export const warpCommand: CommandModule = {
       .command(deploy)
       .command(init)
       .command(read)
+      .command(rebalancer)
       .command(send)
       .command(verify)
       .version(false)
@@ -396,6 +412,151 @@ export const check: CommandModuleWithContext<{
     });
 
     process.exit(0);
+  },
+};
+
+export const rebalancer: CommandModuleWithWriteContext<{
+  configFile: string;
+  warpRouteId?: string;
+  checkFrequency?: number;
+  withMetrics?: boolean;
+  monitorOnly?: boolean;
+  coingeckoApiKey?: string;
+}> = {
+  command: 'rebalancer',
+  describe: 'Run a warp route collateral rebalancer',
+  builder: {
+    configFile: {
+      type: 'string',
+      description:
+        'The path to a rebalancer configuration file (.json or .yaml)',
+      demandOption: true,
+      alias: ['rebalancerConfigFile'],
+    },
+    warpRouteId: {
+      type: 'string',
+      description: 'The warp route ID to rebalance',
+      demandOption: false,
+    },
+    checkFrequency: {
+      type: 'number',
+      description: 'Frequency to check balances in ms',
+      demandOption: false,
+    },
+    withMetrics: {
+      type: 'boolean',
+      description: 'Enable metrics',
+      demandOption: false,
+    },
+    monitorOnly: {
+      type: 'boolean',
+      description: 'Run in monitor only mode',
+      demandOption: false,
+    },
+    coingeckoApiKey: {
+      type: 'string',
+      description: 'CoinGecko API key',
+      demandOption: false,
+      alias: ['g', 'coingecko-api-key'],
+      implies: 'withMetrics',
+    },
+  },
+  handler: async ({
+    context,
+    configFile,
+    warpRouteId,
+    checkFrequency,
+    withMetrics,
+    monitorOnly,
+    coingeckoApiKey = ENV.COINGECKO_API_KEY,
+  }) => {
+    try {
+      const { registry, key: rebalancerKey } = context;
+
+      // Load rebalancer config from disk
+      const config = Config.load(configFile, rebalancerKey, {
+        warpRouteId,
+        checkFrequency,
+        withMetrics,
+        monitorOnly,
+        coingeckoApiKey,
+      });
+
+      // Instantiate the factory used to create the different rebalancer components
+      const contextFactory = await RebalancerContextFactory.create(
+        registry,
+        config,
+      );
+
+      // Instantiates the monitor that will observe the warp route
+      const monitor = contextFactory.createMonitor();
+
+      // Instantiates the strategy that will compute how rebalance routes should be performed
+      const strategy: IStrategy = contextFactory.createStrategy();
+
+      // Instantiates the executor in charge of executing the rebalancing transactions
+      const executor = !config.monitorOnly
+        ? contextFactory.createExecutor()
+        : undefined;
+
+      // Instantiates the metrics that will publish stats from the monitored data
+      const metrics = withMetrics
+        ? await contextFactory.createMetrics()
+        : undefined;
+
+      await monitor
+        // Observe balances events and process rebalancing routes
+        .on('tokeninfo', (event) => {
+          if (metrics) {
+            for (const tokenInfo of event.tokensInfo) {
+              metrics.processToken(tokenInfo).catch((e) => {
+                errorRed(
+                  `Error building metrics for ${tokenInfo.token.addressOrDenom}: ${e.message}`,
+                );
+              });
+            }
+          }
+
+          const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
+            if (
+              !tokenInfo.token.isCollateralized() ||
+              tokenInfo.bridgedSupply === undefined
+            ) {
+              return acc;
+            }
+            acc[tokenInfo.token.chainName] = tokenInfo.bridgedSupply;
+            return acc;
+          }, {} as RawBalances);
+
+          const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
+
+          if (executor) {
+            executor.rebalance(rebalancingRoutes).catch((e) => {
+              errorRed('Error while rebalancing:', (e as Error).message);
+            });
+          } else {
+            log('monitorOnly mode enabled, skipping rebalancing');
+          }
+        })
+        // Observe monitor errors and exit
+        .on('error', (e) => {
+          if (e instanceof MonitorPollingError) {
+            errorRed(e);
+          } else {
+            // This will catch `MonitorStartError` and generic errors
+            throw e;
+          }
+        })
+        // Observe monitor start and log success
+        .on('start', () => {
+          logGreen('Rebalancer started successfully 🚀');
+        })
+        // Finally, starts the monitor to begin polling balances.
+        .start();
+    } catch (e) {
+      errorRed('Error on the rebalancer:', (e as Error).message);
+      process.exit(1);
+    }
   },
 };
 
