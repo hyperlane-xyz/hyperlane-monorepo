@@ -2,56 +2,65 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { TokenMetadata } from './types.js';
 
-export type TokenMetadataMap = Record<string, TokenMetadata>;
+export class TokenMetadataMap {
+  private readonly tokenMetadataMap: Record<string, TokenMetadata>;
 
-export function getDecimals(map: TokenMetadataMap): number {
-  const decimalsList = Object.values(map)
-    .filter(
-      (config): config is TokenMetadata =>
-        config !== undefined && config.decimals !== undefined,
-    )
-    .map((config) => config.decimals);
+  constructor(map: Record<string, TokenMetadata>) {
+    this.tokenMetadataMap = map;
+  }
 
-  assert(
-    decimalsList.length,
-    'No TokenMetadata or decimals defined for any chain',
-  );
+  getDecimals(): number {
+    const decimalsList = Object.values(this.tokenMetadataMap)
+      .filter(
+        (config): config is TokenMetadata =>
+          config !== undefined && config.decimals !== undefined,
+      )
+      .map((config) => config.decimals);
 
-  const [first, ...rest] = decimalsList;
-  for (const d of rest) {
-    if (d !== first) {
-      throw new Error(
-        `Mismatched decimals found in TokenMetadata: expected ${first}, but found ${d}`,
-      );
+    assert(
+      decimalsList.length,
+      'No TokenMetadata or decimals defined for any chain',
+    );
+
+    const [first, ...rest] = decimalsList;
+    for (const d of rest) {
+      if (d !== first) {
+        throw new Error(
+          `Mismatched decimals found in TokenMetadata: expected ${first}, but found ${d}`,
+        );
+      }
     }
+
+    return first!;
   }
 
-  return first!;
-}
-
-export function getSymbol(
-  map: TokenMetadataMap,
-  chain: string = '',
-): string | undefined {
-  if (chain && map[chain]?.symbol) {
-    return map[chain]?.symbol;
+  getMetadata(): Record<string, TokenMetadata | undefined> {
+    return this.tokenMetadataMap;
   }
 
-  return Object.values(map).find((config) => config?.symbol)?.symbol;
-}
-
-export function getName(
-  map: TokenMetadataMap,
-  chain: string,
-): string | undefined {
-  if (map[chain]?.name) {
-    return map[chain]?.name;
+  getMetadataForChain(chain: string): TokenMetadata | undefined {
+    return this.tokenMetadataMap[chain];
   }
 
-  for (const config of Object.values(map)) {
-    if (config?.name) {
-      return config.name;
+  getName(chain: string): string | undefined {
+    if (this.tokenMetadataMap[chain]?.name) {
+      return this.tokenMetadataMap[chain]?.name;
     }
+
+    return Object.values(this.tokenMetadataMap).find((config) => config?.name)
+      ?.name;
   }
-  return undefined;
+
+  getSymbol(chain: string = ''): string | undefined {
+    if (chain && this.tokenMetadataMap[chain]?.symbol) {
+      return this.tokenMetadataMap[chain]?.symbol;
+    }
+
+    return Object.values(this.tokenMetadataMap).find((config) => config?.symbol)
+      ?.symbol;
+  }
+
+  setMetadata(chain: string, metadata: TokenMetadata): void {
+    this.tokenMetadataMap[chain] = metadata;
+  }
 }

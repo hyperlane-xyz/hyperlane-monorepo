@@ -22,12 +22,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
-import {
-  TokenMetadataMap,
-  getDecimals,
-  getName,
-  getSymbol,
-} from './TokenMetadataMap.js';
+import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
@@ -129,10 +124,10 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadataMap> {
-    const metadataMap: TokenMetadataMap = {};
+    const metadataMap: TokenMetadataMap = new TokenMetadataMap({});
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
-        metadataMap[chain] = TokenMetadataSchema.parse(config);
+        metadataMap.setMetadata(chain, TokenMetadataSchema.parse(config));
       } else if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
         // If the config didn't specify the token metadata, we can only now
         // derive it for Ethereum chains. So here we skip non-Ethereum chains.
@@ -142,9 +137,12 @@ abstract class TokenDeployer<
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          metadataMap[chain] = TokenMetadataSchema.parse({
-            ...nativeToken,
-          });
+          metadataMap.setMetadata(
+            chain,
+            TokenMetadataSchema.parse({
+              ...nativeToken,
+            }),
+          );
           continue;
         }
       }
@@ -161,10 +159,13 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          metadataMap[chain] = TokenMetadataSchema.parse({
-            name,
-            symbol,
-          });
+          metadataMap.setMetadata(
+            chain,
+            TokenMetadataSchema.parse({
+              name,
+              symbol,
+            }),
+          );
           continue;
         }
 
@@ -194,11 +195,14 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        metadataMap[chain] = TokenMetadataSchema.parse({
-          name,
-          symbol,
-          decimals,
-        });
+        metadataMap.setMetadata(
+          chain,
+          TokenMetadataSchema.parse({
+            name,
+            symbol,
+            decimals,
+          }),
+        );
       }
     }
     return metadataMap;
@@ -217,9 +221,9 @@ abstract class TokenDeployer<
     }
 
     const resolvedConfigMap = objMap(configMap, (chain, config) => ({
-      decimals: getDecimals(tokenMetadataMap),
-      name: getName(tokenMetadataMap, chain),
-      symbol: getSymbol(tokenMetadataMap, chain),
+      decimals: tokenMetadataMap.getDecimals(),
+      name: tokenMetadataMap.getName(chain),
+      symbol: tokenMetadataMap.getSymbol(chain),
       gas: gasOverhead(config.type),
       ...config,
     }));

@@ -48,10 +48,7 @@ import {
   connectContractsMap,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
-  getDecimals,
-  getName,
   getRouterAddressesFromWarpCoreConfig,
-  getSymbol,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -401,13 +398,15 @@ async function getWarpCoreConfig(
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
-  const tokenMetadata: TokenMetadataMap =
+  const tokenMetadataMap: TokenMetadataMap =
     await HypERC20Deployer.deriveTokenMetadata(
       params.context.multiProvider,
       params.warpDeployConfig,
     );
 
-  for (const [chain, config] of Object.entries(tokenMetadata)) {
+  for (const [chain, config] of Object.entries(
+    tokenMetadataMap.getMetadata(),
+  )) {
     assert(
       config && isTokenMetadata(config),
       `Missing required token metadata for chain ${chain}`,
@@ -422,12 +421,12 @@ async function getWarpCoreConfig(
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
-    tokenMetadata,
+    tokenMetadataMap,
   );
 
   fullyConnectTokens(warpCoreConfig);
 
-  const symbol: string | undefined = getSymbol(tokenMetadata);
+  const symbol: string | undefined = tokenMetadataMap.getSymbol();
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }
@@ -439,7 +438,7 @@ function generateTokenConfigs(
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  tokenMetadata: TokenMetadataMap,
+  tokenMetadataMap: TokenMetadataMap,
 ): void {
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
@@ -448,9 +447,9 @@ function generateTokenConfigs(
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
 
-    const decimals = getDecimals(tokenMetadata);
-    const name: any = getName(tokenMetadata, chainName);
-    const symbol: any = getSymbol(tokenMetadata, chainName);
+    const decimals = tokenMetadataMap.getDecimals();
+    const name: any = tokenMetadataMap.getName(chainName);
+    const symbol: any = tokenMetadataMap.getSymbol(chainName);
 
     warpCoreConfig.tokens.push({
       chainName,
