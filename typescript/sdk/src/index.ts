@@ -60,6 +60,7 @@ export {
 export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter.js';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter.js';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter.js';
+export { StarknetCoreAdapter } from './core/adapters/StarknetCoreAdapter.js';
 export { ICoreAdapter } from './core/adapters/types.js';
 export {
   CoreAddresses,
@@ -101,6 +102,8 @@ export {
   DeployerOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer.js';
+export { StarknetDeployer } from './deploy/StarknetDeployer.js';
+
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,
@@ -365,6 +368,10 @@ export {
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   SolanaWeb3TransactionReceipt,
+  StarknetJsContract,
+  StarknetJsProvider,
+  StarknetJsTransaction,
+  StarknetJsTransactionReceipt,
   TypedContract,
   TypedProvider,
   TypedTransaction,
@@ -603,6 +610,8 @@ export {
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TOKEN_TYPE_TO_STANDARD,
+  STARKNET_TOKEN_TYPE_TO_STANDARD,
+  STARKNET_SUPPORTED_TOKEN_TYPES,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -705,3 +714,33 @@ export {
   CCIPContractCache,
 } from './ccip/utils.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export { StarknetCoreModule } from './core/StarknetCoreModule.js';
+export { StarknetCoreReader } from './core/StarknetCoreReader.js';
+export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
+export { StarknetCore } from './core/StarknetCore.js';
+export { MessageService } from './messaging/MessageService.js';
+export {
+  formatEthereumMessageForStarknet,
+  formatStarknetMessageForEthereum,
+  convertU128ArrayToBytes,
+} from './messaging/messageUtils.js';
+export {
+  StarknetContractName,
+  StarknetIsmType,
+  StarknetHookType,
+  getStarknetContract,
+  getStarknetHypERC20Contract,
+  getStarknetHypERC20CollateralContract,
+  getStarknetMailboxContract,
+  getStarknetHypNativeContract,
+  getStarknetEtherContract,
+  getStarknetIsmContract,
+} from './utils/starknet.js';
+export { MessageBus } from './bus/MessageBus.js';
+export { EvmAdapter } from './bus/adapters/EvmAdapter.js';
+export { StarknetAdapter } from './bus/adapters/StarknetAdapter.js';
+export {
+  MessageHandler,
+  MessageWithStatus,
+  MessageBusConfig,
+} from './bus/types.js';

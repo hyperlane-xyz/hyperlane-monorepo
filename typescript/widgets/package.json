@@ -21,7 +21,7 @@
     "@starknet-react/core": "^3.7.2",
     "clsx": "^2.1.1",
     "react-tooltip": "^5.28.0",
-    "starknetkit": "2.6.1",
+    "starknetkit": "2.10.4",
     "viem": "^2.21.45",
     "wagmi": "^2.12.26"
   },

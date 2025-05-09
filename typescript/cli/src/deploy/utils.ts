@@ -8,8 +8,10 @@ import {
   IsmConfig,
   MultisigConfig,
   getLocalProvider,
+  getStarknetEtherContract,
+  getStarknetHypERC20Contract,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
@@ -47,11 +49,18 @@ export async function runPreflightChecksForChains({
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
-    if (metadata.protocol !== ProtocolType.Ethereum)
-      throw new Error('Only Ethereum chains are supported for now');
-    const signer = multiProvider.getSigner(chain);
-    assertSigner(signer);
-    logGreen(`✅ ${metadata.displayName ?? chain} signer is valid`);
+    if (
+      metadata.protocol !== ProtocolType.Ethereum &&
+      metadata.protocol !== ProtocolType.Starknet
+    )
+      throw new Error(
+        'Only Ethereum and Starknet chains are supported for now',
+      );
+    if (metadata.protocol === ProtocolType.Ethereum) {
+      const signer = multiProvider.getSigner(chain);
+      assertSigner(signer);
+      logGreen(`✅ ${chain} signer is valid`);
+    }
   }
   logGreen('✅ Chains are valid');
 
@@ -148,31 +157,99 @@ export async function prepareDeploy(
   return initialBalances;
 }
 
+export async function prepareStarknetDeploy(
+  context: WriteCommandContext,
+  userAddress: Address | null,
+  chains: ChainName[],
+): Promise<Record<string, BigNumber>> {
+  const { multiProtocolProvider, multiProtocolSigner } = context;
+  const initialBalances: Record<string, BigNumber> = {};
+  await Promise.all(
+    chains.map(async (chain: ChainName) => {
+      const provider = multiProtocolProvider?.getStarknetProvider(chain);
+      assert(provider, `No provider found for ${chain}`);
+      const address =
+        userAddress ?? multiProtocolSigner?.getStarknetSigner(chain).address;
+      assert(address, `No address found for ${chain}`);
+
+      const nativeTokenAddress =
+        multiProtocolProvider?.getChainMetadata(chain).nativeToken?.denom; // TODO: fetch default token
+      assert(nativeTokenAddress, `No native token found for ${chain}`);
+      const etherContract = getStarknetEtherContract(
+        nativeTokenAddress,
+        provider,
+      );
+      const currentBalance = await etherContract.balanceOf(address);
+      initialBalances[chain] = currentBalance;
+    }),
+  );
+  return initialBalances;
+}
+
 export async function completeDeploy(
   context: WriteCommandContext,
   command: string,
-  initialBalances: Record<string, BigNumber>,
+  initialBalances: Record<string, BigNumber | bigint>,
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun } = context;
+  const {
+    multiProvider,
+    multiProtocolProvider,
+    multiProtocolSigner,
+    isDryRun,
+  } = context;
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = isDryRun
-      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-      : multiProvider.getProvider(chain);
-    const address =
-      userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-    const currentBalance = await provider.getBalance(address);
-    const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (isDryRun && balanceDelta.lt(0)) break;
-    logPink(
-      `\t- Gas required for ${command} ${
-        isDryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
-      }`,
-    );
+    const metadata = multiProvider.tryGetChainMetadata(chain);
+    if (metadata?.protocol === ProtocolType.Starknet) {
+      const provider = multiProtocolProvider?.getStarknetProvider(chain);
+      assert(provider, `No provider found for ${chain}`);
+      const address =
+        userAddress ?? multiProtocolSigner?.getStarknetSigner(chain).address;
+      assert(address, `No address found for ${chain}`);
+
+      const nativeTokenAddress =
+        multiProtocolProvider?.getChainMetadata(chain).nativeToken?.denom;
+      assert(nativeTokenAddress, `No native token found for ${chain}`);
+
+      const etherContract = getStarknetHypERC20Contract(
+        nativeTokenAddress,
+        provider,
+      );
+      const currentBalance = (await etherContract.balanceOf(address)) as bigint;
+      const balanceDelta = (initialBalances[chain] as bigint) - currentBalance;
+
+      if (isDryRun && balanceDelta > 0) continue;
+
+      logPink(
+        `\t- Gas required for ${command} ${
+          isDryRun ? 'dry-run' : 'deploy'
+        } on ${chain} (Starknet): ${ethers.utils.formatEther(balanceDelta)} ${
+          multiProtocolProvider?.getChainMetadata(chain).nativeToken?.symbol ??
+          'ETH'
+        }`,
+      );
+    } else {
+      // Original Ethereum chain handling
+      const provider = isDryRun
+        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
+        : multiProvider.getProvider(chain);
+      const address =
+        userAddress ?? (await multiProvider.getSigner(chain).getAddress());
+      const currentBalance = await provider.getBalance(address);
+      const balanceDelta = (initialBalances[chain] as BigNumber).sub(
+        currentBalance,
+      );
+      if (isDryRun && balanceDelta.lt(0)) continue;
+      logPink(
+        `\t- Gas required for ${command} ${
+          isDryRun ? 'dry-run' : 'deploy'
+        } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
+          multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
+        }`,
+      );
+    }
   }
 
   if (isDryRun) await completeDryRun(command);
