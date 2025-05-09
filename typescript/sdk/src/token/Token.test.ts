@@ -2,6 +2,7 @@
 import { SystemProgram } from '@solana/web3.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import sinon from 'sinon';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -12,11 +13,13 @@ import {
   testSealevelChain,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { mockArcadiaSdkInstance } from '../test/arcadiaStubs.js';
 import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
 import { TokenStandard } from './TokenStandard.js';
+import { EvmKhalaniIntentTokenAdapter } from './adapters/EvmTokenAdapter.js';
 
 // null values represent TODOs here, ideally all standards should be tested
 const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
@@ -123,7 +126,15 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
-
+  [TokenStandard.EvmKhalaniIntent]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmKhalaniIntent,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    collateralAddressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
   // Sealevel
   [TokenStandard.SealevelSpl]: {
     chainName: testSealevelChain.name,
@@ -243,6 +254,13 @@ const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
 };
 
 describe('Token', () => {
+  before(() => {
+    sinon
+      .mock(EvmKhalaniIntentTokenAdapter as any)
+      .expects('getArcadiaSdk')
+      .returns(mockArcadiaSdkInstance);
+  });
+
   for (const tokenArgs of Object.values(STANDARD_TO_TOKEN)) {
     if (!tokenArgs) continue;
     it(`Handles ${tokenArgs.standard} standard`, async () => {
@@ -255,8 +273,10 @@ describe('Token', () => {
         SystemProgram.programId.toBase58();
 
       console.debug('Testing token standard', tokenArgs.standard);
+
       const token = new Token(tokenArgs);
       expect(token.standard).to.eql(tokenArgs.standard);
+
       const adapter = token.getAdapter(multiProvider);
       const balanceCheckAddress =
         STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK[token.standard] ??

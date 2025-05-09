@@ -11,6 +11,7 @@ export enum TokenConnectionType {
   Hyperlane = 'hyperlane',
   Ibc = 'ibc',
   IbcHyperlane = 'ibc-hyperlane', // a.k.a. one-click two-hop
+  EvmKhalaniIntent = 'evm-khalani-intent',
 }
 
 interface TokenConnectionBase {
@@ -37,10 +38,15 @@ export interface IbcToHyperlaneTokenConnection extends TokenConnectionBase {
   intermediateRouterAddress: Address;
 }
 
+export interface EvmKhalaniIntentTokenConnection extends TokenConnectionBase {
+  type: TokenConnectionType.EvmKhalaniIntent;
+}
+
 export type TokenConnection =
   | HyperlaneTokenConnection
   | IbcTokenConnection
-  | IbcToHyperlaneTokenConnection;
+  | IbcToHyperlaneTokenConnection
+  | EvmKhalaniIntentTokenConnection;
 
 const TokenConnectionRegex = /^(.+)|(.+)|(.+)$/;
 
