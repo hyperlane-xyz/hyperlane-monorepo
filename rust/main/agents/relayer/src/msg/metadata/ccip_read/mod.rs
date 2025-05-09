@@ -46,11 +46,7 @@ pub struct HyperlaneOffchainLookupAttestation {
 }
 
 impl Signable for HyperlaneOffchainLookupAttestation {
-    /// A hash of the checkpoint contents.
-    /// The EIP-191 compliant version of this hash is signed by validators.
     fn signing_hash(&self) -> H256 {
-        // sign:
-        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
         H256::from_slice(
             Keccak256::new()
                 .chain(b"HYPERLANE_OFFCHAINLOOKUP")
@@ -64,7 +60,7 @@ impl Signable for HyperlaneOffchainLookupAttestation {
 }
 
 impl CcipReadIsmMetadataBuilder {
-    /// Generate a relayer authentication signature (EIP-191) over call_data and sender.
+    /// Generate a relayer authentication signature (EIP-191) over call_data and sender and the url template
     async fn generate_signature_hex(
         signer: &Signers,
         info: &OffchainLookup,
