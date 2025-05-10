@@ -158,6 +158,9 @@
   "flowmainnet": {
     "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
   },
+  "fluence": {
+    "validators": ["0xabc8dd7594783c90a3c0fb760943f78c37ea6d75"]
+  },
   "form": {
     "validators": ["0x58554b2e76167993b5fc000d0070a2f883cd333a"]
   },
@@ -166,6 +169,9 @@
   },
   "fusemainnet": {
     "validators": ["0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9"]
+  },
+  "game7": {
+    "validators": ["0x691dc4e763514df883155df0952f847b539454c0"]
   },
   "glue": {
     "validators": ["0xbe2ded12f7b023916584836506677ea89a0b6924"]
@@ -186,6 +192,9 @@
   "harmony": {
     "validators": ["0xd677803a67651974b1c264171b5d7ca8838db8d5"]
   },
+  "hashkey": {
+    "validators": ["0x55007cab8788cdba22844e7a2499cf43347f487a"]
+  },
   "hemi": {
     "validators": ["0x312dc72c17d01f3fd0abd31dd9b569bc473266dd"]
   },
@@ -201,6 +210,9 @@
       "0xae3e6bb6b3ece1c425aa6f47adc8cb0453c1f9a2",
       "0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3"
     ]
+  },
+  "infinityvmmainnet": {
+    "validators": ["0x777c19c87aaa625486dff5aab0a479100f4249ad"]
   },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
@@ -250,6 +262,9 @@
   },
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
+  },
+  "milkyway": {
+    "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
   },
   "mint": {
     "validators": ["0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9"]
@@ -301,6 +316,9 @@
   },
   "osmosis": {
     "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
+  },
+  "peaq": {
+    "validators": ["0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49"]
   },
   "plume": {
     "validators": ["0x63c9b5ea28710d956a51f0f746ee8df81215663f"]
@@ -397,6 +415,9 @@
   },
   "superpositionmainnet": {
     "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
+  },
+  "svmbnb": {
+    "validators": ["0xabcd4dac2d06ae30c011d25b0c2c193873116a14"]
   },
   "swell": {
     "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]

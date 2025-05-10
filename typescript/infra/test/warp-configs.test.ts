@@ -3,8 +3,12 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { diffObjMerge, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  HypTokenRouterConfig,
+  MultiProvider,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
@@ -20,10 +24,18 @@ const DEFAULT_TIMEOUT = 100000;
 const warpIdsToSkip = [
   'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   'EZETHSTAGE/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
-  'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain-staging',
-  'USDT/base-celo-fraxtal-ink-lisk-mode-optimism-soneium-superseed-unichain-worldchain',
+  'USDT/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
+  'USDTSTAGING/base-bitlayer-celo-ethereum-fraxtal-ink-linea-lisk-mantle-metal-metis-mode-optimism-ronin-soneium-sonic-superseed-unichain-worldchain',
 ];
 
+async function getConfigsForBranch(branch: string) {
+  return getRegistry({
+    registryUris: [DEFAULT_GITHUB_REGISTRY],
+    enableProxy: true,
+    logger: rootLogger,
+    branch,
+  }).getWarpDeployConfigs();
+}
 describe.skip('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
@@ -32,39 +44,45 @@ describe.skip('Warp Configs', async function () {
   );
 
   let multiProvider: MultiProvider;
-  let configsFromGithub;
-
+  let configsFromGithub: Record<string, WarpRouteDeployConfig>;
   before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
-    configsFromGithub = await getRegistry({
-      registryUris: [DEFAULT_GITHUB_REGISTRY],
-      enableProxy: true,
-      logger: rootLogger,
-    }).getWarpDeployConfigs();
+    configsFromGithub = await getConfigsForBranch('main');
   });
 
   const envConfig = getEnvironmentConfig(ENV);
 
   for (const warpRouteId of warpIdsToCheck) {
     it(`should match Github Registry configs for ${warpRouteId}`, async function () {
-      const warpConfig = await getWarpConfig(
-        multiProvider,
-        envConfig,
-        warpRouteId,
-      );
-      const { mergedObject, isInvalid } = diffObjMerge(
-        warpConfig,
-        configsFromGithub![warpRouteId],
-      );
-
-      if (isInvalid) {
-        console.log('Differences', JSON.stringify(mergedObject, null, 2));
+      const warpConfig: Record<
+        string,
+        Partial<HypTokenRouterConfig>
+      > = await getWarpConfig(multiProvider, envConfig, warpRouteId);
+      for (const key in warpConfig) {
+        if (warpConfig[key].mailbox) {
+          delete warpConfig[key].mailbox;
+        }
       }
 
-      expect(
-        isInvalid,
-        `Registry config does not match Getter for ${warpRouteId}`,
-      ).to.be.false;
+      // Attempt to read the config from main, but fallback to main~10 to decrease test CI failures for old PRs
+      // TODO: remove this when we have stable warp ids
+      const expectedConfig =
+        configsFromGithub[warpRouteId] ??
+        (await getConfigsForBranch('main~10'))[warpRouteId];
+      assert(expectedConfig, `Deploy config not found for ${warpRouteId}`);
+
+      for (const key in expectedConfig) {
+        if (expectedConfig[key].mailbox) {
+          delete expectedConfig[key].mailbox;
+        }
+      }
+
+      expect(warpConfig).to.have.keys(Object.keys(expectedConfig));
+      for (const key in warpConfig) {
+        if (warpConfig[key]) {
+          expect(warpConfig[key]).to.deep.equal(expectedConfig[key]);
+        }
+      }
     });
   }
 

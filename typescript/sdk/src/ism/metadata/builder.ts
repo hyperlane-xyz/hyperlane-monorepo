@@ -16,6 +16,7 @@ import { IsmType } from '../types.js';
 
 import { AggregationMetadataBuilder } from './aggregation.js';
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
+import { CcipReadMetadataBuilder } from './ccipread.js';
 import { decodeIsmMetadata } from './decode.js';
 import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
@@ -32,6 +33,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
   public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
+  public ccipReadMetadataBuilder: CcipReadMetadataBuilder;
 
   public multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
@@ -44,6 +46,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
     );
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
+    this.ccipReadMetadataBuilder = new CcipReadMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
   }
 
@@ -106,6 +109,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           hook: hookConfig,
         });
       }
+
+      case IsmType.CCIP_READ:
+        return this.ccipReadMetadataBuilder.build({
+          ...context,
+          ism,
+        });
 
       default:
         throw new Error(`Unsupported ISM: ${ism}`);

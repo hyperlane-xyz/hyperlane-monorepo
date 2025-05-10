@@ -118,6 +118,13 @@ export class SealevelNativeTokenAdapter
     return false;
   }
 
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
   async populateApproveTx(): Promise<Transaction> {
     throw new Error('Approve not required for native tokens');
   }
@@ -165,9 +172,8 @@ export class SealevelTokenAdapter
       new PublicKey(owner),
     );
     try {
-      const response = await this.getProvider().getTokenAccountBalance(
-        tokenPubKey,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(tokenPubKey);
       return BigInt(response.value.amount);
     } catch (error: any) {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
@@ -185,6 +191,13 @@ export class SealevelTokenAdapter
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -733,9 +746,8 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     // the escrow account.
     if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveEscrowAccount();
-      const response = await this.getProvider().getTokenAccountBalance(
-        collateralAccount,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(collateralAccount);
       return BigInt(response.value.amount);
     }
 
@@ -807,9 +819,8 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       new PublicKey(owner),
     );
     try {
-      const response = await this.getProvider().getTokenAccountBalance(
-        tokenPubKey,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(tokenPubKey);
       return BigInt(response.value.amount);
     } catch (error: any) {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;

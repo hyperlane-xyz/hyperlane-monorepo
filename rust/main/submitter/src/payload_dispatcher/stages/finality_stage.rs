@@ -15,7 +15,7 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::sleep,
 };
-use tracing::{error, info, info_span, warn, Instrument};
+use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
     error::SubmitterError,
@@ -25,33 +25,55 @@ use crate::{
 };
 
 use super::{
-    building_stage::BuildingStageQueue, utils::retry_until_success, PayloadDispatcherState,
+    building_stage::BuildingStageQueue, utils::call_until_success_or_nonretryable_error,
+    PayloadDispatcherState,
 };
 
-pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
+use pool::FinalityStagePool;
 
-#[derive(new)]
+mod pool;
+
+pub const STAGE_NAME: &str = "FinalityStage";
+
 pub struct FinalityStage {
-    pool: FinalityStagePool,
+    pub(crate) pool: FinalityStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
     building_stage_queue: BuildingStageQueue,
     state: PayloadDispatcherState,
+    domain: String,
 }
 
 impl FinalityStage {
+    pub fn new(
+        tx_receiver: mpsc::Receiver<Transaction>,
+        building_stage_queue: BuildingStageQueue,
+        state: PayloadDispatcherState,
+        domain: String,
+    ) -> Self {
+        Self {
+            pool: FinalityStagePool::new(),
+            tx_receiver,
+            building_stage_queue,
+            state,
+            domain,
+        }
+    }
+
     pub async fn run(self) {
         let FinalityStage {
             pool,
             tx_receiver,
             building_stage_queue,
             state,
+            domain,
         } = self;
         let futures = vec![
             tokio::spawn(
-                Self::receive_txs(tx_receiver, pool.clone()).instrument(info_span!("receive_txs")),
+                Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
+                    .instrument(info_span!("receive_txs")),
             ),
             tokio::spawn(
-                Self::process_txs(pool, building_stage_queue, state)
+                Self::process_txs(pool, building_stage_queue, state, domain)
                     .instrument(info_span!("process_txs")),
             ),
         ];
@@ -66,10 +88,16 @@ impl FinalityStage {
     async fn receive_txs(
         mut tx_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
+        state: PayloadDispatcherState,
+        domain: String,
     ) -> Result<(), SubmitterError> {
         loop {
+            state
+                .metrics
+                .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = tx_receiver.recv().await {
-                pool.lock().await.insert(tx.id.clone(), tx.clone());
+                let pool_len = pool.insert(tx.clone()).await;
+                state.adapter.set_unfinalized_tx_count(pool_len).await;
                 info!(?tx, "Received transaction");
             } else {
                 error!("Inclusion stage channel closed");
@@ -82,13 +110,27 @@ impl FinalityStage {
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: PayloadDispatcherState,
+        domain: String,
     ) -> Result<(), SubmitterError> {
         let estimated_block_time = state.adapter.estimated_block_time();
         loop {
+            state
+                .metrics
+                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), &domain);
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
 
-            let pool_snapshot = pool.lock().await.clone();
+            let pool_snapshot = pool.snapshot().await;
+            state
+                .adapter
+                .set_unfinalized_tx_count(pool_snapshot.len())
+                .await;
+            state.metrics.update_queue_length_metric(
+                STAGE_NAME,
+                pool_snapshot.len() as u64,
+                &domain,
+            );
+            info!(pool_size=?pool_snapshot.len() , "Processing transactions in finality pool");
             for (_, tx) in pool_snapshot {
                 if let Err(err) = Self::try_process_tx(
                     tx.clone(),
@@ -98,33 +140,48 @@ impl FinalityStage {
                 )
                 .await
                 {
-                    error!(?err, ?tx, "Error processing transaction. Skipping for now");
+                    error!(
+                        ?err,
+                        ?tx,
+                        "Error processing finality stage transaction. Skipping for now"
+                    );
                 }
             }
         }
     }
 
+    #[instrument(
+        skip(tx, pool, building_stage_queue, state),
+        name = "FinalityStage::try_process_tx"
+        fields(
+            tx_id = ?tx.id,
+            tx_status = ?tx.status,
+            payloads = ?tx.payload_details
+    ))]
     async fn try_process_tx(
         mut tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: &PayloadDispatcherState,
     ) -> Result<(), SubmitterError> {
-        let tx_status = retry_until_success(
+        info!(?tx, "Processing finality stage transaction");
+        let tx_status = call_until_success_or_nonretryable_error(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
+            state,
         )
-        .await;
+        .await?;
 
         match tx_status {
             TransactionStatus::Included => {
                 // tx is not finalized yet, keep it in the pool
                 info!(?tx, "Transaction is not yet finalized");
-                let reverted_payloads = retry_until_success(
+                let reverted_payloads = call_until_success_or_nonretryable_error(
                     || state.adapter.reverted_payloads(&tx),
                     "Checking reverted payloads",
+                    state,
                 )
-                .await;
+                .await?;
                 state
                     .update_status_for_payloads(
                         &reverted_payloads,
@@ -137,7 +194,9 @@ impl FinalityStage {
                 update_tx_status(state, &mut tx, tx_status).await?;
                 let tx_id = tx.id.clone();
                 info!(?tx_id, "Transaction is finalized");
-                pool.lock().await.remove(&tx_id);
+
+                let pool_len = pool.remove(&tx_id).await;
+                state.adapter.set_unfinalized_tx_count(pool_len).await;
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
@@ -197,7 +256,8 @@ impl FinalityStage {
                 building_stage_queue.lock().await.push_front(full_payload);
             }
         }
-        pool.lock().await.remove(&tx.id);
+        let pool_len = pool.remove(&tx.id).await;
+        state.adapter.set_unfinalized_tx_count(pool_len).await;
         Ok(())
     }
 }
@@ -206,15 +266,17 @@ impl FinalityStage {
 mod tests {
     use super::*;
     use crate::{
-        payload::{PayloadDb, PayloadDetails, PayloadId},
+        payload::{PayloadDetails, PayloadId},
         payload_dispatcher::{
+            metrics::DispatcherMetrics,
             stages::{building_stage, finality_stage},
-            test_utils::tests::{
-                create_random_txs_and_store_them, dummy_tx, initialize_payload_db, tmp_dbs,
-                MockAdapter,
+            test_utils::{
+                are_all_txs_in_pool, are_no_txs_in_pool, create_random_txs_and_store_them,
+                dummy_tx, initialize_payload_db, tmp_dbs, MockAdapter,
             },
+            PayloadDb, TransactionDb,
         },
-        transaction::{Transaction, TransactionDb, TransactionId},
+        transaction::{Transaction, TransactionId},
     };
     use eyre::Result;
     use std::sync::Arc;
@@ -286,15 +348,20 @@ mod tests {
 
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
-        let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
+        let state = PayloadDispatcherState::new(
+            payload_db.clone(),
+            tx_db.clone(),
+            Arc::new(mock_adapter),
+            DispatcherMetrics::dummy_instance(),
+            "test".to_string(),
+        );
         let finality_stage = FinalityStage::new(
-            pool.clone(),
             inclusion_stage_receiver,
             building_queue.clone(),
             state,
+            "test".to_string(),
         );
+        let pool = finality_stage.pool.clone();
 
         send_txs_to_channel(generated_txs.clone(), inclusion_stage_sender).await;
         let txs_received = run_stage(finality_stage).await;
@@ -389,16 +456,6 @@ mod tests {
         }
     }
 
-    async fn are_all_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
-        let pool = pool.lock().await;
-        txs.iter().all(|tx| pool.contains_key(&tx.id))
-    }
-
-    async fn are_no_txs_in_pool(txs: Vec<Transaction>, pool: &FinalityStagePool) -> bool {
-        let pool = pool.lock().await;
-        txs.iter().all(|tx| !pool.contains_key(&tx.id))
-    }
-
     async fn set_up_test_and_run_stage(
         mock_adapter: MockAdapter,
         txs_to_process: usize,
@@ -441,15 +498,20 @@ mod tests {
 
         let building_queue = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
 
-        let state =
-            PayloadDispatcherState::new(payload_db.clone(), tx_db.clone(), Box::new(mock_adapter));
-        let pool = Arc::new(Mutex::new(HashMap::new()));
+        let state = PayloadDispatcherState::new(
+            payload_db.clone(),
+            tx_db.clone(),
+            Arc::new(mock_adapter),
+            DispatcherMetrics::dummy_instance(),
+            "test".to_string(),
+        );
         let finality_stage = FinalityStage::new(
-            pool.clone(),
             inclusion_stage_receiver,
             building_queue.clone(),
             state,
+            "test".to_string(),
         );
+        let pool = finality_stage.pool.clone();
 
         let test_txs =
             create_random_txs_and_store_them(txs_to_process, &payload_db, &tx_db, tx_status).await;
@@ -475,7 +537,7 @@ mod tests {
 
     async fn run_stage(stage: FinalityStage) -> Vec<Transaction> {
         let pool = stage.pool.clone();
-        let pool_before = pool.lock().await.clone();
+        let pool_before = pool.snapshot().await;
         let stage_task = tokio::spawn(async move { stage.run().await });
         // give the building stage 100ms to send the transaction(s) to the receiver
         let _ = tokio::select! {
@@ -485,7 +547,7 @@ mod tests {
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
             },
         };
-        let pool_after = pool.lock().await.clone();
+        let pool_after = pool.snapshot().await;
         pool_before
             .iter()
             .filter(|(id, _)| !pool_after.contains_key(id))

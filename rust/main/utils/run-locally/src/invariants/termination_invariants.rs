@@ -10,6 +10,7 @@ use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 use crate::logging::log;
 use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
 
+#[derive(Clone)]
 pub struct RelayerTerminationInvariantParams<'a> {
     pub config: &'a Config,
     pub starting_relayer_balance: f64,
@@ -17,9 +18,11 @@ pub struct RelayerTerminationInvariantParams<'a> {
     pub gas_payment_events_count: u32,
     pub total_messages_expected: u32,
     pub total_messages_dispatched: u32,
+    pub failed_message_count: u32,
     pub submitter_queue_length_expected: u32,
     pub non_matching_igp_message_count: u32,
     pub double_insertion_message_count: u32,
+    pub sealevel_tx_id_indexing: bool,
 }
 
 /// returns false if invariants are not met
@@ -34,9 +37,11 @@ pub fn relayer_termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
+        failed_message_count,
         submitter_queue_length_expected,
         non_matching_igp_message_count,
         double_insertion_message_count,
+        sealevel_tx_id_indexing,
     } = params;
 
     log!("Checking relayer termination invariants");
@@ -49,8 +54,9 @@ pub fn relayer_termination_invariants_met(
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != submitter_queue_length_expected {
         log!(
-            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
-            lengths
+            "Relayer queues contain more messages than expected. Lengths: {:?}, expected {}",
+            lengths,
+            submitter_queue_length_expected
         );
         return Ok(false);
     };
@@ -94,16 +100,17 @@ pub fn relayer_termination_invariants_met(
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
-    let gas_expenditure_log_count = *log_counts
-        .get(&gas_expenditure_line_filter)
-        .expect("Failed to get gas expenditure log count");
-    assert!(
-        gas_expenditure_log_count >= total_messages_expected,
-        "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
-        gas_expenditure_log_count,
-        total_messages_expected
-    );
-    // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
+    // TODO: re-enable once the MessageProcessor IGP is integrated with the dispatcher
+    // let gas_expenditure_log_count = *log_counts
+    //     .get(&gas_expenditure_line_filter)
+    //     .expect("Failed to get gas expenditure log count");
+    // assert!(
+    //     gas_expenditure_log_count >= total_messages_expected,
+    //     "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
+    //     gas_expenditure_log_count,
+    //     total_messages_expected
+    // );
+    // // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
 
     let storing_new_msg_log_count = *log_counts
         .get(&storing_new_msg_line_filter)
@@ -122,18 +129,27 @@ pub fn relayer_termination_invariants_met(
     let total_tx_id_log_count = *log_counts
         .get(&tx_id_indexing_line_filter)
         .expect("Failed to get tx id indexing log count");
+
+    // Sealevel relayer does not require tx id indexing.
+    // It performs sequenced indexing, that's why we don't expect any tx_id_logs
+    let expected_tx_id_logs = if sealevel_tx_id_indexing {
+        0
+    } else {
+        config.kathy_messages
+    };
+    // there are 3 txid-indexed events:
+    // - relayer: merkle insertion and gas payment
+    // - scraper: gas payment
+    // some logs are emitted for multiple events, so requiring there to be at least
+    // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
+    // are expected to be logged for each message.
     assert!(
-        // there are 3 txid-indexed events:
-        // - relayer: merkle insertion and gas payment
-        // - scraper: gas payment
-        // some logs are emitted for multiple events, so requiring there to be at least
-        // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
-        // are expected to be logged for each message.
-        total_tx_id_log_count as u64 >= config.kathy_messages,
+        total_tx_id_log_count as u64 >= expected_tx_id_logs,
         "Didn't find as many tx id logs as expected. Found {} and expected {}",
         total_tx_id_log_count,
-        config.kathy_messages
+        expected_tx_id_logs
     );
+
     assert!(
         !log_counts.contains_key(&hyper_incoming_body_line_filter),
         "Verbose logs not expected at the log level set in e2e"
@@ -160,10 +176,21 @@ pub fn relayer_termination_invariants_met(
     // RHS: total_messages_expected + non_matching_igp_messages + double_insertion_message_count
     let non_zero_sequence_count =
         merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
-    assert_eq!(
-        merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
-        total_messages_expected + non_matching_igp_message_count + double_insertion_message_count,
-    );
+
+    let lhs = merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count;
+    let rhs = total_messages_expected
+        + non_matching_igp_message_count
+        + double_insertion_message_count
+        + failed_message_count;
+    if lhs != rhs {
+        log!(
+            "highest tree index does not match messages sent. got {} expected {}",
+            lhs,
+            rhs
+        );
+        return Ok(false);
+    }
+    assert_eq!(lhs, rhs);
 
     let dropped_tasks = fetch_metric(
         RELAYER_METRICS_PORT,
@@ -180,13 +207,23 @@ pub fn relayer_termination_invariants_met(
     Ok(true)
 }
 
+pub struct ScraperTerminationInvariantParams {
+    pub gas_payment_events_count: u32,
+    pub total_messages_dispatched: u32,
+    pub delivered_messages_scraped_expected: u32,
+}
+
 /// returns false if invariants are not met
 /// returns true if invariants are met
 pub fn scraper_termination_invariants_met(
-    gas_payment_events_count: u32,
-    total_messages_dispatched: u32,
-    delivered_messages_scraped_expected: u32,
+    params: ScraperTerminationInvariantParams,
 ) -> eyre::Result<bool> {
+    let ScraperTerminationInvariantParams {
+        gas_payment_events_count,
+        total_messages_dispatched,
+        delivered_messages_scraped_expected,
+    } = params;
+
     log!("Checking scraper termination invariants");
 
     let dispatched_messages_scraped = fetch_metric(
@@ -265,7 +302,6 @@ pub fn provider_metrics_invariant_met(
     let request_count = fetch_metric(relayer_port, "hyperlane_request_count", filter_hashmap)?
         .iter()
         .sum::<u32>();
-
     if request_count < expected_request_count {
         log!(
             "hyperlane_request_count {} count, expected {}",
@@ -282,13 +318,29 @@ pub fn provider_metrics_invariant_met(
     )?
     .iter()
     .sum::<u32>();
-
     log!("Provider created count: {}", provider_create_count);
-
     if provider_create_count < expected_request_count {
         log!(
             "hyperlane_provider_create_count only has {} count, expected at least {}",
             provider_create_count,
+            expected_request_count
+        );
+        return Ok(false);
+    }
+
+    let metadata_build_hashmap: HashMap<&str, &str> = HashMap::new();
+
+    let metadata_build_count = fetch_metric(
+        relayer_port,
+        "hyperlane_metadata_build_count",
+        &metadata_build_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+    if metadata_build_count < expected_request_count {
+        log!(
+            "hyperlane_metadata_build_count only has {} count, expected at least {}",
+            metadata_build_count,
             expected_request_count
         );
         return Ok(false);

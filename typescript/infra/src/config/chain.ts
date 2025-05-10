@@ -8,11 +8,15 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  inCIMode,
+  objFilter,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
-import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -20,6 +24,8 @@ import { DeployEnvironment } from './environment.js';
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
 export const chainsToSkip: ChainName[] = [
+  'ontology',
+
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
@@ -31,7 +37,6 @@ export const chainsToSkip: ChainName[] = [
 
   // testnets
   'abstracttestnet',
-  'treasuretopaz',
 
   // Oct 16 batch
   'lumia',

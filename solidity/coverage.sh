@@ -3,7 +3,6 @@
 # exit on error
 set -e
 
-# exclude FastTokenRouter until https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2806 is resolved
 forge coverage \
     --report lcov \
     --report summary \
