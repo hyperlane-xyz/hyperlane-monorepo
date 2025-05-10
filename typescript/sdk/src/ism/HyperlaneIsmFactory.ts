@@ -17,7 +17,6 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
-  InterchainAccountIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -167,7 +166,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
-      case IsmType.ICA_ROUTING:
       case IsmType.AMOUNT_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
@@ -359,10 +357,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IRoutingIsm> {
     const { config } = params;
 
-    if (config.type === IsmType.ICA_ROUTING) {
-      return this.deployIcaIsm(params);
-    }
-
     if (config.type === IsmType.AMOUNT_ROUTING) {
       return this.deployAmountRoutingIsm({
         config: config,
@@ -377,22 +371,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // Can't pass params directly because ts will complain that the types do not match
       config,
     });
-  }
-
-  private async deployIcaIsm(params: {
-    destination: ChainName;
-    config: RoutingIsmConfig;
-    mailbox?: Address;
-  }): Promise<IRoutingIsm> {
-    if (!params.mailbox) {
-      throw new Error('Mailbox address is required for deploying ICA ISM');
-    }
-
-    return this.multiProvider.handleDeploy(
-      params.destination,
-      new InterchainAccountIsm__factory(),
-      [params.mailbox],
-    );
   }
 
   private async deployAmountRoutingIsm(params: {

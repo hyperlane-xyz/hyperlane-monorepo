@@ -51,7 +51,6 @@ export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
-  ICA_ROUTING = 'icaRoutingIsm',
   AMOUNT_ROUTING = 'amountRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   STORAGE_AGGREGATION = 'storageAggregationIsm',
@@ -80,7 +79,6 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.ROUTING:
     case IsmType.FALLBACK_ROUTING:
-    case IsmType.ICA_ROUTING:
     case IsmType.AMOUNT_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
@@ -139,11 +137,7 @@ export type NullIsmConfig =
   | CCIPIsmConfig;
 
 type BaseRoutingIsmConfig<
-  T extends
-    | IsmType.ROUTING
-    | IsmType.FALLBACK_ROUTING
-    | IsmType.ICA_ROUTING
-    | IsmType.AMOUNT_ROUTING,
+  T extends IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.AMOUNT_ROUTING,
 > = {
   type: T;
 };
@@ -153,8 +147,6 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
 
-export type IcaRoutingIsmConfig = BaseRoutingIsmConfig<IsmType.ICA_ROUTING>;
-
 export type AmountRoutingIsmConfig =
   BaseRoutingIsmConfig<IsmType.AMOUNT_ROUTING> & {
     lowerIsm: IsmConfig;
@@ -162,10 +154,7 @@ export type AmountRoutingIsmConfig =
     threshold: number;
   };
 
-export type RoutingIsmConfig =
-  | IcaRoutingIsmConfig
-  | DomainRoutingIsmConfig
-  | AmountRoutingIsmConfig;
+export type RoutingIsmConfig = DomainRoutingIsmConfig | AmountRoutingIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -181,7 +170,6 @@ export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
-  [IsmType.ICA_ROUTING]: IRoutingIsm;
   [IsmType.AMOUNT_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
@@ -278,9 +266,6 @@ export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
 export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
   () =>
     z.discriminatedUnion('type', [
-      z.object({
-        type: z.literal(IsmType.ICA_ROUTING),
-      }),
       z.object({
         type: z.literal(IsmType.AMOUNT_ROUTING),
         lowerIsm: IsmConfigSchema,

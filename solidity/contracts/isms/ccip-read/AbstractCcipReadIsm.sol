@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title AbstractCcipReadIsm
@@ -20,7 +21,7 @@ import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
  *    message. This functions selector should be provided as the `callbackFunction` payload
  *    for the OffchainLookup error
  */
-abstract contract AbstractCcipReadIsm is ICcipReadIsm {
+abstract contract AbstractCcipReadIsm is ICcipReadIsm, PackageVersioned {
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase

@@ -33,9 +33,7 @@ describe('EvmIcaModule', async () => {
         multiProvider,
       });
 
-      const { interchainAccountRouter, interchainAccountIsm } =
-        evmIcaModule.serialize();
-      expect(interchainAccountIsm).to.not.equal(ethers.constants.AddressZero);
+      const { interchainAccountRouter } = evmIcaModule.serialize();
       expect(interchainAccountRouter).to.not.equal(
         ethers.constants.AddressZero,
       );
