@@ -1,8 +1,9 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction, utils } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
+  CallData,
   addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
@@ -252,4 +253,58 @@ export async function deployInterchainAccount(
     config,
   );
   return interchainAccountApp.deployAccount(chain, config);
+}
+
+export function encodeIcaCalls(calls: CallData[], salt: string) {
+  return utils.defaultAbiCoder.encode(
+    ['bytes32', 'tuple(bytes32 to,uint256 value,bytes data)[]'],
+    [
+      salt,
+      calls.map((c) => ({
+        to: addressToBytes32(c.to),
+        value: c.value || 0,
+        data: c.data,
+      })),
+    ],
+  );
+}
+
+// Convenience function to transform value strings to bignumber
+type UnstructuredCallData = {
+  to: string;
+  value?: string | number;
+  data: string;
+};
+export function normalizeCalls(calls: UnstructuredCallData[]): CallData[] {
+  return calls.map((call) => ({
+    to: addressToBytes32(call.to),
+    value: BigNumber.from(call.value || 0),
+    data: call.data,
+  }));
+}
+
+export function commitmentFromIcaCalls(
+  calls: CallData[],
+  salt: string,
+): string {
+  return utils.keccak256(encodeIcaCalls(calls, salt));
+}
+
+export function shareCallsWithPrivateRelayer(
+  calls: CallData[],
+  salt: string,
+  relayers: string[],
+  commitmentMessageId: string,
+  serverUrl: string,
+): Promise<Response> {
+  return fetch(serverUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      commitmentMessageId,
+      calls,
+      relayers,
+      salt,
+    }),
+  });
 }

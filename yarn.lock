@@ -7641,6 +7641,8 @@ __metadata:
   dependencies:
     "@chainlink/ccip-read-server": "npm:^0.2.1"
     "@eth-optimism/sdk": "npm:^3.3.3"
+    "@hyperlane-xyz/sdk": "npm:12.5.0"
+    "@hyperlane-xyz/utils": "npm:12.5.0"
     "@jest/globals": "npm:^29.7.0"
     "@types/node": "npm:^18.14.5"
     dotenv-flow: "npm:^4.1.0"

@@ -223,6 +223,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.CCIP:
         contract = await this.deployCCIPIsm(destination, config);
         break;
+      case IsmType.ICA:
+        throw new Error(
+          'Interchain Account ISM is not supported in this context',
+        );
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
@@ -364,6 +368,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         origin: params.origin,
         mailbox: params.mailbox,
       });
+    }
+    if (config.type === IsmType.ICA) {
+      throw new Error(
+        'Interchain Account ISM is not supported in this context',
+      );
     }
 
     return this.deployOwnableRoutingIsm({

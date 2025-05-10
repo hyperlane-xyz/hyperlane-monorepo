@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "tsx src/server.ts",
-    "dev": "nodemon src/server.ts",
+    "dev": "tsx watch src/server.ts",
     "test": "jest",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src/* ./tests/"
@@ -33,9 +33,12 @@
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },
+  "type": "module",
   "dependencies": {
     "@chainlink/ccip-read-server": "^0.2.1",
     "@eth-optimism/sdk": "^3.3.3",
+    "@hyperlane-xyz/sdk": "12.5.0",
+    "@hyperlane-xyz/utils": "12.5.0",
     "dotenv-flow": "^4.1.0",
     "ethers": "^5.7.2"
   }

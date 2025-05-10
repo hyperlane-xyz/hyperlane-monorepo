@@ -179,7 +179,9 @@ export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
       .array('chains')
       .choices(
         'chains',
-        !chainOptions || chainOptions.length === 0 ? getChains() : chainOptions,
+        !chainOptions || chainOptions.length === 0
+          ? [...getChains(), 'test1', 'test2']
+          : chainOptions,
       )
       // Ensure chains are unique
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))

@@ -1,79 +1,63 @@
 import { Server } from '@chainlink/ccip-read-server';
 
-import { CCTPServiceAbi } from './abis/CCTPServiceAbi';
-import { OPStackServiceAbi } from './abis/OPStackServiceAbi';
-import { ProofsServiceAbi } from './abis/ProofsServiceAbi';
-import * as config from './config';
-import { CCTPService } from './services/CCTPService';
-import { OPStackService } from './services/OPStackService';
-import { ProofsService } from './services/ProofsService';
+import {
+  HyperlaneCore,
+  commitmentFromIcaCalls,
+  encodeIcaCalls,
+  normalizeCalls,
+} from '@hyperlane-xyz/sdk';
 
-// Initialize Services
-const proofsService = new ProofsService(
-  {
-    lightClientAddress: config.LIGHT_CLIENT_ADDR,
-    stepFunctionId: config.STEP_FN_ID,
-    platformUrl: config.SUCCINCT_PLATFORM_URL,
-    apiKey: config.SUCCINCT_API_KEY,
-  },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-  { url: `${config.SERVER_URL_PREFIX}:${config.SERVER_PORT}` },
-);
-
-const opStackService = new OPStackService(
-  { url: config.HYPERLANE_EXPLORER_API },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-  { url: config.L2_RPC_ADDRESS, chainId: config.L2_CHAIN_ID },
-  {
-    l1: {
-      AddressManager: config.L1_ADDRESS_MANAGER,
-      L1CrossDomainMessenger: config.L1_CROSS_DOMAIN_MESSENGER,
-      L1StandardBridge: config.L1_STANDARD_BRIDGE,
-      StateCommitmentChain: config.L1_STATE_COMMITMENT_CHAIN,
-      CanonicalTransactionChain: config.L1_CANONICAL_TRANSACTION_CHAIN,
-      BondManager: config.L1_BOND_MANAGER,
-      OptimismPortal: config.L1_OPTIMISM_PORTAL,
-      L2OutputOracle: config.L2_OUTPUT_ORACLE,
-    },
-  },
-);
-
-const cctpService = new CCTPService(
-  { url: config.HYPERLANE_EXPLORER_API },
-  { url: config.CCTP_ATTESTATION_API },
-  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
-);
-
-// Initialize Server and add Service handlers
 const server = new Server();
 
-server.add(ProofsServiceAbi, [
-  { type: 'getProofs', func: proofsService.getProofs.bind(this) },
-]);
+// TODO
+// 1. Extract modules
+// 2. Authenticate relayer
+// 3. check commitment was dispatched to avoid ddosing the db
+interface StoredCommitment {
+  calls: { to: string; data: string; value?: string }[];
+  salt: string;
+  relayers: string[];
+}
 
-server.add(OPStackServiceAbi, [
-  {
-    type: 'getWithdrawalProof',
-    func: opStackService.getWithdrawalProof.bind(opStackService),
-  },
-]);
+const commitments = new Map<string, StoredCommitment>();
 
-server.add(OPStackServiceAbi, [
-  {
-    type: 'getFinalizeWithdrawalTx',
-    func: opStackService.getFinalizeWithdrawalTx.bind(opStackService),
-  },
-]);
+const app = server.makeApp('/');
+app.post('/calls', (req, res) => {
+  const { calls, relayers, salt } = req.body;
+  const commitmentKey = commitmentFromIcaCalls(calls, salt);
+  commitments.set(commitmentKey, { calls, relayers, salt });
+  console.log('Stored commitment', commitmentKey);
+  res.sendStatus(200);
+});
 
-server.add(CCTPServiceAbi, [
-  {
-    type: 'getCCTPAttestation',
-    func: cctpService.getCCTPAttestation.bind(cctpService),
-  },
-]);
+app.post('/getCallsFromCommitment', (req, res) => {
+  // message is in the data
+  const { data } = req.body;
+  // TODO: Fix this after we fix it in the ISM
+  // For now parse it from the wrong signature, treat bytes32 as bytes in getCallsFromCommitment(bytes32)
+  const message = HyperlaneCore.parseDispatchedMessage(
+    '0x' + data.slice(2 + 8 + 128),
+  );
+  const body = message.parsed.body;
+  // Parse the commitment after skipping the first 32 bytes and the leading 0x
+  const commitment = '0x' + body.slice(68, 132);
 
-// Start Server
-const app = server.makeApp(config.SERVER_URL_PREFIX);
-app.listen(config.SERVER_PORT, () =>
-  console.log(`Listening on port ${config.SERVER_PORT}`),
-);
+  const entry = commitments.get(commitment);
+  if (!entry) {
+    console.log('Commitment not found', commitment);
+    res.status(404).json({ error: 'Commitment not found' });
+    return;
+  }
+  const { calls, salt } = entry;
+  const encoded = encodeIcaCalls(normalizeCalls(calls), salt);
+  console.log('Serving calls for commitment', commitment);
+  res.status(200).json({ data: encoded });
+});
+
+// Log and handle undefined endpoints
+app.use((req, res) => {
+  console.log(`Undefined request: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+app.listen(3000, () => console.log(`Listening on port ${3000}`));

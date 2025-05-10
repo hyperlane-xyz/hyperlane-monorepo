@@ -20,7 +20,9 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     context: MetadataContext<WithAddress<CCIPReadIsmConfig>>,
   ): Promise<string> {
     const { ism, message } = context;
-    const provider = this.core.multiProvider.getProvider(message.parsed.origin);
+    const provider = this.core.multiProvider.getProvider(
+      message.parsed.destination,
+    );
     const contract = ICcipReadIsm__factory.connect(ism.address, provider);
 
     let revertData: string;
@@ -37,11 +39,13 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     if (parsed.name !== 'OffchainLookup') {
       throw new Error(`Unexpected error ${parsed.name}`);
     }
-    const [sender, urls, callData] = parsed.args as [
+    let [sender, urls, callData] = parsed.args as [
       string,
       string[],
       Uint8Array,
     ];
+    // TODO: change this once we can set ISMs on the ISM
+    urls = ['http://localhost:3000/getCallsFromCommitment'];
     const callDataHex = utils.hexlify(callData);
 
     for (const urlTemplate of urls) {
