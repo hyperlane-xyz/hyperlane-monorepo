@@ -7,5 +7,11 @@
   },
   "bsctestnet": {
     "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "test1": {
+    "interchainAccountRouter": "0xCA8c8688914e0F7096c920146cd0Ad85cD7Ae8b9"
+  },
+  "test2": {
+    "interchainAccountRouter": "0xB0f05d25e41FbC2b52013099ED9616f1206Ae21B"
   }
 }
