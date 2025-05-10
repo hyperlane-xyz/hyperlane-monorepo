@@ -41,6 +41,7 @@ import {
   TxSubmitterType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   attachContractsMap,
@@ -51,6 +52,7 @@ import {
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
+  isIsmCompatible,
   isTokenMetadata,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
@@ -102,6 +104,9 @@ export async function runWarpRouteDeploy({
   const { skipConfirmation, chainMetadata, registry } = context;
   const chains = Object.keys(warpDeployConfig);
 
+  // Validate ISM compatibility for all chains
+  validateIsmCompatibility(warpRouteConfig, context);
+
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
@@ -151,6 +156,34 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
+/**
+ * Validates that the ISM configurations are compatible with each chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured for a chain.
+ */
+function validateIsmCompatibility(
+  warpRouteConfig: WarpRouteDeployConfig,
+  context: WriteCommandContext,
+) {
+  for (const chain of Object.keys(warpRouteConfig)) {
+    const config = warpRouteConfig[chain];
+    const { technicalStack: chainTechnicalStack } =
+      context.multiProvider.getChainMetadata(chain);
+
+    if (
+      config.interchainSecurityModule &&
+      typeof config.interchainSecurityModule !== 'string'
+    ) {
+      assert(
+        isIsmCompatible({
+          chainTechnicalStack,
+          ismType: config.interchainSecurityModule.type,
+        }),
+        `Selected ISM of type ${config.interchainSecurityModule.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
+      );
+    }
+  }
+}
+
 async function executeDeploy(
   params: DeployParams,
   apiKeys: ChainMap<string>,
@@ -162,21 +195,21 @@ async function executeDeploy(
     context: { multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const deployer = warpDeployConfig.isNft
-    ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
-
-  const config: WarpRouteDeployConfigMailboxRequired =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
-
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
+
+  const deployer = warpDeployConfig.isNft
+    ? new HypERC721Deployer(multiProvider, undefined, contractVerifier)
+    : new HypERC20Deployer(multiProvider, undefined, contractVerifier); // TODO: replace with EvmERC20WarpModule
+
+  const config: WarpRouteDeployConfigMailboxRequired =
+    isDryRun && dryRunChain
+      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
+      : warpDeployConfig;
 
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(
     multiProvider,
