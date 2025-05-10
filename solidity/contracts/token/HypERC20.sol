@@ -14,6 +14,9 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
     uint8 private immutable _decimals;
 
+    /**
+     * @param _mailbox Address of the mailbox contract that will process and handle remote transfers for this token.
+     */
     constructor(
         uint8 __decimals,
         uint256 _scale,
@@ -24,6 +27,7 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
 
     /**
      * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
+     *
      * @param _totalSupply The initial supply of the token.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
