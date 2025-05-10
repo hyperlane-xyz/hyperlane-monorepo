@@ -623,7 +623,6 @@ async function updateExistingWarpRoute(
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
-    includeVirtual: false,
   });
 
   await promiseObjAll(

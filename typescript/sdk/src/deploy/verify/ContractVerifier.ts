@@ -340,6 +340,12 @@ export class ContractVerifier {
     address: Address,
     verificationLogger: Logger,
   ): Promise<{ isVerified: false } | { isVerified: true; name: string }> {
+    const metadata = this.multiProvider.tryGetChainMetadata(chain);
+    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
+    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
+      verificationLogger.debug('Skipping verification for local endpoints');
+      return { isVerified: false };
+    }
     verificationLogger.trace(
       `Fetching contract ABI for ${chain} address ${address}`,
     );

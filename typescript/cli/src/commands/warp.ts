@@ -4,7 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
-  expandOnChainWarpDeployConfig,
+  expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -383,16 +383,8 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     ));
 
-    // Expand the config before removing non-EVM chain configs to correctly expand
-    // the remote routers
     const deployedRoutersAddresses =
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
-    let expandedWarpDeployConfig = await expandWarpDeployConfig({
-      multiProvider: context.multiProvider,
-      warpDeployConfig,
-      deployedRoutersAddresses,
-      includeVirtual: true,
-    });
 
     // Remove any non EVM chain configs to avoid the checker crashing
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
@@ -401,24 +393,30 @@ export const check: CommandModuleWithContext<{
         ProtocolType.Ethereum,
     );
 
-    expandedWarpDeployConfig = objFilter(
-      expandedWarpDeployConfig,
-      (chain, _config): _config is any =>
-        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
-
     // Get on-chain config
     const onChainWarpConfig = await getWarpRouteConfigsByCore({
       context,
       warpCoreConfig,
     });
 
-    // Add virtual config
-    const expandedOnChainWarpConfig = await expandOnChainWarpDeployConfig({
+    // get virtual on-chain config
+    const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
       multiProvider: context.multiProvider,
-      warpDeployConfig: onChainWarpConfig,
+      onChainWarpConfig,
       deployedRoutersAddresses,
     });
+
+    let expandedWarpDeployConfig = await expandWarpDeployConfig({
+      multiProvider: context.multiProvider,
+      warpDeployConfig,
+      deployedRoutersAddresses,
+      virtualConfig: expandedOnChainWarpConfig,
+    });
+    expandedWarpDeployConfig = objFilter(
+      expandedWarpDeployConfig,
+      (chain, _config): _config is any =>
+        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
 
     await runWarpRouteCheck({
       onChainWarpConfig: expandedOnChainWarpConfig,
