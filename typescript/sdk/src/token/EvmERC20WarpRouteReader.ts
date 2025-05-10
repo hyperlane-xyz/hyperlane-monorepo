@@ -41,6 +41,7 @@ import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
+  ContractVerificationStatus,
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
@@ -137,46 +138,53 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     };
   }
 
-  async deriveWarpRouteVirtualConfig(
-    chain: ChainName,
-    address: Address,
-    virtualConfig: { contractVerificationStatus: Record<string, boolean> } = {
-      contractVerificationStatus: {},
-    },
-  ): Promise<HypTokenRouterVirtualConfig> {
+  async getContractVerificationStatus(chain: string, address: Address) {
     try {
-      const verificationStatus =
+      const { isVerified: isImplementationVerified } =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
           address,
           this.logger,
         );
+      return isImplementationVerified
+        ? ContractVerificationStatus.Verified
+        : ContractVerificationStatus.Unverified;
+    } catch (e) {
+      this.logger.info(`Error fetching contract verification status: ${e}`);
+      return ContractVerificationStatus.Error;
+    }
+  }
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+    virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: {},
+    },
+  ): Promise<HypTokenRouterVirtualConfig> {
+    const contractType = (await isProxy(this.provider, address))
+      ? 'Proxy'
+      : 'Implementation';
 
-      if (verificationStatus.isVerified)
-        virtualConfig.contractVerificationStatus[verificationStatus.name] =
-          true;
+    virtualConfig.contractVerificationStatus![contractType] =
+      await this.getContractVerificationStatus(chain, address);
 
-      if (await isProxy(this.provider, address)) {
-        // Derive implementation status
-        await this.deriveWarpRouteVirtualConfig(
+    // Figure thus shit out. how do i just use Proxy, Implementation, or ProxyAdmin
+    if (contractType === 'Proxy') {
+      virtualConfig.contractVerificationStatus!.Implementation =
+        await this.getContractVerificationStatus(
           chain,
           await proxyImplementation(this.provider, address),
-          virtualConfig,
         );
 
-        // Derive ProxyAdmin status
-        await this.deriveWarpRouteVirtualConfig(
+      // Derive ProxyAdmin status
+      virtualConfig.contractVerificationStatus!.ProxyAdmin =
+        await this.getContractVerificationStatus(
           chain,
           await proxyAdmin(this.provider, address),
-          virtualConfig,
         );
-      }
-
-      return virtualConfig;
-    } catch (e) {
-      this.logger.info(`Error deriving warp virtual config: ${e}`);
-      return virtualConfig;
     }
+
+    return virtualConfig;
   }
 
   /**
