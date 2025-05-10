@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "tsx src/server.ts",
-    "dev": "nodemon src/server.ts",
+    "dev": "tsx watch src/server.ts",
     "test": "jest",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src/* ./tests/"
@@ -35,6 +35,8 @@
   },
   "dependencies": {
     "@chainlink/ccip-read-server": "^0.2.1",
+    "@hyperlane-xyz/sdk": "12.5.0",
+    "@hyperlane-xyz/utils": "12.5.0",
     "dotenv-flow": "^4.1.0",
     "ethers": "^5.7.2"
   }

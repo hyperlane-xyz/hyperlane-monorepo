@@ -9,6 +9,7 @@ import {
   IMultisigIsm,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
+  InterchainAccountRouter,
   OPStackIsm,
   PausableIsm,
   TestIsm,
@@ -67,6 +68,7 @@ export enum IsmType {
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
   CCIP = 'ccipIsm',
   CCIP_READ = 'ccipReadIsm',
+  ICA = 'icaIsm',
 }
 
 // ISM types that can be updated in-place
@@ -86,8 +88,19 @@ export const STATIC_ISM_TYPES = [
   IsmType.MESSAGE_ID_MULTISIG,
   IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
   IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
-  IsmType.ICA_ROUTING,
 ];
+
+export const DYNAMICALLY_ROUTED_ISM_TYPES = [
+  IsmType.AMOUNT_ROUTING,
+  IsmType.ICA,
+] as const;
+
+/** Type guard for dynamically routed ISM types */
+export function isDynamicallyRoutedIsmType(
+  type: IsmType,
+): type is (typeof DYNAMICALLY_ROUTED_ISM_TYPES)[number] {
+  return (DYNAMICALLY_ROUTED_ISM_TYPES as readonly IsmType[]).includes(type);
+}
 
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
@@ -120,6 +133,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.CCIP_READ:
       return ModuleType.CCIP_READ;
+    case IsmType.ICA:
+      return ModuleType.ROUTING;
   }
 }
 
@@ -146,6 +161,7 @@ export type TrustedRelayerIsmConfig = z.infer<
 export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
 export type CCIPReadIsmConfig = z.infer<typeof CCIPReadIsmConfigSchema>;
+export type IcaIsmConfig = z.infer<typeof IcaIsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -172,7 +188,10 @@ export type AmountRoutingIsmConfig =
     threshold: number;
   };
 
-export type RoutingIsmConfig = DomainRoutingIsmConfig | AmountRoutingIsmConfig;
+export type RoutingIsmConfig =
+  | DomainRoutingIsmConfig
+  | AmountRoutingIsmConfig
+  | IcaIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -204,6 +223,7 @@ export type DeployedIsmType = {
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.CCIP_READ]: ICcipReadIsm;
+  [IsmType.ICA]: InterchainAccountRouter;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -265,6 +285,10 @@ export const PausableIsmConfigSchema = PausableSchema.and(
     type: z.literal(IsmType.PAUSABLE),
   }),
 );
+
+export const IcaIsmConfigSchema = z.object({
+  type: z.literal(IsmType.ICA),
+});
 
 export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   z.object({

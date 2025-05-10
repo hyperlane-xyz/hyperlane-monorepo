@@ -295,7 +295,13 @@ export {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './middleware/account/contracts.js';
-export { InterchainAccount } from './middleware/account/InterchainAccount.js';
+export {
+  InterchainAccount,
+  encodeIcaCalls,
+  commitmentFromIcaCalls,
+  normalizeCalls,
+  shareCallsWithPrivateRelayer,
+} from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
 export {
   InterchainAccountConfig,
