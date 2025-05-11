@@ -128,7 +128,6 @@ export const HypTokenRouterVirtualConfigSchema = z.object({
       ContractVerificationStatus.Skipped,
     ]),
   ),
-  // .optional(),
 });
 export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema
