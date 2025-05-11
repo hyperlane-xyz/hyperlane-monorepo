@@ -20,8 +20,9 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
     string[] public urls;
     Mailbox public immutable mailbox;
 
-    constructor(Mailbox _mailbox) {
+    constructor(Mailbox _mailbox, address _owner) {
         mailbox = _mailbox;
+        _transferOwnership(_owner);
     }
 
     function setUrls(string[] memory _urls) external onlyOwner {

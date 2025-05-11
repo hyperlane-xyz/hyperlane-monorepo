@@ -1015,4 +1015,11 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // The ICA Router gets it quote by passing fixed gas plus variable gas to the IGP
         assertEq(quote, directIGPQuote);
     }
+
+    function test_ReadIsmOwnershio() public {
+        assertEq(
+            originIcaRouter.CCIP_READ_ISM().owner(),
+            originIcaRouter.owner()
+        );
+    }
 }

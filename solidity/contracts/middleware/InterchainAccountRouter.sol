@@ -114,7 +114,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         implementation = Create2.deploy(0, bytes32(0), bytecode);
         bytecodeHash = _proxyBytecodeHash(implementation);
 
-        CCIP_READ_ISM = new CommitmentReadIsm(Mailbox(_mailbox));
+        CCIP_READ_ISM = new CommitmentReadIsm(Mailbox(_mailbox), _owner);
         interchainSecurityModule = IInterchainSecurityModule(address(this));
     }
 
