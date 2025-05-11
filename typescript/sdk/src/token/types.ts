@@ -117,17 +117,18 @@ export enum ContractVerificationStatus {
   Verified = 'verified',
   Unverified = 'unverified',
   Error = 'error',
+  Skipped = 'skipped',
 }
 export const HypTokenRouterVirtualConfigSchema = z.object({
-  contractVerificationStatus: z
-    .record(
-      z.enum([
-        ContractVerificationStatus.Verified,
-        ContractVerificationStatus.Unverified,
-        ContractVerificationStatus.Error,
-      ]),
-    )
-    .optional(),
+  contractVerificationStatus: z.record(
+    z.enum([
+      ContractVerificationStatus.Verified,
+      ContractVerificationStatus.Unverified,
+      ContractVerificationStatus.Error,
+      ContractVerificationStatus.Skipped,
+    ]),
+  ),
+  // .optional(),
 });
 export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema

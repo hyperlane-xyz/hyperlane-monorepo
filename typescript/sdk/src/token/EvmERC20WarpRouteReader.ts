@@ -41,7 +41,6 @@ import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
-  ContractVerificationStatus,
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
@@ -138,47 +137,31 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     };
   }
 
-  async getContractVerificationStatus(chain: string, address: Address) {
-    try {
-      const { isVerified: isImplementationVerified } =
-        await this.contractVerifier.getContractVerificationStatus(
-          chain,
-          address,
-          this.logger,
-        );
-      return isImplementationVerified
-        ? ContractVerificationStatus.Verified
-        : ContractVerificationStatus.Unverified;
-    } catch (e) {
-      this.logger.info(`Error fetching contract verification status: ${e}`);
-      return ContractVerificationStatus.Error;
-    }
-  }
   async deriveWarpRouteVirtualConfig(
     chain: ChainName,
     address: Address,
-    virtualConfig: HypTokenRouterVirtualConfig = {
-      contractVerificationStatus: {},
-    },
   ): Promise<HypTokenRouterVirtualConfig> {
+    const virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: {},
+    };
+
     const contractType = (await isProxy(this.provider, address))
       ? 'Proxy'
       : 'Implementation';
 
-    virtualConfig.contractVerificationStatus![contractType] =
-      await this.getContractVerificationStatus(chain, address);
+    virtualConfig.contractVerificationStatus[contractType] =
+      await this.contractVerifier.getContractVerificationStatus(chain, address);
 
-    // Figure thus shit out. how do i just use Proxy, Implementation, or ProxyAdmin
     if (contractType === 'Proxy') {
-      virtualConfig.contractVerificationStatus!.Implementation =
-        await this.getContractVerificationStatus(
+      virtualConfig.contractVerificationStatus.Implementation =
+        await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyImplementation(this.provider, address),
         );
 
       // Derive ProxyAdmin status
-      virtualConfig.contractVerificationStatus!.ProxyAdmin =
-        await this.getContractVerificationStatus(
+      virtualConfig.contractVerificationStatus.ProxyAdmin =
+        await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyAdmin(this.provider, address),
         );
