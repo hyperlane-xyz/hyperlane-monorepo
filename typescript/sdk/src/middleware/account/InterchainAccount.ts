@@ -1,9 +1,4 @@
-import {
-  BigNumber,
-  ContractReceipt,
-  PopulatedTransaction,
-  utils,
-} from 'ethers';
+import { BigNumber, PopulatedTransaction, utils } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {

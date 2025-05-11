@@ -32,17 +32,19 @@ async function main() {
   );
   const { core } = await getHyperlaneCore(environment, multiProvider);
   const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
+  const origin = 'base';
+  const destination = 'unichain';
   const app = InterchainAccount.fromAddressesMap(addresses, multiProvider);
-  const testRecipient = getEnvAddresses(environment).test2.testRecipient;
-  const destination = 'test2';
+  const testRecipient = getEnvAddresses(environment).unichain.testRecipient;
+
   const destinationDomainId = multiProvider.getDomainId(destination);
   //   deploy trusted relayer ism to avoid having to run a relayer locally
   //   const ism = await (new TrustedRelayerIsm__factory(multiProvider.getSigner('test2'))).deploy(core.getAddresses('test2').mailbox, '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266')
   //   await core.contractsMap.test2.mailbox.setDefaultIsm(ism.address)
-  const testReipientContract = TestRecipient__factory.connect(
-    testRecipient,
-    multiProvider.getSigner(destination),
-  );
+  //   const testReipientContract = TestRecipient__factory.connect(
+  //     testRecipient,
+  //     multiProvider.getSigner(destination),
+  //   );
 
   console.log('Start preparing the call');
 
@@ -58,13 +60,14 @@ async function main() {
   ];
 
   const interchainAccountRouter =
-    app.contractsMap.test1.interchainAccountRouter;
+    app.contractsMap[origin].interchainAccountRouter;
 
   const quote = await interchainAccountRouter.quoteGasForCommitReveal(
     destinationDomainId,
     100000,
   );
-  const salt = utils.keccak256(utils.toUtf8Bytes('mysalt'));
+  //   generate random salt
+  const salt = utils.keccak256(utils.randomBytes(32));
   const commitment = commitmentFromIcaCalls(calls, salt);
   const originTx = await interchainAccountRouter[
     'callRemoteCommitReveal(uint32,bytes32,uint256)'
@@ -75,7 +78,9 @@ async function main() {
 
   console.log('Dispatched on chain');
   const messageId = core.getDispatchedMessages(receipt)[0].id;
-  const relayerAddress = await multiProvider.getSigner('test2').getAddress();
+  const relayerAddress = await multiProvider
+    .getSigner(destination)
+    .getAddress();
   const serverUrl = 'http://localhost:3000/calls';
   try {
     await shareCallsWithPrivateRelayer(
@@ -90,18 +95,25 @@ async function main() {
     console.error('Error posting calls to server:', err);
   }
 
+  const revealMessageId = core.getDispatchedMessages(receipt)[1].id;
+  console.log(
+    `Relay once commitment is processed with ${revealMessageId} in tx ${receipt.transactionHash}`,
+  );
+
   //   first is just the commitment
-  await relayer.relayMessage(receipt, 0);
+  //   await relayer.relayMessage(receipt, 0);
 
   // the result shouldn't yet change after the commitment
-  const result = await testReipientContract.lastCallMessage();
-  console.log("result shouldn't yet change", result);
-  //   Now we relay the reveal
-  await relayer.relayMessage(receipt, 1);
-  assert(
-    testmessage === (await testReipientContract.lastCallMessage()),
-    'Result should change after the reveal',
-  );
+  //   const result = await testReipientContract.lastCallMessage();
+  //   console.log("result shouldn't yet change", result);
+
+  //   Now we relay the reveal (reanble once the ISM blocks on the commitment being relayed)
+  // await relayer.relayMessage(receipt, 1);
+  // const result = await testReipientContract.lastCallMessage()
+  //   assert(
+  // testmessage === (await testReipientContract.lastCallMessage()),
+  // 'Result should change after the reveal ' + result,
+  //   );
 }
 
 main().then(console.log).catch(console.error);

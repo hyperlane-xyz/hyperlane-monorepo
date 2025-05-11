@@ -33,6 +33,7 @@
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },
+  "type": "module",
   "dependencies": {
     "@chainlink/ccip-read-server": "^0.2.1",
     "@hyperlane-xyz/sdk": "12.5.0",
