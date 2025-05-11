@@ -6,6 +6,7 @@ import { Address, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ContractVerificationStatus } from '../../token/types.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 import {
@@ -338,35 +339,35 @@ export class ContractVerifier {
   async getContractVerificationStatus(
     chain: ChainName,
     address: Address,
-    verificationLogger: Logger,
-  ): Promise<{ isVerified: false } | { isVerified: true; name: string }> {
-    const metadata = this.multiProvider.tryGetChainMetadata(chain);
-    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
-    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-      verificationLogger.debug('Skipping verification for local endpoints');
-      return { isVerified: false };
-    }
-    verificationLogger.trace(
-      `Fetching contract ABI for ${chain} address ${address}`,
-    );
-    const sourceCodeResults = (
-      await this.submitForm(
-        chain,
-        ExplorerApiActions.GETSOURCECODE,
-        verificationLogger,
-        { address },
-      )
-    )[0]; // This specific query only returns 1 result
+    verificationLogger: Logger = this.logger,
+  ): Promise<ContractVerificationStatus> {
+    try {
+      const metadata = this.multiProvider.tryGetChainMetadata(chain);
+      const rpcUrl = metadata?.rpcUrls[0].http ?? '';
+      if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
+        verificationLogger.debug('Skipping verification for local endpoints');
+        return ContractVerificationStatus.Skipped;
+      }
+      verificationLogger.trace(
+        `Fetching contract ABI for ${chain} address ${address}`,
+      );
+      const sourceCodeResults = (
+        await this.submitForm(
+          chain,
+          ExplorerApiActions.GETSOURCECODE,
+          verificationLogger,
+          { address },
+        )
+      )[0]; // This specific query only returns 1 result
 
-    // Explorer won't return ContractName if unverified
-    return sourceCodeResults.ContractName
-      ? {
-          isVerified: true,
-          name: sourceCodeResults.ContractName,
-        }
-      : {
-          isVerified: false,
-        };
+      // Explorer won't return ContractName if unverified
+      return sourceCodeResults.ContractName
+        ? ContractVerificationStatus.Verified
+        : ContractVerificationStatus.Unverified;
+    } catch (e) {
+      this.logger.info(`Error fetching contract verification status: ${e}`);
+      return ContractVerificationStatus.Error;
+    }
   }
 
   private getProxyData(input: ContractVerificationInput) {

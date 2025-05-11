@@ -21,6 +21,7 @@ import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  ContractVerificationStatus,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
@@ -144,13 +145,19 @@ export async function expandWarpDeployConfig(params: {
       ...config,
     };
 
-    // Virtual Config Expansion
+    // Expand warpDeployConfig virtual to the control states
     if (expandedOnChainWarpConfig?.[chain].contractVerificationStatus) {
-      // Copy & set all virtual config values to compare
-      // chainConfig.contractVerificationStatus = objMap(
-      //   expandedOnChainWarpConfig[chain].contractVerificationStatus,
-      //   () => ContractVerificationStatus.Verified,
-      // );
+      // For most cases, we set to Verified
+      chainConfig.contractVerificationStatus = objMap(
+        expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
+        (_, status) => {
+          // Skipped for local e2e testing
+          if (status === ContractVerificationStatus.Skipped)
+            return ContractVerificationStatus.Skipped;
+
+          return ContractVerificationStatus.Verified;
+        },
+      );
     }
 
     // Properly set the remote routers addresses to their 32 bytes representation

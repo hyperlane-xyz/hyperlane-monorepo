@@ -410,7 +410,7 @@ export const check: CommandModuleWithContext<{
       multiProvider: context.multiProvider,
       warpDeployConfig,
       deployedRoutersAddresses,
-      virtualConfig: expandedOnChainWarpConfig,
+      expandedOnChainWarpConfig,
     });
     expandedWarpDeployConfig = objFilter(
       expandedWarpDeployConfig,
