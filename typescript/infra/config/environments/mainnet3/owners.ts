@@ -95,4 +95,7 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     // Will move to a Squads once it's live
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
+  svmbnb: {
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
 };

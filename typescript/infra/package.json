@@ -14,7 +14,7 @@
     "@ethersproject/providers": "*",
     "@google-cloud/secret-manager": "^5.5.0",
     "@hyperlane-xyz/helloworld": "12.5.0",
-    "@hyperlane-xyz/registry": "14.0.0",
+    "@hyperlane-xyz/registry": "15.0.0",
     "@hyperlane-xyz/sdk": "12.5.0",
     "@hyperlane-xyz/utils": "12.5.0",
     "@inquirer/prompts": "3.3.2",

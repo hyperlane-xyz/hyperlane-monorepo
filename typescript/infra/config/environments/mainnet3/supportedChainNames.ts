@@ -124,6 +124,7 @@ export const mainnet3SupportedChainNames = [
   'subtensor',
   'superseed',
   'superpositionmainnet',
+  'svmbnb',
   'swell',
   'taiko',
   'tangle',
