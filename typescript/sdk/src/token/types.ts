@@ -160,6 +160,8 @@ export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
   > &
   DerivedMailboxClientFields;
 
+export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
+
 export function derivedHookAddress(config: DerivedTokenRouterConfig) {
   return typeof config.hook === 'string' ? config.hook : config.hook.address;
 }

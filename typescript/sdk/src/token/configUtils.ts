@@ -13,6 +13,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
@@ -23,6 +25,7 @@ import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   ContractVerificationStatus,
+  DerivedWarpRouteDeployConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
@@ -121,69 +124,104 @@ export async function expandWarpDeployConfig(params: {
     }),
   );
 
-  return objMap(warpDeployConfig, (chain, config) => {
-    const [remoteRouters, destinationGas] =
-      getDefaultRemoteRouterAndDestinationGasConfig(
-        multiProvider,
-        chain,
-        deployedRoutersAddresses,
-        warpDeployConfig,
+  return promiseObjAll(
+    objMap(warpDeployConfig, async (chain, config) => {
+      const [remoteRouters, destinationGas] =
+        getDefaultRemoteRouterAndDestinationGasConfig(
+          multiProvider,
+          chain,
+          deployedRoutersAddresses,
+          warpDeployConfig,
+        );
+
+      const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
+        Partial<HypTokenRouterVirtualConfig> = {
+        // Default Expansion
+        ...derivedTokenMetadata,
+        remoteRouters,
+        destinationGas,
+        hook: zeroAddress,
+        interchainSecurityModule: zeroAddress,
+        proxyAdmin: isDeployedAsProxyByChain[chain]
+          ? { owner: config.owner }
+          : undefined,
+        isNft: false,
+        // User-specified config takes precedence
+        ...config,
+      };
+
+      // Properly set the remote routers addresses to their 32 bytes representation
+      // as that is how they are set on chain
+      const formattedRemoteRouters = objMap(
+        chainConfig.remoteRouters ?? {},
+        (_domainId, { address }) => ({
+          address: addressToBytes32(address),
+        }),
       );
 
-    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
-      Partial<HypTokenRouterVirtualConfig> = {
-      // Default Expansion
-      ...derivedTokenMetadata,
-      remoteRouters,
-      destinationGas,
-      hook: zeroAddress,
-      interchainSecurityModule: zeroAddress,
-      proxyAdmin: isDeployedAsProxyByChain[chain]
-        ? { owner: config.owner }
-        : undefined,
-      isNft: false,
-      // User-specified config takes precedence
-      ...config,
-    };
+      chainConfig.remoteRouters = formattedRemoteRouters;
 
-    // Expand EVM warpDeployConfig virtual to the control states
-    if (
-      expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
-      multiProvider.getProtocol(chain) === ProtocolType.Ethereum
-    ) {
-      // For most cases, we set to Verified
-      chainConfig.contractVerificationStatus = objMap(
-        expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
-        (_, status) => {
-          // Skipped for local e2e testing
-          if (status === ContractVerificationStatus.Skipped)
-            return ContractVerificationStatus.Skipped;
+      const isEVMChain =
+        multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
 
-          return ContractVerificationStatus.Verified;
-        },
-      );
-    }
+      // Expand EVM warpDeployConfig virtual to the control states
+      if (
+        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
+        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+      ) {
+        // For most cases, we set to Verified
+        chainConfig.contractVerificationStatus = objMap(
+          expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
+          (_, status) => {
+            // Skipped for local e2e testing
+            if (status === ContractVerificationStatus.Skipped)
+              return ContractVerificationStatus.Skipped;
 
-    // Properly set the remote routers addresses to their 32 bytes representation
-    // as that is how they are set on chain
-    const formattedRemoteRouters = objMap(
-      chainConfig.remoteRouters ?? {},
-      (_domainId, { address }) => ({
-        address: addressToBytes32(address),
-      }),
-    );
+            return ContractVerificationStatus.Verified;
+          },
+        );
+      }
 
-    chainConfig.remoteRouters = formattedRemoteRouters;
+      // Expand the hook config only if we have an explicit config in the deploy config
+      // and the current chain is an EVM one.
+      // if we have an address we leave it like that to avoid deriving
+      if (
+        isEVMChain &&
+        chainConfig.hook &&
+        typeof chainConfig.hook !== 'string'
+      ) {
+        const reader = new EvmHookReader(multiProvider, chain);
 
-    return chainConfig;
-  });
+        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+      }
+
+      // Expand the ism config only if we have an explicit config in the deploy config
+      // if we have an address we leave it like that to avoid deriving
+      if (
+        isEVMChain &&
+        chainConfig.interchainSecurityModule &&
+        typeof chainConfig.interchainSecurityModule !== 'string'
+      ) {
+        const reader = new EvmIsmReader(multiProvider, chain);
+
+        chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+          chainConfig.interchainSecurityModule,
+        );
+      }
+
+      return chainConfig;
+    }),
+  );
 }
 
 export async function expandVirtualWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  onChainWarpConfig: WarpRouteDeployConfigMailboxRequired;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig;
   deployedRoutersAddresses: ChainMap<Address>;
-}): Promise<WarpRouteDeployConfigMailboxRequired> {
+}): Promise<
+  DerivedWarpRouteDeployConfig &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>
+> {
   const { multiProvider, onChainWarpConfig, deployedRoutersAddresses } = params;
   return promiseObjAll(
     objMap(onChainWarpConfig, async (chain, config) => {
@@ -195,6 +233,7 @@ export async function expandVirtualWarpDeployConfig(params: {
       return {
         ...warpVirtualConfig,
         ...config,
+        hook: config.hook ?? zeroAddress,
       };
     }),
   );
@@ -237,6 +276,13 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
   return 0;
 };
 
+const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
+  // gas is removed because the destinationGas is the result of
+  // expanding the config based on the gas value for each chain
+  // see `expandWarpDeployConfig` function
+  'gas',
+]);
+
 /**
  * transforms the provided {@link HypTokenRouterConfig}, removing the address, totalSupply and ownerOverrides
  * field where they are not required for the config comparison
@@ -244,8 +290,15 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
 export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
+  const filteredObj = Object.fromEntries(
+    Object.entries(obj).filter(
+      ([key, _value]) =>
+        !FIELDS_TO_IGNORE.has(key as keyof HypTokenRouterConfig),
+    ),
+  );
+
   return sortArraysInObject(
-    transformObj(obj, transformWarpDeployConfigToCheck),
+    transformObj(filteredObj, transformWarpDeployConfigToCheck),
     sortArraysInConfigToCheck,
   );
 }
