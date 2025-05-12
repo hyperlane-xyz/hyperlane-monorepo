@@ -1,6 +1,6 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-export type RawBalances = Record<ChainName, bigint>;
+export type RawBalances = ChainMap<bigint>;
 
 export type RebalancingRoute = {
   fromChain: ChainName;
