@@ -3,6 +3,7 @@ import type { ChainMap } from '@hyperlane-xyz/sdk';
 import type { ChainConfig, WeightedChainConfig } from '../config/Config.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 
+import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
 export class StrategyFactory {
@@ -32,7 +33,7 @@ export class StrategyFactory {
     if (strategyType === 'weighted') {
       return new WeightedStrategy(config as ChainMap<WeightedChainConfig>);
     } else if (strategyType === 'minAmount') {
-      // TODO: implement minAmount strategy
+      return new MinAmountStrategy(config as ChainMap<MinAmountChainConfig>);
     } else {
       throw new Error(`Unsupported strategy type: ${strategyType}`);
     }
