@@ -1,10 +1,10 @@
+import { log } from '../../logger.js';
 import { Config } from '../config/Config.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 /**
- * Timing-based guard for the rebalancer that prevents frequent operations
- * and waits for bridge transactions to complete before new rebalancing.
+ * Prevents frequent rebalancing operations while bridges complete.
  */
 export class WithSemaphore implements IExecutor {
   // Timestamp until which rebalancing should be blocked
@@ -16,17 +16,28 @@ export class WithSemaphore implements IExecutor {
   ) {}
 
   /**
-   * Executes rebalancing only if outside waiting period or if no rebalancing is needed
-   * @param routes - Rebalancing routes to process
+   * Rebalance with timing control
+   * @param routes - Routes to process
    */
   async rebalance(routes: RebalancingRoute[]) {
-    // Skip if still in waiting period and rebalancing is needed
-    if (Date.now() < this.waitUntil && routes.length) {
+    // No routes means the system is balanced so we reset the timer to allow new rebalancing
+    if (!routes.length) {
+      // TODO: Update logging in this file, this is just to make current e2e tests pass
+      log('No routes to execute');
+
+      this.waitUntil = 0;
       return;
     }
 
+    // Skip if still in waiting period
+    if (Date.now() < this.waitUntil) {
+      return;
+    }
+
+    // The wait period will be determined by the bridge with the highest wait tolerance
     const highestTolerance = this.getHighestTolerance(routes);
 
+    // Execute rebalance
     await this.executor.rebalance(routes);
 
     // Set new waiting period
