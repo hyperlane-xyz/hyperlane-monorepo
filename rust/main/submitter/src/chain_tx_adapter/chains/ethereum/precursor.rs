@@ -5,10 +5,25 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 
 use crate::payload::{FullPayload, PayloadDetails};
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct EthereumTxPrecursor {
     pub tx: TypedTransaction,
     pub function: Function,
+}
+
+impl Debug for EthereumTxPrecursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EthereumTxPrecursor")
+            .field("tx.from", &self.tx.from())
+            .field("tx.to", &self.tx.to())
+            .field("tx.nonce", &self.tx.nonce())
+            .field("tx.gas_limit", &self.tx.gas())
+            .field("tx.gas_price", &self.tx.gas_price())
+            .field("tx.chain_id", &self.tx.chain_id())
+            .field("tx.value", &self.tx.value())
+            .field("function.name", &self.function.name)
+            .finish()
+    }
 }
 
 impl PartialEq for EthereumTxPrecursor {
