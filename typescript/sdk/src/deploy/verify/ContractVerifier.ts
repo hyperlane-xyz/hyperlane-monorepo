@@ -365,7 +365,9 @@ export class ContractVerifier {
         ? ContractVerificationStatus.Verified
         : ContractVerificationStatus.Unverified;
     } catch (e) {
-      this.logger.info(`Error fetching contract verification status: ${e}`);
+      this.logger.info(
+        `Error fetching contract verification status for ${address} on chain ${chain}: ${e}`,
+      );
       return ContractVerificationStatus.Error;
     }
   }
