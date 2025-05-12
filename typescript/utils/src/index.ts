@@ -130,6 +130,7 @@ export {
   stringifyObject,
   transformObj,
   TransformObjectTransformer,
+  sortArraysInObject,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {

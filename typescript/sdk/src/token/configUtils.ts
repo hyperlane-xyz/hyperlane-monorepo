@@ -5,8 +5,10 @@ import {
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  isAddressEvm,
   objMap,
   promiseObjAll,
+  sortArraysInObject,
   transformObj,
 } from '@hyperlane-xyz/utils';
 
@@ -14,7 +16,6 @@ import { isProxy } from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
-import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -216,11 +217,24 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
     return undefined;
   }
 
-  if (typeof obj === 'string' && parentKey !== 'type') {
+  if (typeof obj === 'string' && parentKey !== 'type' && isAddressEvm(obj)) {
     return obj.toLowerCase();
   }
 
   return obj;
+};
+
+const sortArraysInConfigToCheck = (a: any, b: any): number => {
+  if (a.type && b.type) {
+    if (a.type < b.type) return -1;
+    if (a.type > b.type) return 1;
+    return 0;
+  }
+
+  if (a < b) return -1;
+  if (a > b) return 1;
+
+  return 0;
 };
 
 /**
@@ -230,8 +244,9 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
 export function transformConfigToCheck(
   obj: HypTokenRouterConfig,
 ): HypTokenRouterConfig {
-  return sortArraysInConfig(
+  return sortArraysInObject(
     transformObj(obj, transformWarpDeployConfigToCheck),
+    sortArraysInConfigToCheck,
   );
 }
 
