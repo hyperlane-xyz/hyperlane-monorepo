@@ -13,11 +13,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
-
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { ExplorerLicenseType } from '../deploy/verify/types.js';
-
 import {
   Address,
   assert,
@@ -28,6 +24,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
