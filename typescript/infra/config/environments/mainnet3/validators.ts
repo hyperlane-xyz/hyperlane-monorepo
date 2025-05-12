@@ -1765,5 +1765,16 @@ export const validatorChainConfig = (
         'peaq',
       ),
     },
+
+    svmbnb: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('svmbnb'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xabcd4dac2d06ae30c011d25b0c2c193873116a14'],
+        },
+        'svmbnb',
+      ),
+    },
   };
 };

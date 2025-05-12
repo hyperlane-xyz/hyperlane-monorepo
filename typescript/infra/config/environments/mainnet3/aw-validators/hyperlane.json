@@ -416,6 +416,9 @@
   "superpositionmainnet": {
     "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
   },
+  "svmbnb": {
+    "validators": ["0xabcd4dac2d06ae30c011d25b0c2c193873116a14"]
+  },
   "swell": {
     "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
   },
