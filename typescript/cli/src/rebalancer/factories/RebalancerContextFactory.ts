@@ -10,6 +10,7 @@ import { objMap, objMerge } from '@hyperlane-xyz/utils';
 import { logDebug } from '../../logger.js';
 import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
+import { WithSemaphore } from '../executor/WithSemaphore.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -92,7 +93,7 @@ export class RebalancerContextFactory {
 
   public createExecutor(): IExecutor {
     logDebug('Creating Executor');
-    return new Executor(
+    const executor = new Executor(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,
         minAcceptedAmount: v.bridgeMinAcceptedAmount,
@@ -101,6 +102,8 @@ export class RebalancerContextFactory {
       this.warpCore,
       this.metadata,
     );
+
+    return new WithSemaphore(this.config, executor);
   }
 
   public createMonitorToStrategyTransformer(): MonitorToStrategyTransformer {
