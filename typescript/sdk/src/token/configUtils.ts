@@ -17,10 +17,13 @@ import { ChainMap } from '../types.js';
 import { sortArraysInConfig } from '../utils/ism.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  ContractVerificationStatus,
   HypTokenRouterConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
@@ -78,11 +81,28 @@ export function getRouterAddressesFromWarpCoreConfig(
   ) as ChainMap<Address>;
 }
 
-export async function expandWarpDeployConfig(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  deployedRoutersAddresses: ChainMap<Address>,
-): Promise<WarpRouteDeployConfigMailboxRequired> {
+/**
+ * Expands a Warp deploy config with additional data
+ *
+ * @param multiProvider
+ * @param warpDeployConfig - The warp deployment config
+ * @param deployedRoutersAddresses - Addresses of deployed routers for each chain
+ * @param virtualConfig - Optional virtual config to include in the warpDeployConfig
+ * @returns A promise resolving to an expanded Warp deploy config with derived and virtual metadata
+ */
+export async function expandWarpDeployConfig(params: {
+  multiProvider: MultiProvider;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  deployedRoutersAddresses: ChainMap<Address>;
+  expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+}): Promise<WarpRouteDeployConfigMailboxRequired> {
+  const {
+    multiProvider,
+    warpDeployConfig,
+    deployedRoutersAddresses,
+    expandedOnChainWarpConfig,
+  } = params;
+
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     multiProvider,
     warpDeployConfig,
@@ -109,7 +129,8 @@ export async function expandWarpDeployConfig(
         warpDeployConfig,
       );
 
-    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] = {
+    const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
+      Partial<HypTokenRouterVirtualConfig> = {
       // Default Expansion
       ...derivedTokenMetadata,
       remoteRouters,
@@ -120,10 +141,27 @@ export async function expandWarpDeployConfig(
         ? { owner: config.owner }
         : undefined,
       isNft: false,
-
       // User-specified config takes precedence
       ...config,
     };
+
+    // Expand EVM warpDeployConfig virtual to the control states
+    if (
+      expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+    ) {
+      // For most cases, we set to Verified
+      chainConfig.contractVerificationStatus = objMap(
+        expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
+        (_, status) => {
+          // Skipped for local e2e testing
+          if (status === ContractVerificationStatus.Skipped)
+            return ContractVerificationStatus.Skipped;
+
+          return ContractVerificationStatus.Verified;
+        },
+      );
+    }
 
     // Properly set the remote routers addresses to their 32 bytes representation
     // as that is how they are set on chain
@@ -138,6 +176,27 @@ export async function expandWarpDeployConfig(
 
     return chainConfig;
   });
+}
+
+export async function expandVirtualWarpDeployConfig(params: {
+  multiProvider: MultiProvider;
+  onChainWarpConfig: WarpRouteDeployConfigMailboxRequired;
+  deployedRoutersAddresses: ChainMap<Address>;
+}): Promise<WarpRouteDeployConfigMailboxRequired> {
+  const { multiProvider, onChainWarpConfig, deployedRoutersAddresses } = params;
+  return promiseObjAll(
+    objMap(onChainWarpConfig, async (chain, config) => {
+      const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
+      const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
+        chain,
+        deployedRoutersAddresses[chain],
+      );
+      return {
+        ...warpVirtualConfig,
+        ...config,
+      };
+    }),
+  );
 }
 
 const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
