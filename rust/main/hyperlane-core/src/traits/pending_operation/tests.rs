@@ -77,6 +77,9 @@ impl PendingOperation for MockQueueOperation {
     async fn payload(&self) -> ChainResult<Vec<u8>> {
         unimplemented!()
     }
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
+        unimplemented!()
+    }
     fn on_reprepare(
         &mut self,
         _err_msg: Option<String>,

@@ -6,6 +6,8 @@ import type {
   ChainMap,
   ChainMetadata,
   MultiProvider,
+  WarpCoreConfig,
+  WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
@@ -37,6 +39,14 @@ export interface WriteCommandContext extends CommandContext {
   dryRunChain?: string;
 }
 
+export interface WarpDeployCommandContext extends WriteCommandContext {
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}
+export interface WarpApplyCommandContext extends WriteCommandContext {
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  warpCoreConfig: WarpCoreConfig;
+}
+
 export type CommandModuleWithContext<Args> = CommandModule<
   {},
   Args & { context: CommandContext }
@@ -45,4 +55,14 @@ export type CommandModuleWithContext<Args> = CommandModule<
 export type CommandModuleWithWriteContext<Args> = CommandModule<
   {},
   Args & { context: WriteCommandContext }
+>;
+
+export type CommandModuleWithWarpApplyContext<Args> = CommandModule<
+  {},
+  Args & { context: WarpApplyCommandContext }
+>;
+
+export type CommandModuleWithWarpDeployContext<Args> = CommandModule<
+  {},
+  Args & { context: WarpDeployCommandContext }
 >;

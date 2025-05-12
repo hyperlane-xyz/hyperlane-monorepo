@@ -2333,6 +2333,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  svmbnb: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xabcd4dac2d06ae30c011d25b0c2c193873116a14',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   swell: {
     threshold: 4,
     validators: [

@@ -50,6 +50,13 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
+    async fn get_tx_hash_status(
+        &self,
+        _hash: hyperlane_core::H512,
+    ) -> std::result::Result<TransactionStatus, SubmitterError> {
+        todo!()
+    }
+
     async fn reverted_payloads(
         &self,
         _tx: &Transaction,
@@ -62,13 +69,6 @@ impl AdaptsChain for CosmosTxAdapter {
     }
 
     fn max_batch_size(&self) -> u32 {
-        todo!()
-    }
-
-    async fn get_tx_hash_status(
-        &self,
-        _hash: hyperlane_core::H512,
-    ) -> std::result::Result<TransactionStatus, SubmitterError> {
         todo!()
     }
 }
