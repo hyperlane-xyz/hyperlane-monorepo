@@ -36,9 +36,25 @@ contract OwnableMulticall {
         commitment = _commitment;
     }
 
-    /// @notice Deletes the commitment after it has been executed.
-    function deleteCommitment() external onlyOwner {
-        delete commitment;
+    /// @dev The calls represented by the commitment can only be executed once per commitment,
+    /// though you can submit the same commitment again after the calls have been executed.
+    function revealAndExecute(
+        CallLib.Call[] calldata calls,
+        bytes32 salt
+    ) external payable returns (bytes32 executedCommitment) {
+        // If there is no active commitment, do nothing.
+        if (commitment == bytes32(0)) return bytes32(0);
+
+        bytes32 revealedHash = keccak256(abi.encode(calls, salt, this));
+        require(commitment == revealedHash, "Invalid Reveal");
+
+        // Delete the commitment (effects)
+        executedCommitment = commitment;
+        commitment = bytes32(0);
+
+        // Execute the calls (interactions)
+        CallLib.multicall(calls);
+        return executedCommitment;
     }
 
     // solhint-disable-next-line no-empty-blocks

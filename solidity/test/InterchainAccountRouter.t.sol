@@ -902,24 +902,15 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         // ICA router should have the commitment after commit message
         assertEq(ica.commitment(), commitment);
 
-        // Manually process the reveal. In reality, the CCIP read ISM will call `revealAndExecute`
-        // but here we do it manually since we're not using the CCIP read ISM yet
-        bytes32 executedCommitment = destinationIcaRouter.revealAndExecute(
-            calls,
-            salt,
-            ica
-        );
+        // Manually process the reveal
+        bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
 
         // Commitment should be cleared
         assertEq(executedCommitment, commitment);
         assertEq(ica.commitment(), bytes32(0));
 
         // Cannot reveal twice
-        executedCommitment = destinationIcaRouter.revealAndExecute(
-            calls,
-            salt,
-            ica
-        );
+        executedCommitment = ica.revealAndExecute(calls, salt);
         assertEq(executedCommitment, bytes32(0));
     }
 
@@ -1080,6 +1071,5 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             originIcaRouter.CCIP_READ_ISM().owner(),
             originIcaRouter.owner()
         );
-
     }
 }

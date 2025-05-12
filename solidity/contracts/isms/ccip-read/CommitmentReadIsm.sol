@@ -77,10 +77,8 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             ica.commitment() == msgCommitment,
             "Commitment ISM: Invalid Commitment"
         );
-        InterchainAccountRouter icaRouter = InterchainAccountRouter(
-            _message.recipient().bytes32ToAddress()
-        );
-        icaRouter.revealAndExecute(calls, salt, ica);
+
+        ica.revealAndExecute(calls, salt);
 
         return true;
     }

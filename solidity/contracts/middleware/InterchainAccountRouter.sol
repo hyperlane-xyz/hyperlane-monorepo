@@ -881,25 +881,6 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
-    /// @dev The calls represented by the commitment can only be executed once per commitment,
-    /// though you can submit the same commitment again after the calls have been executed.
-    function revealAndExecute(
-        CallLib.Call[] calldata calls,
-        bytes32 salt,
-        OwnableMulticall ica
-    ) external payable returns (bytes32 executedCommitment) {
-        // If there is no active commitment, do nothing.
-        bytes32 icaCommitment = ica.commitment();
-        if (icaCommitment == bytes32(0)) return bytes32(0);
-
-        bytes32 revealedHash = keccak256(abi.encode(calls, salt, ica));
-        require(icaCommitment == revealedHash, "Invalid Reveal");
-
-        ica.deleteCommitment();
-        ica.multicall{value: msg.value}(calls);
-        return icaCommitment;
-    }
-
     // ============ Internal Functions ============
     function _implementationBytecode(
         address router
