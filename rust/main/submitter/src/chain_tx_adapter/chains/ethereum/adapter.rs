@@ -86,6 +86,29 @@ impl EthereumTxAdapter {
             .ok_or_else(|| eyre!("no operation batch config"))?
             .max_batch_size)
     }
+
+    async fn set_nonce_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        self.nonce_manager
+            .lock()
+            .await
+            .set_nonce(tx, &self.provider)
+            .await?;
+        Ok(())
+    }
+
+    async fn set_gas_limit_if_needed(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        if tx.precursor().tx.gas().is_none() {
+            self.estimate_tx(tx).await?;
+        }
+        Ok(())
+    }
+
+    async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
+        // if let Some(gas_price) = self.connection_conf.transaction_overrides.gas_price {
+        //     tx.precursor_mut().tx.set_gas_price(gas_price);
+        // }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -144,11 +167,9 @@ impl AdaptsChain for EthereumTxAdapter {
 
         info!(?tx, "submitting transaction");
 
-        self.nonce_manager
-            .lock()
-            .await
-            .set_nonce(tx, &self.provider)
-            .await?;
+        self.set_nonce_if_needed(tx).await?;
+        self.set_gas_limit_if_needed(tx).await?;
+        self.set_gas_price(tx).await?;
 
         let precursor = tx.precursor();
         let hash = self
