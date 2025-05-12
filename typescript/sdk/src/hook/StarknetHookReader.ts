@@ -57,8 +57,6 @@ export class StarknetHookReader {
           return this.deriveProtocolFeeConfig(address);
         case StarknetHookType.ROUTING:
           return this.deriveRoutingHookConfig(address);
-        case StarknetHookType.UNUSED:
-          return this.deriveMerkleTreeConfig(address);
         default:
           throw new Error(`Unsupported hook type: ${variant}`);
       }

@@ -93,7 +93,6 @@ export class StarknetCoreModule {
     const { defaultIsm, requiredHook } = await this.update(config, {
       chain,
       mailboxContract,
-      owner: config.owner,
     });
 
     const validatorAnnounce = await this.deployer.deployContract(
@@ -136,7 +135,7 @@ export class StarknetCoreModule {
 
   async update(
     expectedConfig: Partial<CoreConfig>,
-    args: { mailboxContract: Contract; chain: ChainNameOrId; owner: string },
+    args: { mailboxContract: Contract; chain: ChainNameOrId },
   ): Promise<{ defaultIsm?: string; requiredHook?: string; owner?: string }> {
     const result: {
       defaultIsm?: string;
@@ -171,13 +170,13 @@ export class StarknetCoreModule {
     // Update required hook to MerkleTreeHook if specified
     if (expectedConfig.requiredHook) {
       this.logger.info(
-        `Deploying MerkleTreeHook with explicit owner (${args.owner}). Note: Unlike EVM where deployer automatically becomes owner, ` +
+        `Deploying MerkleTreeHook with explicit owner (${expectedConfig.owner}). Note: Unlike EVM where deployer automatically becomes owner, ` +
           `in Starknet the owner must be explicitly passed as a constructor parameter.`,
       );
 
       const merkleTreeHook = await this.deployer.deployContract(
         StarknetContractName.MERKLE_TREE_HOOK,
-        [args.mailboxContract.address, args.owner],
+        [args.mailboxContract.address, expectedConfig.owner!],
       );
 
       this.logger.info(`Updating required hook ${merkleTreeHook}..`);
