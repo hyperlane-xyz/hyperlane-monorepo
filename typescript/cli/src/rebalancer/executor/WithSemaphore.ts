@@ -2,7 +2,12 @@ import { Config } from '../config/Config.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
+/**
+ * Timing-based guard for the rebalancer that prevents frequent operations
+ * and waits for bridge transactions to complete before new rebalancing.
+ */
 export class WithSemaphore implements IExecutor {
+  // Timestamp until which rebalancing should be blocked
   private waitUntil: number = 0;
 
   constructor(
@@ -10,7 +15,12 @@ export class WithSemaphore implements IExecutor {
     private readonly executor: IExecutor,
   ) {}
 
+  /**
+   * Executes rebalancing only if outside waiting period or if no rebalancing is needed
+   * @param routes - Rebalancing routes to process
+   */
   async rebalance(routes: RebalancingRoute[]) {
+    // Skip if still in waiting period and rebalancing is needed
     if (Date.now() < this.waitUntil && routes.length) {
       return;
     }
@@ -19,6 +29,7 @@ export class WithSemaphore implements IExecutor {
 
     await this.executor.rebalance(routes);
 
+    // Set new waiting period
     this.waitUntil = Date.now() + highestTolerance;
   }
 
