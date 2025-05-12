@@ -1,8 +1,9 @@
-FROM node:20-alpine
+FROM node:20
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip jq
+RUN apt-get update
+RUN apt-get install -y git g++ make jq
 
 RUN yarn set version 4.5.1
 
@@ -31,6 +32,8 @@ COPY typescript ./typescript
 COPY solidity ./solidity
 
 RUN yarn build
+
+EXPOSE 8080
 
 # Baked-in registry version
 # keep for back-compat until we update all usage of the monorepo image (e.g. key-funder)
