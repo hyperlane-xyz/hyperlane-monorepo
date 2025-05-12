@@ -2,15 +2,15 @@
 
 use std::{env, error::Error, fmt::Debug, path::PathBuf};
 
+use crate::settings::loader::{
+    arguments::CommandLineArguments, case_adapter::CaseAdapter, environment::Environment,
+};
 use config::{Config, File};
 use convert_case::Case;
 use eyre::{eyre, Context, Result};
 use hyperlane_core::config::*;
 use serde::de::DeserializeOwned;
-
-use crate::settings::loader::{
-    arguments::CommandLineArguments, case_adapter::CaseAdapter, environment::Environment,
-};
+use tracing::info;
 
 mod arguments;
 mod case_adapter;
@@ -22,6 +22,9 @@ where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,
 {
+    let now = chrono::Utc::now();
+    println!("Loading settings: {:?}", now);
+
     let root_path = ConfigPath::default();
 
     let mut base_config_sources = vec![];
@@ -128,5 +131,9 @@ where
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
     }
+
+    let now = chrono::Utc::now();
+    println!("Loaded settings: {:?}", now);
+
     res
 }
