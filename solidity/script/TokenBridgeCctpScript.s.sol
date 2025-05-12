@@ -4,11 +4,13 @@ pragma solidity >=0.8.0;
 import {Script} from "forge-std/Script.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
-import {CctpIsm} from "../contracts/isms//CctpIsm.sol";
 import {TokenRouter} from "../contracts/token/libs/TokenRouter.sol";
 import {Quote} from "../contracts/interfaces/ITokenBridge.sol";
-import {TokenBridgeCctp} from "../contracts/token/extensions/TokenBridgeCctp.sol";
+import {TokenBridgeCctp} from "../contracts/token/TokenBridgeCctp.sol";
+import {TokenBridgeCctpV1} from "../contracts/token/extensions/TokenBridgeCctpV1.sol";
+import {TokenBridgeCctpV2} from "../contracts/token/extensions/TokenBridgeCctpV2.sol";
 import {ITokenMessenger} from "../contracts/interfaces/cctp/ITokenMessenger.sol";
+import {ITokenMessengerV2} from "../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {IMessageTransmitter} from "../contracts/interfaces/cctp/IMessageTransmitter.sol";
 import {CctpMessageV2} from "../contracts/libs/CctpMessageV2.sol";
@@ -18,6 +20,9 @@ import {console} from "forge-std/console.sol";
 
 contract TokenBridgeCctpScript is Script {
     using TypeCasts for address;
+
+    uint32 constant CCTP_VERSION_1 = 0;
+    uint32 constant CCTP_VERSION_2 = 1;
 
     uint256 ORIGIN = vm.envUint("DOMAIN_ORIGIN");
     uint256 DESTINATION = vm.envUint("DOMAIN_DESTINATION");
@@ -50,7 +55,9 @@ contract TokenBridgeCctpScript is Script {
 
     string[] urls = vm.envString("CCIP_READ_URLS", ",");
 
-    function enrollRouter(
+    error UnsupportedVersion(uint32 version);
+
+    function enrollCctpRouter(
         address payable vtb,
         uint32 domain,
         address router
@@ -59,7 +66,7 @@ contract TokenBridgeCctpScript is Script {
         TokenRouter(vtb).enrollRemoteRouter(domain, router.addressToBytes32());
     }
 
-    function transferRemote(
+    function transferRemoteCctp(
         address _vtb,
         uint32 domain,
         address recipient,
@@ -102,59 +109,93 @@ contract TokenBridgeCctpScript is Script {
     function deployOrigin(address vtbRemote) public {
         vm.startBroadcast();
         uint256 scale = 1;
-        TokenBridgeCctp vtb = new TokenBridgeCctp(
-            tokenOrigin,
-            scale,
-            mailboxOrigin,
-            ITokenMessenger(tokenMessengerOrigin)
-        );
+        uint32 version = ITokenMessenger(tokenMessengerOrigin)
+            .messageBodyVersion();
 
-        CctpIsm ism = new CctpIsm(
-            urls,
-            messageTransmitterOrigin,
-            mailboxOrigin
-        );
+        TokenBridgeCctp vtb;
+        if (version == CCTP_VERSION_1) {
+            vtb = TokenBridgeCctp(
+                address(
+                    new TokenBridgeCctpV1(
+                        tokenOrigin,
+                        scale,
+                        mailboxOrigin,
+                        IMessageTransmitter(messageTransmitterOrigin),
+                        ITokenMessenger(tokenMessengerOrigin)
+                    )
+                )
+            );
+        } else if (version == CCTP_VERSION_2) {
+            vtb = TokenBridgeCctp(
+                address(
+                    new TokenBridgeCctpV2(
+                        tokenOrigin,
+                        scale,
+                        mailboxOrigin,
+                        IMessageTransmitter(messageTransmitterOrigin),
+                        ITokenMessengerV2(tokenMessengerOrigin)
+                    )
+                )
+            );
+        } else {
+            revert UnsupportedVersion(version);
+        }
 
         address hook = _deployHook(igpOrigin);
 
+        vtb.setUrls(urls);
+        vtb.setHook(hook);
         vtb.addDomain(destination, cctpDestination);
         vtb.setDestinationGas(destination, REMOTE_GAS_LIMIT);
-        vtb.setHook(hook);
-        vtb.setInterchainSecurityModule(address(ism));
         vtb.enrollRemoteRouter(destination, vtbRemote.addressToBytes32());
 
         console.log("vtb  @", address(vtb));
-        console.log("hook @ ", hook);
-        console.log("ism @", address(ism));
     }
 
     function deployDestination() public {
         vm.startBroadcast();
 
-        CctpIsm ism = new CctpIsm(
-            urls,
-            messageTransmitterDestination,
-            mailboxDestination
-        );
-
         address hook = _deployHook(igpDestination);
 
         uint256 scale = 1;
-        TokenBridgeCctp vtb = new TokenBridgeCctp(
-            tokenDestination,
-            scale,
-            mailboxDestination,
-            ITokenMessenger(tokenMessengerDestination)
-        );
+        uint32 version = ITokenMessenger(tokenMessengerOrigin)
+            .messageBodyVersion();
 
+        TokenBridgeCctp vtb;
+        if (version == CCTP_VERSION_1) {
+            vtb = TokenBridgeCctp(
+                address(
+                    new TokenBridgeCctpV1(
+                        tokenDestination,
+                        scale,
+                        mailboxDestination,
+                        IMessageTransmitter(messageTransmitterDestination),
+                        ITokenMessenger(tokenMessengerDestination)
+                    )
+                )
+            );
+        } else if (version == CCTP_VERSION_2) {
+            vtb = TokenBridgeCctp(
+                address(
+                    new TokenBridgeCctpV2(
+                        tokenDestination,
+                        scale,
+                        mailboxDestination,
+                        IMessageTransmitter(messageTransmitterDestination),
+                        ITokenMessengerV2(tokenMessengerDestination)
+                    )
+                )
+            );
+        } else {
+            revert UnsupportedVersion(version);
+        }
+
+        vtb.setUrls(urls);
+        vtb.setHook(hook);
         vtb.addDomain(origin, cctpOrigin);
         vtb.setDestinationGas(origin, REMOTE_GAS_LIMIT);
-        vtb.setHook(hook);
-        vtb.setInterchainSecurityModule(address(ism));
 
         console.log("vtb @", address(vtb));
-        console.log("hook @ ", hook);
-        console.log("ism @", address(ism));
         console.log(
             "(Reminder: enroll the remote router after calling deployOrigin())"
         );
