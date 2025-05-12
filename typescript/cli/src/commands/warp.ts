@@ -11,12 +11,11 @@ import {
 import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
-import {
-  createWarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
-} from '../config/warp.js';
+import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   CommandModuleWithContext,
+  CommandModuleWithWarpApplyContext,
+  CommandModuleWithWarpDeployContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
@@ -77,10 +76,11 @@ export const warpCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
-export const apply: CommandModuleWithWriteContext<{
-  config: string;
+export const apply: CommandModuleWithWarpApplyContext<{
+  config?: string;
+  warp?: string;
   symbol?: string;
-  warp: string;
+  warpRouteId?: string;
   strategy?: string;
   receiptsDir: string;
 }> = {
@@ -88,12 +88,13 @@ export const apply: CommandModuleWithWriteContext<{
   describe: 'Update Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
-    symbol: {
-      ...symbolCommandOption,
-      demandOption: false,
-    },
+    warpRouteId: warpRouteIdCommandOption,
     warp: {
       ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    symbol: {
+      ...symbolCommandOption,
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
@@ -104,30 +105,17 @@ export const apply: CommandModuleWithWriteContext<{
       coerce: (dir) => removeEndingSlash(dir),
     },
   },
-  handler: async ({
-    context,
-    config,
-    symbol,
-    warp,
-    strategy: strategyUrl,
-    receiptsDir,
-  }) => {
+  handler: async ({ context, strategy: strategyUrl, receiptsDir }) => {
     logCommandHeader('Hyperlane Warp Apply');
-
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      symbol,
-      warp,
-      context,
-    });
 
     if (strategyUrl)
       ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
-    const warpDeployConfig = await readWarpRouteDeployConfig(config, context);
 
     await runWarpRouteApply({
       context,
-      warpDeployConfig,
-      warpCoreConfig,
+      // Already fetched in the resolveWarpApplyChains
+      warpDeployConfig: context.warpDeployConfig,
+      warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
     });
@@ -135,10 +123,12 @@ export const apply: CommandModuleWithWriteContext<{
   },
 };
 
-export const deploy: CommandModuleWithWriteContext<{
-  config: string;
+export const deploy: CommandModuleWithWarpDeployContext<{
+  config?: string;
   'dry-run': string;
   'from-address': string;
+  symbol?: string;
+  warpRouteId?: string;
 }> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
@@ -146,8 +136,13 @@ export const deploy: CommandModuleWithWriteContext<{
     config: warpDeploymentConfigCommandOption,
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warpRouteId: warpRouteIdCommandOption,
   },
-  handler: async ({ context, config, dryRun }) => {
+  handler: async ({ context, dryRun }) => {
     logCommandHeader(
       `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
     );
@@ -155,7 +150,8 @@ export const deploy: CommandModuleWithWriteContext<{
     try {
       await runWarpRouteDeploy({
         context,
-        warpRouteDeploymentConfigPath: config,
+        // Already fetched in the resolveWarpRouteConfigChains
+        warpDeployConfig: context.warpDeployConfig,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
@@ -177,7 +173,7 @@ export const init: CommandModuleWithContext<{
       describe: 'Create an advanced ISM',
       default: false,
     },
-    out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
+    out: outputFileCommandOption(),
   },
   handler: async ({ context, advanced, out }) => {
     logCommandHeader('Hyperlane Warp Configure');
