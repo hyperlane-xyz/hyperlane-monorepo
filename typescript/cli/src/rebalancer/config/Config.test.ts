@@ -20,11 +20,13 @@ describe('Config', () => {
       checkFrequency: 1000,
       coingeckoApiKey: COINGECKO_API_KEY,
       chain1: {
+        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
       },
       chain2: {
+        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
@@ -56,11 +58,13 @@ describe('Config', () => {
       coingeckoApiKey: COINGECKO_API_KEY,
       chains: {
         chain1: {
+          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
         },
         chain2: {
+          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
@@ -146,11 +150,13 @@ describe('Config', () => {
       coingeckoApiKey: '',
       chains: {
         chain1: {
+          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
         },
         chain2: {
+          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,

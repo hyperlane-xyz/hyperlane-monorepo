@@ -14,7 +14,7 @@ import { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
-import { Strategy } from '../strategy/Strategy.js';
+import { StrategyFactory } from '../strategy/StrategyFactory.js';
 
 export class RebalancerContextFactory {
   /**
@@ -78,12 +78,7 @@ export class RebalancerContextFactory {
   }
 
   public createStrategy(): IStrategy {
-    return new Strategy(
-      objMap(this.config.chains, (_, v) => ({
-        weight: v.weight,
-        tolerance: v.tolerance,
-      })),
-    );
+    return StrategyFactory.createStrategy(this.config.chains);
   }
 
   public createExecutor(): IExecutor {

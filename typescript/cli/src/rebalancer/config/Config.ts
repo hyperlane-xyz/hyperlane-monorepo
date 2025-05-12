@@ -1,11 +1,19 @@
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import type { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
-const ChainConfigSchema = z.object({
+// Base chain config with common properties
+const BaseChainConfigSchema = z.object({
+  bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
+  strategyType: z.enum(['weighted', 'minAmount']).default('weighted'),
+});
+
+// Weighted strategy config schema
+const WeightedChainConfigSchema = BaseChainConfigSchema.extend({
+  strategyType: z.literal('weighted'),
   weight: z
     .string()
     .or(z.number())
@@ -14,8 +22,22 @@ const ChainConfigSchema = z.object({
     .string()
     .or(z.number())
     .transform((val) => BigInt(val)),
-  bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
 });
+
+// Min amount strategy config schema
+const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
+  strategyType: z.literal('minAmount'),
+  minAmount: z
+    .string()
+    .or(z.number())
+    .transform((val) => BigInt(val)),
+});
+
+// Union of possible chain configs
+const ChainConfigSchema = z.discriminatedUnion('strategyType', [
+  WeightedChainConfigSchema,
+  MinAmountChainConfigSchema,
+]);
 
 const BaseConfigSchema = z.object({
   warpRouteId: z.string().optional(),
@@ -27,7 +49,12 @@ const BaseConfigSchema = z.object({
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
 
-type ChainConfig = z.infer<typeof ChainConfigSchema>;
+// Define separate types for each strategy config
+export type WeightedChainConfig = z.infer<typeof WeightedChainConfigSchema>;
+export type MinAmountChainConfig = z.infer<typeof MinAmountChainConfigSchema>;
+
+// Union type for all chain configs
+export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 
 type BaseConfig = z.infer<typeof BaseConfigSchema>;
 
