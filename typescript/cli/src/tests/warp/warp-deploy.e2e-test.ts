@@ -230,11 +230,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const [
         expectedTokenSymbol,
         expectedTokenDecimals,
-        expectedCollateralTokenSymbol,
+        expectedCollateralFiatTokenSymbol,
       ] = await Promise.all([
-        tokenFiat.symbol(),
-        tokenFiat.decimals(),
         token.symbol(),
+        tokenFiat.decimals(),
+        tokenFiat.symbol(),
       ]);
 
       const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
@@ -315,10 +315,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         warpConfig[CHAIN_NAME_3].decimals ?? expectedTokenDecimals,
       );
       expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].symbol).to.equal(
-        warpConfig[CHAIN_NAME_2].symbol ?? expectedTokenSymbol,
+        warpConfig[CHAIN_NAME_2].symbol ?? expectedCollateralFiatTokenSymbol,
       );
       expect(collateralWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
-        warpConfig[CHAIN_NAME_3].symbol ?? expectedCollateralTokenSymbol,
+        warpConfig[CHAIN_NAME_3].symbol ?? expectedTokenSymbol,
       );
       expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox).to.equal(
         chain2Addresses.mailbox,
