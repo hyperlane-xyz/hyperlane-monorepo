@@ -80,19 +80,13 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    const ethereumChains = this.chains.filter(
+    const compatibleChains = this.chains.filter(
       (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
     );
 
-    for (const chain of ethereumChains) {
-      if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        this.logger.debug(
-          `Skipping signer initialization for non-EVM chain ${chain}`,
-        );
-        continue;
-      }
+    for (const chain of compatibleChains) {
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }
@@ -106,51 +100,24 @@ export class MultiProtocolSignerManager {
   async initSigner(chain: ChainName): Promise<TypedSigner> {
     const config = await this.resolveConfig(chain);
     const signerStrategy = this.getSignerStrategyOrFail(chain);
-    return signerStrategy.getSigner(config);
+    const signer = await signerStrategy.getSigner(config);
+
+    this.signers.set(chain, signer);
+    return signer;
   }
 
   /**
    * @notice Creates signers for all chains
    */
   async initAllSigners(): Promise<typeof this.signers> {
-    const signerConfigs = await this.resolveAllConfigs();
-
-    for (const { chain, privateKey, extraParams } of signerConfigs) {
+    for (const chain of this.chains) {
       const signerStrategy = this.signerStrategies.get(chain);
       if (signerStrategy) {
-        const { protocol, bech32Prefix } =
-          this.multiProvider.getChainMetadata(chain);
-
-        if (protocol === ProtocolType.CosmosNative) {
-          const provider =
-            await this.multiProtocolProvider?.getCosmJsNativeProvider(chain);
-
-          const signer = await signerStrategy.getSigner({
-            privateKey,
-            extraParams: { ...extraParams, provider, prefix: bech32Prefix },
-          });
-
-          this.signers.set(chain, signer);
-        } else {
-          // evm chains
-          this.signers.set(
-            chain,
-            await signerStrategy.getSigner({ privateKey }),
-          );
-        }
+        await this.initSigner(chain);
       }
     }
 
     return this.signers;
-  }
-
-  /**
-   * @notice Resolves all chain configurations
-   */
-  private async resolveAllConfigs(): Promise<
-    Array<{ chain: ChainName } & SignerConfig>
-  > {
-    return Promise.all(this.chains.map((chain) => this.resolveConfig(chain)));
   }
 
   /**

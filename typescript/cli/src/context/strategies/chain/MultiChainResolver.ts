@@ -131,13 +131,12 @@ export class MultiChainResolver implements ChainResolver {
     const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
-    if (argv.chain) {
-      chains.add(argv.chain);
-      return Array.from(chains);
-    }
-
     if (argv.origin) {
       chains.add(argv.origin);
+    }
+
+    if (argv.chain) {
+      chains.add(argv.chain);
     }
 
     if (argv.chains) {
@@ -148,7 +147,7 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     // If no destination is specified, return all EVM chains
-    if (argv.origin && !argv.destination) {
+    if (!argv.destination) {
       return Array.from(this.getEvmChains(multiProvider));
     }
 
