@@ -717,7 +717,9 @@ export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
 export { StarknetCoreModule } from './core/StarknetCoreModule.js';
 export { StarknetCoreReader } from './core/StarknetCoreReader.js';
 export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
+export { StarknetAdapter } from './bus/adapters/StarknetAdapter.js';
 export { StarknetCore } from './core/StarknetCore.js';
+export { StarknetERC20WarpRouteReader } from './token/StarknetERC20WarpRouteReader.js';
 export { MessageService } from './messaging/MessageService.js';
 export {
   formatEthereumMessageForStarknet,
@@ -738,7 +740,6 @@ export {
 } from './utils/starknet.js';
 export { MessageBus } from './bus/MessageBus.js';
 export { EvmAdapter } from './bus/adapters/EvmAdapter.js';
-export { StarknetAdapter } from './bus/adapters/StarknetAdapter.js';
 export {
   MessageHandler,
   MessageWithStatus,
