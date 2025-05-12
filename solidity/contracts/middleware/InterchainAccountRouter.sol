@@ -51,7 +51,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     address public immutable implementation;
     bytes32 public immutable bytecodeHash;
     CommitmentReadIsm public immutable CCIP_READ_ISM;
-    uint public constant COMMIT_TX_GAS_USAGE = 10_000;
+    uint public immutable COMMIT_TX_GAS_USAGE;
 
     // ============ Public Storage ============
     mapping(uint32 => bytes32) public isms;
@@ -105,7 +105,8 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     constructor(
         address _mailbox,
         address _hook,
-        address _owner
+        address _owner,
+        uint _commit_tx_gas_usage
     ) Router(_mailbox) {
         setHook(_hook);
         _transferOwnership(_owner);

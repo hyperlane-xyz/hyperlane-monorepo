@@ -80,7 +80,8 @@ contract InterchainAccountRouterTestBase is Test {
             new InterchainAccountRouter(
                 address(_mailbox),
                 address(_customHook),
-                _owner
+                _owner,
+                20_000
             );
     }
 
