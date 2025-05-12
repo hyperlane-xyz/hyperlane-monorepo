@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
+import { Router } from 'express';
 
-import { Router, Request, Response } from 'express';
-
-import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
+import { ProofsServiceAbi } from '../abis/ProofsServiceAbi';
+import { createAbiHandler } from '../utils/abiHandler';
 
 import { HyperlaneService } from './HyperlaneService';
 import { LightClientService, SuccinctConfig } from './LightClientService';
@@ -33,18 +33,27 @@ class ProofsService {
   constructor() {
     // Load module config from ENV
     const lightClientAddress = process.env.SUCCINCT_LIGHT_CLIENT_ADDRESS;
-    const succinctTrustRoot     = process.env.SUCCINCT_TRUST_ROOT;
-    const rpcUrl                = process.env.PROOFS_RPC_URL;
-    const rpcChainId            = process.env.PROOFS_CHAIN_ID;
-    const hyperlaneUrl          = process.env.HYPERLANE_URL;
-    if (!lightClientAddress || !succinctTrustRoot || !rpcUrl || !rpcChainId || !hyperlaneUrl) {
+    const succinctTrustRoot = process.env.SUCCINCT_TRUST_ROOT;
+    const rpcUrl = process.env.PROOFS_RPC_URL;
+    const rpcChainId = process.env.PROOFS_CHAIN_ID;
+    const hyperlaneUrl = process.env.HYPERLANE_URL;
+    if (
+      !lightClientAddress ||
+      !succinctTrustRoot ||
+      !rpcUrl ||
+      !rpcChainId ||
+      !hyperlaneUrl
+    ) {
       throw new Error('Missing required ProofsService environment variables');
     }
     const succinctConfig = {
       lightClientAddress,
       trustRoot: succinctTrustRoot,
     } as Required<SuccinctConfig>;
-    const rpcConfig = { url: rpcUrl, chainId: rpcChainId } as Required<RPCConfig>;
+    const rpcConfig = {
+      url: rpcUrl,
+      chainId: rpcChainId,
+    } as Required<RPCConfig>;
     const hyperlaneConfig = { url: hyperlaneUrl } as Required<HyperlaneConfig>;
 
     this.rpcService = new RPCService(rpcConfig.url);
@@ -60,9 +69,27 @@ class ProofsService {
     );
 
     this.hyperlaneService = new HyperlaneService(hyperlaneConfig.url);
-
     this.router = Router();
-    this.router.post('/getProofs', this.handleGetProofs.bind(this));
+
+    // CCIP-read spec: GET /getProofs/:sender/:callData.json
+    this.router.get(
+      '/getProofs/:sender/:callData.json',
+      createAbiHandler(
+        ProofsServiceAbi,
+        'getProofs',
+        this.getProofs.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getProofs
+    this.router.post(
+      '/getProofs',
+      createAbiHandler(
+        ProofsServiceAbi,
+        'getProofs',
+        this.getProofs.bind(this),
+      ),
+    );
   }
 
   /**
@@ -157,20 +184,6 @@ class ProofsService {
 
   forceRelayerRecheck(): void {
     throw new Error('Proof is not ready');
-  }
-  // TODO: replicate ABI parsing logic
-  private async handleGetProofs(req: Request, res: Response) {
-    try {
-      const params = req.body.params;
-      if (!Array.isArray(params)) {
-        return res.status(400).json({ error: 'Expected array of [target, storageKey, messageId]' });
-      }
-      const proofs = await this.getProofs(params);
-      res.json({ result: proofs });
-    } catch (err: any) {
-      console.error('ProofsService error:', err);
-      res.status(500).json({ error: err.message });
-    }
   }
 }
 

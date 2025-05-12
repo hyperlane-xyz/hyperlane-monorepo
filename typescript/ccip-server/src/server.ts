@@ -1,5 +1,6 @@
-import { Server } from '@chainlink/ccip-read-server';
+import cors from 'cors';
 import { Router } from 'express';
+import express from 'express';
 
 import { getEnabledModules } from './config.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
@@ -12,8 +13,9 @@ export const moduleRegistry: Record<string, ModuleFactory> = {
   proofs: ProofsService,
 };
 
-const server = new Server();
-const app = server.makeApp('/');
+const app = express();
+app.use(cors());
+app.use(express.json() as express.RequestHandler);
 
 // Dynamically mount only modules listed in the ENABLED_MODULES env var
 for (const name of getEnabledModules()) {
