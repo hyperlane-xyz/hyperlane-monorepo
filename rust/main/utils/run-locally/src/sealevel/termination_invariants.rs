@@ -1,11 +1,10 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 
 use crate::{
     config::Config,
-    fetch_metric,
     invariants::{
         provider_metrics_invariant_met, relayer_termination_invariants_met,
         scraper_termination_invariants_met, submitter_metrics_invariants_met,
@@ -91,6 +90,7 @@ pub fn termination_invariants_met(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use maplit::hashmap;
 
     #[test]
@@ -99,7 +99,7 @@ mod tests {
         let filter_hashmap = hashmap! {
             "destination" => "sealeveltest2",
         };
-        let params = super::RelayerTerminationInvariantParams {
+        let params = RelayerTerminationInvariantParams {
             total_messages_expected: 10,
             // the rest are not used
             config: &crate::config::Config::load(),
@@ -112,6 +112,7 @@ mod tests {
             non_matching_igp_message_count: 0,
             double_insertion_message_count: 0,
             sealevel_tx_id_indexing: true,
+            submitter_type: SubmitterType::Lander,
         };
         assert_eq!(
             super::submitter_metrics_invariants_met(
