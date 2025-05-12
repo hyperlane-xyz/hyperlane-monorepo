@@ -440,7 +440,7 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(output.text()).to.includes(expectedFallbackDiff);
     });
 
-    it.only(`should find differences in the hook config between the local and on chain config if it compares the hook addresses`, async function () {
+    it(`should find differences in the hook config between the local and on chain config if it compares the hook addresses`, async function () {
       const mailboxInstance = Mailbox__factory.connect(
         chain2Addresses.mailbox,
         signer,
