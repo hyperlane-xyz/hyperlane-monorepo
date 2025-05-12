@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 // eslint-disable-next-line
 import fs from 'fs';
 // eslint-disable-next-line
@@ -37,7 +38,6 @@ function checkValidatorsForChain(
   config: ChainMap<SealevelMultisigConfig>,
 ): void {
   rootLogger.info(`\nChain: ${chainName}`);
-  rootLogger.info('----------------------------------------');
 
   const tableData = [];
   const discrepancies: ChainMap<{ missing: string[]; extra: string[] }> = {};
@@ -81,10 +81,15 @@ function checkValidatorsForChain(
 
   // eslint-disable-next-line no-console
   console.table(tableData);
-  rootLogger.info('----------------------------------------\n');
 
   if (Object.keys(discrepancies).length > 0) {
-    rootLogger.info(`Discrepancies Summary for ${chainName}:`);
+    rootLogger.warn(
+      chalk.bold.red(
+        `\nDiscrepancies found for ${chainName}. Please review below.`,
+      ),
+    );
+
+    rootLogger.info(`\nDiscrepancies Summary for ${chainName}:`);
     for (const [chain, { missing, extra }] of Object.entries(discrepancies)) {
       rootLogger.info(`\nChain: ${chain}`);
       if (missing.length > 0) {
@@ -97,8 +102,16 @@ function checkValidatorsForChain(
       }
     }
   } else {
-    rootLogger.info(`All validators match across all chains for ${chainName}.`);
+    rootLogger.info(
+      chalk.bold.green(
+        `\nAll validators match across all chains for ${chainName}.`,
+      ),
+    );
   }
+
+  rootLogger.info(
+    '\n########################################################################################################################\n',
+  );
 }
 
 async function main() {
