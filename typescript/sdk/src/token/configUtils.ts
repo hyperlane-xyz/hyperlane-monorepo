@@ -147,7 +147,7 @@ export async function expandWarpDeployConfig(params: {
 
     // Expand EVM warpDeployConfig virtual to the control states
     if (
-      expandedOnChainWarpConfig?.[chain].contractVerificationStatus &&
+      expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
       multiProvider.getProtocol(chain) === ProtocolType.Ethereum
     ) {
       // For most cases, we set to Verified
