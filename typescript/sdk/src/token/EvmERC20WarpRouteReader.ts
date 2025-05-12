@@ -25,6 +25,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -140,43 +141,34 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   async deriveWarpRouteVirtualConfig(
     chain: ChainName,
     address: Address,
-    virtualConfig: { contractVerificationStatus: Record<string, boolean> } = {
-      contractVerificationStatus: {},
-    },
   ): Promise<HypTokenRouterVirtualConfig> {
-    try {
-      const verificationStatus =
+    const virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: {},
+    };
+
+    const contractType = (await isProxy(this.provider, address))
+      ? VerifyContractTypes.Proxy
+      : VerifyContractTypes.Implementation;
+
+    virtualConfig.contractVerificationStatus[contractType] =
+      await this.contractVerifier.getContractVerificationStatus(chain, address);
+
+    if (contractType === VerifyContractTypes.Proxy) {
+      virtualConfig.contractVerificationStatus.Implementation =
         await this.contractVerifier.getContractVerificationStatus(
           chain,
-          address,
-          this.logger,
-        );
-
-      if (verificationStatus.isVerified)
-        virtualConfig.contractVerificationStatus[verificationStatus.name] =
-          true;
-
-      if (await isProxy(this.provider, address)) {
-        // Derive implementation status
-        await this.deriveWarpRouteVirtualConfig(
-          chain,
           await proxyImplementation(this.provider, address),
-          virtualConfig,
         );
 
-        // Derive ProxyAdmin status
-        await this.deriveWarpRouteVirtualConfig(
+      // Derive ProxyAdmin status
+      virtualConfig.contractVerificationStatus.ProxyAdmin =
+        await this.contractVerifier.getContractVerificationStatus(
           chain,
           await proxyAdmin(this.provider, address),
-          virtualConfig,
         );
-      }
-
-      return virtualConfig;
-    } catch (e) {
-      this.logger.info(`Error deriving warp virtual config: ${e}`);
-      return virtualConfig;
     }
+
+    return virtualConfig;
   }
 
   /**

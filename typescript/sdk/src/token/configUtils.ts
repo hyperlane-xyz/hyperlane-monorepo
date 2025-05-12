@@ -19,9 +19,9 @@ import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { gasOverhead } from './config.js';
-import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  ContractVerificationStatus,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfig,
@@ -87,23 +87,20 @@ export function getRouterAddressesFromWarpCoreConfig(
  * @param multiProvider
  * @param warpDeployConfig - The warp deployment config
  * @param deployedRoutersAddresses - Addresses of deployed routers for each chain
- * @param includeVirtual - Optional flag to expand virtual config details
+ * @param virtualConfig - Optional virtual config to include in the warpDeployConfig
  * @returns A promise resolving to an expanded Warp deploy config with derived and virtual metadata
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
-  includeVirtual: boolean;
-}): Promise<
-  WarpRouteDeployConfigMailboxRequired &
-    Record<string, Partial<HypTokenRouterVirtualConfig>>
-> {
+  expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+}): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
-    includeVirtual,
+    expandedOnChainWarpConfig,
   } = params;
 
   const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
@@ -148,17 +145,22 @@ export async function expandWarpDeployConfig(params: {
       ...config,
     };
 
-    // Virtual Config Expansion
-    if (includeVirtual) {
-      chainConfig.contractVerificationStatus = {
-        [hypERC20contracts[config.type]]: true,
-      };
+    // Expand EVM warpDeployConfig virtual to the control states
+    if (
+      expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+    ) {
+      // For most cases, we set to Verified
+      chainConfig.contractVerificationStatus = objMap(
+        expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
+        (_, status) => {
+          // Skipped for local e2e testing
+          if (status === ContractVerificationStatus.Skipped)
+            return ContractVerificationStatus.Skipped;
 
-      if (isDeployedAsProxyByChain[chain]) {
-        chainConfig.contractVerificationStatus.TransparentUpgradeableProxy =
-          true;
-        chainConfig.contractVerificationStatus.ProxyAdmin = true;
-      }
+          return ContractVerificationStatus.Verified;
+        },
+      );
     }
 
     // Properly set the remote routers addresses to their 32 bytes representation
@@ -176,15 +178,14 @@ export async function expandWarpDeployConfig(params: {
   });
 }
 
-export async function expandOnChainWarpDeployConfig(params: {
+export async function expandVirtualWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  onChainWarpConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
-}) {
-  const { multiProvider, warpDeployConfig, deployedRoutersAddresses } = params;
-
+}): Promise<WarpRouteDeployConfigMailboxRequired> {
+  const { multiProvider, onChainWarpConfig, deployedRoutersAddresses } = params;
   return promiseObjAll(
-    objMap(warpDeployConfig, async (chain, config) => {
+    objMap(onChainWarpConfig, async (chain, config) => {
       const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
       const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
         chain,
