@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::contract::builders::ContractCall;
 use ethers::prelude::U64;
 use ethers::providers::Middleware;
 use ethers::types::H256;
+use eyre::eyre;
 use tokio::sync::Mutex;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -32,6 +34,8 @@ mod gas_price_estimator;
 mod tx_status_checker;
 
 pub struct EthereumTxAdapter {
+    estimated_block_time: Duration,
+    max_batch_size: u32,
     conf: ChainConf,
     connection_conf: ConnectionConf,
     _raw_conf: RawChainConf,
@@ -61,8 +65,12 @@ impl EthereumTxAdapter {
             .await?;
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
         let nonce_manager = Arc::new(Mutex::new(NonceManager::new()));
+        let estimated_block_time = conf.estimated_block_time;
+        let max_batch_size = Self::batch_size(&conf)?;
 
         Ok(Self {
+            estimated_block_time,
+            max_batch_size,
             conf,
             connection_conf,
             _raw_conf: raw_conf,
@@ -70,6 +78,14 @@ impl EthereumTxAdapter {
             reorg_period,
             nonce_manager,
         })
+    }
+
+    fn batch_size(conf: &ChainConf) -> eyre::Result<u32> {
+        Ok(conf
+            .connection
+            .operation_submission_config()
+            .ok_or_else(|| eyre!("no operation batch config"))?
+            .max_batch_size)
     }
 }
 
@@ -177,11 +193,11 @@ impl AdaptsChain for EthereumTxAdapter {
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
-        todo!()
+        &self.estimated_block_time
     }
 
     fn max_batch_size(&self) -> u32 {
-        todo!()
+        self.max_batch_size
     }
 
     async fn set_unfinalized_tx_count(&self, count: usize) {
