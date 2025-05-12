@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::types::{Block, H256 as EthersH256};
+use ethers::types::{Block, H160, H256 as EthersH256};
 use ethers::{prelude::Middleware, types::TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use ethers_core::abi::Function;
@@ -100,6 +100,9 @@ pub trait EvmProviderForSubmitter: Send + Sync {
 
     /// Get the next nonce to use for a given address (using the finalized block)
     async fn get_next_nonce_on_finalized_block(&self, address: &Address) -> ChainResult<U256>;
+
+    /// Get the address of the signer
+    fn get_signer(&self) -> Option<H160>;
 }
 
 #[async_trait]
@@ -171,6 +174,10 @@ where
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(Into::into)
+    }
+
+    fn get_signer(&self) -> Option<H160> {
+        self.provider.default_sender()
     }
 }
 

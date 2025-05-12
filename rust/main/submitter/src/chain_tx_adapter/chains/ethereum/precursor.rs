@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use ethers::abi::Function;
 use ethers::types::transaction::eip2718::TypedTransaction;
+use ethers::{abi::Function, types::H160};
 
 use crate::payload::{FullPayload, PayloadDetails};
 
@@ -43,10 +43,12 @@ impl EthereumTxPrecursor {
         Self { tx, function }
     }
 
-    pub fn from_payload(payload: &FullPayload) -> Self {
+    pub fn from_payload(payload: &FullPayload, signer: H160) -> Self {
         use super::payload::parse_data;
 
-        let (tx, function) = parse_data(payload);
+        let (mut tx, function) = parse_data(payload);
+        tx.set_from(signer);
+
         EthereumTxPrecursor::new(tx, function)
     }
 

@@ -9,7 +9,7 @@ use ethers::providers::Middleware;
 use ethers::types::H256;
 use eyre::eyre;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use hyperlane_base::settings::parser::h_eth::{BuildableWithProvider, ConnectionConf};
@@ -101,9 +101,13 @@ impl AdaptsChain for EthereumTxAdapter {
         use super::transaction::TransactionFactory;
 
         info!(?payloads, "building transactions for payloads");
+        let Some(signer) = self.provider.get_signer() else {
+            error!("No signer found! Cannot build transactions");
+            return vec![];
+        };
         let payloads_and_precursors = payloads
             .iter()
-            .map(|payload| (EthereumTxPrecursor::from_payload(payload), payload))
+            .map(|payload| (EthereumTxPrecursor::from_payload(payload, signer), payload))
             .collect::<Vec<(EthereumTxPrecursor, &FullPayload)>>();
 
         let mut transactions = Vec::new();
