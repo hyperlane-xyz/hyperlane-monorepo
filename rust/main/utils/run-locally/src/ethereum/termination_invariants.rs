@@ -1,3 +1,4 @@
+use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 
 use crate::config::Config;
@@ -16,6 +17,7 @@ use crate::{FAILED_MESSAGE_COUNT, RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KA
 pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
+    submitter_type: SubmitterType,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
 
@@ -40,6 +42,7 @@ pub fn termination_invariants_met(
         non_matching_igp_message_count: 0,
         double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
         sealevel_tx_id_indexing: false,
+        submitter_type,
     };
     if !relayer_termination_invariants_met(params)? {
         return Ok(false);
