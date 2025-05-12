@@ -1,88 +1,35 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import type { ChainName } from '@hyperlane-xyz/sdk';
 
-import {
+import type {
   IStrategy,
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
 
-type ChainConfig = {
-  weight: bigint;
-  tolerance: bigint;
-};
+export type Delta = { chain: ChainName; amount: bigint };
 
-type Delta = { chain: ChainName; amount: bigint };
+/**
+ * Base abstract class for rebalancing strategies
+ */
+export abstract class BaseStrategy implements IStrategy {
+  protected readonly chains: ChainName[];
 
-export class Strategy implements IStrategy {
-  private readonly chains: ChainName[];
-  private readonly config: ChainMap<ChainConfig>;
-  private readonly totalWeight: bigint;
-
-  constructor(config: ChainMap<ChainConfig>) {
-    const chains = Object.keys(config);
-
+  constructor(chains: ChainName[]) {
     // Rebalancing makes sense only with more than one chain.
     if (chains.length < 2) {
       throw new Error('At least two chains must be configured');
     }
-
-    let totalWeight = 0n;
-
-    for (const chain of chains) {
-      const { weight, tolerance } = config[chain];
-
-      if (weight <= 0n) {
-        throw new Error('Weight must be greater than 0');
-      }
-
-      if (tolerance < 0n || tolerance > 100n) {
-        throw new Error('Tolerance must be between 0 and 100');
-      }
-
-      totalWeight += weight;
-    }
-
     this.chains = chains;
-    this.config = config;
-    this.totalWeight = totalWeight;
   }
 
   /**
-   * Get the optimized routes to rebalance the defined chains.
+   * Main method to get rebalancing routes
    */
   getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
     this.validateRawBalances(rawBalances);
 
-    // Get the total balance from all chains
-    const total = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
-      0n,
-    );
-
-    // Group balances by balances with surplus or deficit
-    const { surpluss, deficits } = this.chains.reduce(
-      (acc, chain) => {
-        const { weight, tolerance } = this.config[chain];
-        const target = (total * weight) / this.totalWeight;
-        const toleranceAmount = (target * tolerance) / 100n;
-        const balance = rawBalances[chain];
-
-        // Apply the tolerance to deficits to prevent small imbalances
-        if (balance < target - toleranceAmount) {
-          acc.deficits.push({ chain, amount: target - balance });
-        } else if (balance > target) {
-          acc.surpluss.push({ chain, amount: balance - target });
-        } else {
-          // Do nothing as the balance is already on target
-        }
-
-        return acc;
-      },
-      {
-        surpluss: [] as Delta[],
-        deficits: [] as Delta[],
-      },
-    );
+    // Get balances categorized by surplus and deficit
+    const { surpluss, deficits } = this.getCategorizedBalances(rawBalances);
 
     // Sort from largest to smallest amounts as to always transfer largest amounts
     // first and decrease the amount of routes required
@@ -92,8 +39,7 @@ export class Strategy implements IStrategy {
     const routes: RebalancingRoute[] = [];
 
     // Transfer from surplus to deficit until all deficits are balanced.
-    // It is not possible in this implementation for surpluses to run out before deficits
-    while (deficits.length > 0) {
+    while (deficits.length > 0 && surpluss.length > 0) {
       const surplus = surpluss[0];
       const deficit = deficits[0];
 
@@ -126,7 +72,19 @@ export class Strategy implements IStrategy {
     return routes;
   }
 
-  private validateRawBalances(rawBalances: RawBalances): void {
+  /**
+   * Abstract method to get balances categorized by surplus and deficit
+   * Each specific strategy should implement its own logic
+   */
+  protected abstract getCategorizedBalances(rawBalances: RawBalances): {
+    surpluss: Delta[];
+    deficits: Delta[];
+  };
+
+  /**
+   * Validates the raw balances against the chains configuration
+   */
+  protected validateRawBalances(rawBalances: RawBalances): void {
     const rawBalancesChains = Object.keys(rawBalances);
 
     if (this.chains.length !== rawBalancesChains.length) {
