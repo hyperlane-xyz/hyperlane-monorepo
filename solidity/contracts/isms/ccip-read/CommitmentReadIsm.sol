@@ -37,7 +37,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             urls: urls,
             callData: abi.encodeWithSignature(
                 "getCallsFromCommitment(bytes32)",
-                _message
+                _message.body().commitment()
             ),
             callbackFunction: this.process.selector,
             extraData: _message
