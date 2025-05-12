@@ -1,6 +1,6 @@
 //! Load a settings object from the config locations.
 
-use std::{env, error::Error, fmt::Debug, path::PathBuf};
+use std::{env, error::Error, fmt::Debug, path::PathBuf, time::Instant};
 
 use config::{Config, File};
 use convert_case::Case;
@@ -27,8 +27,13 @@ where
     let mut base_config_sources = vec![];
     let mut builder = Config::builder();
 
+    let path_to_load_from = "/path_to_your/hyperlane-monorepo/rust/main/config";
+    println!(
+        "loading from path: {:?}",
+        PathBuf::from(path_to_load_from).to_path_buf().as_os_str()
+    );
     // Always load the default config files (`rust/main/config/*.json`)
-    for entry in PathBuf::from("./config")
+    for entry in PathBuf::from(path_to_load_from)
         .read_dir()
         .context("Failed to open config directory")
         .into_config_result(|| root_path.clone())?
@@ -80,6 +85,8 @@ where
         }
     }
 
+    let env_start = Instant::now();
+    println!("Loading in config from environment variables and command line arguments");
     let config_deserializer = builder
         // Use a base configuration env variable prefix
         .add_source(CaseAdapter::new(
@@ -93,6 +100,10 @@ where
         .build()
         .context("Failed to load config sources")
         .into_config_result(|| root_path.clone())?;
+    println!(
+        "Loaded config from environment variables and command line arguments in {:?}",
+        env_start.elapsed()
+    );
 
     let formatted_config = {
         let f = format!("{config_deserializer:#?}");
