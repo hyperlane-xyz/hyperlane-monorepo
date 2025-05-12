@@ -1,58 +1,31 @@
 import { Server } from '@chainlink/ccip-read-server';
+import { Router } from 'express';
 
-import {
-  HyperlaneCore,
-  commitmentFromIcaCalls,
-  encodeIcaCalls,
-  normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+import { getEnabledModules } from './config.js';
+import { CallCommitmentsService } from './services/CallCommitmentsService.js';
+import { ProofsService } from './services/ProofsService.js';
+
+type ModuleFactory = new (opts?: any) => { router: Router };
+
+export const moduleRegistry: Record<string, ModuleFactory> = {
+  callCommitments: CallCommitmentsService,
+  proofs: ProofsService,
+};
 
 const server = new Server();
-
-// TODO
-// 1. Extract modules
-// 2. Authenticate relayer
-// 3. check commitment was dispatched to avoid ddosing the db
-interface StoredCommitment {
-  calls: { to: string; data: string; value?: string }[];
-  salt: string;
-  relayers: string[];
-}
-
-const commitments = new Map<string, StoredCommitment>();
-
 const app = server.makeApp('/');
-app.post('/calls', (req, res) => {
-  const { calls, relayers, salt } = req.body;
-  const commitmentKey = commitmentFromIcaCalls(calls, salt);
-  commitments.set(commitmentKey, { calls, relayers, salt });
-  console.log('Stored commitment', commitmentKey);
-  res.sendStatus(200);
-});
 
-app.post('/getCallsFromCommitment', (req, res) => {
-  // message is in the data
-  const { data } = req.body;
-  // TODO: Fix this after we fix it in the ISM
-  // For now parse it from the wrong signature, treat bytes32 as bytes in getCallsFromCommitment(bytes32)
-  const message = HyperlaneCore.parseDispatchedMessage(
-    '0x' + data.slice(2 + 8 + 128),
-  );
-  const body = message.parsed.body;
-  // Parse the commitment after skipping the first 32 bytes and the leading 0x
-  const commitment = '0x' + body.slice(68, 132);
-
-  const entry = commitments.get(commitment);
-  if (!entry) {
-    console.log('Commitment not found', commitment);
-    res.status(404).json({ error: 'Commitment not found' });
-    return;
+// Dynamically mount only modules listed in the ENABLED_MODULES env var
+for (const name of getEnabledModules()) {
+  const ServiceClass = moduleRegistry[name];
+  if (!ServiceClass) {
+    console.warn(`⚠️  Module '${name}' not found; skipping`);
+    continue;
   }
-  const { calls, salt } = entry;
-  const encoded = encodeIcaCalls(normalizeCalls(calls), salt);
-  console.log('Serving calls for commitment', commitment);
-  res.status(200).json({ data: encoded });
-});
+  const service = new ServiceClass(); // module reads its own ENV config
+  app.use(`/${name}`, service.router);
+  console.log(`✅  Mounted '${name}' at '/${name}'`);
+}
 
 // Log and handle undefined endpoints
 app.use((req, res) => {

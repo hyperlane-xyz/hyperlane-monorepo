@@ -297,6 +297,7 @@ export {
 } from './middleware/account/contracts.js';
 export {
   InterchainAccount,
+  RawCallData,
   encodeIcaCalls,
   commitmentFromIcaCalls,
   normalizeCalls,
