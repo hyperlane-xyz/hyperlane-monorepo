@@ -274,12 +274,15 @@ export async function createWarpRouteDeployConfig({
         context.multiProvider,
         warpRouteDeployConfig,
       );
+
+      const symbol = tokenMetadata.getSymbol('');
       assert(
-        tokenMetadata?.symbol,
-        'Error deriving token metadata, please check the provided token addresses',
+        symbol === undefined,
+        'Token symbol is undefined — cannot configure warp route',
       );
+
       await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
-        symbol: tokenMetadata.symbol,
+        symbol: symbol!,
       });
     }
     logGreen('✅ Successfully created new warp route deployment config.');

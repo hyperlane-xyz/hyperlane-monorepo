@@ -212,6 +212,8 @@ export function getTokenSymbolFromDeployment(
     symbol = tokenVaultChain3Symbol;
   } else if (warpConfig[CHAIN_NAME_3].type.match(/.*collateral.*/i)) {
     symbol = tokenChain3Symbol;
+  } else if (warpConfig[CHAIN_NAME_3].type.match(/.*native.*/i)) {
+    symbol = 'ETH';
   } else {
     symbol = 'ETH';
   }
