@@ -488,7 +488,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       chain2Metadata.domainId,
     );
 
-    await startRebalancerAndExpectLog('❌ Some rebalance transaction failed');
+    await startRebalancerAndExpectLog(`❌ Could not estimate gas for route {
+  fromChain: 'anvil3',
+  toChain: 'anvil2',
+  amount: 5000000000000000000n
+}`);
+
+    await startRebalancerAndExpectLog(
+      '❌ Could not estimate gas for some routes',
+    );
   });
 
   it('should successfully send rebalance transaction', async () => {

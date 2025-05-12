@@ -94,6 +94,23 @@ export class Executor implements IExecutor {
       transactions.push({ signer, populatedTx });
     }
 
+    // Estimate gas before sending transactions.
+    // This is mainly to check that the transaction will not fail before sending them.
+    const estimateGasResults = await Promise.allSettled(
+      transactions.map(async ({ signer, populatedTx }, i) => {
+        try {
+          await signer.estimateGas(populatedTx);
+        } catch (error) {
+          log(`❌ Could not estimate gas for route`, routes[i]);
+          throw error;
+        }
+      }),
+    );
+
+    if (estimateGasResults.some((result) => result.status === 'rejected')) {
+      throw new Error('❌ Could not estimate gas for some routes');
+    }
+
     const results = await Promise.allSettled(
       transactions.map(async ({ signer, populatedTx }) => {
         console.log('populatedTx', populatedTx);
