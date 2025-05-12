@@ -205,8 +205,9 @@ abstract class TokenDeployer<
         });
       }
     }
+    const orderedChains = sortedEntries.map(([chain]) => chain);
 
-    return new TokenMetadataMap(metadataMap);
+    return new TokenMetadataMap(metadataMap, orderedChains);
   }
 
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {

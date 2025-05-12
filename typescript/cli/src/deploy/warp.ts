@@ -412,7 +412,7 @@ async function getWarpCoreConfig(
 
   fullyConnectTokens(warpCoreConfig);
 
-  const symbol = tokenMetadataMap.getFirstSymbol();
+  const symbol = tokenMetadataMap.getSymbol('');
 
   return { warpCoreConfig, addWarpRouteOptions: { symbol } };
 }

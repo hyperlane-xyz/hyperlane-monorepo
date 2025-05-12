@@ -4,9 +4,11 @@ import { TokenMetadata } from './types.js';
 
 export class TokenMetadataMap {
   private readonly tokenMetadataMap: Record<string, TokenMetadata>;
+  private readonly orderedChains: string[];
 
-  constructor(map: Record<string, TokenMetadata>) {
+  constructor(map: Record<string, TokenMetadata>, orderedChains: string[]) {
     this.tokenMetadataMap = map;
+    this.orderedChains = orderedChains;
 
     // TODO: Check if decimals (and scale?) need to stay optional in the schema
     assert(
@@ -57,9 +59,11 @@ export class TokenMetadataMap {
     if (this.tokenMetadataMap[chain]) {
       return this.tokenMetadataMap[chain]?.name;
     }
-    // TODO: Make sure to sort this correctly to derive first priority
-    return Object.values(this.tokenMetadataMap).find((config) => config?.name)
-      ?.name;
+
+    for (const c of this.orderedChains) {
+      if (this.tokenMetadataMap[c]?.name) return this.tokenMetadataMap[c]?.name;
+    }
+    return undefined;
   }
 
   getScale(chain: string): number | undefined {
@@ -74,13 +78,12 @@ export class TokenMetadataMap {
       return this.tokenMetadataMap[chain]?.symbol;
     }
 
-    return Object.values(this.tokenMetadataMap).find((config) => config?.symbol)
-      ?.symbol;
-  }
+    for (const c of this.orderedChains) {
+      if (this.tokenMetadataMap[c]?.symbol)
+        return this.tokenMetadataMap[c]?.symbol;
+    }
 
-  getFirstSymbol(): string | undefined {
-    return Object.values(this.tokenMetadataMap).find((config) => config?.symbol)
-      ?.symbol;
+    return undefined;
   }
 
   areDecimalsUniform(): boolean {
