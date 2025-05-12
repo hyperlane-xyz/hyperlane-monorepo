@@ -86,12 +86,6 @@ library CctpMessageV2 {
         return _message.index(NONCE_INDEX, 32);
     }
 
-    // @dev Copied from _nonce() of Message.sol of the CCTP repo in order to support
-    // CCTP v1 messages
-    function _getNonceV1(bytes29 _message) internal pure returns (uint64) {
-        return uint64(_message.indexUint(NONCE_INDEX, 8));
-    }
-
     function _getSender(bytes29 _message) internal pure returns (bytes32) {
         return _message.index(SENDER_INDEX, 32);
     }
