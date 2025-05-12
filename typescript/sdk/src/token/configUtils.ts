@@ -146,16 +146,16 @@ export async function expandWarpDeployConfig(params: {
     };
 
     // Expand EVM warpDeployConfig virtual to the control states
-    if (expandedOnChainWarpConfig?.[chain].contractVerificationStatus) {
+    if (
+      expandedOnChainWarpConfig?.[chain].contractVerificationStatus &&
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+    ) {
       // For most cases, we set to Verified
       chainConfig.contractVerificationStatus = objMap(
         expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
         (_, status) => {
           // Skipped for local e2e testing
-          if (
-            status === ContractVerificationStatus.Skipped ||
-            !(multiProvider.getProtocol(chain) == ProtocolType.Ethereum)
-          )
+          if (status === ContractVerificationStatus.Skipped)
             return ContractVerificationStatus.Skipped;
 
           return ContractVerificationStatus.Verified;
