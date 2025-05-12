@@ -1,0 +1,26 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "8jN7xMDqJucigQphWHvqAPQPAmk7VJKKsqLmgCkE7XzP",
+    "owner": "42iznAJXXefUPmnYz6N6GCzFvXG42o3oTd2D1ymH4UmX"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Kyros Restaked SOL",
+    "symbol": "kySOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/995e74502e0c582ed0990bcb437459e01cc9bcc3/deployments/warp_routes/kySOL/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": "9C8oqyz46mJJpZA69fCj9p7sUUriC8DUvoTG5wxqFzgj"
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Kyros Restaked SOL",
+    "symbol": "kySOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/995e74502e0c582ed0990bcb437459e01cc9bcc3/deployments/warp_routes/kySOL/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief"
+  }
+}
