@@ -11,7 +11,7 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage, CommitmentReadIsm} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
@@ -955,10 +955,69 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
         bytes memory message = _mailbox.inboundMessages(1);
         bytes memory metadata = abi.encode(calls, salt, ica);
-        destinationIcaRouter.CCIP_READ_ISM().process(metadata, message);
+        _mailbox.addInboundMetadata(1, metadata); // Metadata can fetched by other callers
+        environment.processNextPendingMessage();
 
         // Commitment should be cleared
         assertEq(ica.commitment(), bytes32(0));
+    }
+
+    function testFuzz_readIsm_verify_reverts_two_reveals(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        testFuzz_readIsm_verify(data, value, salt);
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+
+        // If you reveal once, you can't reveal again
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = _mailbox.inboundMetadata(1);
+
+        CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
+        vm.expectRevert("Commitment ISM: Invalid Commitment");
+        _ism.verify(metadata, message);
+    }
+
+    function testFuzz_readIsm_verify_reverts_commit_not_delivered(
+        bytes32 data,
+        uint256 value,
+        bytes32 salt
+    ) public {
+        // Arrange
+        CallLib.Call[] memory calls = getCalls(data, value);
+        bytes32 commitment = keccak256(abi.encode(calls, salt, ica));
+        deal(address(ica), value); // Ensure ICA has enough balance to execute calls
+        // Act
+        originIcaRouter.callRemoteCommitReveal(
+            destination,
+            routerOverride,
+            ismOverride,
+            bytes(""),
+            new TestPostDispatchHook(),
+            bytes32(0),
+            commitment
+        );
+
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        // Process reveal message
+        MockMailbox _mailbox = MockMailbox(
+            address(destinationIcaRouter.mailbox())
+        );
+        bytes memory message = _mailbox.inboundMessages(1);
+        bytes memory metadata = abi.encode(calls, salt, ica);
+        CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
+        vm.expectRevert("Commitment ISM: Invalid Commitment");
+        _ism.process(metadata, message);
     }
 
     function testFuzz_callRemoteCommitReveal_simpleOverload(

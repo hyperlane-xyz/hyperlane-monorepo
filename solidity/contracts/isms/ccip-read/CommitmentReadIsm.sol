@@ -72,7 +72,11 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             "Commitment ISM: Revealed Hash Invalid"
         );
 
-        // If the commitment hasn't been executed, execute it
+        // Revert if this is not the ica's currently active commitment
+        require(
+            ica.commitment() == msgCommitment,
+            "Commitment ISM: Invalid Commitment"
+        );
         InterchainAccountRouter icaRouter = InterchainAccountRouter(
             _message.recipient().bytes32ToAddress()
         );
