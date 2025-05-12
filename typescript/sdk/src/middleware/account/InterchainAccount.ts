@@ -270,12 +270,13 @@ export function encodeIcaCalls(calls: CallData[], salt: string) {
 }
 
 // Convenience function to transform value strings to bignumber
-type UnstructuredCallData = {
+export type RawCallData = {
   to: string;
   value?: string | number;
   data: string;
 };
-export function normalizeCalls(calls: UnstructuredCallData[]): CallData[] {
+
+export function normalizeCalls(calls: RawCallData[]): CallData[] {
   return calls.map((call) => ({
     to: addressToBytes32(call.to),
     value: BigNumber.from(call.value || 0),

@@ -21,8 +21,13 @@ async function main() {
     context = Contexts.Hyperlane,
     environment,
     testmessage,
+    origin: originRaw,
+    destination: destinationRaw,
   } = await withContext(
-    getArgs().describe('testmessage', 'the message to send'),
+    getArgs()
+      .describe('testmessage', 'the message to send')
+      .describe('origin', 'the origin chain')
+      .describe('destination', 'the destination chain'),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider(
@@ -32,19 +37,20 @@ async function main() {
   );
   const { core } = await getHyperlaneCore(environment, multiProvider);
   const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
-  const origin = 'base';
-  const destination = 'unichain';
   const app = InterchainAccount.fromAddressesMap(addresses, multiProvider);
-  const testRecipient = getEnvAddresses(environment).unichain.testRecipient;
+  //   assert that origin is in the supported chains
+  const origin = originRaw as keyof typeof addresses;
+  const destination = destinationRaw as keyof typeof addresses;
+  const testRecipient = getEnvAddresses(environment)[destination].testRecipient;
 
   const destinationDomainId = multiProvider.getDomainId(destination);
   //   deploy trusted relayer ism to avoid having to run a relayer locally
   //   const ism = await (new TrustedRelayerIsm__factory(multiProvider.getSigner('test2'))).deploy(core.getAddresses('test2').mailbox, '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266')
   //   await core.contractsMap.test2.mailbox.setDefaultIsm(ism.address)
-  //   const testReipientContract = TestRecipient__factory.connect(
-  //     testRecipient,
-  //     multiProvider.getSigner(destination),
-  //   );
+    const testReipientContract = TestRecipient__factory.connect(
+      testRecipient,
+      multiProvider.getSigner(destination),
+    );
 
   console.log('Start preparing the call');
 
@@ -53,6 +59,7 @@ async function main() {
     {
       to: testRecipient,
       data: TestRecipient__factory.createInterface().encodeFunctionData(
+        // @ts-ignore
         'fooBar',
         [1, testmessage],
       ),
@@ -81,7 +88,7 @@ async function main() {
   const relayerAddress = await multiProvider
     .getSigner(destination)
     .getAddress();
-  const serverUrl = 'http://localhost:3000/calls';
+  const serverUrl = 'http://localhost:3000/callCommitments/calls';
   try {
     await shareCallsWithPrivateRelayer(
       calls,
@@ -101,19 +108,19 @@ async function main() {
   );
 
   //   first is just the commitment
-  //   await relayer.relayMessage(receipt, 0);
+    await relayer.relayMessage(receipt, 0);
 
   // the result shouldn't yet change after the commitment
   //   const result = await testReipientContract.lastCallMessage();
   //   console.log("result shouldn't yet change", result);
 
   //   Now we relay the reveal (reanble once the ISM blocks on the commitment being relayed)
-  // await relayer.relayMessage(receipt, 1);
-  // const result = await testReipientContract.lastCallMessage()
-  //   assert(
-  // testmessage === (await testReipientContract.lastCallMessage()),
-  // 'Result should change after the reveal ' + result,
-  //   );
+  await relayer.relayMessage(receipt, 1);
+  const result = await testReipientContract.lastCallMessage()
+    assert(
+  testmessage === (await testReipientContract.lastCallMessage()),
+  'Result should change after the reveal ' + result,
+    );
 }
 
 main().then(console.log).catch(console.error);
