@@ -17,13 +17,15 @@
     "dev": "nodemon src/server.ts",
     "test": "jest",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src/* ./tests/"
+    "prettier": "prettier --write ./src/* ./tests/",
+    "build-prod": "node esbuild.config.js"
   },
   "author": "brolee",
   "license": "Apache-2.0",
   "devDependencies": {
     "@jest/globals": "^29.7.0",
     "@types/node": "^18.14.5",
+    "esbuild": "^0.25.4",
     "eslint": "^9.15.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.3",
@@ -35,6 +37,7 @@
   },
   "dependencies": {
     "@chainlink/ccip-read-server": "^0.2.1",
+    "@eth-optimism/sdk": "^3.3.3",
     "dotenv-flow": "^4.1.0",
     "ethers": "^5.7.2"
   }
