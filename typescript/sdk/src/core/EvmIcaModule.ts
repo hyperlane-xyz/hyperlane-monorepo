@@ -44,10 +44,7 @@ export class EvmIcaModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<
-      InterchainAccountConfig,
-      HyperlaneAddresses<InterchainAccountFactories>
-    >,
+    args: HyperlaneModuleParams<HyperlaneAddresses<InterchainAccountFactories>>,
   ) {
     super(args);
     this.icaRouterReader = new EvmIcaRouterReader(
@@ -238,7 +235,6 @@ export class EvmIcaModule extends HyperlaneModule<
     return new EvmIcaModule(multiProvider, {
       addresses: serializeContracts(deployedContracts),
       chain,
-      config,
     });
   }
 }

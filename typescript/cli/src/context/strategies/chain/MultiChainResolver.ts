@@ -174,7 +174,9 @@ export class MultiChainResolver implements ChainResolver {
 
       const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
         chain: argv.chain,
-        config,
+        options: {
+          hasInterchainAccountRouter: !!config.interchainAccountRouter,
+        },
         addresses: coreAddresses,
       });
 

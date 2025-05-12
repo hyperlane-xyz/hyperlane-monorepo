@@ -643,7 +643,9 @@ async function updateExistingWarpRoute(
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
-            config: configWithMailbox,
+            options: {
+              isAddressIsmConfig: typeof configWithMailbox === 'string',
+            },
             chain,
             addresses: {
               deployedTokenRoute,

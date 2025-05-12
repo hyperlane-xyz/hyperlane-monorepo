@@ -57,7 +57,8 @@ type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HypTokenRouterConfig,
-  WarpRouteAddresses
+  WarpRouteAddresses,
+  {}
 > {
   protected logger = rootLogger.child({
     module: 'EvmERC20WarpModule',
@@ -69,7 +70,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
+    args: HyperlaneModuleParams<WarpRouteAddresses, {}>,
     protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
@@ -424,7 +425,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.multiProvider,
       {
         chain: this.args.chain,
-        config: expectedConfig.interchainSecurityModule,
+        options: {
+          isAddressIsmConfig: typeof expectedConfig === 'string',
+        },
         addresses: {
           ...this.args.addresses,
           mailbox: expectedConfig.mailbox,
@@ -510,7 +513,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.multiProvider,
       {
         chain: this.args.chain,
-        config: actualConfig.hook,
+        options: {
+          isAddressHookConfig: typeof expectedConfig === 'string',
+        },
         addresses: {
           ...extractIsmAndHookFactoryAddresses(this.args.addresses),
           mailbox: actualConfig.mailbox,
@@ -567,7 +572,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           deployedTokenRoute: deployedContracts[config.type].address,
         },
         chain,
-        config,
       },
       ccipContractCache,
       contractVerifier,

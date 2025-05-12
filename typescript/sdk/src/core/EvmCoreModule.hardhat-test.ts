@@ -193,7 +193,9 @@ describe('EvmCoreModule', async () => {
       for (const ismConfig of ismConfigToUpdate) {
         const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
           chain: CHAIN,
-          config,
+          options: {
+            hasInterchainAccountRouter: !!config.interchainAccountRouter,
+          },
           addresses: {
             ...evmCoreModule.serialize(),
           },
@@ -215,7 +217,9 @@ describe('EvmCoreModule', async () => {
     it('should not deploy and set a new Ism if the config is the same', async () => {
       const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
         chain: CHAIN,
-        config,
+        options: {
+          hasInterchainAccountRouter: !!config.interchainAccountRouter,
+        },
         addresses: {
           ...evmCoreModule.serialize(),
         },
