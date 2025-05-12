@@ -180,9 +180,9 @@ export async function expandVirtualWarpDeployConfig(params: {
   onChainWarpConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  const { multiProvider, deployedRoutersAddresses } = params;
+  const { multiProvider, onChainWarpConfig, deployedRoutersAddresses } = params;
   return promiseObjAll(
-    objMap(params.onChainWarpConfig, async (chain, config) => {
+    objMap(onChainWarpConfig, async (chain, config) => {
       const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
       const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
         chain,
