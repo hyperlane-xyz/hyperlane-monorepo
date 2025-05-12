@@ -113,6 +113,26 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+export enum ContractVerificationStatus {
+  Verified = 'verified',
+  Unverified = 'unverified',
+  Error = 'error',
+  Skipped = 'skipped',
+}
+export const HypTokenRouterVirtualConfigSchema = z.object({
+  contractVerificationStatus: z.record(
+    z.enum([
+      ContractVerificationStatus.Verified,
+      ContractVerificationStatus.Unverified,
+      ContractVerificationStatus.Error,
+      ContractVerificationStatus.Skipped,
+    ]),
+  ),
+});
+export type HypTokenRouterVirtualConfig = z.infer<
+  typeof HypTokenRouterVirtualConfigSchema
+>;
+
 /**
  * @remarks
  * The discriminatedUnion is basically a switch statement for zod schemas
@@ -129,7 +149,8 @@ export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
 export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema,
-);
+).and(HypTokenRouterVirtualConfigSchema.partial());
+
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
@@ -156,7 +177,7 @@ export const HypTokenRouterConfigMailboxOptionalSchema =
     GasRouterConfigSchema.extend({
       mailbox: z.string().optional(),
     }),
-  );
+  ).and(HypTokenRouterVirtualConfigSchema.partial());
 
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema

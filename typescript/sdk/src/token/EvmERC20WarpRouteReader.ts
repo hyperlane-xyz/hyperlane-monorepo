@@ -13,6 +13,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   assert,
@@ -23,6 +24,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { ExplorerLicenseType } from '../deploy/verify/types.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -32,16 +36,17 @@ import {
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { isProxy, proxyAdmin } from './../deploy/proxy.js';
+import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
   CollateralTokenConfig,
   DerivedTokenRouterConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
+  HypTokenRouterVirtualConfig,
   TokenMetadata,
   XERC20TokenMetadata,
 } from './types.js';
@@ -60,11 +65,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  contractVerifier: ContractVerifier;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
@@ -89,6 +96,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
     };
+
+    this.contractVerifier =
+      contractVerifier ??
+      new ContractVerifier(
+        multiProvider,
+        {},
+        coreBuildArtifact,
+        ExplorerLicenseType.MIT,
+      );
   }
 
   /**
@@ -121,6 +137,39 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       proxyAdmin,
       destinationGas,
     };
+  }
+
+  async deriveWarpRouteVirtualConfig(
+    chain: ChainName,
+    address: Address,
+  ): Promise<HypTokenRouterVirtualConfig> {
+    const virtualConfig: HypTokenRouterVirtualConfig = {
+      contractVerificationStatus: {},
+    };
+
+    const contractType = (await isProxy(this.provider, address))
+      ? VerifyContractTypes.Proxy
+      : VerifyContractTypes.Implementation;
+
+    virtualConfig.contractVerificationStatus[contractType] =
+      await this.contractVerifier.getContractVerificationStatus(chain, address);
+
+    if (contractType === VerifyContractTypes.Proxy) {
+      virtualConfig.contractVerificationStatus.Implementation =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          await proxyImplementation(this.provider, address),
+        );
+
+      // Derive ProxyAdmin status
+      virtualConfig.contractVerificationStatus.ProxyAdmin =
+        await this.contractVerifier.getContractVerificationStatus(
+          chain,
+          await proxyAdmin(this.provider, address),
+        );
+    }
+
+    return virtualConfig;
   }
 
   /**
