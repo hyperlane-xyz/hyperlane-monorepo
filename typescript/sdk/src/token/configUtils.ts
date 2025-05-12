@@ -1,6 +1,5 @@
 import { zeroAddress } from 'viem';
 
-import { EvmHookReader, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -14,6 +13,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
