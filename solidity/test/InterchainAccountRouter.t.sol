@@ -1075,10 +1075,11 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(quote, directIGPQuote);
     }
 
-    function test_ReadIsmOwnershio() public {
+    function test_ReadIsmOwnership() public {
         assertEq(
             originIcaRouter.CCIP_READ_ISM().owner(),
             originIcaRouter.owner()
         );
+
     }
 }
