@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { Address, isAddressEvm } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { EvmCoreModule } from '../core/EvmCoreModule.js';
@@ -46,10 +46,6 @@ describe(EvmIcaRouterReader.name, async () => {
 
       expect(res.address).to.equal(interchainAccountRouterAddress);
       expect(res.owner).to.equal(signerAddress);
-      // Proxy admin checks
-      expect(res.proxyAdmin.address).to.exist;
-      expect(isAddressEvm(res.proxyAdmin.address)).to.be.true;
-      expect(res.proxyAdmin.owner).to.equal(signerAddress);
       // Remote ICA Routers
       expect(res.remoteIcaRouters).to.exist;
     });

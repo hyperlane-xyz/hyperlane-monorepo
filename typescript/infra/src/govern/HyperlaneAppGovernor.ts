@@ -2,8 +2,7 @@ import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Ownable__factory } from '@hyperlane-xyz/core';
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -26,6 +25,7 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { icas, safes } from '../../config/environments/mainnet3/owners.js';
 import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
 
 import {
@@ -366,14 +366,31 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    // Get the account's config
-    const accountConfig = await this.interchainAccount.getAccountConfig(
-      chain,
-      account.address,
-    );
-    const origin = this.interchainAccount.multiProvider.getChainName(
-      accountConfig.origin,
-    );
+    let accountConfig = this.interchainAccount.knownAccounts[account.address];
+    if (account.address === icas[chain as keyof typeof icas]) {
+      const origin = 'ethereum';
+      accountConfig = {
+        origin,
+        owner: safes[origin],
+      };
+    }
+
+    if (!accountConfig) {
+      console.info(
+        chalk.gray(
+          `Account ${account.address} is not a known ICA. Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
+    // WARNING: origin is a reserved word in TypeScript
+    const origin = accountConfig.origin;
+
     console.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
@@ -423,7 +440,7 @@ export abstract class HyperlaneAppGovernor<
         // Require the submitter to be the owner of the ICA on the origin chain.
         return (
           chain === origin &&
-          eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
+          eqAddress(bytes32ToAddress(accountConfig!.owner), submitterAddress)
         );
       },
       true, // Flag this as an ICA call

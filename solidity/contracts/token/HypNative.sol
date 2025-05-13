@@ -3,7 +3,9 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
-import {TokenMessage} from "./libs/TokenMessage.sol";
+import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {ValueTransferBridge} from "./libs/ValueTransferBridge.sol";
+
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -11,7 +13,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is FungibleTokenRouter {
+contract HypNative is FungibleTokenRouter, MovableCollateralRouter {
+    string internal constant INSUFFICIENT_NATIVE_AMOUNT =
+        "Native: amount exceeds msg.value";
+
     /**
      * @dev Emitted when native tokens are donated to the contract.
      * @param sender The address of the sender.
@@ -26,16 +31,18 @@ contract HypNative is FungibleTokenRouter {
 
     /**
      * @notice Initializes the Hyperlane router
+     * @dev This function uses `reinitializer(2)` because v2 contracts support rebalancing, and v1 contracts do not.
      * @param _hook The post-dispatch hook contract.
-       @param _interchainSecurityModule The interchain security module contract.
-       @param _owner The this contract.
+     * @param _interchainSecurityModule The interchain security module contract.
+     * @param _owner The this contract.
      */
     function initialize(
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public initializer {
+    ) public virtual reinitializer(2) {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _MovableCollateralRouter_initialize(_owner);
     }
 
     /**
@@ -107,5 +114,24 @@ contract HypNative is FungibleTokenRouter {
 
     receive() external payable {
         emit Donation(msg.sender, msg.value);
+    }
+
+    /**
+     * @dev This function uses `msg.value` as payment for the bridge.
+     * User collateral is never used to make bridge payments!
+     * The rebalancer is to pay all fees for the bridge.
+     */
+    function _rebalance(
+        uint32 domain,
+        bytes32 recipient,
+        uint256 amount,
+        ValueTransferBridge bridge
+    ) internal override {
+        uint fee = msg.value;
+        bridge.transferRemote{value: fee + amount}({
+            destinationDomain: domain,
+            recipient: recipient,
+            amountOut: amount
+        });
     }
 }

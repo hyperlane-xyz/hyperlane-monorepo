@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+// ============ Internal Imports ============
+import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
-import {MailboxClient} from "../../client/MailboxClient.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 
 /**

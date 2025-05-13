@@ -22,6 +22,7 @@ pragma solidity >=0.8.0;
  * [66:86] Refund address for message (IGP)
  * [86:] Custom metadata
  */
+
 library StandardHookMetadata {
     struct Metadata {
         uint16 variant;
@@ -76,6 +77,15 @@ library StandardHookMetadata {
         if (_metadata.length < GAS_LIMIT_OFFSET + 32) return _default;
         return
             uint256(bytes32(_metadata[GAS_LIMIT_OFFSET:GAS_LIMIT_OFFSET + 32]));
+    }
+
+    function gasLimit(
+        bytes memory _metadata
+    ) internal pure returns (uint256 _gasLimit) {
+        if (_metadata.length < GAS_LIMIT_OFFSET + 32) return 50_000;
+        assembly {
+            _gasLimit := mload(add(_metadata, add(0x20, GAS_LIMIT_OFFSET)))
+        }
     }
 
     /**
