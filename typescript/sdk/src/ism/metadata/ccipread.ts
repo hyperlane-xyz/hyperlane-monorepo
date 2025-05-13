@@ -45,7 +45,7 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
       Uint8Array,
     ];
     // TODO: change this once we can set ISMs on the ISM
-    urls = ['http://localhost:3000/getCallsFromCommitment'];
+    urls = ['http://localhost:3000/callCommitments/getCallsFromCommitment'];
     const callDataHex = utils.hexlify(callData);
 
     for (const urlTemplate of urls) {
