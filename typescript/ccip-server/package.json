@@ -36,6 +36,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@eth-optimism/sdk": "^3.3.3",
     "@hyperlane-xyz/sdk": "12.5.0",
     "@hyperlane-xyz/utils": "12.5.0",
     "cors": "^2.8.5",

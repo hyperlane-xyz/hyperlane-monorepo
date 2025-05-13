@@ -1,5 +1,4 @@
-import { Fragment, Interface, JsonFragment } from '@ethersproject/abi';
-import { utils } from 'ethers';
+import { Fragment, Interface } from '@ethersproject/abi';
 import type { NextFunction, Request, Response } from 'express';
 
 /**
