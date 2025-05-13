@@ -303,7 +303,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     neutron: true,
     nibiru: true,
     oortmainnet: true,
-    ontology: false,
+    ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
@@ -452,7 +452,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     neutron: true,
     nibiru: true,
     oortmainnet: true,
-    ontology: false,
+    ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
@@ -869,7 +869,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '6df66f8-20250508-104808',
+      tag: 'b8d8aa8-20250513-085548',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -880,7 +880,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd3f8da9-20250509-160937',
+      tag: 'b8d8aa8-20250513-085548',
     },
     resources: scraperResources,
   },
@@ -895,7 +895,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd3f8da9-20250509-160937',
+      tag: 'b8d8aa8-20250513-085548',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
