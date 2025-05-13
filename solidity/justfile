@@ -1,7 +1,11 @@
 rpc_endpoint_b3 := "https://sepolia.b3.fun/http"
 rpc_endpoint_ape := "https://curtis.rpc.caldera.xyz/http"
+rpc_endpoint_everclear_staging := "https://rpc.everclear.raas.gelato.cloud"
+rpc_endpoint_base := "https://mainnet.base.org"
 chain_id_b3 := "1993"
 chain_id_ape := "33111"
+chain_id_everclear_staging := "25327"
+chain_id_base := "8453"
 polymer_prover_addr := "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa"
 mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
@@ -23,6 +27,20 @@ deploy-mailbox-ape:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_ape }}" && \
     forge script script/DeployMailbox.s.sol:DeployMailbox \
         --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+deploy-mailbox-base:
+    export HYPERLANE_DOMAIN_ID="{{ chain_id_base }}" && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
+deploy-mailbox-everclear-staging:
+    export HYPERLANE_DOMAIN_ID="{{ chain_id_everclear_staging }}" && \
+    forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
 
