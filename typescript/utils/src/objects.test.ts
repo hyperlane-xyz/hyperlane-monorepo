@@ -20,6 +20,7 @@ import {
   objOmit,
   pick,
   promiseObjAll,
+  sortArraysInObject,
   stringifyObject,
   transformObj,
 } from './objects.js';
@@ -469,5 +470,47 @@ describe('Object utilities', () => {
         expect(formatted).to.eql(expected);
       });
     }
+  });
+
+  describe(sortArraysInObject.name, () => {
+    [1, 'hello', true, null, undefined].map((value) => {
+      it(`should return the same primitive value if the input is a primitive ${value}`, () => {
+        expect(sortArraysInObject(value)).to.equal(value);
+      });
+    });
+
+    it('should return an empty array if the input is an empty array', () => {
+      expect(sortArraysInObject([])).to.deep.equal([]);
+    });
+
+    it('should recursively sort arrays within an array', () => {
+      const input = [
+        [3, 1, 2],
+        [6, 4, 5],
+      ];
+      const expected = [
+        [1, 2, 3],
+        [4, 5, 6],
+      ];
+
+      expect(sortArraysInObject(input)).to.deep.equal(expected);
+    });
+
+    it('should return an empty object if the input is an empty object', () => {
+      expect(sortArraysInObject({})).to.deep.equal({});
+    });
+
+    it('should recursively sort arrays within an object', () => {
+      const input = {
+        a: [3, 1, 2],
+        b: { c: [6, 4, 5] },
+      };
+      const expected = {
+        a: [1, 2, 3],
+        b: { c: [4, 5, 6] },
+      };
+
+      expect(sortArraysInObject(input)).to.deep.equal(expected);
+    });
   });
 });

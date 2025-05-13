@@ -30,6 +30,7 @@ use super::transaction::Precursor;
 use super::EthereumTxPrecursor;
 
 mod gas_limit_estimator;
+mod gas_price_estimator;
 mod tx_status_checker;
 
 pub struct EthereumTxAdapter {
@@ -152,7 +153,7 @@ impl AdaptsChain for EthereumTxAdapter {
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         let precursor = tx.precursor_mut();
-        gas_limit_estimator::estimate_tx(
+        gas_limit_estimator::estimate_gas_limit(
             &self.provider,
             precursor,
             &self.connection_conf.transaction_overrides,
