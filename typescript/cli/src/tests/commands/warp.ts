@@ -174,6 +174,7 @@ export function hyperlaneWarpRebalancer(
   checkFrequency: number,
   configFile: string,
   withMetrics: boolean,
+  rebalanceStrategy?: string,
 ): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
@@ -181,7 +182,8 @@ export function hyperlaneWarpRebalancer(
         --checkFrequency ${checkFrequency} \
         --configFile ${configFile} \
         --key ${ANVIL_KEY} \
-        ${withMetrics ? '--withMetrics' : ''}`;
+        ${withMetrics ? ['--withMetrics'] : ['']} \
+        ${rebalanceStrategy ? ['--rebalanceStrategy', rebalanceStrategy] : []}`;
 }
 
 /**
