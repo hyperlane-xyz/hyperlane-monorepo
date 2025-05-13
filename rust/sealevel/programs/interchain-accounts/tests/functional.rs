@@ -19,6 +19,7 @@ use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds, spl_noop,
 };
+use hyperlane_sealevel_test_ism;
 use hyperlane_test_utils::{initialize_mailbox, mailbox_id, MailboxAccounts};
 use solana_program::{pubkey, pubkey::Pubkey};
 use solana_program_test::*;
@@ -52,6 +53,14 @@ async fn setup_client() -> (BanksClient, Keypair) {
         "hyperlane_sealevel_mailbox",
         mailbox_program_id,
         processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
+    );
+
+    // Add the Test ISM program
+    let test_ism_program_id = hyperlane_sealevel_test_ism::id();
+    pt.add_program(
+        "hyperlane_sealevel_test_ism",
+        test_ism_program_id,
+        processor!(hyperlane_sealevel_test_ism::program::process_instruction),
     );
 
     let (client, payer, _hash) = pt.start().await;
@@ -234,8 +243,6 @@ async fn test_transfer_ownership_fails_without_owner_sig() {
 async fn test_call_remote_dispatch() {
     const LOCAL_DOMAIN: u32 = 5555;
 
-    println!("Starting test...");
-
     // 1) Spin up banks client with ICA + Mailbox
     let program_id = ica_program_id();
     let mailbox_program_id = mailbox_id();
@@ -243,7 +250,6 @@ async fn test_call_remote_dispatch() {
     let (mut banks_client, payer) = setup_client().await;
 
     // 2) Initialize Mailbox & ICA
-    println!("Initializing mailbox...");
     let mailbox_accounts = initialize_mailbox(
         &mut banks_client,
         &mailbox_program_id,
@@ -255,7 +261,6 @@ async fn test_call_remote_dispatch() {
     .await
     .unwrap();
 
-    println!("Initializing ICA...");
     let storage_pda = initialize_ica(
         &mut banks_client,
         &payer,
@@ -266,10 +271,24 @@ async fn test_call_remote_dispatch() {
     .await
     .unwrap();
 
-    println!("Preparing transaction...");
+    // Enroll a remote router for the destination domain
+    let remote_router_pubkey = Pubkey::new_unique(); // Or some known router if applicable
+    let enroll_routers_ix =
+        hyperlane_sealevel_interchain_accounts::instruction::enroll_remote_routers_instruction(
+            ica_program_id(),
+            payer.pubkey(),
+            vec![
+                hyperlane_sealevel_connection_client::router::RemoteRouterConfig {
+                    domain: REMOTE_DOMAIN,
+                    router: Some(remote_router_pubkey.to_bytes().into()),
+                },
+            ],
+        )
+        .unwrap();
+
     // 3) Fuzz‑safe deterministic call body
     let calls: Vec<u8> = vec![1, 2, 3, 4];
-    let router = Some(H256::random());
+    let router = Some(H256(remote_router_pubkey.to_bytes()));
     let ism = Some(H256::random());
     let salt = Some(H256::random());
 
@@ -310,7 +329,7 @@ async fn test_call_remote_dispatch() {
         vec![
             AccountMeta::new_readonly(storage_pda, false),
             AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new(mailbox_program_id, false),
+            AccountMeta::new_readonly(mailbox_program_id, false),
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new_readonly(dispatch_authority, false),
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -323,7 +342,7 @@ async fn test_call_remote_dispatch() {
     // Send transaction
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
-        &[ix],
+        &[enroll_routers_ix, ix],
         Some(&payer.pubkey()),
         &[&payer, &unique_msg],
         recent_blockhash,

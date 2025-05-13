@@ -194,7 +194,7 @@ fn send_call_remote(
     if !payer_info.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    // Owner of the interchain‑account call is the signer’s pubkey.
+    // Owner of the interchain‑account call is the signer's pubkey.
     let owner = H256(payer_info.key.to_bytes());
 
     // Account 2: Mailbox program.
