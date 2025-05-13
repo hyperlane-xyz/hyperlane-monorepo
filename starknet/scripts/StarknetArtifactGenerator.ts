@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import { promises as fs } from 'fs';
 import { globby } from 'globby';
 import { basename, join } from 'path';
@@ -105,12 +106,17 @@ export class StarknetArtifactGenerator {
       );
 
       let sierraVarName: string | undefined;
+      let abiVarName: string | undefined;
       let casmVarName: string | undefined;
 
       if (value.sierra) {
         sierraVarName = `${value.type}_${baseName}_sierra`;
         imports.push(
           `import { ${name} as ${sierraVarName} } from './${name}.${ContractClass.SIERRA}.js';`,
+        );
+        abiVarName = `${value.type}_${baseName}_abi`;
+        imports.push(
+          `import { ABI as ${abiVarName} } from './${name}_abi.js';`,
         );
       }
 
@@ -124,6 +130,7 @@ export class StarknetArtifactGenerator {
       // exports with type guard filter
       const exports = [
         sierraVarName ? `contract_class: ${sierraVarName}` : null,
+        abiVarName ? `contract_abi: ${abiVarName}` : null,
         casmVarName ? `compiled_contract_class: ${casmVarName}` : null,
       ].filter((e): e is string => e !== null);
 
@@ -188,6 +195,46 @@ export class StarknetArtifactGenerator {
     return { name, contractType, contractClass };
   }
 
+  /**
+   * @notice Processes all ABI files
+   */
+  async processAbis(files: string[]) {
+    for (const filePath of files) {
+      const baseFileName = basename(filePath);
+      const name = baseFileName
+        .replace('.json', '')
+        .replace(`.${ContractClass.SIERRA}`, '')
+        .replace(`.${ContractClass.CASM}`, '');
+
+      console.log(
+        `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
+      );
+      execSync(
+        `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
+      );
+    }
+
+    try {
+      console.log(
+        `npx tsc --target es2022 --declaration ${this.rootOutputDir}**_abi.ts`,
+      );
+      execSync(
+        `npx tsc --target es2022 --declaration ${this.rootOutputDir}**_abi.ts`,
+      );
+    } catch {}
+
+    for (const filePath of files) {
+      const baseFileName = basename(filePath);
+      const name = baseFileName
+        .replace('.json', '')
+        .replace(`.${ContractClass.SIERRA}`, '')
+        .replace(`.${ContractClass.CASM}`, '');
+
+      console.log(`fs.unlink(${this.rootOutputDir}${name}_abi.ts)`);
+      fs.unlink(`${this.rootOutputDir}${name}_abi.ts`);
+    }
+  }
+
   private _aggregateProcessingResults(
     processingResults: Array<{
       name: string;
@@ -218,6 +265,8 @@ export class StarknetArtifactGenerator {
       await this.createOutputDirectory();
 
       const { sierraFiles, casmFiles } = await this.getArtifactPaths();
+
+      await this.processAbis(sierraFiles);
 
       const processingResults = await Promise.all([
         ...sierraFiles.map((file) => this.processArtifact(file)),
