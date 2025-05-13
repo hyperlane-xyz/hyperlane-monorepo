@@ -54,7 +54,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     uint public immutable COMMIT_TX_GAS_USAGE;
 
     // ============ Public Storage ============
-    mapping(uint32 => bytes32) public isms;
+    mapping(uint32 destinationDomain => bytes32 ism) public isms;
 
     // ============ Upgrade Gap ============
 
