@@ -640,7 +640,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
-    // Promise that will resolve with the event that is emited by the bridge when the rebalance transaction is sent
+    // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
     const listenForSentTransferRemote = new Promise<{
       origin: Domain;
       destination: Domain;
