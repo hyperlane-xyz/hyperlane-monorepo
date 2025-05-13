@@ -178,6 +178,8 @@ impl AdaptsChain for EthereumTxAdapter {
         self.set_gas_limit_if_needed(tx).await?;
         self.set_gas_price(tx).await?;
 
+        tx.precursor_mut().tx.set_chain_id(self.conf.domain.id());
+
         let precursor = tx.precursor();
         let hash = self
             .provider
