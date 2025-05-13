@@ -2,15 +2,15 @@
 
 use std::{env, error::Error, fmt::Debug, path::PathBuf};
 
-use crate::settings::loader::{
-    arguments::CommandLineArguments, case_adapter::CaseAdapter, environment::Environment,
-};
 use config::{Config, File};
 use convert_case::Case;
 use eyre::{eyre, Context, Result};
 use hyperlane_core::config::*;
 use serde::de::DeserializeOwned;
-use tracing::info;
+
+use crate::settings::loader::{
+    arguments::CommandLineArguments, case_adapter::CaseAdapter, environment::Environment,
+};
 
 mod arguments;
 mod case_adapter;
