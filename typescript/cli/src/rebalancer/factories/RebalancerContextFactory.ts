@@ -15,6 +15,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { Strategy } from '../strategy/Strategy.js';
+import { MonitorToStrategyTransformer } from '../transformers/MonitorToStrategyTransformer.js';
 
 export class RebalancerContextFactory {
   /**
@@ -93,5 +94,9 @@ export class RebalancerContextFactory {
       this.warpCore,
       this.metadata,
     );
+  }
+
+  public createMonitorToStrategyTransformer(): MonitorToStrategyTransformer {
+    return new MonitorToStrategyTransformer(this.warpCore);
   }
 }
