@@ -112,7 +112,7 @@ contract OPL2ToL1CcipReadIsm is
     function _areWeMessageRecipient(
         bytes calldata _message
     ) internal view returns (bool) {
-        return _message.recipient() == address(this).addressToBytes32();
+        return _message.recipientAddress() == address(this);
     }
 
     /// @dev We check the withdrawal hash here in order to prevent someone
