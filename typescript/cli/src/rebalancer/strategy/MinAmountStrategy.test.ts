@@ -297,5 +297,94 @@ describe('MinAmountStrategy', () => {
         },
       ]);
     });
+
+    it('should consider surplus when chains are between minAmount and effectiveMin', () => {
+      const minAmount = 100n;
+      const buffer = 1_000n; // 10%
+      const effectiveMin = (minAmount * (10_000n + buffer)) / 10_000n;
+      const strategy = new MinAmountStrategy({
+        [chain1]: { minAmount, buffer },
+        [chain2]: { minAmount, buffer },
+        [chain3]: { minAmount, buffer },
+      });
+      const rawBalances = {
+        [chain1]: minAmount + 1n, // just above minAmount, below effectiveMin
+        [chain2]: effectiveMin - 1n, // just below effectiveMin
+        [chain3]: minAmount - 1n,
+      };
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+      expect(routes).to.deep.equal([
+        {
+          fromChain: chain2,
+          toChain: chain3,
+          amount: 9n,
+        },
+        {
+          fromChain: chain1,
+          toChain: chain3,
+          amount: 1n,
+        },
+      ]);
+    });
+
+    it('should only consider deficit when below minAmount', () => {
+      const minAmount = 100n;
+      const buffer = 1_000n;
+      const strategy = new MinAmountStrategy({
+        [chain1]: { minAmount, buffer },
+        [chain2]: { minAmount, buffer },
+      });
+      const rawBalances = {
+        [chain1]: minAmount - 1n,
+        [chain2]: minAmount + 100n,
+      };
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+      expect(routes).to.deep.equal([
+        {
+          fromChain: chain2,
+          toChain: chain1,
+          amount: 11n,
+        },
+      ]);
+    });
+
+    it('should have no surplus or deficit when all at minAmount', () => {
+      const minAmount = 100n;
+      const buffer = 1_000n;
+      const strategy = new MinAmountStrategy({
+        [chain1]: { minAmount, buffer },
+        [chain2]: { minAmount, buffer },
+      });
+      const rawBalances = {
+        [chain1]: minAmount,
+        [chain2]: minAmount,
+      };
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+      expect(routes).to.be.empty;
+    });
+
+    it('should handle edge case: surplus and deficit at boundaries', () => {
+      const minAmount = 100n;
+      const buffer = 1_000n;
+      const effectiveMin = (minAmount * (10_000n + buffer)) / 10_000n;
+      const strategy = new MinAmountStrategy({
+        [chain1]: { minAmount, buffer },
+        [chain2]: { minAmount, buffer },
+        [chain3]: { minAmount, buffer },
+      });
+      const rawBalances = {
+        [chain1]: minAmount - 1n,
+        [chain2]: effectiveMin,
+        [chain3]: effectiveMin + 1n,
+      };
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+      expect(routes).to.deep.equal([
+        {
+          fromChain: chain3,
+          toChain: chain1,
+          amount: 11n,
+        },
+      ]);
+    });
   });
 });
