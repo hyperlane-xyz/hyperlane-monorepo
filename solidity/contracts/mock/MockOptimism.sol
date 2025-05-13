@@ -88,38 +88,6 @@ contract MockOptimismPortal is IOptimismPortal {
     ) external view returns (ProvenWithdrawal memory) {}
 }
 
-// mock deployment on L1
-contract MockOptimismPortal2 is IOptimismPortal2 {
-    error WithdrawalTransactionFailed();
-
-    function finalizeWithdrawalTransaction(
-        WithdrawalTransaction memory _tx
-    ) external {
-        CallLib.Call memory call = CallLib.Call(
-            TypeCasts.addressToBytes32(_tx.target),
-            _tx.value,
-            _tx.data
-        );
-        CallLib.call(call);
-    }
-
-    function proveWithdrawalTransaction(
-        WithdrawalTransaction memory _tx,
-        uint256 _disputeGameIndex,
-        OutputRootProof memory _outputRootProof,
-        bytes[] memory _withdrawalProof
-    ) external {}
-
-    function finalizedWithdrawals(
-        bytes32 _withdrawalHash
-    ) external view returns (bool value) {}
-
-    function provenWithdrawals(
-        bytes32 withdrawalHash,
-        address msgSender
-    ) external view returns (ProvenWithdrawal memory) {}
-}
-
 // mock deployment on L2
 contract MockOptimismStandardBridge is IStandardBridge {
     function MESSENGER() public view returns (ICrossDomainMessenger) {
