@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::Report;
 use futures_util::future::join_all;
 use tokio::sync::mpsc::error::SendError;
 use tracing::{info, instrument};
@@ -81,11 +80,14 @@ pub trait AdaptsChain: Send + Sync {
         true
     }
 
-    /// uses BatchManager, returns any reverted Payload IDs sent in a Transaction. Called in the Finality Stage (PayloadDispatcher)
+    /// Uses BatchManager, returns any reverted Payload IDs sent in a Transaction.
+    /// Called in the Finality Stage (PayloadDispatcher).
     async fn reverted_payloads(
         &self,
-        tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, SubmitterError>;
+        _tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
+        Ok(Vec::new())
+    }
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;
@@ -104,5 +106,9 @@ pub trait AdaptsChain: Send + Sync {
     /// Replaces calldata in this tx with a transfer-to-self, to use its payload(s) for filling a nonce gap
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), SubmitterError> {
         todo!()
+    }
+
+    async fn set_unfinalized_tx_count(&self, _count: usize) {
+        // nothing as default implementation
     }
 }

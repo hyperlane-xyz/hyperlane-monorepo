@@ -310,3 +310,6 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         Ok(self.handle_tx(tx, block_hash, parser).collect())
     }
 }
+
+#[cfg(test)]
+mod tests;

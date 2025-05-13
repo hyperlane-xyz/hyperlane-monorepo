@@ -2,6 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   DerivedWarpRouteDeployConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
@@ -16,8 +17,10 @@ export async function runWarpRouteCheck({
   warpRouteConfig,
   onChainWarpConfig,
 }: {
-  warpRouteConfig: WarpRouteDeployConfigMailboxRequired;
-  onChainWarpConfig: DerivedWarpRouteDeployConfig;
+  warpRouteConfig: WarpRouteDeployConfigMailboxRequired &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
+  onChainWarpConfig: DerivedWarpRouteDeployConfig &
+    Record<string, Partial<HypTokenRouterVirtualConfig>>;
 }): Promise<void> {
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(

@@ -16,7 +16,7 @@
       },
       "overhead": 166887
     },
-    "infinityvm": {
+    "infinityvmmainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "91246426181641219",
         "gasPrice": "0",
@@ -31,6 +31,14 @@
         "tokenDecimals": 18
       },
       "overhead": 333774
+    },
+    "svmbnb": {
+      "oracleConfig": {
+        "tokenExchangeRate": "6211087198000555",
+        "gasPrice": "8599",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
     },
     "artela": {
       "oracleConfig": {
@@ -160,14 +168,6 @@
       },
       "overhead": 333774
     },
-    "sophon": {
-      "oracleConfig": {
-        "tokenExchangeRate": "91246426181641219",
-        "gasPrice": "2261877890384",
-        "tokenDecimals": 18
-      },
-      "overhead": 333774
-    },
     "hyperevm": {
       "oracleConfig": {
         "tokenExchangeRate": "2108704909057728572",
@@ -212,6 +212,14 @@
     }
   },
   "soon": {
+    "svmbnb": {
+      "oracleConfig": {
+        "tokenExchangeRate": "498065403286865",
+        "gasPrice": "8599",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "93995867894608",
@@ -226,6 +234,32 @@
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
         "gasPrice": "74869",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    }
+  },
+  "svmbnb": {
+    "solanamainnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "362255419747497",
+        "gasPrice": "85447",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
+    "bsc": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "2767201741",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "soon": {
+      "oracleConfig": {
+        "tokenExchangeRate": "4517479000050299",
+        "gasPrice": "2855",
         "tokenDecimals": 9
       },
       "overhead": 600000
