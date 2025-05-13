@@ -208,11 +208,7 @@ pub fn relayer_termination_invariants_met(
     }
 
     if matches!(submitter_type, SubmitterType::Lander)
-        && !submitter_metrics_invariants_met(
-            params,
-            RELAYER_METRICS_PORT,
-            &hashmap! {"destination" => "sealeveltest2"},
-        )?
+        && !submitter_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
     {
         log!("Submitter metrics invariants not met");
         return Ok(false);
