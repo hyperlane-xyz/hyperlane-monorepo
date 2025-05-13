@@ -10,6 +10,7 @@ import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
 import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
+import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 /**
@@ -139,18 +140,30 @@ contract OPL2ToL1CcipReadIsm is
 
         bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
 
-        IOptimismPortal.ProvenWithdrawal memory provenWithdrawal = opPortal
-            .provenWithdrawals(withdrawalHash, address(this));
-
         // Proving only if the withdrawal wasn't
         // proven already by this contract
-        if (provenWithdrawal.timestamp == 0) {
+        if (!_isWithdrawalProvenAlready(withdrawalHash)) {
             opPortal.proveWithdrawalTransaction(
                 _tx,
                 _disputeGameIndex,
                 _outputRootProof,
                 _withdrawalProof
             );
+        }
+    }
+
+    function _isWithdrawalProvenAlready(
+        bytes32 _withdrawalHash
+    ) internal view returns (bool) {
+        try opPortal.provenWithdrawals(_withdrawalHash) returns (
+            IOptimismPortal.ProvenWithdrawal memory provenWithdrawal
+        ) {
+            return provenWithdrawal.timestamp > 0;
+        } catch Error(string memory reason) {
+            IOptimismPortal2.ProvenWithdrawal
+                memory provenWithdrawal = IOptimismPortal2(address(opPortal))
+                    .provenWithdrawals(_withdrawalHash, address(this));
+            return provenWithdrawal.timestamp > 0;
         }
     }
 

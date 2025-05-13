@@ -7,6 +7,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {Message} from "../../contracts/libs/Message.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TestCcipReadIsm} from "../../contracts/test/TestCcipReadIsm.sol";
@@ -23,27 +24,14 @@ import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGas
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 
-import {console} from "forge-std/console.sol";
-
-// Needed to access the withdrawal hash
-contract OPL2ToL1TokenBridgeNativeTest is OPL2ToL1TokenBridgeNative {
-    using TypeCasts for bytes32;
-
-    uint256 internal constant SCALE = 1;
-
-    constructor(
-        uint32 _l1Domain,
-        address _l2Bridge,
-        address _mailbox
-    ) OPL2ToL1TokenBridgeNative(SCALE, _mailbox, _l1Domain, _l2Bridge) {}
-}
-
 contract TokenBridgeNativeTest is Test {
     using TypeCasts for address;
     using TokenMessage for bytes;
 
     uint32 internal constant origin = 1;
     uint32 internal constant destination = 2;
+
+    uint32 internal constant SCALE = 1;
 
     address internal constant L2_MESSENGER_ADDRESS =
         0x4200000000000000000000000000000000000007;
@@ -57,8 +45,8 @@ contract TokenBridgeNativeTest is Test {
     TestCcipReadIsm internal ism;
     TestInterchainGasPaymaster internal igp;
     StaticAggregationHook internal hook;
-    OPL2ToL1TokenBridgeNativeTest internal vtbOrigin;
-    OPL2ToL1TokenBridgeNativeTest internal vtbDestination;
+    OPL2ToL1TokenBridgeNative internal vtbOrigin;
+    OPL2ToL1TokenBridgeNative internal vtbDestination;
     OPL2ToL1CcipReadHook internal ccipReadHook;
 
     MockHyperlaneEnvironment internal environment;
@@ -120,10 +108,11 @@ contract TokenBridgeNativeTest is Test {
     }
 
     function deployTokenBridges() public {
-        OPL2ToL1TokenBridgeNativeTest implementation = new OPL2ToL1TokenBridgeNativeTest(
+        OPL2ToL1TokenBridgeNative implementation = new OPL2ToL1TokenBridgeNative(
+                SCALE,
+                address(environment.mailboxes(origin)),
                 destination,
-                L2_BRIDGE_ADDRESS,
-                address(environment.mailboxes(origin))
+                L2_BRIDGE_ADDRESS
             );
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -137,12 +126,13 @@ contract TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbOrigin = OPL2ToL1TokenBridgeNativeTest(payable(proxy));
+        vtbOrigin = OPL2ToL1TokenBridgeNative(payable(proxy));
 
-        implementation = new OPL2ToL1TokenBridgeNativeTest(
+        implementation = new OPL2ToL1TokenBridgeNative(
+            SCALE,
+            address(environment.mailboxes(destination)),
             destination,
-            address(0),
-            address(environment.mailboxes(destination))
+            address(0)
         );
 
         proxy = new TransparentUpgradeableProxy(
@@ -156,7 +146,7 @@ contract TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbDestination = OPL2ToL1TokenBridgeNativeTest(payable(proxy));
+        vtbDestination = OPL2ToL1TokenBridgeNative(payable(proxy));
 
         vtbOrigin.enrollRemoteRouter(
             destination,
@@ -195,6 +185,16 @@ contract TokenBridgeNativeTest is Test {
 
     function test_constructor() public {
         assertEq(address(vtbOrigin.hook()), address(hook));
+    }
+
+    function test_getCorrecQuote() public {
+        Quote[] memory quote = _getQuote();
+
+        uint256 expectedQuote = igp.quoteGasPayment(
+            0,
+            ccipReadHook.PROVE_WITHDRAWAL_GAS_LIMIT()
+        ) + igp.quoteGasPayment(0, vtbOrigin.FINALIZE_WITHDRAWAL_GAS_LIMIT());
+        assertEq(quote[0].amount, expectedQuote);
     }
 
     function test_transferRemote_expectTwoGasPayments() public {
@@ -254,35 +254,5 @@ contract TokenBridgeNativeTest is Test {
 
         // Recipient was the user account
         assertEq(user.balance, userBalance - quotes[0].amount);
-    }
-
-    function _getTokenMessageMetadata(
-        bytes memory message
-    ) private pure returns (bytes memory) {
-        return _sliceBytes(message, 64);
-    }
-
-    function _sliceBytes(
-        bytes memory data,
-        uint256 offset
-    ) private pure returns (bytes memory) {
-        require(offset < data.length, "Offset out of bounds");
-
-        uint256 length = data.length - offset;
-        bytes memory result = new bytes(length);
-
-        assembly {
-            let resultPtr := add(result, 0x20)
-            let dataPtr := add(add(data, 0x20), offset)
-            for {
-                let i := 0
-            } lt(i, length) {
-                i := add(i, 0x20)
-            } {
-                mstore(add(resultPtr, i), mload(add(dataPtr, i)))
-            }
-        }
-
-        return result;
     }
 }

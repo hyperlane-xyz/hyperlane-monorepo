@@ -5,8 +5,9 @@ pragma solidity ^0.8.0;
 // copied from https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L1/IOptimismPortal2.sol
 interface IOptimismPortal {
     struct ProvenWithdrawal {
-        address disputeGameProxy;
-        uint64 timestamp;
+        bytes32 outputRoot;
+        uint128 timestamp;
+        uint128 l2OutputIndex;
     }
 
     struct WithdrawalTransaction {
@@ -41,7 +42,6 @@ interface IOptimismPortal {
     ) external view returns (bool);
 
     function provenWithdrawals(
-        bytes32 withdrawalHash,
-        address msgSender
+        bytes32 withdrawalHash
     ) external view returns (ProvenWithdrawal memory);
 }

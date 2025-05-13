@@ -5,6 +5,7 @@ import {CallLib} from "../middleware/libs/Call.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
+import {IOptimismPortal2} from "../interfaces/optimism/IOptimismPortal2.sol";
 import {IStandardBridge} from "../interfaces/optimism/IStandardBridge.sol";
 
 // for both L1 and L2
@@ -58,6 +59,37 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
 
 // mock deployment on L1
 contract MockOptimismPortal is IOptimismPortal {
+    error WithdrawalTransactionFailed();
+
+    function finalizeWithdrawalTransaction(
+        WithdrawalTransaction memory _tx
+    ) external {
+        CallLib.Call memory call = CallLib.Call(
+            TypeCasts.addressToBytes32(_tx.target),
+            _tx.value,
+            _tx.data
+        );
+        CallLib.call(call);
+    }
+
+    function proveWithdrawalTransaction(
+        WithdrawalTransaction memory _tx,
+        uint256 _disputeGameIndex,
+        OutputRootProof memory _outputRootProof,
+        bytes[] memory _withdrawalProof
+    ) external {}
+
+    function finalizedWithdrawals(
+        bytes32 _withdrawalHash
+    ) external view returns (bool value) {}
+
+    function provenWithdrawals(
+        bytes32 withdrawalHash
+    ) external view returns (ProvenWithdrawal memory) {}
+}
+
+// mock deployment on L1
+contract MockOptimismPortal2 is IOptimismPortal2 {
     error WithdrawalTransactionFailed();
 
     function finalizeWithdrawalTransaction(
