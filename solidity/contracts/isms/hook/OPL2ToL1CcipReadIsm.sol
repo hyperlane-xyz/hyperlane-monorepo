@@ -28,16 +28,11 @@ contract OPL2ToL1CcipReadIsm is
     using TypeCasts for address;
 
     // CCIP-read gateways URLs
-    string[] public urls;
+    string[] public immutable urls;
     // mailbox on L1
     IMailbox immutable mailbox;
     // the OP Portal contract on L1
     IOptimismPortal immutable opPortal;
-
-    // Raised when the withdrawal hash of the
-    // given transaction does not match the one
-    // included in the message
-    error InvalidWithdrawalHash(bytes32 invalidHash, bytes32 correctHash);
 
     event ReceivedMessage(
         uint32 indexed origin,
@@ -116,9 +111,6 @@ contract OPL2ToL1CcipReadIsm is
         return _message.recipientAddress() == address(this);
     }
 
-    /// @dev We check the withdrawal hash here in order to prevent someone
-    /// DDoS-ing the transfer execution by providing a message relative to a legit withdrawal X
-    /// and a valid proof relative to withdrawal Y
     function _proveWithdrawal(
         bytes calldata _metadata,
         bytes calldata /* _message */
@@ -152,6 +144,8 @@ contract OPL2ToL1CcipReadIsm is
         }
     }
 
+    /// @dev we handle the access to the provenWithdrawal mapping
+    /// for OptimismPortal version 1 and version 2
     function _isWithdrawalProvenAlready(
         bytes32 _withdrawalHash
     ) internal view returns (bool) {
