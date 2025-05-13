@@ -143,8 +143,8 @@ describe('WeightedStrategy', () => {
 
     it('should return an empty array when a chain is unbalanced but has tolerance', () => {
       const strategy = new WeightedStrategy({
-        [chain1]: { weight: 100n, tolerance: 10n },
-        [chain2]: { weight: 100n, tolerance: 10n },
+        [chain1]: { weight: 100n, tolerance: 1n },
+        [chain2]: { weight: 100n, tolerance: 1n },
       });
 
       const rawBalances = {
