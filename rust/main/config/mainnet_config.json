@@ -8262,7 +8262,7 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0xB2b0A80b2fa3fC9aB1564A4FaF013d4D6084B325",
       "index": {
-        "chunk": 999,
+        "chunk": 100,
         "from": 7598788
       }
     },
