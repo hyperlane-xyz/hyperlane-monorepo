@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import type { ChainName } from '@hyperlane-xyz/sdk';
 
-import { Strategy } from './Strategy.js';
+import type { RawBalances } from '../interfaces/IStrategy.js';
 
-describe('Strategy', () => {
+import { WeightedStrategy } from './WeightedStrategy.js';
+
+describe('WeightedStrategy', () => {
   let chain1: ChainName;
   let chain2: ChainName;
   let chain3: ChainName;
@@ -19,14 +21,17 @@ describe('Strategy', () => {
   describe('constructor', () => {
     it('should throw an error when less than two chains are configured', () => {
       expect(
-        () => new Strategy({ [chain1]: { weight: 100n, tolerance: 0n } }),
+        () =>
+          new WeightedStrategy({
+            [chain1]: { weight: 100n, tolerance: 0n },
+          }),
       ).to.throw('At least two chains must be configured');
     });
 
     it('should throw an error when weight is less than or equal to 0', () => {
       expect(
         () =>
-          new Strategy({
+          new WeightedStrategy({
             [chain1]: { weight: 100n, tolerance: 0n },
             [chain2]: { weight: 0n, tolerance: 0n },
           }),
@@ -34,7 +39,7 @@ describe('Strategy', () => {
 
       expect(
         () =>
-          new Strategy({
+          new WeightedStrategy({
             [chain1]: { weight: 100n, tolerance: 0n },
             [chain2]: { weight: -1n, tolerance: 0n },
           }),
@@ -44,7 +49,7 @@ describe('Strategy', () => {
     it('should throw an error when tolerance is less than 0 or greater than 100', () => {
       expect(
         () =>
-          new Strategy({
+          new WeightedStrategy({
             [chain1]: { weight: 100n, tolerance: 0n },
             [chain2]: { weight: 100n, tolerance: -1n },
           }),
@@ -52,7 +57,7 @@ describe('Strategy', () => {
 
       expect(
         () =>
-          new Strategy({
+          new WeightedStrategy({
             [chain1]: { weight: 100n, tolerance: 100n },
             [chain2]: { weight: 100n, tolerance: 101n },
           }),
@@ -63,7 +68,7 @@ describe('Strategy', () => {
   describe('getRebalancingRoutes', () => {
     it('should throw an error when raw balances chains length does not match configured chains length', () => {
       expect(() =>
-        new Strategy({
+        new WeightedStrategy({
           [chain1]: { weight: 100n, tolerance: 0n },
           [chain2]: { weight: 100n, tolerance: 0n },
         }).getRebalancingRoutes({
@@ -76,19 +81,19 @@ describe('Strategy', () => {
 
     it('should throw an error when a raw balance is missing', () => {
       expect(() =>
-        new Strategy({
+        new WeightedStrategy({
           [chain1]: { weight: 100n, tolerance: 0n },
           [chain2]: { weight: 100n, tolerance: 0n },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain3]: ethers.utils.parseEther('300').toBigInt(),
-        }),
+        } as RawBalances),
       ).to.throw('Raw balance for chain chain2 not found');
     });
 
     it('should throw an error when a raw balance is negative', () => {
       expect(() =>
-        new Strategy({
+        new WeightedStrategy({
           [chain1]: { weight: 100n, tolerance: 0n },
           [chain2]: { weight: 100n, tolerance: 0n },
         }).getRebalancingRoutes({
@@ -99,7 +104,7 @@ describe('Strategy', () => {
     });
 
     it('should return an empty array when all chains are balanced', () => {
-      const strategy = new Strategy({
+      const strategy = new WeightedStrategy({
         [chain1]: { weight: 100n, tolerance: 0n },
         [chain2]: { weight: 100n, tolerance: 0n },
       });
@@ -115,7 +120,7 @@ describe('Strategy', () => {
     });
 
     it('should return a single route when a chain is unbalanced', () => {
-      const strategy = new Strategy({
+      const strategy = new WeightedStrategy({
         [chain1]: { weight: 100n, tolerance: 0n },
         [chain2]: { weight: 100n, tolerance: 0n },
       });
@@ -137,7 +142,7 @@ describe('Strategy', () => {
     });
 
     it('should return an empty array when a chain is unbalanced but has tolerance', () => {
-      const strategy = new Strategy({
+      const strategy = new WeightedStrategy({
         [chain1]: { weight: 100n, tolerance: 1n },
         [chain2]: { weight: 100n, tolerance: 1n },
       });
@@ -153,7 +158,7 @@ describe('Strategy', () => {
     });
 
     it('should return a single route when two chains are unbalanced and can be solved with a single transfer', () => {
-      const strategy = new Strategy({
+      const strategy = new WeightedStrategy({
         [chain1]: { weight: 100n, tolerance: 0n },
         [chain2]: { weight: 100n, tolerance: 0n },
         [chain3]: { weight: 100n, tolerance: 0n },
@@ -175,9 +180,8 @@ describe('Strategy', () => {
         },
       ]);
     });
-
     it('should return two routes when two chains are unbalanced and cannot be solved with a single transfer', () => {
-      const strategy = new Strategy({
+      const strategy = new WeightedStrategy({
         [chain1]: { weight: 100n, tolerance: 0n },
         [chain2]: { weight: 100n, tolerance: 0n },
         [chain3]: { weight: 100n, tolerance: 0n },
@@ -205,8 +209,8 @@ describe('Strategy', () => {
       ]);
     });
 
-    it('should return a single route to balance different weighted chains', () => {
-      const strategy = new Strategy({
+    it('should return routes to balance different weighted chains', () => {
+      const strategy = new WeightedStrategy({
         [chain1]: { weight: 50n, tolerance: 0n },
         [chain2]: { weight: 25n, tolerance: 0n },
         [chain3]: { weight: 25n, tolerance: 0n },
