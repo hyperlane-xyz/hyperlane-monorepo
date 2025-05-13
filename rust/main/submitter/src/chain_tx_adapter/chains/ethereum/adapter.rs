@@ -105,9 +105,15 @@ impl EthereumTxAdapter {
     }
 
     async fn set_gas_price(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
-        // if let Some(gas_price) = self.connection_conf.transaction_overrides.gas_price {
-        //     tx.precursor_mut().tx.set_gas_price(gas_price);
-        // }
+        if tx.precursor().tx.gas_price().is_none() {
+            return gas_price_estimator::estimate_gas_price(
+                &self.provider,
+                tx.precursor_mut(),
+                &self.connection_conf.transaction_overrides,
+                &self.conf.domain,
+            )
+            .await;
+        }
         Ok(())
     }
 }
