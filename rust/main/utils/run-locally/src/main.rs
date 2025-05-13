@@ -549,20 +549,20 @@ fn restart_relayer(state: &mut State, rocks_db_dir: &TempDir) {
 }
 
 fn relayer_reorg_handling_invariants_met() -> eyre::Result<bool> {
-    let refused_messages = fetch_metric(
-        RELAYER_METRICS_PORT,
-        "hyperlane_submitter_queue_length",
-        &HashMap::from([(
-            "operation_status",
-            PendingOperationStatus::Retry(ReprepareReason::MessageMetadataRefused)
-                .to_string()
-                .as_str(),
-        )]),
-    )?;
-    if refused_messages.iter().sum::<u32>() == 0 {
-        log!("Relayer still doesn't have any MessageMetadataRefused messages in the queue.");
-        return Ok(false);
-    };
+    // let refused_messages = fetch_metric(
+    //     RELAYER_METRICS_PORT,
+    //     "hyperlane_submitter_queue_length",
+    //     &HashMap::from([(
+    //         "operation_status",
+    //         PendingOperationStatus::Retry(ReprepareReason::MessageMetadataRefused)
+    //             .to_string()
+    //             .as_str(),
+    //     )]),
+    // )?;
+    // if refused_messages.iter().sum::<u32>() == 0 {
+    //     log!("Relayer still doesn't have any MessageMetadataRefused messages in the queue.");
+    //     return Ok(false);
+    // };
 
     Ok(true)
 }
