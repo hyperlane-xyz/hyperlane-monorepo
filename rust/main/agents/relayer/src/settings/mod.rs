@@ -66,10 +66,14 @@ pub struct RelayerSettings {
     pub metric_app_contexts: Vec<(MatchingList, String)>,
     /// Whether to allow contract call caching at all.
     pub allow_contract_call_caching: bool,
-    /// The default ISM cache policy to use for all messages that use the default ISM.
-    pub default_ism_cache_config: IsmCacheConfig,
+    /// The ISM cache policies to use
+    pub ism_cache_configs: Vec<IsmCacheConfig>,
     /// Maximum number of retries per operation
     pub max_retries: u32,
+    /// Whether to enable indexing of hook events given tx ids from indexed messages.
+    pub tx_id_indexing_enabled: bool,
+    /// Whether to enable IGP indexing.
+    pub igp_indexing_enabled: bool,
 }
 
 /// Config for gas payment enforcement
@@ -329,10 +333,10 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
-        let default_ism_cache_config = p
+        let ism_cache_configs = p
             .chain(&mut err)
-            .get_opt_key("defaultIsmCacheConfig")
-            .and_then(parse_ism_cache_config)
+            .get_opt_key("ismCacheConfigs")
+            .and_then(parse_ism_cache_configs)
             .unwrap_or_default();
 
         let max_message_retries = p
@@ -340,6 +344,18 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .get_opt_key("maxMessageRetries")
             .parse_u32()
             .unwrap_or(DEFAULT_MAX_MESSAGE_RETRIES);
+
+        let tx_id_indexing_enabled = p
+            .chain(&mut err)
+            .get_opt_key("txIdIndexingEnabled")
+            .parse_bool()
+            .unwrap_or(true);
+
+        let igp_indexing_enabled = p
+            .chain(&mut err)
+            .get_opt_key("igpIndexingEnabled")
+            .parse_bool()
+            .unwrap_or(true);
 
         err.into_result(RelayerSettings {
             base,
@@ -355,8 +371,10 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             allow_local_checkpoint_syncers,
             metric_app_contexts,
             allow_contract_call_caching,
-            default_ism_cache_config,
+            ism_cache_configs,
             max_retries: max_message_retries,
+            tx_id_indexing_enabled,
+            igp_indexing_enabled,
         })
     }
 }
@@ -397,37 +415,16 @@ fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
     err.into_result(ml)
 }
 
-fn parse_json_object(p: ValueParser) -> Option<(ConfigPath, Value)> {
+fn parse_ism_cache_configs(p: ValueParser) -> ConfigResult<Vec<IsmCacheConfig>> {
     let mut err = ConfigParsingError::default();
 
-    match p {
-        ValueParser {
-            val: Value::String(array_str),
-            cwp,
-        } => serde_json::from_str::<Value>(array_str)
-            .context("Expected JSON string")
-            .take_err(&mut err, || cwp.clone())
-            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
-        ValueParser {
-            val: value @ Value::Object(_),
-            cwp,
-        } => Some((cwp, value.clone())),
-        _ => Err(eyre!("Expected JSON object or stringified JSON"))
-            .take_err(&mut err, || p.cwp.clone()),
-    }
-}
-
-fn parse_ism_cache_config(p: ValueParser) -> ConfigResult<IsmCacheConfig> {
-    let mut err = ConfigParsingError::default();
-
-    let raw_object = parse_json_object(p.clone()).map(|(_, v)| v);
-    let Some(raw_object) = raw_object else {
-        return err.into_result(IsmCacheConfig::default());
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(Default::default());
     };
-
-    let p = ValueParser::new(p.cwp.clone(), &raw_object);
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
     let ml = p
-        .parse_value::<IsmCacheConfig>("Expected ISM cache config")
+        .parse_value::<Vec<IsmCacheConfig>>("Expected ISM cache configs")
         .take_config_err(&mut err)
         .unwrap_or_default();
 
@@ -481,5 +478,35 @@ mod test {
         let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
+    }
+
+    #[test]
+    fn test_parse_ism_cache_configs() {
+        let raw = r#"
+        [
+            {
+                "selector": {
+                    "type": "defaultIsm"
+                },
+                "moduletypes": [2],
+                "chains": ["foochain"],
+                "cachepolicy": "ismSpecific"
+            },
+            {
+                "selector": {
+                    "type": "appContext",
+                    "context": "foo"
+                },
+                "moduletypes": [2],
+                "chains": ["foochain"],
+                "cachepolicy": "ismSpecific"
+            }
+        ]
+        "#;
+
+        let value = serde_json::from_str::<Value>(raw).unwrap();
+        let p = ValueParser::new(ConfigPath::default(), &value);
+        let configs = parse_ism_cache_configs(p).unwrap();
+        assert_eq!(configs.len(), 2);
     }
 }

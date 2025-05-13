@@ -9,15 +9,13 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-
-use prometheus::{IntCounter, IntGauge};
+use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::HyperlaneDb,
-    CoreMetrics,
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -27,7 +25,10 @@ use hyperlane_core::{
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use crate::msg::metadata::{MessageMetadataBuildParams, MetadataBuildError};
+use crate::{
+    metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
+    msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
+};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -95,7 +96,7 @@ pub struct PendingMessage {
     submitted: bool,
     #[new(default)]
     #[serde(skip_serializing)]
-    submission_data: Option<Box<MessageSubmissionData>>,
+    pub(crate) submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
@@ -176,9 +177,9 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_db
-            .store_status_by_message_id(&self.message.id(), &self.status)
+            .store_status_by_message_id(&self.message.id(), &status)
         {
-            warn!(message_id = ?self.message.id(), err = %e, status = %self.status, "Persisting `status` failed for message");
+            warn!(message_id = ?self.message.id(), err = %e, status = %status, "Persisting `status` failed for message");
         }
         self.status = status;
     }
@@ -549,6 +550,12 @@ impl PendingOperation for PendingMessage {
         let metadata = &submission_data.metadata;
         let payload = mailbox.process_calldata(message, metadata).await?;
         Ok(payload)
+    }
+
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
+        let mailbox = &self.ctx.destination_mailbox;
+        let message = &self.message;
+        mailbox.delivered_calldata(message.id())
     }
 
     fn on_reprepare(
@@ -960,6 +967,7 @@ impl PendingMessage {
         }
     }
 
+    /// Builds metadata
     async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
         let ism_address = self.recipient_ism_address().await?;
 
@@ -980,11 +988,12 @@ impl PendingMessage {
 
         let params = MessageMetadataBuildParams::default();
 
-        let metadata = message_metadata_builder
+        let build_metadata_start = Instant::now();
+        let metadata_res = message_metadata_builder
             .build(ism_address, &self.message, params)
             .await
             .map_err(|err| match &err {
-                MetadataBuildError::FailedToBuild(_) => {
+                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
                     self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
                 }
                 MetadataBuildError::CouldNotFetch => {
@@ -1012,50 +1021,30 @@ impl PendingMessage {
                     warn!(threshold, "Aggregation threshold not met");
                     self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
                 }
-            })?;
-        Ok(metadata)
+                MetadataBuildError::MaxValidatorCountReached(count) => {
+                    warn!(count, "Max validator count reached");
+                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+                }
+            });
+        let build_metadata_end = Instant::now();
+
+        let metrics_params = MetadataBuildMetric {
+            app_context: self.app_context.clone(),
+            success: metadata_res.is_ok(),
+            duration: build_metadata_end.saturating_duration_since(build_metadata_start),
+        };
+
+        self.ctx
+            .metrics
+            .insert_metadata_build_metric(metrics_params);
+
+        metadata_res
     }
 
     /// clear metadata cache
     fn clear_metadata(&mut self) {
         tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
-    }
-}
-
-#[derive(Debug)]
-pub struct MessageSubmissionMetrics {
-    // Fields are public for testing purposes
-    pub last_known_nonce: IntGauge,
-    pub messages_processed: IntCounter,
-}
-
-impl MessageSubmissionMetrics {
-    pub fn new(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
-    ) -> Self {
-        let origin = origin.name();
-        let destination = destination.name();
-        Self {
-            last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
-                "message_processed",
-                origin,
-                destination,
-            ]),
-            messages_processed: metrics
-                .messages_processed_count()
-                .with_label_values(&[origin, destination]),
-        }
-    }
-
-    fn update_nonce(&self, msg: &HyperlaneMessage) {
-        // this is technically a race condition between `.get` and `.set` but worst case
-        // the gauge should get corrected on the next update and is not an issue
-        // with a ST runtime
-        self.last_known_nonce
-            .set(std::cmp::max(self.last_known_nonce.get(), msg.nonce as i64));
     }
 }
 
@@ -1068,12 +1057,12 @@ mod test {
     };
 
     use chrono::TimeDelta;
-    use hyperlane_base::db::*;
+    use hyperlane_base::{cache::OptionalCache, db::*};
     use hyperlane_core::{identifiers::UniqueIdentifier, *};
 
-    use crate::msg::pending_message::DEFAULT_MAX_MESSAGE_RETRIES;
+    use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::PendingMessage;
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
 
     mockall::mock! {
         pub Db {
@@ -1186,8 +1175,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 
@@ -1353,5 +1342,49 @@ mod test {
             .count();
 
         assert_eq!(num_retries_in_range, 2);
+    }
+
+    #[tokio::test]
+    async fn check_stored_status() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let destination_domain =
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let message = HyperlaneMessage {
+            nonce: 0,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+
+        let mut pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+
+        let expected_status = PendingOperationStatus::ReadyToSubmit;
+        pending_message.set_status(expected_status.clone());
+
+        let db_status = pending_message
+            .ctx
+            .origin_db
+            .retrieve_status_by_message_id(&pending_message.id())
+            .expect("Failed to fetch message status")
+            .expect("Message status not found");
+
+        assert_eq!(db_status, expected_status);
     }
 }

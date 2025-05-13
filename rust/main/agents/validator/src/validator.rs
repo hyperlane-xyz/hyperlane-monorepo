@@ -3,17 +3,21 @@ use std::{sync::Arc, time::Duration};
 use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
-use eyre::Result;
+use ethers::utils::keccak256;
+use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
+use itertools::Itertools;
+use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
+    git_sha,
     metrics::AgentMetrics,
     settings::ChainConf,
-    AgentMetadata, BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer,
-    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, RuntimeMetrics,
+    BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
+    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
 
@@ -22,7 +26,7 @@ use hyperlane_core::{
     HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
     ValidatorAnnounce, H256, U256,
 };
-use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
+use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
 use crate::{
     settings::ValidatorSettings,
@@ -42,6 +46,7 @@ pub struct Validator {
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     signer: SingletonSignerHandle,
+    raw_signer: Signers,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
     reorg_period: ReorgPeriod,
@@ -51,7 +56,33 @@ pub struct Validator {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
-    agent_metadata: AgentMetadata,
+    agent_metadata: ValidatorMetadata,
+    max_sign_concurrency: usize,
+}
+
+/// Metadata for `validator`
+#[derive(Debug, Serialize)]
+pub struct ValidatorMetadata {
+    git_sha: String,
+    rpcs: Vec<H256>,
+    allows_public_rpcs: bool,
+}
+
+impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
+    /// Create a new instance of the agent metadata from the settings
+    fn build_metadata(settings: &ValidatorSettings) -> ValidatorMetadata {
+        // Hash all the RPCs for the metadata
+        let rpcs = settings
+            .rpcs
+            .iter()
+            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
+            .collect();
+        ValidatorMetadata {
+            git_sha: git_sha(),
+            rpcs,
+            allows_public_rpcs: settings.allow_public_rpcs,
+        }
+    }
 }
 
 #[async_trait]
@@ -59,9 +90,10 @@ impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
 
     type Settings = ValidatorSettings;
+    type Metadata = ValidatorMetadata;
 
     async fn from_settings(
-        agent_metadata: AgentMetadata,
+        agent_metadata: Self::Metadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -72,11 +104,23 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
+        // Check for public rpcs in the config
+        if settings.rpcs.iter().any(|x| x.public) && !settings.allow_public_rpcs {
+            return Err(
+                eyre!(
+                    "Public RPC endpoints detected: {}. Using public RPCs can compromise security and reliability. If you understand the risks and still want to proceed, set `--allowPublicRpcs true`. We strongly recommend using private RPC endpoints for production validators.",
+                    settings.rpcs.iter().filter_map(|x| if x.public { Some(x.url.clone()) } else { None }).join(", ")
+                )
+            );
+        }
+
         let db = DB::from_path(&settings.db)?;
         let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
 
+        let raw_signer: Signers = settings.validator.build().await?;
+
         // Intentionally using hyperlane_ethereum for the validator's signer
-        let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
+        let (signer_instance, signer) = SingletonSigner::new(raw_signer.clone());
 
         let core = settings.build_hyperlane_core(metrics.clone());
         // Be extra sure to panic checkpoint syncer fails, which indicates
@@ -115,6 +159,7 @@ impl BaseAgent for Validator {
                 &contract_sync_metrics,
                 msg_db.clone().into(),
                 false,
+                false,
             )
             .await?;
 
@@ -128,6 +173,7 @@ impl BaseAgent for Validator {
             merkle_tree_hook_sync,
             validator_announce: validator_announce.into(),
             signer,
+            raw_signer,
             signer_instance: Some(Box::new(signer_instance)),
             reorg_period: settings.reorg_period,
             interval: settings.interval,
@@ -137,6 +183,7 @@ impl BaseAgent for Validator {
             core_metrics: metrics,
             runtime_metrics,
             agent_metadata,
+            max_sign_concurrency: settings.max_sign_concurrency,
         })
     }
 
@@ -254,9 +301,11 @@ impl Validator {
             self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
             self.signer.clone(),
+            self.raw_signer.clone(),
             self.checkpoint_syncer.clone(),
             Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
+            self.max_sign_concurrency,
         );
 
         let tip_tree = self
@@ -264,6 +313,7 @@ impl Validator {
             .tree(&self.reorg_period)
             .await
             .expect("failed to get merkle tree");
+
         // This function is only called after we have already checked that the
         // merkle tree hook has count > 0, but we assert to be extra sure this is
         // the case.
@@ -320,11 +370,10 @@ impl Validator {
     }
 
     async fn metadata(&self) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(&self.agent_metadata)?;
         self.checkpoint_syncer
-            .write_metadata(&self.agent_metadata)
-            .await?;
-
-        Ok(())
+            .write_metadata(&serialized_metadata)
+            .await
     }
 
     async fn announce(&self) -> Result<()> {
@@ -376,18 +425,21 @@ impl Validator {
                     .chain_signer()
                     .await?
                 {
-                    let chain_signer = chain_signer.address_string();
-                    info!(eth_validator_address=?announcement.validator, ?chain_signer, "Attempting self announce");
+                    let chain_signer_string = chain_signer.address_string();
+                    let chain_signer_h256 = chain_signer.address_h256();
+                    info!(eth_validator_address=?announcement.validator, ?chain_signer_string, ?chain_signer_h256, "Attempting self announce");
+
                     let balance_delta = self
                         .validator_announce
-                        .announce_tokens_needed(signed_announcement.clone())
+                        .announce_tokens_needed(signed_announcement.clone(), chain_signer_h256)
                         .await
                         .unwrap_or_default();
                     if balance_delta > U256::zero() {
                         warn!(
                             tokens_needed=%balance_delta,
                             eth_validator_address=?announcement.validator,
-                            ?chain_signer,
+                            ?chain_signer_string,
+                            ?chain_signer_h256,
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
@@ -395,7 +447,7 @@ impl Validator {
                             .validator_announce
                             .announce(signed_announcement.clone())
                             .await;
-                        Self::log_on_announce_failure(result, &chain_signer);
+                        Self::log_on_announce_failure(result, &chain_signer_string);
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");

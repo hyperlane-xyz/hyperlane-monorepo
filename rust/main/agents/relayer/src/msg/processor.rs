@@ -404,15 +404,12 @@ impl MessageProcessorMetrics {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use std::time::Instant;
 
-    use prometheus::{IntCounter, IntCounterVec, Registry};
+    use prometheus::IntCounterVec;
     use tokio::{
-        sync::{
-            mpsc::{self, UnboundedReceiver},
-            RwLock,
-        },
+        sync::mpsc::{self, UnboundedReceiver},
         time::sleep,
     };
     use tokio_metrics::TaskMonitor;
@@ -423,7 +420,6 @@ mod test {
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
             InterchainGasPaymentData,
         },
-        settings::{ChainConf, ChainConnectionConf, Settings},
     };
     use hyperlane_core::{
         identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey,
@@ -433,24 +429,16 @@ mod test {
     use hyperlane_operation_verifier::{
         ApplicationOperationVerifier, ApplicationOperationVerifierReport,
     };
-    use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use tracing::info_span;
 
     use crate::{
-        merkle_tree::builder::MerkleTreeBuilder,
-        msg::{
-            gas_payment::GasPaymentEnforcer,
-            metadata::{
-                BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
-                IsmCachePolicyClassifier,
-            },
-        },
         processor::Processor,
+        test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
     };
 
     use super::*;
 
-    struct DummyApplicationOperationVerifier {}
+    pub struct DummyApplicationOperationVerifier {}
 
     #[async_trait]
     impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
@@ -463,7 +451,7 @@ mod test {
         }
     }
 
-    fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
+    pub fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
         MessageProcessorMetrics {
             max_last_known_message_nonce_gauge: IntGauge::new(
                 "dummy_max_last_known_message_nonce_gauge",
@@ -477,7 +465,7 @@ mod test {
         }
     }
 
-    fn dummy_cache_metrics() -> MeteredCacheMetrics {
+    pub fn dummy_cache_metrics() -> MeteredCacheMetrics {
         MeteredCacheMetrics {
             hit_count: IntCounterVec::new(
                 prometheus::Opts::new("dummy_hit_count", "help string"),
@@ -492,67 +480,6 @@ mod test {
         }
     }
 
-    fn dummy_submission_metrics() -> MessageSubmissionMetrics {
-        MessageSubmissionMetrics {
-            last_known_nonce: IntGauge::new("last_known_nonce_gauge", "help string").unwrap(),
-            messages_processed: IntCounter::new("message_processed_gauge", "help string").unwrap(),
-        }
-    }
-
-    fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
-        ChainConf {
-            domain: domain.clone(),
-            signer: Default::default(),
-            submitter: Default::default(),
-            estimated_block_time: Duration::from_secs_f64(1.1),
-            reorg_period: Default::default(),
-            addresses: Default::default(),
-            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
-                rpc_connection: hyperlane_ethereum::RpcConnectionConf::Http {
-                    url: "http://example.com".parse().unwrap(),
-                },
-                transaction_overrides: Default::default(),
-                operation_batch: Default::default(),
-            }),
-            metrics_conf: Default::default(),
-            index: Default::default(),
-        }
-    }
-
-    fn dummy_metadata_builder(
-        origin_domain: &HyperlaneDomain,
-        destination_domain: &HyperlaneDomain,
-        db: &HyperlaneRocksDB,
-        cache: OptionalCache<MeteredCache<LocalCache>>,
-    ) -> BaseMetadataBuilder {
-        let mut settings = Settings::default();
-        settings.chains.insert(
-            origin_domain.name().to_owned(),
-            dummy_chain_conf(origin_domain),
-        );
-        settings.chains.insert(
-            destination_domain.name().to_owned(),
-            dummy_chain_conf(destination_domain),
-        );
-        let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
-        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
-        let default_ism_getter = DefaultIsmCache::new(Arc::new(
-            MockMailboxContract::new_with_default_ism(H256::zero()),
-        ));
-        BaseMetadataBuilder::new(
-            origin_domain.clone(),
-            destination_chain_conf.clone(),
-            Arc::new(RwLock::new(MerkleTreeBuilder::new())),
-            Arc::new(MockValidatorAnnounceContract::default()),
-            false,
-            Arc::new(core_metrics),
-            cache,
-            db.clone(),
-            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
-            IsmCachePolicyClassifier::new(default_ism_getter, IsmCacheConfig::default()),
-        )
-    }
-
     fn dummy_message_processor(
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
@@ -561,16 +488,11 @@ mod test {
     ) -> (MessageProcessor, UnboundedReceiver<QueueOperation>) {
         let base_metadata_builder =
             dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
-        let message_context = Arc::new(MessageContext {
-            destination_mailbox: Arc::new(MockMailboxContract::new_with_default_ism(H256::zero())),
-            origin_db: Arc::new(db.clone()),
+        let message_context = Arc::new(dummy_message_context(
+            Arc::new(base_metadata_builder),
+            db,
             cache,
-            metadata_builder: Arc::new(base_metadata_builder),
-            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
-            transaction_gas_limit: Default::default(),
-            metrics: dummy_submission_metrics(),
-            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
-        });
+        ));
 
         let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
         (
@@ -811,9 +733,9 @@ mod test {
             /// Retrieve the nonce of the highest processed message we're aware of
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
 
-            fn store_payload_id_by_message_id(&self, message_id: &H256, payload_id: &UniqueIdentifier) -> DbResult<()>;
+            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
 
-            fn retrieve_payload_id_by_message_id(&self, message_id: &H256) -> DbResult<Option<UniqueIdentifier>>;
+            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 

@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 use std::time::Duration;
 
 use hyperlane_base::settings::{ChainConf, ChainConnectionConf, SignerConf};
-use hyperlane_core::config::OperationBatchConfig;
+use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, ReorgPeriod, SubmitterType};
 
 use crate::chain_tx_adapter::chains::sealevel::adapter::tests::common::adapter_config;
@@ -26,9 +26,10 @@ fn test_configuration_fields() {
         addresses: Default::default(),
         connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
             urls: vec![],
-            operation_batch: OperationBatchConfig {
+            op_submission_config: OpSubmissionConfig {
                 batch_contract_address: None,
                 max_batch_size: expected_max_batch_size,
+                ..Default::default()
             },
             native_token: Default::default(),
             priority_fee_oracle: Default::default(),
@@ -42,10 +43,8 @@ fn test_configuration_fields() {
     // when
     let estimated_block_time = adapter.estimated_block_time();
     let max_batch_size = adapter.max_batch_size();
-    let reorg_period = adapter.reorg_period.clone();
 
     // then
     assert_eq!(estimated_block_time, &expected_estimated_block_time);
     assert_eq!(max_batch_size, expected_max_batch_size);
-    assert_eq!(reorg_period, expected_reorg_period);
 }

@@ -1,9 +1,10 @@
 import { pick } from '@hyperlane-xyz/utils';
 
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
+
 import { ezEthStagingSafes } from './getRenzoEZETHSTAGEWarpConfig.js';
 import {
   ezEthValidators,
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';
@@ -35,4 +36,4 @@ export const getRenzoPZETHStagingWarpConfig = getRenzoWarpConfigGenerator({
 });
 
 export const getPZETHSTAGEGnosisSafeBuilderStrategyConfig =
-  getRenzoGnosisSafeBuilderStrategyConfigGenerator(pzEthStagingSafes);
+  getGnosisSafeBuilderStrategyConfigGenerator(pzEthStagingSafes);

@@ -1,5 +1,71 @@
 # @hyperlane-xyz/sdk
 
+## 12.5.0
+
+### Patch Changes
+
+- c8ace88: Export HypTokenRouterConfigMailboxOptionalSchema and HypTokenRouterConfigMailboxOptional
+  - @hyperlane-xyz/cosmos-sdk@12.5.0
+  - @hyperlane-xyz/utils@12.5.0
+  - @hyperlane-xyz/core@7.1.4
+
+## 12.4.0
+
+### Minor Changes
+
+- d2babb7: Remove fallback logic to derive extra lockboxes from rpc
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-sdk@12.4.0
+- @hyperlane-xyz/utils@12.4.0
+- @hyperlane-xyz/core@7.1.3
+
+## 12.3.0
+
+### Minor Changes
+
+- 6101959f7: Enhanced the router enrollment check to support non-fully connected warp routes using the `remoteRouters` property from the deployment config.
+- 5db39f493: Fixes to support CosmosNative and warp apply with foreign deployments.
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+### Patch Changes
+
+- Updated dependencies [7500bd6fe]
+  - @hyperlane-xyz/utils@12.3.0
+  - @hyperlane-xyz/core@7.1.2
+  - @hyperlane-xyz/cosmos-sdk@12.3.0
+
+## 12.2.0
+
+### Minor Changes
+
+- c7934f711: Adds the isRevokeApprovalRequired method on the token adapters to check if the user should revoke any previously set allowances on the token to transfer to avoid approvals failing like in the case of USDT
+- ecbacbdf2: Add EvmHypRebaseCollateralAdapter and EvmHypSyntheticRebaseAdapter
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@12.2.0
+- @hyperlane-xyz/core@7.1.1
+
+## 12.1.0
+
+### Minor Changes
+
+- acbf5936a: New check: HyperlaneRouterChecker now compares the list of domains
+  the Router is enrolled with against the warp route expectations.
+  It will raise a violation for missing remote domains.
+  `check-deploy` and `check-warp-deploy` scripts use this new check.
+- c757b6a18: Include entire RPC array for chainMetadataToViemChain
+- a646f9ca1: Added ZKSync specific deployment logic and artifact related utils
+- 3b615c892: Adds the proxyAdmin.owner to the Checker ownerOverrides such that it checks proxyAdmin.owner instead of always using the top-level owner
+
+### Patch Changes
+
+- Updated dependencies [e6f6d61a0]
+  - @hyperlane-xyz/core@7.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
 ## 12.0.0
 
 ### Major Changes
