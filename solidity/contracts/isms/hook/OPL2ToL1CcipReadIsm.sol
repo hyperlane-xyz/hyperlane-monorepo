@@ -28,7 +28,7 @@ contract OPL2ToL1CcipReadIsm is
     using TypeCasts for address;
 
     // CCIP-read gateways URLs
-    string[] public immutable urls;
+    string[] public urls;
     // mailbox on L1
     IMailbox immutable mailbox;
     // the OP Portal contract on L1
@@ -153,7 +153,7 @@ contract OPL2ToL1CcipReadIsm is
             IOptimismPortal.ProvenWithdrawal memory provenWithdrawal
         ) {
             return provenWithdrawal.timestamp > 0;
-        } catch Error(string memory reason) {
+        } catch {
             IOptimismPortal2.ProvenWithdrawal
                 memory provenWithdrawal = IOptimismPortal2(address(opPortal))
                     .provenWithdrawals(_withdrawalHash, address(this));

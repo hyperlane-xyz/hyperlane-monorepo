@@ -34,8 +34,8 @@ contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {
 
     function quoteTransferRemote(
         uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
+        bytes32 /* _recipient */,
+        uint256 /* _amount */
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote(address(0), quoteGasPayment(_destination));
@@ -57,7 +57,7 @@ contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {
 
     function _transferFromSender(
         uint256 _amountOrId
-    ) internal override returns (bytes memory) {
+    ) internal override returns (bytes memory metadata) {
         address remoteRouter = _mustHaveRemoteRouter(l1Domain)
             .bytes32ToAddress();
 
