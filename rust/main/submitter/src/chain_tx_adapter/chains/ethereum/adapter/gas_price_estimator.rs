@@ -40,7 +40,6 @@ pub type Eip1559Fee = (
     EthersU256, // max priority fee
 );
 
-#[allow(unused)]
 pub async fn estimate_gas_price(
     provider: &Box<dyn EvmProviderForSubmitter>,
     tx_precursor: &mut EthereumTxPrecursor,
