@@ -139,6 +139,47 @@ export class StarknetIsmReader {
   }
 
   private async deriveNullConfig(address: Address): Promise<DerivedIsmConfig> {
+    const trustedRelayerIsm = getStarknetContract(
+      StarknetIsmContractName[IsmType.TRUSTED_RELAYER],
+      address,
+      this.provider,
+    );
+
+    try {
+      const relayer = await trustedRelayerIsm.trusted_relayer();
+      return {
+        address,
+        relayer,
+        type: IsmType.TRUSTED_RELAYER,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "trusted_relayer" property, implying this is not a Trusted Relayer ISM.',
+        address,
+      );
+    }
+
+    const pausableIsm = getStarknetContract(
+      StarknetIsmContractName[IsmType.PAUSABLE],
+      address,
+      this.provider,
+    );
+    try {
+      const paused = await pausableIsm.is_paused();
+      const owner = await pausableIsm.owner();
+      return {
+        address,
+        paused,
+        owner,
+        type: IsmType.PAUSABLE,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "paused" or "owner" property, implying this is not a Pausable ISM.',
+        address,
+      );
+    }
+
     return {
       type: IsmType.TEST_ISM,
       address,
