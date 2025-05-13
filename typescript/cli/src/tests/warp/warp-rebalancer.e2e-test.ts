@@ -165,7 +165,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   beforeEach(async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '100',
         tolerance: '0',
@@ -209,16 +209,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   function startRebalancer(
-    options: { withMetrics?: boolean; strategyType?: string } = {},
+    options: { withMetrics?: boolean; rebalanceStrategy?: string } = {},
   ) {
-    const { withMetrics = false, strategyType } = options;
+    const { withMetrics = false, rebalanceStrategy } = options;
 
     return hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
       REBALANCER_CONFIG_PATH,
       withMetrics,
-      strategyType,
+      rebalanceStrategy,
     );
   }
 
@@ -227,12 +227,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     options: {
       timeout?: number;
       withMetrics?: boolean;
-      strategyType?: string;
+      rebalanceStrategy?: string;
     } = {},
   ) {
-    const { timeout = 10_000, withMetrics = false, strategyType } = options;
+    const {
+      timeout = 10_000,
+      withMetrics = false,
+      rebalanceStrategy,
+    } = options;
 
-    const process = startRebalancer({ withMetrics, strategyType });
+    const process = startRebalancer({ withMetrics, rebalanceStrategy });
 
     let timeoutId: NodeJS.Timeout;
 
@@ -285,7 +289,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: 'weight',
         tolerance: 0,
@@ -303,7 +307,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: 100,
         tolerance: 0,
@@ -321,7 +325,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a bridge value is not a valid address', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: 100,
         tolerance: 0,
@@ -345,7 +349,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should not rebalance if mode is monitorOnly', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       monitorOnly: true,
       [CHAIN_NAME_2]: {
         weight: '75',
@@ -366,7 +370,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if key does not belong to the assigned rebalancer', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -386,7 +390,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the destination is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -423,7 +427,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the bridge is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -464,7 +468,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the bridge does not have a valid transferRemote function', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -549,7 +553,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -623,7 +627,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
     // we need to add the address of the allowed bridge to chain 3
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -713,7 +717,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      strategyType: 'weighted',
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -766,7 +770,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await process.kill();
   });
 
-  it('should use the strategyType flag to override the config file', async () => {
+  it('should use the rebalanceStrategy flag to override the config file', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       [CHAIN_NAME_2]: {
         minAmount: '-100',
@@ -783,7 +787,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog('Minimum amount cannot be negative', {
       timeout: 10000,
       withMetrics: false,
-      strategyType: 'minAmount',
+      rebalanceStrategy: 'minAmount',
     });
   });
 });

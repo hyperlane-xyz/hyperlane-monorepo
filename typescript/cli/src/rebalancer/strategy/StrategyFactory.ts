@@ -1,6 +1,6 @@
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
-import type { ChainConfig } from '../config/Config.js';
+import type { BaseConfig, ChainConfig } from '../config/Config.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 
 import {
@@ -14,20 +14,20 @@ import {
 
 export class StrategyFactory {
   /**
-   * @param strategyType The global strategy type
+   * @param rebalanceStrategy The global strategy type
    * @param config Chain map of strategy configuration
    * @returns A concrete strategy implementation
    */
   static createStrategy(
-    strategyType: string,
+    rebalanceStrategy: BaseConfig['rebalanceStrategy'],
     config: ChainMap<ChainConfig>,
   ): IStrategy {
-    if (strategyType === 'weighted') {
+    if (rebalanceStrategy === 'weighted') {
       return new WeightedStrategy(config as ChainMap<WeightedStrategyConfig>);
-    } else if (strategyType === 'minAmount') {
+    } else if (rebalanceStrategy === 'minAmount') {
       return new MinAmountStrategy(config as ChainMap<MinAmountStrategyConfig>);
     } else {
-      throw new Error(`Unsupported strategy type: ${strategyType}`);
+      throw new Error(`Unsupported strategy type: ${rebalanceStrategy}`);
     }
   }
 }

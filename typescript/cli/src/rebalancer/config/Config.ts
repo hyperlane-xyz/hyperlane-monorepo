@@ -48,7 +48,7 @@ const BaseConfigSchema = z.object({
   withMetrics: z.boolean().optional(),
   monitorOnly: z.boolean().optional(),
   coingeckoApiKey: z.string().optional(),
-  strategyType: z.enum(['weighted', 'minAmount']).optional(),
+  rebalanceStrategy: z.enum(['weighted', 'minAmount']).optional(),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
@@ -81,7 +81,7 @@ export class Config {
       monitorOnly: fileMonitorOnly,
       withMetrics: fileWithMetrics,
       coingeckoApiKey: fileWithCoingeckoApiKey,
-      strategyType: fileStrategyType,
+      rebalanceStrategy: fileRebalanceStrategy,
       ...chains
     } = validationResult.data;
 
@@ -95,7 +95,8 @@ export class Config {
     const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
     const coingeckoApiKey =
       overrides.coingeckoApiKey ?? fileWithCoingeckoApiKey ?? '';
-    const strategyType = overrides.strategyType ?? fileStrategyType;
+    const rebalanceStrategy =
+      overrides.rebalanceStrategy ?? fileRebalanceStrategy;
 
     if (!warpRouteId) {
       throw new Error('warpRouteId is required');
@@ -105,8 +106,8 @@ export class Config {
       throw new Error('checkFrequency is required');
     }
 
-    if (!strategyType) {
-      throw new Error('strategyType is required');
+    if (!rebalanceStrategy) {
+      throw new Error('rebalanceStrategy is required');
     }
 
     return new Config(
@@ -116,7 +117,7 @@ export class Config {
       monitorOnly,
       withMetrics,
       coingeckoApiKey,
-      strategyType,
+      rebalanceStrategy,
       chains,
     );
   }
@@ -128,7 +129,7 @@ export class Config {
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
     public readonly coingeckoApiKey: string,
-    public readonly strategyType: 'weighted' | 'minAmount',
+    public readonly rebalanceStrategy: 'weighted' | 'minAmount',
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 }
