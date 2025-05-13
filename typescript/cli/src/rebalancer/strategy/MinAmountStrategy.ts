@@ -1,8 +1,8 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import type { ChainMap } from '@hyperlane-xyz/sdk';
 
-import { RawBalances } from '../interfaces/IStrategy.js';
+import type { RawBalances } from '../interfaces/IStrategy.js';
 
-import { BaseStrategy, Delta } from './BaseStrategy.js';
+import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
 /**
  * Configuration for minimum amount strategy
