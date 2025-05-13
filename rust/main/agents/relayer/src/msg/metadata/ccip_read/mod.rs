@@ -1,12 +1,16 @@
-#![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+#![allow(clippy::blocks_in_conditions)]
+
+use std::time::Duration;
+
+// TODO: `rustc` 1.80.1 clippy issue
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
 use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use hyperlane_base::cache::FunctionCallCache;
-use regex::Regex;
-use reqwest::Client;
+use regex::{Regex, RegexSet, RegexSetBuilder};
+use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument, warn};
@@ -23,6 +27,8 @@ use super::{
 };
 
 mod cache_types;
+
+pub const DEFAULT_TIMEOUT: u64 = 30;
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -127,7 +133,14 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
 
         let info = self.call_get_offchain_verify_info(ism, message).await?;
 
+        let ccip_url_regex = create_ccip_url_regex();
+
         for url in info.urls.iter() {
+            if ccip_url_regex.is_match(url) {
+                tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
+                continue;
+            }
+
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
             // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
             // the full address)
@@ -143,7 +156,8 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 });
                 Client::new()
                     .post(interpolated_url)
-                    .header("Content-Type", "application/json")
+                    .header(CONTENT_TYPE, "application/json")
+                    .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
                     .json(&body)
                     .send()
                     .await
@@ -171,5 +185,101 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
 
         // No metadata endpoints or endpoints down
         Err(MetadataBuildError::CouldNotFetch)
+    }
+}
+
+fn create_ccip_url_regex() -> RegexSet {
+    RegexSetBuilder::new([
+        r#"^(https?:\/\/)localhost"#,
+        r#"^(https?:\/\/)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
+        r#"localhost"#,
+        r#"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
+    ])
+    .case_insensitive(true)
+    .build()
+    .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ccip_regex_filter() {
+        let set = create_ccip_url_regex();
+
+        let urls = [
+            "localhost",
+            "localhost:80",
+            "localhost:443",
+            "0.0.0.0",
+            "0.0.0.0:80",
+            "0.0.0.0:443",
+            "127.0.0.1",
+            "127.0.0.1:80",
+            "127.0.0.1:443",
+            "http://localhost",
+            "http://localhost:80",
+            "http://localhost:443",
+            "http://0.0.0.0",
+            "http://0.0.0.0:80",
+            "http://0.0.0.0:443",
+            "http://127.0.0.1",
+            "http://127.0.0.1:80",
+            "http://127.0.0.1:443",
+            "https://localhost",
+            "https://localhost:80",
+            "https://localhost:443",
+            "https://0.0.0.0",
+            "https://0.0.0.0:80",
+            "https://0.0.0.0:443",
+            "https://127.0.0.1",
+            "https://127.0.0.1:80",
+            "https://127.0.0.1:443",
+            "https://hyperlane.xyz",
+            "https://docs.hyperlane.xyz/",
+            "http://docs.hyperlane.xyz/",
+            "http://docs.hyperlane.xyz:443",
+            "http://localhost.com",
+            "hyperlane.xyz",
+            "docs.hyperlane.xyz/",
+            "docs.hyperlane.xyz/",
+        ];
+
+        let filtered: Vec<_> = urls.into_iter().filter(|s| set.is_match(s)).collect();
+
+        let expected = [
+            "localhost",
+            "localhost:80",
+            "localhost:443",
+            "0.0.0.0",
+            "0.0.0.0:80",
+            "0.0.0.0:443",
+            "127.0.0.1",
+            "127.0.0.1:80",
+            "127.0.0.1:443",
+            "http://localhost",
+            "http://localhost:80",
+            "http://localhost:443",
+            "http://0.0.0.0",
+            "http://0.0.0.0:80",
+            "http://0.0.0.0:443",
+            "http://127.0.0.1",
+            "http://127.0.0.1:80",
+            "http://127.0.0.1:443",
+            "https://localhost",
+            "https://localhost:80",
+            "https://localhost:443",
+            "https://0.0.0.0",
+            "https://0.0.0.0:80",
+            "https://0.0.0.0:443",
+            "https://127.0.0.1",
+            "https://127.0.0.1:80",
+            "https://127.0.0.1:443",
+        ];
+
+        for (actual, expected) in filtered.into_iter().zip(expected.into_iter()) {
+            assert_eq!(actual, expected);
+        }
     }
 }
