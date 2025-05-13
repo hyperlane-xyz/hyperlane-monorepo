@@ -8,9 +8,9 @@ import {
   Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, stringifyObject } from '@hyperlane-xyz/utils';
 
-import { log } from '../../logger.js';
+import { errorRed, log, logDebug } from '../../logger.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -34,9 +34,10 @@ export class Executor implements IExecutor {
   }
 
   async rebalance(routes: RebalancingRoute[]) {
+    log(`Rebalance initiated with ${routes.length} route(s)`);
+
     if (routes.length === 0) {
       log('No routes to execute');
-
       return;
     }
 
@@ -48,6 +49,9 @@ export class Executor implements IExecutor {
     }[] = [];
 
     for (const { fromChain, toChain, amount } of routes) {
+      log(
+        `Preparing transaction: from ${fromChain} to ${toChain}, amount: ${amount}`,
+      );
       const originToken = tokensByChainName.get(fromChain);
       const destinationToken = tokensByChainName.get(toChain);
 
@@ -100,6 +104,10 @@ export class Executor implements IExecutor {
         continue;
       }
 
+      log(
+        `Populating rebalance transaction: domain=${domain}, amount=${amount}, bridge=${bridge}`,
+      );
+
       const populatedTx = await originHypAdapter.populateRebalanceTx({
         domain,
         amount,
@@ -117,12 +125,15 @@ export class Executor implements IExecutor {
       return;
     }
 
+    log('Estimating gas for all transactions');
+
     // Estimate gas before sending transactions.
     // This is mainly to check that the transaction will not fail before sending them.
     const estimateGasResults = await Promise.allSettled(
       transactions.map(async ({ signer, populatedTx }, i) => {
         try {
           await signer.estimateGas(populatedTx);
+          logDebug(`Gas estimation succeeded for route ${i}`);
         } catch (error) {
           log(`❌ Could not estimate gas for route`, routes[i]);
           throw error;
@@ -134,13 +145,20 @@ export class Executor implements IExecutor {
       throw new Error('❌ Could not estimate gas for some routes');
     }
 
+    logDebug('Sending transactions');
     const results = await Promise.allSettled(
-      transactions.map(async ({ signer, populatedTx }) => {
-        console.log('populatedTx', populatedTx);
-        const tx = await signer.sendTransaction(populatedTx);
-        const receipt = await tx.wait();
-
-        return receipt;
+      transactions.map(async ({ signer, populatedTx }, i) => {
+        logDebug(`Sending transaction for route ${i}`);
+        try {
+          const tx = await signer.sendTransaction(populatedTx);
+          log(`Transaction sent: ${tx.hash}`);
+          const receipt = await tx.wait();
+          logDebug(`Transaction confirmed: ${tx.hash}`);
+          return receipt;
+        } catch (error) {
+          errorRed(`Transaction failed for route ${i}: ${error}`);
+          throw error;
+        }
       }),
     );
 
@@ -149,13 +167,13 @@ export class Executor implements IExecutor {
       const route = routes[i];
 
       log(
-        `Origin: ${route.fromChain}, Destination: ${route.toChain}, Amount: ${route.amount}`,
+        `Route result - Origin: ${route.fromChain}, Destination: ${route.toChain}, Amount: ${route.amount}`,
       );
 
       if (result.status === 'fulfilled') {
-        log(JSON.stringify(result.value, null, 2));
+        log(`Transaction receipt: ${stringifyObject(result.value)}`);
       } else {
-        log(
+        errorRed(
           result.reason instanceof Error
             ? result.reason.message
             : result.reason,
