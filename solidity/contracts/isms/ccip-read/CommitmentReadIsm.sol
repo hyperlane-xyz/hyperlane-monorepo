@@ -54,7 +54,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
 
     /**
      * @notice Verifies the commitment by comparing the calldata hash to the commitment
-     * @param _metadata The encoded (salt, calls) whose hash is the commitment
+     * @param _metadata The encoded (ica, salt, calls)
      * @param _message The reveal hyperlane message
      * @return true If the hash of the metadata matches the commitment.
      */
@@ -62,10 +62,12 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        (CallLib.Call[] memory calls, bytes32 salt, OwnableMulticall ica) = abi
-            .decode(_metadata, (CallLib.Call[], bytes32, OwnableMulticall));
+        // Fetch encoded calls and salt
+        (OwnableMulticall ica, bytes32 salt, CallLib.Call[] memory calls) = abi
+            .decode(_metadata, (OwnableMulticall, bytes32, CallLib.Call[]));
 
-        bytes32 revealedHash = keccak256(_metadata);
+        // This is hash(salt, calls). The ica address is excluded
+        bytes32 revealedHash = keccak256(abi.encode(salt, calls));
         bytes32 msgCommitment = _message.body().commitment();
         require(
             revealedHash == msgCommitment,

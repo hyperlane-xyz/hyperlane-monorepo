@@ -884,7 +884,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(calls, salt, ica));
+        bytes32 commitment = keccak256(abi.encode(salt, calls));
         deal(address(ica), value); // Ensure ICA has enough balance to execute calls
 
         // Act
@@ -922,7 +922,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(calls, salt, ica));
+        bytes32 commitment = keccak256(abi.encode(salt, calls));
         deal(address(ica), value); // Ensure ICA has enough balance to execute calls
 
         // Act
@@ -946,7 +946,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(destinationIcaRouter.mailbox())
         );
         bytes memory message = _mailbox.inboundMessages(1);
-        bytes memory metadata = abi.encode(calls, salt, ica);
+        bytes memory metadata = abi.encode(ica, salt, calls);
         _mailbox.addInboundMetadata(1, metadata); // Metadata can fetched by other callers
         environment.processNextPendingMessage();
 
@@ -980,7 +980,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(calls, salt, ica));
+        bytes32 commitment = keccak256(abi.encode(salt, calls));
         deal(address(ica), value); // Ensure ICA has enough balance to execute calls
         // Act
         originIcaRouter.callRemoteCommitReveal(
@@ -1006,7 +1006,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(destinationIcaRouter.mailbox())
         );
         bytes memory message = _mailbox.inboundMessages(1);
-        bytes memory metadata = abi.encode(calls, salt, ica);
+        bytes memory metadata = abi.encode(ica, salt, calls);
         CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
         vm.expectRevert("ICA: Invalid Reveal");
         _ism.process(metadata, message);
