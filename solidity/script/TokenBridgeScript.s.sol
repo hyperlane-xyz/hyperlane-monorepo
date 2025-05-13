@@ -8,7 +8,7 @@ import {TokenMessage} from "../contracts/token/libs/TokenMessage.sol";
 import {Quote} from "../contracts/interfaces/ITokenBridge.sol";
 import {IMailbox} from "../contracts/interfaces/IMailbox.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {OPTokenBridgeNative} from "../contracts/token/extensions/OPTokenBridgeNative.sol";
+import {OPL2ToL1TokenBridgeNative} from "../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
 import {OPL2ToL1CcipReadHook} from "../contracts/hooks/OPL2ToL1CcipReadHook.sol";
 import {OPL2ToL1CcipReadIsm} from "../contracts/isms/hook/OPL2ToL1CcipReadIsm.sol";
 import {StaticAggregationHookFactory} from "../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
@@ -51,13 +51,13 @@ contract TokenBridgeScript is Script {
 
     function setHook(address payable vtb, address hook) public {
         vm.startBroadcast();
-        OPTokenBridgeNative(vtb).setHook(hook);
+        OPL2ToL1TokenBridgeNative(vtb).setHook(hook);
         vm.stopBroadcast();
     }
 
     function setIsm(address payable vtb, address ism) public {
         vm.startBroadcast();
-        OPTokenBridgeNative(vtb).setInterchainSecurityModule(ism);
+        OPL2ToL1TokenBridgeNative(vtb).setInterchainSecurityModule(ism);
         vm.stopBroadcast();
     }
 
@@ -67,7 +67,7 @@ contract TokenBridgeScript is Script {
     ) public returns (address) {
         vm.startBroadcast();
         uint256 scale = 1;
-        OPTokenBridgeNative vtb = new OPTokenBridgeNative(
+        OPL2ToL1TokenBridgeNative vtb = new OPL2ToL1TokenBridgeNative(
             scale,
             _mailbox,
             destination,
@@ -106,7 +106,7 @@ contract TokenBridgeScript is Script {
         address router
     ) public {
         vm.startBroadcast();
-        OPTokenBridgeNative(vtb).enrollRemoteRouter(
+        OPL2ToL1TokenBridgeNative(vtb).enrollRemoteRouter(
             domain,
             router.addressToBytes32()
         );
@@ -126,10 +126,13 @@ contract TokenBridgeScript is Script {
         return address(ism);
     }
 
-    function deployDestination() public returns (OPTokenBridgeNative vtb) {
+    function deployDestination()
+        public
+        returns (OPL2ToL1TokenBridgeNative vtb)
+    {
         vm.startBroadcast();
         uint256 scale = 1;
-        vtb = new OPTokenBridgeNative(
+        vtb = new OPL2ToL1TokenBridgeNative(
             scale,
             mailboxDestination,
             destination,
@@ -146,7 +149,7 @@ contract TokenBridgeScript is Script {
         uint256 amount
     ) public returns (bytes32 messageId) {
         vm.startBroadcast();
-        OPTokenBridgeNative vtb = OPTokenBridgeNative(_vtb);
+        OPL2ToL1TokenBridgeNative vtb = OPL2ToL1TokenBridgeNative(_vtb);
         bytes32 recipient = _recipient.addressToBytes32();
         Quote[] memory quotes = vtb.quoteTransferRemote(
             destination,
@@ -173,11 +176,12 @@ contract TokenBridgeScript is Script {
         address ism = vm.addr(2);
         (address payable vtb, address hook) = deployAllOrigin(remoteVtb, ism);
 
-        Quote[] memory quotes = OPTokenBridgeNative(vtb).quoteTransferRemote(
-            destination,
-            recipient.addressToBytes32(),
-            amount
-        );
+        Quote[] memory quotes = OPL2ToL1TokenBridgeNative(vtb)
+            .quoteTransferRemote(
+                destination,
+                recipient.addressToBytes32(),
+                amount
+            );
 
         bytes32 messageId = transferRemote(
             payable(vtb),
@@ -199,7 +203,7 @@ contract TokenBridgeScript is Script {
         hook = deployHook(proveWithdrawalIsm, igpOrigin);
 
         vm.startBroadcast();
-        OPTokenBridgeNative(vtb).setHook(hook);
+        OPL2ToL1TokenBridgeNative(vtb).setHook(hook);
         vm.stopBroadcast();
 
         console.log("vtb @ ", vtb);
@@ -214,7 +218,7 @@ contract TokenBridgeScript is Script {
         ism = deployIsm();
 
         vm.startBroadcast();
-        OPTokenBridgeNative(vtb).setInterchainSecurityModule(ism);
+        OPL2ToL1TokenBridgeNative(vtb).setInterchainSecurityModule(ism);
         vm.stopBroadcast();
 
         console.log("vtb @", vtb);

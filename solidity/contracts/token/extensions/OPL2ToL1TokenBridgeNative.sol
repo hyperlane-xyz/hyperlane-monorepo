@@ -11,7 +11,7 @@ import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 
-contract OPTokenBridgeNative is TokenBridgeNative {
+contract OPL2ToL1TokenBridgeNative is TokenBridgeNative {
     using TypeCasts for bytes32;
 
     uint32 public constant OP_MIN_GAS_LIMIT_ON_L1 = 50_000;

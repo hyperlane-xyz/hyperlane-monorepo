@@ -10,7 +10,7 @@ import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {TestCcipReadIsm} from "../../contracts/test/TestCcipReadIsm.sol";
-import {OPTokenBridgeNative} from "../../contracts/token/extensions/OPTokenBridgeNative.sol";
+import {OPL2ToL1TokenBridgeNative} from "../../contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol";
 
 import {OPL2ToL1CcipReadHook} from "../../contracts/hooks/OPL2ToL1CcipReadHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -26,7 +26,7 @@ import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/St
 import {console} from "forge-std/console.sol";
 
 // Needed to access the withdrawal hash
-contract OPTokenBridgeNativeTest is OPTokenBridgeNative {
+contract OPL2ToL1TokenBridgeNativeTest is OPL2ToL1TokenBridgeNative {
     using TypeCasts for bytes32;
 
     uint256 internal constant SCALE = 1;
@@ -35,7 +35,7 @@ contract OPTokenBridgeNativeTest is OPTokenBridgeNative {
         uint32 _l1Domain,
         address _l2Bridge,
         address _mailbox
-    ) OPTokenBridgeNative(SCALE, _mailbox, _l1Domain, _l2Bridge) {}
+    ) OPL2ToL1TokenBridgeNative(SCALE, _mailbox, _l1Domain, _l2Bridge) {}
 
     function getWithdrawalMetadata(
         uint256 _amountOrId
@@ -75,8 +75,8 @@ contract TokenBridgeNativeTest is Test {
     TestCcipReadIsm internal ism;
     TestInterchainGasPaymaster internal igp;
     StaticAggregationHook internal hook;
-    OPTokenBridgeNativeTest internal vtbOrigin;
-    OPTokenBridgeNativeTest internal vtbDestination;
+    OPL2ToL1TokenBridgeNativeTest internal vtbOrigin;
+    OPL2ToL1TokenBridgeNativeTest internal vtbDestination;
     OPL2ToL1CcipReadHook internal ccipReadHook;
 
     MockHyperlaneEnvironment internal environment;
@@ -138,11 +138,11 @@ contract TokenBridgeNativeTest is Test {
     }
 
     function deployTokenBridges() public {
-        OPTokenBridgeNativeTest implementation = new OPTokenBridgeNativeTest(
-            destination,
-            L2_BRIDGE_ADDRESS,
-            address(environment.mailboxes(origin))
-        );
+        OPL2ToL1TokenBridgeNativeTest implementation = new OPL2ToL1TokenBridgeNativeTest(
+                destination,
+                L2_BRIDGE_ADDRESS,
+                address(environment.mailboxes(origin))
+            );
 
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
@@ -155,9 +155,9 @@ contract TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbOrigin = OPTokenBridgeNativeTest(payable(proxy));
+        vtbOrigin = OPL2ToL1TokenBridgeNativeTest(payable(proxy));
 
-        implementation = new OPTokenBridgeNativeTest(
+        implementation = new OPL2ToL1TokenBridgeNativeTest(
             destination,
             address(0),
             address(environment.mailboxes(destination))
@@ -174,7 +174,7 @@ contract TokenBridgeNativeTest is Test {
             )
         );
 
-        vtbDestination = OPTokenBridgeNativeTest(payable(proxy));
+        vtbDestination = OPL2ToL1TokenBridgeNativeTest(payable(proxy));
 
         vtbOrigin.enrollRemoteRouter(
             destination,
