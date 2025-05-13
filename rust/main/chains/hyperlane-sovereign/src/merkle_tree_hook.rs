@@ -12,7 +12,6 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 use serde::Deserialize;
-use std::str::FromStr;
 
 /// Struct that retrieves event data for a Sovereign Mailbox contract.
 #[derive(Debug, Clone)]
@@ -52,7 +51,7 @@ impl crate::indexer::SovIndexer<MerkleTreeInsertion> for SovereignMerkleTreeHook
 
         let merkle_insertion = MerkleTreeInsertion::new(
             parsed_event.inserted_into_tree.index,
-            H256::from_str(&parsed_event.inserted_into_tree.id)?,
+            parsed_event.inserted_into_tree.id,
         );
 
         Ok(merkle_insertion)
@@ -66,7 +65,7 @@ struct InsertedIntoTreeEvent {
 
 #[derive(Clone, Debug, Deserialize)]
 struct TreeEventBody {
-    id: String,
+    id: H256,
     index: u32,
 }
 

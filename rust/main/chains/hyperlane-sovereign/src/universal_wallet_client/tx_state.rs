@@ -2,6 +2,7 @@ pub type WsSubscription<T> = Result<BoxStream<'static, anyhow::Result<T>>, WsErr
 use crate::universal_wallet_client::UniversalClient;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use hyperlane_core::H256;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 
@@ -9,9 +10,9 @@ impl UniversalClient {
     /// Subscribe to a websocket for status updates.
     pub async fn subscribe_to_tx_status_updates(
         &self,
-        tx_hash: String,
+        tx_hash: H256,
     ) -> WsSubscription<crate::universal_wallet_client::types::TxInfo> {
-        self.subscribe_to_ws(&format!("/sequencer/txs/{tx_hash}/ws"))
+        self.subscribe_to_ws(&format!("/sequencer/txs/{tx_hash:?}/ws"))
             .await
     }
 

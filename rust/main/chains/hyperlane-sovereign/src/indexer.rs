@@ -31,12 +31,11 @@ where
         let logs = range
             .map(|slot_num| async move {
                 let slot = self.client().get_specified_slot(slot_num.into()).await?;
-                let slot_hash = parse_hex_to_h256(&slot.hash, "invalid block hash")?;
                 ChainResult::Ok(stream::iter(
                     slot.batches
                         .into_iter()
                         .flat_map(|batch| batch.txs)
-                        .map(move |tx| self.process_tx(&tx, slot_hash)),
+                        .map(move |tx| self.process_tx(&tx, slot.hash)),
                 ))
             })
             .collect::<FuturesOrdered<_>>()
@@ -58,12 +57,9 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
-        let tx_hash: H256 = tx_hash.into();
-        let tx_hash = format!("0x{tx_hash:x}");
         let tx = self.client().get_tx_by_hash(tx_hash).await?;
         let batch = self.client().get_batch(tx.batch_number).await?;
-        let batch_hash = parse_hex_to_h256(&batch.hash, "invalid block hash")?;
-        self.process_tx(&tx, batch_hash)
+        self.process_tx(&tx, batch.hash)
     }
 
     // Default implementation of SequenceAwareIndexer<T>
@@ -96,31 +92,17 @@ where
         slot_num: u64,
         slot_hash: H256,
     ) -> ChainResult<(Indexed<T>, LogMeta)> {
-        let tx_hash = parse_hex_to_h256(&tx.hash, "invalid tx hash")?;
         let decoded_event = self.decode_event(event)?;
 
         let meta = LogMeta {
             address: slot_hash, // TODO: This should be the address of the contract that emitted the event, not the batch hash
             block_number: slot_num,
             block_hash: slot_hash,
-            transaction_id: tx_hash.into(), // 0-prefix the tx hash up to 64 bytes for compatibility with the indexer
+            transaction_id: tx.hash.into(),
             transaction_index: tx.number, // TODO: This doesn't match the ethers behavior. tx number in sovereign is global, while this is block-local.
             log_index: event.number.into(), // TODO: This doesn't match the ethers behavior. event number in sovereign is global, while this is block-local.
         };
 
         Ok((decoded_event.into(), meta))
     }
-}
-
-fn parse_hex_to_h256(hex: &str, error_msg: &str) -> Result<H256, ChainCommunicationError> {
-    hex_to_h256(hex).ok_or(ChainCommunicationError::ParseError {
-        msg: error_msg.to_string(),
-    })
-}
-
-fn hex_to_h256(hex: &str) -> Option<H256> {
-    hex.strip_prefix("0x")
-        .and_then(|h| hex::decode(h).ok())
-        .and_then(|bytes| bytes.try_into().ok())
-        .map(|array: [u8; 32]| array.into())
 }

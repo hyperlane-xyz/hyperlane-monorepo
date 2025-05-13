@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
+use hyperlane_core::H256;
 use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -46,19 +47,18 @@ impl UniversalClient {
     }
 
     /// Build a transaction and submit it to the rollup.
-    pub async fn build_and_submit(&self, call_message: Value) -> Result<(String, String)> {
+    pub async fn build_and_submit(&self, call_message: Value) -> Result<(H256, String)> {
         let utx = self.build_tx_json(&call_message);
         let tx = self.sign_tx(utx).await?;
         let body = self.serialise_tx(&tx).await?;
         let hash = self.submit_tx(body.clone()).await?;
-        self.wait_for_tx(hash.clone()).await?;
+        self.wait_for_tx(hash).await?;
 
         Ok((hash, body))
     }
 
-    async fn wait_for_tx(&self, tx_hash: String) -> Result<()> {
+    async fn wait_for_tx(&self, tx_hash: H256) -> Result<()> {
         const MAX_WAIT_DURATION: u64 = 300;
-
         let mut slot_subscription = self.subscribe_to_tx_status_updates(tx_hash).await?;
 
         let end_wait_time = Instant::now() + Duration::from_secs(MAX_WAIT_DURATION);
@@ -137,7 +137,7 @@ impl UniversalClient {
         Ok(BASE64_STANDARD.encode(&tx_bytes))
     }
 
-    async fn submit_tx(&self, tx: String) -> Result<String> {
+    async fn submit_tx(&self, tx: String) -> Result<H256> {
         #[derive(Deserialize)]
         struct Schema {
             data: Data,
@@ -145,7 +145,7 @@ impl UniversalClient {
 
         #[derive(Deserialize)]
         struct Data {
-            id: String,
+            id: H256,
         }
 
         let url = format!("{}/sequencer/txs", self.api_url);

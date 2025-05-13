@@ -14,7 +14,7 @@ use reqwest::StatusCode;
 use reqwest::{header::HeaderMap, Client, Response};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{fmt::Debug, str::FromStr};
+use std::fmt::Debug;
 use tracing::warn;
 use url::Url;
 
@@ -28,8 +28,7 @@ struct Data;
 
 /// Convert H256 type to String.
 pub fn to_bech32(input: H256) -> ChainResult<String> {
-    let hrp = Hrp::parse("sov")
-        .map_err(|e| ChainCommunicationError::CustomError(format!("Failed to parse Hrp: {e:?}")))?;
+    let hrp = Hrp::parse("sov").expect("Hardcoded HRP");
     let mut bech32_address = String::new();
     let addr = input.as_ref();
 
@@ -46,33 +45,6 @@ pub fn to_bech32(input: H256) -> ChainResult<String> {
         ChainCommunicationError::CustomError(format!("bech32 encoding error: {e:?}"))
     })?;
     Ok(bech32_address)
-}
-
-fn from_bech32(input: &str) -> ChainResult<H256> {
-    let (_, slice) = bech32::decode(input).map_err(|e| {
-        ChainCommunicationError::CustomError(format!("bech32 decoding error: {e:?}"))
-    })?;
-
-    match slice.len() {
-        28 => {
-            let mut array = [0u8; 32];
-            array[4..].copy_from_slice(&slice);
-            Ok(H256::from_slice(&array))
-        }
-        _ => Err(ChainCommunicationError::CustomError(format!(
-            "bech_32 encoding error: Address must be 28 bytes, received {slice:?}"
-        ))),
-    }
-}
-
-fn try_h256_to_string(input: H256) -> ChainResult<String> {
-    if input[..12].iter().any(|&byte| byte != 0) {
-        return Err(ChainCommunicationError::CustomError(
-            "Input value exceeds size of H160".to_string(),
-        ));
-    }
-
-    Ok(format!("{:?}", H160::from(input)))
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +66,7 @@ pub struct TxEvent {
 #[derive(Clone, Debug, Deserialize)]
 pub struct Tx {
     pub number: u64,
-    pub hash: String,
+    pub hash: H256,
     pub events: Vec<TxEvent>,
     pub batch_number: u64,
     pub receipt: Receipt,
@@ -117,7 +89,7 @@ pub struct TxData {
 #[derive(Clone, Debug, Deserialize)]
 pub struct Batch {
     pub number: u64,
-    pub hash: String,
+    pub hash: H256,
     pub txs: Vec<Tx>,
     pub slot_number: u64,
 }
@@ -126,7 +98,7 @@ pub struct Batch {
 #[derive(Clone, Debug, Deserialize)]
 pub struct Slot {
     pub number: u64,
-    pub hash: String,
+    pub hash: H256,
     pub batches: Vec<Batch>,
 }
 
@@ -249,7 +221,7 @@ impl SovereignRestClient {
         Ok(response.data)
     }
 
-    pub async fn get_tx_by_hash(&self, tx_id: String) -> ChainResult<Tx> {
+    pub async fn get_tx_by_hash(&self, tx_id: H512) -> ChainResult<Tx> {
         let query = format!("/ledger/txs/{tx_id}?children=1");
 
         let response = self
@@ -325,7 +297,7 @@ impl SovereignRestClient {
     pub async fn default_ism(&self) -> ChainResult<H256> {
         #[derive(Clone, Debug, Deserialize)]
         struct Data {
-            value: String,
+            value: H256,
         }
 
         let query = "/modules/mailbox/state/default-ism";
@@ -336,7 +308,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
 
-        from_bech32(&response.data.value)
+        Ok(response.data.value)
     }
 
     // @Mailbox
@@ -369,13 +341,9 @@ impl SovereignRestClient {
                     "Failed to submit process transaction: {e}"
                 ))
             })?;
-
-        let tx_details = self.get_tx_by_hash(tx_hash.clone()).await?;
+        let tx_details = self.get_tx_by_hash(tx_hash.into()).await?;
         Ok(TxOutcome {
-            transaction_id: H512::from_str(&format!(
-                "0x{:0>128}",
-                tx_hash.trim_start_matches("0x")
-            ))?,
+            transaction_id: tx_details.hash.into(),
             executed: tx_details.receipt.result == "successful",
             gas_used: match tx_details.receipt.data.gas_used.first() {
                 Some(v) => U256::from(*v),
@@ -478,7 +446,7 @@ impl SovereignRestClient {
         #[derive(Clone, Debug, Deserialize)]
         struct Inner {
             count: usize,
-            branch: Vec<String>,
+            branch: Vec<H256>,
         }
         #[derive(Clone, Debug, Deserialize)]
         struct Data {
@@ -498,16 +466,7 @@ impl SovereignRestClient {
             .map_err(|e| ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}")))?;
         let response: Schema<Data> = serde_json::from_slice(&response)?;
 
-        let branch = response
-            .data
-            .value
-            .branch
-            .iter()
-            .map(|hex| H256::from_str(hex))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| ChainCommunicationError::ParseError {
-                msg: format!("Couldn't parse hex: {e}"),
-            })?;
+        let branch = response.data.value.branch;
 
         let branch_len = branch.len();
         let branch: [_; TREE_DEPTH] =
@@ -548,7 +507,7 @@ impl SovereignRestClient {
         #[derive(Debug, Deserialize)]
         struct Data {
             index: u32,
-            root: String,
+            root: H256,
         }
 
         let query = match at_height {
@@ -566,7 +525,7 @@ impl SovereignRestClient {
             // sovereign implementation provides dummy address as hook is sovereign-sdk module
             merkle_tree_hook_address: H256::default(),
             mailbox_domain,
-            root: H256::from_str(&response.data.root)?,
+            root: response.data.root,
             index: response.data.index,
         };
 
@@ -577,7 +536,7 @@ impl SovereignRestClient {
     pub async fn validators_and_threshold(&self, recipient: H256) -> ChainResult<(Vec<H256>, u8)> {
         #[derive(Debug, Deserialize)]
         struct Data {
-            validators: Vec<String>,
+            validators: Vec<H160>,
             threshold: u8,
         }
 
@@ -594,8 +553,8 @@ impl SovereignRestClient {
             .data
             .validators
             .iter()
-            .map(|v| H256::from_str(&format!("0x{:0>64}", v.trim_start_matches("0x"))))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|v| H256::from(*v))
+            .collect();
 
         Ok((validators, response.data.threshold))
     }
@@ -614,9 +573,8 @@ impl SovereignRestClient {
 
         for (i, v) in validators.iter().enumerate() {
             res.push(vec![]);
-            let validator = try_h256_to_string(*v)?;
-
-            let query = format!("/modules/mailbox/state/validators/items/{validator}");
+            let validator = H160::from(*v);
+            let query = format!("/modules/mailbox/state/validators/items/{validator:?}");
 
             let response = self.http_get(&query).await.map_err(|e| {
                 ChainCommunicationError::CustomError(format!("HTTP Get Error: {e}"))
@@ -643,11 +601,10 @@ impl SovereignRestClient {
     // @Validator Announce
     pub async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let result = utils::announce_validator(announcement, &self.universal_wallet_client).await?;
-        let tx_id = &format!("0x{:0>128}", result.trim_start_matches("0x"));
 
         // Upstream logic is only concerned with `executed` status is we've made it this far.
         Ok(TxOutcome {
-            transaction_id: H512::from_str(tx_id)?,
+            transaction_id: result.into(),
             executed: true,
             gas_used: U256::default(),
             gas_price: FixedPointNumber::default(),
@@ -658,41 +615,9 @@ impl SovereignRestClient {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::str::FromStr;
 
     const ISM_ADDRESS: &str = "sov1kljj6q26lwdm2mqej4tjp9j0rf5tr2afdfafg4z89ynmu0t74wc";
-
-    #[test]
-    fn test_try_h256_to_string() {
-        let input =
-            H256::from_str("0x00000000000000000000000014dc79964da2c08b23698b3d3cc7ca32193d9955")
-                .unwrap();
-        let res = try_h256_to_string(input).unwrap();
-        assert_eq!(
-            String::from("0x14dc79964da2c08b23698b3d3cc7ca32193d9955"),
-            res
-        );
-    }
-
-    #[test]
-    fn test_try_h256_to_string_too_short() {
-        let input =
-            H256::from_str("0x000000000000000000000000000000000000000000000000000000000000beef")
-                .unwrap();
-        let res = try_h256_to_string(input).unwrap();
-        assert_eq!(
-            String::from("0x000000000000000000000000000000000000beef"),
-            res
-        );
-    }
-
-    #[test]
-    fn test_try_h256_to_string_too_long() {
-        let input =
-            H256::from_str("000000000e0a2a203f9eaeb092e74d1d7bb03aa3bb03b06eee292753772e7054")
-                .unwrap();
-        let res = try_h256_to_string(input);
-        assert!(res.is_err())
-    }
 
     #[test]
     fn test_to_bech32_left_padded_ok() {
@@ -710,20 +635,5 @@ mod test {
             H256::from_str("0xb7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be00000000")
                 .unwrap();
         assert!(to_bech32(address).is_err())
-    }
-
-    #[test]
-    fn test_from_bech32() {
-        let res = from_bech32(ISM_ADDRESS).unwrap();
-        let address =
-            H256::from_str("0x00000000b7e52d015afb9bb56c19955720964f1a68b1aba96a7a9454472927be")
-                .unwrap();
-        assert_eq!(address, res)
-    }
-
-    #[test]
-    fn test_from_bech32_err() {
-        let incorrect_address = "sov1kljj6q26lwdm2mqej4tyuiuhjp9j0rf5tr2afdfafg4z89ynmu0t74wc";
-        assert!(from_bech32(incorrect_address).is_err())
     }
 }

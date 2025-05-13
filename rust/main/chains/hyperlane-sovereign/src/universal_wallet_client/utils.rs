@@ -1,6 +1,6 @@
 use crate::universal_wallet_client::{crypto, UniversalClient};
 use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, Encode, HyperlaneMessage, SignedType,
+    Announcement, ChainCommunicationError, ChainResult, Encode, HyperlaneMessage, SignedType, H256,
 };
 use serde_json::{json, Value};
 use std::env;
@@ -91,7 +91,7 @@ pub async fn get_simulate_json_query(
 pub async fn announce_validator(
     announcement: SignedType<Announcement>,
     client: &UniversalClient,
-) -> ChainResult<String> {
+) -> ChainResult<H256> {
     let sig_hyperlane = announcement.signature;
     let sig_bytes: [u8; 65] = sig_hyperlane.into();
     let call_message = json!({
