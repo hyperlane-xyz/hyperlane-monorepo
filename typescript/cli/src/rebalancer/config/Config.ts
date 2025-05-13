@@ -28,6 +28,12 @@ const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
     .string()
     .or(z.number())
     .transform((val) => BigInt(val)),
+  buffer: z
+    .string()
+    .or(z.number())
+    .transform((val) => BigInt(val))
+    .default('0')
+    .optional(),
 });
 
 // Union of possible chain configs

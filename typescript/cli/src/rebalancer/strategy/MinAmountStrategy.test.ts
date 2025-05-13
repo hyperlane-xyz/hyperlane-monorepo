@@ -23,17 +23,39 @@ describe('MinAmountStrategy', () => {
       expect(
         () =>
           new MinAmountStrategy({
-            [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+            [chain1]: {
+              minAmount: ethers.utils.parseEther('100').toBigInt(),
+              buffer: 0n,
+            },
           }),
       ).to.throw('At least two chains must be configured');
+    });
+
+    it('should create a strategy with minAmount and buffer', () => {
+      new MinAmountStrategy({
+        [chain1]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain2]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+      });
     });
 
     it('should throw an error when minAmount is negative', () => {
       expect(
         () =>
           new MinAmountStrategy({
-            [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-            [chain2]: { minAmount: ethers.utils.parseEther('-10').toBigInt() },
+            [chain1]: {
+              minAmount: ethers.utils.parseEther('100').toBigInt(),
+              buffer: 0n,
+            },
+            [chain2]: {
+              minAmount: ethers.utils.parseEther('-10').toBigInt(),
+              buffer: 0n,
+            },
           }),
       ).to.throw('Minimum amount cannot be negative');
     });
@@ -43,8 +65,14 @@ describe('MinAmountStrategy', () => {
     it('should throw an error when raw balances chains length does not match configured chains length', () => {
       expect(() =>
         new MinAmountStrategy({
-          [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-          [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+          [chain1]: {
+            minAmount: ethers.utils.parseEther('100').toBigInt(),
+            buffer: 0n,
+          },
+          [chain2]: {
+            minAmount: ethers.utils.parseEther('100').toBigInt(),
+            buffer: 0n,
+          },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('200').toBigInt(),
@@ -56,8 +84,14 @@ describe('MinAmountStrategy', () => {
     it('should throw an error when a raw balance is missing', () => {
       expect(() =>
         new MinAmountStrategy({
-          [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-          [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+          [chain1]: {
+            minAmount: ethers.utils.parseEther('100').toBigInt(),
+            buffer: 0n,
+          },
+          [chain2]: {
+            minAmount: ethers.utils.parseEther('100').toBigInt(),
+            buffer: 0n,
+          },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain3]: ethers.utils.parseEther('300').toBigInt(),
@@ -68,8 +102,14 @@ describe('MinAmountStrategy', () => {
     it('should throw an error when a raw balance is negative', () => {
       expect(() =>
         new MinAmountStrategy({
-          [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-          [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+          [chain1]: {
+            minAmount: ethers.utils.parseEther('100').toBigInt(),
+            buffer: 0n,
+          },
+          [chain2]: {
+            minAmount: ethers.utils.parseEther('100').toBigInt(),
+            buffer: 0n,
+          },
         }).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('-200').toBigInt(),
@@ -79,8 +119,14 @@ describe('MinAmountStrategy', () => {
 
     it('should return an empty array when all chains have at least the minimum amount', () => {
       const strategy = new MinAmountStrategy({
-        [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-        [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+        [chain1]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain2]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
       });
 
       const rawBalances = {
@@ -95,8 +141,14 @@ describe('MinAmountStrategy', () => {
 
     it('should return a single route when a chain is below minimum amount', () => {
       const strategy = new MinAmountStrategy({
-        [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-        [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+        [chain1]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain2]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
       });
 
       const rawBalances = {
@@ -117,9 +169,18 @@ describe('MinAmountStrategy', () => {
 
     it('should return multiple routes for multiple chains below minimum amount', () => {
       const strategy = new MinAmountStrategy({
-        [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-        [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-        [chain3]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+        [chain1]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain2]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain3]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
       });
 
       const rawBalances = {
@@ -146,9 +207,18 @@ describe('MinAmountStrategy', () => {
 
     it('should handle case where there is not enough surplus to meet all minimum requirements', () => {
       const strategy = new MinAmountStrategy({
-        [chain1]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-        [chain2]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
-        [chain3]: { minAmount: ethers.utils.parseEther('100').toBigInt() },
+        [chain1]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain2]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+        [chain3]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
       });
 
       const rawBalances = {
@@ -165,6 +235,35 @@ describe('MinAmountStrategy', () => {
       expect(routes[0].amount).to.equal(
         ethers.utils.parseEther('50').toBigInt(),
       );
+    });
+
+    it('should account for buffer > 0 when calculating deficits and surpluses', () => {
+      const strategy = new MinAmountStrategy({
+        [chain1]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 1_000n, // 10%
+        },
+        [chain2]: {
+          minAmount: ethers.utils.parseEther('100').toBigInt(),
+          buffer: 0n,
+        },
+      });
+
+      const rawBalances = {
+        [chain1]: ethers.utils.parseEther('105').toBigInt(),
+        [chain2]: ethers.utils.parseEther('120').toBigInt(),
+      };
+
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+
+      // chain1 needs 5 more to reach 110, chain2 has 20 surplus
+      expect(routes).to.deep.equal([
+        {
+          fromChain: chain2,
+          toChain: chain1,
+          amount: ethers.utils.parseEther('5').toBigInt(),
+        },
+      ]);
     });
   });
 });

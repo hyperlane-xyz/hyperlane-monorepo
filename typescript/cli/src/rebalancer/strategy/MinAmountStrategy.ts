@@ -9,6 +9,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  */
 export type MinAmountStrategyConfig = {
   minAmount: bigint;
+  buffer: bigint;
 };
 
 /**
@@ -34,7 +35,8 @@ export class MinAmountStrategy extends BaseStrategy {
   }
 
   /**
-   * Gets balances categorized by surplus and deficit based on minimum amounts
+   * Gets balances categorized by surplus and deficit based on minimum amounts and buffer
+   * Buffer (in basis points) is a bigint between 1n (0.01%) and 10_000n (100.00%), default 0n
    */
   protected getCategorizedBalances(rawBalances: RawBalances): {
     surpluses: Delta[];
@@ -43,15 +45,17 @@ export class MinAmountStrategy extends BaseStrategy {
     return this.chains.reduce(
       (acc, chain) => {
         const minAmount = this.config[chain].minAmount;
+        const effectiveMin =
+          (minAmount * (10_000n + this.config[chain].buffer)) / 10_000n;
         const balance = rawBalances[chain];
 
-        // If balance is less than minAmount, it has a deficit
-        if (balance < minAmount) {
-          acc.deficits.push({ chain, amount: minAmount - balance });
+        // If balance is less than effectiveMin, it has a deficit
+        if (balance < effectiveMin) {
+          acc.deficits.push({ chain, amount: effectiveMin - balance });
         } else {
-          // Any chain with more than minAmount potentially has surplus
-          // But only mark as surplus if there's extra beyond minAmount
-          const surplus = balance - minAmount;
+          // Any chain with more than effectiveMin potentially has surplus
+          // But only mark as surplus if there's extra beyond effectiveMin
+          const surplus = balance - effectiveMin;
           if (surplus > 0n) {
             acc.surpluses.push({ chain, amount: surplus });
           }
