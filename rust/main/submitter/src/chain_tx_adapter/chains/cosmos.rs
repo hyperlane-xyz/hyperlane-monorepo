@@ -50,7 +50,10 @@ impl AdaptsChain for CosmosTxAdapter {
         todo!()
     }
 
-    async fn tx_status(&self, _tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
+    async fn get_tx_hash_status(
+        &self,
+        _hash: hyperlane_core::H512,
+    ) -> std::result::Result<TransactionStatus, SubmitterError> {
         todo!()
     }
 

@@ -61,9 +61,11 @@ submitter = { path = "../../submitter" }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["macros"] }
+http-body-util.workspace = true
 once_cell.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
+tower.workspace = true
 tracing-test.workspace = true
 tracing-subscriber.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }

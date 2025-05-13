@@ -71,6 +71,9 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Vec<u8>>;
+
+    /// Get the calldata for a call which allows to check if a particular messages was delivered
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>>;
 }
 
 /// The result of processing a batch of messages

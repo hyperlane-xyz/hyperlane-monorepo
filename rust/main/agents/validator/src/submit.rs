@@ -461,6 +461,7 @@ impl ValidatorSubmitterMetrics {
 #[cfg(test)]
 mod test {
     use super::*;
+
     use async_trait::async_trait;
     use eyre::Result;
     use hyperlane_base::db::{

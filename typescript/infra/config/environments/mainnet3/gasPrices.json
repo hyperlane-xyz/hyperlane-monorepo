@@ -483,6 +483,10 @@
     "amount": "0.2",
     "decimals": 9
   },
+  "svmbnb": {
+    "amount": "0.0000001",
+    "decimals": 1
+  },
   "swell": {
     "amount": "0.001000251",
     "decimals": 9

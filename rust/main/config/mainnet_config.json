@@ -71,6 +71,7 @@
       "aggregationHook": "0xe0cb37cFc47296f1c4eD77EFf92Aed478644d10c",
       "blockExplorers": [
         {
+          "apiKey": "QAI5SWBNHJSFAN6KMS9RC5JGFKV2IYD2Z5",
           "apiUrl": "https://api.arbiscan.io/api",
           "family": "etherscan",
           "name": "Arbiscan",
@@ -143,6 +144,7 @@
       "aggregationHook": "0x0165a22BA489F7DA37DAf6397781777D9FCB5708",
       "blockExplorers": [
         {
+          "apiKey": "NIF3616T2AP6EHYWIHJEKR1HCMA2K7D96X",
           "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api",
           "family": "routescan",
           "name": "SnowTrace",
@@ -222,6 +224,7 @@
       "aggregationHook": "0x13f3d4B0Ee0a713430fded9E18f7fb6c91A6E41F",
       "blockExplorers": [
         {
+          "apiKey": "R8CVTG7HDJYD5JDV2GSD5TGQH3J2KJDSSY",
           "apiUrl": "https://api.basescan.org/api",
           "family": "etherscan",
           "name": "BaseScan",
@@ -442,6 +445,7 @@
       "aggregationHook": "0x402Fc106576462a892355d69ACF03D46A888ae88",
       "blockExplorers": [
         {
+          "apiKey": "NXSXUUUAUDD5SYGQUIVS9TZTBCEG6X5THY",
           "apiUrl": "https://api.bscscan.com/api",
           "family": "etherscan",
           "name": "BscScan",
@@ -524,6 +528,7 @@
       "aggregationHook": "0xc65890329066FB20c339Bc5C22f1756e9D3a4fF5",
       "blockExplorers": [
         {
+          "apiKey": "IC1UCY8JWIYFWGPCEEE58HKFIFEVN73PVV",
           "apiUrl": "https://api.celoscan.io/api",
           "family": "etherscan",
           "name": "CeloScan",
@@ -791,10 +796,10 @@
     "eclipsemainnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.eclipse.xyz/api",
+          "apiUrl": "https://api.eclipsescan.xyz/",
           "family": "other",
           "name": "Eclipse Explorer",
-          "url": "https://explorer.eclipse.xyz/"
+          "url": "https://eclipsescan.xyz/"
         }
       ],
       "blocks": {
@@ -831,7 +836,7 @@
         }
       ],
       "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2",
-      "interchainSecurityModule": "BgG35GxoaMgmiam3EJzcwivwQ2DTYGPTLfUCg7bhiH6V",
+      "interchainSecurityModule": "CMtST8GBWTTzBgYCdAm7Kfh4aVhM2KAeVvTo2gNoDgNU",
       "technicalStack": "other"
     },
     "endurance": {
@@ -903,6 +908,7 @@
       "aggregationHook": "0xb87AC8EA4533AE017604E44470F7c1E550AC6F10",
       "blockExplorers": [
         {
+          "apiKey": "CYUPN3Q66JIMRGQWYUDXJKQH4SX8YIYZMW",
           "apiUrl": "https://api.etherscan.io/api",
           "family": "etherscan",
           "name": "Etherscan",
@@ -990,6 +996,7 @@
       "aggregationHook": "0xD7ff06cDd83642D648baF0d36f77e79349120dA4",
       "blockExplorers": [
         {
+          "apiKey": "X3G6FVJU5VEZXVNQFRX52EQ5FEVP8IPR6F",
           "apiUrl": "https://api.fraxscan.com/api",
           "family": "etherscan",
           "name": "Fraxscan",
@@ -1132,6 +1139,7 @@
       "aggregationHook": "0xdD1FA1C12496474c1dDC67a658Ba81437F818861",
       "blockExplorers": [
         {
+          "apiKey": "98A32SWJE876CHG95TMFRC5H5SBBX9GHAG",
           "apiUrl": "https://api.gnosisscan.io/api",
           "family": "etherscan",
           "name": "GnosisScan",
@@ -1407,6 +1415,7 @@
       "aggregationHook": "0x43fF73dF1E170D076D9Ed30d4C6922A9D34322dE",
       "blockExplorers": [
         {
+          "apiKey": "ZCA9836XUX1XPAACHK4BMMYTIFMHIGU8VN",
           "apiUrl": "https://api.lineascan.build/api",
           "family": "etherscan",
           "name": "LineaScan",
@@ -2017,6 +2026,7 @@
       "aggregationHook": "0x23cca255aE83F57F39EAf9D14fB9FdaDF22D5863",
       "blockExplorers": [
         {
+          "apiKey": "DDAT4TGIUSSV8MR489UJ21R34WGA1MM2GG",
           "apiUrl": "https://api-moonbeam.moonscan.io/api",
           "family": "etherscan",
           "name": "MoonScan",
@@ -2159,6 +2169,7 @@
       "aggregationHook": "0x4ccC6d8eB79f2a1EC9bcb0f211fef7907631F91f",
       "blockExplorers": [
         {
+          "apiKey": "JMYR3W6HHVPQ1HH8T6W8HSZVG88IH3MHRU",
           "apiUrl": "https://api-optimistic.etherscan.io/api",
           "family": "etherscan",
           "name": "Etherscan",
@@ -2307,6 +2318,7 @@
       "aggregationHook": "0x34dAb05650Cf590088bA18aF9d597f3e081bCc47",
       "blockExplorers": [
         {
+          "apiKey": "ZPAHJ5A73MC45WJED98YJX4MKJE1UGN8D1",
           "apiUrl": "https://api.polygonscan.com/api",
           "family": "etherscan",
           "name": "PolygonScan",
@@ -2382,6 +2394,7 @@
       "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
       "blockExplorers": [
         {
+          "apiKey": "P8765WMUM4KAM9NPNAY49EACATYC4927HK",
           "apiUrl": "https://api-zkevm.polygonscan.com/api",
           "family": "etherscan",
           "name": "PolygonScan",
@@ -2715,6 +2728,7 @@
       "aggregationHook": "0x9Bc0FAf446E128a618A88a2F28960Fb2Ca169faE",
       "blockExplorers": [
         {
+          "apiKey": "8MU9QJVN429TEYSCMB68NC5MG4VM542CFW",
           "apiUrl": "https://api.scrollscan.com/api",
           "family": "etherscan",
           "name": "Scroll Explorer",
@@ -2796,6 +2810,7 @@
       "aggregationHook": "0x40514BD46C57455933Be8BAedE96C4F0Ba3507D6",
       "blockExplorers": [
         {
+          "apiKey": "487e1ac5-03f4-4473-9e73-cee721b782b5",
           "apiUrl": "https://seitrace.com/pacific-1/api",
           "family": "etherscan",
           "name": "Seitrace",
@@ -2912,6 +2927,7 @@
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",
       "blockExplorers": [
         {
+          "apiKey": "1CDVSH9KFUVPSFGD1EUFNHD18FUH484IEK",
           "apiUrl": "https://api.taikoscan.io/api",
           "family": "etherscan",
           "name": "Taikoscan",
@@ -3114,6 +3130,7 @@
       "aggregationHook": "0x8007d1e60991fB9BE1be26f70A7cE284fdE7da97",
       "blockExplorers": [
         {
+          "apiKey": "BA89EI7MB9Z88UBURAYPRRRUKCQJB96KAE",
           "apiUrl": "https://api.worldscan.org/api",
           "family": "etherscan",
           "name": "Worldscan",
@@ -5942,6 +5959,7 @@
     "unichain": {
       "blockExplorers": [
         {
+          "apiKey": "MUPHYQXB8A6GEEKKYA95N7WENSHYTU1UQQ",
           "apiUrl": "https://api.uniscan.xyz/api",
           "family": "etherscan",
           "name": "Unichain Explorer",
@@ -7127,6 +7145,7 @@
     "sonic": {
       "blockExplorers": [
         {
+          "apiKey": "V9PP7AFQF5Q6GJSQQ5YS2UBN7GI8QCA443",
           "apiUrl": "https://api.sonicscan.org/api",
           "family": "etherscan",
           "name": "Sonic Explorer",
@@ -8882,6 +8901,7 @@
     "opbnb": {
       "blockExplorers": [
         {
+          "apiKey": "GK47JUUDX17PHP8XQ947IYTTPHP6FTAQMK",
           "apiUrl": "https://api-opbnb.bscscan.com/api",
           "family": "etherscan",
           "name": "opBNB Scan",
@@ -9429,6 +9449,47 @@
       "index": {
         "from": 4997878
       }
+    },
+    "svmbnb": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.svmbnbmainnet.soo.network",
+          "family": "other",
+          "name": "svmBNB Explorer",
+          "url": "https://explorer.svmbnbmainnet.soo.network"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 0.4,
+        "reorgPeriod": 0
+      },
+      "chainId": 574456,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "svmBNB",
+      "domainId": 574456,
+      "gasCurrencyCoinGeckoId": "binancecoin",
+      "name": "svmbnb",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "BNB",
+        "symbol": "BNB"
+      },
+      "protocol": "sealevel",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.svmbnbmainnet.soo.network/rpc"
+        }
+      ],
+      "technicalStack": "other",
+      "interchainGasPaymaster": "76JNRGvHbER5CL7X4Mw6qpzvvKDW3syyfZ5LNXfY53sC",
+      "interchainSecurityModule": "3aD11eiNt2ZjmgiQayNRyZfp7hXBRS9hbeyPbk7cmTyv",
+      "mailbox": "GzwNZJ2EXUWQCEoV6zoBGLxkdsnjkLvm6zHReMEC2JSA",
+      "merkleTreeHook": "GzwNZJ2EXUWQCEoV6zoBGLxkdsnjkLvm6zHReMEC2JSA",
+      "validatorAnnounce": "Gh4LUk91bj4QGYWsBY4QyDGhs68n8Maf8oeTRZoQZAEf"
     }
   },
   "defaultRpcConsensusType": "fallback"

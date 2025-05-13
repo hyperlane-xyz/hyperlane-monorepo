@@ -169,13 +169,12 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{
-                dummy_cache_metrics, dummy_submission_metrics, DummyApplicationOperationVerifier,
-            },
+            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
         },
+        test_utils::dummy_data::dummy_submission_metrics,
     };
     use ethers::utils::hex;
     use hyperlane_base::{
