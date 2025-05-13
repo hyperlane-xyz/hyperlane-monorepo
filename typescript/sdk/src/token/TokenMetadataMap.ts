@@ -77,13 +77,17 @@ export class TokenMetadataMap {
     if (this.tokenMetadataMap[chain]) {
       return this.tokenMetadataMap[chain]?.symbol;
     }
-
-    for (const c of this.orderedChains) {
-      if (this.tokenMetadataMap[c]?.symbol)
-        return this.tokenMetadataMap[c]?.symbol;
-    }
-
     return undefined;
+  }
+
+  getDefaultSymbol(): string {
+    for (const chain of this.orderedChains) {
+      const symbol = this.tokenMetadataMap[chain]?.symbol;
+      if (symbol) return symbol;
+    }
+    throw new Error(
+      'No symbol found in token metadata map for any ordered chain.',
+    );
   }
 
   areDecimalsUniform(): boolean {
