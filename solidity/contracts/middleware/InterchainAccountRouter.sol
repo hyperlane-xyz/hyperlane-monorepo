@@ -117,6 +117,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
         CCIP_READ_ISM = new CommitmentReadIsm(Mailbox(_mailbox), _owner);
         interchainSecurityModule = IInterchainSecurityModule(address(this));
+        COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
     }
 
     /**
