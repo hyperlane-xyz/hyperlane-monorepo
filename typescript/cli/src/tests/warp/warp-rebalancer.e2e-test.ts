@@ -663,12 +663,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // Start the rebalancer
-    const rebalancer = hyperlaneWarpRebalancer(
-      warpRouteId,
-      CHECK_FREQUENCY,
-      REBALANCER_CONFIG_PATH,
-      false,
-    );
+    const rebalancer = startRebalancer();
 
     // Await for the event that is emitted when the rebalance is triggered
     const sentTransferRemote = await listenForSentTransferRemote;
