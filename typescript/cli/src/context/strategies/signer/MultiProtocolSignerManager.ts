@@ -33,6 +33,14 @@ export class MultiProtocolSignerManager {
   protected readonly signers: Map<ChainName, TypedSigner>;
   public readonly logger: Logger;
 
+  protected get compatibleChains(): ChainName[] {
+    return this.chains.filter(
+      (chain) =>
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+    );
+  }
+
   constructor(
     protected readonly submissionStrategy: ChainSubmissionStrategy,
     protected readonly chains: ChainName[],
@@ -54,20 +62,7 @@ export class MultiProtocolSignerManager {
    * @notice Sets up chain-specific signer strategies
    */
   protected initializeStrategies(): void {
-    for (const chain of this.chains) {
-      const protocolType = this.multiProvider.getProtocol(chain);
-
-      if (
-        protocolType !== ProtocolType.Ethereum &&
-        protocolType !== ProtocolType.CosmosNative
-      ) {
-        this.logger.debug(
-          `Skipping signer strategy initialization for non-EVM chain ${chain}`,
-          `Skipping signer strategy initialization for non-EVM and Cosmos Native chain ${chain}`,
-        );
-        continue;
-      }
-
+    for (const chain of this.compatibleChains) {
       const strategy = MultiProtocolSignerFactory.getSignerStrategy(
         chain,
         this.submissionStrategy,
@@ -81,19 +76,7 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    const ethereumChains = this.chains.filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
-    );
-
-    for (const chain of ethereumChains) {
-      if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        this.logger.debug(
-          `Skipping signer initialization for non-EVM chain ${chain}`,
-        );
-        continue;
-      }
+    for (const chain of this.compatibleChains) {
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }
@@ -107,51 +90,24 @@ export class MultiProtocolSignerManager {
   async initSigner(chain: ChainName): Promise<TypedSigner> {
     const config = await this.resolveConfig(chain);
     const signerStrategy = this.getSignerStrategyOrFail(chain);
-    return signerStrategy.getSigner(config);
+    const signer = await signerStrategy.getSigner(config);
+
+    this.signers.set(chain, signer);
+    return signer;
   }
 
   /**
    * @notice Creates signers for all chains
    */
   async initAllSigners(): Promise<typeof this.signers> {
-    const signerConfigs = await this.resolveAllConfigs();
-
-    for (const { chain, privateKey, extraParams } of signerConfigs) {
+    for (const chain of this.chains) {
       const signerStrategy = this.signerStrategies.get(chain);
       if (signerStrategy) {
-        const { protocol, bech32Prefix } =
-          this.multiProvider.getChainMetadata(chain);
-
-        if (protocol === ProtocolType.CosmosNative) {
-          const provider =
-            await this.multiProtocolProvider?.getCosmJsNativeProvider(chain);
-
-          const signer = await signerStrategy.getSigner({
-            privateKey,
-            extraParams: { ...extraParams, provider, prefix: bech32Prefix },
-          });
-
-          this.signers.set(chain, signer);
-        } else {
-          // evm chains
-          this.signers.set(
-            chain,
-            await signerStrategy.getSigner({ privateKey }),
-          );
-        }
+        await this.initSigner(chain);
       }
     }
 
     return this.signers;
-  }
-
-  /**
-   * @notice Resolves all chain configurations
-   */
-  private async resolveAllConfigs(): Promise<
-    Array<{ chain: ChainName } & SignerConfig>
-  > {
-    return Promise.all(this.chains.map((chain) => this.resolveConfig(chain)));
   }
 
   /**
