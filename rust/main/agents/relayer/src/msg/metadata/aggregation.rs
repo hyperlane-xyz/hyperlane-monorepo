@@ -4,7 +4,7 @@ use futures_util::future::join_all;
 
 use derive_new::new;
 use itertools::{Either, Itertools};
-use tracing::{debug, info, instrument};
+use tracing::{debug, error, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
@@ -339,7 +339,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
         for sub_module_res in sub_modules_and_metas.iter() {
             if let Err(MetadataBuildError::Refused(s)) = sub_module_res {
-                return Err(MetadataBuildError::Refused(s.to_string()));
+                error!(
+                    ?s,
+                    "One of the submodules refused to build metadata, returning error"
+                );
+                break;
+                // return Err(MetadataBuildError::Refused(s.to_string()));
             }
         }
 
