@@ -22,8 +22,9 @@ export class WithSemaphore implements IExecutor {
   async rebalance(routes: RebalancingRoute[]) {
     // No routes means the system is balanced so we reset the timer to allow new rebalancing
     if (!routes.length) {
-      // TODO: Update logging in this file, this is just to make current e2e tests pass
-      log('No routes to execute');
+      log(
+        `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
+      );
 
       this.waitUntil = 0;
       return;
@@ -31,6 +32,8 @@ export class WithSemaphore implements IExecutor {
 
     // Skip if still in waiting period
     if (Date.now() < this.waitUntil) {
+      log(`Still in waiting period. Skipping rebalance.`);
+
       return;
     }
 
@@ -42,6 +45,10 @@ export class WithSemaphore implements IExecutor {
 
     // Set new waiting period
     this.waitUntil = Date.now() + highestTolerance;
+
+    log(
+      `Rebalance semaphore locked for ${highestTolerance}ms. Releasing at timestamp ${this.waitUntil}.`,
+    );
   }
 
   private getHighestTolerance(routes: RebalancingRoute[]) {

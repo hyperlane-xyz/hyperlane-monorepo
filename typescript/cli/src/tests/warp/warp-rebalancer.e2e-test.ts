@@ -390,7 +390,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should log that no routes are to be executed', async () => {
-    await startRebalancerAndExpectLog(`No routes to execute`);
+    await startRebalancerAndExpectLog(
+      `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
+    );
   });
 
   it('should not rebalance if mode is monitorOnly', async () => {
@@ -820,7 +822,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await rebalancer.kill();
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
-    await startRebalancerAndExpectLog(`No routes to execute`);
+    await startRebalancerAndExpectLog(
+      `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
+    );
   });
 
   it('should successfully log metrics tracking', async () => {
