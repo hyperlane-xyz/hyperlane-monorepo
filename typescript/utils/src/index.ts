@@ -20,6 +20,7 @@ export {
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
+  isCosmosIbcDenomAddress,
   isAddressEvm,
   isAddressSealevel,
   isValidAddress,

@@ -48,6 +48,10 @@ export function isAddressCosmos(address: Address) {
   );
 }
 
+export function isCosmosIbcDenomAddress(address: Address): boolean {
+  return IBC_DENOM_REGEX.test(address);
+}
+
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
