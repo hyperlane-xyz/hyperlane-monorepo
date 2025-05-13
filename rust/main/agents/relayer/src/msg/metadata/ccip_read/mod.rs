@@ -1,8 +1,7 @@
-#![allow(clippy::blocks_in_conditions)]
+#![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::time::Duration;
 
-// TODO: `rustc` 1.80.1 clippy issue
 use async_trait::async_trait;
 use cache_types::SerializedOffchainLookup;
 use derive_more::Deref;
