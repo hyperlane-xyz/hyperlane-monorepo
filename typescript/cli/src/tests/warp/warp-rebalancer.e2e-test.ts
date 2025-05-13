@@ -165,14 +165,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   beforeEach(async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '100',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '100',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
@@ -279,14 +278,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a weight value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: 'weight',
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
@@ -298,14 +296,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a tolerance value cannot be parsed as bigint', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 'tolerance',
         bridge: ethers.constants.AddressZero,
@@ -317,14 +314,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if a bridge value is not a valid address', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: 'bridge',
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
@@ -342,15 +338,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should not rebalance if mode is monitorOnly', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       monitorOnly: true,
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
@@ -364,14 +359,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if key does not belong to the assigned rebalancer', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
@@ -385,14 +379,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the destination is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
@@ -423,14 +416,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the bridge is not allowed', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
@@ -465,14 +457,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the bridge does not have a valid transferRemote function', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
@@ -551,14 +542,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
@@ -626,14 +616,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
     // we need to add the address of the allowed bridge to chain 3
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
@@ -717,14 +706,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should successfully log metrics tracking', async () => {
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      strategyType: 'weighted',
       [CHAIN_NAME_2]: {
-        strategyType: 'weighted',
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
       },
       [CHAIN_NAME_3]: {
-        strategyType: 'weighted',
         weight: '25',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,

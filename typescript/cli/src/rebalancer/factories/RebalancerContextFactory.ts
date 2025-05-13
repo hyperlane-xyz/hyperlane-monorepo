@@ -79,7 +79,10 @@ export class RebalancerContextFactory {
   }
 
   public createStrategy(): IStrategy {
-    return StrategyFactory.createStrategy(this.config.chains);
+    return StrategyFactory.createStrategy(
+      this.config.strategyType,
+      this.config.chains,
+    );
   }
 
   public createExecutor(): IExecutor {

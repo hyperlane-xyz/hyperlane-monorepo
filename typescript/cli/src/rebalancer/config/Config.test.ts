@@ -19,14 +19,13 @@ describe('Config', () => {
       warpRouteId: 'warpRouteId',
       checkFrequency: 1000,
       coingeckoApiKey: COINGECKO_API_KEY,
+      strategyType: 'weighted',
       chain1: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
       },
       chain2: {
-        strategyType: 'weighted',
         weight: 100,
         tolerance: 0,
         bridge: ethers.constants.AddressZero,
@@ -56,15 +55,14 @@ describe('Config', () => {
       monitorOnly: false,
       withMetrics: false,
       coingeckoApiKey: COINGECKO_API_KEY,
+      strategyType: 'weighted',
       chains: {
         chain1: {
-          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
         },
         chain2: {
-          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
@@ -140,6 +138,7 @@ describe('Config', () => {
         monitorOnly: false,
         withMetrics: false,
         coingeckoApiKey: '',
+        strategyType: 'weighted',
       }),
     ).to.deep.equal({
       warpRouteId: 'warpRouteId by override',
@@ -148,15 +147,14 @@ describe('Config', () => {
       rebalancerKey: ANVIL_KEY,
       withMetrics: false,
       coingeckoApiKey: '',
+      strategyType: 'weighted',
       chains: {
         chain1: {
-          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,
         },
         chain2: {
-          strategyType: 'weighted',
           weight: 100n,
           tolerance: 0n,
           bridge: ethers.constants.AddressZero,

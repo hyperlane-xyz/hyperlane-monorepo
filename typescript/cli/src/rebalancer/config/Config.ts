@@ -8,12 +8,10 @@ import { readYamlOrJson } from '../../utils/files.js';
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
-  strategyType: z.enum(['weighted', 'minAmount']).default('weighted'),
 });
 
 // Weighted strategy config schema
 const WeightedChainConfigSchema = BaseChainConfigSchema.extend({
-  strategyType: z.literal('weighted'),
   weight: z
     .string()
     .or(z.number())
@@ -26,7 +24,6 @@ const WeightedChainConfigSchema = BaseChainConfigSchema.extend({
 
 // Min amount strategy config schema
 const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
-  strategyType: z.literal('minAmount'),
   minAmount: z
     .string()
     .or(z.number())
@@ -34,7 +31,7 @@ const MinAmountChainConfigSchema = BaseChainConfigSchema.extend({
 });
 
 // Union of possible chain configs
-const ChainConfigSchema = z.discriminatedUnion('strategyType', [
+const ChainConfigSchema = z.union([
   WeightedChainConfigSchema,
   MinAmountChainConfigSchema,
 ]);
@@ -45,6 +42,7 @@ const BaseConfigSchema = z.object({
   withMetrics: z.boolean().optional(),
   monitorOnly: z.boolean().optional(),
   coingeckoApiKey: z.string().optional(),
+  strategyType: z.enum(['weighted', 'minAmount']).optional(),
 });
 
 const ConfigSchema = BaseConfigSchema.catchall(ChainConfigSchema);
@@ -77,6 +75,7 @@ export class Config {
       monitorOnly: fileMonitorOnly,
       withMetrics: fileWithMetrics,
       coingeckoApiKey: fileWithCoingeckoApiKey,
+      strategyType: fileStrategyType,
       ...chains
     } = validationResult.data;
 
@@ -90,6 +89,7 @@ export class Config {
     const withMetrics = overrides.withMetrics ?? fileWithMetrics ?? false;
     const coingeckoApiKey =
       overrides.coingeckoApiKey ?? fileWithCoingeckoApiKey ?? '';
+    const strategyType = overrides.strategyType ?? fileStrategyType;
 
     if (!warpRouteId) {
       throw new Error('warpRouteId is required');
@@ -99,6 +99,10 @@ export class Config {
       throw new Error('checkFrequency is required');
     }
 
+    if (!strategyType) {
+      throw new Error('strategyType is required');
+    }
+
     return new Config(
       rebalancerKey,
       warpRouteId,
@@ -106,6 +110,7 @@ export class Config {
       monitorOnly,
       withMetrics,
       coingeckoApiKey,
+      strategyType,
       chains,
     );
   }
@@ -117,6 +122,7 @@ export class Config {
     public readonly monitorOnly: boolean,
     public readonly withMetrics: boolean,
     public readonly coingeckoApiKey: string,
+    public readonly strategyType: 'weighted' | 'minAmount',
     public readonly chains: ChainMap<ChainConfig>,
   ) {}
 }
