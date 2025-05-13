@@ -225,10 +225,11 @@ abstract class TokenDeployer<
     const resolvedConfigMap = objMap(configMap, (chain, config) => ({
       name: tokenMetadataMap.getName(chain),
       decimals: tokenMetadataMap.getDecimals(chain),
-      symbol: tokenMetadataMap.getSymbol(chain),
+      symbol:
+        tokenMetadataMap.getSymbol(chain) ||
+        tokenMetadataMap.getDefaultSymbol(),
       scale: tokenMetadataMap.getScale(chain),
       gas: gasOverhead(config.type),
-      // TODO: Verify that config overwrites values here
       ...config,
     }));
     return super.deploy(resolvedConfigMap);
