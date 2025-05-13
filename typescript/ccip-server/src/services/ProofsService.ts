@@ -1,13 +1,14 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
 
-import { ProofsServiceAbi } from '../abis/ProofsServiceAbi';
-import { createAbiHandler } from '../utils/abiHandler';
+import { ProofsServiceAbi } from '../abis/ProofsServiceAbi.js';
+import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi.js';
+import { createAbiHandler } from '../utils/abiHandler.js';
 
-import { HyperlaneService } from './HyperlaneService';
-import { LightClientService, SuccinctConfig } from './LightClientService';
-import { ProofResult, RPCService } from './RPCService';
-import { ProofStatus } from './common/ProofStatusEnum';
+import { HyperlaneService } from './HyperlaneService.js';
+import { LightClientService, SuccinctConfig } from './LightClientService.js';
+import { ProofResult, RPCService } from './RPCService.js';
+import { ProofStatus } from './common/ProofStatusEnum.js';
 
 type RPCConfig = {
   readonly url: string;
@@ -36,6 +37,9 @@ class ProofsService {
     const succinctTrustRoot = process.env.SUCCINCT_TRUST_ROOT;
     const rpcUrl = process.env.PROOFS_RPC_URL;
     const rpcChainId = process.env.PROOFS_CHAIN_ID;
+    const stepFunctionId = process.env.STEP_FN_ID;
+    const platformUrl = process.env.SUCCINCT_PLATFORM_URL;
+    const apiKey = process.env.SUCCINCT_API_KEY;
     const hyperlaneUrl = process.env.HYPERLANE_URL;
     if (
       !lightClientAddress ||
@@ -48,7 +52,9 @@ class ProofsService {
     }
     const succinctConfig = {
       lightClientAddress,
-      trustRoot: succinctTrustRoot,
+      stepFunctionId,
+      platformUrl,
+      apiKey,
     } as Required<SuccinctConfig>;
     const rpcConfig = {
       url: rpcUrl,
