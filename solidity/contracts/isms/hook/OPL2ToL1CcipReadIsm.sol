@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 import {OPL2ToL1Withdrawal} from "../../libs/OPL2ToL1Withdrawal.sol";
 import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
@@ -20,7 +21,8 @@ import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../
 contract OPL2ToL1CcipReadIsm is
     AbstractCcipReadIsm,
     IMessageRecipient,
-    ISpecifiesInterchainSecurityModule
+    ISpecifiesInterchainSecurityModule,
+    PackageVersioned
 {
     using Message for bytes;
     using TypeCasts for address;
