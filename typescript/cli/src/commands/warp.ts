@@ -4,6 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   ChainName,
   ChainSubmissionStrategySchema,
+  expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -382,13 +383,8 @@ export const check: CommandModuleWithContext<{
       warpCoreConfig,
     ));
 
-    // Expand the config before removing non-EVM chain configs to correctly expand
-    // the remote routers
-    let expandedWarpDeployConfig = await expandWarpDeployConfig(
-      context.multiProvider,
-      warpDeployConfig,
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig),
-    );
+    const deployedRoutersAddresses =
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
     // Remove any non EVM chain configs to avoid the checker crashing
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
@@ -397,20 +393,33 @@ export const check: CommandModuleWithContext<{
         ProtocolType.Ethereum,
     );
 
-    expandedWarpDeployConfig = objFilter(
-      expandedWarpDeployConfig,
-      (chain, _config): _config is any =>
-        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
-
     // Get on-chain config
     const onChainWarpConfig = await getWarpRouteConfigsByCore({
       context,
       warpCoreConfig,
     });
 
-    await runWarpRouteCheck({
+    // get virtual on-chain config
+    const expandedOnChainWarpConfig = await expandVirtualWarpDeployConfig({
+      multiProvider: context.multiProvider,
       onChainWarpConfig,
+      deployedRoutersAddresses,
+    });
+
+    let expandedWarpDeployConfig = await expandWarpDeployConfig({
+      multiProvider: context.multiProvider,
+      warpDeployConfig,
+      deployedRoutersAddresses,
+      expandedOnChainWarpConfig,
+    });
+    expandedWarpDeployConfig = objFilter(
+      expandedWarpDeployConfig,
+      (chain, _config): _config is any =>
+        context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+
+    await runWarpRouteCheck({
+      onChainWarpConfig: expandedOnChainWarpConfig,
       warpRouteConfig: expandedWarpDeployConfig,
     });
 

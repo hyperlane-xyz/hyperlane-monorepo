@@ -10623,6 +10623,7 @@ dependencies = [
  "chrono",
  "derive-new",
  "ethers",
+ "ethers-core",
  "eyre",
  "futures-util",
  "hyperlane-base",

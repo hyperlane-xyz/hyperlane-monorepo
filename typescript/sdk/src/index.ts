@@ -565,6 +565,7 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
+  expandVirtualWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
@@ -633,6 +634,11 @@ export {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  derivedHookAddress,
+  derivedIsmAddress,
+  DerivedTokenRouterConfig,
+  DerivedWarpRouteDeployConfig,
+  HypTokenRouterVirtualConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchemaErrors,
