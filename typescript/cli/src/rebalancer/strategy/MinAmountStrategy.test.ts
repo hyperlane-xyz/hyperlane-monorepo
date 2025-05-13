@@ -282,18 +282,18 @@ describe('MinAmountStrategy', () => {
       });
 
       const rawBalances = {
-        [chain1]: ethers.utils.parseEther('105').toBigInt(),
+        [chain1]: ethers.utils.parseEther('95').toBigInt(),
         [chain2]: ethers.utils.parseEther('120').toBigInt(),
       };
 
       const routes = strategy.getRebalancingRoutes(rawBalances);
 
-      // chain1 needs 5 more to reach 110, chain2 has 20 surplus
+      // chain1 needs 15 more to reach 110, chain2 has 20 surplus
       expect(routes).to.deep.equal([
         {
           fromChain: chain2,
           toChain: chain1,
-          amount: ethers.utils.parseEther('5').toBigInt(),
+          amount: ethers.utils.parseEther('15').toBigInt(),
         },
       ]);
     });

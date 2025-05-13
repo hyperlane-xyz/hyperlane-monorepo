@@ -53,8 +53,8 @@ export class MinAmountStrategy extends BaseStrategy {
           (minAmount * (10_000n + this.config[chain].buffer)) / 10_000n;
         const balance = rawBalances[chain];
 
-        // If balance is less than effectiveMin, it has a deficit
-        if (balance < effectiveMin) {
+        // If balance is less than minAmount, it has a deficit
+        if (balance < minAmount) {
           acc.deficits.push({ chain, amount: effectiveMin - balance });
         } else {
           // Any chain with more than effectiveMin potentially has surplus
