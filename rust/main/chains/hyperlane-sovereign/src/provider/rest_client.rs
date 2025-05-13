@@ -427,7 +427,7 @@ impl SovereignRestClient {
                 .gas_price
                 .first()
                 .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from("Failed to get item(0)"))
+                    ChainCommunicationError::CustomError("Failed to get item(0)".into())
                 })?
                 .parse::<u32>()
                 .map_err(|e| {
@@ -445,7 +445,7 @@ impl SovereignRestClient {
                 .base_fee
                 .first()
                 .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(String::from("Failed to get item(0)"))
+                    ChainCommunicationError::CustomError("Failed to get item(0)".into())
                 })?,
         );
 
