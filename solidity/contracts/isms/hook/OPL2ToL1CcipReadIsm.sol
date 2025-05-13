@@ -2,12 +2,10 @@
 pragma solidity >=0.8.0;
 
 import {Message} from "../../libs/Message.sol";
-import {TokenMessage} from "../../token/libs/TokenRouter.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {OPL2ToL1Withdrawal} from "../../libs/OPL2ToL1Withdrawal.sol";
 import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
-import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {IOptimismPortal2} from "../../interfaces/optimism/IOptimismPortal2.sol";
@@ -30,9 +28,9 @@ contract OPL2ToL1CcipReadIsm is
     // CCIP-read gateways URLs
     string[] public urls;
     // mailbox on L1
-    IMailbox immutable mailbox;
+    IMailbox public immutable mailbox;
     // the OP Portal contract on L1
-    IOptimismPortal immutable opPortal;
+    IOptimismPortal public immutable opPortal;
 
     event ReceivedMessage(
         uint32 indexed origin,

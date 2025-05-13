@@ -5,7 +5,6 @@ import {HypNative} from "../../token/HypNative.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenRouter} from "../../token/libs/TokenRouter.sol";
 import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
-import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 
 contract OPL2ToL1TokenBridgeNative is ITokenBridge, HypNative {

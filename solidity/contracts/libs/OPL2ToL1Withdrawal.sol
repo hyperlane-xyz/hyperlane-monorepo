@@ -2,8 +2,6 @@
 pragma solidity >=0.8.0;
 
 import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
-import {IStandardBridge} from "../interfaces/optimism/IStandardBridge.sol";
-import {ICrossDomainMessenger, IL2ToL1MessagePasser} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 
 /**
  * @title Hyperlane OPL2ToL1Withdrawal Library
