@@ -381,17 +381,17 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         (starkKey) => {{
             let key = signer
                 .chain(&mut err)
-                .get_key("key")
+                .get_opt_key("key")
                 .parse_private_key()
                 .unwrap_or_default();
             let address = signer
                 .chain(&mut err)
-                .get_key("address")
+                .get_opt_key("address")
                 .parse_address_hash()
                 .unwrap_or_default();
             let version = signer
                 .chain(&mut err)
-                .get_key("version")
+                .get_opt_key("version")
                 .parse_u32()
                 .unwrap_or(3);
             err.into_result(SignerConf::StarkKey {
