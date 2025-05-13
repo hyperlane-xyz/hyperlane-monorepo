@@ -39,6 +39,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctp {
         );
 
         tokenMessenger = _tokenMessenger;
+        wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 
     function _isMessageReceived(
@@ -57,7 +58,6 @@ contract TokenBridgeCctpV1 is TokenBridgeCctp {
         uint32 _destination,
         uint256 _amount
     ) internal override {
-        wrappedToken.approve(address(tokenMessenger), _amount);
         uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
 
         bytes32 router = routers(_destination);
