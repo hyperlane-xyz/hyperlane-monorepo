@@ -864,6 +864,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // --- Configure rebalancer ---
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      rebalanceStrategy: 'weighted',
       [CHAIN_NAME_2]: {
         weight: '75',
         tolerance: '0',
@@ -951,11 +952,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         minAmount: '-100',
         buffer: '0',
         bridge: ethers.constants.AddressZero,
+        bridgeTolerance: 1,
       },
       [CHAIN_NAME_3]: {
         minAmount: '100',
         buffer: '0',
         bridge: ethers.constants.AddressZero,
+        bridgeTolerance: 1,
       },
     });
 
