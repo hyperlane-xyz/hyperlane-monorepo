@@ -43,27 +43,15 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       throw new Error('Configuration of ISM not supported in ICA deployer');
     }
 
-    const interchainAccountIsm = await this.deployContract(
-      chain,
-      'interchainAccountIsm',
-      [config.mailbox],
-    );
-
     const owner = await this.multiProvider.getSignerAddress(chain);
     const interchainAccountRouter = await this.deployContract(
       chain,
       'interchainAccountRouter',
-      [
-        config.mailbox,
-        ethers.constants.AddressZero,
-        interchainAccountIsm.address,
-        owner,
-      ],
+      [config.mailbox, ethers.constants.AddressZero, owner, 50_000],
     );
 
     return {
       interchainAccountRouter,
-      interchainAccountIsm,
     };
   }
 }
