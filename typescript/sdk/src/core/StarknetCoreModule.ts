@@ -39,6 +39,9 @@ export class StarknetCoreModule {
   public async read(mailboxContract: Contract): Promise<CoreConfig> {
     return this.coreReader.deriveCoreConfig(mailboxContract.address);
   }
+  public async readOwner(mailboxContract: Contract): Promise<string> {
+    return this.coreReader.deriveOwner(mailboxContract.address);
+  }
 
   async deploy(params: {
     config: CoreConfig;
@@ -90,10 +93,13 @@ export class StarknetCoreModule {
     );
 
     // 5. Update the configuration with custom ISM and hooks if specified
-    const { defaultIsm, requiredHook } = await this.update(config, {
-      chain,
-      mailboxContract,
-    });
+    const { defaultIsm, defaultHook: merkleTreeHook } = await this.update(
+      config,
+      {
+        chain,
+        mailboxContract,
+      },
+    );
 
     const validatorAnnounce = await this.deployer.deployContract(
       StarknetContractName.VALIDATOR_ANNOUNCE,
@@ -107,11 +113,10 @@ export class StarknetCoreModule {
 
     return {
       noopIsm,
-      defaultHook,
       defaultIsm: defaultIsm || noopIsm,
       protocolFee,
       mailbox: mailboxContract.address,
-      merkleTreeHook: requiredHook || '',
+      merkleTreeHook: merkleTreeHook ?? '',
       validatorAnnounce,
       testRecipient,
     };
@@ -136,14 +141,14 @@ export class StarknetCoreModule {
   async update(
     expectedConfig: Partial<CoreConfig>,
     args: { mailboxContract: Contract; chain: ChainNameOrId },
-  ): Promise<{ defaultIsm?: string; requiredHook?: string; owner?: string }> {
+  ): Promise<{ defaultIsm?: string; defaultHook?: string; owner?: string }> {
     const result: {
       defaultIsm?: string;
-      requiredHook?: string;
+      defaultHook?: string;
       owner?: string;
     } = {};
 
-    const actualConfig = await this.read(args.mailboxContract);
+    const actualOwner = await this.readOwner(args.mailboxContract);
 
     // Update ISM if specified in config
     if (expectedConfig.defaultIsm) {
@@ -168,7 +173,7 @@ export class StarknetCoreModule {
     }
 
     // Update required hook to MerkleTreeHook if specified
-    if (expectedConfig.requiredHook) {
+    if (expectedConfig.defaultHook) {
       this.logger.info(
         `Deploying MerkleTreeHook with explicit owner (${expectedConfig.owner}). Note: Unlike EVM where deployer automatically becomes owner, ` +
           `in Starknet the owner must be explicitly passed as a constructor parameter.`,
@@ -180,21 +185,19 @@ export class StarknetCoreModule {
       );
 
       this.logger.info(`Updating required hook ${merkleTreeHook}..`);
-      const { transaction_hash: requiredHookUpdateTxHash } =
-        await args.mailboxContract.invoke('set_required_hook', [
-          merkleTreeHook,
-        ]);
+      const { transaction_hash: defaultHookUpdateTxHash } =
+        await args.mailboxContract.invoke('set_default_hook', [merkleTreeHook]);
 
-      await this.signer.waitForTransaction(requiredHookUpdateTxHash);
+      await this.signer.waitForTransaction(defaultHookUpdateTxHash);
       this.logger.info(
-        `Transaction hash for updated required hook: ${requiredHookUpdateTxHash}`,
+        `Transaction hash for updated default hook: ${defaultHookUpdateTxHash}`,
       );
 
-      result.requiredHook = merkleTreeHook;
+      result.defaultHook = merkleTreeHook;
     }
 
     // Update owner if different from current
-    if (expectedConfig.owner && actualConfig.owner !== expectedConfig.owner) {
+    if (expectedConfig.owner && actualOwner !== expectedConfig.owner) {
       this.logger.info(`Updating mailbox owner ${expectedConfig.owner}..`);
       const { transaction_hash: transferOwnershipTxHash } =
         await args.mailboxContract.invoke('transfer_ownership', [

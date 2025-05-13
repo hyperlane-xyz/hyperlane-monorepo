@@ -46,4 +46,9 @@ export class StarknetCoreReader {
       requiredHook: await this.hookReader.deriveHookConfig(requiredHook),
     };
   }
+
+  public async deriveOwner(mailboxAddress: Address): Promise<string> {
+    const mailbox = getStarknetMailboxContract(mailboxAddress, this.provider);
+    return await mailbox.owner();
+  }
 }
