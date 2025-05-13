@@ -29,18 +29,18 @@ export abstract class BaseStrategy implements IStrategy {
     this.validateRawBalances(rawBalances);
 
     // Get balances categorized by surplus and deficit
-    const { surpluss, deficits } = this.getCategorizedBalances(rawBalances);
+    const { surpluses, deficits } = this.getCategorizedBalances(rawBalances);
 
     // Sort from largest to smallest amounts as to always transfer largest amounts
     // first and decrease the amount of routes required
-    surpluss.sort((a, b) => (a.amount > b.amount ? -1 : 1));
+    surpluses.sort((a, b) => (a.amount > b.amount ? -1 : 1));
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
     const routes: RebalancingRoute[] = [];
 
     // Transfer from surplus to deficit until all deficits are balanced.
-    while (deficits.length > 0 && surpluss.length > 0) {
-      const surplus = surpluss[0];
+    while (deficits.length > 0 && surpluses.length > 0) {
+      const surplus = surpluses[0];
       const deficit = deficits[0];
 
       // Transfers the whole surplus or just the amount to balance the deficit
@@ -65,7 +65,7 @@ export abstract class BaseStrategy implements IStrategy {
 
       // Removes the surplus if it has been drained
       if (!surplus.amount) {
-        surpluss.shift();
+        surpluses.shift();
       }
     }
 
@@ -77,7 +77,7 @@ export abstract class BaseStrategy implements IStrategy {
    * Each specific strategy should implement its own logic
    */
   protected abstract getCategorizedBalances(rawBalances: RawBalances): {
-    surpluss: Delta[];
+    surpluses: Delta[];
     deficits: Delta[];
   };
 

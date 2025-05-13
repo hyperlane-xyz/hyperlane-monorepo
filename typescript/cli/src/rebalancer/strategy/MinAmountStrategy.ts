@@ -37,7 +37,7 @@ export class MinAmountStrategy extends BaseStrategy {
    * Gets balances categorized by surplus and deficit based on minimum amounts
    */
   protected getCategorizedBalances(rawBalances: RawBalances): {
-    surpluss: Delta[];
+    surpluses: Delta[];
     deficits: Delta[];
   } {
     return this.chains.reduce(
@@ -53,14 +53,14 @@ export class MinAmountStrategy extends BaseStrategy {
           // But only mark as surplus if there's extra beyond minAmount
           const surplus = balance - minAmount;
           if (surplus > 0n) {
-            acc.surpluss.push({ chain, amount: surplus });
+            acc.surpluses.push({ chain, amount: surplus });
           }
         }
 
         return acc;
       },
       {
-        surpluss: [] as Delta[],
+        surpluses: [] as Delta[],
         deficits: [] as Delta[],
       },
     );

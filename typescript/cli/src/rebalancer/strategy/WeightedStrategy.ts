@@ -48,7 +48,7 @@ export class WeightedStrategy extends BaseStrategy {
    * Gets balances categorized by surplus and deficit based on weights
    */
   protected getCategorizedBalances(rawBalances: RawBalances): {
-    surpluss: Delta[];
+    surpluses: Delta[];
     deficits: Delta[];
   } {
     // Get the total balance from all chains
@@ -68,7 +68,7 @@ export class WeightedStrategy extends BaseStrategy {
         if (balance < target - toleranceAmount) {
           acc.deficits.push({ chain, amount: target - balance });
         } else if (balance > target) {
-          acc.surpluss.push({ chain, amount: balance - target });
+          acc.surpluses.push({ chain, amount: balance - target });
         } else {
           // Do nothing as the balance is already on target
         }
@@ -76,7 +76,7 @@ export class WeightedStrategy extends BaseStrategy {
         return acc;
       },
       {
-        surpluss: [] as Delta[],
+        surpluses: [] as Delta[],
         deficits: [] as Delta[],
       },
     );
