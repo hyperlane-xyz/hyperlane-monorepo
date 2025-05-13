@@ -911,8 +911,8 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(ica.commitment(), bytes32(0));
 
         // Cannot reveal twice
-        executedCommitment = ica.revealAndExecute(calls, salt);
-        assertEq(executedCommitment, bytes32(0));
+        vm.expectRevert("ICA: Invalid Reveal");
+        ica.revealAndExecute(calls, salt);
     }
 
     function testFuzz_readIsm_verify(
@@ -969,7 +969,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes memory metadata = _mailbox.inboundMetadata(1);
 
         CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
-        vm.expectRevert("Commitment ISM: Invalid Commitment");
+        vm.expectRevert("ICA: Invalid Reveal");
         _ism.verify(metadata, message);
     }
 
@@ -1008,7 +1008,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes memory message = _mailbox.inboundMessages(1);
         bytes memory metadata = abi.encode(calls, salt, ica);
         CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
-        vm.expectRevert("Commitment ISM: Invalid Commitment");
+        vm.expectRevert("ICA: Invalid Reveal");
         _ism.process(metadata, message);
     }
 

@@ -72,12 +72,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             "Commitment ISM: Revealed Hash Invalid"
         );
 
-        // Revert if this is not the ica's currently active commitment
-        require(
-            ica.commitment() == msgCommitment,
-            "Commitment ISM: Invalid Commitment"
-        );
-
+        // The ica will check if the commitment is currently active, reverting if not.
         ica.revealAndExecute(calls, salt);
 
         return true;

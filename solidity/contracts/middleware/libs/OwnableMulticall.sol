@@ -42,11 +42,9 @@ contract OwnableMulticall {
         CallLib.Call[] calldata calls,
         bytes32 salt
     ) external payable returns (bytes32 executedCommitment) {
-        // If there is no active commitment, do nothing.
-        if (commitment == bytes32(0)) return bytes32(0);
-
+        // Check if metadata matches stored commitment (checks)
         bytes32 revealedHash = keccak256(abi.encode(calls, salt, this));
-        require(commitment == revealedHash, "Invalid Reveal");
+        require(commitment == revealedHash, "ICA: Invalid Reveal");
 
         // Delete the commitment (effects)
         executedCommitment = commitment;
