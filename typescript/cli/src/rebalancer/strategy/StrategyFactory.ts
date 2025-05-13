@@ -1,6 +1,10 @@
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
-import type { ChainConfig, WeightedChainConfig } from '../config/Config.js';
+import type {
+  ChainConfig,
+  MinAmountChainConfig,
+  WeightedChainConfig,
+} from '../config/Config.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
