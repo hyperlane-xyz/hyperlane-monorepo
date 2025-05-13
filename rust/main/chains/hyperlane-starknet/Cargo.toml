@@ -23,9 +23,8 @@ tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = [
-    "async",
-] }
+
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 

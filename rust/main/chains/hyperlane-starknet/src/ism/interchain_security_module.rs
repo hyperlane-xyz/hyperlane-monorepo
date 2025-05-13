@@ -1,13 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
 use starknet::accounts::SingleOwnerAccount;
@@ -23,25 +20,15 @@ use crate::contracts::interchain_security_module::{
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
-    build_single_owner_account, to_hpl_module_type, to_packed_bytes, ConnectionConf, Signer,
-    StarknetProvider,
+    build_single_owner_account, to_hpl_module_type, ConnectionConf, Signer, StarknetProvider,
 };
-
-impl<A> std::fmt::Display for StarknetInterchainSecurityModuleInternal<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
 
 /// A reference to a ISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetInterchainSecurityModule {
     contract:
-        Arc<StarknetInterchainSecurityModuleInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+        StarknetInterchainSecurityModuleInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -65,7 +52,7 @@ impl StarknetInterchainSecurityModule {
         let contract = StarknetInterchainSecurityModuleInternal::new(ism_address, account);
 
         Ok(Self {
-            contract: Arc::new(contract),
+            contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
@@ -134,34 +121,14 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
     ) -> ChainResult<Option<U256>> {
         let message = &message.into();
 
-        let _tx = self.contract.verify(
-            &StarknetBytes {
-                size: metadata.len() as u32,
-                data: to_packed_bytes(metadata),
-            },
-            message,
-        );
-
-        // let response = tx
-        //     .call()
-        //     .await
-        //     .map_err(Into::<HyperlaneStarknetError>::into)?;
-
         // We can't simulate the `verify` call in Starknet because
         // it's not marked as an entrypoint. So we just use the query interface
         // and hardcode a gas value - this can be inefficient if one ISM is
         // vastly cheaper than another one.
+
+        let _verified = self.contract.verify(&metadata.into(), message).call_raw;
+
         let dummy_gas_value = U256::one();
         Ok(Some(dummy_gas_value))
-    }
-}
-
-pub struct StarknetInterchainSecurityModuleAbi;
-
-impl HyperlaneAbi for StarknetInterchainSecurityModuleAbi {
-    const SELECTOR_SIZE_BYTES: usize = 4;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        HashMap::default()
     }
 }

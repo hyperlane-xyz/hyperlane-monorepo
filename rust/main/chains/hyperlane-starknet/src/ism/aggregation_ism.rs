@@ -1,13 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
-    AggregationIsm, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    AggregationIsm, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
@@ -24,20 +21,11 @@ use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
 
-impl<A> std::fmt::Display for StarknetAggregationIsmInternal<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
 /// A reference to a AggregationISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetAggregationIsm {
-    contract: Arc<StarknetAggregationIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+    contract: StarknetAggregationIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -61,7 +49,7 @@ impl StarknetAggregationIsm {
         let contract = StarknetAggregationIsmInternal::new(ism_address, account);
 
         Ok(Self {
-            contract: Arc::new(contract),
+            contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
@@ -129,15 +117,5 @@ impl AggregationIsm for StarknetAggregationIsm {
             .collect();
 
         Ok((isms_h256, threshold))
-    }
-}
-
-pub struct StarknetAggregationIsmAbi;
-
-impl HyperlaneAbi for StarknetAggregationIsmAbi {
-    const SELECTOR_SIZE_BYTES: usize = 4;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        HashMap::default()
     }
 }

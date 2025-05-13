@@ -1,16 +1,15 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use byteorder::{BigEndian, ByteOrder};
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
-    TxCostEstimate, TxOutcome, H256, U256,
+    utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 use hyperlane_core::{FixedPointNumber, ReorgPeriod};
 use starknet::accounts::{Execution, SingleOwnerAccount};
@@ -28,15 +27,6 @@ use crate::{
     ConnectionConf, Signer, StarknetProvider,
 };
 use cainome::cairo_serde::U256 as StarknetU256;
-
-impl<A> std::fmt::Display for StarknetMailboxInternal<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
 
 impl From<&HyperlaneMessage> for StarknetMessage {
     fn from(message: &HyperlaneMessage) -> Self {
@@ -69,10 +59,7 @@ impl StarknetMailbox {
         locator: &ContractLocator<'_>,
         signer: Signer,
     ) -> ChainResult<Self> {
-        let mut is_legacy = signer.version == 3;
-        if locator.domain.id() == 12263410 {
-            is_legacy = true;
-        }
+        let is_legacy = signer.version == 3;
         let account = build_single_owner_account(
             &conn.url,
             signer.local_wallet(),
@@ -244,15 +231,5 @@ impl Mailbox for StarknetMailbox {
         // This function is only relevant for the new submitter
         // TODO: Revisit with new submitter changes
         Ok(Vec::new())
-    }
-}
-
-pub struct StarknetMailboxAbi;
-
-impl HyperlaneAbi for StarknetMailboxAbi {
-    const SELECTOR_SIZE_BYTES: usize = 4;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        HashMap::default()
     }
 }

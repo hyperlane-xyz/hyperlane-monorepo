@@ -1,13 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
@@ -23,20 +20,11 @@ use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
 
-impl<A> std::fmt::Display for StarknetRoutingIsmInternal<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
 /// A reference to a RoutingISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetRoutingIsm {
-    contract: Arc<StarknetRoutingIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+    contract: StarknetRoutingIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
@@ -60,7 +48,7 @@ impl StarknetRoutingIsm {
         let contract = StarknetRoutingIsmInternal::new(ism_address, account);
 
         Ok(Self {
-            contract: Arc::new(contract),
+            contract,
             provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
         })
@@ -121,15 +109,5 @@ impl RoutingIsm for StarknetRoutingIsm {
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok(HyH256::from(ism.0).0)
-    }
-}
-
-pub struct StarknetRoutingIsmAbi;
-
-impl HyperlaneAbi for StarknetRoutingIsmAbi {
-    const SELECTOR_SIZE_BYTES: usize = 4;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        HashMap::default()
     }
 }

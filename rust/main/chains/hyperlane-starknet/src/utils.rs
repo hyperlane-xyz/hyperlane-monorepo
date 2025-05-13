@@ -29,6 +29,8 @@ use crate::{
     HyperlaneStarknetError,
 };
 
+use crate::contracts::interchain_security_module::Bytes as IsmBytes;
+
 type TransactionReceiptResult = ChainResult<MaybePendingTransactionReceipt>;
 
 /// Polls the rpc client until the transaction receipt is available.
@@ -163,6 +165,15 @@ impl From<&[u8]> for ValidatorAnnounceBytes {
 impl From<&[u8]> for MailboxBytes {
     fn from(bytes: &[u8]) -> Self {
         MailboxBytes {
+            size: bytes.len() as u32,
+            data: to_packed_bytes(bytes),
+        }
+    }
+}
+
+impl From<&[u8]> for IsmBytes {
+    fn from(bytes: &[u8]) -> Self {
+        IsmBytes {
             size: bytes.len() as u32,
             data: to_packed_bytes(bytes),
         }

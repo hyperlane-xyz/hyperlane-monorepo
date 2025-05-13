@@ -121,6 +121,8 @@ impl From<(StarknetResp, Deployments, String, u32, u32)> for StarknetNetwork {
 pub struct StarknetHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
+    pub scraper: AgentHandles,
+    pub postgres: AgentHandles,
 }
 
 impl Drop for StarknetHyperlaneStack {
@@ -129,6 +131,8 @@ impl Drop for StarknetHyperlaneStack {
             stop_child(&mut v.1);
         }
         stop_child(&mut self.relayer.1);
+        stop_child(&mut self.scraper.1);
+        stop_child(&mut self.postgres.1);
     }
 }
 
@@ -141,11 +145,7 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
         config.node_addr_base, config.node_port_base
     );
 
-    // let node: AgentHandles = cli
-    //     .flag("disable-fee")  // Add this line to include --disable-fee
-    //     .spawn("STARKNET", None);
     let node: AgentHandles = cli
-        // .arg("host", config.node_addr_base.clone())
         .arg("http.port", config.node_port_base.to_string())
         .arg("block-time", "1000".to_string())
         .spawn("STARKNET", None);
@@ -226,6 +226,30 @@ fn launch_starknet_relayer(
     relayer
 }
 
+#[apply(as_task)]
+fn launch_starknet_scraper(
+    agent_config_path: PathBuf,
+    relay_chains: Vec<String>,
+    metrics: u32,
+) -> AgentHandles {
+    let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
+
+    let scraper = Program::default()
+        .bin(bin)
+        .working_dir("../../")
+        .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
+        .env("RUST_BACKTRACE", "1")
+        .hyp_env("CHAINSTOSCRAPE", relay_chains.join(","))
+        .hyp_env(
+            "DB",
+            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
+        )
+        .hyp_env("METRICSPORT", metrics.to_string())
+        .spawn("SCR", None);
+
+    scraper
+}
+
 const ENV_CLI_PATH_KEY: &str = "E2E_KATANA_CLI_PATH";
 const ENV_STARKNET_CLI_PATH_KEY: &str = "E2E_STARKLI_CLI_PATH";
 const ENV_HYPERLANE_STARKNET_PATH_KEY: &str = "E2E_HYPERLANE_STARKNET_PATH";
@@ -288,7 +312,7 @@ fn run_locally() {
         .map(|i| {
             (
                 launch_starknet_node(StarknetConfig {
-                    node_port_base: port_start + (i * 10),
+                    node_port_base: port_start + (i * 20),
                     ..default_config.clone()
                 }),
                 format!("KATANA"),
@@ -383,6 +407,23 @@ fn run_locally() {
     )
     .unwrap();
 
+    log!("Running postgres db...");
+    let postgres = Program::new("docker")
+        .cmd("run")
+        .flag("rm")
+        .arg("name", "scraper-testnet-postgres")
+        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+        .arg("publish", "5432:5432")
+        .cmd("postgres:14")
+        .spawn("SQL", None);
+
+    sleep(Duration::from_secs(15));
+
+    log!("Init postgres db...");
+    Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
+        .run()
+        .join();
+
     let hpl_val = agent_config_out
         .chains
         .clone()
@@ -393,14 +434,25 @@ fn run_locally() {
         .collect::<Vec<_>>();
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
     let hpl_rly = launch_starknet_relayer(
-        agent_config_path,
-        agent_config_out.chains.into_keys().collect::<Vec<_>>(),
+        agent_config_path.clone(),
+        agent_config_out
+            .chains
+            .clone()
+            .into_keys()
+            .collect::<Vec<_>>(),
         hpl_rly_metrics_port,
         debug,
     );
 
+    let hpl_scr_metrics_port = hpl_rly_metrics_port + 1u32;
+    let hpl_scr = launch_starknet_scraper(
+        agent_config_path,
+        agent_config_out.chains.into_keys().collect::<Vec<_>>(),
+        hpl_scr_metrics_port,
+    );
+
     // give things a chance to fully start.
-    sleep(Duration::from_secs(10));
+    sleep(Duration::from_secs(20));
 
     let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap_or_default();
 
@@ -487,6 +539,8 @@ fn run_locally() {
     let _stack = StarknetHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
+        scraper: hpl_scr.join(),
+        postgres,
     };
 
     // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
@@ -496,6 +550,7 @@ fn run_locally() {
         // look for the end condition.
         if termination_invariants_met(
             hpl_rly_metrics_port,
+            hpl_scr_metrics_port,
             dispatched_messages,
             starting_relayer_balance,
         )
@@ -522,27 +577,10 @@ fn run_locally() {
 
 fn termination_invariants_met(
     relayer_metrics_port: u32,
+    scraper_metrics_port: u32,
     messages_expected: u32,
-    _starting_relayer_balance: f64,
+    starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
-    // Commented as IGP is not implemented for Starknet
-    // let gas_payments_scraped = fetch_metric(
-    //     &relayer_metrics_port.to_string(),
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "gas_payment"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // let expected_gas_payments = messages_expected;
-    // if gas_payments_scraped != expected_gas_payments {
-    //     log!(
-    //         "Relayer has indexed {} gas payments, expected {}",
-    //         gas_payments_scraped,
-    //         expected_gas_payments
-    //     );
-    //     return Ok(false);
-    // }
-
     let delivered_messages_count = fetch_metric(
         &relayer_metrics_port.to_string(),
         "hyperlane_operations_processed_count",
@@ -559,17 +597,49 @@ fn termination_invariants_met(
         return Ok(false);
     }
 
-    let _ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+
+    let dispatched_messages_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_dispatch"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if dispatched_messages_scraped != messages_expected {
+        log!(
+            "Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
 
     // Make sure the balance was correctly updated in the metrics.
-    // if starting_relayer_balance <= ending_relayer_balance {
-    //     log!(
-    //         "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
-    //         starting_relayer_balance,
-    //         ending_relayer_balance
-    //     );
-    //     return Ok(false);
-    // }
+    if starting_relayer_balance <= ending_relayer_balance {
+        log!(
+            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+            starting_relayer_balance,
+            ending_relayer_balance
+        );
+        return Ok(false);
+    }
 
     log!("Termination invariants have been met");
     Ok(true)
