@@ -59,6 +59,38 @@ describe('MinAmountStrategy', () => {
           }),
       ).to.throw('Minimum amount cannot be negative');
     });
+
+    it('should throw an error when buffer is negative', () => {
+      expect(
+        () =>
+          new MinAmountStrategy({
+            [chain1]: {
+              minAmount: ethers.utils.parseEther('100').toBigInt(),
+              buffer: -1n,
+            },
+            [chain2]: {
+              minAmount: ethers.utils.parseEther('100').toBigInt(),
+              buffer: 0n,
+            },
+          }),
+      ).to.throw('Buffer must be between 0 and 10,000 basis points');
+    });
+
+    it('should throw an error when buffer is greater than 10,000', () => {
+      expect(
+        () =>
+          new MinAmountStrategy({
+            [chain1]: {
+              minAmount: ethers.utils.parseEther('100').toBigInt(),
+              buffer: 10_001n,
+            },
+            [chain2]: {
+              minAmount: ethers.utils.parseEther('100').toBigInt(),
+              buffer: 0n,
+            },
+          }),
+      ).to.throw('Buffer must be between 0 and 10,000 basis points');
+    });
   });
 
   describe('getRebalancingRoutes', () => {

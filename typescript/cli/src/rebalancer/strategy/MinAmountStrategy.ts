@@ -24,10 +24,14 @@ export class MinAmountStrategy extends BaseStrategy {
     super(chains);
 
     for (const chain of chains) {
-      const { minAmount } = config[chain];
+      const { buffer, minAmount } = config[chain];
 
       if (minAmount < 0n) {
         throw new Error('Minimum amount cannot be negative');
+      }
+
+      if (buffer < 0n || buffer > 10_000n) {
+        throw new Error('Buffer must be between 0 and 10,000 basis points');
       }
     }
 
