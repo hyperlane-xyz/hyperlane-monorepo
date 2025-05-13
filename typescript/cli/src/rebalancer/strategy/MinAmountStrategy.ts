@@ -57,9 +57,8 @@ export class MinAmountStrategy extends BaseStrategy {
         if (balance < minAmount) {
           acc.deficits.push({ chain, amount: effectiveMin - balance });
         } else {
-          // Any chain with more than effectiveMin potentially has surplus
-          // But only mark as surplus if there's extra beyond effectiveMin
-          const surplus = balance - effectiveMin;
+          // Any chain with more than minAmount potentially has surplus
+          const surplus = balance - minAmount;
           if (surplus > 0n) {
             acc.surpluses.push({ chain, amount: surplus });
           }
