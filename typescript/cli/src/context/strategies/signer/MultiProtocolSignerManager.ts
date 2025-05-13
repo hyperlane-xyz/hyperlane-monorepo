@@ -50,23 +50,19 @@ export class MultiProtocolSignerManager {
     this.initializeStrategies();
   }
 
+  protected get compatibleChains(): ChainName[] {
+    return this.chains.filter(
+      (chain) =>
+        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+    );
+  }
+
   /**
    * @notice Sets up chain-specific signer strategies
    */
   protected initializeStrategies(): void {
-    for (const chain of this.chains) {
-      const protocolType = this.multiProvider.getProtocol(chain);
-
-      if (
-        protocolType !== ProtocolType.Ethereum &&
-        protocolType !== ProtocolType.CosmosNative
-      ) {
-        this.logger.debug(
-          `Skipping signer strategy initialization for non-EVM and Cosmos Native chain ${chain}`,
-        );
-        continue;
-      }
-
+    for (const chain of this.compatibleChains) {
       const strategy = MultiProtocolSignerFactory.getSignerStrategy(
         chain,
         this.submissionStrategy,
@@ -80,13 +76,7 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    const compatibleChains = this.chains.filter(
-      (chain) =>
-        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
-    );
-
-    for (const chain of compatibleChains) {
+    for (const chain of this.compatibleChains) {
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer as Signer);
     }
@@ -110,7 +100,7 @@ export class MultiProtocolSignerManager {
    * @notice Creates signers for all chains
    */
   async initAllSigners(): Promise<typeof this.signers> {
-    for (const chain of this.chains) {
+    for (const chain of this.compatibleChains) {
       const signerStrategy = this.signerStrategies.get(chain);
       if (signerStrategy) {
         await this.initSigner(chain);
