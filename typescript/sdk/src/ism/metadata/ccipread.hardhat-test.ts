@@ -26,7 +26,7 @@ describe('CCIP-Read ISM Integration', () => {
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
-  const CCIP_READ_SERVER_URL = 'http://example.com/{data}';
+  const CCIP_READ_SERVER_URL = 'http://example.com/namespace';
 
   before(async () => {
     // Set up a local test multi-provider and Hyperlane core

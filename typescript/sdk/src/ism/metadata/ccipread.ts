@@ -53,20 +53,27 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
       try {
-        // Compute and sign authentication signature
-        const messageHash = utils.solidityKeccak256(
-          ['string', 'address', 'bytes', 'string'],
-          ['HYPERLANE_OFFCHAINLOOKUP', sender, callDataHex, urlTemplate],
-        );
+        let responseJson: any;
+        if (urlTemplate.includes('{data}')) {
+          const res = await fetch(url);
+          responseJson = await res.json();
+        } else {
+          // Compute and sign authentication signature
+          const messageHash = utils.solidityKeccak256(
+            ['string', 'address', 'bytes', 'string'],
+            ['HYPERLANE_OFFCHAINLOOKUP', sender, callDataHex, urlTemplate],
+          );
 
-        const signature = await signer.signMessage(utils.arrayify(messageHash));
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sender, data: callDataHex, signature }),
-        });
-        const responseJson = await res.json();
-
+          const signature = await signer.signMessage(
+            utils.arrayify(messageHash),
+          );
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sender, data: callDataHex, signature }),
+          });
+          responseJson = await res.json();
+        }
         const rawHex = responseJson.data as string;
         return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
       } catch (error: any) {

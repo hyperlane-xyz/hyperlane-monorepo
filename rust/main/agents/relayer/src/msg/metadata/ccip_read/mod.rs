@@ -39,7 +39,6 @@ pub struct CcipReadIsmMetadataBuilder {
 /// An authenticated offchain lookup payload
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct HyperlaneAuthenticatedOffchainLookup {
-    message_id: H256,
     url_template: Vec<u8>,
     sender: H160,
     call_data: Vec<u8>,
@@ -64,12 +63,10 @@ impl CcipReadIsmMetadataBuilder {
     async fn generate_signature_hex(
         signer: &Signers,
         info: &OffchainLookup,
-        message: &HyperlaneMessage,
         url: &String,
     ) -> Result<String, MetadataBuildError> {
         // Derive the hash over call_data and sender
         let signable = HyperlaneAuthenticatedOffchainLookup {
-            message_id: message.id(),
             url_template: url.clone().into(),
             call_data: info.call_data.clone().to_vec(),
             sender: info.sender.into(),
@@ -184,7 +181,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         for url in info.urls.iter() {
             // Compute relayer authentication signature via EIP-191
             let maybe_signature_hex = if let Some(signer) = self.base.base_builder().get_signer() {
-                Some(Self::generate_signature_hex(signer, &info, message, url).await?)
+                Some(Self::generate_signature_hex(signer, &info, url).await?)
             } else {
                 None
             };
@@ -254,7 +251,7 @@ mod test {
             )
             .unwrap(),
         );
-        let url = "http://example.com/{data}".to_string();
+        let url = "http://example.com/namespace".to_string();
         let info = OffchainLookup {
             // from TestCcipReadIsm.sol
             call_data: "callDataToReturn".as_bytes().to_vec().into(),
@@ -267,7 +264,7 @@ mod test {
         let message = HyperlaneMessage::default();
 
         let signature_hex =
-            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &message, &url)
+            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
                 .await
                 .unwrap();
 
@@ -276,12 +273,11 @@ mod test {
         // Get the control from the hardhat test
         assert_eq!(
             signature_hex,
-            "0xd250bede928002f89fd3d561793b9ae800fd84765ee5d7ab75cb93a86c3b62f9494e347c0f6747f475f85bf791c6770463ccc8d99a7828214b538b11255d16621b"
+            "0x62e58f20c0b7ec4f071835eaf7aa2716707375740774188ecc60e7d91b565f7363deeba366b2609aee6b870ac6504a6cf482f00ecc0e9cbe34422bdcf88a4bd11b"
         );
 
         // Test the signature is valid
         let signable = HyperlaneAuthenticatedOffchainLookup {
-            message_id: message.id(),
             url_template: url.into(),
             sender: info.sender.into(),
             call_data: info.call_data.clone().to_vec(),
