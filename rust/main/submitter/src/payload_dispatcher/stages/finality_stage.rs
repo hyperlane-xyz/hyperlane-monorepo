@@ -29,7 +29,9 @@ use super::{
     PayloadDispatcherState,
 };
 
-pub type FinalityStagePool = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
+use pool::FinalityStagePool;
+
+mod pool;
 
 pub const STAGE_NAME: &str = "FinalityStage";
 
@@ -49,7 +51,7 @@ impl FinalityStage {
         domain: String,
     ) -> Self {
         Self {
-            pool: Arc::new(Mutex::new(HashMap::new())),
+            pool: FinalityStagePool::new(),
             tx_receiver,
             building_stage_queue,
             state,
@@ -94,7 +96,8 @@ impl FinalityStage {
                 .metrics
                 .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
             if let Some(tx) = tx_receiver.recv().await {
-                pool.lock().await.insert(tx.id.clone(), tx.clone());
+                let pool_len = pool.insert(tx.clone()).await;
+                state.adapter.set_unfinalized_tx_count(pool_len).await;
                 info!(?tx, "Received transaction");
             } else {
                 error!("Inclusion stage channel closed");
@@ -117,7 +120,11 @@ impl FinalityStage {
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
 
-            let pool_snapshot = pool.lock().await.clone();
+            let pool_snapshot = pool.snapshot().await;
+            state
+                .adapter
+                .set_unfinalized_tx_count(pool_snapshot.len())
+                .await;
             state.metrics.update_queue_length_metric(
                 STAGE_NAME,
                 pool_snapshot.len() as u64,
@@ -187,7 +194,9 @@ impl FinalityStage {
                 update_tx_status(state, &mut tx, tx_status).await?;
                 let tx_id = tx.id.clone();
                 info!(?tx_id, "Transaction is finalized");
-                pool.lock().await.remove(&tx_id);
+
+                let pool_len = pool.remove(&tx_id).await;
+                state.adapter.set_unfinalized_tx_count(pool_len).await;
             }
             TransactionStatus::Dropped(drop_reason) => {
                 Self::handle_dropped_transaction(
@@ -247,7 +256,8 @@ impl FinalityStage {
                 building_stage_queue.lock().await.push_front(full_payload);
             }
         }
-        pool.lock().await.remove(&tx.id);
+        let pool_len = pool.remove(&tx.id).await;
+        state.adapter.set_unfinalized_tx_count(pool_len).await;
         Ok(())
     }
 }
@@ -527,7 +537,7 @@ mod tests {
 
     async fn run_stage(stage: FinalityStage) -> Vec<Transaction> {
         let pool = stage.pool.clone();
-        let pool_before = pool.lock().await.clone();
+        let pool_before = pool.snapshot().await;
         let stage_task = tokio::spawn(async move { stage.run().await });
         // give the building stage 100ms to send the transaction(s) to the receiver
         let _ = tokio::select! {
@@ -537,7 +547,7 @@ mod tests {
             _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
             },
         };
-        let pool_after = pool.lock().await.clone();
+        let pool_after = pool.snapshot().await;
         pool_before
             .iter()
             .filter(|(id, _)| !pool_after.contains_key(id))

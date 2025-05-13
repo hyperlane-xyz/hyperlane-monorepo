@@ -552,6 +552,12 @@ impl PendingOperation for PendingMessage {
         Ok(payload)
     }
 
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
+        let mailbox = &self.ctx.destination_mailbox;
+        let message = &self.message;
+        mailbox.delivered_calldata(message.id())
+    }
+
     fn on_reprepare(
         &mut self,
         err: Option<String>,
