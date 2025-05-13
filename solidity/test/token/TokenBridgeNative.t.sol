@@ -36,24 +36,6 @@ contract OPL2ToL1TokenBridgeNativeTest is OPL2ToL1TokenBridgeNative {
         address _l2Bridge,
         address _mailbox
     ) OPL2ToL1TokenBridgeNative(SCALE, _mailbox, _l1Domain, _l2Bridge) {}
-
-    function getWithdrawalMetadata(
-        uint256 _amountOrId
-    ) public view returns (bytes memory) {
-        address remoteRouter = _mustHaveRemoteRouter(l1Domain)
-            .bytes32ToAddress();
-        bytes memory extraData = bytes("");
-
-        return
-            OPL2ToL1Withdrawal.getWithdrawalMetadata(
-                payable(l2Bridge),
-                address(OP_MESSAGE_PASSER),
-                OP_MIN_GAS_LIMIT_ON_L1,
-                remoteRouter,
-                _amountOrId,
-                extraData
-            );
-    }
 }
 
 contract TokenBridgeNativeTest is Test {
@@ -272,46 +254,6 @@ contract TokenBridgeNativeTest is Test {
 
         // Recipient was the user account
         assertEq(user.balance, userBalance - quotes[0].amount);
-    }
-
-    function test_transferRemote_hookMessageBodyIsCorrect() public {
-        bytes32 expectedWithdrawalHash = abi.decode(
-            vtbOrigin.getWithdrawalMetadata(transferAmount),
-            (bytes32)
-        );
-
-        Quote[] memory quotes = _getQuote();
-        vm.prank(user);
-        vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
-            destination,
-            userB32,
-            transferAmount
-        );
-
-        uint32 inboundNonce = environment
-            .mailboxes(destination)
-            .inboundProcessedNonce();
-
-        bytes memory hookMessage = environment
-            .mailboxes(destination)
-            .inboundMessages(inboundNonce);
-
-        bytes memory vtbMessage = environment
-            .mailboxes(destination)
-            .inboundMessages(inboundNonce + 1);
-
-        bytes32 withdrawalHash = abi.decode(
-            _getMessageBody(hookMessage),
-            (bytes32)
-        );
-
-        assertEq(withdrawalHash, expectedWithdrawalHash);
-    }
-
-    function _getMessageBody(
-        bytes memory message
-    ) private pure returns (bytes memory) {
-        return _sliceBytes(message, 77);
     }
 
     function _getTokenMessageMetadata(

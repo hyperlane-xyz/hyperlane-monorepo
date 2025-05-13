@@ -120,10 +120,8 @@ contract OPL2ToL1CcipReadIsm is
     /// and a valid proof relative to withdrawal Y
     function _proveWithdrawal(
         bytes calldata _metadata,
-        bytes calldata _message
+        bytes calldata /* _message */
     ) internal {
-        bytes32 withdrawalHash = abi.decode(_message.body(), (bytes32));
-
         (
             IOptimismPortal.WithdrawalTransaction memory _tx,
             uint256 _disputeGameIndex,
@@ -139,27 +137,23 @@ contract OPL2ToL1CcipReadIsm is
                 )
             );
 
-        bytes32 untrustedWithdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(
-            _tx
-        );
-        if (withdrawalHash != untrustedWithdrawalHash) {
-            revert InvalidWithdrawalHash(
-                untrustedWithdrawalHash,
-                withdrawalHash
+        bytes32 withdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(_tx);
+
+        IOptimismPortal.ProvenWithdrawal memory provenWithdrawal = opPortal
+            .provenWithdrawals(withdrawalHash, address(this));
+
+        // Proving only if the withdrawal wasn't
+        // proven already by this contract
+        if (provenWithdrawal.timestamp == 0) {
+            opPortal.proveWithdrawalTransaction(
+                _tx,
+                _disputeGameIndex,
+                _outputRootProof,
+                _withdrawalProof
             );
         }
-
-        opPortal.proveWithdrawalTransaction(
-            _tx,
-            _disputeGameIndex,
-            _outputRootProof,
-            _withdrawalProof
-        );
     }
 
-    /// @dev No need to do the same withdrawal hash check here as done
-    /// in _proveWithdrawal() since there's no risk of DoS here: checking
-    /// if the withdrawal has been finalized already is enough
     function _finalizeWithdrawal(
         bytes calldata _metadata,
         bytes calldata /* _message */

@@ -46,14 +46,14 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
 
     /// @inheritdoc AbstractPostDispatchHook
     function _quoteDispatch(
-        bytes calldata metadata,
+        bytes calldata /* metadata */,
         bytes calldata message
     ) internal view override returns (uint256) {
         return
             mailbox.quoteDispatch(
                 message.destination(),
                 ccipReadIsm,
-                _getMessageBody(message),
+                bytes(""), // message
                 _getMessageMetadata(),
                 childHook
             );
@@ -61,14 +61,14 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
 
     /// @inheritdoc AbstractPostDispatchHook
     function _postDispatch(
-        bytes calldata metadata,
+        bytes calldata /* metadata */,
         bytes calldata message
     ) internal override {
         // Default hook will take care of IGP payments
         mailbox.dispatch{value: msg.value}(
             message.destination(),
             ccipReadIsm,
-            _getMessageBody(message),
+            bytes(""), // message
             _getMessageMetadata(),
             childHook
         );
@@ -77,13 +77,5 @@ contract OPL2ToL1CcipReadHook is AbstractPostDispatchHook {
     function _getMessageMetadata() internal view returns (bytes memory) {
         return
             StandardHookMetadata.overrideGasLimit(PROVE_WITHDRAWAL_GAS_LIMIT);
-    }
-
-    function _getMessageBody(
-        bytes calldata message
-    ) internal view returns (bytes memory) {
-        // Body is a TokenMessage which metadata
-        // includes the withdrawal hash
-        return TokenMessage.metadata(message.body());
     }
 }

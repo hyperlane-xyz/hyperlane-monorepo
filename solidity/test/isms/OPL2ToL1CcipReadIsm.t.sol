@@ -68,41 +68,4 @@ contract OPL2ToL1CcipReadIsmTest is Test {
         bytes[] memory proof;
         return abi.encode(_tx, gameIndex, outputRootProof, proof);
     }
-
-    function testFuzz_verify_revertWhen_differentWithdrawalHashes(
-        int32 seed
-    ) public {
-        IOptimismPortal.WithdrawalTransaction
-            memory invalidWithdrawalTx = IOptimismPortal.WithdrawalTransaction(
-                0, // nonce;
-                vtbOrigin,
-                vtbDestination,
-                transferAmount,
-                gasLimit,
-                bytes("") // data
-            );
-
-        bytes32 invalidWithdrawalHash = OPL2ToL1Withdrawal.hashWithdrawal(
-            invalidWithdrawalTx
-        );
-        bytes32 withdrawalHash = keccak256(abi.encode(seed));
-
-        vm.assume(withdrawalHash != invalidWithdrawalHash);
-
-        mailboxOrigin.dispatch(
-            destination,
-            TypeCasts.addressToBytes32(address(ism)),
-            abi.encode(withdrawalHash) // messageBody
-        );
-
-        uint256 nonce = mailboxDestination.inboundProcessedNonce();
-        bytes memory message = mailboxDestination.inboundMessages(nonce);
-        bytes memory metadata = getDummyVerifyMetadata(invalidWithdrawalTx);
-
-        expectInvalidWithdrawalHashRevert(
-            invalidWithdrawalHash,
-            withdrawalHash
-        );
-        ism.verify(metadata, message);
-    }
 }

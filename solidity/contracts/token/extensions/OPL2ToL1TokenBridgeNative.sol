@@ -68,26 +68,14 @@ contract OPL2ToL1TokenBridgeNative is TokenBridgeNative {
 
     function _transferFromSender(
         uint256 _amountOrId
-    ) internal override returns (bytes memory metadata) {
+    ) internal override returns (bytes memory) {
         address remoteRouter = _mustHaveRemoteRouter(l1Domain)
             .bytes32ToAddress();
-        bytes memory extraData = bytes("");
-
-        // IMPORTANT: this must be placed before the l2Bridge.bridgeETHto()
-        // call in order to work (nonce will change during the withdrawal)
-        metadata = OPL2ToL1Withdrawal.getWithdrawalMetadata(
-            payable(l2Bridge),
-            address(OP_MESSAGE_PASSER),
-            OP_MIN_GAS_LIMIT_ON_L1,
-            remoteRouter,
-            _amountOrId,
-            extraData
-        );
 
         l2Bridge.bridgeETHTo{value: _amountOrId}(
             remoteRouter,
             OP_MIN_GAS_LIMIT_ON_L1,
-            extraData
+            bytes("") // extraData
         );
     }
 }

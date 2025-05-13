@@ -80,7 +80,12 @@ contract MockOptimismPortal is IOptimismPortal {
 
     function finalizedWithdrawals(
         bytes32 _withdrawalHash
-    ) external returns (bool value) {}
+    ) external view returns (bool value) {}
+
+    function provenWithdrawals(
+        bytes32 withdrawalHash,
+        address msgSender
+    ) external view returns (ProvenWithdrawal memory) {}
 }
 
 // mock deployment on L2
