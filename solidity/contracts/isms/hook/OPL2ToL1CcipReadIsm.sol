@@ -29,7 +29,7 @@ contract OPL2ToL1CcipReadIsm is
     // CCIP-read gateways URLs
     string[] public urls;
     // mailbox on L1
-    IMailbox mailbox;
+    IMailbox immutable mailbox;
     // the OP Portal contract on L1
     IOptimismPortal immutable opPortal;
 
