@@ -49,7 +49,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctp {
     ) internal override {
         wrappedToken.approve(address(tokenMessenger), _amount);
         uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
-        bytes32 router = _mustHaveRemoteRouter(_destination);
+        bytes32 router = routers(_destination);
 
         tokenMessenger.depositForBurn(
             _amount,

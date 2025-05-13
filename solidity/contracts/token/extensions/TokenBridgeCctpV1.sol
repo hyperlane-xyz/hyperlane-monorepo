@@ -11,7 +11,6 @@ import {ITokenMessenger} from "../../interfaces/cctp/ITokenMessenger.sol";
 import {IMessageTransmitter} from "../../interfaces/cctp/IMessageTransmitter.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractCcipReadIsm} from "../../isms/ccip-read/AbstractCcipReadIsm.sol";
-
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 
 contract TokenBridgeCctpV1 is TokenBridgeCctp {
@@ -61,7 +60,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctp {
         wrappedToken.approve(address(tokenMessenger), _amount);
         uint32 circleDomain = hyperlaneDomainToCircleDomain[_destination];
 
-        bytes32 router = _mustHaveRemoteRouter(_destination);
+        bytes32 router = routers(_destination);
 
         tokenMessenger.depositForBurn(
             _amount,
