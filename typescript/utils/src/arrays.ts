@@ -27,10 +27,5 @@ export function sortArrayByKey<T extends Record<keyof T, any>>(
   array: T[],
   sortKey: keyof T,
 ): T[] {
-  return sortBy(array, [
-    (item) => {
-      const value = item[sortKey];
-      return value;
-    },
-  ]);
+  return sortBy(array, [(item) => item[sortKey]]);
 }
