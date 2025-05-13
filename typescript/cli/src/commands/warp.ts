@@ -31,7 +31,6 @@ import { runWarpRouteRead } from '../read/warp.js';
 import {
   Config,
   IStrategy,
-  RawBalances,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
 // TODO: This import should come from the IMonitor interface
@@ -504,6 +503,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
         ? await contextFactory.createMetrics()
         : undefined;
 
+      const monitorToStrategy =
+        contextFactory.createMonitorToStrategyTransformer();
+
       await monitor
         // Observe balances events and process rebalancing routes
         .on('tokeninfo', (event) => {
@@ -517,16 +519,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
             }
           }
 
-          const rawBalances = event.tokensInfo.reduce((acc, tokenInfo) => {
-            if (
-              !tokenInfo.token.isCollateralized() ||
-              tokenInfo.bridgedSupply === undefined
-            ) {
-              return acc;
-            }
-            acc[tokenInfo.token.chainName] = tokenInfo.bridgedSupply;
-            return acc;
-          }, {} as RawBalances);
+          const rawBalances = monitorToStrategy.transform(event);
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
