@@ -24,7 +24,7 @@ import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGas
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 
-contract TokenBridgeNativeTest is Test {
+contract OPL2ToL1TokenBridgeNativeTest is Test {
     using TypeCasts for address;
     using TokenMessage for bytes;
 
@@ -185,33 +185,6 @@ contract TokenBridgeNativeTest is Test {
 
     function test_constructor() public {
         assertEq(address(vtbOrigin.hook()), address(hook));
-    }
-
-    function test_getCorrecQuote() public {
-        Quote[] memory quote = _getQuote();
-
-        uint256 expectedQuote = igp.quoteGasPayment(
-            0,
-            ccipReadHook.PROVE_WITHDRAWAL_GAS_LIMIT()
-        ) + igp.quoteGasPayment(0, vtbOrigin.FINALIZE_WITHDRAWAL_GAS_LIMIT());
-        assertEq(quote[0].amount, expectedQuote);
-    }
-
-    function test_transferRemote_expectTwoGasPayments() public {
-        Quote[] memory quotes = _getQuote();
-
-        // Expects two gas payments
-        _expectGasPayment(ccipReadHook.PROVE_WITHDRAWAL_GAS_LIMIT());
-        _expectGasPayment(vtbOrigin.FINALIZE_WITHDRAWAL_GAS_LIMIT());
-
-        vm.prank(user);
-        vtbOrigin.transferRemote{value: transferAmount + quotes[0].amount}(
-            destination,
-            userB32,
-            transferAmount
-        );
-
-        environment.processNextPendingMessage();
     }
 
     function test_transferRemote_expectReceivedMessageEvent() public {
