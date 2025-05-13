@@ -1,4 +1,4 @@
-import { log } from '../../logger.js';
+import { log as defaultLog } from '../../logger.js';
 import { Config } from '../config/Config.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
@@ -13,6 +13,7 @@ export class WithSemaphore implements IExecutor {
   constructor(
     private readonly config: Config,
     private readonly executor: IExecutor,
+    private readonly log = defaultLog,
   ) {}
 
   /**
@@ -22,7 +23,7 @@ export class WithSemaphore implements IExecutor {
   async rebalance(routes: RebalancingRoute[]) {
     // No routes means the system is balanced so we reset the timer to allow new rebalancing
     if (!routes.length) {
-      log(
+      this.log(
         `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
       );
 
@@ -32,7 +33,7 @@ export class WithSemaphore implements IExecutor {
 
     // Skip if still in waiting period
     if (Date.now() < this.waitUntil) {
-      log(`Still in waiting period. Skipping rebalance.`);
+      this.log(`Still in waiting period. Skipping rebalance.`);
 
       return;
     }
@@ -46,7 +47,7 @@ export class WithSemaphore implements IExecutor {
     // Set new waiting period
     this.waitUntil = Date.now() + highestTolerance;
 
-    log(
+    this.log(
       `Rebalance semaphore locked for ${highestTolerance}ms. Releasing at timestamp ${this.waitUntil}.`,
     );
   }
