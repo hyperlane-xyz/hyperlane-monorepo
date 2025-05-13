@@ -208,24 +208,31 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  function startRebalancer(options: { withMetrics?: boolean } = {}) {
-    const { withMetrics = false } = options;
+  function startRebalancer(
+    options: { withMetrics?: boolean; strategyType?: string } = {},
+  ) {
+    const { withMetrics = false, strategyType } = options;
 
     return hyperlaneWarpRebalancer(
       warpRouteId,
       CHECK_FREQUENCY,
       REBALANCER_CONFIG_PATH,
       withMetrics,
+      strategyType,
     );
   }
 
   async function startRebalancerAndExpectLog(
     log: string,
-    options: { timeout?: number; withMetrics?: boolean } = {},
+    options: {
+      timeout?: number;
+      withMetrics?: boolean;
+      strategyType?: string;
+    } = {},
   ) {
-    const { timeout = 10_000, withMetrics = false } = options;
+    const { timeout = 10_000, withMetrics = false, strategyType } = options;
 
-    const process = startRebalancer({ withMetrics });
+    const process = startRebalancer({ withMetrics, strategyType });
 
     let timeoutId: NodeJS.Timeout;
 
@@ -757,5 +764,26 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await fetch(DEFAULT_METRICS_SERVER).should.be.rejected;
 
     await process.kill();
+  });
+
+  it('should use the strategyType flag to override the config file', async () => {
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      [CHAIN_NAME_2]: {
+        minAmount: '-100',
+        buffer: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+      [CHAIN_NAME_3]: {
+        minAmount: '100',
+        buffer: '0',
+        bridge: ethers.constants.AddressZero,
+      },
+    });
+
+    await startRebalancerAndExpectLog('Minimum amount cannot be negative', {
+      timeout: 10000,
+      withMetrics: false,
+      strategyType: 'minAmount',
+    });
   });
 });

@@ -60,7 +60,7 @@ export type MinAmountChainConfig = z.infer<typeof MinAmountChainConfigSchema>;
 // Union type for all chain configs
 export type ChainConfig = z.infer<typeof ChainConfigSchema>;
 
-type BaseConfig = z.infer<typeof BaseConfigSchema>;
+export type BaseConfig = z.infer<typeof BaseConfigSchema>;
 
 export class Config {
   static load(

@@ -29,6 +29,7 @@ import {
 } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import {
+  BaseConfig,
   Config,
   IStrategy,
   RebalancerContextFactory,
@@ -421,6 +422,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   withMetrics?: boolean;
   monitorOnly?: boolean;
   coingeckoApiKey?: string;
+  strategyType?: string;
 }> = {
   command: 'rebalancer',
   describe: 'Run a warp route collateral rebalancer',
@@ -459,6 +461,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
       alias: ['g', 'coingecko-api-key'],
       implies: 'withMetrics',
     },
+    strategyType: {
+      type: 'string',
+      description: 'Strategy type (weighted or minAmount)',
+      demandOption: false,
+      alias: ['st', 'strategy-type', 'strategy'],
+    },
   },
   handler: async ({
     context,
@@ -468,6 +476,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
     withMetrics,
     monitorOnly,
     coingeckoApiKey = ENV.COINGECKO_API_KEY,
+    strategyType,
   }) => {
     try {
       const { registry, key: rebalancerKey } = context;
@@ -479,6 +488,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         withMetrics,
         monitorOnly,
         coingeckoApiKey,
+        strategyType: strategyType as BaseConfig['strategyType'],
       });
 
       // Instantiate the factory used to create the different rebalancer components
