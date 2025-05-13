@@ -33,6 +33,10 @@ contract OwnableMulticall {
     /// @notice Sets the commitment value that will be executed next
     /// @param _commitment The new commitment value to be set
     function setCommitment(bytes32 _commitment) external onlyOwner {
+        require(
+            commitment == bytes32(0),
+            "ICA: Previous commitment pending execution"
+        );
         commitment = _commitment;
     }
 
