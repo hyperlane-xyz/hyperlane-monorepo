@@ -41,6 +41,8 @@ interface ICrossDomainMessenger {
     function messageNonce() external view returns (uint256);
 }
 
+interface IL1CrossDomainMessenger is ICrossDomainMessenger {}
+
 interface IL2ToL1MessagePasser {
     function messageNonce() external view returns (uint256);
 }
