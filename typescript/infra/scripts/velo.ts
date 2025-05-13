@@ -53,6 +53,7 @@ async function main() {
     {
       to: testRecipient,
       data: TestRecipient__factory.createInterface().encodeFunctionData(
+        // @ts-ignore
         'fooBar',
         [1, testmessage],
       ),
