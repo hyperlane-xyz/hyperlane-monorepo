@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 
 import type {
-  ChainConfig,
   MinAmountChainConfig,
   WeightedChainConfig,
 } from '../config/Config.js';
@@ -47,14 +46,6 @@ describe('StrategyFactory', () => {
 
       const strategy = StrategyFactory.createStrategy('minAmount', config);
       expect(strategy).to.be.instanceOf(MinAmountStrategy);
-    });
-
-    it('throws an error when no chains are provided', () => {
-      const config: ChainMap<ChainConfig> = {};
-
-      expect(() => StrategyFactory.createStrategy('weighted', config)).to.throw(
-        'Configuration must include at least one chain',
-      );
     });
   });
 });

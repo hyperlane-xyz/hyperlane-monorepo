@@ -20,13 +20,6 @@ export class StrategyFactory {
     strategyType: string,
     config: ChainMap<ChainConfig>,
   ): IStrategy {
-    // Ensure we have at least one chain configuration
-    const chains = Object.keys(config);
-
-    if (chains.length === 0) {
-      throw new Error('Configuration must include at least one chain');
-    }
-
     if (strategyType === 'weighted') {
       return new WeightedStrategy(config as ChainMap<WeightedChainConfig>);
     } else if (strategyType === 'minAmount') {
