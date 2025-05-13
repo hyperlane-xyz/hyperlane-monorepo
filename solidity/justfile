@@ -17,6 +17,8 @@ polymer_ism_addr_everclear_staging := "0x78dd032b4f70abe632ffbd6565f0ca94091fbe6
 polymer_ism_addr_base := "0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e"
 default_fallback_routing_ism_addr_b3 := "0x201d9d1da9a31dd8966f54e3466f615b72e53c46"
 default_fallback_routing_ism_addr_ape := "0xb9579911530c36165c9e3f09ed02af47763b4fbc"
+default_fallback_routing_ism_addr_everclear_staging := "0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
+default_fallback_routing_ism_addr_base := "0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 
@@ -95,6 +97,24 @@ deploy-default-fallback-routing-ism-ape:
     export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_ape }}" && \
     forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
         --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+deploy-default-fallback-routing-ism-everclear-staging:
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_base }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
+    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
+deploy-default-fallback-routing-ism-base:
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
+    export REMOTE_ORIGIN_DOMAIN_ID="{{ chain_id_everclear_staging }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS="{{ polymer_ism_addr_base }}" && \
+    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
+        --rpc-url "{{ rpc_endpoint_base }}" \
         --broadcast \
         -vvvv
 
