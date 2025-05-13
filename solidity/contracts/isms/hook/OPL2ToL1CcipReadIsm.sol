@@ -92,9 +92,6 @@ contract OPL2ToL1CcipReadIsm is
         return true;
     }
 
-    /**
-     * @dev no-op handle
-     */
     function handle(
         uint32 _origin,
         bytes32 _sender,
