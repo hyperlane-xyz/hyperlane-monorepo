@@ -13,8 +13,8 @@ mailbox_contract_addr_everclear_staging := "0xd84ab43d7f2f99339657e4bfae3c955be8
 mailbox_contract_addr_base := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
 polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
 polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
-polymer_ism_addr_everclear_staging := ""
-polymer_ism_addr_base := ""
+polymer_ism_addr_everclear_staging := "0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e"
+polymer_ism_addr_base := "0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e"
 default_fallback_routing_ism_addr_b3 := "0x201d9d1da9a31dd8966f54e3466f615b72e53c46"
 default_fallback_routing_ism_addr_ape := "0xb9579911530c36165c9e3f09ed02af47763b4fbc"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
@@ -61,6 +61,22 @@ deploy-polymer-ism-ape:
     export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+deploy-polymer-ism-base:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
+deploy-polymer-ism-everclear-staging:
+    export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
 
