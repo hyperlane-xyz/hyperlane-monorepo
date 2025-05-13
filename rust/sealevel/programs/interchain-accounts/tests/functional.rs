@@ -6,11 +6,13 @@
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256};
 use hyperlane_interchain_accounts::InterchainAccountMessage;
+use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use hyperlane_sealevel_igp::igp_gas_payment_pda_seeds;
 use hyperlane_sealevel_interchain_accounts::{
     accounts::InterchainAccountStorageAccount,
     instruction::{
-        init_instruction, transfer_ownership_instruction, CallRemoteMessage,
-        InterchainAccountInstruction,
+        enroll_remote_routers_instruction, init_instruction, transfer_ownership_instruction,
+        CallRemoteMessage, InterchainAccountInstruction,
     },
     processor::process_instruction,
     program_storage_pda_seeds,
@@ -20,7 +22,9 @@ use hyperlane_sealevel_mailbox::{
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds, spl_noop,
 };
 use hyperlane_sealevel_test_ism;
-use hyperlane_test_utils::{initialize_mailbox, mailbox_id, MailboxAccounts};
+use hyperlane_test_utils::{
+    initialize_igp_accounts, initialize_mailbox, mailbox_id, IgpAccounts, MailboxAccounts,
+};
 use solana_program::{pubkey, pubkey::Pubkey};
 use solana_program_test::*;
 use solana_sdk::{
@@ -63,6 +67,14 @@ async fn setup_client() -> (BanksClient, Keypair) {
         processor!(hyperlane_sealevel_test_ism::program::process_instruction),
     );
 
+    // Add the IGP program
+    let igp_program_id = hyperlane_test_utils::igp_program_id();
+    pt.add_program(
+        "hyperlane_sealevel_igp",
+        igp_program_id,
+        processor!(hyperlane_sealevel_igp::processor::process_instruction),
+    );
+
     let (client, payer, _hash) = pt.start().await;
     (client, payer)
 }
@@ -73,10 +85,18 @@ async fn initialize_ica(
     program_id: &Pubkey,
     mailbox_program: &MailboxAccounts,
     local_domain: u32,
+    igp_accounts: Option<&IgpAccounts>,
 ) -> Result<Pubkey, BanksClientError> {
     // PDA we expect to be created.
     let (storage_pda, _bump) =
         Pubkey::find_program_address(program_storage_pda_seeds!(), program_id);
+
+    let igp_config = igp_accounts.map(|igp_accs| {
+        (
+            igp_accs.program,
+            InterchainGasPaymasterType::OverheadIgp(igp_accs.overhead_igp),
+        )
+    });
 
     let ix = init_instruction(
         *program_id,
@@ -84,7 +104,7 @@ async fn initialize_ica(
         local_domain,
         mailbox_program.program,
         None,
-        None,
+        igp_config,
         Some(payer.pubkey()),
     )
     .unwrap();
@@ -255,8 +275,19 @@ async fn test_call_remote_dispatch() {
         &mailbox_program_id,
         &payer,
         LOCAL_DOMAIN,
-        1_000_000,
+        0, // Default protocol fee for Mailbox in this test
         Default::default(),
+    )
+    .await
+    .unwrap();
+
+    // Initialize IGP
+    let igp_program_id = hyperlane_test_utils::igp_program_id();
+    let igp_accounts = initialize_igp_accounts(
+        &mut banks_client,
+        &igp_program_id,
+        &payer,
+        REMOTE_DOMAIN, // Destination domain for OverheadIgp config
     )
     .await
     .unwrap();
@@ -267,6 +298,7 @@ async fn test_call_remote_dispatch() {
         &ica_program_id(),
         &mailbox_accounts,
         LOCAL_DOMAIN,
+        Some(&igp_accounts), // Pass IGP accounts to ICA init
     )
     .await
     .unwrap();
@@ -307,6 +339,10 @@ async fn test_call_remote_dispatch() {
         mailbox_dispatched_message_pda_seeds!(&unique_msg.pubkey()),
         &mailbox_program_id,
     );
+    let (gas_payment_pda, _gas_bump) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_msg.pubkey()),
+        &igp_accounts.program, // Use igp_accounts.program (IGP program ID)
+    );
 
     let (dispatch_authority, _da_bump) =
         Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
@@ -326,6 +362,11 @@ async fn test_call_remote_dispatch() {
         // 7.  `[signer]` Unique message account.
         // 8.  `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
         //    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
+        // 9.  `[executable]` IGP Program ID
+        // 10. `[writeable]` IGP Program Data (global)
+        // 11. `[writeable]` Gas Payment PDA
+        // 12. `[executable]` Overhead IGP PDA (configured)
+        // 13. `[writeable]` Main IGP PDA (inner IGP for PayForGas)
         vec![
             AccountMeta::new_readonly(storage_pda, false),
             AccountMeta::new_readonly(payer.pubkey(), true),
@@ -336,6 +377,11 @@ async fn test_call_remote_dispatch() {
             AccountMeta::new_readonly(spl_noop::id(), false),
             AccountMeta::new(unique_msg.pubkey(), true),
             AccountMeta::new(dispatched_message_pda, false),
+            AccountMeta::new_readonly(igp_accounts.program, false), // 9. IGP Program ID
+            AccountMeta::new(igp_accounts.program_data, false),     // 10. IGP Program Data (global)
+            AccountMeta::new(gas_payment_pda, false),               // 11. Gas Payment PDA
+            AccountMeta::new_readonly(igp_accounts.overhead_igp, false), // 12. Overhead IGP PDA (configured)
+            AccountMeta::new(igp_accounts.igp, false), // 13. Main IGP PDA (inner IGP for PayForGas)
         ],
     );
 

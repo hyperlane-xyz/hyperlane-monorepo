@@ -59,16 +59,13 @@ pub async fn initialize_mailbox(
     max_protocol_fee: u64,
     protocol_fee: ProtocolFee,
 ) -> Result<MailboxAccounts, BanksClientError> {
-    println!("Finding PDAs...");
     let (inbox_account, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
     let (outbox_account, outbox_bump) =
         Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), mailbox_program_id);
 
-    println!("Getting default ISM...");
     let default_ism = hyperlane_sealevel_test_ism::id();
 
-    println!("Creating init instruction...");
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
         default_ism,
@@ -86,14 +83,11 @@ pub async fn initialize_mailbox(
         ],
     };
 
-    println!("Processing init instruction...");
     process_instruction(banks_client, init_instruction, payer, &[payer]).await?;
 
-    println!("Initializing test ISM...");
     // And initialize the default ISM
     initialize_test_ism(banks_client, payer).await?;
 
-    println!("Mailbox initialization complete!");
     Ok(MailboxAccounts {
         program: *mailbox_program_id,
         inbox: inbox_account,
@@ -108,12 +102,8 @@ async fn initialize_test_ism(
     banks_client: &mut BanksClient,
     payer: &Keypair,
 ) -> Result<(), BanksClientError> {
-    println!("Creating test ISM client...");
     let mut test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(payer));
-    println!("Initializing test ISM...");
-    // TODO: figure out why this call is failing??
     test_ism.init().await?;
-    println!("Test ISM initialization complete!");
     Ok(())
 }
 
