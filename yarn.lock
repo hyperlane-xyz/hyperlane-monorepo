@@ -7641,9 +7641,11 @@ __metadata:
   dependencies:
     "@aws-sdk/client-kms": "npm:^3.577.0"
     "@aws-sdk/client-s3": "npm:^3.577.0"
+    "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/cosmos-sdk": "npm:12.5.0"
     "@hyperlane-xyz/registry": "npm:15.0.0"
     "@hyperlane-xyz/sdk": "npm:12.5.0"
     "@hyperlane-xyz/utils": "npm:12.5.0"
