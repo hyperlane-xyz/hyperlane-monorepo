@@ -14,6 +14,7 @@ mod settings;
 mod submit;
 mod validator;
 
+mod reorg_reporter;
 #[cfg(test)]
 mod test_utils;
 

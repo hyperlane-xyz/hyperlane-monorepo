@@ -28,6 +28,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
+use crate::reorg_reporter::ReorgReporter;
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
@@ -58,6 +59,7 @@ pub struct Validator {
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
+    reorg_reporter: ReorgReporter,
 }
 
 /// Metadata for `validator`
@@ -140,6 +142,8 @@ impl BaseAgent for Validator {
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
 
+        let reorg_reporter = ReorgReporter::from_settings(&settings, &metrics).await?;
+
         let validator_announce = settings
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
@@ -184,6 +188,7 @@ impl BaseAgent for Validator {
             runtime_metrics,
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
+            reorg_reporter,
         })
     }
 
@@ -264,6 +269,8 @@ impl BaseAgent for Validator {
 
         // Note that this only returns an error if one of the tasks panics
         if let Err(err) = try_join_all(tasks).await {
+            // TODO check if error is a panic
+            // TODO Query RPCs individually for information
             error!(?err, "One of the validator tasks returned an error");
         }
     }
