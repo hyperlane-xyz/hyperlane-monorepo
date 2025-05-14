@@ -179,7 +179,7 @@ abstract contract TokenRouter is GasRouter {
      */
     function quoteGasPayment(
         uint32 _destinationDomain
-    ) external view override returns (uint256) {
+    ) public view override returns (uint256) {
         return
             _GasRouter_quoteDispatch(
                 _destinationDomain,
