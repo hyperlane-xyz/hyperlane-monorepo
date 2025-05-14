@@ -75,10 +75,14 @@ async function main() {
   );
   //   generate random salt
   const salt = utils.keccak256(utils.randomBytes(32));
-  const commitment = commitmentFromIcaCalls(calls, salt);
+  const ica = await interchainAccountRouter[
+    'getRemoteInterchainAccount(uint32,address)'
+  ](destinationDomainId, await multiProvider.getSigner(origin).getAddress());
+  const commitment = commitmentFromIcaCalls(calls, salt, ica);
   const originTx = await interchainAccountRouter[
     'callRemoteCommitReveal(uint32,bytes32,uint256)'
   ](destinationDomainId, commitment, 100000, { value: quote });
+
   const receipt = await originTx.wait();
 
   // Post the committed calls to the CCIP-read server using fetch
@@ -96,6 +100,7 @@ async function main() {
       [relayerAddress],
       messageId,
       serverUrl,
+      ica,
     );
     console.log('Posted calls to server');
   } catch (err) {

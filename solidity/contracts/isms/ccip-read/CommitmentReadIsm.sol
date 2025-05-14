@@ -10,6 +10,7 @@ import {InterchainAccountRouter} from "../../middleware/InterchainAccountRouter.
 import {CallLib} from "../../middleware/libs/Call.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {OwnableMulticall} from "../../middleware/libs/OwnableMulticall.sol";
 
 contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
     using InterchainAccountMessageReveal for bytes;
@@ -19,8 +20,9 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
     string[] public urls;
     Mailbox public immutable mailbox;
 
-    constructor(Mailbox _mailbox) {
+    constructor(Mailbox _mailbox, address _owner) {
         mailbox = _mailbox;
+        _transferOwnership(_owner);
     }
 
     function setUrls(string[] memory _urls) external onlyOwner {
@@ -35,7 +37,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             urls: urls,
             callData: abi.encodeWithSignature(
                 "getCallsFromCommitment(bytes32)",
-                _message
+                _message.body().commitment()
             ),
             callbackFunction: this.process.selector,
             extraData: _message
@@ -60,10 +62,8 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        (bytes32 salt, CallLib.Call[] memory calls) = abi.decode(
-            _metadata,
-            (bytes32, CallLib.Call[])
-        );
+        (CallLib.Call[] memory calls, bytes32 salt, OwnableMulticall ica) = abi
+            .decode(_metadata, (CallLib.Call[], bytes32, OwnableMulticall));
 
         bytes32 revealedHash = keccak256(_metadata);
         bytes32 msgCommitment = _message.body().commitment();
@@ -72,16 +72,13 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             "Commitment ISM: Revealed Hash Invalid"
         );
 
-        InterchainAccountRouter icaRouter = InterchainAccountRouter(
-            _message.recipient().bytes32ToAddress()
+        // Revert if this is not the ica's currently active commitment
+        require(
+            ica.commitment() == msgCommitment,
+            "Commitment ISM: Invalid Commitment"
         );
 
-        // If the commitment hasn't been executed, execute it
-        if (
-            address(icaRouter.verifiedCommitments(msgCommitment)) != address(0)
-        ) {
-            icaRouter.revealAndExecute(calls, salt);
-        }
+        ica.revealAndExecute(calls, salt);
 
         return true;
     }

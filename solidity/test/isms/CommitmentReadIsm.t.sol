@@ -22,8 +22,7 @@ contract CommitmentReadIsmTest is Test {
     MockMailbox mailboxOrigin;
     MockMailbox mailboxDestination;
 
-    uint256 internal transferAmount = 0.001 ether;
-    uint256 internal gasLimit = 50_000;
+    address alice = address(1);
 
     function setUp() public {
         urls = new string[](1);
@@ -32,13 +31,25 @@ contract CommitmentReadIsmTest is Test {
         environment = new MockHyperlaneEnvironment(origin, destination);
         mailboxOrigin = environment.mailboxes(origin);
         mailboxDestination = environment.mailboxes(destination);
-        ism = new CommitmentReadIsm(mailboxDestination);
+        ism = new CommitmentReadIsm(mailboxDestination, alice);
+
+        vm.prank(alice);
         ism.setUrls(urls);
+        assertEq(urls.length, 1);
+        assertEq(urls[0], "https://ccip-server-gateway.io");
     }
 
     function testUrls() public {
-        assertEq(urls.length, 1);
-        assertEq(urls[0], "https://ccip-server-gateway.io");
+        string[] memory newUrls = new string[](1);
+        newUrls[0] = "https:://foobar.io";
+
+        vm.prank(alice);
+        ism.setUrls(newUrls);
+        assertEq(ism.urls(0), "https:://foobar.io");
+
+        // Setting urls doesn't work if you aren't the owner
+        vm.expectRevert("Ownable: caller is not the owner");
+        ism.setUrls(newUrls);
     }
 
     /**
