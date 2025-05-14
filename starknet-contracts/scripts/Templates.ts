@@ -6,6 +6,8 @@ export class Templates {
     tokenExports: string[],
     mockExports: string[],
   ) {
+    imports.sort();
+
     return `
 ${imports.join('\n')}
 
