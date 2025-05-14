@@ -1,10 +1,9 @@
-import { logger } from 'ethers';
 import EventEmitter from 'events';
 
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
-import { log, logDebug } from '../../logger.js';
+import { log, logDebug, warnYellow } from '../../logger.js';
 import { WrappedError } from '../../utils/errors.js';
 import type { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
 
@@ -52,7 +51,7 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
-      logDebug('Monitor started');
+      logDebug(`Monitor started, polling every ${this.checkFrequency} ms...`);
       this.emitter.emit('start');
 
       while (this.isMonitorRunning) {
@@ -103,9 +102,8 @@ export class Monitor implements IMonitor {
     token: Token,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
-      logger.warn(
-        'Cannot get bridged balance for a non-Hyperlane token',
-        token,
+      warnYellow(
+        `Cannot get bridged balance for a non-Hyperlane token: ${token.chainName}`,
       );
       return;
     }
@@ -114,7 +112,7 @@ export class Monitor implements IMonitor {
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      logger.warn('Bridged supply not found for token', token);
+      warnYellow(`Bridged supply not found for token: ${token.chainName}`);
     }
 
     return bridgedSupply;
