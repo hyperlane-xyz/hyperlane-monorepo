@@ -17,6 +17,7 @@ export function createAbiHandler<F extends string>(
   abi: string | Fragment | Array<string | Fragment>,
   functionName: F,
   serviceMethod: (...args: any[]) => Promise<any>,
+  skipResultEncoding: boolean = false,
 ) {
   // Normalize ABI to an array of fragments
   const fragments: Array<string | Fragment> = Array.isArray(abi) ? abi : [abi];
@@ -44,7 +45,8 @@ export function createAbiHandler<F extends string>(
         functionName,
         Array.isArray(result) ? result : [result],
       );
-      return res.json({ data: encoded });
+      // If skipResultEncoding is true, return the raw result
+      return res.json({ data: skipResultEncoding ? result : encoded });
     } catch (err: any) {
       console.error(`Error in ABI handler ${functionName}:`, err);
       return res.status(500).json({ error: err.message });

@@ -11,6 +11,7 @@ interface StoredCommitment {
   calls: { to: string; data: string; value?: string }[];
   salt: string;
   relayers: string[];
+  ica: string;
 }
 
 // TODO: Authenticate relayer
@@ -26,9 +27,9 @@ export class CallCommitmentsService {
   }
 
   public handleCommitment(req: Request, res: Response) {
-    const { calls, relayers, salt } = req.body;
-    const key = commitmentFromIcaCalls(calls, salt);
-    this.callCommitments.set(key, { calls, relayers, salt });
+    const { calls, relayers, salt, ica } = req.body;
+    const key = commitmentFromIcaCalls(calls, salt, ica);
+    this.callCommitments.set(key, { calls, relayers, salt, ica });
     console.log('Stored commitment', key);
     res.sendStatus(200);
   }
@@ -39,7 +40,11 @@ export class CallCommitmentsService {
       console.log('Commitment not found', commitment);
       throw new Error('Commitment not found');
     }
-    const encoded = encodeIcaCalls(normalizeCalls(entry.calls), entry.salt);
+    const encoded = encodeIcaCalls(
+      normalizeCalls(entry.calls),
+      entry.salt,
+      entry.ica,
+    );
     console.log('Serving calls for commitment', commitment);
     return Promise.resolve(encoded);
   }
@@ -55,6 +60,7 @@ export class CallCommitmentsService {
         CallCommitmentsAbi,
         'getCallsFromCommitment',
         this.handleFetchCommitment.bind(this),
+        true, // Skip ABI encoding of the result
       ),
     );
   }

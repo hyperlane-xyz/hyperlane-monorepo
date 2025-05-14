@@ -39,13 +39,12 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
     if (parsed.name !== 'OffchainLookup') {
       throw new Error(`Unexpected error ${parsed.name}`);
     }
-    let [sender, urls, callData] = parsed.args as [
+    const [sender, urls, callData] = parsed.args as [
       string,
       string[],
       Uint8Array,
     ];
-    // TODO: change this once we can set ISMs on the ISM
-    urls = ['http://localhost:3000/callCommitments/getCallsFromCommitment'];
+
     const callDataHex = utils.hexlify(callData);
 
     for (const urlTemplate of urls) {
