@@ -315,6 +315,11 @@ where
         tx_gas_estimate: Option<U256>,
         with_gas_estimate_buffer: bool,
     ) -> ChainResult<ContractCall<M, ()>> {
+        tracing::info!(
+            metadata = hex::encode(metadata),
+            msg = hex::encode(RawHyperlaneMessage::from(message).to_vec()),
+            "Processing contract call"
+        );
         let mut tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
