@@ -8,7 +8,11 @@ import {
   derivedIsmAddress,
   transformConfigToCheck,
 } from '@hyperlane-xyz/sdk';
-import { ObjectDiff, diffObjMerge } from '@hyperlane-xyz/utils';
+import {
+  ObjectDiff,
+  diffObjMerge,
+  keepOnlyDiffObjects,
+} from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
@@ -56,7 +60,11 @@ export async function runWarpRouteCheck({
   );
 
   if (isInvalid) {
-    log(formatYamlViolationsOutput(yamlStringify(violations, null, 2)));
+    log(
+      formatYamlViolationsOutput(
+        yamlStringify(keepOnlyDiffObjects(violations), null, 2),
+      ),
+    );
     process.exit(1);
   }
 

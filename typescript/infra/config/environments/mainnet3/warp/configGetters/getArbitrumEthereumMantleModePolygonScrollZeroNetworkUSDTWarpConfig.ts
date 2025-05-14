@@ -120,6 +120,15 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
       },
       type: TokenType.synthetic,
       interchainSecurityModule: ISM_CONFIG,
+      gas: 300000,
+      destinationGas: {
+        '1': '0',
+        '137': '0',
+        '5000': '0',
+        '34443': '0',
+        '42161': '68000',
+        '534352': '0',
+      },
     };
 
     return {
