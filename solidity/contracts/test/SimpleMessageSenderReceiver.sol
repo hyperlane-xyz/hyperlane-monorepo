@@ -105,8 +105,6 @@ contract SimpleMessageSenderReceiver is
         bytes32 _sender,
         bytes calldata _body
     ) external payable override {
-        require(msg.sender == address(mailbox), "Only mailbox can call handle");
-
         messageCounter++;
         latestReceivedOrigin = _origin;
         latestReceivedSender = _sender;
