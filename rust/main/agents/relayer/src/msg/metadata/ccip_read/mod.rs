@@ -287,7 +287,6 @@ mod test {
             callback_function: [0, 0, 0, 0],
             extra_data: vec![].into(),
         };
-        let message = HyperlaneMessage::default();
 
         let signature_hex =
             CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
