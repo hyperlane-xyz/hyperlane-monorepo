@@ -25,6 +25,8 @@ domain_routing_mailbox_addr_everclear_staging := "0x46cb3da13fd222887ef869e2db5a
 domain_routing_mailbox_addr_base := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
+simple_sender_receiver_addr_everclear_staging := "0x8abcae02b22a5267a94689f417824eff177da0df"
+simple_sender_receiver_addr_base := "0x8abcae02b22a5267a94689f417824eff177da0df"
 
 deploy-mailbox-b3:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
@@ -149,6 +151,22 @@ deploy-simple-app-ape:
     export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_ape }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_ape }}" \
+        --broadcast \
+        -vvvv
+
+deploy-simple-app-base:
+    export MAILBOX_ADDRESS="{{ domain_routing_mailbox_addr_base }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_base }}" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
+deploy-simple-app-everclear-staging:
+    export MAILBOX_ADDRESS="{{ domain_routing_mailbox_addr_everclear_staging }}" && \
+    export ISM_ADDRESS="{{ polymer_ism_addr_everclear_staging }}" && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
 
