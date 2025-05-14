@@ -7,14 +7,15 @@ chain_id_ape := "33111"
 chain_id_everclear_staging := "25327"
 chain_id_base := "8453"
 polymer_prover_addr := "0xcDa03d74DEc5B24071D1799899B2e0653C24e5Fa"
+polymer_prover_addr_mainnet := "0x441f16587d8a8cACE647352B24E1Aefa55ACEA76"
 mailbox_contract_addr_b3 := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 mailbox_contract_addr_ape := "0xd3dd44aadd6c790322c3a8da37d6b9a6d72f5c28"
 mailbox_contract_addr_everclear_staging := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
 mailbox_contract_addr_base := "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c"
 polymer_ism_addr_b3 := "0x5615c90c3142ebbb5bba6dde1616251581d1f16c"
 polymer_ism_addr_ape := "0x5dfe4bb5aa44e459980ac1804aea4593af088cb9"
-polymer_ism_addr_everclear_staging := "0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e"
-polymer_ism_addr_base := "0x78dd032b4f70abe632ffbd6565f0ca94091fbe6e"
+polymer_ism_addr_everclear_staging := "0x593ca6a919b9946aa8a9abfd7c499f3fee8d7a9e"
+polymer_ism_addr_base := "0x568638bde8a0d48f291d516fcf05d70f019ebb7e"
 default_fallback_routing_ism_addr_b3 := "0x201d9d1da9a31dd8966f54e3466f615b72e53c46"
 default_fallback_routing_ism_addr_ape := "0xb9579911530c36165c9e3f09ed02af47763b4fbc"
 default_fallback_routing_ism_addr_everclear_staging := "0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
@@ -74,7 +75,7 @@ deploy-polymer-ism-ape:
 
 deploy-polymer-ism-base:
     export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
-    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_mainnet }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_base }}" \
         --broadcast \
@@ -82,7 +83,7 @@ deploy-polymer-ism-base:
 
 deploy-polymer-ism-everclear-staging:
     export ORIGIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
-    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr }}" && \
+    export POLYMER_PROVER_ADDRESS="{{ polymer_prover_addr_mainnet }}" && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
@@ -235,4 +236,7 @@ test-mailbox-contract-deployment-b3:
 test-mailbox-contract-deployment-ape:
     cast call "{{ mailbox_contract_addr_ape }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_ape }}"
     cast call "{{ mailbox_contract_addr_ape }}" "nonce()" --rpc-url "{{ rpc_endpoint_ape }}"
+
+display-origin-mailbox-polymer-ism-everclear-staging:
+    cast call "{{ polymer_ism_addr_everclear_staging }}" "originMailbox()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
 
