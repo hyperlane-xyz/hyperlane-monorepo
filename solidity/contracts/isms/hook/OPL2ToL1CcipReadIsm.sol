@@ -21,8 +21,7 @@ import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../
 contract OPL2ToL1CcipReadIsm is
     AbstractCcipReadIsm,
     IMessageRecipient,
-    ISpecifiesInterchainSecurityModule,
-    PackageVersioned
+    ISpecifiesInterchainSecurityModule
 {
     using Message for bytes;
     using TypeCasts for address;
