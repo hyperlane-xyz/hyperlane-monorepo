@@ -877,13 +877,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(ica.commitments(commitment), true);
     }
 
-    function _get_commitment(
-        bytes32 salt,
-        CallLib.Call[] memory calls
-    ) internal returns (bytes32) {
-        return keccak256(abi.encodePacked(salt, abi.encode(calls)));
-    }
-
     function _get_metadata(
         OwnableMulticall _ica,
         bytes32 salt,
@@ -897,14 +890,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         CallLib.Call[] memory calls
     ) internal returns (bytes32) {
         return keccak256(abi.encodePacked(salt, abi.encode(calls)));
-    }
-
-    function _get_metadata(
-        OwnableMulticall _ica,
-        bytes32 salt,
-        CallLib.Call[] memory calls
-    ) internal returns (bytes memory) {
-        return abi.encodePacked(_ica, salt, abi.encode(calls));
     }
 
     function testFuzz_revealAndExecute(
