@@ -26,8 +26,8 @@ domain_routing_mailbox_addr_everclear_staging := "0x46cb3da13fd222887ef869e2db5a
 domain_routing_mailbox_addr_base := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
-simple_sender_receiver_addr_everclear_staging := "0x26f5ffd72537b60589c704aeee2d13b9a76075ac"
-simple_sender_receiver_addr_base := "0x9f8296f8b4b92a6686fddb96ed1833b15d64ba3c"
+simple_sender_receiver_addr_everclear_staging := "0x56088923b84121327b85802Dcca1A84478eB1ea2"
+simple_sender_receiver_addr_base := "0xc81686396C44dD0f39A76de2BeC5CCE2eE3d4548"
 
 deploy-mailbox-b3:
     export HYPERLANE_DOMAIN_ID="{{ chain_id_b3 }}" && \
@@ -174,7 +174,7 @@ deploy-simple-app-ape:
         -vvvv
 
 deploy-simple-app-base:
-    export MAILBOX_ADDRESS="{{ domain_routing_mailbox_addr_base }}" && \
+    export MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
     export ISM_ADDRESS="{{ polymer_ism_addr_base }}" && \
     forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
         --rpc-url "{{ rpc_endpoint_base }}" \
@@ -240,3 +240,7 @@ test-mailbox-contract-deployment-ape:
 display-origin-mailbox-polymer-ism-everclear-staging:
     cast call "{{ polymer_ism_addr_everclear_staging }}" "originMailbox()" --rpc-url "{{ rpc_endpoint_everclear_staging }}"
 
+debug-msg-sending-base-everclear-staging:
+    forge test --match-path script/DebugSendingV2.sol --match-test test_do_fork -vvvv
+
+    
