@@ -140,12 +140,22 @@ export async function setProxyAdminConfig(
   }
 }
 
+/**
+ * Generates a warp route ID for a given warp route deployment config.
+ *
+ * @param registry The registry used to check for existing warp route configurations
+ * @param warpRouteDeployConfig The configuration for the warp route deployment
+ * @param symbol The symbol associated with the warp route
+ * @returns A Promise resolving to the unique warp route ID
+ * @throws Error if a warp route ID already exists or cannot be generated
+ */
 export async function getWarpRouteIdFromWarpDeployConfig(
   registry: IRegistry,
   warpRouteDeployConfig: WarpRouteDeployConfig,
   symbol: string,
 ): Promise<string> {
   return detectAndConfirmOrPrompt(
+    // First Proposes the short or long warp route id
     async () =>
       BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
         symbol,
