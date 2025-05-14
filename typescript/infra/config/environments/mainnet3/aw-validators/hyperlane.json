@@ -226,6 +226,9 @@
   "kroma": {
     "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]
   },
+  "kyve": {
+    "validators": ["0x8576ddc0cd96325f85528e53f333357afb8bf044"]
+  },
   "linea": {
     "validators": ["0xf2d5409a59e0f5ae7635aff73685624904a77d94"]
   },
@@ -269,6 +272,9 @@
   "mint": {
     "validators": ["0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9"]
   },
+  "miraclechain": {
+    "validators": ["0x8fc655174e99194399822ce2d3a0f71d9fc2de7b"]
+  },
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
   },
@@ -300,6 +306,9 @@
   },
   "oortmainnet": {
     "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
+  },
+  "ontology": {
+    "validators": ["0x2578b0a330c492e1a1682684e27e6a93649befd5"]
   },
   "opbnb": {
     "validators": ["0x1bdf52749ef2411ab9c28742dea92f209e96c9c4"]

@@ -1776,5 +1776,26 @@ export const validatorChainConfig = (
         'svmbnb',
       ),
     },
+
+    miraclechain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('miraclechain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x8fc655174e99194399822ce2d3a0f71d9fc2de7b'],
+        },
+        'miraclechain',
+      ),
+    },
+    kyve: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('kyve'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x8576ddc0cd96325f85528e53f333357afb8bf044'],
+        },
+        'kyve',
+      ),
+    },
   };
 };

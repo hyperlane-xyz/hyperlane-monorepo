@@ -32,10 +32,26 @@
       },
       "overhead": 333774
     },
+    "bsc": {
+      "oracleConfig": {
+        "tokenExchangeRate": "62110871980005554012",
+        "gasPrice": "2576829126",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "svmbnb": {
       "oracleConfig": {
         "tokenExchangeRate": "6211087198000555",
         "gasPrice": "8599",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
+    "soon": {
+      "oracleConfig": {
+        "tokenExchangeRate": "18705637322965842",
+        "gasPrice": "2855",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -144,14 +160,6 @@
       },
       "overhead": 166887
     },
-    "soon": {
-      "oracleConfig": {
-        "tokenExchangeRate": "18705637322965842",
-        "gasPrice": "2855",
-        "tokenDecimals": 9
-      },
-      "overhead": 600000
-    },
     "sonicsvm": {
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
@@ -235,6 +243,14 @@
         "tokenDecimals": 9
       },
       "overhead": 600000
+    },
+    "bsc": {
+      "oracleConfig": {
+        "tokenExchangeRate": "4980654032868658976",
+        "gasPrice": "2664685207",
+        "tokenDecimals": 18
+      },
+      "overhead": 159736
     }
   },
   "sonicsvm": {
