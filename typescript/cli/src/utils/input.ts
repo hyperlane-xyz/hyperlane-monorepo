@@ -141,7 +141,11 @@ export async function setProxyAdminConfig(
 }
 
 /**
- * Generates a warp route ID for a given warp route deployment config.
+ * Retrieves the warp route ID for a given WarpRouteDeployConfig and symbol.
+ *
+ * This function prompts the user to confirm or input the desired warp route ID
+ * based on the provided WarpRouteDeployConfig and symbol. It uses the
+ * `detectAndConfirmOrPrompt` utility to handle detection, confirmation, and input.
  *
  * @param registry The registry used to check for existing warp route configurations
  * @param warpRouteDeployConfig The configuration for the warp route deployment
