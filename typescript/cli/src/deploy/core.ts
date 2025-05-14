@@ -124,7 +124,6 @@ export async function runCoreDeploy(params: DeployParams) {
         assert(account, 'Starknet account failed!');
         const starknetCoreModule = new StarknetCoreModule(
           account,
-          multiProvider,
           multiProtocolProvider!,
           chain,
         );
@@ -161,7 +160,6 @@ export async function runCoreApply(params: ApplyParams) {
     assert(account, 'Starknet account failed!');
     const starknetCoreModule = new StarknetCoreModule(
       account,
-      multiProvider,
       multiProtocolProvider!,
       chain,
     );
@@ -170,10 +168,10 @@ export async function runCoreApply(params: ApplyParams) {
       deployedCoreAddresses.mailbox,
       account,
     );
-    const result = await starknetCoreModule.update(config, {
-      mailboxContract: mailboxContract,
-      chain,
-    });
+    const result = await starknetCoreModule.updateCoreDeploy(
+      config,
+      mailboxContract.address,
+    );
 
     logGreen(`Core config updated on ${chain} with result: ${result}`);
     return;

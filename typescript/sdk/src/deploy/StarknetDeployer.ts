@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { Logger } from 'pino';
 import {
   Account,
@@ -5,6 +6,7 @@ import {
   CallData,
   ContractFactory,
   ContractFactoryParams,
+  MultiType,
   RawArgs,
 } from 'starknet';
 
@@ -13,8 +15,15 @@ import {
   getCompiledContract,
   getCompiledContractCasm,
 } from '@hyperlane-xyz/starknet-core';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
+import { HookType, ProtocolFeeHookConfig } from '../hook/types.js';
+import { HookConfig } from '../hook/types.js';
 import {
   StarknetIsmContractName,
   SupportedIsmTypesOnStarknet,
@@ -25,8 +34,12 @@ import {
   SupportedIsmTypesOnStarknetType,
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
-import { getStarknetIsmContract } from '../utils/starknet.js';
+import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';
+import { ChainName, ChainNameOrId } from '../types.js';
+import {
+  StarknetContractName,
+  getStarknetIsmContract,
+} from '../utils/starknet.js';
 
 export class StarknetDeployer {
   private readonly logger: Logger;
@@ -189,6 +202,50 @@ export class StarknetDeployer {
       contractName && constructorArgs,
       'ISM contract or constructor args are not provided',
     );
+    return this.deployContract(contractName, constructorArgs);
+  }
+
+  async deployHook(
+    chain: ChainNameOrId,
+    hookConfig: HookConfig,
+    mailboxAddress: Address,
+    owner: Address,
+  ): Promise<Address> {
+    if (typeof hookConfig === 'string') {
+      return hookConfig; // It's already an address
+    }
+
+    const chainName = this.multiProvider.getChainName(chain);
+    this.logger.info(
+      `Deploying ${hookConfig.type} hook on ${chainName} with owner ${owner}`,
+    );
+
+    let contractName: StarknetContractName;
+    let constructorArgs: any[];
+
+    switch (hookConfig.type) {
+      case HookType.MERKLE_TREE:
+        contractName = StarknetContractName.MERKLE_TREE_HOOK;
+        constructorArgs = [mailboxAddress, owner];
+        break;
+      case HookType.PROTOCOL_FEE:
+        // ProtocolFee is usually a required hook, set differently
+        contractName = StarknetContractName.PROTOCOL_FEE;
+        const pfConfig = hookConfig as ProtocolFeeHookConfig;
+        constructorArgs = [
+          BigNumber.from(pfConfig.maxProtocolFee),
+          BigNumber.from(pfConfig.protocolFee),
+          pfConfig.beneficiary,
+          owner, // Owner of the fee contract itself
+          PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Starknet]!
+            .denom as MultiType,
+        ];
+        break;
+      default:
+        throw new Error(
+          `Unsupported hook type for deployment: ${hookConfig.type}`,
+        );
+    }
     return this.deployContract(contractName, constructorArgs);
   }
 }

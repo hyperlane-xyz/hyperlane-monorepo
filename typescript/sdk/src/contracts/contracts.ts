@@ -16,8 +16,12 @@ import {
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedEV5Transaction,
+  AnnotatedStarknetTransaction,
+} from '../providers/ProviderType.js';
 import { ChainMap, Connection, OwnableConfig } from '../types.js';
+import { getStarknetHypERC20Contract } from '../utils/starknet.js';
 
 import {
   HyperlaneAddresses,
@@ -302,6 +306,31 @@ export function transferOwnershipTransactions(
         'transferOwnership',
         [expected.owner],
       ),
+    },
+  ];
+}
+
+export function transferOwnershipTransactionsStarknet(
+  contract: Address,
+  actual: OwnableConfig,
+  expected: OwnableConfig,
+  label?: string,
+): AnnotatedStarknetTransaction[] {
+  if (eqAddress(actual.owner, expected.owner)) {
+    return [];
+  }
+
+  // starknet doesn't compile interfaces
+  const ownableContract = getStarknetHypERC20Contract(contract);
+  const tx = ownableContract.populateTransaction.transferOwnership(
+    expected.owner,
+  );
+  return [
+    {
+      annotation: `Transferring ownership of ${label ?? contract} from ${
+        actual.owner
+      } to ${expected.owner}`,
+      ...tx,
     },
   ];
 }
