@@ -1,7 +1,12 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  objMap,
+  promiseObjAll,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -126,23 +131,21 @@ async function createWarpIsm({
     !interchainSecurityModule ||
     typeof interchainSecurityModule === 'string'
   ) {
-    // logGray(
-    //   `Config Ism is ${
-    //     !interchainSecurityModule ? 'empty' : interchainSecurityModule
-    //   }, skipping deployment.`,
-    // );
+    rootLogger.info(
+      `Config Ism is ${
+        !interchainSecurityModule ? 'empty' : interchainSecurityModule
+      }, skipping deployment.`,
+    );
     return interchainSecurityModule;
   }
 
-  // logBlue(`Loading registry factory addresses for ${chain}...`);
-
-  // logGray(
-  //   `Creating ${interchainSecurityModule.type} ISM for token on ${chain} chain...`,
-  // );
-
-  // logGreen(
-  //   `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
-  // );
+  rootLogger.info(`Loading registry factory addresses for ${chain}...`);
+  rootLogger.info(
+    `Creating ${interchainSecurityModule.type} ISM for token on ${chain} chain...`,
+  );
+  rootLogger.info(
+    `Finished creating ${interchainSecurityModule.type} ISM for token on ${chain} chain.`,
+  );
 
   const evmIsmModule = await EvmIsmModule.create({
     chain,
@@ -176,13 +179,14 @@ async function createWarpHook({
   const { hook } = warpConfig;
 
   if (!hook || typeof hook === 'string') {
-    // logGray(`Config Hook is ${!hook ? 'empty' : hook}, skipping deployment.`);
+    rootLogger.info(
+      `Config Hook is ${!hook ? 'empty' : hook}, skipping deployment.`,
+    );
     return hook;
   }
 
-  // logBlue(`Loading registry factory addresses for ${chain}...`);
-
-  // logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
+  rootLogger.info(`Loading registry factory addresses for ${chain}...`);
+  rootLogger.info(`Creating ${hook.type} Hook for token on ${chain} chain...`);
 
   // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
   const proxyAdminAddress: Address =
@@ -202,7 +206,10 @@ async function createWarpHook({
     contractVerifier,
     proxyFactoryFactories: extractIsmAndHookFactoryAddresses(chainAddresses),
   });
-  // logGreen(`Finished creating ${hook.type} Hook for token on ${chain} chain.`);
+  rootLogger.info(
+    `Finished creating ${hook.type} Hook for token on ${chain} chain.`,
+  );
+
   const { deployedHook } = evmHookModule.serialize();
   return deployedHook;
 }

@@ -120,6 +120,7 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
+export { executeWarpDeploy } from './deploy/warp.js';
 export {
   SealevelOverheadIgpAdapter,
   SealevelIgpAdapter,
