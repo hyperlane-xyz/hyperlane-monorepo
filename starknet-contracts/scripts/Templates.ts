@@ -1,12 +1,15 @@
 export class Templates {
   static tsIndex(
-    imports: string,
+    imports: string[],
+    requireImports: string[],
     contractExports: string[],
     tokenExports: string[],
     mockExports: string[],
   ) {
     return `
-${imports}
+${imports.join('\n')}
+
+${requireImports.join('\n')}
 
 export const starknetContracts = {
   contracts: {

@@ -80,6 +80,7 @@ export class StarknetArtifactGenerator {
     tsContent: string;
   } {
     const imports: string[] = [];
+    const requireImports: string[] = [];
     const contractExports: string[] = [];
     const tokenExports: string[] = [];
     const mockExports: string[] = [];
@@ -98,7 +99,7 @@ export class StarknetArtifactGenerator {
 
       if (value.sierra) {
         sierraVarName = `${value.type}_${baseName}_sierra`;
-        imports.push(
+        requireImports.push(
           `const ${sierraVarName} = require('../contracts/${name}.${ContractClass.SIERRA}.json');`,
         );
         abiVarName = `${value.type}_${baseName}_abi`;
@@ -109,7 +110,7 @@ export class StarknetArtifactGenerator {
 
       if (value.casm) {
         casmVarName = `${value.type}_${baseName}_casm`;
-        imports.push(
+        requireImports.push(
           `const ${casmVarName} = require('../contracts/${name}.${ContractClass.CASM}.json');`,
         );
       }
@@ -138,7 +139,8 @@ export class StarknetArtifactGenerator {
 
     return {
       tsContent: Templates.tsIndex(
-        imports.join('\n'),
+        imports,
+        requireImports,
         contractExports,
         tokenExports,
         mockExports,
