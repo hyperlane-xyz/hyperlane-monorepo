@@ -363,7 +363,10 @@ async function getXERC20Info(
     throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
   }
 
-  if (token.standard === TokenStandard.EvmHypXERC20) {
+  if (
+    token.standard === TokenStandard.EvmHypXERC20 ||
+    token.standard === TokenStandard.EvmHypVSXERC20
+  ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20Adapter;
@@ -371,7 +374,10 @@ async function getXERC20Info(
       limits: await getXERC20Limit(token, adapter),
       xERC20Address: (await adapter.getXERC20()).address,
     };
-  } else if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
+  } else if (
+    token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+    token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+  ) {
     const adapter = token.getAdapter(
       warpCore.multiProvider,
     ) as EvmHypXERC20LockboxAdapter;
