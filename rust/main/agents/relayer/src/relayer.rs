@@ -542,10 +542,16 @@ impl BaseAgent for Relayer {
 
         // run server
         start_entity_init = Instant::now();
+
+        // create a db mapping for server handlers
+        let dbs: HashMap<u32, HyperlaneRocksDB> =
+            self.dbs.iter().map(|(k, v)| (k.id(), v.clone())).collect();
         let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
+            .with_db(dbs)
             .router();
+
         let server = self
             .core
             .settings

@@ -1,5 +1,6 @@
 use axum::Router;
 use derive_new::new;
+use hyperlane_base::db::HyperlaneRocksDB;
 use std::collections::HashMap;
 use std::env;
 use tokio::sync::broadcast::Sender;
@@ -11,8 +12,11 @@ pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub mod environment_variable;
+pub mod insert_merkle_tree_insertions;
+pub mod insert_messages;
 pub mod list_messages;
 pub mod message_retry;
+pub mod utils;
 
 #[derive(new)]
 pub struct Server {
@@ -21,6 +25,8 @@ pub struct Server {
     retry_transmitter: Option<Sender<message_retry::MessageRetryRequest>>,
     #[new(default)]
     op_queues: Option<HashMap<u32, OperationPriorityQueue>>,
+    #[new(default)]
+    dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
 }
 
 impl Server {
@@ -37,6 +43,11 @@ impl Server {
         self
     }
 
+    pub fn with_db(mut self, db: HashMap<u32, HyperlaneRocksDB>) -> Self {
+        self.dbs = Some(db);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -47,6 +58,11 @@ impl Server {
         }
         if let Some(op_queues) = self.op_queues {
             router = router.merge(list_messages::ServerState::new(op_queues).router());
+        }
+        if let Some(dbs) = self.dbs {
+            router = router
+                .merge(insert_messages::ServerState::new(dbs.clone()).router())
+                .merge(insert_merkle_tree_insertions::ServerState::new(dbs).router())
         }
 
         let expose_environment_variable_endpoint =

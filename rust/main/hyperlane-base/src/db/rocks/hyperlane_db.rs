@@ -201,7 +201,16 @@ impl HyperlaneRocksDB {
             debug!(insertion=?insertion, "Tree insertion already stored in db");
             return Ok(false);
         }
+        self.store_tree_insertion(insertion, insertion_block_number)
+    }
 
+    /// Store the merkle tree insertion event, and also store a mapping from message_id to leaf_index.
+    /// Overwrites existing insertions
+    pub fn store_tree_insertion(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<bool> {
         // even if double insertions are ok, store the leaf by `leaf_index` (guaranteed to be unique)
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
