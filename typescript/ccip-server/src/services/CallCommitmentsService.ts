@@ -1,4 +1,3 @@
-import { utils } from 'ethers';
 import { Request, Response, Router } from 'express';
 
 import { encodeIcaCalls, normalizeCalls } from '@hyperlane-xyz/sdk';
