@@ -46,10 +46,6 @@ export class TokenMetadataMap {
     )?.decimals;
   }
 
-  getMetadata(): Record<string, TokenMetadata | undefined> {
-    return this.tokenMetadataMap;
-  }
-
   getMetadataForChain(chain: string): TokenMetadata | undefined {
     return this.tokenMetadataMap[chain];
   }
