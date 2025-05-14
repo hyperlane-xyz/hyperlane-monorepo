@@ -260,6 +260,7 @@ fn create_ccip_url_regex() -> RegexSet {
     .unwrap()
 }
 
+#[cfg(test)]
 mod test {
     use std::{str::FromStr, vec};
 
