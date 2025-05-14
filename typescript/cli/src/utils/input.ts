@@ -32,13 +32,16 @@ export async function detectAndConfirmOrPrompt(
   prompt: string,
   label: string,
   source?: string,
+  validate?:
+    | ((value: string) => string | boolean | Promise<string | boolean>)
+    | undefined,
 ): Promise<string> {
   let detectedValue: string | undefined;
   try {
     detectedValue = await detect();
     if (detectedValue) {
       const confirmed = await confirm({
-        message: `Detected ${label} as ${detectedValue}${
+        message: `Using ${label} as ${detectedValue}${
           source ? ` from ${source}` : ''
         }, is this correct?`,
       });
@@ -49,7 +52,11 @@ export async function detectAndConfirmOrPrompt(
   } catch {
     // Fallback to input prompt
   }
-  return input({ message: `${prompt} ${label}:`, default: detectedValue });
+  return input({
+    message: `${prompt} ${label}:`,
+    default: detectedValue,
+    validate,
+  });
 }
 
 const INFO_COMMAND: string = 'i';
