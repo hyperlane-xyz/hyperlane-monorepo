@@ -1,5 +1,5 @@
+pub use ethereum::EthereumTxPrecursor;
 pub use factory::ChainTxAdapterFactory;
-pub use sealevel::SealevelPayload;
 pub use sealevel::SealevelTxPrecursor;
 
 mod factory;

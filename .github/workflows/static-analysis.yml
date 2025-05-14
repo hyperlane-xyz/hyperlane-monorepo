@@ -2,7 +2,7 @@ name: static-analysis
 
 on:
   push:
-  # Triggers the workflow on push to main
+    # Triggers the workflow on push to main
     branches: [main]
     paths:
       - 'solidity/**'

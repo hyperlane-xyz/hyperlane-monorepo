@@ -211,7 +211,6 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SuperpositionTestnet = 98985,
-    Treasuretopaz = 978658,
 }
 
 #[derive(Clone, Serialize)]
@@ -333,7 +332,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, Abstracttestnet, Treasuretopaz
+                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, Abstracttestnet
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -351,7 +350,7 @@ impl KnownHyperlaneDomain {
                 DegenChain, Endurance, Ethereum, Fraxtal, Fuji, FuseMainnet, Gnosis,
                 InEvm, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin, Metis, Mint,
                 Mode, Moonbeam, Optimism, Polygon, ProofOfPlay, ReAl, Redstone, Sanko, Sei, Tangle,
-                Taiko, Treasure, Treasuretopaz, Viction, Worldchain, Xai, Xlayer, Zeronetwork, Zetachain, Zircuit, ZoraMainnet,
+                Taiko, Treasure, Viction, Worldchain, Xai, Xlayer, Zeronetwork, Zetachain, Zircuit, ZoraMainnet,
                 Zklink, Zksync,
 
                 // Local chains
@@ -399,7 +398,7 @@ impl KnownHyperlaneDomain {
                 Moonbeam, Tangle
             ],
             HyperlaneDomainTechnicalStack::ZkSync: [
-                Abstracttestnet, Treasure, Treasuretopaz, Zeronetwork, Zklink, Zksync,
+                Abstracttestnet, Treasure, Zeronetwork, Zklink, Zksync,
             ],
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
@@ -607,12 +606,26 @@ impl HyperlaneDomain {
     }
 }
 
+/// Hyperlane domain protocol types.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(
+    feature = "strum",
+    derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
+)]
+pub enum SubmitterType {
+    /// Classic
+    #[default]
+    Classic,
+    /// Lander
+    Lander,
+}
+
 #[cfg(test)]
 #[cfg(feature = "strum")]
 mod tests {
     use std::{num::NonZeroU32, str::FromStr};
 
-    use crate::{KnownHyperlaneDomain, ReorgPeriod};
+    use crate::{KnownHyperlaneDomain, ReorgPeriod, SubmitterType};
 
     #[test]
     fn domain_strings() {
@@ -691,6 +704,19 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<ReorgPeriod>("finalized".into()).unwrap(),
             ReorgPeriod::Tag("finalized".into())
+        );
+    }
+
+    #[test]
+    fn parse_submitter_type() {
+        assert_eq!(
+            serde_json::from_value::<SubmitterType>("Classic".into()).unwrap(),
+            SubmitterType::Classic
+        );
+
+        assert_eq!(
+            serde_json::from_value::<SubmitterType>("Lander".into()).unwrap(),
+            SubmitterType::Lander
         );
     }
 }

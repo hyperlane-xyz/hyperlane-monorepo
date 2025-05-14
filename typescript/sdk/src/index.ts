@@ -120,6 +120,7 @@ export {
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
+export { executeWarpDeploy } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
@@ -180,6 +181,7 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
 export { decodeIsmMetadata } from './ism/metadata/decode.js';
@@ -216,7 +218,12 @@ export {
   WeightedMultisigIsmConfig,
   WeightedMultisigIsmConfigSchema,
 } from './ism/types.js';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
+export {
+  collectValidators,
+  moduleCanCertainlyVerify,
+  isStaticDeploymentSupported,
+  isIsmCompatible,
+} from './ism/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
@@ -239,6 +246,9 @@ export {
   buildAgentConfig,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
+  IsmCacheSelectorType,
   RelayerConfig,
   RpcConsensusType,
   ScraperConfig,
@@ -457,6 +467,8 @@ export {
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
+export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
+export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
@@ -465,6 +477,7 @@ export {
   RemoteIcaRouterConfigSchema,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToStarknetChain,
@@ -559,6 +572,7 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   expandWarpDeployConfig,
+  expandVirtualWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
@@ -608,6 +622,8 @@ export {
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfigMailboxOptionalSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
@@ -625,6 +641,12 @@ export {
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  derivedHookAddress,
+  derivedIsmAddress,
+  DerivedTokenRouterConfig,
+  DerivedWarpRouteDeployConfig,
+  HypTokenRouterVirtualConfig,
+  WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,

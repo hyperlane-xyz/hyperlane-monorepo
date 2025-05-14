@@ -40,7 +40,6 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateralVault,
       TokenType.collateralVaultRebase,
       TokenType.collateralFiat,
-      TokenType.fastCollateral,
       TokenType.collateralUri,
     ]),
     token: z
@@ -96,14 +95,10 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 );
 
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
-  type: z.enum([
-    TokenType.synthetic,
-    TokenType.syntheticUri,
-    TokenType.fastSynthetic,
-  ]),
 });
-export type SyntheticTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
+export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
 
 export const SyntheticRebaseTokenConfigSchema =
@@ -112,11 +107,31 @@ export const SyntheticRebaseTokenConfigSchema =
     collateralChainName: z.string(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
-  typeof CollateralTokenConfigSchema
+  typeof SyntheticRebaseTokenConfigSchema
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
+
+export enum ContractVerificationStatus {
+  Verified = 'verified',
+  Unverified = 'unverified',
+  Error = 'error',
+  Skipped = 'skipped',
+}
+export const HypTokenRouterVirtualConfigSchema = z.object({
+  contractVerificationStatus: z.record(
+    z.enum([
+      ContractVerificationStatus.Verified,
+      ContractVerificationStatus.Unverified,
+      ContractVerificationStatus.Error,
+      ContractVerificationStatus.Skipped,
+    ]),
+  ),
+});
+export type HypTokenRouterVirtualConfig = z.infer<
+  typeof HypTokenRouterVirtualConfigSchema
+>;
 
 /**
  * @remarks
@@ -134,7 +149,8 @@ export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
 export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
   GasRouterConfigSchema,
-);
+).and(HypTokenRouterVirtualConfigSchema.partial());
+
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
@@ -143,6 +159,8 @@ export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
     keyof DerivedMailboxClientFields
   > &
   DerivedMailboxClientFields;
+
+export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
 
 export function derivedHookAddress(config: DerivedTokenRouterConfig) {
   return typeof config.hook === 'string' ? config.hook : config.hook.address;
@@ -154,11 +172,12 @@ export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
     : config.interchainSecurityModule.address;
 }
 
-const HypTokenRouterConfigMailboxOptionalSchema = HypTokenConfigSchema.and(
-  GasRouterConfigSchema.extend({
-    mailbox: z.string().optional(),
-  }),
-);
+export const HypTokenRouterConfigMailboxOptionalSchema =
+  HypTokenConfigSchema.and(
+    GasRouterConfigSchema.extend({
+      mailbox: z.string().optional(),
+    }),
+  ).and(HypTokenRouterVirtualConfigSchema.partial());
 
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema

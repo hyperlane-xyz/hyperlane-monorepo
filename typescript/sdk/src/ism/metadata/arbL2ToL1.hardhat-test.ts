@@ -120,11 +120,14 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     };
 
     factoryContracts = contractsMap.test4;
-    proxyFactoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
-      acc[key] =
-        contractsMap[origin][key as keyof ProxyFactoryFactories].address;
-      return acc;
-    }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
+    proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
+      (acc, key) => {
+        acc[key] =
+          contractsMap[origin][key as keyof ProxyFactoryFactories].address;
+        return acc;
+      },
+      {} as Record<string, Address>,
+    ) as HyperlaneAddresses<ProxyFactoryFactories>;
     arbBridge = await multiProvider.handleDeploy(
       origin,
       new MockArbBridge__factory(),
@@ -234,9 +237,8 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     it(`should build valid metadata if already preverified by 3rd party relayer`, async () => {
       setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
 
-      const calldata = await metadataBuilder.buildArbitrumBridgeCalldata(
-        context,
-      );
+      const calldata =
+        await metadataBuilder.buildArbitrumBridgeCalldata(context);
       metadata = ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(calldata);
       await arbBridge.executeTransaction(
         calldata.proof,

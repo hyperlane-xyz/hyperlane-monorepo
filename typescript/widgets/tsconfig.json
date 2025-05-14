@@ -6,10 +6,8 @@
     "jsx": "react",
     "noImplicitAny": false,
     "rootDir": "./src",
-    "outDir": "./dist",
-    "moduleResolution": "bundler",
-    "module": "ES2015"
+    "outDir": "./dist"
   },
   "include": ["./src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.stories.tsx"],
+  "exclude": ["node_modules", "dist", "**/*.stories.tsx"]
 }

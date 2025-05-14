@@ -75,7 +75,7 @@ spec:
           mountPath: /config-env-vars
         - name: secret-env-vars
           mountPath: /secret-env-vars
-        ports: 
+        ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
       volumes:

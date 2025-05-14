@@ -7,14 +7,14 @@ import {
   messageId,
 } from '@hyperlane-xyz/utils';
 
-import testCases from '../../vectors/message.json' assert { type: 'json' };
+import testCases from '../../vectors/message.json' with { type: 'json' };
 import {
   Mailbox__factory,
   TestMessage,
   TestMessage__factory,
-} from '../core-utils/typechain';
+} from '../core-utils/typechain/index.js';
 
-import { getSigner, getSigners } from './signer';
+import { getSigner, getSigners } from './signer.js';
 
 const remoteDomain = 1000;
 const localDomain = 2000;

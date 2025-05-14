@@ -37,6 +37,7 @@ export async function getArbitrumEthereumSolanaTreasureSMOLWarpConfig(
       symbol,
       decimals: 18,
       owner: evmOwner,
+      gas: 70000,
     },
     ethereum: {
       ...routerConfig.ethereum,
@@ -45,6 +46,7 @@ export async function getArbitrumEthereumSolanaTreasureSMOLWarpConfig(
       symbol,
       decimals: 18,
       owner: evmOwner,
+      gas: 70000,
     },
     // Not intended to be fully connected with Solana, but is connected with treasure and ethereum
     arbitrum: {
@@ -56,6 +58,11 @@ export async function getArbitrumEthereumSolanaTreasureSMOLWarpConfig(
       symbol,
       decimals: 18,
       owner: evmOwner,
+      remoteRouters: {
+        1: { address: '0x53cce6d10e43d1b3d11872ad22ec2acd8d2537b8' },
+        61166: { address: '0xb73e4f558F7d4436d77a18f56e4EE9d01764c641' },
+      },
+      gas: 70000,
     },
   };
   return tokenConfig;
