@@ -28,7 +28,7 @@ describe('CCIP-Read ISM Integration', () => {
   let fetchStub: sinon.SinonStub;
   const CCIP_READ_SERVER_URL = 'http://example.com/namespace';
 
-  before(async () => {
+  beforeEach(async () => {
     // Set up a local test multi-provider and Hyperlane core
     const signers = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({
@@ -149,7 +149,7 @@ describe('CCIP-Read ISM Integration', () => {
     expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
   });
 
-  after(() => {
+  afterEach(() => {
     fetchStub.restore();
   });
 });

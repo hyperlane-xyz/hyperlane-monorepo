@@ -68,11 +68,11 @@ impl CcipReadIsmMetadataBuilder {
     async fn generate_signature_hex(
         signer: &Signers,
         info: &OffchainLookup,
-        url: &String,
+        url: &str,
     ) -> Result<String, MetadataBuildError> {
         // Derive the hash over call_data and sender
         let signable = HyperlaneAuthenticatedOffchainLookup {
-            url_template: url.clone().into(),
+            url_template: url.to_owned().into(),
             call_data: info.call_data.clone().to_vec(),
             sender: info.sender.into(),
         };
