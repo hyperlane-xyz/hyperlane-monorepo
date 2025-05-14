@@ -24,6 +24,7 @@ default_mailbox_contract_addr_everclear_staging := "0x7f50C5776722630a0024fAE05f
 default_mailbox_contract_addr_base := "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
 domain_routing_mailbox_addr_everclear_staging := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 domain_routing_mailbox_addr_base := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
+domain_routing_hook_addr_everclear_staging := "0x25e08Cab980ecA621dEc42aC781705DA107458B5"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 simple_sender_receiver_addr_everclear_staging := "0x56088923b84121327b85802Dcca1A84478eB1ea2"
@@ -154,6 +155,13 @@ configure-domain-routing-mailbox-base:
     export DOMAIN_MAILBOX_ADDRESS="{{ mailbox_contract_addr_base }}" && \
     forge script script/ConfigureDomainRoutingMailbox.s.sol:ConfigureDomainRoutingMailbox \
         --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
+deploy-domain-routing-hook-everclear-staging:
+    export LOCAL_MAILBOX_ADDRESS="{{ mailbox_contract_addr_everclear_staging }}" && \
+    forge script script/DeployDomainRoutingHook.s.sol:DeployDomainRoutingHook \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
         --broadcast \
         -vvvv
 
