@@ -7,6 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge } from '@hyperlane-xyz/utils';
 
+import { logDebug } from '../../logger.js';
 import { Config } from '../config/Config.js';
 import { Executor } from '../executor/Executor.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
@@ -39,6 +40,7 @@ export class RebalancerContextFactory {
     registry: IRegistry,
     config: Config,
   ): Promise<RebalancerContextFactory> {
+    logDebug('Creating RebalancerContextFactory');
     const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
 
@@ -53,11 +55,12 @@ export class RebalancerContextFactory {
       );
     }
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
-
+    logDebug('RebalancerContextFactory created successfully');
     return new RebalancerContextFactory(registry, config, metadata, warpCore);
   }
 
   public async createMetrics(coingeckoApiKey?: string): Promise<Metrics> {
+    logDebug('Creating Metrics');
     const tokenPriceGetter = PriceGetter.create(this.metadata, coingeckoApiKey);
     const collateralTokenSymbol = Metrics.getWarpRouteCollateralTokenSymbol(
       this.warpCore,
@@ -75,10 +78,12 @@ export class RebalancerContextFactory {
   }
 
   public createMonitor(): Monitor {
+    logDebug('Creating Monitor');
     return new Monitor(this.config.checkFrequency, this.warpCore);
   }
 
   public createStrategy(): IStrategy {
+    logDebug('Creating Strategy');
     return StrategyFactory.createStrategy(
       this.config.rebalanceStrategy,
       this.config.chains,
@@ -86,6 +91,7 @@ export class RebalancerContextFactory {
   }
 
   public createExecutor(): IExecutor {
+    logDebug('Creating Executor');
     return new Executor(
       objMap(this.config.chains, (_, v) => ({
         bridge: v.bridge,

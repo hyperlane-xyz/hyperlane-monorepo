@@ -26,12 +26,12 @@ import {
   logBlue,
   logCommandHeader,
   logGreen,
+  warnYellow,
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import {
   BaseConfig,
   Config,
-  IStrategy,
   RebalancerContextFactory,
 } from '../rebalancer/index.js';
 // TODO: This import should come from the IMonitor interface
@@ -518,6 +518,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
         coingeckoApiKey,
         rebalanceStrategy: rebalanceStrategy as BaseConfig['rebalanceStrategy'],
       });
+      logGreen('✅ Loaded rebalancer config');
 
       // Instantiate the factory used to create the different rebalancer components
       const contextFactory = await RebalancerContextFactory.create(
@@ -529,17 +530,29 @@ export const rebalancer: CommandModuleWithWriteContext<{
       const monitor = contextFactory.createMonitor();
 
       // Instantiates the strategy that will compute how rebalance routes should be performed
-      const strategy: IStrategy = contextFactory.createStrategy();
+      const strategy = contextFactory.createStrategy();
 
       // Instantiates the executor in charge of executing the rebalancing transactions
       const executor = !config.monitorOnly
         ? contextFactory.createExecutor()
         : undefined;
 
+      if (config.monitorOnly) {
+        warnYellow(
+          'Running in monitorOnly mode: no transactions will be executed.',
+        );
+      }
+
       // Instantiates the metrics that will publish stats from the monitored data
       const metrics = withMetrics
         ? await contextFactory.createMetrics()
         : undefined;
+
+      if (withMetrics) {
+        warnYellow(
+          'Metrics collection has been enabled and will be gathered during execution',
+        );
+      }
 
       const monitorToStrategy =
         contextFactory.createMonitorToStrategyTransformer();
@@ -561,13 +574,9 @@ export const rebalancer: CommandModuleWithWriteContext<{
 
           const rebalancingRoutes = strategy.getRebalancingRoutes(rawBalances);
 
-          if (executor) {
-            executor.rebalance(rebalancingRoutes).catch((e) => {
-              errorRed('Error while rebalancing:', (e as Error).message);
-            });
-          } else {
-            log('monitorOnly mode enabled, skipping rebalancing');
-          }
+          executor?.rebalance(rebalancingRoutes).catch((e) => {
+            errorRed('Error while rebalancing:', (e as Error).message);
+          });
         })
         // Observe monitor errors and exit
         .on('error', (e) => {
