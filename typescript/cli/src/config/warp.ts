@@ -292,7 +292,7 @@ export async function createWarpRouteDeployConfig({
 
       await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
         symbol,
-        warpRouteId,
+        warpRouteId, // Will default to SYMBOL/chain1 if `undefined`
       });
       logGreen(
         `✅ Successfully created new warp route deployment config with warp route id: ${warpRouteId}`,
