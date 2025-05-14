@@ -18,7 +18,7 @@ import {
   getContractAbi,
   getMockAbi,
   getTokenAbi,
-} from '@hyperlane-xyz/starknet-contracts';
+} from '@hyperlane-xyz/starknet-core';
 
 import { DispatchedMessage } from '../core/types.js';
 import { StarknetIsmContractName } from '../ism/starknet-utils.js';

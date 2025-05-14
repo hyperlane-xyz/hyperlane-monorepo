@@ -63,6 +63,48 @@ export function getCompiledContract(
   );
 }
 
+export function getContractAbi<
+  Type extends keyof (typeof starknetContracts)[ContractType.CONTRACT],
+>(
+  name: Type,
+): (typeof starknetContracts)[ContractType.CONTRACT][Type]['contract_abi'] {
+  const group = starknetContracts[ContractType.CONTRACT];
+  if (!group) {
+    throw new ContractError(ERR_CODES.INVALID_CONTRACT_TYPE, {
+      contractType: ContractType.CONTRACT,
+    });
+  }
+  return group[name].contract_abi;
+}
+
+export function getMockAbi<
+  Type extends keyof (typeof starknetContracts)[ContractType.MOCK],
+>(
+  name: Type,
+): (typeof starknetContracts)[ContractType.MOCK][Type]['contract_abi'] {
+  const group = starknetContracts[ContractType.MOCK];
+  if (!group) {
+    throw new ContractError(ERR_CODES.INVALID_CONTRACT_TYPE, {
+      contractType: ContractType.MOCK,
+    });
+  }
+  return group[name].contract_abi;
+}
+
+export function getTokenAbi<
+  Type extends keyof (typeof starknetContracts)[ContractType.TOKEN],
+>(
+  name: Type,
+): (typeof starknetContracts)[ContractType.TOKEN][Type]['contract_abi'] {
+  const group = starknetContracts[ContractType.TOKEN];
+  if (!group) {
+    throw new ContractError(ERR_CODES.INVALID_CONTRACT_TYPE, {
+      contractType: ContractType.TOKEN,
+    });
+  }
+  return group[name].contract_abi;
+}
+
 /**
  * @notice Retrieves a CASM compiled contract
  * @param name The name of the contract to retrieve

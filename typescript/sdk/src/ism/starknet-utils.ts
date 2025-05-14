@@ -1,7 +1,4 @@
-import {
-  ContractType,
-  StarknetContracts,
-} from '@hyperlane-xyz/starknet-contracts';
+import { ContractType, StarknetContracts } from '@hyperlane-xyz/starknet-core';
 
 import { IsmType, SupportedIsmTypesOnStarknetType } from './types.js';
 

@@ -7,8 +7,8 @@ const cwd = process.cwd();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DEFAULT_ROOT_OUTPUT_DIR = join(__dirname, '../dist/artifacts/');
-const DEFAULT_COMPILED_CONTRACTS_DIR = join(cwd, 'release');
+const DEFAULT_ROOT_OUTPUT_DIR = join(__dirname, '../src/artifacts/');
+const DEFAULT_COMPILED_CONTRACTS_DIR = join(cwd, 'src', 'contracts');
 
 (async () => {
   try {

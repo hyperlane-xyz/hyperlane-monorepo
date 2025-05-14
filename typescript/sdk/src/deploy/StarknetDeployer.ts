@@ -12,7 +12,7 @@ import {
   ContractType,
   getCompiledContract,
   getCompiledContractCasm,
-} from '@hyperlane-xyz/starknet-contracts';
+} from '@hyperlane-xyz/starknet-core';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {

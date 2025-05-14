@@ -7,7 +7,10 @@ import { CONTRACT_SUFFIXES } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
 
 import { Templates } from './Templates.js';
-import { prettierOutputTransformer } from './prettier.js';
+import {
+  prettierFileTransformer,
+  prettierOutputTransformer,
+} from './prettier.js';
 
 type ProcessedFileInfo = { type: ContractType; sierra: boolean; casm: boolean };
 type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
@@ -71,28 +74,13 @@ export class StarknetArtifactGenerator {
   }
 
   /**
-   * @notice Generates JavaScript content for a contract artifact
-   */
-  generateJavaScriptContent(name: string, artifact: any) {
-    return Templates.jsArtifact(name, artifact);
-  }
-
-  /**
-   * @notice Generates TypeScript declaration content for a contract artifact
-   */
-  generateDeclarationContent(name: string, isSierra: boolean) {
-    const type = isSierra ? 'CompiledContract' : 'CairoAssembly';
-    return Templates.dtsArtifact(name, type);
-  }
-
-  /**
    * @notice Generates index file contents with categorized contracts
    */
   generateIndexContents(processedFilesMap: ReadonlyProcessedFilesMap): {
-    jsContent: string;
-    dtsContent: string;
+    tsContent: string;
   } {
     const imports: string[] = [];
+    const requireImports: string[] = [];
     const contractExports: string[] = [];
     const tokenExports: string[] = [];
     const mockExports: string[] = [];
@@ -111,8 +99,8 @@ export class StarknetArtifactGenerator {
 
       if (value.sierra) {
         sierraVarName = `${value.type}_${baseName}_sierra`;
-        imports.push(
-          `import { ${name} as ${sierraVarName} } from './${name}.${ContractClass.SIERRA}.js';`,
+        requireImports.push(
+          `const ${sierraVarName} = require('../contracts/${name}.${ContractClass.SIERRA}.json');`,
         );
         abiVarName = `${value.type}_${baseName}_abi`;
         imports.push(
@@ -122,8 +110,8 @@ export class StarknetArtifactGenerator {
 
       if (value.casm) {
         casmVarName = `${value.type}_${baseName}_casm`;
-        imports.push(
-          `import { ${name} as ${casmVarName} } from './${name}.${ContractClass.CASM}.js';`,
+        requireImports.push(
+          `const ${casmVarName} = require('../contracts/${name}.${ContractClass.CASM}.json');`,
         );
       }
 
@@ -150,13 +138,13 @@ export class StarknetArtifactGenerator {
     });
 
     return {
-      jsContent: Templates.jsIndex(
-        imports.join('\n'),
+      tsContent: Templates.tsIndex(
+        imports,
+        requireImports,
         contractExports,
         tokenExports,
         mockExports,
       ),
-      dtsContent: Templates.dtsIndex(),
     };
   }
 
@@ -173,25 +161,6 @@ export class StarknetArtifactGenerator {
       .replace(`.${ContractClass.SIERRA}`, '')
       .replace(`.${ContractClass.CASM}`, '');
 
-    const artifact = await this.readArtifactFile(filePath);
-
-    // Generate and write files
-    const jsContent = this.generateJavaScriptContent(name, artifact);
-    const dtsContent = this.generateDeclarationContent(
-      name,
-      contractClass === ContractClass.SIERRA,
-    );
-
-    const outputFileName = `${name}.${contractClass}`;
-    await fs.writeFile(
-      join(this.rootOutputDir, outputFileName + '.js'),
-      jsContent, // No prettier output needed
-    );
-    await fs.writeFile(
-      join(this.rootOutputDir, outputFileName + '.d.ts'),
-      await prettierOutputTransformer(dtsContent),
-    );
-
     return { name, contractType, contractClass };
   }
 
@@ -199,39 +168,30 @@ export class StarknetArtifactGenerator {
    * @notice Processes all ABI files
    */
   async processAbis(files: string[]) {
-    for (const filePath of files) {
+    const paths = files.map((filePath) => {
       const baseFileName = basename(filePath);
       const name = baseFileName
         .replace('.json', '')
         .replace(`.${ContractClass.SIERRA}`, '')
         .replace(`.${ContractClass.CASM}`, '');
 
-      console.log(
-        `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
-      );
-      execSync(
-        `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
-      );
-    }
+      return {
+        input: filePath,
+        output: `${this.rootOutputDir}${name}_abi.ts`,
+      };
+    });
 
-    try {
-      console.log(
-        `npx tsc --target es2022 --declaration ${this.rootOutputDir}**_abi.ts`,
-      );
-      execSync(
-        `npx tsc --target es2022 --declaration ${this.rootOutputDir}**_abi.ts`,
-      );
-    } catch {}
+    execSync(
+      paths
+        .map(
+          (path) =>
+            `npx abi-wan-kanabi --input ${path.input} --output ${path.output}`,
+        )
+        .join(' & '),
+    );
 
-    for (const filePath of files) {
-      const baseFileName = basename(filePath);
-      const name = baseFileName
-        .replace('.json', '')
-        .replace(`.${ContractClass.SIERRA}`, '')
-        .replace(`.${ContractClass.CASM}`, '');
-
-      console.log(`fs.unlink(${this.rootOutputDir}${name}_abi.ts)`);
-      fs.unlink(`${this.rootOutputDir}${name}_abi.ts`);
+    for (const path of paths) {
+      await prettierFileTransformer(path.output);
     }
   }
 
@@ -276,16 +236,11 @@ export class StarknetArtifactGenerator {
       const processedFilesMap =
         this._aggregateProcessingResults(processingResults);
 
-      const { jsContent, dtsContent } =
-        this.generateIndexContents(processedFilesMap);
+      const { tsContent } = this.generateIndexContents(processedFilesMap);
 
       await fs.writeFile(
-        join(this.rootOutputDir, 'index.js'),
-        await prettierOutputTransformer(jsContent),
-      );
-      await fs.writeFile(
-        join(this.rootOutputDir, 'index.d.ts'),
-        await prettierOutputTransformer(dtsContent),
+        join(this.rootOutputDir, 'index.ts'),
+        await prettierOutputTransformer(tsContent),
       );
 
       return processedFilesMap;

@@ -1,23 +1,17 @@
 export class Templates {
-  static jsArtifact(name: string, artifact: any) {
-    return `export const ${name} = ${JSON.stringify(artifact)};`;
-  }
-
-  static dtsArtifact(name: string, type: string) {
-    return `
-      import type { CompiledContract, CairoAssembly } from 'starknet';
-      export declare const ${name}: ${type};
-      `;
-  }
-
-  static jsIndex(
-    imports: string,
+  static tsIndex(
+    imports: string[],
+    requireImports: string[],
     contractExports: string[],
     tokenExports: string[],
     mockExports: string[],
   ) {
+    imports.sort();
+
     return `
-${imports}
+${imports.join('\n')}
+
+${requireImports.join('\n')}
 
 export const starknetContracts = {
   contracts: {

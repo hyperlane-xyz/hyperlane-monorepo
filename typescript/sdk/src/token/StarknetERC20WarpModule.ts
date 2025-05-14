@@ -13,7 +13,7 @@ import {
   TokenType,
   getStarknetHypERC20Contract,
 } from '@hyperlane-xyz/sdk';
-import { ContractType } from '@hyperlane-xyz/starknet-contracts';
+import { ContractType } from '@hyperlane-xyz/starknet-core';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';

@@ -2,21 +2,21 @@ import { execSync } from 'child_process';
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-const RELEASE_DIR = join(process.cwd(), 'release');
+const CONTRACTS_DIR = join(process.cwd(), 'src', 'contracts');
 
 try {
-  if (existsSync(RELEASE_DIR)) {
-    const files = readdirSync(RELEASE_DIR);
+  if (existsSync(CONTRACTS_DIR)) {
+    const files = readdirSync(CONTRACTS_DIR);
     if (files.length > 0) {
       console.log(
-        '[INFO] Contracts already present in src/release, skipping fetch',
+        '[INFO] Contracts already present in src/contracts, skipping fetch',
       );
       process.exit(0);
     }
   }
 
   console.log('[INFO] Fetching contracts...');
-  execSync('./scripts/fetch-contracts-release.sh', {
+  execSync('./scripts/fetch-contracts.sh', {
     stdio: 'inherit',
     cwd: join(process.cwd()),
   });
