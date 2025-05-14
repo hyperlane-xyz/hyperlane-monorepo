@@ -199,6 +199,16 @@ send-message-ape-to-b3:
         --broadcast \
         -vvvv
 
+send-message-everclear-staging-to-base:
+    export SENDER_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_everclear_staging }}" && \
+    export DESTINATION_DOMAIN="{{ chain_id_base }}" && \
+    export RECIPIENT_CONTRACT_ADDRESS="{{ simple_sender_receiver_addr_base }}" && \
+    export MESSAGE_CONTENT="Hello from Everclear Staging to Base!" && \
+    forge script script/SendMessage.s.sol:SendMessage \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
 test-mailbox-contract-deployment-b3:
     cast call "{{ mailbox_contract_addr_b3 }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_b3 }}"
     cast call "{{ mailbox_contract_addr_b3 }}" "nonce()" --rpc-url "{{ rpc_endpoint_b3 }}"
