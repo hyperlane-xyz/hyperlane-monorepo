@@ -48,4 +48,3 @@ hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum", features = ["te
 default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
-sov-sdk-testing = ["hyperlane-base/sov-sdk-testing"]

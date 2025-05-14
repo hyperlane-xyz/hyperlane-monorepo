@@ -26,7 +26,7 @@ RUN --mount=type=ssh \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
   cd rust/main && \
   touch chains/hyperlane-fuel/abis/* && \
-  cargo build --features sov-sdk-testing --release --bin relayer --bin validator && \
+  cargo build --release --bin relayer --bin validator && \
   # still need to copy out of target bcs it's a cache mount so will be unmounted
   cp target/release/relayer target/release/validator /usr/bin
 

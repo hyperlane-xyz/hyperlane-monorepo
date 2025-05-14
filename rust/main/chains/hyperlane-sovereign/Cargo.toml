@@ -31,8 +31,3 @@ tokio-tungstenite = "0.23"
 
 [features]
 default = []
-# only for use in sov sdk tests, impacts tx signature generation
-# test runtime in sov sdk hardcodes CHAIN_HASH to [11; 32]
-# while in production, the real chain hash from Schema is used
-# this feature, when enabled, will use the hardcoded CHAIN_HASH instead
-sov-sdk-testing = []

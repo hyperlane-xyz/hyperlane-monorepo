@@ -1,3 +1,6 @@
+use std::env;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use anyhow::{bail, Context, Result};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -7,7 +10,6 @@ use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sov_universal_wallet::schema::{RollupRoots, Schema};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::{timeout_at, Instant};
 
 mod crypto;
@@ -21,7 +23,6 @@ use types::TxStatus;
 #[derive(Clone, Debug)]
 pub struct UniversalClient {
     api_url: String,
-    #[cfg_attr(feature = "sov-sdk-testing", allow(unused))]
     chain_hash: [u8; 32],
     chain_id: u64,
     http_client: Client,
@@ -110,10 +111,11 @@ impl UniversalClient {
 
         // test runtime in sovereign sdk hardcodes chain hash to this value
         // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/2fcd88e0a4b57183058f3ec9ebf8925998677d0a/crates/module-system/sov-test-utils/src/runtime/macros.rs#L103
-        #[cfg(feature = "sov-sdk-testing")]
-        utx_bytes.extend_from_slice(&[11; 32]);
-        #[cfg(not(feature = "sov-sdk-testing"))]
-        utx_bytes.extend_from_slice(&self.chain_hash);
+        if env::var("SOV_TEST_UTILS_FIXED_CHAIN_HASH").is_ok() {
+            utx_bytes.extend_from_slice(&[11; 32]);
+        } else {
+            utx_bytes.extend_from_slice(&self.chain_hash);
+        }
 
         let signature = self.crypto.sign(&utx_bytes);
 
