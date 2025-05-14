@@ -8,6 +8,11 @@ import { readYamlOrJson } from '../../utils/files.js';
 // Base chain config with common properties
 const BaseChainConfigSchema = z.object({
   bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
+  bridgeMinAcceptedAmount: z
+    .string()
+    .or(z.number())
+    .transform((val) => BigInt(val))
+    .optional(),
 });
 
 // Weighted strategy config schema

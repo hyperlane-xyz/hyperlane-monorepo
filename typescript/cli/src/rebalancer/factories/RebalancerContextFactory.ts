@@ -87,7 +87,10 @@ export class RebalancerContextFactory {
 
   public createExecutor(): IExecutor {
     return new Executor(
-      objMap(this.config.chains, (_, v) => v.bridge),
+      objMap(this.config.chains, (_, v) => ({
+        bridge: v.bridge,
+        minAcceptedAmount: v.bridgeMinAcceptedAmount,
+      })),
       this.config.rebalancerKey,
       this.warpCore,
       this.metadata,
