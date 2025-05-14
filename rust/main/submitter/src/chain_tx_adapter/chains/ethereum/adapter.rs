@@ -172,11 +172,11 @@ impl AdaptsChain for EthereumTxAdapter {
     async fn submit(&self, tx: &mut Transaction) -> Result<(), SubmitterError> {
         use super::transaction::Precursor;
 
-        info!(?tx, "submitting transaction");
-
         self.set_nonce_if_needed(tx).await?;
         self.set_gas_limit_if_needed(tx).await?;
         self.set_gas_price(tx).await?;
+
+        info!(?tx, "submitting transaction");
 
         let precursor = tx.precursor();
         let hash = self
