@@ -1,11 +1,11 @@
+import { utils } from 'ethers';
 import { Request, Response, Router } from 'express';
 
-import {
-  HyperlaneCore,
-  encodeIcaCalls,
-  normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+import { encodeIcaCalls, normalizeCalls } from '@hyperlane-xyz/sdk';
 import { commitmentFromIcaCalls } from '@hyperlane-xyz/sdk';
+
+import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
+import { createAbiHandler } from '../utils/abiHandler.js';
 
 interface StoredCommitment {
   calls: { to: string; data: string; value?: string }[];
@@ -33,22 +33,15 @@ export class CallCommitmentsService {
     res.sendStatus(200);
   }
 
-  public handleFetchCommitment(req: Request, res: Response) {
-    const { data } = req.body;
-    // strip selector + head
-    const messageHex = '0x' + data.slice(2 + 8 + 128);
-    const msg = HyperlaneCore.parseDispatchedMessage(messageHex);
-    const body = msg.parsed.body;
-    const key = '0x' + body.slice(68, 132);
-    const entry = this.callCommitments.get(key);
+  public async handleFetchCommitment(commitment: string) {
+    const entry = this.callCommitments.get(commitment);
     if (!entry) {
-      console.log('Commitment not found', key);
-      return res.status(404).json({ error: 'Commitment not found' });
+      console.log('Commitment not found', commitment);
+      throw new Error('Commitment not found');
     }
     const encoded = encodeIcaCalls(normalizeCalls(entry.calls), entry.salt);
-    console.log('Serving calls for commitment', key);
-    res.json({ data: encoded });
-    return;
+    console.log('Serving calls for commitment', commitment);
+    return Promise.resolve(encoded);
   }
 
   /**
@@ -56,6 +49,13 @@ export class CallCommitmentsService {
    */
   private registerRoutes(router: Router): void {
     router.post('/calls', this.handleCommitment.bind(this));
-    router.post('/getCallsFromCommitment', this.handleFetchCommitment.bind(this));
+    router.post(
+      '/getCallsFromCommitment',
+      createAbiHandler(
+        CallCommitmentsAbi,
+        'getCallsFromCommitment',
+        this.handleFetchCommitment.bind(this),
+      ),
+    );
   }
 }
