@@ -31,10 +31,15 @@ for (const name of getEnabledModules()) {
   console.log(`✅  Mounted '${name}' at '/${name}'`);
 }
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Log and handle undefined endpoints
 app.use((req, res) => {
   console.log(`Undefined request: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-app.listen(3000, () => console.log(`Listening on port ${3000}`));
+const serverPort = parseInt(process.env.SERVER_PORT ?? '3000');
+app.listen(serverPort, () => console.log(`Listening on port ${serverPort}`));
