@@ -41,8 +41,8 @@ pub struct PolymerProofProvider {
 impl Default for PolymerProofProvider {
     fn default() -> Self {
         Self {
-            api_token: "944738c1-7692-4da0-99c8-adbf878b3413".to_string(),
-            api_endpoint: "https://proof.testnet.polymer.zone".to_string(),
+            api_token: "b28a24ba-0cb7-4df0-ac9c-8e1430bc1360".to_string(),
+            api_endpoint: "https://proof.polymer.zone".to_string(),
             max_retries: 5,
         }
     }
