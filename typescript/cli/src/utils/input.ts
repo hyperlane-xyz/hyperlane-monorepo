@@ -175,6 +175,7 @@ export async function getWarpRouteIdFromWarpDeployConfig(
           throw Error(`Warp deploy config already exists for: ${warpRouteId}.`);
         }
 
+        // Will throw if incorrectly formatted
         const isIdCorrectFormat = !!BaseRegistry.warpDeployConfigToId(
           warpRouteDeployConfig,
           {
