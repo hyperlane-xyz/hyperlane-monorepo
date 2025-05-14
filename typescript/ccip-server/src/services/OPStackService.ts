@@ -79,6 +79,10 @@ class OPStackService {
       txHash,
     );
 
+    if (!receipt) {
+      throw new Error('Transaction not yet mined');
+    }
+
     return Promise.all([
       this.getWithdrawalTransactionFromReceipt(receipt),
       this.crossChainMessenger.getBedrockMessageProof(receipt),
