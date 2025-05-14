@@ -189,10 +189,10 @@ impl UniversalClient {
     ///
     /// Will panic if system time is before epoch
     #[must_use]
-    fn get_generation(&self) -> u64 {
+    fn get_generation(&self) -> u128 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
-            .as_secs()
+            .as_millis()
     }
 }
