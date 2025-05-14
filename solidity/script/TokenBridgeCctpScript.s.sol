@@ -102,10 +102,6 @@ contract TokenBridgeCctpScript is Script {
         tokenBridge.addDomain(hypDomain, cctpDomain);
     }
 
-    function _deployHook(address _igp) internal pure returns (address) {
-        return address(_igp);
-    }
-
     function deployOrigin(address vtbRemote) public {
         vm.startBroadcast();
         uint256 scale = 1;
@@ -141,10 +137,7 @@ contract TokenBridgeCctpScript is Script {
             revert UnsupportedVersion(version);
         }
 
-        address hook = _deployHook(igpOrigin);
-
         vtb.setUrls(urls);
-        vtb.setHook(hook);
         vtb.addDomain(destination, cctpDestination);
         vtb.setDestinationGas(destination, REMOTE_GAS_LIMIT);
         vtb.enrollRemoteRouter(destination, vtbRemote.addressToBytes32());
@@ -154,9 +147,6 @@ contract TokenBridgeCctpScript is Script {
 
     function deployDestination() public {
         vm.startBroadcast();
-
-        address hook = _deployHook(igpDestination);
-
         uint256 scale = 1;
         uint32 version = ITokenMessenger(tokenMessengerOrigin)
             .messageBodyVersion();
@@ -191,7 +181,6 @@ contract TokenBridgeCctpScript is Script {
         }
 
         vtb.setUrls(urls);
-        vtb.setHook(hook);
         vtb.addDomain(origin, cctpOrigin);
         vtb.setDestinationGas(origin, REMOTE_GAS_LIMIT);
 
