@@ -62,21 +62,23 @@ impl PolymerProofProvider {
         // Create the proof API client
         let client = reqwest::Client::new();
 
+        let request_json = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "polymer_requestProof",
+            "params": [{
+                "srcChainId": request.chain_id,
+                "srcBlockNumber": request.block_number,
+                "globalLogIndex": request.log_index
+            }]
+        });
+        tracing::info!(?request_json, "Sending proof request to Polymer");
+
         // Request the proof
         let response = client
             .post(&self.api_endpoint)
             .header("Authorization", format!("Bearer {}", self.api_token))
-            .json(&serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "log_requestProof",
-                "params": [
-                    request.chain_id,
-                    request.block_number,
-                    request.tx_index,
-                    request.log_index
-                ]
-            }))
+            .json(&request_json)
             .send()
             .await
             .wrap_err("log_requestProof")?;
@@ -100,7 +102,7 @@ impl PolymerProofProvider {
                 .json(&serde_json::json!({
                     "jsonrpc": "2.0",
                     "id": 1,
-                    "method": "log_queryProof",
+                    "method": "polymer_queryProof",
                     "params": [job_id]
                 }))
                 .send()
