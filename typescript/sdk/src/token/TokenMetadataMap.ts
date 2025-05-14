@@ -73,11 +73,11 @@ export class TokenMetadataMap {
     return undefined;
   }
 
-  getSymbol(chain: string): string | undefined {
+  getSymbol(chain: string): string {
     if (this.tokenMetadataMap[chain]) {
       return this.tokenMetadataMap[chain]?.symbol;
     }
-    return undefined;
+    return this.getDefaultSymbol();
   }
 
   getDefaultSymbol(): string {
