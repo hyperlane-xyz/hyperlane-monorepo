@@ -668,11 +668,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         weight: '75',
         tolerance: '0',
         bridge: ethers.constants.AddressZero,
+        bridgeTolerance: 1,
       },
       [CHAIN_NAME_3]: {
         weight: '25',
         tolerance: '0',
         bridge: bridgeContract.address,
+        bridgeTolerance: 1,
         bridgeMinAcceptedAmount: '5000000000000000001',
       },
     });
