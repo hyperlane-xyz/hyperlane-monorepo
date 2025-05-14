@@ -25,10 +25,11 @@ contract ValidatorAnnounce is MailboxClient, IValidatorAnnounce {
     // The set of validators that have announced
     EnumerableSet.AddressSet private validators;
     // Storage locations of validator signed checkpoints
-    mapping(address => string[]) private storageLocations;
+    mapping(address validator => string[] storageLocations)
+        private storageLocations;
     // Mapping to prevent the same announcement from being registered
     // multiple times.
-    mapping(bytes32 => bool) private replayProtection;
+    mapping(bytes32 replayID => bool isAnnounced) private replayProtection;
 
     // ============ Events ============
 

@@ -79,7 +79,6 @@ export class EvmCoreModule extends HyperlaneModule<
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,
         addresses: {
-          interchainAccountIsm: args.addresses.interchainAccountIsm,
           interchainAccountRouter: args.addresses.interchainAccountRouter,
         },
         config: args.config.interchainAccountRouter,
@@ -313,7 +312,7 @@ export class EvmCoreModule extends HyperlaneModule<
     });
 
     // Deploy ICA ISM and Router
-    const { interchainAccountRouter, interchainAccountIsm } = (
+    const { interchainAccountRouter } = (
       await EvmIcaModule.create({
         chain: chainName,
         multiProvider: multiProvider,
@@ -379,7 +378,6 @@ export class EvmCoreModule extends HyperlaneModule<
       proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
-      interchainAccountIsm,
       validatorAnnounce,
       timelockController,
       testRecipient,

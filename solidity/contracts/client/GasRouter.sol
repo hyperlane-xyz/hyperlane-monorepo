@@ -21,7 +21,7 @@ abstract contract GasRouter is Router {
     event GasSet(uint32 domain, uint256 gas);
 
     // ============ Mutable Storage ============
-    mapping(uint32 => uint256) public destinationGas;
+    mapping(uint32 destinationDomain => uint256 gasLimit) public destinationGas;
 
     struct GasRouterConfig {
         uint32 domain;

@@ -22,6 +22,12 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Router} from "../client/Router.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
+import {Mailbox} from "../Mailbox.sol";
+import {Message} from "../libs/Message.sol";
+import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -31,24 +37,24 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
  */
-contract InterchainAccountRouter is Router {
+contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     // ============ Libraries ============
 
     using TypeCasts for address;
     using TypeCasts for bytes32;
     using InterchainAccountMessage for bytes;
+    using Message for bytes;
+    using StandardHookMetadata for bytes;
 
     // ============ Constants ============
 
     address public immutable implementation;
     bytes32 public immutable bytecodeHash;
+    CommitmentReadIsm public immutable CCIP_READ_ISM;
+    uint public immutable COMMIT_TX_GAS_USAGE;
 
     // ============ Public Storage ============
-    mapping(uint32 => bytes32) public isms;
-    /// @notice A mapping of commitments to the ICA that should execute the revealed calldata
-    /// @dev The commitment is only stored if a `COMMITMENT` message was processed for it
-    mapping(bytes32 commitment => OwnableMulticall ICA)
-        public verifiedCommitments;
+    mapping(uint32 destinationDomain => bytes32 ism) public isms;
 
     // ============ Upgrade Gap ============
 
@@ -99,16 +105,19 @@ contract InterchainAccountRouter is Router {
     constructor(
         address _mailbox,
         address _hook,
-        address _interchainSecurityModule,
-        address _owner
+        address _owner,
+        uint _commit_tx_gas_usage
     ) Router(_mailbox) {
         setHook(_hook);
-        setInterchainSecurityModule(_interchainSecurityModule);
         _transferOwnership(_owner);
 
         bytes memory bytecode = _implementationBytecode(address(this));
         implementation = Create2.deploy(0, bytes32(0), bytecode);
         bytecodeHash = _proxyBytecodeHash(implementation);
+
+        CCIP_READ_ISM = new CommitmentReadIsm(Mailbox(_mailbox), _owner);
+        interchainSecurityModule = IInterchainSecurityModule(address(this));
+        COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
     }
 
     /**
@@ -285,29 +294,17 @@ contract InterchainAccountRouter is Router {
     ) external payable override onlyMailbox {
         InterchainAccountMessage.MessageType _messageType = _message
             .messageType();
-
-        bytes32 _commitment;
-        bytes32 _ism;
         if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
-            _commitment = InterchainAccountMessageReveal.commitment(_message);
-            _ism = InterchainAccountMessageReveal.ism(_message);
-
-            // If the message is a reveal, we don't do any derivation of the ica address
-            // The commitment should be executed in the `verify` method of the CCIP read ISM that verified this message
-            // so here we just check that commitment -> ICA association has been cleared
-            require(
-                verifiedCommitments[_commitment] ==
-                    OwnableMulticall(payable(address(0))),
-                "Commitment was not executed"
-            );
+            // If the message is a reveal,
+            // the commitment should have been executed in the `verify` method of the ISM
+            // that verified this message. The commitment is deleted in `revealAndExecute`.
+            // Simply return.
             return;
-        } else {
-            _commitment = _message.commitment();
-            _ism = _message.ism();
         }
 
         bytes32 _owner = _message.owner();
         bytes32 _salt = _message.salt();
+        bytes32 _ism = _message.ism();
 
         OwnableMulticall ica = getDeployedInterchainAccount(
             _origin,
@@ -322,8 +319,34 @@ contract InterchainAccountRouter is Router {
             ica.multicall{value: msg.value}(calls);
         } else {
             // This is definitely a message of type COMMITMENT
-            verifiedCommitments[_commitment] = ica;
+            require(
+                ica.commitment() == bytes32(0),
+                "ICA Router: Previous commitment pending execution"
+            );
+            bytes32 _commitment = _message.commitment();
+            ica.setCommitment(_commitment);
         }
+    }
+
+    function route(
+        bytes calldata _message
+    ) public view override returns (IInterchainSecurityModule) {
+        bytes calldata _body = _message.body();
+        InterchainAccountMessage.MessageType _messageType = _body.messageType();
+
+        // If the ISM is not set, we need to check if the message is a reveal
+        // If it is, we need to set the ISM to the CCIP read ISM
+        // Otherwise, we need to set the ISM to the default ISM
+        address _ism;
+        if (_messageType == InterchainAccountMessage.MessageType.REVEAL) {
+            _ism = InterchainAccountMessageReveal.ism(_body).bytes32ToAddress();
+            _ism = _ism == address(0) ? address(CCIP_READ_ISM) : _ism;
+        } else {
+            _ism = InterchainAccountMessage.ism(_body).bytes32ToAddress();
+            _ism = _ism == address(0) ? address(mailbox.defaultIsm()) : _ism;
+        }
+
+        return IInterchainSecurityModule(_ism);
     }
 
     /**
@@ -751,6 +774,23 @@ contract InterchainAccountRouter is Router {
             );
     }
 
+    /**
+     * @notice Dispatches a commitment and reveal message to the destination domain.
+     *  Useful for when we want to keep calldata secret (e.g. when executing a swap
+     * @dev The commitment message is dispatched first, followed by the reveal message.
+     * To find the calladata, the user must fetch the calldata from the url provided by the OffChainLookupIsm
+     * specified in the _ccipReadIsm parameter.
+     * The revealed calladata is executed by the `revealAndExecute` function, which will be called the OffChainLookupIsm in its `verify` function.
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @param _salt Salt which allows control over account derivation.
+     * @param _hook The hook to use after sending our message to the mailbox
+     * @param _commitment The commitment to dispatch
+     * @return _commitmentMsgId The Hyperlane message ID of the commitment message
+     * @return _revealMsgId The Hyperlane message ID of the reveal message
+     */
     function callRemoteCommitReveal(
         uint32 _destination,
         bytes32 _router,
@@ -773,21 +813,26 @@ contract InterchainAccountRouter is Router {
             _commitment: _commitment
         });
 
-        _commitmentMsgId = _dispatchMessageWithHook(
+        uint commitMsgValue = (msg.value * COMMIT_TX_GAS_USAGE) /
+            (_hookMetadata.gasLimit() + COMMIT_TX_GAS_USAGE);
+
+        _commitmentMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
             _ism,
             _commitmentMsg,
-            _hookMetadata,
-            _hook
+            StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
+            _hook,
+            commitMsgValue
         );
-        _revealMsgId = _dispatchMessageWithHook(
+        _revealMsgId = _dispatchMessageWithValue(
             _destination,
             _router,
             _ism,
             _revealMsg,
             _hookMetadata,
-            _hook
+            _hook,
+            msg.value - commitMsgValue
         );
     }
 
@@ -813,18 +858,29 @@ contract InterchainAccountRouter is Router {
             );
     }
 
-    /// @dev The calls represented by the commitment can only be executed once.
-    function revealAndExecute(
-        CallLib.Call[] calldata _calls,
-        bytes32 _salt
-    ) external payable {
-        bytes32 _givenCommitment = keccak256(abi.encode(_salt, _calls));
-        OwnableMulticall ica = verifiedCommitments[_givenCommitment];
+    function callRemoteCommitReveal(
+        uint32 _destination,
+        bytes32 _commitment,
+        uint _gasLimit
+    ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
+        bytes32 _router = routers(_destination);
+        bytes32 _ism = isms[_destination];
 
-        require(address(payable(ica)) != address(0), "Invalid Reveal");
+        bytes memory hookMetadata = StandardHookMetadata.overrideGasLimit(
+            _gasLimit
+        );
 
-        delete verifiedCommitments[_givenCommitment];
-        ica.multicall{value: msg.value}(_calls);
+        return
+            callRemoteCommitReveal(
+                _destination,
+                _router,
+                _ism,
+                bytes32(0),
+                hookMetadata,
+                hook,
+                InterchainAccountMessage.EMPTY_SALT,
+                _commitment
+            );
     }
 
     // ============ Internal Functions ============
@@ -967,13 +1023,38 @@ contract InterchainAccountRouter is Router {
         bytes memory _hookMetadata,
         IPostDispatchHook _hook
     ) private returns (bytes32) {
+        return
+            _dispatchMessageWithValue(
+                _destination,
+                _router,
+                _ism,
+                _body,
+                _hookMetadata,
+                _hook,
+                msg.value
+            );
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router using a `value` parameter for msg.value
+     * @param _value The amount to pass as `msg.value` to the mailbox.dispatch()
+     */
+    function _dispatchMessageWithValue(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _body,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook,
+        uint _value
+    ) private returns (bytes32) {
         require(
             _router != InterchainAccountMessage.EMPTY_SALT,
             "no router specified for destination"
         );
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
         return
-            mailbox.dispatch{value: msg.value}(
+            mailbox.dispatch{value: _value}(
                 _destination,
                 _router,
                 _body,
@@ -1048,6 +1129,24 @@ contract InterchainAccountRouter is Router {
                 _destination,
                 _messageBody,
                 StandardHookMetadata.overrideGasLimit(gasLimit),
+                address(hook)
+            );
+    }
+
+    /// @dev It would be nice if we could reuse the above function which takes in the message body, but
+    /// that function uses `bytes calldata` so we can't pass empty (in-memory) bytes to it. We can't use `this.quote()` either because
+    /// Mailbox._buildMessage() uses msg.sender.
+    function quoteGasForCommitReveal(
+        uint32 _destination,
+        uint256 gasLimit
+    ) external view returns (uint256 _gasPayment) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                bytes(""),
+                StandardHookMetadata.overrideGasLimit(
+                    gasLimit + COMMIT_TX_GAS_USAGE
+                ),
                 address(hook)
             );
     }

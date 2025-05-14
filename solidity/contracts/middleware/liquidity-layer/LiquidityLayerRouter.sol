@@ -16,7 +16,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
     using SafeERC20 for IERC20;
 
     // Token bridge => adapter address
-    mapping(string => address) public liquidityLayerAdapters;
+    mapping(string bridge => address adapter) public liquidityLayerAdapters;
 
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
