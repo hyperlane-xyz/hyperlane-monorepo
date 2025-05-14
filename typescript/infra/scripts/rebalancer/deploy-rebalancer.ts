@@ -40,7 +40,7 @@ async function validateRegistryCommit(commit: string) {
 }
 
 const REBALANCER_CONFIG_PATH_PREFIX =
-  'typescript/infra/config/environments/mainnet3/rebalancer/rebalancerConfigs';
+  'config/environments/mainnet3/rebalancer/rebalancerConfigs';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -66,20 +66,28 @@ async function main() {
   );
 
   const deployRebalancer = async (warpRouteId: string) => {
-    const rebalancerConfigPath = path.join(
+    // Build path for config file - relative for local checks
+    const configFileName = `${warpRouteId}-config.yaml`;
+    const relativeConfigPath = path.join(
       REBALANCER_CONFIG_PATH_PREFIX,
-      `${warpRouteId}-config.yaml`,
+      configFileName,
     );
 
+    const containerConfigPath = `/hyperlane-monorepo/typescript/infra/${relativeConfigPath}`;
+
+    // Create the helm manager with container path for deployment
     const helmManager = new RebalancerHelmManager(
       warpRouteId,
       environment,
       registryCommit,
-      rebalancerConfigPath,
+      containerConfigPath,
+      'weighted',
       true,
     );
-    await helmManager.runPreflightChecks();
-    // await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
+
+    await helmManager.runPreflightChecks(relativeConfigPath);
+
+    await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 
   // TODO: Uninstall any stale rebalancer releases.

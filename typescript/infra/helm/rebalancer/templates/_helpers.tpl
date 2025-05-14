@@ -82,12 +82,16 @@ The rebalancer container
   - "--warpRouteId"
   - {{ .Values.warpRouteId }}
   - "--checkFrequency"
-  - {{ .Values.checkFrequency }}
-  - "--rebalancerConfigFile"
-  - {{ .Values.rebalancerConfigFile }}
+  - "6000"
+  - "--configFile"
+  - "{{ .Values.hyperlane.rebalancerConfigFile }}"
   - "--key=$(REBALANCER_KEY)"
   - "--withMetrics"
-  - {{ .Values.withMetrics }}
+  - "true"
+  - "--rebalanceStrategy"
+  - "{{ .Values.hyperlane.rebalanceStrategy }}"
+  - "--registry"
+  - "/hyperlane-registry"
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
