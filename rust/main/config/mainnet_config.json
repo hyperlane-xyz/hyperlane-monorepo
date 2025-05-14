@@ -2784,7 +2784,7 @@
         }
       ],
       "mailbox": "0x398c4593aa381b615a9be19e014124508843cdfbd493e85b1e87c9d3b03f1935",
-      "recipient": "0xd3f8de8aa20986e465488501a1bcf5e08ecbc82198571207dcd4a25a20224fdc",
+      "recipient": "0xf652d9c6c8668815f20ce5a6fa57badf29c556827360d33bfad997eeb3e5d1ce",
       "interchainSecurityModule": "0xad7745fb172dabc76bc6a66759f6b1b8f11fce296da090c515314f5ba1480310",
       "merkleTreeHook": "0xf29426403beef5578d2568a764ea71eb3935af4479dc370424d7ca2694716a1e",
       "storageGasOracle": "0xcce6595d84de279bd716f3621f4580ee7315005149af715cd403a0bc5cbb69c2",
@@ -2793,7 +2793,7 @@
       "pausableIsm": "0x2b14d9dadbacb50a818994d85abc58b38ac5117d77b22d2ff1f8eeed09c5743f",
       "domainRoutingIsm": "0x380a2de687e8f9c70a5b76d54eda801db490a3710a189bb5a59a4e8a6b629743",
       "fallbackRoutingHook": "0x934eade81899d5628b15ce68c819933e0c2b4ace621d4545beaa1d70acb83b7d",
-      "testRecipient": "0xd3f8de8aa20986e465488501a1bcf5e08ecbc82198571207dcd4a25a20224fdc",
+      "testRecipient": "0xf652d9c6c8668815f20ce5a6fa57badf29c556827360d33bfad997eeb3e5d1ce",
       "validatorAnnounce": "0xd8648769380dcf4ebcbbc6b7254fe08cc90d91707e4aa1acd59fcdcb7b7c9019",
       "index": {
         "from": 21938092,
