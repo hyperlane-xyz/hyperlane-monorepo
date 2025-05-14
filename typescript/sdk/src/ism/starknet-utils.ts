@@ -1,3 +1,8 @@
+import {
+  ContractType,
+  StarknetContracts,
+} from '@hyperlane-xyz/starknet-contracts';
+
 import { IsmType, SupportedIsmTypesOnStarknetType } from './types.js';
 
 export const SupportedIsmTypesOnStarknet = [
@@ -12,7 +17,7 @@ export const SupportedIsmTypesOnStarknet = [
 
 export const StarknetIsmContractName: Record<
   SupportedIsmTypesOnStarknetType,
-  string
+  keyof StarknetContracts[ContractType.CONTRACT]
 > = {
   [IsmType.MESSAGE_ID_MULTISIG]: 'messageid_multisig_ism',
   [IsmType.MERKLE_ROOT_MULTISIG]: 'merkleroot_multisig_ism',

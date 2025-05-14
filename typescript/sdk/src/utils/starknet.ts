@@ -8,12 +8,17 @@ import {
   ParsedEvents,
   ParsedStruct,
   ProviderInterface,
+  TypedContractV2,
 } from 'starknet';
 
 import {
   ContractType,
+  StarknetContracts,
   getCompiledContract,
-} from '@hyperlane-xyz/starknet-core';
+  getContractAbi,
+  getMockAbi,
+  getTokenAbi,
+} from '@hyperlane-xyz/starknet-contracts';
 
 import { DispatchedMessage } from '../core/types.js';
 import { StarknetIsmContractName } from '../ism/starknet-utils.js';
@@ -75,20 +80,59 @@ export interface ByteData {
 /**
  * Creates a Starknet contract instance with the given parameters
  */
-export function getStarknetContract(
-  contractName: string,
+export function getStarknetContract<
+  Type extends keyof StarknetContracts[ContractType.CONTRACT],
+>(
+  contractName: Type,
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
-  contractType: ContractType = ContractType.CONTRACT,
-): Contract {
-  const { abi } = getCompiledContract(contractName, contractType);
-  return new Contract(abi, address, providerOrAccount);
+): TypedContractV2<
+  StarknetContracts[ContractType.CONTRACT][Type]['contract_abi']
+> {
+  const contract = getCompiledContract(contractName, ContractType.CONTRACT);
+  const abi = getContractAbi(contractName);
+
+  return new Contract(contract.abi, address, providerOrAccount).typedv2(abi);
+}
+
+/**
+ * Creates a Starknet contract instance with the given parameters
+ */
+export function getStarknetMockContract<
+  Type extends keyof StarknetContracts[ContractType.MOCK],
+>(
+  contractName: Type,
+  address: string,
+  providerOrAccount?: ProviderInterface | AccountInterface,
+): TypedContractV2<StarknetContracts[ContractType.MOCK][Type]['contract_abi']> {
+  const contract = getCompiledContract(contractName, ContractType.MOCK);
+  const abi = getMockAbi(contractName);
+
+  return new Contract(contract.abi, address, providerOrAccount).typedv2(abi);
+}
+
+/**
+ * Creates a Starknet contract instance with the given parameters
+ */
+export function getStarknetTokenContract<
+  Type extends keyof StarknetContracts[ContractType.TOKEN],
+>(
+  contractName: Type,
+  address: string,
+  providerOrAccount?: ProviderInterface | AccountInterface,
+): TypedContractV2<
+  StarknetContracts[ContractType.TOKEN][Type]['contract_abi']
+> {
+  const contract = getCompiledContract(contractName, ContractType.TOKEN);
+  const abi = getTokenAbi(contractName);
+
+  return new Contract(contract.abi, address, providerOrAccount).typedv2(abi);
 }
 
 export function getStarknetMailboxContract(
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
-): Contract {
+) {
   return getStarknetContract(
     StarknetContractName.MAILBOX,
     address,
@@ -99,36 +143,33 @@ export function getStarknetMailboxContract(
 export function getStarknetHypERC20Contract(
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
-): Contract {
-  return getStarknetContract(
+) {
+  return getStarknetTokenContract(
     StarknetContractName.HYP_ERC20,
     address,
     providerOrAccount,
-    ContractType.TOKEN,
   );
 }
 
 export function getStarknetHypERC20CollateralContract(
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
-): Contract {
-  return getStarknetContract(
+) {
+  return getStarknetTokenContract(
     StarknetContractName.HYP_ERC20_COLLATERAL,
     address,
     providerOrAccount,
-    ContractType.TOKEN,
   );
 }
 
 export function getStarknetHypNativeContract(
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
-): Contract {
-  return getStarknetContract(
+) {
+  return getStarknetTokenContract(
     StarknetContractName.HYP_NATIVE,
     address,
     providerOrAccount,
-    ContractType.TOKEN,
   );
 }
 
@@ -136,11 +177,10 @@ export function getStarknetEtherContract(
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
 ): Contract {
-  return getStarknetContract(
+  return getStarknetTokenContract(
     StarknetContractName.ETHER,
     address,
     providerOrAccount,
-    ContractType.TOKEN,
   );
 }
 
@@ -148,7 +188,7 @@ export function getStarknetIsmContract(
   starkIsmType: SupportedIsmTypesOnStarknetType,
   address: string,
   providerOrAccount?: ProviderInterface | AccountInterface,
-): Contract {
+) {
   return getStarknetContract(
     StarknetIsmContractName[starkIsmType],
     address,
