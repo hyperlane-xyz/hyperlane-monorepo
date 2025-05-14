@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, stringifyObject } from '@hyperlane-xyz/utils';
 
-import { errorRed, log, logDebug } from '../../logger.js';
+import { errorRed, log } from '../../logger.js';
 import { IExecutor } from '../interfaces/IExecutor.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -133,7 +133,7 @@ export class Executor implements IExecutor {
       transactions.map(async ({ signer, populatedTx }, i) => {
         try {
           await signer.estimateGas(populatedTx);
-          logDebug(`Gas estimation succeeded for route ${i}`);
+          log(`Gas estimation succeeded for route ${i}`);
         } catch (error) {
           log(`❌ Could not estimate gas for route`, routes[i]);
           throw error;
@@ -145,15 +145,15 @@ export class Executor implements IExecutor {
       throw new Error('❌ Could not estimate gas for some routes');
     }
 
-    logDebug('Sending transactions');
+    log('Sending transactions');
     const results = await Promise.allSettled(
       transactions.map(async ({ signer, populatedTx }, i) => {
-        logDebug(`Sending transaction for route ${i}`);
+        log(`Sending transaction for route ${i}`);
         try {
           const tx = await signer.sendTransaction(populatedTx);
           log(`Transaction sent: ${tx.hash}`);
           const receipt = await tx.wait();
-          logDebug(`Transaction confirmed: ${tx.hash}`);
+          log(`Transaction confirmed: ${tx.hash}`);
           return receipt;
         } catch (error) {
           errorRed(`Transaction failed for route ${i}: ${error}`);
