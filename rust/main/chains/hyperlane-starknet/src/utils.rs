@@ -31,15 +31,15 @@ use crate::{
 
 use crate::contracts::interchain_security_module::Bytes as IsmBytes;
 
-type TransactionReceiptResult = ChainResult<MaybePendingTransactionReceipt>;
-
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
     rpc: &Arc<AnyProvider>,
     transaction_hash: FieldElement,
-) -> TransactionReceiptResult {
+) -> ChainResult<TransactionReceipt> {
     // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 100ms
+    // and the sealing of the block, hence sleeping for 200ms
+    // transactions are first pending and then sealed
+    // we retry 8 times with a 200ms delay between each retry
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
@@ -47,14 +47,18 @@ pub async fn get_transaction_receipt(
                 let receipt = rpc
                     .get_transaction_receipt(transaction_hash)
                     .await
-                    .map_err(|_| {
-                        ChainCommunicationError::from_other_str("Failed to get transaction receipt")
-                    })?;
-                Ok(receipt)
+                    .map_err(HyperlaneStarknetError::from)?;
+
+                match receipt {
+                    MaybePendingTransactionReceipt::PendingReceipt(_) => {
+                        return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into())
+                    }
+                    MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
+                }
             })
         },
-        100,
-        Some(Duration::from_millis(100)),
+        8,
+        Some(Duration::from_millis(2000)),
     )
     .await
 }
@@ -274,9 +278,7 @@ pub async fn send_and_confirm(
     let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
 
     match receipt {
-        MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt)) => {
-            Ok(tx_receipt_to_outcome(receipt)?)
-        }
+        TransactionReceipt::Invoke(receipt) => Ok(tx_receipt_to_outcome(receipt)?),
         _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
     }
 }
