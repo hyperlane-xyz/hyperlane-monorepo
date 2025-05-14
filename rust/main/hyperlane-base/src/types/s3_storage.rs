@@ -280,11 +280,8 @@ impl CheckpointSyncer for S3Storage {
     }
 
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        self.anonymously_read_from_bucket(S3Storage::reorg_flag_key())
-            .await?
-            .map(|data| serde_json::from_slice(&data))
-            .transpose()
-            .map_err(Into::into)
+        // Return None
+        return Ok(None);
     }
 }
 
