@@ -55,7 +55,7 @@ contract OPL2ToL1CcipReadIsm is
         require(_urls.length > 0, "URLs array is empty");
         require(
             _opPortalVersion == OP_PORTAL_VERSION_1 ||
-                _opPortalVersion == OP_PORTAL_VERSION_1,
+                _opPortalVersion == OP_PORTAL_VERSION_2,
             "Unsupported OP portal version"
         );
         opPortalVersion = _opPortalVersion;
