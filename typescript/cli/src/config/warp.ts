@@ -285,12 +285,14 @@ export async function createWarpRouteDeployConfig({
       if (!context.skipConfirmation) {
         warpRouteId = await detectAndConfirmOrPrompt(
           async () =>
-            BaseRegistry.getWarpRouteId(warpRouteDeployConfig, { symbol }),
+            BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
+              symbol,
+            }),
           'Enter the desired',
           'warp route ID',
           'warp deployment config',
           (warpRouteId) =>
-            !!BaseRegistry.getWarpRouteId(warpRouteDeployConfig, {
+            !!BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
               warpRouteId,
             }),
         );
