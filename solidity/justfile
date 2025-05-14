@@ -19,6 +19,10 @@ default_fallback_routing_ism_addr_b3 := "0x201d9d1da9a31dd8966f54e3466f615b72e53
 default_fallback_routing_ism_addr_ape := "0xb9579911530c36165c9e3f09ed02af47763b4fbc"
 default_fallback_routing_ism_addr_everclear_staging := "0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
 default_fallback_routing_ism_addr_base := "0xd65edbd069ccc6342d0d5c23a2ee72c3237990db"
+default_mailbox_contract_addr_everclear_staging := "0x7f50C5776722630a0024fAE05fDe8b47571D7B39"
+default_mailbox_contract_addr_base := "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+domain_routing_mailbox_addr_everclear_staging := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
+domain_routing_mailbox_addr_base := "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d"
 simple_sender_receiver_addr_b3 := "0xf689811ed7fed46ae6ca9251d62d9d1cc528ba5a"
 simple_sender_receiver_addr_ape := "0x840e5aada7a7aab5f06c5d3152512a246792183f"
 
@@ -118,6 +122,20 @@ deploy-default-fallback-routing-ism-base:
         --broadcast \
         -vvvv
 
+deploy-domain-routing-mailbox-everclear-staging:
+    export DEFAULT_MAILBOX_ADDRESS="{{ default_mailbox_contract_addr_everclear_staging }}" && \
+    forge script script/DeployDomainRoutingMailbox.s.sol:DeployDomainRoutingMailbox \
+        --rpc-url "{{ rpc_endpoint_everclear_staging }}" \
+        --broadcast \
+        -vvvv
+
+deploy-domain-routing-mailbox-base:
+    export DEFAULT_MAILBOX_ADDRESS="{{ default_mailbox_contract_addr_base }}" && \
+    forge script script/DeployDomainRoutingMailbox.s.sol:DeployDomainRoutingMailbox \
+        --rpc-url "{{ rpc_endpoint_base }}" \
+        --broadcast \
+        -vvvv
+
 deploy-simple-app-b3:
     export MAILBOX_ADDRESS="{{ mailbox_contract_addr_b3 }}" && \
     export ISM_ADDRESS="{{ default_fallback_routing_ism_addr_b3 }}" && \
@@ -161,3 +179,4 @@ test-mailbox-contract-deployment-b3:
 test-mailbox-contract-deployment-ape:
     cast call "{{ mailbox_contract_addr_ape }}" "requiredHook()" --rpc-url "{{ rpc_endpoint_ape }}"
     cast call "{{ mailbox_contract_addr_ape }}" "nonce()" --rpc-url "{{ rpc_endpoint_ape }}"
+
