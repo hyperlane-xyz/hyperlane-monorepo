@@ -202,6 +202,14 @@
       },
       "overhead": 600000
     },
+    "soon": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "2855",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
@@ -251,6 +259,14 @@
         "tokenDecimals": 18
       },
       "overhead": 159736
+    },
+    "eclipsemainnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "2855",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
     }
   },
   "sonicsvm": {
