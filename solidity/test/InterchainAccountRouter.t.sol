@@ -877,6 +877,21 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(ica.commitment(), commitment);
     }
 
+    function _get_commitment(
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes32) {
+        return keccak256(abi.encodePacked(salt, abi.encode(calls)));
+    }
+
+    function _get_metadata(
+        OwnableMulticall _ica,
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes memory) {
+        return abi.encodePacked(_ica, salt, abi.encode(calls));
+    }
+
     function testFuzz_revealAndExecute(
         bytes32 data,
         uint256 value,
@@ -884,7 +899,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(salt, calls));
+        bytes32 commitment = _get_commitment(salt, calls);
         deal(address(ica), value); // Ensure ICA has enough balance to execute calls
 
         // Act
@@ -922,7 +937,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(salt, calls));
+        bytes32 commitment = _get_commitment(salt, calls);
         deal(address(ica), value); // Ensure ICA has enough balance to execute calls
 
         // Act
@@ -946,7 +961,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(destinationIcaRouter.mailbox())
         );
         bytes memory message = _mailbox.inboundMessages(1);
-        bytes memory metadata = abi.encode(ica, salt, calls);
+        bytes memory metadata = _get_metadata(ica, salt, calls);
         _mailbox.addInboundMetadata(1, metadata); // Metadata can fetched by other callers
         environment.processNextPendingMessage();
 
@@ -980,7 +995,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     ) public {
         // Arrange
         CallLib.Call[] memory calls = getCalls(data, value);
-        bytes32 commitment = keccak256(abi.encode(salt, calls));
+        bytes32 commitment = _get_commitment(salt, calls);
         deal(address(ica), value); // Ensure ICA has enough balance to execute calls
         // Act
         originIcaRouter.callRemoteCommitReveal(
@@ -1006,7 +1021,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(destinationIcaRouter.mailbox())
         );
         bytes memory message = _mailbox.inboundMessages(1);
-        bytes memory metadata = abi.encode(ica, salt, calls);
+        bytes memory metadata = _get_metadata(ica, salt, calls);
         CommitmentReadIsm _ism = destinationIcaRouter.CCIP_READ_ISM();
         vm.expectRevert("ICA: Invalid Reveal");
         _ism.process(metadata, message);

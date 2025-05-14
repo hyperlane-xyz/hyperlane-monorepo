@@ -47,7 +47,9 @@ contract OwnableMulticall {
         bytes32 salt
     ) external payable returns (bytes32 executedCommitment) {
         // Check if metadata matches stored commitment (checks)
-        bytes32 revealedHash = keccak256(abi.encode(salt, calls));
+        bytes32 revealedHash = keccak256(
+            abi.encodePacked(salt, abi.encode(calls))
+        );
         require(commitment == revealedHash, "ICA: Invalid Reveal");
 
         // Delete the commitment (effects)

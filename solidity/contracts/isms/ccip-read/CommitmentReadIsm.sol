@@ -62,12 +62,19 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
-        // Fetch encoded calls and salt
-        (OwnableMulticall ica, bytes32 salt, CallLib.Call[] memory calls) = abi
-            .decode(_metadata, (OwnableMulticall, bytes32, CallLib.Call[]));
+        // Fetch encoded ica, salt, and calls
+        address _ica = address(bytes20(_metadata[:20]));
+        OwnableMulticall ica = OwnableMulticall(payable(_ica));
+
+        bytes32 salt = bytes32(_metadata[20:52]);
+
+        CallLib.Call[] memory calls = abi.decode(
+            _metadata[52:],
+            (CallLib.Call[])
+        );
 
         // This is hash(salt, calls). The ica address is excluded
-        bytes32 revealedHash = keccak256(abi.encode(salt, calls));
+        bytes32 revealedHash = keccak256(_metadata[20:]);
         bytes32 msgCommitment = _message.body().commitment();
         require(
             revealedHash == msgCommitment,
