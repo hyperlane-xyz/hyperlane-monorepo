@@ -10,7 +10,6 @@ export class TokenMetadataMap {
     this.tokenMetadataMap = map;
     this.orderedChains = orderedChains;
 
-    // TODO: Check if decimals (and scale?) need to stay optional in the schema
     assert(
       Object.values(this.tokenMetadataMap).every((config) => !!config.decimals),
       'All decimals must be defined',

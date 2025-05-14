@@ -138,6 +138,82 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ).to.be.true;
     });
 
+    it(`should exit early when the provided scale is incorrect`, async function () {
+      const tokenFiat = await deployToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        9,
+        'TOKEN.E',
+        'FIAT TOKEN',
+      );
+      const token = await deployToken(
+        ANVIL_KEY,
+        CHAIN_NAME_3,
+        18,
+        'TOKEN',
+        'TOKEN',
+      );
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateralFiat,
+          token: tokenFiat.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          decimals: 9,
+          scale: 1,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+          decimals: 18,
+          scale: 5,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      // Deploy
+      const output = hyperlaneWarpDeployRaw({
+        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions
+      expect(finalOutput.exitCode).to.equal(1);
+
+      expect(
+        finalOutput
+          .text()
+          .includes(
+            `Failed to derive token metadata Error: Scale is not correct for ${CHAIN_NAME_3}`,
+          ),
+      ).to.be.true;
+    });
+
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
       const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
 
