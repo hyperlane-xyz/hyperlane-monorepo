@@ -874,7 +874,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // assert
         // ICA router should have the commitment
-        assertEq(ica.commitment(), commitment);
+        assertEq(ica.commitments(commitment), true);
     }
 
     function _get_commitment(
@@ -916,14 +916,14 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         environment.processNextPendingMessage();
 
         // ICA router should have the commitment after commit message
-        assertEq(ica.commitment(), commitment);
+        assertEq(ica.commitments(commitment), true);
 
         // Manually process the reveal
         bytes32 executedCommitment = ica.revealAndExecute(calls, salt);
 
         // Commitment should be cleared
         assertEq(executedCommitment, commitment);
-        assertEq(ica.commitment(), bytes32(0));
+        assertEq(ica.commitments(commitment), false);
 
         // Cannot reveal twice
         vm.expectRevert("ICA: Invalid Reveal");
@@ -954,7 +954,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         environment.processNextPendingMessage();
 
         // ICA router should have the commitment after commit message
-        assertEq(ica.commitment(), commitment);
+        assertEq(ica.commitments(commitment), true);
 
         // Process reveal message
         MockMailbox _mailbox = MockMailbox(
@@ -966,7 +966,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         environment.processNextPendingMessage();
 
         // Commitment should be cleared
-        assertEq(ica.commitment(), bytes32(0));
+        assertEq(ica.commitments(commitment), false);
     }
 
     function testFuzz_readIsm_verify_reverts_two_reveals(
@@ -1054,7 +1054,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // Assert
         // ICA router should have the commitment
-        assertEq(ica.commitment(), commitment);
+        assertEq(ica.commitments(commitment), true);
     }
 
     function testFuzz_quoteGasForCommitReveal(bytes32 commitment) public {

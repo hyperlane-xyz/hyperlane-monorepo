@@ -55,7 +55,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
     /**
      * @notice Verifies the commitment by comparing the calldata hash to the commitment
      * @param _metadata The encoded (ica, salt, calls)
-     * @param _message The reveal hyperlane message
+     * @param _message The reveal Hyperlane message
      * @return true If the hash of the metadata matches the commitment.
      */
     function verify(
