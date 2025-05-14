@@ -17,7 +17,7 @@ class CCTPService {
 
   constructor() {
     this.hyperlaneService = new HyperlaneService(
-      process.env.HYPERLANE_EXPLORER_URL!,
+      process.env.HYPERLANE_EXPLORER_API!,
     );
     this.cctpAttestationService = new CCTPAttestationService(
       process.env.CCTP_ATTESTATION_API!,
@@ -32,7 +32,7 @@ class CCTPService {
       '/getProofs/:sender/:callData.json',
       createAbiHandler(
         CCTPServiceAbi,
-        'getProofs',
+        'getCCTPAttestation',
         this.getCCTPAttestation.bind(this),
       ),
     );
@@ -42,7 +42,7 @@ class CCTPService {
       '/getProofs',
       createAbiHandler(
         CCTPServiceAbi,
-        'getProofs',
+        'getCCTPAttestation',
         this.getCCTPAttestation.bind(this),
       ),
     );
