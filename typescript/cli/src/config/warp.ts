@@ -1,6 +1,7 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
+import { BaseRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   DeployedOwnableConfig,
@@ -278,11 +279,31 @@ export async function createWarpRouteDeployConfig({
         tokenMetadata?.symbol,
         'Error deriving token metadata, please check the provided token addresses',
       );
+
+      const symbol = tokenMetadata.symbol;
+      let warpRouteId;
+      if (!context.skipConfirmation) {
+        warpRouteId = await detectAndConfirmOrPrompt(
+          async () =>
+            BaseRegistry.getWarpRouteId(warpRouteDeployConfig, { symbol }),
+          'Enter the desired',
+          'warp route ID',
+          'warp deployment config',
+          (warpRouteId) =>
+            !!BaseRegistry.getWarpRouteId(warpRouteDeployConfig, {
+              warpRouteId,
+            }),
+        );
+      }
+
       await context.registry.addWarpRouteConfig(warpRouteDeployConfig, {
-        symbol: tokenMetadata.symbol,
+        symbol,
+        warpRouteId,
       });
+      logGreen(
+        `✅ Successfully created new warp route deployment config with warp route id: ${warpRouteId}`,
+      );
     }
-    logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,
