@@ -1,6 +1,8 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
 
+import { parseMessage } from '@hyperlane-xyz/utils';
+
 import { CCTPServiceAbi } from '../abis/CCTPServiceAbi.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
 
@@ -12,7 +14,7 @@ class CCTPService {
   // External Services
   hyperlaneService: HyperlaneService;
   cctpAttestationService: CCTPAttestationService;
-  rpcService: RPCService;
+  rpcServices: { [key: number]: RPCService };
   public readonly router: Router;
 
   constructor() {
@@ -23,7 +25,11 @@ class CCTPService {
       process.env.CCTP_ATTESTATION_API!,
     );
     // TODO: fetch this from a configured MultiProvider from IRegistry
-    this.rpcService = new RPCService(process.env.RPC_URL!);
+    const rpc_list = JSON.parse(process.env.RPC_LIST ?? '{}');
+    this.rpcServices = {};
+    Object.entries(rpc_list).forEach(([key, value]) => {
+      this.rpcServices[Number(key)] = new RPCService(String(value));
+    });
 
     this.router = Router();
 
@@ -82,9 +88,17 @@ class CCTPService {
     }
 
     console.info('Found tx @', txHash);
+    const parsedMessage = parseMessage(message);
+    if (!(parsedMessage.origin in this.rpcServices)) {
+      throw new Error(
+        `No RPC prodiver registered for origin: ${parsedMessage.origin}`,
+      );
+    }
 
     const receipt =
-      await this.rpcService.provider.getTransactionReceipt(txHash);
+      await this.rpcServices[
+        parsedMessage.origin
+      ].provider.getTransactionReceipt(txHash);
 
     const cctpMessage = await this.getCCTPMessageFromReceipt(receipt);
 
