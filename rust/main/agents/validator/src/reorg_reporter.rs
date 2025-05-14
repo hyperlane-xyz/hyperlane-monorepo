@@ -1,9 +1,12 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use tracing::info;
 use url::Url;
 
 use hyperlane_base::settings::ChainConnectionConf;
 use hyperlane_base::CoreMetrics;
+use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{HyperlaneDomain, MerkleTreeHook};
 use hyperlane_ethereum::RpcConnectionConf;
 
@@ -11,10 +14,27 @@ use crate::settings::ValidatorSettings;
 
 #[derive(Debug)]
 pub struct ReorgReporter {
-    hooks: HashMap<Url, Box<dyn MerkleTreeHook>>,
+    hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
+    reorg_period: hyperlane_core::ReorgPeriod,
 }
 
 impl ReorgReporter {
+    pub async fn report(&self) {
+        for (url, merkle_tree_hook) in &self.hooks {
+            let latest_checkpoint = call_and_retry_indefinitely(|| {
+                let merkle_tree_hook = merkle_tree_hook.clone();
+                let reorg_period = self.reorg_period.clone();
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
+            })
+            .await;
+
+            info!(
+                "Latest checkpoint on reorg for {}: {:?}",
+                url, latest_checkpoint
+            );
+        }
+    }
+
     pub(crate) async fn from_settings(
         settings: &ValidatorSettings,
         metrics: &CoreMetrics,
@@ -27,10 +47,13 @@ impl ReorgReporter {
                 .build_merkle_tree_hook(&settings.origin_chain, metrics)
                 .await?;
 
-            hooks.insert(url, merkle_tree_hook);
+            hooks.insert(url, merkle_tree_hook.into());
         }
 
-        let reporter = ReorgReporter { hooks };
+        let reporter = ReorgReporter {
+            hooks,
+            reorg_period: settings.reorg_period.clone(),
+        };
 
         Ok(reporter)
     }

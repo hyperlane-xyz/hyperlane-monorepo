@@ -240,6 +240,8 @@ impl ValidatorSubmitter {
                 "Incorrect tree root, something went wrong"
             );
 
+            self.reorg_reporter.report().await;
+
             let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
