@@ -19,7 +19,12 @@ import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
+import { BaseRegistry } from '@hyperlane-xyz/registry';
+import {
+  ChainName,
+  DeployedOwnableConfig,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -133,6 +138,32 @@ export async function setProxyAdminConfig(
       `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
     );
   }
+}
+
+export async function getWarpRouteIdFromWarpDeployConfig(
+  warpRouteDeployConfig: WarpRouteDeployConfig,
+  symbol: string,
+): Promise<string> {
+  return detectAndConfirmOrPrompt(
+    async () =>
+      BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
+        symbol,
+      }),
+    'Enter the desired',
+    'warp route ID',
+    'warp deployment config',
+    (warpRouteId) => {
+      try {
+        return !!BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
+          warpRouteId,
+        });
+
+        // TODO: Need to also check if warp route id exists
+      } catch (e) {
+        return (e as Error).toString();
+      }
+    },
+  );
 }
 
 /**

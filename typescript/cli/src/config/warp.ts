@@ -1,7 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
-import { BaseRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   DeployedOwnableConfig,
@@ -30,6 +29,7 @@ import {
 } from '../utils/files.js';
 import {
   detectAndConfirmOrPrompt,
+  getWarpRouteIdFromWarpDeployConfig,
   setProxyAdminConfig,
 } from '../utils/input.js';
 import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
@@ -283,18 +283,9 @@ export async function createWarpRouteDeployConfig({
       const symbol = tokenMetadata.symbol;
       let warpRouteId;
       if (!context.skipConfirmation) {
-        warpRouteId = await detectAndConfirmOrPrompt(
-          async () =>
-            BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
-              symbol,
-            }),
-          'Enter the desired',
-          'warp route ID',
-          'warp deployment config',
-          (warpRouteId) =>
-            !!BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
-              warpRouteId,
-            }),
+        warpRouteId = await getWarpRouteIdFromWarpDeployConfig(
+          warpRouteDeployConfig,
+          symbol,
         );
       }
 
