@@ -84,6 +84,9 @@ export class HyperlaneRouterChecker<
 
     const actualIsmAddress = await router.interchainSecurityModule();
 
+    // If the router is its own ism (e.g. the ICA router, skip checking configs)
+    if (actualIsmAddress == router.address) return;
+
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
