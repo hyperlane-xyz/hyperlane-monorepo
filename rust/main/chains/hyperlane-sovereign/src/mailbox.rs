@@ -13,6 +13,7 @@ use hyperlane_core::{
 };
 use serde::Deserialize;
 use std::fmt::Debug;
+use tracing::instrument;
 
 /// Struct that retrieves event data for a Sovereign Mailbox contract
 #[derive(Debug, Clone)]
@@ -178,6 +179,8 @@ impl Mailbox for SovereignMailbox {
         Ok(recipient)
     }
 
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[instrument(ret, err, skip_all, fields(message_id = ?message.id()))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
