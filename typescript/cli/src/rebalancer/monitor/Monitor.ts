@@ -1,11 +1,11 @@
-import { logger } from 'ethers';
 import EventEmitter from 'events';
 
-import { Token, WarpCore } from '@hyperlane-xyz/sdk';
+import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
+import { log, logDebug, warnYellow } from '../../logger.js';
 import { WrappedError } from '../../utils/errors.js';
-import { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
+import type { IMonitor, MonitorEvent } from '../interfaces/IMonitor.js';
 
 export class MonitorStartError extends WrappedError {
   name = 'MonitorStartError';
@@ -51,15 +51,18 @@ export class Monitor implements IMonitor {
 
     try {
       this.isMonitorRunning = true;
+      logDebug(`Monitor started, polling every ${this.checkFrequency} ms...`);
       this.emitter.emit('start');
 
       while (this.isMonitorRunning) {
         try {
+          logDebug('Polling cycle started');
           const event: MonitorEvent = {
             tokensInfo: [],
           };
 
           for (const token of this.warpCore.tokens) {
+            logDebug(`Checking token: ${token.chainName}`);
             const bridgedSupply = await this.getTokenBridgedSupply(token);
 
             event.tokensInfo.push({
@@ -70,6 +73,7 @@ export class Monitor implements IMonitor {
 
           // Emit the event warp routes info
           this.emitter.emit('tokeninfo', event);
+          logDebug('Polling cycle completed');
         } catch (e) {
           this.emitter.emit(
             'error',
@@ -98,9 +102,8 @@ export class Monitor implements IMonitor {
     token: Token,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
-      logger.warn(
-        'Cannot get bridged balance for a non-Hyperlane token',
-        token,
+      warnYellow(
+        `Cannot get bridged balance for a non-Hyperlane token: ${token.chainName}`,
       );
       return;
     }
@@ -109,7 +112,7 @@ export class Monitor implements IMonitor {
     const bridgedSupply = await adapter.getBridgedSupply();
 
     if (bridgedSupply === undefined) {
-      logger.warn('Bridged supply not found for token', token);
+      warnYellow(`Bridged supply not found for token: ${token.chainName}`);
     }
 
     return bridgedSupply;
@@ -117,6 +120,7 @@ export class Monitor implements IMonitor {
 
   stop() {
     this.isMonitorRunning = false;
+    log('Monitor stopped');
     this.emitter.removeAllListeners();
   }
 }

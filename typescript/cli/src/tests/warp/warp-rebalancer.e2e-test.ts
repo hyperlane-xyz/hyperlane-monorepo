@@ -364,7 +364,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `monitorOnly mode enabled, skipping rebalancing`,
+      `Running in monitorOnly mode: no transactions will be executed.`,
     );
   });
 
