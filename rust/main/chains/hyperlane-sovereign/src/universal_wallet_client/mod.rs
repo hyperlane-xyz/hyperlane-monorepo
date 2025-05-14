@@ -132,6 +132,11 @@ impl UniversalClient {
     }
 
     async fn serialise_tx(&self, tx_json: &Value) -> Result<String> {
+        let tx_json = json!({
+            "versioned_tx": {
+                "V0": tx_json
+            }
+        });
         let schema = Self::fetch_schema(&self.api_url, &self.http_client).await?;
         let tx_index = schema.rollup_expected_index(RollupRoots::Transaction)?;
         let tx_bytes = schema.json_to_borsh(tx_index, &tx_json.to_string())?;
