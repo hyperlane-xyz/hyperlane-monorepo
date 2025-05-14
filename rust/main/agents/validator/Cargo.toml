@@ -42,8 +42,10 @@ hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 rusoto_core = '*'
 
 [dev-dependencies]
+http-body-util.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
+tower.workspace = true
 reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true

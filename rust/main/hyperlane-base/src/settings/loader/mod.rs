@@ -22,6 +22,9 @@ where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,
 {
+    let now = chrono::Utc::now();
+    println!("Loading settings: {:?}", now);
+
     let root_path = ConfigPath::default();
 
     let mut base_config_sources = vec![];
@@ -128,5 +131,9 @@ where
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
     }
+
+    let now = chrono::Utc::now();
+    println!("Loaded settings: {:?}", now);
+
     res
 }

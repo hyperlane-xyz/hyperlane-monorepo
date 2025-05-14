@@ -542,10 +542,10 @@ impl BaseAgent for Relayer {
 
         // run server
         start_entity_init = Instant::now();
-        let custom_routes = relayer_server::Server::new(self.destination_chains.len())
+        let relayer_router = relayer_server::Server::new(self.destination_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
-            .routes();
+            .router();
         let server = self
             .core
             .settings
@@ -553,7 +553,7 @@ impl BaseAgent for Relayer {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_routes(custom_routes);
+                server.run_with_custom_router(relayer_router);
             }
             .instrument(info_span!("Relayer server")),
         );

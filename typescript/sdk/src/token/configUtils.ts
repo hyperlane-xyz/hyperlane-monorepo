@@ -5,7 +5,10 @@ import {
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  intersection,
   isAddressEvm,
+  isCosmosIbcDenomAddress,
+  objFilter,
   objMap,
   promiseObjAll,
   sortArraysInObject,
@@ -79,10 +82,16 @@ export function getRouterAddressesFromWarpCoreConfig(
   warpCoreConfig: WarpCoreConfig,
 ): ChainMap<Address> {
   return Object.fromEntries(
-    warpCoreConfig.tokens.map((token) => [
-      token.chainName,
-      token.addressOrDenom,
-    ]),
+    warpCoreConfig.tokens
+      // Removing IBC denom addresses because they are on the same
+      // chain as the actual warp token but they are only used
+      // used to pay the IGP hook
+      .filter(
+        (token) =>
+          token.addressOrDenom &&
+          !isCosmosIbcDenomAddress(token.addressOrDenom),
+      )
+      .map((token) => [token.chainName, token.addressOrDenom]),
   ) as ChainMap<Address>;
 }
 
@@ -162,6 +171,21 @@ export async function expandWarpDeployConfig(params: {
       );
 
       chainConfig.remoteRouters = formattedRemoteRouters;
+
+      const remoteGasDomainsToKeep = intersection(
+        new Set(Object.keys(chainConfig.destinationGas ?? {})),
+        new Set(Object.keys(formattedRemoteRouters)),
+      );
+
+      // If the deploy config specified a custom config for remote routers
+      // we should not have all the gas settings set
+      const formattedDestinationGas = objFilter(
+        chainConfig.destinationGas ?? {},
+        (domainId, _gasSetting): _gasSetting is string =>
+          remoteGasDomainsToKeep.has(domainId),
+      );
+
+      chainConfig.destinationGas = formattedDestinationGas;
 
       const isEVMChain =
         multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
@@ -283,6 +307,11 @@ const FIELDS_TO_IGNORE = new Set<keyof HypTokenRouterConfig>([
   // expanding the config based on the gas value for each chain
   // see `expandWarpDeployConfig` function
   'gas',
+  // Removing symbol and token metadata as they are not critical for
+  // checking, even if they are set "incorrectly" they do not affect how
+  // the warp route works
+  'symbol',
+  'name',
 ]);
 
 /**
