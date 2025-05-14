@@ -19,7 +19,7 @@ import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { BaseRegistry } from '@hyperlane-xyz/registry';
+import { BaseRegistry, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainName,
   DeployedOwnableConfig,
@@ -141,6 +141,7 @@ export async function setProxyAdminConfig(
 }
 
 export async function getWarpRouteIdFromWarpDeployConfig(
+  registry: IRegistry,
   warpRouteDeployConfig: WarpRouteDeployConfig,
   symbol: string,
 ): Promise<string> {
@@ -152,13 +153,17 @@ export async function getWarpRouteIdFromWarpDeployConfig(
     'Enter the desired',
     'warp route ID',
     'warp deployment config',
-    (warpRouteId) => {
+    async (warpRouteId) => {
       try {
+        const existingWarpDeployConfig =
+          await registry.getWarpDeployConfig(warpRouteId);
+        if (existingWarpDeployConfig) {
+          throw Error(`Warp deploy config already exists for: ${warpRouteId}.`);
+        }
+
         return !!BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
           warpRouteId,
         });
-
-        // TODO: Need to also check if warp route id exists
       } catch (e) {
         return (e as Error).toString();
       }

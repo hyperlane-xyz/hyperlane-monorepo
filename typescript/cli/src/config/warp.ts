@@ -284,6 +284,7 @@ export async function createWarpRouteDeployConfig({
       let warpRouteId;
       if (!context.skipConfirmation) {
         warpRouteId = await getWarpRouteIdFromWarpDeployConfig(
+          context.registry,
           warpRouteDeployConfig,
           symbol,
         );
