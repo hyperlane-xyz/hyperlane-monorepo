@@ -1,16 +1,16 @@
 import { Request, Response, Router } from 'express';
 
-import {
-  HyperlaneCore,
-  encodeIcaCalls,
-  normalizeCalls,
-} from '@hyperlane-xyz/sdk';
+import { encodeIcaCalls, normalizeCalls } from '@hyperlane-xyz/sdk';
 import { commitmentFromIcaCalls } from '@hyperlane-xyz/sdk';
+
+import { CallCommitmentsAbi } from '../abis/CallCommitmentsAbi.js';
+import { createAbiHandler } from '../utils/abiHandler.js';
 
 interface StoredCommitment {
   calls: { to: string; data: string; value?: string }[];
   salt: string;
   relayers: string[];
+  ica: string;
 }
 
 // TODO: Authenticate relayer
@@ -26,29 +26,26 @@ export class CallCommitmentsService {
   }
 
   public handleCommitment(req: Request, res: Response) {
-    const { calls, relayers, salt } = req.body;
-    const key = commitmentFromIcaCalls(calls, salt);
-    this.callCommitments.set(key, { calls, relayers, salt });
+    const { calls, relayers, salt, ica } = req.body;
+    const key = commitmentFromIcaCalls(calls, salt, ica);
+    this.callCommitments.set(key, { calls, relayers, salt, ica });
     console.log('Stored commitment', key);
     res.sendStatus(200);
   }
 
-  public handleFetchCommitment(req: Request, res: Response) {
-    const { data } = req.body;
-    // strip selector + head
-    const messageHex = '0x' + data.slice(2 + 8 + 128);
-    const msg = HyperlaneCore.parseDispatchedMessage(messageHex);
-    const body = msg.parsed.body;
-    const key = '0x' + body.slice(68, 132);
-    const entry = this.callCommitments.get(key);
+  public async handleFetchCommitment(commitment: string) {
+    const entry = this.callCommitments.get(commitment);
     if (!entry) {
-      console.log('Commitment not found', key);
-      return res.status(404).json({ error: 'Commitment not found' });
+      console.log('Commitment not found', commitment);
+      throw new Error('Commitment not found');
     }
-    const encoded = encodeIcaCalls(normalizeCalls(entry.calls), entry.salt);
-    console.log('Serving calls for commitment', key);
-    res.json({ data: encoded });
-    return;
+    const encoded = encodeIcaCalls(
+      normalizeCalls(entry.calls),
+      entry.salt,
+      entry.ica,
+    );
+    console.log('Serving calls for commitment', commitment);
+    return Promise.resolve(encoded);
   }
 
   /**
@@ -56,6 +53,14 @@ export class CallCommitmentsService {
    */
   private registerRoutes(router: Router): void {
     router.post('/calls', this.handleCommitment.bind(this));
-    router.post('/getCallsFromCommitment', this.handleFetchCommitment.bind(this));
+    router.post(
+      '/getCallsFromCommitment',
+      createAbiHandler(
+        CallCommitmentsAbi,
+        'getCallsFromCommitment',
+        this.handleFetchCommitment.bind(this),
+        true, // Skip ABI encoding of the result
+      ),
+    );
   }
 }

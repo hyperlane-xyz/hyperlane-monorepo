@@ -55,7 +55,7 @@ class CCTPService {
     throw new Error('Unable to find MessageSent event in logs');
   }
 
-  async getCCTPAttestation([message]: ethers.utils.Result) {
+  async getCCTPAttestation(message: string) {
     const messageId: string = ethers.utils.keccak256(message);
     const txHash =
       await this.hyperlaneService.getOriginTransactionHashByMessageId(
