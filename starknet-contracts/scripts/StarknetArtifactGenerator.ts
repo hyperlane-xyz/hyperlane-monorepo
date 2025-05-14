@@ -7,7 +7,10 @@ import { CONTRACT_SUFFIXES } from '../src/const.js';
 import { ContractClass, ContractType } from '../src/types.js';
 
 import { Templates } from './Templates.js';
-import { prettierOutputTransformer } from './prettier.js';
+import {
+  prettierFileTransformer,
+  prettierOutputTransformer,
+} from './prettier.js';
 
 type ProcessedFileInfo = { type: ContractType; sierra: boolean; casm: boolean };
 type ProcessedFilesMap = Map<string, ProcessedFileInfo>;
@@ -170,12 +173,11 @@ export class StarknetArtifactGenerator {
         .replace(`.${ContractClass.SIERRA}`, '')
         .replace(`.${ContractClass.CASM}`, '');
 
-      console.log(
-        `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
-      );
       execSync(
         `npx abi-wan-kanabi --input ${filePath} --output ${this.rootOutputDir}${name}_abi.ts`,
       );
+
+      await prettierFileTransformer(`${this.rootOutputDir}${name}_abi.ts`);
     }
   }
 
