@@ -9575,6 +9575,11 @@
           "http": "https://rpc.kyve.network"
         }
       ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "kyve",
+        "type": "cosmosKey"
+      },
       "slip44": 118,
       "technicalStack": "other",
       "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000002",
