@@ -892,6 +892,21 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         return abi.encodePacked(_ica, salt, abi.encode(calls));
     }
 
+    function _get_commitment(
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes32) {
+        return keccak256(abi.encodePacked(salt, abi.encode(calls)));
+    }
+
+    function _get_metadata(
+        OwnableMulticall _ica,
+        bytes32 salt,
+        CallLib.Call[] memory calls
+    ) internal returns (bytes memory) {
+        return abi.encodePacked(_ica, salt, abi.encode(calls));
+    }
+
     function testFuzz_revealAndExecute(
         bytes32 data,
         uint256 value,
@@ -1087,5 +1102,21 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             originIcaRouter.CCIP_READ_ISM().owner(),
             originIcaRouter.owner()
         );
+    }
+
+    function testFuzz_revert_commitTwice(bytes32 commitment) public {
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        vm.startPrank(address(destinationIcaRouter));
+        ica.setCommitment(commitment);
+
+        vm.expectRevert("ICA: Previous commitment pending execution");
+        ica.setCommitment(commitment);
     }
 }
