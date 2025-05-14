@@ -62,6 +62,14 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
         bytes calldata _metadata,
         bytes calldata _message
     ) external returns (bool) {
+        // This is hash(salt, calls). The ica address is excluded
+        bytes32 revealedHash = keccak256(_metadata[20:]);
+        bytes32 msgCommitment = _message.body().commitment();
+        require(
+            revealedHash == msgCommitment,
+            "Commitment ISM: Revealed Hash Invalid"
+        );
+
         // Fetch encoded ica, salt, and calls
         address _ica = address(bytes20(_metadata[:20]));
         OwnableMulticall ica = OwnableMulticall(payable(_ica));
@@ -73,15 +81,7 @@ contract CommitmentReadIsm is AbstractCcipReadIsm, Ownable {
             (CallLib.Call[])
         );
 
-        // This is hash(salt, calls). The ica address is excluded
-        bytes32 revealedHash = keccak256(_metadata[20:]);
-        bytes32 msgCommitment = _message.body().commitment();
-        require(
-            revealedHash == msgCommitment,
-            "Commitment ISM: Revealed Hash Invalid"
-        );
-
-        // The ica will check if the commitment is currently active, reverting if not.
+        // The ica will check if the commitment is pending execution, reverting if not.
         ica.revealAndExecute(calls, salt);
 
         return true;
