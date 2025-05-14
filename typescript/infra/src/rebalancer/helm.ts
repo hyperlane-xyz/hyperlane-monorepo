@@ -19,12 +19,13 @@ export class RebalancerHelmManager extends HelmManager {
     public environment: DeployEnvironment,
     public registryCommit: string,
     public rebalancerConfigFile: string,
+    public rebalanceStrategy: string,
     public withMetrics: boolean,
   ) {
     super();
   }
 
-  async runPreflightChecks() {
+  async runPreflightChecks(localConfigPath: string) {
     const warpCoreConfig = getWarpCoreConfig(this.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
@@ -32,10 +33,10 @@ export class RebalancerHelmManager extends HelmManager {
       );
     }
 
-    // check if we can read a file at the rebalancer config file path
-    if (!fs.existsSync(this.rebalancerConfigFile)) {
+    const rebalancerConfigFile = path.join(getInfraPath(), localConfigPath);
+    if (!fs.existsSync(rebalancerConfigFile)) {
       throw new Error(
-        `Rebalancer config file not found: ${this.rebalancerConfigFile}`,
+        `Rebalancer config file not found: ${rebalancerConfigFile}`,
       );
     }
   }
@@ -48,15 +49,17 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: 'ad6f664-20250401-202427',
+        tag: '9ce6d42-20250514-112050',
       },
-      ConfigFile: this.rebalancerConfigFile,
       warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       environment: this.environment,
       hyperlane: {
         registryCommit: this.registryCommit,
+        rebalancerConfigFile: this.rebalancerConfigFile,
+        withMetrics: this.withMetrics,
+        rebalanceStrategy: this.rebalanceStrategy,
       },
     };
   }
