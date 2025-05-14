@@ -87,7 +87,7 @@ describe('sortNestedArrays', () => {
       arrays: [
         { path: 'level1.items', sortKey: 'id' },
         { path: 'level1.categories', sortKey: 'code' },
-        { path: 'level1.categories.*.items', sortKey: 'priority' },
+        { path: 'level1.categories[].items', sortKey: 'priority' },
       ],
     };
 
@@ -137,7 +137,7 @@ describe('sortNestedArrays', () => {
     const config: ArraySortConfig = {
       arrays: [
         { path: 'users', sortKey: 'name' },
-        { path: 'users.*.tasks', sortKey: 'id' },
+        { path: 'users[].tasks', sortKey: 'id' },
       ],
     };
 
@@ -192,6 +192,180 @@ describe('sortNestedArrays', () => {
     expect(result.otherItems[0].id).to.equal(3);
     expect(result.otherItems[1].id).to.equal(1);
     expect(result.otherItems[2].id).to.equal(2);
+  });
+
+  it('should demonstrate difference between [] and * notations', () => {
+    const dataWithArray = {
+      root: {
+        categories: [
+          {
+            name: 'c',
+            items: [
+              {
+                age: 20,
+                name: 'c2',
+              },
+              {
+                age: 10,
+                name: 'c1',
+              },
+            ],
+          },
+          {
+            name: 'a',
+            items: [
+              {
+                age: 5,
+                name: 'a2',
+              },
+              {
+                age: 15,
+                name: 'a1',
+              },
+            ],
+          },
+          {
+            name: 'b',
+            items: [
+              {
+                age: 30,
+                name: 'b2',
+              },
+              {
+                age: 25,
+                name: 'b1',
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const dataWithObject = {
+      root: {
+        categories: {
+          first: {
+            name: 'c',
+            items: [
+              {
+                age: 20,
+                name: 'c2',
+              },
+              {
+                age: 10,
+                name: 'c1',
+              },
+            ],
+          },
+          second: {
+            name: 'a',
+            items: [
+              {
+                age: 5,
+                name: 'a2',
+              },
+              {
+                age: 15,
+                name: 'a1',
+              },
+            ],
+          },
+          third: {
+            name: 'b',
+            items: [
+              {
+                age: 30,
+                name: 'b2',
+              },
+              {
+                age: 25,
+                name: 'b1',
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    // Using [] notation only matches array structures
+    const arrayOnlyConfig: ArraySortConfig = {
+      arrays: [{ path: 'root.categories[].items', sortKey: 'age' }],
+    };
+
+    // With * notation, both array and object children are matched
+    const wildcardConfig: ArraySortConfig = {
+      arrays: [{ path: 'root.categories.*.items', sortKey: 'name' }],
+    };
+
+    const resultArrayNotationWithArray = sortNestedArrays(
+      dataWithArray,
+      arrayOnlyConfig,
+    );
+
+    expect(resultArrayNotationWithArray.root.categories[0].items).to.deep.equal(
+      [
+        { age: 10, name: 'c1' },
+        { age: 20, name: 'c2' },
+      ],
+    );
+    expect(resultArrayNotationWithArray.root.categories[1].items).to.deep.equal(
+      [
+        { age: 5, name: 'a2' },
+        { age: 15, name: 'a1' },
+      ],
+    );
+
+    const resultArrayNotationWithObject = sortNestedArrays(
+      dataWithObject,
+      arrayOnlyConfig,
+    );
+
+    expect(
+      resultArrayNotationWithObject.root.categories.first.items,
+    ).to.deep.equal([
+      { age: 20, name: 'c2' },
+      { age: 10, name: 'c1' },
+    ]);
+
+    const resultWildcardWithArray = sortNestedArrays(
+      dataWithArray,
+      wildcardConfig,
+    );
+
+    expect(resultWildcardWithArray.root.categories[0].items).to.deep.equal([
+      { age: 10, name: 'c1' },
+      { age: 20, name: 'c2' },
+    ]);
+
+    const resultWildcardWithObject = sortNestedArrays(
+      dataWithObject,
+      wildcardConfig,
+    );
+
+    expect(resultWildcardWithObject.root.categories.first.items).to.deep.equal([
+      { age: 10, name: 'c1' },
+      { age: 20, name: 'c2' },
+    ]);
+    expect(resultWildcardWithObject.root.categories.second.items).to.deep.equal(
+      [
+        { age: 15, name: 'a1' },
+        { age: 5, name: 'a2' },
+      ],
+    );
+
+    const hybridConfig: ArraySortConfig = {
+      arrays: [
+        { path: 'root.categories[].items', sortKey: 'age' },
+        { path: 'root.categories.*.items', sortKey: 'name' },
+      ],
+    };
+
+    const resultHybrid = sortNestedArrays(dataWithObject, hybridConfig);
+
+    expect(resultHybrid.root.categories.first.items).to.deep.equal([
+      { age: 10, name: 'c1' },
+      { age: 20, name: 'c2' },
+    ]);
   });
 });
 
