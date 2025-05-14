@@ -4,9 +4,10 @@ image:
 hyperlane:
   runEnv: mainnet3
   context: hyperlane
-  registryCommit:
-  rebalancerConfigPath:
+  registryCommit: ''
+  rebalancerConfigFile: ''
   withMetrics: true
+  rebalanceStrategy: ''
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:
