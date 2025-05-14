@@ -8005,6 +8005,25 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/starknet-contracts@workspace:starknet-contracts":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/starknet-contracts@workspace:starknet-contracts"
+  dependencies:
+    "@eslint/js": "npm:^9.15.0"
+    "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
+    "@typescript-eslint/parser": "npm:^8.1.6"
+    eslint: "npm:^9.15.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-import-resolver-typescript: "npm:^3.6.3"
+    eslint-plugin-import: "npm:^2.31.0"
+    globby: "npm:^14.1.0"
+    prettier: "npm:^3.5.3"
+    starknet: "npm:^6.24.1"
+    tsx: "npm:^4.19.1"
+    typescript: "npm:5.3.3"
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/starknet-core@npm:1.0.0, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
