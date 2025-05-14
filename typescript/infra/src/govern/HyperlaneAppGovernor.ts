@@ -371,12 +371,12 @@ export abstract class HyperlaneAppGovernor<
     let accountConfig = this.interchainAccount.knownAccounts[account.address];
     if (
       account.address === regularIcas[chain as keyof typeof regularIcas] ||
-      account.address === awSafes[chain as keyof typeof awSafes]
+      account.address === awIcas[chain as keyof typeof awIcas]
     ) {
       const origin = 'ethereum';
       accountConfig = {
         origin,
-        owner: regularSafes[origin] || awSafes[origin],
+        owner: regularIcas[origin] || awIcas[origin],
       };
     }
 

@@ -648,7 +648,6 @@ export {
   HypTokenRouterVirtualConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigMailboxRequiredSchema,
-  WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   XERC20LimitConfig,
   XERC20TokenMetadata,

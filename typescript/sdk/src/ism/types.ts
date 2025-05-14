@@ -86,7 +86,6 @@ export const STATIC_ISM_TYPES = [
   IsmType.MESSAGE_ID_MULTISIG,
   IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
   IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
-  IsmType.ICA_ROUTING,
 ];
 
 // mapping between the two enums
