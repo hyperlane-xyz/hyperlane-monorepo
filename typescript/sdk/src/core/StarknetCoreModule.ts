@@ -6,12 +6,13 @@ import {
   Domain,
   ProtocolType,
   assert,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactionsStarknet } from '../contracts/contracts.js';
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
-import { HookConfig, HookType } from '../hook/types.js';
+import { HookType } from '../hook/types.js';
 import { StarknetIsmModule } from '../ism/StarknetIsmModule.js';
 import { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -70,8 +71,9 @@ export class StarknetCoreModule {
    * Reads the core configuration from the mailbox address
    * @returns The core config.
    */
-  public async read(mailbox: string): Promise<DerivedCoreConfig> {
-    return this.coreReader.deriveCoreConfig(mailbox);
+  public async read(): Promise<DerivedCoreConfig> {
+    assert(this.args, 'StarknetCoreModule must be initialized with args');
+    return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
   public async readOwner(mailbox: string): Promise<string> {
@@ -249,7 +251,17 @@ export class StarknetCoreModule {
   async update(
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedStarknetTransaction[]> {
-    return [];
+    assert(this.args, 'StarknetCoreModule must be initialized with args');
+
+    const actualConfig = await this.read();
+
+    const transactions: AnnotatedStarknetTransaction[] = [];
+    transactions.push(
+      ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
+      ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+    );
+    return transactions;
   }
 
   protected async createDefaultIsmUpdateTxs(
@@ -257,67 +269,59 @@ export class StarknetCoreModule {
     expectedConfig: CoreConfig,
   ): Promise<StarknetJsTransaction['transaction'][]> {
     assert(this.args, 'StarknetCoreModule must be initialized with args');
-    const preparedCalls: StarknetJsTransaction['transaction'][] = [];
+
+    const updateTransactions: StarknetJsTransaction['transaction'][] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
-    const targetIsmAddress = await this.deployer.deployIsm({
-      chain: this.chainName,
-      ismConfig: expectedConfig.defaultIsm,
-      mailbox: this.args.addresses.mailbox,
-    });
+    const { deployedIsm, ismUpdateTxs } = await this.deployOrUpdateIsm(
+      actualDefaultIsmConfig,
+      expectedConfig.defaultIsm,
+    );
 
-    const newIsmDifferent =
-      actualDefaultIsmConfig.address.toLowerCase() !==
-      targetIsmAddress.toLowerCase();
+    if (ismUpdateTxs.length) {
+      updateTransactions.push(...ismUpdateTxs);
+    }
 
-    if (newIsmDifferent) {
-      this.logger.info(
-        `Default ISM on Mailbox ${this.args.addresses.mailbox} (chain ${this.chainName}) will be updated from ${actualDefaultIsmConfig.address} to ${targetIsmAddress}.`,
-      );
-      preparedCalls.push({
+    const newIsmDeployed = !eqAddress(
+      actualDefaultIsmConfig.address,
+      deployedIsm,
+    );
+
+    if (newIsmDeployed) {
+      updateTransactions.push({
         contractAddress: this.args.addresses.mailbox,
         entrypoint: 'set_default_ism',
-        calldata: [targetIsmAddress],
+        calldata: [deployedIsm],
       });
-    } else {
-      this.logger.info(
-        `Default ISM ${targetIsmAddress} on Mailbox ${this.args.addresses.mailbox} (chain ${this.chainName}) is already set. No update needed.`,
-      );
     }
-    return preparedCalls;
+    return updateTransactions;
   }
 
   protected async createDefaultHookUpdateTxs(
-    currentDefaultHookAddress: string,
-    expectedDefaultHookConfig: HookConfig,
-    ownerForHook: string,
+    actualConfig: DerivedCoreConfig,
+    expectedConfig: CoreConfig,
   ): Promise<StarknetJsTransaction['transaction'][]> {
     assert(this.args, 'StarknetCoreModule must be initialized with args');
 
     const preparedCalls: StarknetJsTransaction['transaction'][] = [];
     this.logger.debug(
-      `Preparing default Hook update for Mailbox ${this.args.addresses.mailbox} on chain ${this.chainName}. Current Hook: ${currentDefaultHookAddress}`,
+      `Preparing default Hook update for Mailbox ${this.args.addresses.mailbox} on chain ${this.chainName}. Current Hook: ${actualConfig.defaultHook}`,
     );
 
     const targetHookAddress = await this.deployer.deployHook(
       this.chainName,
-      expectedDefaultHookConfig,
+      expectedConfig.defaultHook,
       this.args.addresses.mailbox,
-      ownerForHook,
+      expectedConfig.owner,
     );
     this.logger.info(
       `Target Hook address for Mailbox ${this.args.addresses.mailbox} on chain ${this.chainName} determined as: ${targetHookAddress}`,
     );
 
-    const newHookDifferent =
-      currentDefaultHookAddress.toLowerCase() !==
-      targetHookAddress.toLowerCase();
+    const newHookDifferent = actualConfig.defaultHook !== targetHookAddress;
 
     if (newHookDifferent) {
-      this.logger.info(
-        `Default Hook on Mailbox ${this.args.addresses.mailbox} (chain ${this.chainName}) will be updated from ${currentDefaultHookAddress} to ${targetHookAddress}.`,
-      );
       preparedCalls.push({
         contractAddress: this.args.addresses.mailbox,
         entrypoint: 'set_default_hook',

@@ -11,7 +11,6 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
   StarknetCoreModule,
-  getStarknetMailboxContract,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -162,16 +161,14 @@ export async function runCoreApply(params: ApplyParams) {
       account,
       multiProtocolProvider!,
       chain,
+      {
+        addresses: deployedCoreAddresses,
+        config,
+        chain,
+      },
     );
 
-    const mailboxContract = getStarknetMailboxContract(
-      deployedCoreAddresses.mailbox,
-      account,
-    );
-    const result = await starknetCoreModule.updateCoreDeploy(
-      config,
-      mailboxContract.address,
-    );
+    const result = await starknetCoreModule.update(config);
 
     logGreen(`Core config updated on ${chain} with result: ${result}`);
     return;
