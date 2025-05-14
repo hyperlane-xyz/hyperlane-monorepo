@@ -25,9 +25,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
 import { regularIcas } from '../../config/environments/mainnet3/governance/ica/regular.js';
-import { awSafes } from '../../config/environments/mainnet3/governance/safe/aw.js';
-import { regularSafes } from '../../config/environments/mainnet3/governance/safe/regular.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { GovernanceType, determineGovernanceType } from '../governance.js';
 
