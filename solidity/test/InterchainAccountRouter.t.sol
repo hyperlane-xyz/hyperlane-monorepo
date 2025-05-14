@@ -1088,4 +1088,20 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             originIcaRouter.owner()
         );
     }
+
+    function testFuzz_revert_commitTwice(bytes32 commitment) public {
+        // We need to deploy the ica here, since it's usually lazy deployed in `handle`, but handle is never called.
+        ica = destinationIcaRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originIcaRouter),
+            address(environment.isms(destination))
+        );
+
+        vm.startPrank(address(destinationIcaRouter));
+        ica.setCommitment(commitment);
+
+        vm.expectRevert("ICA: Previous commitment pending execution");
+        ica.setCommitment(commitment);
+    }
 }
