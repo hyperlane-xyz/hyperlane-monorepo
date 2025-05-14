@@ -1,0 +1,56 @@
+{
+  "chains": {
+    "starknettest23448593": {
+      "name": "starknettest23448593",
+      "domainId": 23448593,
+      "metricsPort": 9090,
+      "mailbox": "0x04bbb95de270cbd6b8ba15b69a6e476a9467b6f4f08304fbf85c90261c53c388",
+      "interchainGasPaymaster": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+      "validatorAnnounce": "0x06e4fc2172b31bdd7daf0305d37fd7878a123cfa607d7910fa6d096afaab6a1a",
+      "merkleTreeHook": "0x01303dc8d13bf6769320f390cc2406b066400cc859a2f57a6096de3953037f37",
+      "protocol": "starknet",
+      "rpcUrls": [
+        {
+          "http": "http://0.0.0.0:5050"
+        }
+      ],
+      "signer": {
+        "type": "starkKey",
+        "key": "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9",
+        "address": "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691",
+        "version": "1"
+      },
+      "index": {
+        "from": 1,
+        "chunk": 100
+      },
+      "contractAddressBytes": 32
+    },
+    "starknettest23448594": {
+      "name": "starknettest23448594",
+      "domainId": 23448594,
+      "metricsPort": 9091,
+      "mailbox": "0x00ff148488ba118d552deaab02ab6f5a21158b504580f2ddc4f498fb98716103",
+      "interchainGasPaymaster": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+      "validatorAnnounce": "0x027c94d43c4ac91e8bc7f67ce4d85b9bfd8e5d101b50c8842042559b69235da6",
+      "merkleTreeHook": "0x04c54df867a216e4ae3d08ce18cc546f53f1a87a2f76d65bea3be011e83cbac8",
+      "protocol": "starknet",
+      "rpcUrls": [
+        {
+          "http": "http://0.0.0.0:5070"
+        }
+      ],
+      "signer": {
+        "type": "starkKey",
+        "key": "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9",
+        "address": "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691",
+        "version": "1"
+      },
+      "index": {
+        "from": 1,
+        "chunk": 100
+      },
+      "contractAddressBytes": 32
+    }
+  }
+}

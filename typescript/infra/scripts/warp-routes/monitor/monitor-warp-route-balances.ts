@@ -1,7 +1,6 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -90,6 +89,7 @@ async function main() {
     warpCore,
     warpDeployConfig,
     chainMetadata,
+    warpRouteId,
   );
 }
 
@@ -99,12 +99,12 @@ async function pollAndUpdateWarpRouteMetrics(
   warpCore: WarpCore,
   warpDeployConfig: WarpRouteDeployConfig | null,
   chainMetadata: ChainMap<ChainMetadata>,
+  warpRouteId: string,
 ) {
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
     apiKey: await getCoinGeckoApiKey(),
   });
-  const collateralTokenSymbol = getWarpRouteCollateralTokenSymbol(warpCore);
 
   while (true) {
     await tryFn(async () => {
@@ -115,7 +115,7 @@ async function pollAndUpdateWarpRouteMetrics(
             warpDeployConfig,
             token,
             tokenPriceGetter,
-            collateralTokenSymbol,
+            warpRouteId,
           ),
         ),
       );
@@ -130,7 +130,7 @@ async function updateTokenMetrics(
   warpDeployConfig: WarpRouteDeployConfig | null,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-  collateralTokenSymbol: string,
+  warpRouteId: string,
 ) {
   const promises = [
     tryFn(async () => {
@@ -142,12 +142,7 @@ async function updateTokenMetrics(
       if (!balanceInfo) {
         return;
       }
-      updateTokenBalanceMetrics(
-        warpCore,
-        token,
-        balanceInfo,
-        collateralTokenSymbol,
-      );
+      updateTokenBalanceMetrics(warpCore, token, balanceInfo, warpRouteId);
     }, 'Getting bridged balance and value'),
   ];
 
@@ -158,7 +153,11 @@ async function updateTokenMetrics(
   if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
     promises.push(
       tryFn(async () => {
-        const balance = await getSealevelAtaPayerBalance(warpCore, token);
+        const balance = await getSealevelAtaPayerBalance(
+          warpCore,
+          token,
+          warpRouteId,
+        );
         updateNativeWalletBalanceMetrics(balance);
       }, 'Getting ATA payer balance'),
     );
@@ -238,7 +237,7 @@ async function updateTokenMetrics(
               tokenAddress,
               lockbox.lockbox,
               balance,
-              collateralTokenSymbol,
+              warpRouteId,
             );
           }
         }, `Updating extra lockbox balance for contract at "${lockbox.lockbox}" on chain ${token.chainName}`),
@@ -329,6 +328,7 @@ function formatBigInt(warpToken: Token, num: bigint): number {
 async function getSealevelAtaPayerBalance(
   warpCore: WarpCore,
   token: Token,
+  warpRouteId: string,
 ): Promise<NativeWalletBalance> {
   if (token.protocol !== ProtocolType.Sealevel || token.isNative()) {
     throw new Error(
@@ -346,11 +346,6 @@ async function getSealevelAtaPayerBalance(
   const ataPayerBalance = await nativeToken.getBalance(
     warpCore.multiProvider,
     ataPayer,
-  );
-
-  const warpRouteId = createWarpRouteConfigId(
-    token.symbol,
-    warpCore.getTokenChains(),
   );
   return {
     chain: token.chainName,

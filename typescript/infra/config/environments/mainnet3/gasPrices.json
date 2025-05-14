@@ -259,6 +259,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "kyve": {
+    "amount": "3.0",
+    "decimals": 1
+  },
   "linea": {
     "amount": "0.332044669",
     "decimals": 9
@@ -309,6 +313,10 @@
   },
   "mint": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "miraclechain": {
+    "amount": "0.01",
     "decimals": 9
   },
   "mode": {
@@ -490,6 +498,10 @@
   "superpositionmainnet": {
     "amount": "0.2",
     "decimals": 9
+  },
+  "svmbnb": {
+    "amount": "0.0000001",
+    "decimals": 1
   },
   "swell": {
     "amount": "0.001000251",

@@ -232,4 +232,8 @@ impl Mailbox for StarknetMailbox {
         // TODO: Revisit with new submitter changes
         Ok(Vec::new())
     }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        todo!()
+    }
 }

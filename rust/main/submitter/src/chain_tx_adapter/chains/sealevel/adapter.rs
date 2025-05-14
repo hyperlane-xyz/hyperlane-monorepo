@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use eyre::{bail, eyre, ContextCompat, Report};
+use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
@@ -266,9 +266,7 @@ impl SealevelTxAdapter {
             }
             Err(err) => {
                 warn!(?err, "Failed to get transaction status by hash");
-                return Err(SubmitterError::TxSubmissionError(
-                    "Transaction hash not found".to_string(),
-                ));
+                return Err(SubmitterError::TxHashNotFound(err.to_string()));
             }
         }
     }
@@ -378,40 +376,11 @@ impl AdaptsChain for SealevelTxAdapter {
         Ok(())
     }
 
-    #[instrument(skip(self))]
-    async fn tx_status(&self, tx: &Transaction) -> Result<TransactionStatus, SubmitterError> {
-        info!(?tx, "checking status of transaction");
-
-        if tx.tx_hashes.is_empty() {
-            return Ok(TransactionStatus::PendingInclusion);
-        }
-
-        let hash_status_futures = tx
-            .tx_hashes
-            .iter()
-            .map(|tx_hash| self.get_tx_hash_status(*tx_hash))
-            .collect::<Vec<_>>();
-        // this may lead to rate limiting if too many hashes build up. Consider querying from most recent to oldest
-        let hash_status_results = join_all(hash_status_futures).await;
-        Ok(TransactionStatus::classify_tx_status_from_hash_statuses(
-            hash_status_results,
-        ))
-    }
-
-    async fn reverted_payloads(
-        &self,
-        _tx: &Transaction,
-    ) -> Result<Vec<PayloadDetails>, SubmitterError> {
-        // Dummy implementation of reverted payloads for Sealevel since we don't have batching for Sealevel
-        Ok(Vec::new())
-    }
-
-    fn estimated_block_time(&self) -> &Duration {
-        &self.estimated_block_time
-    }
-
-    fn max_batch_size(&self) -> u32 {
-        self.max_batch_size
+    async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, SubmitterError> {
+        info!(?hash, "getting transaction hash status");
+        let status = self.get_tx_hash_status(hash).await?;
+        info!(?hash, ?status, "got transaction hash status");
+        Ok(status)
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
@@ -421,6 +390,14 @@ impl AdaptsChain for SealevelTxAdapter {
             return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
         }
         true
+    }
+
+    fn estimated_block_time(&self) -> &Duration {
+        &self.estimated_block_time
+    }
+
+    fn max_batch_size(&self) -> u32 {
+        self.max_batch_size
     }
 }
 

@@ -115,6 +115,10 @@ impl Mailbox for MockMailboxContract {
         Ok(self.process_calldata(message, metadata))
     }
 
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         self.process_batch(ops)
     }
