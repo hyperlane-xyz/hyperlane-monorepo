@@ -10,7 +10,7 @@
           "http": "https://rpc.everclear.raas.gelato.cloud"
         }
       ],
-      "mailbox": "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d",
+      "mailbox": "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
         "from": 1357190
@@ -30,7 +30,7 @@
           "http": "https://mainnet.base.org"
         }
       ],
-      "mailbox": "0x46cb3da13fd222887ef869e2db5ab73c854fcf0d",
+      "mailbox": "0xd84ab43d7f2f99339657e4bfae3c955be8d3099c",
       "interchainGasPaymaster": "0x6f9d29675969421713cdcab0af161e5e4973ec63",
       "index": {
          "from": 30200414
